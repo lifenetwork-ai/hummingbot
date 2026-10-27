@@ -11,6 +11,7 @@ does not certify a later image. Operational guides and plans live in [docs/](../
 | [E0 service availability](life-mm-e0-availability.md) | Failure isolation, task supervision, recovery and switch/checkpoint regression evidence |
 | [E1 strict quote guards](life-mm-e1-quote-guards.md) | Target-market qualification, manual ranges, own-order bounds and recovery verification |
 | [E2a managed drawdown](life-mm-e2a-drawdown.md) | Covered V2 report limits, durable peaks, retained-market valuation and position-preserving HALT |
+| [E6 final verification](life-mm-e6-verification.md) | Final image matrix, measured fixes, all-feature load/soak and Demo scope; see current status |
 | [E5 fee/NATR spreads](life-mm-e5-spread-policy.md) | Completed candles, fee-aware prices, rounding and seven-second outage recovery |
 | [E4 history and liquidity](life-mm-e4-history-liquidity.md) | Atomic event/state updates, bounded APIs, sampled counters and constant queries |
 | [E3 spot inventory skew](life-mm-e3-inventory-skew.md) | Original PMM interpolation, cash-only sizing, bounded allocations and local verification |

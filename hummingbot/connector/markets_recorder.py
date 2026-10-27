@@ -214,18 +214,25 @@ class MarketsRecorder:
             self._market_data_collection_task.cancel()
 
     def store_or_update_executor(self, executor):
+        self.store_or_update_executors([executor])
+
+    def store_or_update_executors(self, executors):
+        """Persist a shutdown group with one lookup and fenced transaction."""
+        values = [(executor.config.id, json.loads(executor.executor_info.model_dump_json())) for executor in executors]
+        if not values:
+            return
         with self._sql_manager.get_new_session() as session:
-            existing_executor = session.query(Executors).filter(Executors.id == executor.config.id).one_or_none()
-            serialized_config = executor.executor_info.model_dump_json()
-            executor_dict = json.loads(serialized_config)
-            if existing_executor:
-                # Update existing executor
-                for attr, value in executor_dict.items():
-                    setattr(existing_executor, attr, value)
-            else:
-                # Insert new executor
-                new_executor = Executors(**executor_dict)
-                session.add(new_executor)
+            existing = {row.id: row for row in session.query(Executors).filter(
+                Executors.id.in_([identity for identity, _ in values])).all()}
+            for identity, data in values:
+                row = existing.get(identity)
+                if row is None:
+                    row = Executors(**data)
+                    session.add(row)
+                    existing[identity] = row
+                else:
+                    for attr, value in data.items():
+                        setattr(row, attr, value)
             session.commit()
 
     def store_position(self, position: Position):
@@ -397,13 +404,17 @@ class MarketsRecorder:
                 raise RuntimeError("Client order identity already exists; reconcile instead of resubmitting.")
             timestamp = int(order.creation_timestamp * 1000)
             price = order.price if order.price is not None and order.price.is_finite() else Decimal("0")
-            session.add(Order(id=order.client_order_id, config_file_path=self._config_file_path,
-                              strategy=self._strategy_name, market=market.display_name, symbol=order.trading_pair,
-                              base_asset=base, quote_asset=quote, creation_timestamp=timestamp,
-                              order_type=order.order_type.name, amount=order.amount, price=price,
-                              leverage=order.leverage or 1, position=order.position.value,
-                              last_status="Pending" + order.trade_type.name.title(),
-                              last_update_timestamp=timestamp, creation_pending=True))
+            record = Order(id=order.client_order_id, config_file_path=self._config_file_path,
+                           strategy=self._strategy_name, market=market.display_name, symbol=order.trading_pair,
+                           base_asset=base, quote_asset=quote, creation_timestamp=timestamp,
+                           order_type=order.order_type.name, amount=order.amount, price=price,
+                           leverage=order.leverage or 1, position=order.position.value,
+                           last_status="Pending" + order.trade_type.name.title(),
+                           last_update_timestamp=timestamp, creation_pending=True)
+            session.add(record)
+            # Keep the original side even when a terminal update precedes any
+            # Created callback. This records intent, not exchange admission.
+            self._add_order_status(session, record, timestamp, record.last_status)
             self.save_market_states(self._config_file_path, market, session)
 
     def reject_unsent_order(self, market: ConnectorBase, order_id: str) -> None:
@@ -681,6 +692,22 @@ class MarketsRecorder:
                 order_record: Optional[Order] = session.query(Order).filter(Order.id == order_id).one_or_none()
 
                 if order_record is not None:
+                    # A private cancel can arrive before the create ACK. Its
+                    # exchange ID proves admission; a not-found cancel without
+                    # that identity must remain unresolved.
+                    exchange_id = getattr(evt, "exchange_order_id", None)
+                    if event_type == MarketEvent.OrderCancelled and isinstance(exchange_id, str) and exchange_id:
+                        if (order_record.market != market.display_name or order_record.config_file_path != self._config_file_path
+                                or (order_record.exchange_order_id and order_record.exchange_order_id != exchange_id)):
+                            raise ValueError("Cancel acknowledgment conflicts with the recorded order identity.")
+                        # A fill-only placeholder does not yet contain the
+                        # original order quantity. Keep it provisional until
+                        # Created arrives; managed intents already have it.
+                        original_parameters_known = not order_record.creation_pending or session.query(OrderStatus.id).filter(
+                            OrderStatus.order_id == order_id, OrderStatus.status.in_(("PendingBuy", "PendingSell"))).first() is not None
+                        if original_parameters_known:
+                            order_record.exchange_order_id = exchange_id
+                            order_record.creation_pending = False
                     self._record_latest_status(order_record, event_type.name, timestamp)
                     self._add_order_status(session, order_record, timestamp, event_type.name)
                     self.save_market_states(self._config_file_path, market, session=session)

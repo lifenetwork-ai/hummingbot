@@ -18,6 +18,11 @@ coverage/denial reasons. Capacity loss does not stop funded SELL or perpetual
 admission. See [spot outflow](life-mm-spot-outflow.md) for provenance, window and
 terminal-proof semantics. Owner-unavailable observations are marked stale.
 
+Optional `status.markets[].spread_policy` reports static/dynamic/fallback/wait
+state, maker fee-floor enablement, cached NATR multiplier, UTC candle freshness
+and effective per-side spreads. Session anchors and reference formulas are
+unchanged. See [fee/NATR spread policy](life-mm-spread-policy.md).
+
 The existing aiohttp service exposes `/api/v1/admin`. Configure
 `ADMIN_API_ENABLED=true`, `ADMIN_API_USERNAME` and `ADMIN_API_PASSWORD` through
 the existing `.env` loader or injected deployment secrets. There are no usable
@@ -83,11 +88,31 @@ clear a recovery HALT. Swagger includes fixed, random and runtime AVAX examples.
 
 ## History and charts
 
+`/sessions/{session_id}/events` reads atomic session/profile transitions and
+recorded startup configuration. It uses bounded keyset pagination, event/source
+filters and filter-bound cursors. `history_complete` means a recorded session-start
+configuration exists; it does not imply continuous historical market coverage.
+History begins at migration 016.
+
+`/statistics/liquidity` returns current/session sampled own quotes, remaining
+notionals, spread, observed/eligible/two-sided duration and unknown gaps, separately
+for spot and perpetual. Stale owner/feed data loses freshness rather than inflating
+uptime. Both endpoints reuse PostgreSQL/status data without per-read exchange
+calls. See [history and liquidity](life-mm-history-liquidity.md) for coverage,
+restart and pagination semantics.
+
 `/orders`, `/orders/{id}` and `/fills` read the existing recorder tables. History
 has bounded keyset pagination (`limit` 1–500), UTC half-open `from`/`to` timestamps
 and market/pair filters. Keep `connector`, `order_id` and the native fill ID together:
 exchange trade IDs are not global IDs. Cursors bind the original filters. Order
 details expose a bounded status timeline and a link to paginated fills.
+
+Managed order history preserves BUY/SELL intent before submission. A private
+cancel with an exchange ID can resolve a fully recorded intent before a Created
+callback, while retaining its canceled status. A row built only from a partial
+fill stays provisional until original order parameters arrive. A known side
+alone does not prove exchange admission; cancellation without an exchange ID
+still requires reconciliation.
 
 `market=all` returns distinct spot and perpetual data even for the same LIFE-USDT
 pair. Switching the current trading mode does not hide recorded history.

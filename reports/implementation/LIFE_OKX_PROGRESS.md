@@ -986,3 +986,31 @@ Both-market image E2E passes normal/shock/outage/recovery/stop; recovery 7.20s,
 zero restarts. See [report](../life-mm-e5-spread-policy.md),
 [evidence](../life-mm-e5-spread-policy.json) and [plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md).
 Full final matrix/load/soak and external Demo remain E6. No deployment performed.
+
+
+
+## E6 — Final artifact, full load and Demo (complete)
+
+Verified 2026-10-27. Image `sha256:739ad5692355965dad5b1ad0f32de17935cbfd1f26c8967626e0d5b4fd5fd191`
+is 1364804595 bytes; all 51 packaged paths match. Native: 1567/11
+subtests; real PG: 196; Swagger/hooks and fourteen image scenario groups pass.
+The unchanged full all-feature untraced warmup/mixed/burst/sixty-minute random
+soak passes with zero healthy errors, independent exact accounting and five
+separate fault windows. Median soak RSS growth: 11.81 MiB.
+
+Reused existing lifecycle JSON publication, outflow initialization, recorder/ORM
+ownership fence and bulk side lookup. Red/Green corrections cover executor
+batch atomicity and a real Demo cancellation-before-ACK race, retaining uncertain
+intent/provisional-row safety. No new production cache/service/schema.
+
+Real Demo on an isolated restored copy passes all nine guarded quote cases and
+restart identity/deadline preservation. New natural fills (spot: 2, perpetual: 6) match
+exchange amounts, prices and original-currency fees. The natural-fill phase
+explicitly disables only the optional spot fee floor; the nine quote cases
+keep it enabled. Original private files/backup remain unchanged. Test quotes
+are canceled, service/copy PG stopped, positions/data preserved. No push/deploy.
+
+Cold traced large-window admission latency failures remain an explicit residual;
+the ordinary passing gate is untraced. See [E6 report](../life-mm-e6-verification.md),
+[evidence](../life-mm-e6-verification.json) and
+[completed plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md).

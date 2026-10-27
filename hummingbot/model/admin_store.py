@@ -154,8 +154,9 @@ class AdminStore:
             return {}
         sides = {}
         for order_id, status in session.query(OrderStatus.order_id, OrderStatus.status).filter(
-                OrderStatus.order_id.in_(ids), OrderStatus.status.in_(("BuyOrderCreated", "SellOrderCreated"))).distinct():
-            side = "BUY" if status == "BuyOrderCreated" else "SELL"
+                OrderStatus.order_id.in_(ids), OrderStatus.status.in_(
+                    ("PendingBuy", "PendingSell", "BuyOrderCreated", "SellOrderCreated"))).distinct():
+            side = "BUY" if status in ("PendingBuy", "BuyOrderCreated") else "SELL"
             sides[order_id] = side if order_id not in sides else (side if sides[order_id] == side else None)
         missing = set(ids) - set(sides)
         if missing:

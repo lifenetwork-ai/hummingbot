@@ -61,12 +61,28 @@ timed_sync(PoolQueue, "get", "pool_queue_ms")
 timed_sync(QueuePool, "_create_connection", "db_connect_ms")
 timed_sync(PGDialect_psycopg2, "do_ping", "db_ping_ms")
 timed_sync(MarketsRecorder, "_did_fill_order", "recorder_ms")
+timed_sync(MarketsRecorder, "store_or_update_executors", "executor_batch_store_ms")
 timed_sync(PGDialect_psycopg2, "do_commit", "commit_ms")
 timed_sync(PGDialect_psycopg2, "do_rollback", "rollback_ms")
 timed_sync(StrategyV2Base, "update_executors_info", "executor_update_ms")
 timed_sync(ExecutorOrchestrator, "get_all_reports", "executor_reports_ms")
 timed_sync(APIModel, "model_validate", "response_validation_ms")
 timed_sync(APIModel, "model_dump", "response_serialization_ms")
+
+
+from hummingbot.core.mm_liquidity import LiquidityObserver  # noqa: E402
+from hummingbot.core.spot_outflow import SpotOutflowProjection  # noqa: E402
+from hummingbot.core.spot_outflow_guard import SpotOutflowGuard  # noqa: E402
+
+# Reuse bounded wall/thread-CPU instrumentation for the E0–E5 policies.
+from hummingbot.strategy_v2.utils import mm_spread  # noqa: E402
+
+timed_sync(mm_spread, "natr_value", "natr_ms")
+timed_sync(mm_spread.SpreadPolicy, "refresh", "candle_sample_ms")
+timed_sync(mm_spread.SpreadPolicy, "compose", "spread_compose_ms")
+timed_sync(SpotOutflowProjection, "advance", "outflow_advance_ms")
+timed_sync(SpotOutflowGuard, "_load", "outflow_rebuild_ms")
+timed_sync(LiquidityObserver, "observe", "liquidity_observe_ms")
 
 
 @event.listens_for(Engine, "before_cursor_execute")
@@ -121,6 +137,8 @@ def register(api, app):
             raise
         finally:
             path = request.path
+            if "/sessions/" in path and path.endswith("/events"):
+                path = "/api/v1/admin/sessions/{id}/events"
             if "/commands/" in path:
                 path = "/api/v1/admin/commands/{id}"
             if path.endswith(("/orders", "/fills")):
@@ -201,6 +219,7 @@ async def probe(host):
                     fields[name.rstrip(":")] = int(amount) * 1024
             data = dict(at=time.time(), memory=fields, distributions={key: distribution(values) for key, values in list(samples.items())},
                         runtime_phase=host.phase, runtime_running=host.running,
+                        spot_outflow_fill_count=(host.spot_outflow_state or {}).get("fill_count"),
                         latest={key: values[-1] for key, values in list(samples.items()) if values},
                         totals=dict(totals), route_queries=dict(route_queries),
                         checked_out=host.engine.pool.checkedout() if host.engine else None,

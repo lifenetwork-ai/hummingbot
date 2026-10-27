@@ -665,7 +665,7 @@ class ServiceHost:
     def poll_outflow(self):
         from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
         guard = getattr(self.owner, "spot_outflow", None)
-        if (not isinstance(guard, SpotOutflowGuard) or (self.outflow_task is not None and not self.outflow_task.done())
+        if (not isinstance(guard, SpotOutflowGuard) or guard.initializing or (self.outflow_task is not None and not self.outflow_task.done())
                 or time.monotonic() < self.next_outflow_poll):
             return
         self.next_outflow_poll = time.monotonic() + 1
@@ -873,7 +873,7 @@ class ServiceHost:
                     return False
                 row = self.owner.check_owner()
                 self.owner.store.publish(owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation,
-                                         version=row["control_version"], status=self.snapshot(), revision=self.revision)
+                                         version=row["control_version"], status=json.loads(json.dumps(self.snapshot(), default=str)), revision=self.revision)
                 self.owner.release()
             except Exception:
                 self.log.error("Service cleanup incomplete; ownership retained until process exit.")

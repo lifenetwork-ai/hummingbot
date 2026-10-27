@@ -1,8 +1,7 @@
 # LIFE / OKX MM: Incremental Enhancements — TDD Plan
 
 Date: 2026-10-26 (Asia/Ho_Chi_Minh).
-Status: E0, E1, E2a, E2b, E2c and E3 complete with local verification.
-E4 and E5 are complete; E6 verification is next.
+Status: E0–E6 complete; final artifact, load and Demo evidence is linked in E6.
 Only verified checklist items are marked complete.
 Baseline: `1867159e7`.
 Implementation priority: service availability, explainable trading decisions and
@@ -284,7 +283,7 @@ order quantity as a conservative upper bound; only clear residual depth qualifie
 The non-unit-contract Red/Green test also fixes perpetual WS snapshot quantity
 normalization to match existing REST/diff base units. Defaults remain disabled.
 See [report](../../reports/life-mm-e1-quote-guards.md) and
-[evidence](../../reports/life-mm-e1-quote-guards.json). E2–E6 remain open; no new
+[evidence](../../reports/life-mm-e1-quote-guards.json). At that phase, E2–E6 remained open; no new
 sixty-minute, previous-image upgrade, deployment or real OKX Demo gate is claimed.
 
 ## 5. E2 — Loss and spending limits
@@ -332,7 +331,7 @@ The image-discovered final-shutdown Decimal serialization defect was fixed with
 a failing native test before rerunning the image gates. Defaults remain disabled;
 policy/peaks/HALT cannot be reset by normal commands. See the
 [guide](../life-mm-drawdown.md), [report](../../reports/life-mm-e2a-drawdown.md)
-and [evidence](../../reports/life-mm-e2a-drawdown.json). E2b–E6 remain open.
+and [evidence](../../reports/life-mm-e2a-drawdown.json). At that phase, E2b–E6 remained open.
 
 ### E2b — Rolling spot USDT outflow
 
@@ -404,7 +403,7 @@ reconstruction and prevents a new binding HALT from reopening orders. Defaults
 remain disabled; no fill table, index, cache service or reset API
 was added. See the [guide](../life-mm-spot-outflow.md),
 [report](../../reports/life-mm-e2b-spot-outflow.md) and
-[evidence](../../reports/life-mm-e2b-spot-outflow.json). E4–E6 remain open.
+[evidence](../../reports/life-mm-e2b-spot-outflow.json). At that phase, E4–E6 remained open.
 
 ### E2c — Listing bootstrap without outside two-sided liquidity
 
@@ -478,8 +477,8 @@ qualified outside-depth loss; the initially failing report/shutdown path was
 fixed with Red/Green coverage. See [report](../../reports/life-mm-e2c-listing-bootstrap.md),
 [evidence](../../reports/life-mm-e2c-listing-bootstrap.json) and
 [operational guide](../life-mm-listing-bootstrap.md). Production defaults remain
-disabled. E4–E6, the final all-feature image matrix/soak and external Demo checks
-remain open; this diagnostic does not close E6.
+disabled. At that phase, E4–E6, the final all-feature image matrix/soak and external Demo checks
+remained open; this diagnostic does not close E6.
 
 ## 6. E3 — Spot inventory skew
 
@@ -524,8 +523,8 @@ healthy diagnostic passed 1200 HTTP 200 reads, zero errors, p95 49.36ms / p99
 1 CPU/2 GiB. Original PMM math files remain unchanged; the adapter calls the
 existing interpolation directly. See [report](../../reports/life-mm-e3-inventory-skew.md),
 [evidence](../../reports/life-mm-e3-inventory-skew.json) and
-[guide](../life-mm-inventory-skew.md). Defaults remain disabled. E4–E6 and the
-final all-feature image matrix/soak remain open; this diagnostic does not close E6.
+[guide](../life-mm-inventory-skew.md). Defaults remain disabled. At that phase, E4–E6 and the
+final all-feature image matrix/soak remained open; this diagnostic does not close E6.
 
 ## 7. E4 — Transition history and useful liquidity observations
 
@@ -618,23 +617,26 @@ E5 verification: [report](../../reports/life-mm-e5-spread-policy.md),
 
 ## 9. E6 — Verification and delivery gates
 
+Current verification and reproduced Red/Green fixes: [E6 report](../../reports/life-mm-e6-verification.md).
+
 Reuse the [existing load harness and budgets](../life-mm-load-tests.md). Unit tests
 exercise pure decisions; real disposable PostgreSQL proves transaction/recovery
 behavior; the offline simulator supplies independent order/fill truth. No live
 exchange load test or Cloud Run staging is required.
 
-- [ ] Run relevant config, controller, runner, executor, owner, recorder, API and PostgreSQL regression suites; keep Red/Green evidence for every confirmed runtime fix.
-- [ ] Build the full Cloud Run image; record immutable image identity, source/config/schema hashes and new feature settings. Verify packaged helpers, SQL and optional candle dependencies.
-- [ ] Run three profiles × spot/perpetual/both through existing image E2E, with new options disabled for compatibility and representative enabled combinations for acceptance.
-- [ ] Exercise deviation/breakout, spend/drawdown breaches, stale candles, concurrent commands/fills, expiry, switching, DB failure and clean/unclean restart. Verify no duplicate effects, no cap bypass and correct preserved positions/HALT.
-- [ ] Exercise E0's failure matrix through the full service process: inject optional report/snapshot errors, read timeouts, WS loss, transient startup failure, dead controller task and candle outage. Assert expected API/process availability, classified quote restrictions and automatic recovery; no unexplained exit or indefinite unreported readiness wait is accepted.
-- [ ] Run bootstrap on a fresh empty/own-only market, then introduce qualified outside depth. Verify bounded quoting, qualification transition, expiry/wait recovery and persisted state across restart/profile switches; never inject fills merely to make the bootstrap qualify.
-- [ ] Extend the healthy workload with valid external book depth/candle data and bounded event/liquidity reads. Certify enabled features rather than disabling guards to obtain a pass; keep deliberate guard/fault windows separate from healthy latency/error gates.
-- [ ] Measure query counts, synchronous CPU, event-loop lag, DB checkout and reporting cost with the existing 100,000-order/fill fixture. Include an active outflow window and same-timestamp expiry burst under the bot's 1-CPU limit; the E2b native helper timing is not container certification. Confirm no per-level/per-row N+1, unbounded caches or per-request exchange calls; optimize demonstrated regressions only.
-- [ ] Run short diagnostics during development, then the unchanged full mixed/burst and sixty-minute zero-error soak gates once the final implementation/image is stable. Preserve original resource, latency, growth and accounting budgets; record any fixture/read-mix additions explicitly.
-- [ ] Finally run opt-in OKX Demo integration on available instruments: enabled guards, normal maker quoting, switch/stop/restart, actual order/fill/fee comparison and both-market behavior. Use local simulation for deterministic risk breaches that Demo cannot safely/reliably reproduce; label those scopes separately.
-- [ ] Update operational guides, handler annotations and generated Swagger; record sanitized results under `reports/`, large raw artifacts under ignored `build/`, and link evidence beside completed phase checkboxes.
-- [ ] Record residual limitations and effective policy settings, mark only verified items done, and commit the completed delivery. A passing test gate does not certify strategy profitability or LIFE instrument availability.
+- [x] Run relevant config, controller, runner, executor, owner, recorder, API and PostgreSQL regression suites; keep Red/Green evidence for every confirmed runtime fix.
+- [x] Build the full Cloud Run image; record immutable image identity, source/config/schema hashes and new feature settings. Verify packaged helpers, SQL and optional candle dependencies.
+- [x] Verify private cancellation with an exchange ID before REST create ACK resolves the intent, preserves its BUY/SELL side and keeps the canceled status through a late ACK; both markets must resume quoting. Cancellation without an exchange ID must still require reconciliation. See the [terminal-ACK Red/Green evidence](../../reports/life-mm-e6-verification.md).
+- [x] Run three profiles × spot/perpetual/both through existing image E2E, with new options disabled for compatibility and representative enabled combinations for acceptance.
+- [x] Exercise deviation/breakout, spend/drawdown breaches, stale candles, concurrent commands/fills, expiry, switching, DB failure and clean/unclean restart. Verify no duplicate effects, no cap bypass and correct preserved positions/HALT.
+- [x] Exercise E0's failure matrix through the full service process: inject optional report/snapshot errors, read timeouts, WS loss, transient startup failure, dead controller task and candle outage. Assert expected API/process availability, classified quote restrictions and automatic recovery; no unexplained exit or indefinite unreported readiness wait is accepted.
+- [x] Run bootstrap on a fresh empty/own-only market, then introduce qualified outside depth. Verify bounded quoting, qualification transition, expiry/wait recovery and persisted state across restart/profile switches; never inject fills merely to make the bootstrap qualify.
+- [x] Extend the healthy workload with valid external book depth/candle data and bounded event/liquidity reads. Certify enabled features rather than disabling guards to obtain a pass; keep deliberate guard/fault windows separate from healthy latency/error gates.
+- [x] Measure query counts, synchronous CPU, event-loop lag, DB checkout and reporting cost with the existing 100,000-order/fill fixture. Include an active outflow window and same-timestamp expiry burst under the bot's 1-CPU limit; the E2b native helper timing is not container certification. Confirm no per-level/per-row N+1, unbounded caches or per-request exchange calls; optimize demonstrated regressions only.
+- [x] Run short diagnostics during development, then the unchanged full mixed/burst and sixty-minute zero-error soak gates once the final implementation/image is stable. Preserve original resource, latency, growth and accounting budgets; record any fixture/read-mix additions explicitly.
+- [x] Finally run opt-in OKX Demo integration on available instruments: enabled guards, normal maker quoting, switch/stop/restart, actual order/fill/fee comparison and both-market behavior. Use local simulation for deterministic risk breaches that Demo cannot safely/reliably reproduce; label those scopes separately.
+- [x] Update operational guides, handler annotations and generated Swagger; record sanitized results under `reports/`, large raw artifacts under ignored `build/`, and link evidence beside completed phase checkboxes.
+- [x] Record residual limitations and effective policy settings, mark only verified items done, and commit the completed delivery. A passing test gate does not certify strategy profitability or LIFE instrument availability.
 
 During development, use targeted verification after each change rather than a
 new hour-long run for every edit. E6 is new-image acceptance for these additions;

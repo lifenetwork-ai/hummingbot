@@ -330,3 +330,20 @@ def test_managed_funding_events_do_not_duplicate_authoritative_bills(recording):
     recorder._did_complete_funding_payment(MarketEvent.FundingPaymentCompleted.value, market, event)
     with manager.get_new_session() as session:
         assert session.query(FundingPayment).count() == 0
+
+
+def test_cancel_before_create_preserves_provisional_quantity_until_original_create(recording):
+    from hummingbot.core.event.events import OrderCancelledEvent
+    recorder, manager, market = recording
+    recorder._did_fill_order(MarketEvent.OrderFilled.value, market, fill(price=Decimal('120')))
+    recorder._did_cancel_order(MarketEvent.OrderCancelled.value, market,
+                               OrderCancelledEvent(1700000001, 'order-1', 'exchange-1'))
+    with manager.get_new_session() as session:
+        order = session.get(Order, 'order-1')
+        assert order.creation_pending  # Only the partial fill's quantity is known.
+    recorder._did_create_order(MarketEvent.BuyOrderCreated.value, market, create())
+    with manager.get_new_session() as session:
+        order = session.get(Order, 'order-1')
+        assert not order.creation_pending and order.amount == Decimal('.1')
+        assert order.price == Decimal('120') and order.last_status == 'OrderCancelled'
+        assert session.query(TradeFill).one().amount == Decimal('.012345')

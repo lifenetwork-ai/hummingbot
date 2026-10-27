@@ -632,6 +632,25 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         report = poll(lambda: (value if (value := self.admin(port, "/reconciliation")[1])["check"]["status"] in ("succeeded", "failed") else None),
                       description="MM observational check completion")
         assert report["report"]["state"] == "matched", report
+        # OKX may cancel a post-only order in the private stream before its
+        # positive REST create response. A terminal exchange identity resolves
+        # that durable intent without reopening the order or halting the bot.
+        self.control(cancel_before_ack=True, hold_ack=True)
+        before_cancel_race = len(self.ledger()["accepted"])
+        self.mm_command(port, "switch", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
+        poll(lambda: len(self.ledger()["accepted"]) >= before_cancel_race + 8,
+             description="both markets observe canceled orders before REST create ACK")
+        poll(lambda: self.sql("SELECT count(*) FROM orders WHERE creation_pending") == "0",
+             description="positive private cancellation durably resolves create intents")
+        assert not self.state()["recovery_state"].get("halt") and http(port, "/live")[0] == 200
+        canceled_ids = {row["clOrdId"] for row in self.ledger()["accepted"][before_cancel_race:]}
+        canceled_views = [row for row in self.admin(port, "/orders?limit=500")[1]["items"] if row["id"] in canceled_ids]
+        assert len(canceled_views) >= 8 and all(row["side"] in ("BUY", "SELL") and row["exchange_order_id"]
+                                                for row in canceled_views)
+        self.control(cancel_before_ack=False, hold_ack=False)
+        poll(lambda: sum(order["state"] == "live" for order in self.ledger()["orders"]) == 8,
+             description="normal maker quotes recover after terminal-before-create race")
+        self.metrics["terminal_cancel_ack_before_create"] = True
         self.mm_command(port, "switch", market_mode="both", selection="random", profile_ids=["sideways"],
                         step_duration_seconds=15, duration_seconds=60)
         first_draw = self.state()["mm_session"]
@@ -651,6 +670,11 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
              description="expired session keeps funding observation alive")
         assert len(self.ledger()["accepted"]) == expired_orders and self.state()["desired_state"] == "stopped"
         self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
+        # Interrupt an established runtime here, not the first create dispatch.
+        # The separate lost-ACK cases retain their uncertain-intent/exit scope.
+        poll(lambda: sum(order["state"] == "live" for order in self.ledger()["orders"]) == 8
+             and self.sql("SELECT count(*) FROM orders WHERE creation_pending") == "0",
+             description="all initial maker acknowledgments committed before DB outage")
         accepted = len(self.ledger()["accepted"])
         docker("stop", "--time", "5", self.pg)
         poll(lambda: json.loads(docker("inspect", second).stdout)[0]["State"]["Status"] == "exited",

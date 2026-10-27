@@ -30,3 +30,11 @@ def test_soak_requires_late_samples_and_rejects_sustained_resource_growth():
     assert soak_violations([sample] * 2) == ["missing_minute_samples"]
     grown = dict(memory={"VmRSS": 500_000_000}, latest={"book_backlog": 100}, distributions={"pool_checkout_ms": {"p95": 100}})
     assert set(soak_violations([sample] * 50 + [grown] * 9)) == {"rss_growth", "book_queue_growth", "pool_wait_growth"}
+
+
+def test_auxiliary_history_reads_add_load_without_weakening_original_budgets():
+    extra = dict(requested_reads=1800, completed_reads=1800, read_p95_ms=450, read_p99_ms=950)
+    assert violations({**healthy(), 'auxiliary': extra}) == []
+    assert 'auxiliary_reads' in violations({**healthy(), 'auxiliary': {**extra, 'completed_reads': 1799}})
+    assert 'auxiliary_read_p99' in violations({**healthy(), 'auxiliary': {**extra, 'read_p99_ms': 1001}})
+    assert 'read_p99' in violations({**healthy(), 'read_p99_ms': 1001, 'auxiliary': extra})

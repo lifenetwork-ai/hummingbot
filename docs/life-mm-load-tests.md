@@ -59,7 +59,7 @@ disabled by default. It is a short diagnostic, not a replacement for E6.
 
 E2b adds `--scenario spot-outflow` to the image matrix: partial BUY, fee/rebate,
 BUY-only cap, funded SELL recovery, terminal proof, cold restart and market-mode
-changes. Probe-only `--spot-outflow` enables explicit spending limits and binds
+changes. Explicit `--spot-outflow` enables explicit spending limits and binds
 the empty test DB before seeding yesterday's historical rows. It can be combined
 with `--drawdown --strict-guards`; it never bypasses the legacy-origin wait.
 
@@ -168,3 +168,71 @@ The test wrapper also measures separate pool queue/connect/pre-ping operations
 and wall/thread CPU for executor reports and response validation/serialization.
 Synchronous stage CPU includes child work; operation timings include scheduling.
 Maxima from different calls must not be added.
+
+## E6 all-feature acceptance
+
+Use the cached final image manifest (or a tag that resolves to it):
+
+```sh
+# Short diagnostic, including the active expiry burst:
+python scripts/test_mm_load.py --image <image> --profile probe \
+  --probe-seconds 150 --enhancements --trace
+# Final unchanged window durations: warmup 300s, mixed 900s, burst 90s,
+# random soak 3600s, followed by separately classified fault windows.
+python scripts/test_mm_load.py --image <image> --profile all --enhancements
+```
+
+E6 release acceptance uses the ordinary bounded instrumentation without the
+opt-in diagnostic tracer, matching the production default. Add `--trace` for
+request/SQL/GC investigation and label those results separately. The accepted
+full profile and retained cold/traced stress failures are recorded in the
+[E6 verification report](../reports/life-mm-e6-verification.md); passing the
+ordinary gate does not certify a traced soak.
+
+`--enhancements` selects explicit test-only strict/bootstrap guards, drawdown,
+outflow, inventory skew and maker fee/NATR policies. Production defaults remain
+disabled. Healthy outside depth and completed candles are supplied independently
+by the existing simulator; no fills are used to qualify bootstrap. The effective
+YAML, hashes and all settings are saved with each result. Individual policy flags
+also work with full profiles; earlier phase probe results remain diagnostics.
+
+The original eleven-route read stream, rates, scheduled slots, latency population,
+window lengths, limits and budgets are preserved. One event-history and one
+liquidity read/s are added **on top**. Their scheduled latency has its own identical
+500ms p95 / 1000ms p99 gate; errors from either stream fail the zero-error gate.
+Primary requested/completed counts remain comparable with earlier runs. Auxiliary
+counts/statuses/latencies are reported separately. Event pages must use two queries,
+liquidity one; FE reads must not multiply exchange account requests.
+
+The fixture still contains exactly 100000 orders/fills. For all-feature tests,
+all synthetic historical rows share one timestamp about a day ago: 120 seconds
+before the end of the configured one-day outflow window. The 50000 spot fills
+therefore enter the real projection together and expire together under the
+1-CPU bot limit. Historical terminal orders remain outside the ordinary one-hour
+reconciliation scope. The empty test database is bound before fixture insertion;
+no production coverage/reconciliation check is bypassed. Initial retained count
+and post-expiry count are recorded; warmup asserts the large burst actually expires.
+
+Existing bounded test instrumentation also measures NATR, cached spread composition,
+candle sampling, liquidity observation and outflow advance with wall/thread-CPU
+distributions. No production tracing endpoint, background task or cache is added.
+Healthy gates and intentional fault windows retain distinct classifications.
+E6 is acceptance of the new image; the previously closed historical timeout
+reproduction remains closed.
+
+The burst emitter sends genuine book frames with 2% headroom above its requested
+minimum (only above the ordinary 100/s rate), allowing modest batching/timer
+jitter. Actual delivered throughput still must pass; headroom is not a guarantee
+against producer saturation. The required 500/s minimum and all latency/error budgets remain
+unchanged; counters increment only after actual sends. Exact delivered frames,
+measurement duration and rate are retained. The burst helper restores the steady
+rate in `finally`, including a failed measurement. An early E6 run that delivered
+499.51/s is retained as failed; its passing HTTP results do not close the burst gate.
+
+
+The simulator's internal hot readers use `/working-orders` for fill candidates
+and `/market-metrics` for the actual-send counter plus a monotonic timestamp.
+They avoid transferring an ever-growing request/fill ledger during generation.
+Full independent `/ledger` snapshots remain the accounting source before/after
+windows and during verification. These internal test endpoints are not deployed
+application APIs and do not replace any scheduled admin read or lower a load gate.

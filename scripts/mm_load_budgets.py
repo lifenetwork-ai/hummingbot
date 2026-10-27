@@ -16,6 +16,12 @@ def violations(result, *, require_rates=True):
               "errors": result.get("unexpected_errors", 1) == 0,
               "rss": result.get("peak_rss_bytes", float("inf")) <= 1.5 * 1024**3,
               "backlog": result.get("backlog_drain_seconds", float("inf")) <= 10}
+    if "auxiliary" in result:
+        extra = result["auxiliary"]
+        checks["auxiliary_reads"] = extra.get("completed_reads", 0) >= extra.get("requested_reads", 1) > 0
+        for key, maximum in (("read_p95_ms", 500), ("read_p99_ms", 1000)):
+            value = extra.get(key)
+            checks["auxiliary_" + key.removesuffix("_ms")] = value is not None and math.isfinite(value) and value <= maximum
     if require_rates:
         checks["market_rate"] = result.get("market_updates_per_second", 0) + 4 / result["duration_seconds"] >= 100
         checks["fill_rate"] = result.get("fills_per_second", 0) + 1 / result["duration_seconds"] >= 1

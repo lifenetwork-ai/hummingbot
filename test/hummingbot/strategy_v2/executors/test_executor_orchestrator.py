@@ -1222,3 +1222,26 @@ class TestExecutorOrchestrator(unittest.TestCase):
         self.assertEqual(len(result["controller2"]["executors"]), 0)
         self.assertEqual(len(result["controller3"]["executors"]), 0)
         self.assertEqual(len(result["controller3"]["positions"]), 0)
+
+    @patch.object(MarketsRecorder, "get_instance")
+    def test_shutdown_persistence_uses_one_batch_before_clearing_executors(self, recorder):
+        recorder.return_value = MagicMock(spec=MarketsRecorder)
+        first, second = MagicMock(), MagicMock()
+        self.orchestrator.active_executors = {"one": [first], "two": [second]}
+        self.orchestrator._update_cached_performance = MagicMock()
+        self.orchestrator.store_all_executors()
+        recorder.return_value.store_or_update_executors.assert_called_once_with([first, second])
+        recorder.return_value.store_or_update_executor.assert_not_called()
+        assert self.orchestrator.active_executors == {}
+
+    @patch.object(MarketsRecorder, "get_instance")
+    def test_failed_shutdown_batch_keeps_executors_and_cached_performance(self, recorder):
+        recorder.return_value = MagicMock(spec=MarketsRecorder)
+        recorder.return_value.store_or_update_executors.side_effect = ValueError("batch failed")
+        first = MagicMock()
+        self.orchestrator.active_executors = {"one": [first]}
+        self.orchestrator._update_cached_performance = MagicMock()
+        with self.assertRaises(ValueError):
+            self.orchestrator.store_all_executors()
+        assert self.orchestrator.active_executors == {"one": [first]}
+        self.orchestrator._update_cached_performance.assert_not_called()

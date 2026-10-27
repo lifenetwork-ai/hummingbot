@@ -291,3 +291,40 @@ def test_checkpoint_day_rollover_and_fenced_rejection_do_not_hide_first_observat
     balance["observed_at"] += 86400
     item.publish_status(1)
     assert [call.kwargs["save_balances"] for call in item.owner.store.publish.call_args_list] == [True, True, False, True]
+
+
+@pytest.mark.asyncio
+async def test_final_shutdown_with_live_decimal_liquidity_uses_normal_publication_format():
+    from decimal import Decimal
+    item = host()
+    item.mm_liquidity_state = dict(session_id='session', observed_at=1000.5,
+                                   markets={'spot': dict(bid_notional=Decimal('1.123456789012345678901234'),
+                                                         best_bid=Decimal('.099'))})
+    item.owner = MagicMock(owner_uuid='owner', generation=1)
+    item.owner.check_owner.return_value = {'control_version': 1}
+    item.owner.store.publish.side_effect = lambda **fields: json.dumps(fields['status'], allow_nan=False)
+    item.stop_core = AsyncMock(return_value=True)
+    assert await item.close()
+    value = item.owner.store.publish.call_args.kwargs['status']['mm_liquidity']
+    assert value['markets']['spot']['bid_notional'] == '1.123456789012345678901234'
+    assert value['observed_at'] == 1000.5
+    item.owner.release.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_outflow_poll_does_not_duplicate_an_owner_rebuild():
+    from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
+    item = host()
+    guard = SpotOutflowGuard(MagicMock(), dict(window_seconds=86400, max_net_outflow_quote='100',
+                                               fee_allowance_rate='.01', trading_pair='LIFE-USDT'))
+    guard.initializing = True
+    guard.initialize = AsyncMock()
+    guard.reconcile_terminal = AsyncMock()
+    item.owner = SimpleNamespace(spot_outflow=guard)
+    item.poll_outflow()
+    await asyncio.sleep(0)
+    if item.outflow_task is not None:
+        await item.outflow_task
+    guard.initialize.assert_not_awaited()
+    guard.reconcile_terminal.assert_not_awaited()
+    assert item.outflow_task is None

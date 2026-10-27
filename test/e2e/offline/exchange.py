@@ -41,6 +41,7 @@ class Exchange:
         self.connections = 0
         self.subscriptions = []
         self.hold_ack = False
+        self.cancel_before_ack = False
         self.release = asyncio.Event()
         self.release.set()
         self.socket_args = {}
@@ -152,7 +153,11 @@ class Exchange:
             if previous_target != self.target_updates_per_second:
                 next_update = time.monotonic()
                 previous_target = self.target_updates_per_second
-            interval = subscriptions / self.target_updates_per_second if self.target_updates_per_second and subscriptions else 0.2
+            # The burst gate requires at least the requested delivered rate.
+            # Send genuine extra frames for timer/batch jitter, never inflate
+            # counters or lower the minimum. Ordinary 100/s load is unchanged.
+            rate = self.target_updates_per_second * (1.02 if self.target_updates_per_second > 100 else 1)
+            interval = subscriptions / rate if rate and subscriptions else 0.2
             next_update += interval
             try:
                 await asyncio.wait_for(self.market_rate_changed.wait(), timeout=max(0, next_update - time.monotonic()))
@@ -191,6 +196,12 @@ class Exchange:
         path, method = request.path, request.method
         if path.startswith("/ws/"):
             return await self.websocket(request)
+        if path == "/market-metrics":
+            return web.json_response({"market_update_count": self.market_update_count,
+                                      "observed_at_monotonic": time.monotonic()})
+        if path == "/working-orders":
+            return web.json_response({"orders": [order for order in self.orders.values()
+                                                 if order["state"] in ("live", "partially_filled")]})
         if path == "/ledger":
             return web.json_response({"accepted": self.accepted, "orders": list(self.orders.values()),
                                       "fills": self.fills, "funding_bills": self.funding_bills, "requests": self.requests, "unknown": self.unknown,
@@ -274,6 +285,9 @@ class Exchange:
                      "uTime": millis(), "cTime": millis(), "tradeId": "", "fillSz": "0", "fillPx": "0"}
             self.orders[client_id] = order
             self.accepted.append(copy.deepcopy(order))
+            if self.cancel_before_ack:
+                order.update(state="canceled", uTime=millis())
+                await self.broadcast(self.event(order))
             await self.release.wait()
             await self.broadcast(self.event(order))
             return self.ok([{"clOrdId": client_id, "ordId": order["ordId"], "sCode": "0", "sMsg": ""}])
@@ -326,6 +340,8 @@ class Exchange:
         if "hold_ack" in data:
             self.hold_ack = data["hold_ack"]
             self.release.clear() if self.hold_ack else self.release.set()
+        if "cancel_before_ack" in data:
+            self.cancel_before_ack = bool(data["cancel_before_ack"])
         if data.get("drop_ws"):
             await asyncio.gather(*(socket.close() for socket in list(self.sockets)))
         if "funding_bills" in data:

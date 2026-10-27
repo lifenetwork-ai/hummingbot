@@ -40,3 +40,71 @@ async def test_perpetual_fill_snapshot_is_not_changed_by_a_later_cancel_during_p
     fill_event = next(event for event in events if event["arg"]["channel"] == "orders")
     assert fill_event["data"][0]["state"] == "partially_filled"
     assert order["state"] == "canceled"
+
+
+@pytest.mark.asyncio
+async def test_failed_burst_measurement_always_restores_the_steady_feed(monkeypatch):
+    import sys
+    from test.e2e.offline import load_trace
+    from unittest.mock import AsyncMock
+    with patch.dict(sys.modules, {'load_trace': load_trace}):
+        from test.e2e.offline.load_client import measure_market_burst
+    controls = []
+    ledgers = iter([dict(market_update_count=0, observed_at_monotonic=0),
+                    dict(market_update_count=4990, observed_at_monotonic=10)])
+
+    async def exchange(path, payload=None):
+        if path == '/control':
+            controls.append(payload['target_updates_per_second'])
+            return {}
+        return next(ledgers)
+    monkeypatch.setattr('test.e2e.offline.load_client.asyncio.sleep', AsyncMock())
+    with pytest.raises(AssertionError, match='Burst feed'):
+        await measure_market_burst(exchange, 100)
+    assert controls == [500, 100]
+
+
+@pytest.mark.asyncio
+async def test_emitter_counts_only_delivered_book_frames_under_burst_load():
+    import asyncio
+    fixtures = dict(balances={'data': [{'details': []}]})
+    with patch('test.e2e.offline.exchange.Path.read_text', return_value=json.dumps(fixtures)):
+        exchange = Exchange()
+    messages = []
+
+    class Socket:
+        closed = False
+
+        async def send_json(self, message):
+            messages.append(message)
+    socket = Socket()
+    exchange.socket_args[socket] = [dict(channel='books', instId='LIFE-USDT'), dict(channel='candle1s', instId='LIFE-USDT')]
+    exchange.target_updates_per_second = 500
+    task = asyncio.create_task(exchange.market_updates())
+    try:
+        await asyncio.sleep(.1)
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    assert exchange.market_update_count > 0
+    assert exchange.market_update_count == sum(row['arg']['channel'] == 'books' for row in messages)
+
+
+@pytest.mark.asyncio
+async def test_hot_load_reads_do_not_serialize_the_growing_exchange_ledger():
+    from types import SimpleNamespace
+    with patch('test.e2e.offline.exchange.Path.read_text', return_value=json.dumps({})):
+        exchange = Exchange()
+    exchange.orders = {str(i): dict(clOrdId=str(i), state='canceled') for i in range(1000)}
+    exchange.orders['live'] = dict(clOrdId='live', state='live')
+    exchange.orders['partial'] = dict(clOrdId='partial', state='partially_filled')
+    exchange.fills = [{'tradeId': str(i)} for i in range(1000)]
+    exchange.requests = [{'path': '/large-history'}] * 1000
+    exchange.market_update_count = 1234
+    metrics = json.loads((await exchange.handle(SimpleNamespace(path='/market-metrics', method='GET'))).text)
+    working = json.loads((await exchange.handle(SimpleNamespace(path='/working-orders', method='GET'))).text)
+    assert set(metrics) == {'market_update_count', 'observed_at_monotonic'}
+    assert metrics['market_update_count'] == 1234 and metrics['observed_at_monotonic'] > 0
+    assert set(working) == {'orders'}
+    assert {row['clOrdId'] for row in working['orders']} == {'live', 'partial'}
+    assert len(exchange.orders) == 1002 and len(exchange.fills) == 1000

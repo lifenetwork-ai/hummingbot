@@ -56,8 +56,8 @@ Enabled policies use the existing executor configured-entry-price option. BUY
 prices round down; SELL prices round up to preserve the composed spread. If SELL
 rounding increases price, quantity scales down so quote allocation cannot grow.
 Existing amount rounding, funding, exposure, bootstrap bands, drawdown, outflow,
-post-only and ownership gates still apply. Actual tracked terms and fee coverage
-are rechecked before intent and immediately before transport. A queued/stale or
+post-only and ownership gates still apply. Managed PostgreSQL sessions recheck actual tracked terms and fee coverage
+before intent and immediately before transport. A queued/stale or
 rounded quote that no longer satisfies the policy is rejected; cancellations
 remain available. A tiny Decimal numerical guard is below exchange tick precision
 and is not a configurable economic buffer.

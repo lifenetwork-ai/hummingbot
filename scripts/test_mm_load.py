@@ -20,20 +20,23 @@ from scripts.mm_load_ledger import funding_ledger_violations, ledger_violations 
 from scripts.test_e2e_offline import Harness, docker, pin_manifest, poll  # noqa: E402
 
 
-def seed_history(harness, count):
+def seed_history(harness, count, *, active_outflow=False):
     """Reuse the PG performance fixture's generate_series bulk insert pattern.
 
     Add recorder fills in natural decimal units, dated yesterday and closed so
     the bounded current reconciliation scope does not include synthetic history.
+    E6 places their identical timestamp 120 seconds before a one-day window expires,
+    retaining the same row count and historical reconciliation exclusion.
     """
     assert 0 <= count <= 1000000
+    stamp = "(extract(epoch from transaction_timestamp())*1000)::bigint-86400000+120000" if active_outflow else "(extract(epoch from clock_timestamp())*1000)::bigint-86400000"
     harness.sql(f"""
         INSERT INTO orders (id, config_file_path, strategy, market, symbol, base_asset, quote_asset,
             creation_timestamp, order_type, amount, leverage, price, last_status, last_update_timestamp, creation_pending)
         SELECT 'load-history-' || n, 'load-history.yaml', 'v2_with_controllers',
             CASE WHEN n%2=0 THEN 'okx' ELSE 'okx_perpetual' END, 'LIFE-USDT', 'LIFE', 'USDT',
-            (extract(epoch from clock_timestamp())*1000)::bigint-86400000, 'LIMIT_MAKER',0.001,1,0.1,
-            'BuyOrderCompleted',(extract(epoch from clock_timestamp())*1000)::bigint-86400000,false
+            {stamp}, 'LIMIT_MAKER',0.001,1,0.1,
+            'BuyOrderCompleted',{stamp},false
         FROM generate_series(1,{count}) n;
         INSERT INTO trade_fills (config_file_path,strategy,market,symbol,base_asset,quote_asset,timestamp,
             order_id,trade_type,order_type,price,amount,leverage,trade_fee,trade_fee_in_quote,exchange_trade_id,position)
@@ -163,25 +166,18 @@ def main():
     parser.add_argument("--diagnostic", action="store_true", help="Use local image ID for iteration; cannot serve as final artifact acceptance")
     parser.add_argument("--refresh-seconds", type=int, help="Diagnostic-only accelerated quote refresh")
     parser.add_argument("--trace", action="store_true", help="Bounded request/SQL/commit/loop-stack/PG-wait traces; no parameters or credentials")
-    parser.add_argument("--strict-guards", action="store_true", help="Probe-only explicit strict-guard fixture; production defaults remain disabled")
-    parser.add_argument("--drawdown", action="store_true", help="Probe-only explicit drawdown limits; production defaults remain disabled")
-    parser.add_argument("--spot-outflow", action="store_true", help="Probe-only explicit outflow policy, bound on an empty DB before historical seeding")
-    parser.add_argument("--listing-bootstrap", action="store_true", help="Probe-only bounded bootstrap policy with healthy outside-market qualification")
-    parser.add_argument("--inventory-skew", action="store_true", help="Probe-only spot cash skew using the existing PMM calculation")
+    parser.add_argument("--strict-guards", action="store_true", help="Explicit strict-guard fixture; production defaults remain disabled")
+    parser.add_argument("--drawdown", action="store_true", help="Explicit drawdown limits; production defaults remain disabled")
+    parser.add_argument("--spot-outflow", action="store_true", help="Explicit outflow policy, bound on an empty DB before historical seeding")
+    parser.add_argument("--listing-bootstrap", action="store_true", help="Bounded bootstrap policy with healthy outside-market qualification")
+    parser.add_argument("--inventory-skew", action="store_true", help="Spot cash skew using the existing PMM calculation")
+    parser.add_argument("--enhancements", action="store_true", help="Explicit E6 all-feature healthy fixture, including completed candles and an active same-time outflow expiry burst")
     parser.add_argument("--keep-going", action="store_true", help="Continue healthy windows after budget violations; final result still fails")
     args = parser.parse_args()
-    if args.inventory_skew and args.profile != "probe":
-        parser.error("--inventory-skew currently certifies the short probe only")
+    if args.enhancements:
+        args.inventory_skew = args.listing_bootstrap = args.drawdown = args.spot_outflow = args.strict_guards = True
     if args.listing_bootstrap:
-        if args.profile != "probe":
-            parser.error("--listing-bootstrap currently certifies the short probe only")
         args.strict_guards = args.drawdown = args.spot_outflow = True
-    if args.strict_guards and args.profile != "probe":
-        parser.error("--strict-guards currently certifies the short probe only")
-    if args.drawdown and args.profile != "probe":
-        parser.error("--drawdown currently certifies the short probe only")
-    if args.spot_outflow and args.profile != "probe":
-        parser.error("--spot-outflow currently certifies the short probe only")
     metadata = json.loads(docker("image", "inspect", args.image).stdout)[0]
     assert metadata["Architecture"] == "amd64"
     # Cached immutable digest from P4 needs no registry/network preparation again.
@@ -195,6 +191,7 @@ def main():
                     bot_limits=dict(cpus=1, memory_bytes=2 * 1024**3), postgres_limits=dict(cpus=2, memory_bytes=512 * 1024**2),
                     simulator_limits=dict(cpus=1, memory_bytes=512 * 1024**2), client_limits=dict(cpus=1, memory_bytes=512 * 1024**2),
                     history_orders=args.history_rows, history_fills=args.history_rows, funding_sync_interval_seconds=5,
+                    enhancements=args.enhancements, active_outflow_history=args.enhancements, history_read_mix="original eleven routes/rates/latency population unchanged; add 1 event + 1 liquidity read/s with the same separate latency/error gates",
                     tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap, inventory_skew=args.inventory_skew,
                     continue_after_budget_failure=args.keep_going, windows={})
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
@@ -208,7 +205,7 @@ def main():
                 import yaml
                 config_path = assets / "life_mm_profiles.yaml"
                 profiles = yaml.safe_load(config_path.read_text())
-                profiles["spot_outflow"] = dict(window_seconds=3600, max_net_outflow_quote="100000", fee_allowance_rate=".01")
+                profiles["spot_outflow"] = dict(window_seconds=86400 if args.enhancements else 3600, max_net_outflow_quote="100000", fee_allowance_rate=".01")
                 config_path.write_text(yaml.safe_dump(profiles))
             if args.drawdown:
                 import yaml
@@ -241,6 +238,15 @@ def main():
                 # Strong asymmetric sizing is checked in the dedicated E2E.
                 profiles["markets"]["spot"]["inventory_skew"] = dict(
                     enabled=True, target_base_pct=".01", inventory_range_multiplier="10")
+                config_path.write_text(yaml.safe_dump(profiles))
+            if args.enhancements:
+                import yaml
+                config_path = assets / "life_mm_profiles.yaml"
+                profiles = yaml.safe_load(config_path.read_text())
+                for market in profiles["markets"].values():
+                    market["spread_policy"] = dict(fee_floor=True, volatility=dict(
+                        enabled=True, interval="1s", length=5, target_natr=".01", min_multiplier=".5", max_multiplier="3",
+                        max_age_seconds=5, on_unavailable="wait"))
                 config_path.write_text(yaml.safe_dump(profiles))
             if args.refresh_seconds is not None:
                 assert diagnostic and args.refresh_seconds > 0
@@ -285,7 +291,7 @@ def main():
                     poll(lambda: bool((harness.state()["recovery_state"].get("spot_outflow") or {}).get("binding")),
                          description="verified empty-DB outflow binding before historical fixture insertion")
                     command(harness, port, "stop")
-                seed_history(harness, args.history_rows)
+                seed_history(harness, args.history_rows, active_outflow=args.enhancements)
                 bill_time = int(time.time() * 1000) - 1000
                 harness.control(funding_bills=[dict(billId=str(i), type="8", subType="174" if value[0] != "-" else "173",
                                                     instId="LIFE-USDT-SWAP", ts=str(bill_time), pnl=value, ccy="USDT")
@@ -296,6 +302,9 @@ def main():
                 controls["stop"], _ = command(harness, port, "stop")
                 _, _ = command(harness, port, "start", market_mode="both", selection="fixed", profile_id="follow_market", duration_seconds=86400)
                 poll(lambda: len([order for order in harness.ledger()["orders"] if order["state"] == "live"]) == 8, description="eight working load quotes")
+                if args.enhancements:
+                    evidence["active_outflow_initial"] = (harness.state()["status"].get("spot_outflow") or {})
+                    assert evidence["active_outflow_initial"].get("fill_count", 0) >= args.history_rows // 2
                 client = harness.prefix + "-load-client"
                 client_mounts = ["--mount", f"type=bind,source={trace_directory},target=/trace-output"] if args.trace else []
                 client_env = {"HBOT_LOAD_TRACE_DIRECTORY": "/trace-output", "HBOT_LOAD_TRACE_DATABASE_URL": harness.env["DATABASE_URL"]} if args.trace else None
@@ -325,6 +334,27 @@ def main():
                     assert all(row["max"] <= (3 if "/orders?" in path else 1) for path, row in route_queries.items()
                                if "/orders?" in path or "/fills?" in path or path.endswith("/performance")), "History/performance query count grew with page size"
                     assert data["exchange_account_reads"] <= 2 * duration / 5 + 10, "FE polls multiplied exchange account calls"
+                    if args.enhancements:
+                        data["enhancement_state"] = {key: harness.state()["status"].get(key) for key in ("spot_outflow", "mm_markets")}
+                        routes = data["runtime"]["route_queries"]
+                        assert routes["/api/v1/admin/sessions/{id}/events"]["max"] == 2
+                        assert routes["/api/v1/admin/statistics/liquidity"]["max"] == 1
+                        if name == "warmup":
+                            assert data["enhancement_state"]["spot_outflow"]["fill_count"] < 1000
+                        if name == "soak":
+                            # Read existing history after timing ends; do not add
+                            # traffic to or dilute the measured read population.
+                            steps = json.loads(harness.sql("""SELECT COALESCE(json_agg(t),'[]') FROM (
+                                SELECT e.new_profile AS profile, extract(epoch FROM e.created_at) AS at,
+                                    (e.payload->>'step_index')::int AS step,
+                                    (e.payload->>'step_expires_at')::numeric AS expires_at
+                                FROM mm_events e JOIN bot_state b ON e.bot_id=b.bot_id
+                                WHERE e.session_id=b.mm_session->>'id' AND e.event_type='step_started'
+                                ORDER BY e.id) t"""))
+                            low, high = data["window_start_utc"], data["window_start_utc"] + duration
+                            data["profile_running_coverage"] = [dict(profile=row["profile"], step=row["step"],
+                                                                     running_overlap_seconds=min(high, row["expires_at"]) - max(low, row["at"]))
+                                                                for row in steps if row["at"] < high and row["expires_at"] > low]
                     evidence["windows"][name] = data
                     (report / "result.json").write_text(json.dumps(evidence, indent=2))
                     print(name, {key: data[key] for key in ("read_p95_ms", "read_p99_ms", "completed_reads_per_second", "market_updates_per_second", "fills_per_second", "violations")}, flush=True)

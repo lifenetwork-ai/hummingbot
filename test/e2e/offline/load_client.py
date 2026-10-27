@@ -98,6 +98,25 @@ def percentile(values, fraction):
     return sorted(values)[max(0, math.ceil(len(values) * fraction) - 1)] if values else None
 
 
+async def measure_market_burst(exchange, rate, duration=10):
+    """Require real delivered throughput; restore steady load even on failure."""
+    target = rate * 5
+    await exchange("/control", {"target_updates_per_second": target})
+    started = time.time()
+    try:
+        before = await exchange("/market-metrics")
+        await asyncio.sleep(duration)
+        after = await exchange("/market-metrics")
+        elapsed = after["observed_at_monotonic"] - before["observed_at_monotonic"]
+        updates = after["market_update_count"] - before["market_update_count"]
+        measured = updates / elapsed
+        assert measured + 4 / elapsed >= target, f"Burst feed delivered {measured:.3f}/s below {target}/s minimum"
+    finally:
+        await exchange("/control", {"target_updates_per_second": rate})
+    return dict(burst_started_at=started, burst_ended_at=time.time(), burst_updates_per_second=measured,
+                burst_updates=updates, burst_measurement_seconds=elapsed, burst_minimum_updates_per_second=target)
+
+
 async def main(args):
     start_tracing()
     auth = aiohttp.BasicAuth("operator", "offline-admin")
@@ -216,16 +235,7 @@ async def main(args):
                         status, receipt = await post("/commands", payload, str(uuid.uuid4()))
                         assert status == 202, receipt
                         control_results["command_seconds"][action] = await applied(receipt, started, maximum)
-                await exchange("/control", {"target_updates_per_second": args.market_rate * 5})
-                control_results["burst_started_at"] = time.time()
-                burst_before = await exchange("/ledger")
-                await asyncio.sleep(10)
-                burst_after = await exchange("/ledger")
-                burst_seconds = burst_after["observed_at_monotonic"] - burst_before["observed_at_monotonic"]
-                control_results["burst_updates_per_second"] = (burst_after["market_update_count"] - burst_before["market_update_count"]) / burst_seconds
-                assert control_results["burst_updates_per_second"] + 4 / burst_seconds >= args.market_rate * 5
-                await exchange("/control", {"target_updates_per_second": args.market_rate})
-                control_results["burst_ended_at"] = time.time()
+                control_results.update(await measure_market_burst(exchange, args.market_rate))
                 ledger = await exchange("/ledger")
                 if ledger["fills"]:
                     # Old/duplicate private events after newer fills must not
@@ -235,11 +245,14 @@ async def main(args):
 
         await exchange("/control", {"target_updates_per_second": args.market_rate})
         before = await exchange("/ledger")
+        initial_code, initial_status = await admin("/status")
+        assert initial_code == 200
         paths = ["/status", "/orders?limit=1", "/orders?limit=100", "/orders?limit=500", "/fills?limit=100",
                  "/fills?limit=500", "/balances", "/positions", "/performance", "/statistics/daily", "/reconciliation"]
         queue = asyncio.Queue(maxsize=1000)
         latencies, schedule_lag, errors, statuses, per_route = [], [], [], Counter(), {}
         requested, completed, valid_fills, fill_attempts = 0, 0, 0, 0
+        auxiliary_requested, auxiliary_completed, auxiliary_latencies, auxiliary_statuses = 0, 0, [], Counter()
         fill_candidate_conflicts = 0
         last_completion, completed_in_window = None, 0
         origin = time.monotonic()
@@ -248,17 +261,19 @@ async def main(args):
         last_status = None
 
         async def reader():
-            nonlocal completed, last_status, last_completion, completed_in_window
+            nonlocal completed, last_status, last_completion, completed_in_window, auxiliary_completed
             while True:
                 item = await queue.get()
                 if item is None:
                     queue.task_done()
                     return
-                due, path = item
-                schedule_lag.append(max(0, (time.monotonic() - due) * 1000))
+                due, path, auxiliary = item
+                if not auxiliary:
+                    schedule_lag.append(max(0, (time.monotonic() - due) * 1000))
                 try:
-                    status, body = await admin(path, due=due)
-                    statuses[str(status)] += 1
+                    resolved = path.replace("{session_id}", ((last_status or initial_status).get("session") or {}).get("id", "unobserved"))
+                    status, body = await admin(resolved, due=due)
+                    (auxiliary_statuses if auxiliary else statuses)[str(status)] += 1
                     if path == "/status" and status == 200:
                         last_status = body
                     if status != 200:
@@ -266,13 +281,17 @@ async def main(args):
                 except Exception as error:
                     errors.append(dict(path=path, error=type(error).__name__))
                 last_completion = time.monotonic()
-                completed_in_window += last_completion <= origin + args.duration
+                if not auxiliary:
+                    completed_in_window += last_completion <= origin + args.duration
                 # Include dispatch/backlog delay; a slow generator must not
                 # hide latency by timing only the eventual network request.
                 elapsed = (last_completion - due) * 1000
-                latencies.append(elapsed)
+                (auxiliary_latencies if auxiliary else latencies).append(elapsed)
                 per_route.setdefault(path, []).append(elapsed)
-                completed += 1
+                if auxiliary:
+                    auxiliary_completed += 1
+                else:
+                    completed += 1
                 queue.task_done()
 
         async def fill_events():
@@ -295,7 +314,7 @@ async def main(args):
                         return
                     continue
                 async with fill_lock:
-                    ledger = await exchange("/ledger")
+                    ledger = await exchange("/working-orders")
                     working = [order for order in ledger["orders"] if order["state"] in ("live", "partially_filled")]
                     # Alternate both markets/sides; tiny valid partial fills retain all
                     # configured risk caps throughout an hour without external capital.
@@ -322,8 +341,14 @@ async def main(args):
         for index in range(int(args.duration * args.read_rate)):
             due = origin + index / args.read_rate
             await asyncio.sleep(max(0, due - time.monotonic()))
-            await queue.put((due, paths[index % len(paths)]))
+            await queue.put((due, paths[index % len(paths)], False))
             requested += 1
+            # Preserve every original slot/rate and its latency population. Add
+            # two bounded E4 reads/s on top, measured with the same limits.
+            for offset, path in ((0, "/sessions/{session_id}/events?limit=100"), (args.read_rate // 2, "/statistics/liquidity")):
+                if index % args.read_rate == offset:
+                    await queue.put((due, path, True))
+                    auxiliary_requested += 1
             if time.monotonic() - origin >= next_minute:
                 summaries.append(dict(elapsed_seconds=time.monotonic() - origin, requested=requested, completed=completed,
                                       valid_fills=valid_fills, queued=queue.qsize(), p95_ms=percentile(latencies[-1200:], .95),
@@ -361,6 +386,9 @@ async def main(args):
                       requested_reads=requested, completed_reads=completed,
                       requested_reads_per_second=args.read_rate, completed_reads_per_second=completed / max(args.duration, (last_completion or origin) - origin),
                       completed_reads_in_window=completed_in_window, completed_reads_in_window_per_second=completed_in_window / args.duration,
+                      auxiliary=dict(requested_reads=auxiliary_requested, completed_reads=auxiliary_completed,
+                                     statuses=dict(auxiliary_statuses), read_p95_ms=percentile(auxiliary_latencies, .95),
+                                     read_p99_ms=percentile(auxiliary_latencies, .99)),
                       queued_reads_at_generation_end=queued_at_end,
                       read_p50_ms=percentile(latencies, .5), read_p95_ms=percentile(latencies, .95), read_p99_ms=percentile(latencies, .99),
                       schedule_lag_p95_ms=percentile(schedule_lag, .95), unexpected_errors=len(errors), errors=errors[:30], statuses=dict(statuses),

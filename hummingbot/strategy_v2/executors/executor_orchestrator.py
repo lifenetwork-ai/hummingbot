@@ -579,12 +579,13 @@ class ExecutorOrchestrator:
         self.positions_held.clear()
 
     def store_all_executors(self):
-        for controller_id, executors_list in self.active_executors.items():
-            for executor in executors_list:
-                # Store the executor in the database
-                MarketsRecorder.get_instance().store_or_update_executor(executor)
-                self._update_cached_performance(controller_id, executor.executor_info)
-        # Remove the executors from the list
+        pending = [(controller_id, executor) for controller_id, executors in self.active_executors.items()
+                   for executor in executors]
+        if pending:
+            MarketsRecorder.get_instance().store_or_update_executors([executor for _, executor in pending])
+        # Only committed rows may advance cached performance or leave memory.
+        for controller_id, executor in pending:
+            self._update_cached_performance(controller_id, executor.executor_info)
         self.active_executors = {}
 
     def execute_action(self, action: ExecutorAction):
