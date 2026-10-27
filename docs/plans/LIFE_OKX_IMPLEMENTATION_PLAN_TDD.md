@@ -1,5 +1,9 @@
 # LIFE / OKX: Market-Making MVP Plan
 
+The [until-stopped session extension](MM_UNTIL_STOPPED_TDD_PLAN.md) adds continuous
+fixed/random sessions with YAML permission. Historical MVP acceptance below
+retains its original finite-session scope.
+
 Current API ownership was tightened on 2026-10-27 by the
 [operations API plan](ADMIN_OPERATIONS_API_TDD_PLAN.md): new commands control
 sessions only. Historical acceptance results below retain their original scope;

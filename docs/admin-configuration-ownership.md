@@ -13,7 +13,8 @@ and checked [OpenAPI contract](api/openapi.json).
 | Start, switch, stop | Durable PostgreSQL command/session | Yes | Accepted intent is applied by the owner; inspect receipt and fresh status |
 | Spot, perpetual or both | Session control, constrained by YAML market templates | Yes | New start/switch; never a patch to a running controller |
 | One profile or Random | Session control using deployed profile IDs | Yes | New start/switch |
-| Session duration | Session control within YAML minimum/maximum; default from YAML | Yes | New start/switch; duration begins at joint readiness |
+| Duration mode and timed duration | Session control; timed bounds/default and until-stopped permission from YAML | Yes | New start/switch; timing begins at joint readiness |
+| Permission for continuous sessions | YAML `allow_until_stopped`, default false if absent | No | New sessions after deployment; packaged normal/Demo presets explicitly enable permission |
 | Follow pairs and weights | `life_mm_profiles.yaml` profiles | No | New session after the updated YAML is deployed |
 | Random pool and step duration | YAML `random.profile_ids`, `step_duration_seconds` | No | New session after deployment |
 | Trading pair, budgets, spreads, leverage/margin, price/inventory limits | YAML market templates | No | New session after deployment and normal account/readiness validation |
@@ -28,6 +29,12 @@ defaults. YAML profile settings are not an additional layer of API overrides.
 `ENV=dev` does **not** select OKX Demo; the exchange environment is independent.
 The production service template explicitly sets `ENV=production`. Basic Auth
 remains required for enabled Swagger and all operational endpoints.
+
+`duration_mode=timed` is the default. `until_stopped` must omit duration_seconds
+and be offered only when `/profiles.duration_modes` advertises it. It removes
+the overall session deadline, not risk limits or the finite random step windows.
+Permission is in YAML, not `.env` or a writable command field. The API must reject
+an attempted `allow_until_stopped` override.
 
 For the packaged Cloud Run image, YAML is copied into `conf/` at build time.
 Changing a file in the repository requires a new image/deployment before a new
@@ -68,6 +75,13 @@ absolute deadline. It does not grant another hour or draw another random step ju
 because the process restarted. An elapsed deadline follows the existing expiry
 policy. Runtime recovery/readiness checks still apply before orders are allowed.
 
+**Restart a continuous session.** Its `expires_at` stays null and Stop remains
+explicit. Fixed selection restores its anchors; random restores the current
+window or skips elapsed windows using the saved start time. Restart never renews
+bootstrap, clears bound risk limits or permits an old generation to send orders.
+Changing current YAML permission to false does not rewrite this pinned session.
+Switch to a timed session or Stop through the existing API when desired.
+
 **Deploy different YAML.** The repository now follows AVAX and has a different
 budget. An existing persisted session continues to use its old snapshot. The UI
 shows Active session settings separately from Available settings. A new reviewed
@@ -97,3 +111,7 @@ Do not expose credentials, a YAML editor, arbitrary pairs, reference weights,
 random timing or risk-limit sliders as editable API fields. Start/Switch/Stop
 receipts represent requested work; current quoting comes from fresh per-market
 liquidity observations. Stop means “Stop placing orders; positions remain open.”
+
+Older runtime binaries do not understand the new persisted duration/catalogue
+fields. Use a compatible runtime for saved sessions; old-image rollback is not
+provided by this feature and there is no automatic downgrade/reset operation.

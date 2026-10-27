@@ -108,6 +108,14 @@ Use `server_time` and absolute expiry for a local countdown, periodically resync
 do not require one HTTP call per displayed second. If the latest status is stale,
 label the countdown as based on last observation. Countdown reaching zero does
 not prove that shutdown/cancellations completed.
+For `session.request.duration_mode=until_stopped`, show **Until stopped** instead
+of an end countdown. Keep the random step countdown separately. A null expiry
+alone is insufficient to infer this mode: timed sessions are also null before
+their readiness clock starts.
+Continuous means no overall expiry, not uninterrupted order presence. Keep
+startup, market waits, missing-order warnings and risk blocks visible. A cold
+start can skip random windows before the current profile is ready; never infer
+that every elapsed window traded.
 
 ## Start and switch workflow
 
@@ -139,8 +147,11 @@ the description; do not hard-code BTC/ETH/AVAX labels in the FE.
    shows the YAML pool, each profile's basket and its YAML step duration read-only.
    Label these “Managed settings.” Pair discovery is a maintainer aid for YAML
    preparation, not an editable session field. Metadata freshness is not price readiness.
-5. Show human-friendly duration inputs bounded by the catalogue. Resolve defaults
-   in the review screen and submit explicit seconds. Display budgets, leverage,
+5. Offer **Timed** and **Until stopped** from `/profiles.duration_modes`. Fall back
+   to Timed when talking to an older server that omits this capability. Timed
+   inputs use catalogue bounds/default and submit explicit seconds; Until stopped
+   omits `duration_seconds`. Keep any duration draft separate when toggling so
+   hidden stale seconds are never submitted with Until stopped. Display budgets, leverage,
    guards and target pair read-only: current commands cannot edit these settings.
 6. Show the exact requested mode/profile/references/duration and any difference
    from the active session. Switch creates a replacement session; it is not a
@@ -155,6 +166,9 @@ Generate TypeScript types from the checked OpenAPI; use one small client wrapper
 for authentication, errors and retries. Do not auto-generate a giant form exposing
 every upstream controller field. Keep `expected_version`, IDs and keys out of
 normal editable form controls.
+Keep YAML permission read-only. Switching duration mode is a new reviewed session
+through Switch, not a patch/extension to its current deadline. Display “Runs until
+you stop it; market and risk limits still apply” in the continuous-session review.
 
 Read `fields[].path` from an error response for inline validation. All returned
 `detail` messages are English. The default operator screen needs one clear status

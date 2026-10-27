@@ -561,6 +561,51 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             raise AssertionError(f"{error}; command={json.dumps(latest)}; runtime={json.dumps(runtime)}") from error
         return receipt
 
+    def until_stopped_scenario(self):
+        """Use a fresh ledger so this case does not overflow bounded history checks."""
+        print("Offline E2E: continuous random rollover, cold restart and Stop", flush=True)
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
+            self.env["HBOT_OKX_PERPETUAL_" + field] = value
+        first, port = self.start("mm-until-first")
+        # Until-stopped random sessions retain finite step authority and survive
+        # an actual clean process replacement without inventing a new session.
+        self.mm_command(port, 'start', market_mode='both', selection='random', duration_mode='until_stopped')
+        continuous = self.state()['mm_session']
+        assert continuous['expires_at'] is None and continuous['step_expires_at'] is not None
+        poll(lambda: self.state()['mm_session']['generation'] > continuous['generation'], timeout=35,
+             description='until-stopped random rollover')
+        self.wait_running(port)
+        poll(lambda: sum(order['state'] == 'live' for order in self.ledger()['orders']) == 8
+             and self.sql('SELECT count(*) FROM orders WHERE creation_pending') == '0',
+             description='continuous random step is established before clean restart')
+
+        def recovery_summary():
+            row = self.state()
+            state = row['recovery_state']
+            checkpoint = state.get('strategy_checkpoints', {}).get('life_mm_profiles.yaml', {})
+            return dict(halt=state.get('halt'), reason=state.get('reason'), runtime_active=state.get('runtime_active'),
+                        shutdown_incomplete=state.get('shutdown_incomplete'),
+                        pending_mutations=bool(state.get('pending_mutations')),
+                        stopped_checkpoint=checkpoint.get('_is_stop_triggered'))
+        restart_evidence = dict(before_shutdown=recovery_summary())
+        self.terminate(first)
+        restart_evidence['after_shutdown'] = recovery_summary()
+        (self.report / 'until-stopped-restart.json').write_text(json.dumps(restart_evidence, indent=2))
+        assert not restart_evidence['after_shutdown']['halt'], restart_evidence
+        first, port = self.start('mm-until-restart', auto_migrate=False)
+        self.wait_running(port)
+        resumed = self.state()['mm_session']
+        assert resumed['id'] == continuous['id'] and resumed['started_at'] == continuous['started_at']
+        assert resumed['expires_at'] is None and resumed['request']['duration_mode'] == 'until_stopped'
+        assert resumed['step_index'] >= continuous['step_index']
+        self.mm_command(port, 'stop')
+        assert all(order['state'] in ('filled', 'canceled') for order in self.ledger()['orders'])
+        self.metrics['until_stopped_random_restart_and_stop'] = True
+        assert not self.state()["recovery_state"].get("halt")
+        assert not self.ledger()["unknown"]
+        self.no_runtime_files(first)
+
     def mm_scenario(self, *, matrix=True):
         print("Offline E2E: LIFE admin three scenarios x spot/perpetual/both", flush=True)
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin", FUNDING_SYNC_INTERVAL_SECONDS="5")
@@ -1377,7 +1422,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
@@ -1420,7 +1465,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy") if args.scenario == "all" else (args.scenario,)
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
             result["scenarios"] = {}
@@ -1434,6 +1479,8 @@ def main():
                         harness.scenario()
                     elif scenario == "schema":
                         harness.schema_scenario()
+                    elif scenario == "until-stopped":
+                        harness.until_stopped_scenario()
                     elif scenario == "funding":
                         harness.funding_scenario()
                     elif scenario == "availability":

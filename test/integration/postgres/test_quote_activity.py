@@ -36,7 +36,7 @@ async def test_persisted_quote_warning_is_read_only_and_stale_owner_revokes_it(p
         row['status']['availability'] = dict(observed_at=now, state_source='postgres', persisted_state_available=True,
                                              phase='running', incidents=[])
         connection.execute(update(BotState).where(BotState.bot_id == 'hummingbot').values(
-            desired_state='running', owner_uuid='owner', heartbeat=datetime.now(timezone.utc),
+            desired_state='running', owner_uuid='owner', heartbeat=text('clock_timestamp()'),
             mm_session=row['mm_session'], status=json.loads(json.dumps(row['status'], default=str))))
     settings = AdminSettings(True, 'operator', 'test-password')
     app = web.Application(middlewares=[admin_middleware(settings)])
@@ -58,7 +58,7 @@ async def test_persisted_quote_warning_is_read_only_and_stale_owner_revokes_it(p
             assert response.status == 200
             body = await response.json()
             activity = body['quote_activity']['spot'] if path == '/status' else body['markets']['spot']['quote_activity']
-            assert activity['warning_active'] and activity['no_quote_seconds'] == 6
+            assert activity['warning_active'] and activity['no_quote_seconds'] == 6, activity
             assert activity['proposal_observed_at'].endswith('Z')
         with pg_engine.connect() as connection:
             after = connection.execute(select(BotState)).mappings().one()

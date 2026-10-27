@@ -1,5 +1,10 @@
 # Operations API and configuration ownership — TDD plan
 
+The subsequent [until-stopped session extension](MM_UNTIL_STOPPED_TDD_PLAN.md)
+adds `duration_mode` as a session control subject to YAML permission. The original
+implementation/test results below keep their original scope; the current guide
+documents both timed and continuous sessions.
+
 Scope approved 2026-10-27: backend API, Swagger and FE handoff only. The dashboard
 will be built in a separate FE repository. Preserve the current trading engine,
 PostgreSQL ownership, receipts and session snapshots.

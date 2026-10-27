@@ -6,6 +6,8 @@ cannot be overridden, even with null or an unchanged value. Accepted controls
 are start/switch/stop, spot/perpetual/both, fixed profile/random selection and
 session duration within YAML bounds. Persisted legacy sessions/receipts remain
 readable and retain their original snapshots on restart.
+Duration can also be `until_stopped` when explicitly permitted by YAML; this
+removes only the overall session expiry, not random-step or risk-policy limits.
 See [configuration ownership](admin-configuration-ownership.md) for the complete
 API/YAML/environment matrix and restart/rollout examples.
 
@@ -86,6 +88,40 @@ Two controls are independent:
   `step_duration_seconds`; neither field can be overridden by the API.
   Each profile has equal probability; consecutive draws may repeat.
 - Either selection accepts `market_mode: spot | perpetual | both`.
+
+Duration is independent of fixed/random selection. `/profiles.duration_modes`
+advertises `timed` and, when `catalogue.allow_until_stopped=true`, `until_stopped`.
+Omitting `duration_mode` retains timed behavior. Timed duration uses the existing
+YAML bounds/default; until stopped must omit `duration_seconds` (null is also
+accepted). Sending both modes' controls returns `duration_mode_conflict`; a new
+continuous session without YAML permission returns `duration_mode_not_allowed`.
+
+```json
+{
+  "action": "start",
+  "expected_version": 12,
+  "market_mode": "both",
+  "selection": "random",
+  "duration_mode": "until_stopped"
+}
+```
+
+Send Basic Auth, `Idempotency-Key` and the reviewed `expected_catalogue_hash` as
+for other session commands. Random uses the configured YAML pool and step timing.
+`session.expires_at` and `time_remaining_seconds` are null for a started continuous
+session; random `step_expires_at` stays finite. Fixed continuous sessions have no
+step deadline. Use the request's duration mode to label the UI; a preparing timed
+session also has no expiry until readiness. There is no auto-renew/start worker.
+
+Stop/switch uses the existing version/session checks. Restarts restore the pinned
+mode, anchors and clocks. A continuous random restart skips elapsed windows;
+timed sessions still expire normally. Disabling permission in a new deployment
+affects new requests, not an existing pinned session or its matching retry.
+HALT, bootstrap expiry, outflow, drawdown and final-send checks remain effective.
+If startup spans a random boundary, initialization finishes before automatic
+rotation skips to the current window. Expired-step order authority stays closed
+throughout; the old step is not extended. Explicit Stop/Switch and overall timed
+expiry still trigger their normal cleanup.
 
 POST `/commands` with `action: start | switch | stop`, an `Idempotency-Key` header
 and the `expected_version` read from `/status`. Switch/stop also require the current

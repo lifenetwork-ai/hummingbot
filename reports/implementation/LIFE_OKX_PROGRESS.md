@@ -1265,3 +1265,16 @@ Source changes are committed separately from the existing packaged-image results
 No new image/load/soak, real exchange, FE browser or cloud verification is claimed.
 See [report](../mm-quote-activity.md), [evidence](../mm-quote-activity-evidence.json)
 and [completed plan](../../docs/plans/MM_QUOTE_ACTIVITY_TDD_PLAN.md).
+
+## Until-stopped sessions (2026-10-28)
+
+- [x] Add explicit timed/until-stopped session selection, gated by read-only YAML permission; default remains timed.
+- [x] Preserve finite random windows, skip elapsed windows on restart and keep fixed continuous anchors; reject malformed timed authority.
+- [x] Keep Stop/Switch, ownership, HALT, risk and finite bootstrap/REST limits effective, with real-PG Red/Green coverage.
+- [x] Fix random-boundary cancellation of startup reconciliation/controller initialization, discovered by actual image restart.
+- [x] Publish English Swagger capabilities and FE/configuration ownership guidance; no API override of YAML.
+- [x] Pass 1,673 native tests + 11 subtests, 215 PG tests, separate timed/continuous image E2Es and a scoped 60-second diagnostic load probe.
+
+See [report](../mm-until-stopped.md), [evidence](../mm-until-stopped-evidence.json)
+and [completed plan](../../docs/plans/MM_UNTIL_STOPPED_TDD_PLAN.md). This work does
+not claim a new full release soak, real exchange, cloud deployment or FE browser verification.

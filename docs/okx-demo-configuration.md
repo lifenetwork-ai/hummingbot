@@ -5,6 +5,13 @@ BTC-USDT spot/perpetual before LIFE is listed. The default LIFE catalogue and
 shared environment defaults remain separate. The preset contains example paper
 limits; select actual LIFE policies separately when its instruments are available.
 
+The packaged Demo and normal catalogues explicitly set `allow_until_stopped: true`.
+This is permission only: omitted API duration mode still means a timed session.
+To rotate continuously, select `selection: random`, `duration_mode: until_stopped`
+and omit duration_seconds. The YAML pool/step timing and all risk/bootstrap limits
+still apply. Older locally copied YAML without this key defaults to disallowing
+new continuous sessions; update the deployed/copied catalogue intentionally.
+
 | File | Purpose |
 | --- | --- |
 | [Demo catalogue](../deploy/cloudrun/demo/life_mm_profiles.yaml) | Three profiles, both markets, explicit enabled policies and limits |
