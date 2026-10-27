@@ -39,7 +39,7 @@ rewritten. Recovery HALT is never cleared by these APIs.
 - [x] C — Red/Green bounded command/session history discovery, stable check lookup
   and page-level recorded fill aggregates without N+1. Use existing tables and
   indexes unless query evidence requires a small additive index.
-- [ ] D — Complete API/YAML/environment ownership tables, restart/rollout examples,
+- [x] D — Complete API/YAML/environment ownership tables, restart/rollout examples,
   API/FE guide and Swagger. Mark the external FE scope explicitly.
 - [ ] E — Run native regression, disposable PostgreSQL, current-image targeted
   functional/polling verification and changed-file checks; save scoped evidence

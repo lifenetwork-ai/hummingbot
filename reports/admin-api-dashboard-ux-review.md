@@ -187,27 +187,31 @@ Priority: correct labels now; historical intraday storage can wait.
 
 ## Recommended implementation order
 
-Unchecked items are proposed follow-up work, not failures of the passing tests.
+The findings above describe the original review baseline. Backend follow-up is
+recorded in [the implementation report](admin-operations-api-implementation.md).
+The current [ownership contract](../docs/admin-configuration-ownership.md)
+supersedes the original request-override behavior. Unchecked external tasks are
+not failures of the backend test suite.
 
 - [x] Inventory the 19 registered operations, including three documentation routes.
 - [x] Review control, freshness, accounting scopes, history and Cloud Run access.
 - [x] Verify focused API/runtime tests and generated-contract drift.
 - [x] Write the FE screen/interaction and API mapping guide.
 - [ ] U0: choose the browser access route and verify it with trading stopped.
-- [ ] U1: Red/Green structured validation/conflict errors, request IDs and complete
+- [x] U1: Red/Green structured validation/conflict errors, request IDs and complete
   error documentation. Cover invalid fields, identical retries, changed keys,
   stale versions, HALT, cooldown, malformed JSON and unsupported content type.
-- [ ] U2: Red/Green status identity/freshness, configured capabilities and read-only
+- [x] U2: Red/Green status identity/freshness, configured capabilities and read-only
   recovery/action guidance. Cover cold start, standby/old owner, stopped, owner
   loss, DB 503, old observed session, restored pinned config and partial markets.
-- [ ] U3: Red/Green command/session lists and stable reconciliation lookup. Cover
+- [x] U3: Red/Green command/session lists and stable reconciliation lookup. Cover
   reload, two operators, pagination/filter changes, duplicate retries and legacy
   history gaps. Reuse existing tables; measure query count with real PostgreSQL.
 - [ ] U4: build the five-screen FE MVP from the integration guide; generate client
   types from the checked OpenAPI. Test workflows with a real browser and local
   service/simulator, including auth/CORS, unknown POST outcome, superseded command,
   stale reporting, stop with held exposure, Decimal/UTC and partial reconciliation.
-- [ ] U5: if order progress is displayed, add the grouped recorded-fill projection
+- [x] U5: if order progress is displayed, add the grouped recorded-fill projection
   and verify query counts are independent of visible order count. Intraday history
   remains optional until the operational need is established.
 - [ ] Run the existing API/load gates for changed backend code and a bounded
@@ -219,7 +223,7 @@ arbitrary YAML writes, account-wide order controls and a profit-optimization UI.
 An aggregate `/dashboard` endpoint is optional only after measurements show that
 existing bounded reads need it. Keep separate widget freshness meanwhile.
 
-## Verification performed
+## Verification performed at the original review baseline
 
 - **81 tests passed**, covering admin HTTP/auth/docs/reference discovery,
   observations, daily cache, Decimal/UTC, Swagger, service availability,

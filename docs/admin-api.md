@@ -6,6 +6,8 @@ cannot be overridden, even with null or an unchanged value. Accepted controls
 are start/switch/stop, spot/perpetual/both, fixed profile/random selection and
 session duration within YAML bounds. Persisted legacy sessions/receipts remain
 readable and retain their original snapshots on restart.
+See [configuration ownership](admin-configuration-ownership.md) for the complete
+API/YAML/environment matrix and restart/rollout examples.
 
 Optional `status.markets[].quote_guard` reports strict guard admission, qualified
 market price, deviation, UTC observation/recovery times and source quality. The
@@ -73,7 +75,8 @@ Read `/profiles` for deployed defaults/limits and `/reference-pairs` for searcha
 paginated OKX spot USDT references and metadata freshness. Discovery uses the
 existing public connector parser/throttler, caches metadata for 60 seconds and
 shares concurrent refreshes. An unavailable refresh retains its last observation
-and marks it stale. YAML reference pairs are defaults, not a closed allowlist.
+and marks it stale. Discovery assists maintainers choosing pairs for YAML; new
+session commands cannot choose a pair outside their deployed profile.
 
 Two controls are independent:
 
@@ -120,6 +123,13 @@ are disclosed without rewriting the historical session.
 
 ## History and charts
 
+`GET /commands` discovers control receipts, with optional `action`, `status` and
+`session_id` filters. `GET /sessions` discovers recorded session creations, their
+latest recorded transitions and links to events/configuration. Both accept
+`limit` (1–500) and opaque `cursor`; reset the cursor when changing filters.
+Session coverage explicitly excludes legacy sessions with no creation event,
+while `current_session_id` remains available. These reads do not contact OKX.
+
 `/sessions/{session_id}/events` reads atomic session/profile transitions and
 recorded startup configuration. It uses bounded keyset pagination, event/source
 filters and filter-bound cursors. `history_complete` means a recorded session-start
@@ -138,6 +148,12 @@ has bounded keyset pagination (`limit` 1–500), UTC half-open `from`/`to` times
 and market/pair filters. Keep `connector`, `order_id` and the native fill ID together:
 exchange trade IDs are not global IDs. Cursors bind the original filters. Order
 details expose a bounded status timeline and a link to paginated fills.
+Order pages also expose `recorded_filled_amount`, `recorded_remaining_amount` and
+`progress_basis`. Aggregates use three SQL queries regardless of page size.
+Remaining means original amount minus recorded fills, not an exchange live/open
+quantity: cancelled orders can have a positive recorded remainder. Provisional
+or inconsistent recordings have null remainder. Do not infer exchange completion
+from zero recorded fills or build a live order book from recorder history.
 
 Managed order history preserves BUY/SELL intent before submission. A private
 cancel with an exchange ID can resolve a fully recorded intent before a Created
@@ -217,6 +233,9 @@ price, plus base-currency sizing for spot market orders. Missing required terms
 make a check incomplete; changed terms between reads invalidate its snapshot.
 
 GET `/reconciliation` reads the latest stored result; polling does not contact OKX.
+GET `/reconciliation/{check_id}` returns the specific receipt and report requested,
+even after a newer check starts. Use this lookup while following an operator's
+check; missing IDs and IDs belonging to trading commands return 404.
 Report states are `not_checked`, `checking`, `matched`, `mismatch`, `incomplete`
 and `unavailable`. Receipt execution success is distinct from a matched report.
 `matched` means only the complete checked scope agreed. Truncation, overlapping
@@ -235,7 +254,8 @@ OKX field and pagination references:
 
 ## Verification scope
 
-P3 uses local unit/HTTP tests, disposable PostgreSQL and real foreground service
-processes with external networking disabled. Deployment-image scenario tests,
-Demo transport wiring, local load/soak and final OKX Demo acceptance remain P4–P6.
+Current API/configuration-ownership evidence is recorded in the
+[operations implementation report](../reports/admin-operations-api-implementation.md).
+Historical strategy/load/Demo results remain in their separate reports. Python
+and simulator verification do not constitute browser or Cloud Run acceptance.
 P3 does not deploy to Cloud Run or use an OKX account.

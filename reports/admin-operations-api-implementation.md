@@ -82,3 +82,19 @@ existing schema validator and was replaced by an ordinary index, preserving the
 validator rather than broadening migration behavior. The final history, HTTP,
 configuration and migration selection passed 28 PostgreSQL tests. The focused
 HTTP/docs/Swagger selection also passed 28 tests.
+
+## D — FE and maintainer handoff
+
+The [ownership matrix](../docs/admin-configuration-ownership.md) separates session
+controls, immutable YAML settings, deployment environment and durable risk-policy
+bindings. Examples cover restart, changed YAML, legacy overrides and technical
+recovery. The API guide and original plan's command examples no longer recommend
+reference/random overrides on new requests.
+
+The [FE guide](../docs/admin-dashboard-integration.md) keeps Market, Profile/Random
+and Duration as the editable session form. It specifies short English operator
+messages, read-only managed settings, Details for technical fields, stable history
+links, safe retry behavior, shared-wallet accounting and per-widget freshness.
+Swagger is generated offline for FE types; production HTTP docs stay hidden.
+Frontend implementation/browser acceptance and deployment routing are external
+prerequisites, not completed features in this repository.

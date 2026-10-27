@@ -14,6 +14,7 @@ under the ignored `build/` directory.
 | [Cloud Run logging](cloudrun-logging.md) | JSON console logs, severity levels, redaction and operational filters |
 | [Cloud Run deployment](../deploy/cloudrun/README.md) | Service configuration and deployment verification |
 | [Admin API](admin-api.md) | Authentication, commands, reporting and reconciliation |
+| [Configuration ownership](admin-configuration-ownership.md) | API controls versus YAML/environment, pinned settings and restart/rollout rules |
 | [Operations dashboard integration](admin-dashboard-integration.md) | FE screen/API mapping, commands, freshness, polling and operational UX |
 | [Session history and liquidity](life-mm-history-liquidity.md) | Atomic transitions, recorded configuration, sampled quote coverage and FE polling |
 | [Optional fee/NATR spreads](life-mm-spread-policy.md) | Existing maker fee conversion and completed-candle NATR, fallback/wait and rounding |

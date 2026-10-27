@@ -1,5 +1,10 @@
 # LIFE / OKX: Market-Making MVP Plan
 
+Current API ownership was tightened on 2026-10-27 by the
+[operations API plan](ADMIN_OPERATIONS_API_TDD_PLAN.md): new commands control
+sessions only. Historical acceptance results below retain their original scope;
+legacy receipts remain readable but are not templates for new override requests.
+
 Updated: 2026-10-26 (Asia/Ho_Chi_Minh). Implementation baseline: `2d1dc0b7b`.
 Status: P1–P7 implementation and required local/Demo acceptance complete,
 including the actual funding settlement and cold-restart deduplication check.
@@ -121,25 +126,24 @@ uses the same validation rules. Credentials stay in `.env`/injected secrets.
 Default profile IDs are `follow_market`, `sideways` and `follow_token`, matching
 their scenario names. `follow_token` follows the selected reference; it does not
 detect trends or automatically find a trending token. Reference pairs remain
-configurable, including validated API overrides outside the YAML defaults.
+configurable in deployed YAML; new API commands cannot override them.
 
 `random` is a session selection policy, not a fourth profile or quote formula.
-Use `selection: fixed` with one `profile_id`, or `selection: random` with optional
-`profile_ids` and `step_duration_seconds`. Without `profile_ids`, random uses
-`random.profile_ids` from YAML; an API override may narrow that pool. The UI can offer **Random** alongside the three fixed
+Use `selection: fixed` with one `profile_id`, or `selection: random` using
+`random.profile_ids` and `step_duration_seconds` from YAML. The UI can offer **Random** alongside the three fixed
 choices while submitting the corresponding selection policy to the API.
 
 Keep these two controls separate in the UI/API:
 
 - **Selection:** one specific profile (`selection: fixed`, `profile_id`) or a
-  random profile pool (`selection: random`, optional `profile_ids`).
+  configured random profile pool (`selection: random`).
 - **Market:** `market_mode: spot | perpetual | both`, applicable to either selection.
 
 For example, fixed selection sends `{"selection":"fixed","profile_id":"follow_market"}`;
-random selection sends `{"selection":"random","profile_ids":["follow_market","sideways","follow_token"],"step_duration_seconds":600}`.
+random selection sends `{"selection":"random"}` and uses the YAML pool and timing.
 These are selection fragments of a start/switch command; both commands also supply
 the market mode, duration and expected control version. Omit `profile_id` for random
-and omit random-only fields for fixed. Random may draw the same profile on consecutive
+and omit all profile-setting overrides. Random may draw the same profile on consecutive
 steps; avoiding repeats would be a separate selection rule.
 
 Follow calculation:
@@ -148,9 +152,9 @@ Use Decimal; require non-empty unique supported pairs, positive finite weights a
 an exact total weight of 1. All references in this MVP are USDT-quoted pairs.
 `follow_token` requires one pair with weight 1. No silent weight normalization.
 
-YAML supplies default baskets, not a closed pair allowlist. A fixed start/switch
-command may override `references`: several pairs for `follow_market`, exactly one
-for `follow_token`. The source is fixed by `reference_connector` (initially OKX
+YAML supplies effective baskets: several pairs for `follow_market`, exactly one
+for `follow_token`. A new API command selects a configured profile only. The
+source is fixed by `reference_connector` (initially OKX
 spot), shared by both trading markets and routed through the chosen demo/live
 environment. Read each reference's bid/ask midpoint from that connector's order
 book through the existing `MarketDataProvider`; both trading markets use this
@@ -158,7 +162,7 @@ same spot benchmark source. API requests cannot supply arbitrary connectors or
 feed URLs. DEX feeds and perpetual-only reference pairs are outside the initial
 source support.
 
-A pair absent from YAML is accepted if it exists and is tradable on that source,
+A maintainer can add a pair to YAML if it exists and is tradable on that source,
 has the supported USDT quote currency and usable fresh data, and fits the configured
 maximum basket size. Reuse existing instrument discovery/subscriptions; validate
 and initialize every required reference before quoting. Persist effective pairs,
@@ -406,16 +410,12 @@ Example command body, with Basic Auth and `Idempotency-Key` headers:
   "market_mode": "both",
   "selection": "fixed",
   "profile_id": "follow_market",
-  "references": [
-    {"pair": "BTC-USDT", "weight": "0.6"},
-    {"pair": "ETH-USDT", "weight": "0.4"}
-  ],
   "duration_seconds": 3600
 }
 ```
 
-Random requests use configured profile IDs, overall `duration_seconds`
-and `step_duration_seconds`. Switch/stop identify the current session. Start
+Random requests select overall `duration_seconds`; profile IDs and step timing
+come from YAML. Switch/stop identify the current session. Start
 requires no active session. Reject arbitrary paths, unknown profiles and unsupported
 market/account settings.
 
