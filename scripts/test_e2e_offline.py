@@ -536,8 +536,29 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert status == 202, receipt
         status, retried = self.admin(port, "/commands", payload, key)
         assert status == 202 and retried["id"] == receipt["id"]
-        poll(lambda: self.admin(port, "/commands/" + receipt["id"])[1]["status"] == "succeeded",
-             timeout=60, description="MM " + action + " actual command completion")
+        latest = {"id": receipt["id"]}
+
+        def completed():
+            code, observed = self.admin(port, "/commands/" + receipt["id"])
+            assert code == 200, f"MM {action} receipt unavailable HTTP {code}"
+            latest.update({field: observed.get(field) for field in ("id", "status", "error", "effective_version")})
+            if observed["status"] in ("failed", "superseded"):
+                raise AssertionError(f"MM {action} {observed['status']}")
+            return observed["status"] == "succeeded"
+
+        try:
+            poll(completed, timeout=60, description="MM " + action + " actual command completion")
+        except AssertionError as error:
+            # Retain only operational codes, never dump request/config payloads.
+            try:
+                code, observed = self.admin(port, "/status")
+                runtime = {field: observed.get(field) for field in ("phase", "error")}
+                runtime.update(http_status=code, markets=[{field: item.get(field) for field in ("market", "reason")}
+                                                          for item in observed.get("markets", [])],
+                               incidents=[item.get("reason_code") for item in (observed.get("service") or {}).get("incidents", [])])
+            except Exception as diagnostic_error:
+                runtime = {"unavailable": type(diagnostic_error).__name__}
+            raise AssertionError(f"{error}; command={json.dumps(latest)}; runtime={json.dumps(runtime)}") from error
         return receipt
 
     def mm_scenario(self, *, matrix=True):

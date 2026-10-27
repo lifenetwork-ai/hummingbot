@@ -1078,10 +1078,16 @@ Work proceeds in small behavior-preserving commits on the existing runtime.
 
 - [x] Share the 22 MM readiness reasons between controller and service.
 - [x] Move persisted reporting views into a neutral core module; retain the old import for compatibility.
-- [ ] Improve command diagnostics and persist partial fault results.
-- [ ] Expose the all-feature load configuration through Make.
+- [x] Improve command diagnostics and persist partial fault results.
+- [x] Expose the all-feature load configuration through Make.
 - [ ] Replace cross-layer controller state mutation with explicit methods.
 - [ ] Extract snapshot and funding orchestration from ServiceHost without changing ownership/control ordering.
 
 Shared reasons/reporting projection: 83 focused controller, service and reporting
 tests pass. No response schema, freshness window or submission check changes.
+
+Diagnostics: four Red cases reproduce terminal-command timeouts, missing
+readiness detail and loss of a completed fault when a later case fails. All 18
+focused diagnostics/exchange/budget/ledger tests pass after the change. Make
+dry-runs confirm the explicit enhancement target adds the flag while the legacy
+target preserves its configuration. No load rates, durations or budgets change.

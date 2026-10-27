@@ -174,6 +174,8 @@ Maxima from different calls must not be added.
 Use the cached final image manifest (or a tag that resolves to it):
 
 ```sh
+# Same all-feature gate through Make (MM_LOAD_PROFILE defaults to all):
+make test-mm-load-enhancements CLOUDRUN_IMAGE=<image>
 # Short diagnostic, including the active expiry burst:
 python scripts/test_mm_load.py --image <image> --profile probe \
   --probe-seconds 150 --enhancements --trace
@@ -181,6 +183,13 @@ python scripts/test_mm_load.py --image <image> --profile probe \
 # random soak 3600s, followed by separately classified fault windows.
 python scripts/test_mm_load.py --image <image> --profile all --enhancements
 ```
+
+`all` selects every time window; the enhancement fixture is selected separately.
+`make test-mm-load MM_LOAD_ENHANCEMENTS=true` is equivalent to the dedicated
+target. `MM_LOAD_TRACE=true` remains opt-in. Successful fault cases are saved
+individually and into the root result as they finish, even if a later case fails;
+partial evidence never marks the overall run passed. Command failures retain the
+last receipt and readiness reason without dumping request/configuration payloads.
 
 E6 release acceptance uses the ordinary bounded instrumentation without the
 opt-in diagnostic tracer, matching the production default. Add `--trace` for

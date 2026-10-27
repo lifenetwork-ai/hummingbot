@@ -7,7 +7,7 @@ from decimal import Decimal
 from scripts.test_e2e_offline import docker, poll
 
 
-def fault_windows(harness, bot, port, client, report, run_window, verify):
+def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_result=None):
     results = {}
 
     def window(name, action, duration=45, delay=8):
@@ -29,6 +29,8 @@ def fault_windows(harness, bot, port, client, report, run_window, verify):
         assert not any(data["statuses"].get(str(status), 0) for status in (400, 422, 500)), data["errors"]
         data["classification"] = "injected_fault_excluded_from_healthy_latency"
         results[name] = data
+        if on_result is not None:
+            on_result(name, data)
         print("Fault under load passed:", name, flush=True)
 
     def start():

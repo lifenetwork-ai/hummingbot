@@ -20,6 +20,13 @@ from scripts.mm_load_ledger import funding_ledger_violations, ledger_violations 
 from scripts.test_e2e_offline import Harness, docker, pin_manifest, poll  # noqa: E402
 
 
+def save_fault_progress(report, evidence, name, data):
+    """Keep completed fault evidence even if preparation of the next case fails."""
+    evidence.setdefault("faults", {})[name] = data
+    (report / ("fault-" + name + ".json")).write_text(json.dumps(data, indent=2))
+    (report / "result.json").write_text(json.dumps(evidence, indent=2))
+
+
 def seed_history(harness, count, *, active_outflow=False):
     """Reuse the PG performance fixture's generate_series bulk insert pattern.
 
@@ -363,7 +370,8 @@ def main():
                 if args.profile in ("faults", "all"):
                     evidence["faults"] = fault_windows(
                         harness, bot, port, client, report, run_window,
-                        lambda h, p: verify_ledger(h, p, require_running=False))
+                        lambda h, p: verify_ledger(h, p, require_running=False),
+                        on_result=lambda name, data: save_fault_progress(report, evidence, name, data))
                 failed = {name: data["violations"] for name, data in evidence["windows"].items() if data.get("violations")}
                 if failed:
                     raise AssertionError("Declared load budgets failed: " + json.dumps(failed))
