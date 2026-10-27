@@ -3,6 +3,7 @@ import time
 from copy import deepcopy
 
 from hummingbot.connector.okx_environment import OKXEnvironment
+from hummingbot.core.mm_liquidity import liquidity_view
 
 
 def process_identity(host):
@@ -64,6 +65,20 @@ def operator_view(row, process):
     else:
         state, label, detail, next_action = "preparing", "Preparing session", "Connecting and checking the selected markets.", "wait"
     markets = deepcopy(snapshot.get("mm_markets") or [])
+    quotes = {market: value['quote_activity'] for market, value in liquidity_view(row).get('markets', {}).items()
+              if value.get('quote_activity')}
+    if state == 'running':
+        missing = [value for value in quotes.values() if value['state'] == 'no_quotes']
+        if missing:
+            state, next_action = 'waiting', 'monitor'
+            label = 'No working orders observed' if len(missing) == len(quotes) else 'Some markets have no working orders'
+            detail = 'Check the market panels for BUY and SELL reasons.'
+            if any(value['warning_active'] for value in missing):
+                detail = 'Working orders have been absent beyond the warning interval. Check the market panels and contact support if unresolved.'
+        elif quotes and all(value['state'] == 'orders_working' for value in quotes.values()):
+            label, detail = 'Orders working', 'Working orders are observed. Fill activity is shown separately for each market.'
+        elif any(value['state'] == 'one_sided' for value in quotes.values()):
+            label, detail = 'Orders working on one side', 'Check the side without working orders in each market panel.'
     drawdown = deepcopy(snapshot.get("mm_drawdown"))
     if stale:
         for market in markets:
@@ -74,7 +89,7 @@ def operator_view(row, process):
             drawdown.update(ready=False, stale=True, global_pnl_quote=None, global_drawdown_quote=None)
             for value in drawdown.get("controllers", {}).values():
                 value.update(pnl_quote=None, drawdown_quote=None)
-    return dict(process_identity=process, owner_identity=owner,
+    return dict(process_identity=process, owner_identity=owner, quote_activity=quotes,
                 observation=dict(stale=stale, session_matches=matches, observed_at=observed_at,
                                  reason_code="owner_unavailable" if not available else "session_transition" if not matches else
                                  "observation_stale" if observation_old else None),

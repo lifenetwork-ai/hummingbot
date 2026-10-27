@@ -7,7 +7,7 @@ existing order tracker, liquidity checkpoint and service incident logger.
 - [x] A — Red/Green per-side proposal diagnostics: balances, exposure, outflow,
   allocation, price/size constraints, active executors and cooldown. Diagnostic
   counts mean proposed actions, not exchange acceptance.
-- [ ] B — Red/Green observed working-order/fill activity and bounded continuous
+- [x] B — Red/Green observed working-order/fill activity and bounded continuous
   no-quote warnings. Unknown data, gaps, restart, step changes and stop must not
   accrue absence time or show a stale alert as current. Use a deployment setting
   `MM_NO_QUOTE_WARNING_SECONDS` (default 120; 0 disables warnings).

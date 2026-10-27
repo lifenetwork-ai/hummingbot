@@ -3,6 +3,7 @@ from types import MappingProxyType
 
 DEFAULT_ENV_CONFIG = MappingProxyType({
     "ENV": "dev",
+    "MM_NO_QUOTE_WARNING_SECONDS": "120",
     "ENV_FILE": ".env",
     "STORAGE_BACKEND": "file",
     "ENABLE_AUTO_MIGRATION": "false",

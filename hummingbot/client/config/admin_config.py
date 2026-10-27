@@ -18,6 +18,7 @@ class AdminSettings:
     reporting_timezone: str = "Asia/Ho_Chi_Minh"
     statistics_cache_ttl_seconds: float = 5
     documentation_enabled: bool = True
+    no_quote_warning_seconds: float = 120
 
     @classmethod
     def from_environment(cls, environ=None):
@@ -56,5 +57,11 @@ class AdminSettings:
         except (ValueError, TypeError):
             raise RuntimeConfigurationError("ADMIN_STATISTICS_CACHE_TTL_SECONDS must be between 0 and 60.") from None
         documentation_enabled = values.get("ENV", DEFAULT_ENV_CONFIG["ENV"]).strip().lower() in ("dev", "development")
+        try:
+            warning = float(values.get('MM_NO_QUOTE_WARNING_SECONDS', DEFAULT_ENV_CONFIG['MM_NO_QUOTE_WARNING_SECONDS']))
+            if not math.isfinite(warning) or not (warning == 0 or 5 <= warning <= 86400):
+                raise ValueError
+        except (ValueError, TypeError):
+            raise RuntimeConfigurationError('MM_NO_QUOTE_WARNING_SECONDS must be 0 or between 5 and 86400.') from None
         return cls(enabled, username, password, ("*",) if "*" in origins else tuple(dict.fromkeys(origins)), timezone, ttl,
-                   documentation_enabled)
+                   documentation_enabled, warning)

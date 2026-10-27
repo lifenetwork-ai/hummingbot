@@ -1,4 +1,5 @@
 """Sampled own-quote coverage, reusing tracker/status data with no exchange IO."""
+import logging
 import math
 import time
 from copy import deepcopy
@@ -7,6 +8,7 @@ from itertools import islice
 
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
+from hummingbot.core.mm_quote_activity import quote_activity, unavailable_activity
 
 
 def own_quotes(connector, pair, *, max_orders):
@@ -14,6 +16,7 @@ def own_quotes(connector, pair, *, max_orders):
     if len(orders) > max_orders:
         raise ValueError("liquidity_order_limit")
     sides = {TradeType.BUY: [], TradeType.SELL: []}
+    with_fills = 0
     for order in orders:
         if order.trading_pair != pair or not order.order_type.is_limit_type() or not order.exchange_order_id or order.current_state not in (OrderState.OPEN, OrderState.PARTIALLY_FILLED):
             continue
@@ -22,6 +25,7 @@ def own_quotes(connector, pair, *, max_orders):
             raise ValueError("liquidity_order_unavailable")
         if amount > filled:
             sides[order.trade_type].append((price, amount - filled, order.client_order_id))
+            with_fills += filled > 0
     bids, asks = sides[TradeType.BUY], sides[TradeType.SELL]
     bid = max((item[0] for item in bids), default=None)
     ask = min((item[0] for item in asks), default=None)
@@ -30,7 +34,8 @@ def own_quotes(connector, pair, *, max_orders):
     return dict(best_bid=bid, best_ask=ask, bid_notional=sum((p * a for p, a, _ in bids), Decimal('0')),
                 ask_notional=sum((p * a for p, a, _ in asks), Decimal('0')),
                 spread_bps=(ask - bid) / ((ask + bid) / 2) * 10000 if bid is not None and ask is not None else None,
-                two_sided=bool(bids and asks), bid_ids=[item[2] for item in bids], ask_ids=[item[2] for item in asks])
+                two_sided=bool(bids and asks), bid_ids=[item[2] for item in bids], ask_ids=[item[2] for item in asks],
+                buy_order_count=len(bids), sell_order_count=len(asks), working_orders_with_fills=with_fills)
 
 
 class LiquidityObserver:
@@ -39,8 +44,24 @@ class LiquidityObserver:
         self.previous = None
         self.previous_monotonic = None
         self.previous_owner = None
+        self._warning_logs = {}
 
-    def observe(self, session, observations, *, now, monotonic_now, owner_generation):
+    def _log_warning(self, market, activity, monotonic_now):
+        prior = self._warning_logs.get(market)
+        if activity['warning_active']:
+            if prior is None or monotonic_now - prior >= 60:
+                logging.getLogger(__name__).warning('No working MM quotes observed market=%s seconds=%.1f',
+                                                    market, activity['no_quote_seconds'],
+                                                    extra={'event': 'mm_no_quotes_warning', 'scope': f'quote_activity:{market}',
+                                                           'session_id': self.frame.get('session_id'), 'reason_code': 'no_active_quotes'})
+                self._warning_logs[market] = monotonic_now
+        elif prior is not None:
+            logging.getLogger(__name__).info('MM missing-quote warning cleared market=%s state=%s', market, activity['state'],
+                                             extra={'event': 'mm_no_quotes_warning_cleared', 'scope': f'quote_activity:{market}',
+                                                    'session_id': self.frame.get('session_id'), 'reason_code': activity['state']})
+            del self._warning_logs[market]
+
+    def observe(self, session, observations, *, now, monotonic_now, owner_generation, warning_seconds=120):
         if not math.isfinite(now) or not math.isfinite(monotonic_now):
             raise ValueError("liquidity_clock_unavailable")
         started = session.get('started_at')
@@ -76,7 +97,13 @@ class LiquidityObserver:
                 if persistent:
                     totals['two_sided_seconds'] += delta
             totals = {key: min(value, elapsed) for key, value in totals.items()}
-            current[market] = {**{key: value for key, value in observation.items() if key not in ('bid_ids', 'ask_ids')},
+            activity = quote_activity(observation, now=now, previous=prior, delta=delta,
+                                      continuous=bool(continuous and before and before.get('valid') and observation.get('valid')),
+                                      monitoring=started is not None and session.get('status') == 'running' and ended is None,
+                                      warning_seconds=warning_seconds)
+            self._log_warning(market, activity, monotonic_now)
+            current[market] = {**{key: value for key, value in observation.items() if key not in ('bid_ids', 'ask_ids', 'proposal')},
+                               'quote_activity': activity,
                                **totals, 'elapsed_seconds': elapsed, 'unknown_seconds': max(0, elapsed - totals['observed_seconds']),
                                'two_sided_fraction_of_elapsed': totals['two_sided_seconds'] / elapsed if elapsed else None}
         self.frame.update(generation=session['generation'], profile_id=session['profile_id'], started_at=started,
@@ -103,6 +130,7 @@ def capture_liquidity(host):
         value = dict(valid=False, eligible=False, reason_code='liquidity_observation_unavailable',
                      best_bid=None, best_ask=None, bid_notional=None, ask_notional=None, spread_bps=None, two_sided=False,
                      connector=name, pair=controller.config.trading_pair, bid_ids=[], ask_ids=[])
+        value['proposal'] = getattr(controller, 'quote_diagnostics', None)
         try:
             provider = controller.market_data_provider
             connector = provider.get_connector_with_fallback(name)
@@ -121,7 +149,8 @@ def capture_liquidity(host):
         observations[market] = value
     return observer.observe(dict(session_id=session.id, generation=session.generation, profile_id=session.profile_id,
                                  started_at=session.started_at, status=session.status, expires_at=session.expires_at), observations, now=time.time(),
-                            monotonic_now=time.monotonic(), owner_generation=host.owner.generation)
+                            monotonic_now=time.monotonic(), owner_generation=host.owner.generation,
+                            warning_seconds=getattr(getattr(host, 'admin_settings', None), 'no_quote_warning_seconds', 120))
 
 
 def _liquidity_view(row, *, session_id=None, market='all'):
@@ -148,6 +177,14 @@ def _liquidity_view(row, *, session_id=None, market='all'):
         if stale:
             value.update(valid=False, eligible=False, reason_code='owner_observation_unavailable', best_bid=None, best_ask=None,
                          bid_notional=None, ask_notional=None, spread_bps=None, two_sided=False)
+            activity = value.get('quote_activity') or {}
+            value.update(buy_order_count=None, sell_order_count=None, working_orders_with_fills=None,
+                         quote_activity=unavailable_activity(activity.get('warning_after_seconds', 120),
+                                                             observed_at=activity.get('proposal_observed_at')))
+        elif (current.get('status') in ('stopping', 'stopped', 'expired') or row.get('desired_state') == 'stopped') and value.get('quote_activity'):
+            value['quote_activity'].update(state='idle', label='Session is not placing orders',
+                                           detail='Check outstanding orders and positions separately.',
+                                           warning_active=False, no_quote_seconds=0)
         selected[key] = value
     snapshot['markets'] = selected
     return snapshot

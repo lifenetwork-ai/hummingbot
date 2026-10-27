@@ -2284,6 +2284,19 @@
             ],
             "title": "Bid Notional"
           },
+          "buy_order_count": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Buy Order Count"
+          },
           "connector": {
             "anyOf": [
               {
@@ -2322,6 +2335,17 @@
             ],
             "title": "Pair"
           },
+          "quote_activity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuoteActivityOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "reason_code": {
             "anyOf": [
               {
@@ -2332,6 +2356,19 @@
               }
             ],
             "title": "Reason Code"
+          },
+          "sell_order_count": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sell Order Count"
           },
           "spread_bps": {
             "anyOf": [
@@ -2371,6 +2408,19 @@
           "valid": {
             "title": "Valid",
             "type": "boolean"
+          },
+          "working_orders_with_fills": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Working Orders With Fills"
           }
         },
         "required": [
@@ -3841,6 +3891,108 @@
         "title": "ProfilesResponse",
         "type": "object"
       },
+      "QuoteActivityOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "fill_observation": {
+            "enum": [
+              "fills_on_working_orders",
+              "no_fills_on_working_orders",
+              "not_applicable",
+              "unavailable"
+            ],
+            "title": "Fill Observation",
+            "type": "string"
+          },
+          "fill_observation_basis": {
+            "const": "current_working_orders",
+            "description": "Only current acknowledged working orders; not session fill history.",
+            "title": "Fill Observation Basis",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "no_quote_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Continuously sampled absence of all working quotes; resets on gaps, restart or generation change.",
+            "title": "No Quote Seconds"
+          },
+          "proposal_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Observed At"
+          },
+          "sides": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/QuoteSideActivityOutput"
+            },
+            "propertyNames": {
+              "enum": [
+                "BUY",
+                "SELL"
+              ]
+            },
+            "title": "Sides",
+            "type": "object"
+          },
+          "state": {
+            "enum": [
+              "orders_working",
+              "one_sided",
+              "no_quotes",
+              "unavailable",
+              "idle"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "warning_active": {
+            "title": "Warning Active",
+            "type": "boolean"
+          },
+          "warning_after_seconds": {
+            "description": "Deployment monitoring threshold; 0 disables warnings. Does not change trading limits.",
+            "minimum": 0,
+            "title": "Warning After Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "state",
+          "label",
+          "detail",
+          "fill_observation",
+          "fill_observation_basis",
+          "no_quote_seconds",
+          "warning_after_seconds",
+          "warning_active",
+          "proposal_observed_at",
+          "sides"
+        ],
+        "title": "QuoteActivity",
+        "type": "object"
+      },
       "QuoteGuardConfigOutput": {
         "additionalProperties": false,
         "properties": {
@@ -4063,6 +4215,67 @@
           "recovery_valid_samples"
         ],
         "title": "QuoteGuardStatus",
+        "type": "object"
+      },
+      "QuoteSideActivityOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "order_count": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Count"
+          },
+          "proposed_count": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last controller proposals, not exchange-accepted orders; null when outdated.",
+            "title": "Proposed Count"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "working",
+              "blocked",
+              "pending",
+              "unavailable",
+              "idle"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "order_count",
+          "proposed_count",
+          "reason_codes",
+          "detail"
+        ],
+        "title": "QuoteSideActivity",
         "type": "object"
       },
       "RandomSelectionOutput": {
@@ -6257,6 +6470,19 @@
               }
             ],
             "default": null
+          },
+          "quote_activity": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/QuoteActivityOutput"
+            },
+            "propertyNames": {
+              "enum": [
+                "spot",
+                "perpetual"
+              ]
+            },
+            "title": "Quote Activity",
+            "type": "object"
           },
           "recovery": {
             "anyOf": [

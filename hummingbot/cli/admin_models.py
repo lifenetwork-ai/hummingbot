@@ -287,6 +287,27 @@ class SpreadPolicyStatus(APIModel):
     sell_spreads: List[Decimal]
 
 
+class QuoteSideActivity(APIModel):
+    state: Literal['working', 'blocked', 'pending', 'unavailable', 'idle']
+    order_count: Optional[int] = Field(ge=0)
+    proposed_count: Optional[int] = Field(ge=0, description='Last controller proposals, not exchange-accepted orders; null when outdated.')
+    reason_codes: List[str]
+    detail: str
+
+
+class QuoteActivity(APIModel):
+    state: Literal['orders_working', 'one_sided', 'no_quotes', 'unavailable', 'idle']
+    label: str
+    detail: str
+    fill_observation: Literal['fills_on_working_orders', 'no_fills_on_working_orders', 'not_applicable', 'unavailable']
+    fill_observation_basis: Literal['current_working_orders'] = Field(description='Only current acknowledged working orders; not session fill history.')
+    no_quote_seconds: Optional[float] = Field(ge=0, description='Continuously sampled absence of all working quotes; resets on gaps, restart or generation change.')
+    warning_after_seconds: float = Field(ge=0, description='Deployment monitoring threshold; 0 disables warnings. Does not change trading limits.')
+    warning_active: bool
+    proposal_observed_at: Optional[UTCDateTime]
+    sides: Dict[Literal['BUY', 'SELL'], QuoteSideActivity]
+
+
 class MarketReadiness(APIModel):
     market: Literal["spot", "perpetual"]
     connector: str
@@ -398,6 +419,7 @@ class RecoverySummary(APIModel):
 
 
 class StatusResponse(APIModel):
+    quote_activity: Dict[Literal['spot', 'perpetual'], QuoteActivity] = Field(default_factory=dict)
     process_identity: Optional[RuntimeIdentity] = None
     owner_identity: Optional[RuntimeIdentity] = None
     observation: Optional[ObservationStatus] = None
@@ -820,6 +842,10 @@ class LiquidityMarket(APIModel):
     elapsed_seconds: float
     unknown_seconds: float
     two_sided_fraction_of_elapsed: Optional[float]
+    buy_order_count: Optional[int] = Field(default=None, ge=0)
+    sell_order_count: Optional[int] = Field(default=None, ge=0)
+    working_orders_with_fills: Optional[int] = Field(default=None, ge=0)
+    quote_activity: Optional[QuoteActivity] = None
 
 
 class LiquidityResponse(APIModel):
