@@ -22,8 +22,9 @@ def millis():
 
 
 class Exchange:
-    def __init__(self):
-        self.fixtures = json.loads(Path("/test-assets/fixtures.json").read_text())
+    def __init__(self, fixtures=None):
+        self.fixtures = (copy.deepcopy(fixtures) if fixtures is not None else
+                         json.loads(Path("/test-assets/fixtures.json").read_text()))
         self.candle_width = Decimal(".005")
         self.candle_stale = False
         self.last_candle_bucket = None
@@ -329,6 +330,7 @@ class Exchange:
             for pair, price in data["prices"].items():
                 assert pair in self.prices and Decimal(price) > 0
                 self.prices[pair] = str(price)
+            self.mark_positions()
         if "stale_pairs" in data:
             self.stale_pairs = set(data["stale_pairs"])
         if "stale_instruments" in data:
@@ -378,12 +380,12 @@ class Exchange:
             self.fills.append(fill)
             if perpetual:
                 side = order.get("posSide", "long")
-                base = amount * Decimal("0.01")
                 position = self.positions.setdefault((order["instId"], side), {"instId": order["instId"], "posSide": side, "pos": "0",
                                                                                "avgPx": order["px"], "notionalUsd": "0", "lever": "1", "upl": "0"})
-                position["pos"] = str(Decimal(position["pos"]) + amount)
-                position["notionalUsd"] = str(Decimal(position["notionalUsd"]) + base * Decimal(order["px"]))
-                position["upl"] = str(Decimal(position["pos"]) * Decimal("0.01") * (Decimal(self.prices[order["instId"].removesuffix("-SWAP")]) - Decimal(position["avgPx"])))
+                previous = Decimal(position["pos"])
+                position["avgPx"] = str((previous * Decimal(position["avgPx"]) + amount * Decimal(order["px"])) / (previous + amount))
+                position["pos"] = str(previous + amount)
+                self.mark_positions()
             for details in self.fixtures["balances"]["data"][0]["details"]:
                 if perpetual:
                     delta = -Decimal(spec["fee"]) if details["ccy"] == "USDT" else Decimal("0")
@@ -405,6 +407,14 @@ class Exchange:
             if data.get("duplicate"):
                 await self.broadcast(message)
         return web.json_response({"ok": True})
+
+    def mark_positions(self):
+        for position in self.positions.values():
+            mark = Decimal(self.prices[position["instId"].removesuffix("-SWAP")])
+            amount = Decimal(position["pos"]) * Decimal("0.01")
+            position["notionalUsd"] = str(amount * mark)
+            position["upl"] = str(amount * (mark - Decimal(position["avgPx"]))
+                                  * (-1 if position["posSide"] == "short" else 1))
 
 
 if __name__ == "__main__":
