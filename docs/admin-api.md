@@ -101,6 +101,23 @@ Errors retain `error` and add a stable `code`, English `detail`, safe field path
 exception messages or invalid input values are returned. Reconciliation cooldown
 includes `retry_after_seconds` and `Retry-After`; do not treat every 409 as retryable.
 
+`/profiles` returns only configured market modes, `catalogue_hash`, process identity
+and `configuration_policy`. Send `expected_catalogue_hash` with start/switch to
+reject a different deployed catalogue than the operator reviewed. It is a
+precondition, not an override. An identical retry returns the accepted receipt
+even if YAML changed afterward. Omitting it retains compatibility but provides
+no catalogue-change protection.
+
+`/status.operator` provides English labels and next steps; `actions` is advisory,
+with explicit blocked reasons. `process_identity` identifies the responding
+revision; `owner_identity` is the published trading owner's configuration.
+`observation` discloses stale/mismatched session observations. `recovery` contains
+only safe flags and technical-review guidance; there is no recovery-reset action.
+Follow `session_configuration_url` or GET `/sessions/{id}/configuration` to inspect
+the pinned session catalogue/request. Historical creation events provide archived
+configuration; missing history returns 404, not today's YAML. Legacy overrides
+are disclosed without rewriting the historical session.
+
 ## History and charts
 
 `/sessions/{session_id}/events` reads atomic session/profile transitions and

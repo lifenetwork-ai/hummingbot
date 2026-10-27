@@ -19,7 +19,10 @@ class BotStateStore:
         # Reporting needs fresh control/heartbeat and the published snapshot,
         # but not private recovery details or the full archived catalogue.
         columns = ("bot_id, desired_state, control_version, acknowledged_version, owner_uuid, owner_generation, "
-                   "heartbeat, status, revision, CASE WHEN jsonb_typeof(mm_session)='object' "
+                   "heartbeat, status, revision, jsonb_build_object('halted', recovery_state->'halt' = 'true'::jsonb, "
+                   "'pending_mutations', COALESCE(recovery_state->'pending_mutations', '[]'::jsonb) "
+                   "NOT IN ('[]'::jsonb, '{}'::jsonb, 'null'::jsonb)) AS recovery_summary, "
+                   "CASE WHEN jsonb_typeof(mm_session)='object' "
                    "THEN mm_session - 'catalogue' ELSE mm_session END AS mm_session") if publication else "*"
         with self.engine.connect() as connection:
             row = connection.execute(text(f"""

@@ -40,6 +40,37 @@
         "title": "AccountBalances",
         "type": "object"
       },
+      "ActionAvailabilityOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed": {
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason Code"
+          }
+        },
+        "required": [
+          "allowed",
+          "detail"
+        ],
+        "title": "ActionAvailability",
+        "type": "object"
+      },
       "BalanceObservationOutput": {
         "additionalProperties": false,
         "properties": {
@@ -476,6 +507,49 @@
           "updated_at"
         ],
         "title": "CommandResponse",
+        "type": "object"
+      },
+      "ConfigurationPolicyOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "bound_policies_require_review": {
+            "default": true,
+            "title": "Bound Policies Require Review",
+            "type": "boolean"
+          },
+          "profile_settings": {
+            "const": "yaml_only",
+            "default": "yaml_only",
+            "title": "Profile Settings",
+            "type": "string"
+          },
+          "random_settings_source": {
+            "const": "yaml",
+            "default": "yaml",
+            "title": "Random Settings Source",
+            "type": "string"
+          },
+          "restart_behavior": {
+            "const": "restore_persisted_session",
+            "default": "restore_persisted_session",
+            "title": "Restart Behavior",
+            "type": "string"
+          },
+          "session_controls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Session Controls",
+            "type": "array"
+          },
+          "yaml_change_behavior": {
+            "const": "new_sessions_only",
+            "default": "new_sessions_only",
+            "title": "Yaml Change Behavior",
+            "type": "string"
+          }
+        },
+        "title": "ConfigurationPolicy",
         "type": "object"
       },
       "DailyBalanceOutput": {
@@ -2915,6 +2989,95 @@
         "title": "MarketReadiness",
         "type": "object"
       },
+      "ObservationStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Observed At"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason Code"
+          },
+          "session_matches": {
+            "title": "Session Matches",
+            "type": "boolean"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "stale",
+          "session_matches"
+        ],
+        "title": "ObservationStatus",
+        "type": "object"
+      },
+      "OperatorStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "next_action": {
+            "enum": [
+              "wait",
+              "contact_support",
+              "start",
+              "monitor"
+            ],
+            "title": "Next Action",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "unavailable",
+              "needs_attention",
+              "stopped",
+              "preparing",
+              "switching",
+              "stopping",
+              "waiting",
+              "running"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "label",
+          "detail",
+          "next_action"
+        ],
+        "title": "OperatorStatus",
+        "type": "object"
+      },
       "OrderDetailOutput": {
         "additionalProperties": false,
         "properties": {
@@ -3554,6 +3717,21 @@
           "catalogue": {
             "$ref": "#/components/schemas/MMProfilesConfigOutput"
           },
+          "catalogue_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Catalogue Hash"
+          },
+          "configuration_policy": {
+            "$ref": "#/components/schemas/ConfigurationPolicyOutput"
+          },
           "market_modes": {
             "items": {
               "enum": [
@@ -3565,6 +3743,17 @@
             },
             "title": "Market Modes",
             "type": "array"
+          },
+          "process_identity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuntimeIdentityOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "reporting_timezone": {
             "title": "Reporting Timezone",
@@ -4313,6 +4502,20 @@
             "description": "Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.",
             "title": "Duration Seconds"
           },
+          "expected_catalogue_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Precondition from /profiles. Send it to reject an unseen YAML revision; this does not override configuration.",
+            "title": "Expected Catalogue Hash"
+          },
           "expected_version": {
             "minimum": 0,
             "title": "Expected Version",
@@ -4423,6 +4626,20 @@
             "description": "Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.",
             "title": "Duration Seconds"
           },
+          "expected_catalogue_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Precondition from /profiles. Send it to reject an unseen YAML revision; this does not override configuration.",
+            "title": "Expected Catalogue Hash"
+          },
           "expected_version": {
             "minimum": 0,
             "title": "Expected Version",
@@ -4514,6 +4731,45 @@
           "session_id"
         ],
         "title": "RecordedSwitchCommand",
+        "type": "object"
+      },
+      "RecoverySummaryOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "halted": {
+            "title": "Halted",
+            "type": "boolean"
+          },
+          "next_action": {
+            "enum": [
+              "none",
+              "contact_support"
+            ],
+            "title": "Next Action",
+            "type": "string"
+          },
+          "pending_mutations": {
+            "title": "Pending Mutations",
+            "type": "boolean"
+          },
+          "reset_available": {
+            "const": false,
+            "default": false,
+            "title": "Reset Available",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "halted",
+          "pending_mutations",
+          "next_action",
+          "detail"
+        ],
+        "title": "RecoverySummary",
         "type": "object"
       },
       "ReferenceAnchorsOutput": {
@@ -4617,6 +4873,43 @@
           "stale"
         ],
         "title": "ReferencePairsResponse",
+        "type": "object"
+      },
+      "RuntimeIdentityOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "const": "process_configuration",
+            "default": "process_configuration",
+            "title": "Basis",
+            "type": "string"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Revision"
+          },
+          "trading_environment": {
+            "enum": [
+              "live",
+              "demo",
+              "unknown"
+            ],
+            "title": "Trading Environment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trading_environment"
+        ],
+        "title": "RuntimeIdentity",
         "type": "object"
       },
       "RuntimeIncident": {
@@ -4971,6 +5264,72 @@
           "phase"
         ],
         "title": "ServiceStatus",
+        "type": "object"
+      },
+      "SessionConfigurationResponseOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "catalogue": {
+            "$ref": "#/components/schemas/MMProfilesConfigOutput"
+          },
+          "catalogue_hash": {
+            "title": "Catalogue Hash",
+            "type": "string"
+          },
+          "config_hash": {
+            "title": "Config Hash",
+            "type": "string"
+          },
+          "configuration_policy": {
+            "$ref": "#/components/schemas/ConfigurationPolicyOutput"
+          },
+          "legacy_overrides": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Legacy Overrides",
+            "type": "array"
+          },
+          "profile_context": {
+            "enum": [
+              "current",
+              "at_creation"
+            ],
+            "title": "Profile Context",
+            "type": "string"
+          },
+          "profile_id": {
+            "title": "Profile Id",
+            "type": "string"
+          },
+          "request": {
+            "$ref": "#/components/schemas/MMSessionRequestOutput"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "current_session",
+              "session_created_event"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "source",
+          "profile_id",
+          "profile_context",
+          "config_hash",
+          "catalogue_hash",
+          "catalogue",
+          "request",
+          "legacy_overrides"
+        ],
+        "title": "SessionConfigurationResponse",
         "type": "object"
       },
       "SessionStateOutput": {
@@ -5488,6 +5847,20 @@
             "description": "Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.",
             "title": "Duration Seconds"
           },
+          "expected_catalogue_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Precondition from /profiles. Send it to reject an unseen YAML revision; this does not override configuration.",
+            "title": "Expected Catalogue Hash"
+          },
           "expected_version": {
             "minimum": 0,
             "title": "Expected Version",
@@ -5540,6 +5913,20 @@
           "acknowledged_version": {
             "title": "Acknowledged Version",
             "type": "integer"
+          },
+          "actions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ActionAvailabilityOutput"
+            },
+            "propertyNames": {
+              "enum": [
+                "start",
+                "switch",
+                "stop"
+              ]
+            },
+            "title": "Actions",
+            "type": "object"
           },
           "bot_id": {
             "title": "Bot Id",
@@ -5609,6 +5996,17 @@
             "title": "Markets",
             "type": "array"
           },
+          "observation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservationStatusOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "observed_session": {
             "anyOf": [
               {
@@ -5620,13 +6018,57 @@
             ],
             "default": null
           },
+          "operator": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperatorStatusOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "owner_available": {
             "title": "Owner Available",
             "type": "boolean"
           },
+          "owner_identity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuntimeIdentityOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "phase": {
             "title": "Phase",
             "type": "string"
+          },
+          "process_identity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuntimeIdentityOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "recovery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecoverySummaryOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "running": {
             "title": "Running",
@@ -5666,6 +6108,18 @@
               }
             ],
             "default": null
+          },
+          "session_configuration_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Configuration Url"
           },
           "spot_outflow": {
             "anyOf": [
@@ -5781,6 +6235,20 @@
             "default": null,
             "description": "Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.",
             "title": "Duration Seconds"
+          },
+          "expected_catalogue_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Precondition from /profiles. Send it to reject an unseen YAML revision; this does not override configuration.",
+            "title": "Expected Catalogue Hash"
           },
           "expected_version": {
             "minimum": 0,
@@ -9819,6 +10287,243 @@
           }
         ],
         "summary": "Search supported OKX spot USDT references, including pairs outside YAML",
+        "tags": [
+          "Runtime"
+        ]
+      }
+    },
+    "/api/v1/admin/sessions/{session_id}/configuration": {
+      "get": {
+        "operationId": "getSessionConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionConfigurationResponseOutput"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read pinned session configuration; restart never replaces it with current YAML",
         "tags": [
           "Runtime"
         ]

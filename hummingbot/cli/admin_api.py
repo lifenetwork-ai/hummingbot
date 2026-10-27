@@ -43,8 +43,10 @@ from hummingbot.cli.admin_models import (
     ReferencePairsQuery,
     ReferencePairsResponse,
     ServiceStatus,
+    SessionConfigurationResponse,
     StatusResponse,
 )
+from hummingbot.cli.admin_operations import operator_view, process_identity
 from hummingbot.cli.api_documentation import api_operation
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.core.control_errors import RequestError
@@ -63,6 +65,7 @@ ADMIN_ENDPOINTS += (("GET", "/statistics/daily", "daily"),
                     ("GET", "/sessions/{session_id}/events", "session_events"),
                     ("GET", "/statistics/liquidity", "liquidity"))
 ADMIN_ENDPOINTS += (("POST", "/reconciliation/check", "reconciliation_check"), ("GET", "/reconciliation", "reconciliation"))
+ADMIN_ENDPOINTS += (("GET", "/sessions/{session_id}/configuration", "session_configuration"),)
 
 
 class APIUnavailable(RuntimeError):
@@ -180,8 +183,12 @@ class AdminAPI:
 
     @api_operation(operation_id="listProfiles", summary="Read deployed MM defaults and limits", tag="Runtime", response_model=ProfilesResponse)
     async def profiles(self, request):
-        model = ProfilesResponse(catalogue=await self.deployed_profiles(), market_modes=["spot", "perpetual", "both"],
-                                 reporting_timezone=self.settings.reporting_timezone)
+        catalogue = await self.deployed_profiles()
+        modes = [mode for mode in ("spot", "perpetual") if mode in catalogue.markets]
+        if len(modes) == 2:
+            modes.append("both")
+        model = ProfilesResponse(catalogue=catalogue, market_modes=modes, catalogue_hash=catalogue.catalogue_hash(),
+                                 process_identity=process_identity(self.host), reporting_timezone=self.settings.reporting_timezone)
         return web.json_response(model.model_dump(mode="json"))
 
     @api_operation(operation_id="listReferencePairs", summary="Search supported OKX spot USDT references, including pairs outside YAML",
@@ -226,12 +233,12 @@ class AdminAPI:
                                acknowledged_version=row["acknowledged_version"], owner_available=owner_available,
                                heartbeat_age_seconds=age, running=owner_available and bool(snapshot.get("running")),
                                phase=snapshot.get("phase", "unknown") if owner_available else "owner_unavailable",
-                               session=session, observed_session=snapshot.get("mm_session"), markets=snapshot.get("mm_markets") or [],
-                               drawdown=snapshot.get("mm_drawdown"),
+                               session=session, observed_session=snapshot.get("mm_session"),
+                               **operator_view(row, process_identity(self.host)),
                                spot_outflow=outflow,
                                server_time=datetime.fromtimestamp(now, tz=timezone.utc) if now is not None else None,
                                time_remaining_seconds=remaining, error=snapshot.get("error"),
-                               funding_sync=({**snapshot["funding_sync"], **({"state": "unavailable", "error": "owner_unavailable"} if not owner_available else {})}
+                               funding_sync=({**snapshot["funding_sync"], **({"state": "unavailable", "stale": True, "error": "owner_unavailable"} if not owner_available else {})}
                                              if snapshot.get("funding_sync") else None))
         return web.json_response(model.model_dump(mode="json"))
 
@@ -388,6 +395,17 @@ class AdminAPI:
         query = self.query(request, MMEventsQuery)
         result = await asyncio.to_thread(session_events, self.storage().store, request.match_info["session_id"], **query.model_dump())
         return web.json_response(MMEventsPage.model_validate(result).model_dump(mode="json"))
+
+    @api_operation(operation_id="getSessionConfiguration", summary="Read pinned session configuration; restart never replaces it with current YAML",
+                   tag="Runtime", response_model=SessionConfigurationResponse, path_parameters=("session_id",))
+    async def session_configuration(self, request):
+        identity = request.match_info["session_id"]
+        if not 1 <= len(identity) <= 128:
+            raise ValueError("Invalid session identity")
+        row = await asyncio.to_thread(self.storage().session_configuration, identity)
+        if row is None:
+            raise web.HTTPNotFound()
+        return web.json_response(SessionConfigurationResponse.model_validate(row).model_dump(mode="json"))
 
     @api_operation(operation_id="getLiquidity", summary="Read sampled own-quote coverage without exchange requests", tag="Statistics",
                    response_model=LiquidityResponse, query_model=LiquidityQuery)

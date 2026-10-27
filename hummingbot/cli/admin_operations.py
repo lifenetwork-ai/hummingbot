@@ -1,0 +1,85 @@
+"""Read-only operator presentation over existing owner/control observations."""
+import time
+from copy import deepcopy
+
+from hummingbot.connector.okx_environment import OKXEnvironment
+
+
+def process_identity(host):
+    try:
+        environment = OKXEnvironment.load().mode
+    except ValueError:
+        environment = "unknown"
+    return dict(trading_environment=environment, revision=getattr(host, "revision", None))
+
+
+def operator_view(row, process):
+    snapshot = row.get("status") or {}
+    age = row.get("heartbeat_age_s")
+    available = bool(row.get("owner_uuid")) and age is not None and 0 <= float(age) <= 5
+    session, observed = row.get("mm_session") or {}, snapshot.get("mm_session") or {}
+    matches = (session.get("id"), session.get("generation")) == (observed.get("id"), observed.get("generation"))
+    observed_at = (snapshot.get("availability") or {}).get("observed_at")
+    now = row.get("database_now", time.time())
+    observation_old = observed_at is not None and not 0 <= float(now) - float(observed_at) <= 5
+    stale = not available or not matches or observation_old
+    recovery = row.get("recovery_summary") or {}
+    halted = bool(recovery.get("halted")) or snapshot.get("phase") == "halted"
+    pending = bool(recovery.get("pending_mutations"))
+    owner = snapshot.get("identity")
+    mismatch = bool(available and owner and owner.get("trading_environment") != process["trading_environment"])
+    common = ("recovery_required" if halted or pending else "owner_unavailable" if not available else
+              "environment_mismatch" if mismatch else None)
+    current_active = session.get("status") in ("preparing", "running", "stopping")
+    reasons = {
+        "start": common or ("session_active" if row["desired_state"] == "running" or current_active else None),
+        "switch": common or (None if session.get("status") in ("preparing", "running") else "session_not_active"),
+        # Stop is a durable intent and remains useful during startup/owner loss.
+        "stop": None if session.get("id") else "session_not_active",
+    }
+    from hummingbot.cli.admin_errors import MESSAGES
+    descriptions = {"start": "Start a new session.", "switch": "Replace the current session.",
+                    "stop": "Stop placing orders. Existing positions remain open."}
+    actions = {}
+    for key, reason in reasons.items():
+        detail = MESSAGES.get(reason, "The action is currently unavailable.") if reason else descriptions[key]
+        actions[key] = dict(allowed=reason is None, reason_code=reason, detail=detail)
+    phase = snapshot.get("phase")
+    if halted or pending:
+        state, label, detail, next_action = "needs_attention", "Technical review needed", "Trading cannot restart until the cause is resolved.", "contact_support"
+    elif mismatch:
+        state, label, detail, next_action = "needs_attention", "Deployment review needed", "The responding service and trading owner use different environments.", "contact_support"
+    elif not available or observation_old:
+        state, label, detail, next_action = "unavailable", "Status unavailable", "The latest trading state cannot be confirmed.", "wait"
+    elif row["desired_state"] == "stopped":
+        stopping = bool(snapshot.get("running")) or session.get("status") == "stopping"
+        state, label = ("stopping", "Stopping orders") if stopping else ("stopped", "Stopped")
+        detail, next_action = "Positions may remain open. Check the exposure panel.", "wait" if stopping else "start"
+    elif not matches:
+        state, label, detail, next_action = "switching", "Applying session", "Waiting for the requested session to become active.", "wait"
+    elif phase == "running":
+        state, label, detail, next_action = "running", "Session active", "Check the liquidity panels for current orders on each market.", "monitor"
+    elif phase == "waiting_for_mm_readiness":
+        state, label, detail, next_action = "waiting", "Waiting for market readiness", "The service is available. Trading is waiting for required data or limits.", "wait"
+    else:
+        state, label, detail, next_action = "preparing", "Preparing session", "Connecting and checking the selected markets.", "wait"
+    markets = deepcopy(snapshot.get("mm_markets") or [])
+    drawdown = deepcopy(snapshot.get("mm_drawdown"))
+    if stale:
+        for market in markets:
+            market.update(ready=False, admitted=False, reference_price=None)
+            if market.get("quote_guard"):
+                market["quote_guard"].update(ready=False, can_admit=False)
+        if drawdown:
+            drawdown.update(ready=False, stale=True, global_pnl_quote=None, global_drawdown_quote=None)
+            for value in drawdown.get("controllers", {}).values():
+                value.update(pnl_quote=None, drawdown_quote=None)
+    return dict(process_identity=process, owner_identity=owner,
+                observation=dict(stale=stale, session_matches=matches, observed_at=observed_at,
+                                 reason_code="owner_unavailable" if not available else "session_transition" if not matches else
+                                 "observation_stale" if observation_old else None),
+                operator=dict(state=state, label=label, detail=detail, next_action=next_action), actions=actions,
+                recovery=dict(halted=halted, pending_mutations=pending, next_action="contact_support" if halted or pending else "none",
+                              detail="Contact support before restarting trading." if halted or pending else "No recovery block is recorded."),
+                session_configuration_url=f"/api/v1/admin/sessions/{session['id']}/configuration" if session.get("id") else None,
+                markets=markets, drawdown=drawdown)

@@ -79,6 +79,9 @@ class AdminStore:
                 if existing["request_hash"] != request_hash:
                     raise IdempotencyConflict("Idempotency-Key is already bound to another request")
                 return dict(existing)
+            expected_hash = payload.get("expected_catalogue_hash")
+            if payload["action"] != "stop" and expected_hash is not None and expected_hash != catalogue.catalogue_hash():
+                raise ControlConflict("Deployed catalogue changed", code="catalogue_changed")
             result = self.store.request_mm_session(
                 action=payload["action"], expected_version=payload["expected_version"], catalogue=catalogue,
                 request=request, current_session_id=payload.get("session_id"), connection=connection, principal=principal, source="admin_api")
@@ -100,6 +103,36 @@ class AdminStore:
             row = connection.execute(select(AdminCommand).where(AdminCommand.bot_id == self.bot_id,
                                                                 AdminCommand.id == command_id)).mappings().first()
             return dict(row) if row else None
+
+    def session_configuration(self, session_id):
+        from hummingbot.client.config.mm_profiles import MMProfilesConfig
+        from hummingbot.core.mm_session import MMSession, MMSessionRequest
+        from hummingbot.model.mm_event import MMEvent
+        with self.engine.connect() as connection:
+            current = connection.execute(select(BotState.mm_session).where(BotState.bot_id == self.bot_id)).scalar()
+            if current and current.get("id") == session_id:
+                raw, profile, source = current, current["profile_id"], "current_session"
+            else:
+                event = connection.execute(select(MMEvent.payload, MMEvent.new_profile).where(
+                    MMEvent.bot_id == self.bot_id, MMEvent.session_id == session_id,
+                    MMEvent.event_type == "session_created").order_by(MMEvent.id).limit(1)).first()
+                if event is None:
+                    return None
+                raw, profile, source = event.payload["configuration"], event.new_profile, "session_created_event"
+        catalogue = MMProfilesConfig.model_validate(MMSession.restore_legacy_random_pool(raw)["catalogue"])
+        request = MMSessionRequest.model_validate(raw["request"])
+        legacy = []
+        if request.references is not None:
+            legacy.append("references")
+        if request.selection == "random":
+            if request.profile_ids is not None and set(request.profile_ids) != set(catalogue.random.profile_ids):
+                legacy.append("profile_ids")
+            if request.step_duration_seconds is not None and request.step_duration_seconds != catalogue.random.step_duration_seconds:
+                legacy.append("step_duration_seconds")
+        return dict(session_id=session_id, source=source, profile_id=profile,
+                    profile_context="current" if source == "current_session" else "at_creation",
+                    config_hash=raw["config_hash"], catalogue_hash=catalogue.catalogue_hash(),
+                    catalogue=catalogue.model_dump(mode="json"), request=request.model_dump(mode="json"), legacy_overrides=legacy)
 
     def observations(self):
         from hummingbot.core.reporting import reporting_view

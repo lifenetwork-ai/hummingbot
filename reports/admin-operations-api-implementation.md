@@ -30,3 +30,31 @@ deprecation warnings remain. Image/load verification follows after the API phase
 The offline API harness now places its AVAX reference and timed random-selection
 test policy in immutable YAML fixtures instead of API overrides. Its original
 scenario assertions remain in place; execution is recorded in the final phase.
+
+## B — Configuration provenance and operator status
+
+Profiles now expose configured market modes, a canonical catalogue hash and the
+API/YAML ownership policy. Start/switch accept an optional `expected_catalogue_hash`
+precondition. The FE should send it from the reviewed profile response; a different
+revision returns `catalogue_changed`. Matching idempotent retries still return
+their original receipt before this check, preserving accepted intent.
+
+`GET /sessions/{id}/configuration` reads the pinned current catalogue or the
+immutable session-created event. It explicitly labels source/current-vs-creation
+profile context and historical overrides. It never replaces saved settings with
+the responding revision's YAML. API history can therefore explain an old session
+after a YAML deployment or restart without rewriting its state.
+
+Status adds short English operator guidance, advisory action availability,
+responding-process versus published-owner environment/revision, observation
+freshness and a safe recovery summary. Old nested readiness is revoked in the
+response when owner/session observations are stale. Only recovery booleans are
+added to the existing publication query; private recovery state remains excluded.
+Stop remains available as durable intent during owner loss when a session exists.
+These presentation fields do not replace trading authorization or clear HALT.
+
+Three HTTP tests and one real-PG catalogue test failed before implementation.
+Post-change selection: 47 focused unit/HTTP tests and five disposable PG tests
+passed, including old/current catalogue comparison, stable retries across YAML
+changes, archived configuration lookup and private-state exclusion. ENV gating
+and trading environment remain independent.

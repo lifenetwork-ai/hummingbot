@@ -430,8 +430,10 @@ class ServiceHost:
             self.observer_progress_at = time.monotonic()
 
     def snapshot(self):
+        from hummingbot.cli.admin_operations import process_identity
         observations = self.observations.capture(self.hb.trading_core, self.owner, self.availability)
         return {"name": self.settings.bot_id, "running": self.running, "phase": self.phase,
+                "identity": process_identity(self),
                 "error": self.error, "available_configs": self.catalogue,
                 "configuration_sha256": self.config_hashes, "engine": observations["engine"],
                 "balances": observations["balances"], "reporting_unavailable": observations["reporting_unavailable"],

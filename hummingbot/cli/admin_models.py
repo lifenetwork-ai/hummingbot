@@ -72,13 +72,15 @@ class ErrorResponse(APIModel):
 class StartCommand(APIModel):
     action: Literal["start"]
     expected_version: int = Field(ge=0, strict=True)
+    expected_catalogue_hash: Optional[str] = Field(default=None, pattern=r"^[a-f0-9]{64}$",
+                                                   description="Precondition from /profiles. Send it to reject an unseen YAML revision; this does not override configuration.")
     market_mode: MarketMode
     selection: Literal["fixed", "random"] = Field(default="fixed", description="Fixed runs one profile; random chooses timed steps from a profile pool.")
     profile_id: Optional[str] = Field(default=None, description="Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.")
     duration_seconds: Optional[int] = Field(default=None, gt=0, strict=True, description="Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.")
 
     def session_request(self, catalogue):
-        values = self.model_dump(exclude={"action", "expected_version", "session_id"}, exclude_none=True)
+        values = self.model_dump(exclude={"action", "expected_version", "expected_catalogue_hash", "session_id"}, exclude_none=True)
         values["duration_seconds"] = self.duration_seconds or catalogue.default_duration_seconds
         return MMSessionRequest.model_validate(values)
 
@@ -126,10 +128,41 @@ class CommandResponse(APIModel):
     updated_at: UTCDateTime
 
 
+class ConfigurationPolicy(APIModel):
+    profile_settings: Literal["yaml_only"] = "yaml_only"
+    session_controls: List[str] = Field(default_factory=lambda: ["market_mode", "selection", "profile_id", "duration_seconds"])
+    restart_behavior: Literal["restore_persisted_session"] = "restore_persisted_session"
+    yaml_change_behavior: Literal["new_sessions_only"] = "new_sessions_only"
+    bound_policies_require_review: bool = True
+    random_settings_source: Literal["yaml"] = "yaml"
+
+
+class RuntimeIdentity(APIModel):
+    trading_environment: Literal["live", "demo", "unknown"]
+    revision: Optional[str] = None
+    basis: Literal["process_configuration"] = "process_configuration"
+
+
 class ProfilesResponse(APIModel):
     catalogue: MMProfilesConfig
     market_modes: List[MarketMode]
     reporting_timezone: str
+    catalogue_hash: Optional[str] = None
+    configuration_policy: ConfigurationPolicy = Field(default_factory=ConfigurationPolicy)
+    process_identity: Optional[RuntimeIdentity] = None
+
+
+class SessionConfigurationResponse(APIModel):
+    session_id: str
+    source: Literal["current_session", "session_created_event"]
+    profile_id: str
+    profile_context: Literal["current", "at_creation"]
+    config_hash: str
+    catalogue_hash: str
+    catalogue: MMProfilesConfig
+    request: MMSessionRequest
+    legacy_overrides: List[str]
+    configuration_policy: ConfigurationPolicy = Field(default_factory=ConfigurationPolicy)
 
 
 class ReferenceAnchors(APIModel):
@@ -299,7 +332,42 @@ class SpotOutflowStatus(APIModel):
     pending_terminal_orders: int = 0
 
 
+class ActionAvailability(APIModel):
+    allowed: bool
+    reason_code: Optional[str] = None
+    detail: str
+
+
+class OperatorStatus(APIModel):
+    state: Literal["unavailable", "needs_attention", "stopped", "preparing", "switching", "stopping", "waiting", "running"]
+    label: str
+    detail: str
+    next_action: Literal["wait", "contact_support", "start", "monitor"]
+
+
+class ObservationStatus(APIModel):
+    stale: bool
+    session_matches: bool
+    observed_at: Optional[UTCDateTime] = None
+    reason_code: Optional[str] = None
+
+
+class RecoverySummary(APIModel):
+    halted: bool
+    pending_mutations: bool
+    next_action: Literal["none", "contact_support"]
+    detail: str
+    reset_available: Literal[False] = False
+
+
 class StatusResponse(APIModel):
+    process_identity: Optional[RuntimeIdentity] = None
+    owner_identity: Optional[RuntimeIdentity] = None
+    observation: Optional[ObservationStatus] = None
+    operator: Optional[OperatorStatus] = None
+    actions: Dict[Literal["start", "switch", "stop"], ActionAvailability] = Field(default_factory=dict)
+    recovery: Optional[RecoverySummary] = None
+    session_configuration_url: Optional[str] = None
     spot_outflow: Optional[SpotOutflowStatus] = None
     drawdown: Optional[DrawdownStatus] = None
     service: Optional[ServiceStatus] = None

@@ -1,4 +1,6 @@
 """Validated MM catalogue; execution remains in the existing V2 controllers."""
+import hashlib
+import json
 from decimal import Decimal
 from typing import Dict, List, Literal, Optional, Set
 
@@ -55,6 +57,10 @@ class MMProfilesConfig(BaseModel):
     max_global_drawdown_quote: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
     max_controller_drawdown_quote: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
     spot_outflow: Optional[SpotOutflowConfig] = None
+
+    def catalogue_hash(self):
+        return hashlib.sha256(json.dumps(self.model_dump(mode="json"), sort_keys=True,
+                                         separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
     def bootstrap_policies(self):
         values = {}

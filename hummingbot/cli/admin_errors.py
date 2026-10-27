@@ -13,6 +13,7 @@ RETRIES = {
     "control_conflict": "refresh_state", "control_version_changed": "refresh_state",
     "session_changed": "refresh_state", "session_active": "refresh_state", "session_not_active": "refresh_state",
     "catalogue_changed": "refresh_state", "idempotency_key_reused": "fix_request",
+    "environment_mismatch": "contact_support", "owner_unavailable": "wait",
     "recovery_required": "contact_support", "drawdown_policy_bound": "contact_support",
     "bootstrap_policy_bound": "contact_support", "outflow_policy_bound": "contact_support",
     "check_in_progress": "wait", "check_cooldown": "wait",
@@ -46,6 +47,8 @@ MESSAGES = {
     "origin_not_allowed": "This dashboard address is not allowed. Contact support.",
     "invalid_json": "The request format is invalid.", "unsupported_media_type": "Send this request as JSON.",
     "control_conflict": "The action conflicts with the current bot state. Refresh and review the state.",
+    "environment_mismatch": "The active owner uses a different trading environment. Contact support before starting.",
+    "owner_unavailable": "Wait for the trading service to become available.",
 }
 
 
