@@ -179,9 +179,12 @@ def main():
     parser.add_argument("--listing-bootstrap", action="store_true", help="Bounded bootstrap policy with healthy outside-market qualification")
     parser.add_argument("--inventory-skew", action="store_true", help="Spot cash skew using the existing PMM calculation")
     parser.add_argument("--enhancements", action="store_true", help="Explicit E6 all-feature healthy fixture, including completed candles and an active same-time outflow expiry burst")
+    parser.add_argument('--volatility-defense', action='store_true', help='Explicit three-level defense fixture; preserve original load rates, durations and budgets')
     parser.add_argument("--keep-going", action="store_true", help="Continue healthy windows after budget violations; final result still fails")
     parser.add_argument("--operations", action="store_true", help="Add three operator-history/configuration reads/s to the existing read mix")
     args = parser.parse_args()
+    if args.volatility_defense:
+        args.strict_guards = True
     if args.enhancements:
         args.inventory_skew = args.listing_bootstrap = args.drawdown = args.spot_outflow = args.strict_guards = True
     if args.listing_bootstrap:
@@ -200,6 +203,7 @@ def main():
                     simulator_limits=dict(cpus=1, memory_bytes=512 * 1024**2), client_limits=dict(cpus=1, memory_bytes=512 * 1024**2),
                     history_orders=args.history_rows, history_fills=args.history_rows, funding_sync_interval_seconds=5,
                     enhancements=args.enhancements, active_outflow_history=args.enhancements, history_read_mix="original eleven routes/rates/latency population unchanged; add 1 event + 1 liquidity read/s with the same separate latency/error gates",
+                    volatility_defense=args.volatility_defense,
                     operations_reads_per_second=3 if args.operations else 0,
                     tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap, inventory_skew=args.inventory_skew,
                     continue_after_budget_failure=args.keep_going, windows={})
@@ -257,6 +261,14 @@ def main():
                         enabled=True, interval="1s", length=5, target_natr=".01", min_multiplier=".5", max_multiplier="3",
                         max_age_seconds=5, on_unavailable="wait"))
                 config_path.write_text(yaml.safe_dump(profiles))
+            if args.volatility_defense:
+                from test.e2e.offline.build_fixtures import enable_volatility_defense
+
+                import yaml
+                config_path = assets / 'life_mm_profiles.yaml'
+                profiles = yaml.safe_load(config_path.read_text())
+                enable_volatility_defense(profiles)
+                config_path.write_text(yaml.safe_dump(profiles))
             if args.refresh_seconds is not None:
                 assert diagnostic and args.refresh_seconds > 0
                 import yaml
@@ -310,7 +322,9 @@ def main():
                 controls["switch"], _ = command(harness, port, "switch", market_mode="both", selection="fixed", profile_id="follow_market", duration_seconds=86400)
                 controls["stop"], _ = command(harness, port, "stop")
                 _, _ = command(harness, port, "start", market_mode="both", selection="fixed", profile_id="follow_market", duration_seconds=86400)
-                poll(lambda: len([order for order in harness.ledger()["orders"] if order["state"] == "live"]) == 8, description="eight working load quotes")
+                expected_quotes = 12 if args.volatility_defense else 8
+                poll(lambda: len([order for order in harness.ledger()["orders"] if order["state"] == "live"]) == expected_quotes,
+                     description=f'{expected_quotes} working load quotes')
                 if args.enhancements:
                     evidence["active_outflow_initial"] = (harness.state()["status"].get("spot_outflow") or {})
                     assert evidence["active_outflow_initial"].get("fill_count", 0) >= args.history_rows // 2

@@ -132,3 +132,16 @@ fields. A standard Pydantic wrapper now omits only disabled defense; enabled
 defense remains fully pinned. The 83-case controller/session/economic/fixture
 selection and Swagger check pass after this change. Enabled-policy rollbacks
 still require a runtime that understands the feature and its saved latches.
+
+The test harness now includes the enabled three-level defense image scenario,
+an explicit load flag/Make target without changed budgets, delayed simulator
+cancellation with first-terminal proof, and an optional economic comparison
+variant with per-market simulated state-time metrics. The original default
+economic matrix and disabled load fixtures remain available. The 32-case
+economic/exchange/diagnostic selection passes. Final-image acceptance is pending.
+
+The old private Demo database port was unreachable and no retained Demo database
+container/backup was found. The user requested recreating the container. A Demo
+PostgreSQL container has been recreated with a dedicated named persistent volume;
+no exchange position or recovery state has been reset. Exchange compatibility
+testing remains after the local gates and account-state checks.

@@ -11,6 +11,23 @@ from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder
 
 
+def enable_volatility_defense(profiles):
+    """Explicit synthetic test policy; never changes the deployed catalogue."""
+    for market in profiles['markets'].values():
+        market.update(buy_spreads=[.004, .009, .018], sell_spreads=[.004, .009, .018],
+                      buy_amounts_pct=[50, 30, 20], sell_amounts_pct=[50, 30, 20])
+        guard = market.setdefault('quote_guards', {})
+        guard.update(enabled=True)
+        for key, value in dict(max_deviation_bps='200', resume_deviation_bps='100', recovery_delay_seconds='1').items():
+            guard.setdefault(key, value)
+        market['spread_policy'] = dict(fee_floor=True, volatility=dict(
+            enabled=True, interval='1s', length=5, target_natr='.01', min_multiplier='1', max_multiplier='3',
+            max_age_seconds=5, on_unavailable='static' if market['connector_name'] == 'okx' else 'wait',
+            fallback_buy_spreads=['.004', '.009', '.018'], fallback_sell_spreads=['.004', '.009', '.018'],
+            defense=dict(reduce_at_natr='.02', stop_at_natr='.05', resume_below_natr='.015',
+                         reduced_size_factor='.5', recovery_seconds=2)))
+
+
 def write_fixtures(path: Path):
     fixture = SimpleNamespace(base_asset="BTC", quote_asset="USDT", exchange_symbol_for_tokens=lambda base, quote: f"{base}-{quote}")
     instruments = OkxExchangeTests.all_symbols_request_mock_response.fget(fixture)

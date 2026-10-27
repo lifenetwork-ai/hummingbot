@@ -12,6 +12,7 @@ CLOUDRUN_REGION ?= asia-southeast1
 CLOUDRUN_EVIDENCE ?= build/e2e-offline/result.json
 OFFLINE_OKX_TRADING_ENV ?= demo
 MM_LOAD_PROFILE ?= all
+MM_LOAD_VOLATILITY_DEFENSE ?= false
 MM_LOAD_TRACE ?= false
 MM_LOAD_ENHANCEMENTS ?= false
 ifeq ($(DYDX),1)
@@ -109,7 +110,7 @@ build-cloudrun-demo:
 test-e2e-offline:
 	$(PYTHON) scripts/test_e2e_offline.py --image $(CLOUDRUN_IMAGE) --trading-env $(OFFLINE_OKX_TRADING_ENV) $(if $(CLOUDRUN_PREVIOUS_IMAGE),--previous-image $(CLOUDRUN_PREVIOUS_IMAGE),)
 
-.PHONY: test-mm-load test-mm-load-enhancements
+.PHONY: test-mm-load test-mm-load-enhancements test-mm-load-defense
 .PHONY: test-mm-economics test-mm-economics-probe
 test-mm-economics:
 	$(PYTHON) scripts/test_mm_economics.py
@@ -118,10 +119,13 @@ test-mm-economics-probe:
 	$(PYTHON) scripts/test_mm_economics.py --probe
 
 test-mm-load:
-	$(PYTHON) scripts/test_mm_load.py --image $(CLOUDRUN_IMAGE) --profile $(MM_LOAD_PROFILE) $(if $(filter true,$(MM_LOAD_TRACE)),--trace,) $(if $(filter true,$(MM_LOAD_ENHANCEMENTS)),--enhancements,)
+	$(PYTHON) scripts/test_mm_load.py --image $(CLOUDRUN_IMAGE) --profile $(MM_LOAD_PROFILE) $(if $(filter true,$(MM_LOAD_TRACE)),--trace,) $(if $(filter true,$(MM_LOAD_ENHANCEMENTS)),--enhancements,) $(if $(filter true,$(MM_LOAD_VOLATILITY_DEFENSE)),--volatility-defense,)
 
 test-mm-load-enhancements:
 	$(MAKE) test-mm-load MM_LOAD_ENHANCEMENTS=true
+
+test-mm-load-defense:
+	$(MAKE) test-mm-load MM_LOAD_VOLATILITY_DEFENSE=true
 
 review-cloudrun-config:
 	$(PYTHON) scripts/review_cloudrun.py $(CLOUDRUN_CONFIG) --evidence $(CLOUDRUN_EVIDENCE)

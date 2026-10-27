@@ -34,6 +34,13 @@ class Variant(StrictModel):
     fee_floor: bool
     volatility: bool
     inventory_skew: bool
+    defense: bool = False
+
+    @model_validator(mode='after')
+    def defense_dependencies(self):
+        if self.defense and not (self.fee_floor and self.volatility):
+            raise ValueError('Defense replay requires volatility and maker fee floor')
+        return self
 
 
 class Experiment(StrictModel):

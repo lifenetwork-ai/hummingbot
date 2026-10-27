@@ -180,6 +180,10 @@ def controller_config(cfg, profile, market, variant):
                                            min_multiplier='1', max_multiplier='3', max_age_seconds=5,
                                            on_unavailable='static', fallback_buy_spreads=cfg.spreads, fallback_sell_spreads=cfg.spreads)),
         inventory_skew=dict(enabled=market == 'spot' and variant.inventory_skew, target_base_pct='.5', inventory_range_multiplier='1'))
+    if variant.defense:
+        changes['spread_policy']['volatility']['defense'] = dict(
+            reduce_at_natr='.002', stop_at_natr='.005', resume_below_natr='.0015',
+            reduced_size_factor='.5', recovery_seconds=2)
     return LifeMMConfig.model_validate({**base.model_dump(), **changes})
 
 
@@ -220,11 +224,17 @@ async def run_case(cfg, *, scenario, seed, profile, market_mode, variant, sensit
     exchange = Exchange(fixtures={'balances': {'data': [{'details': details}]}, 'order_event': {'arg': {}, 'data': [{}]}})
     markets = ('spot', 'perpetual') if market_mode == 'both' else (market_mode,)
     controllers = {market: LifeMMController(controller_config(cfg, profile, market, policy), provider, asyncio.Queue()) for market in markets}
+    for controller in controllers.values():
+        if controller._spread_policy.defense is not None:
+            # Controller replay models the boundary only. Real persistence and
+            # owner fencing are certified by the PG/image tests, not this shim.
+            controller.bind_volatility_defense(paused=False, checkpoint=lambda paused: True)
     outflow = SpotOutflowProjection(SpotOutflowConfig(window_seconds=cfg.outflow_window_seconds,
                                                       max_net_outflow_quote=cfg.outflow_cap_quote, fee_allowance_rate=cfg.fee_allowance_rate), 'LIFE-USDT',
                                     coverage_start_ms=(EPOCH - cfg.outflow_window_seconds) * 1000)
     orders, rows, fills, funding_rows, equity, buy_admissions = [], [], [], [], [], []
     reasons = Counter()
+    defense_seconds = {market: Counter() for market in markets}
     stats = {market: dict(elapsed_seconds=cfg.duration_seconds, eligible_seconds=0, qualified_seconds=0,
                           eligible_qualified_seconds=0) for market in markets}
     peak_outflow, volume, equity_peak, drawdown, cancellations, rejections = ZERO, ZERO, wallet.equity(cfg.initial_mark), ZERO, 0, 0
@@ -311,6 +321,9 @@ async def run_case(cfg, *, scenario, seed, profile, market_mode, variant, sensit
                         controller.update_reference()
                     if not controller.processed_data.get('ready'):
                         reasons[controller.processed_data.get('reason', 'not_ready')] += 1
+                    if tick < cfg.duration_seconds:
+                        defense = (controller.processed_data.get('spread_policy') or {}).get('defense') or {}
+                        defense_seconds[market][defense.get('state', 'disabled')] += 1
                 ready = all(c.processed_data.get('ready') and c.exposure_within_caps() for c in controllers.values()) and tick < cfg.duration_seconds
                 for market, controller in controllers.items():
                     actions = controller.determine_executor_actions() if ready else controller.stop_quote_actions()
@@ -358,6 +371,7 @@ async def run_case(cfg, *, scenario, seed, profile, market_mode, variant, sensit
                                                                instId='LIFE-USDT' + ('-SWAP' if market == 'perpetual' else ''), side=config.side.name.lower(),
                                                                posSide='long' if config.side == TradeType.BUY else 'short', state='live', accFillSz='0',
                                                                px=str(price), sz=str(amount / (CONTRACT if market == 'perpetual' else 1)))
+                    controller.sync_volatility_checkpoint()
                 peak_outflow = max(peak_outflow, max(ZERO, outflow.net) + outflow.reserved())
                 # Expiring earlier SELL credits can raise the rolling net after
                 # valid earlier buys. Only new BUY admission is constrained.
@@ -421,7 +435,8 @@ async def run_case(cfg, *, scenario, seed, profile, market_mode, variant, sensit
                 tape_sha256=tape_hash(tape), controller_class='controllers.market_making.life_mm.LifeMMController', ledger_verified=True,
                 market_results=market_results, effective_controllers=effective,
                 effective_config_sha256=hashlib.sha256(json.dumps(effective, sort_keys=True).encode()).hexdigest(),
-                metrics=dict(fills=len(fills), volume_quote=str(volume), fees_quote=str(wallet.fees), funding_quote=str(wallet.funding),
+                metrics=dict(defense_seconds={market: dict(values) for market, values in defense_seconds.items()},
+                             fills=len(fills), volume_quote=str(volume), fees_quote=str(wallet.fees), funding_quote=str(wallet.funding),
                              initial_equity_quote=str(wallet.hold_equity(cfg.initial_mark)), final_equity_quote=str(final), hold_final_equity_quote=str(hold),
                              account_pnl_quote=str(final - wallet.hold_equity(cfg.initial_mark)), operating_cost_quote=str(operating),
                              net_pnl_after_assumed_cost_quote=str(final - wallet.hold_equity(cfg.initial_mark) - operating),

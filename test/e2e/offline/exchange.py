@@ -43,6 +43,7 @@ class Exchange:
         self.subscriptions = []
         self.hold_ack = False
         self.cancel_before_ack = False
+        self.cancel_delay_seconds = 0
         self.release = asyncio.Event()
         self.release.set()
         self.socket_args = {}
@@ -299,6 +300,8 @@ class Exchange:
             await self.broadcast(self.event(order))
             return self.ok([{"clOrdId": client_id, "ordId": order["ordId"], "sCode": "0", "sMsg": ""}])
         if path in ("/api/v5/trade/cancel-order", "/api/v5/trade/cancel-batch-orders"):
+            if self.cancel_delay_seconds:
+                await asyncio.sleep(self.cancel_delay_seconds)
             result = []
             for item in data if isinstance(data, list) else [data]:
                 order = self.orders.get(item["clOrdId"])
@@ -306,6 +309,7 @@ class Exchange:
                     result.append({"clOrdId": item["clOrdId"], "ordId": "", "sCode": "51400", "sMsg": "Order does not exist"})
                     continue
                 if order["state"] != "filled":
+                    order.setdefault('cancel_terminal_ms', millis())
                     order.update(state="canceled", uTime=millis())
                 await self.broadcast(self.event(order))
                 result.append({"clOrdId": order["clOrdId"], "ordId": order["ordId"], "sCode": "0", "sMsg": ""})
@@ -322,6 +326,10 @@ class Exchange:
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
 
     async def control(self, data):
+        if 'cancel_delay_seconds' in data:
+            delay = float(data['cancel_delay_seconds'])
+            assert 0 <= delay <= 10
+            self.cancel_delay_seconds = delay
         if "target_updates_per_second" in data:
             self.target_updates_per_second = float(data["target_updates_per_second"])
             assert 0 <= self.target_updates_per_second <= 1000

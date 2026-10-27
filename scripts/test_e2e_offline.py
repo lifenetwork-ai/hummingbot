@@ -1153,6 +1153,113 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                                              effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
         path.write_bytes(original)
 
+    def volatility_defense_scenario(self):
+        print('Offline E2E: weighted defense, delayed cancellation, durable pause and recovery', flush=True)
+        from test.e2e.offline.build_fixtures import enable_volatility_defense
+
+        import yaml
+        path = self.assets / 'life_mm_profiles.yaml'
+        original = path.read_bytes()
+        profiles = yaml.safe_load(path.read_text())
+        enable_volatility_defense(profiles)
+        path.write_text(yaml.safe_dump(profiles))
+        self.report.joinpath('effective-volatility-defense.yaml').write_bytes(path.read_bytes())
+        self.env.update(ADMIN_API_ENABLED='true', ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')
+        for field, value in [('API_KEY', 'offline-key'), ('SECRET_KEY', 'offline-secret'), ('PASSPHRASE', 'offline-pass')]:
+            self.env['HBOT_OKX_PERPETUAL_' + field] = value
+        self.control(include_own_orders=True, candle_width='.005')
+        bot, port = self.start('volatility-defense')
+        self.mm_command(port, 'start', market_mode='both', selection='fixed', profile_id='sideways', duration_seconds=600)
+
+        def states():
+            return {row['market']: (row.get('spread_policy') or {}).get('defense') or {}
+                    for row in self.state()['status'].get('mm_markets', [])}
+
+        def live():
+            return [row for row in self.ledger()['orders'] if row['state'] in ('live', 'partially_filled')]
+
+        def allocation(rows=None):
+            return sum((Decimal(row['px']) * Decimal(row['sz']) * (Decimal('.01') if row['instId'].endswith('-SWAP') else 1)
+                        for row in (live() if rows is None else rows)), Decimal('0'))
+
+        poll(lambda: len(states()) == 2 and all(row.get('state') == 'normal' for row in states().values()) and len(live()) == 12,
+             description='three weighted levels on both markets')
+        baseline = str(allocation())
+        for perpetual in (False, True):
+            order = next(row for row in live() if row['instId'].endswith('-SWAP') == perpetual and row['side'] == 'buy')
+            self.control(fill=dict(clOrdId=order['clOrdId'], amount='1', fee='.000001'))
+        poll(lambda: self.sql('SELECT count(*) FROM trade_fills') == '2', description='exact partial fills recorded before defense')
+        old_orders = live()
+        prior_ids = {row['clOrdId'] for row in self.ledger()['accepted']}
+        self.control(cancel_delay_seconds=2, candle_width='.015')
+        poll(lambda: len(states()) == 2 and all(row.get('state') == 'reduced' for row in states().values()),
+             description='raw NATR reduces both allocations')
+        self.control(cancel_delay_seconds=0)
+        reduced_snapshot = {}
+
+        def reduced_ready():
+            ledger = self.ledger()
+            rows = [row for row in ledger['orders'] if row['state'] in ('live', 'partially_filled')]
+            if len(rows) == 12 and allocation(rows) <= Decimal('100'):
+                reduced_snapshot.update(ledger=ledger, allocation=str(allocation(rows)))
+                return True
+            return False
+        poll(reduced_ready, timeout=60, description='delayed cancellations settle before reduced replacements')
+        reduced = reduced_snapshot['allocation']
+        ledger_orders = {row['clOrdId']: row for row in reduced_snapshot['ledger']['orders']}
+        for instrument in {row['instId'] for row in old_orders}:
+            old = [ledger_orders[row['clOrdId']] for row in old_orders if row['instId'] == instrument]
+            replacement = [row for row in reduced_snapshot['ledger']['accepted'] if row['instId'] == instrument and row['clOrdId'] not in prior_ids]
+            assert all(row['state'] == 'canceled' for row in old)
+            assert min(int(row['cTime']) for row in replacement) >= max(int(row['cancel_terminal_ms']) for row in old)
+        self.control(candle_width='.03')
+        poll(lambda: len(states()) == 2 and all(row.get('state') == 'paused' for row in states().values()) and not live(),
+             timeout=60, description='extreme NATR pauses both markets and cancels remainders')
+        poll(lambda: len((self.state()['recovery_state'].get('volatility_defense') or {}).get('pauses', {})) == 2,
+             description='both pause latches are durable')
+        self.control(candle_stale=True)
+        accepted = len(self.ledger()['accepted'])
+        poll(lambda: len(states()) == 2 and all((row.get('spread_policy') or {}).get('raw_natr') is None
+                                                for row in self.state()['status'].get('mm_markets', [])),
+             description='paused candle outage becomes explicit')
+        assert http(port, '/live')[0] == 200 and not live()
+        docker('stop', '--time', '15', bot)
+        bot, port = self.start('volatility-defense-restart', auto_migrate=False)
+        poll(lambda: len(states()) == 2 and all(row.get('state') == 'paused' for row in states().values()),
+             description='clean cold start restores pause despite static fallback')
+        assert len(self.ledger()['accepted']) == accepted
+        self.mm_command(port, 'stop')
+        state = self.state()
+        code, receipt = self.admin(port, '/commands', dict(action='start', expected_version=state['control_version'],
+                                                           market_mode='both', selection='random', duration_mode='until_stopped'), str(uuid.uuid4()))
+        assert code == 202, receipt
+        poll(lambda: len(states()) == 2 and all(row.get('state') == 'paused' for row in states().values()),
+             description='new continuous random session cannot reset pause')
+        assert not live() and len(self.ledger()['accepted']) == accepted
+        recovery_started = time.monotonic()
+        self.control(candle_stale=False, candle_width='.005')
+        poll(lambda: len(states()) == 2 and all(row.get('state') == 'normal' for row in states().values()) and len(live()) == 12,
+             timeout=90, description='fresh distinct candles recover through reduced to normal sizing')
+        recovery_seconds = time.monotonic() - recovery_started
+        assert not self.state()['recovery_state']['volatility_defense']['pauses']
+        for mode, count in [('spot', 6), ('perpetual', 6), ('both', 12)]:
+            self.mm_command(port, 'switch', market_mode=mode, selection='fixed', profile_id='sideways', duration_seconds=600)
+            poll(lambda: len(live()) == count, timeout=60, description=f'defense quotes in {mode} mode')
+        events = self.admin(port, '/sessions/' + self.state()['mm_session']['id'] + '/events?limit=500')[1]
+        assert any(row['event_type'] == 'guard_changed' for row in events['items'])
+        positions = self.ledger()['positions']
+        self.mm_command(port, 'stop')
+        assert not live() and self.ledger()['positions'] == positions
+        assert self.sql('SELECT count(*) FROM trade_fills') == '2'
+        assert not self.state()['recovery_state'].get('halt') and not self.ledger()['unknown']
+        assert http(port, '/live')[0] == 200
+        self.metrics['volatility_defense'] = dict(baseline_quote=baseline, reduced_quote=reduced,
+                                                  three_levels=True, delayed_cancel_seconds=2, partial_fills=2,
+                                                  pause_survives_restart_and_start=True, held_positions_preserved=True,
+                                                  recovery_seconds=recovery_seconds, market_modes=['spot', 'perpetual', 'both'],
+                                                  effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        path.write_bytes(original)
+
     def inventory_skew_scenario(self):
         print("Offline E2E: existing PMM inventory interpolation on spot/both with normal post-only executors", flush=True)
         import yaml
@@ -1422,7 +1529,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
@@ -1465,7 +1572,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense") if args.scenario == "all" else (args.scenario,)
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
             result["scenarios"] = {}
@@ -1491,6 +1598,8 @@ def main():
                         harness.drawdown_scenario()
                     elif scenario == "spread-policy":
                         harness.spread_policy_scenario()
+                    elif scenario == 'volatility-defense':
+                        harness.volatility_defense_scenario()
                     elif scenario == "inventory-skew":
                         harness.inventory_skew_scenario()
                     elif scenario == "listing-bootstrap":

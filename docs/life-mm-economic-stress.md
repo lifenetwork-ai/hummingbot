@@ -11,6 +11,20 @@ make test-mm-economics       # Full declared 648-case matrix
 python scripts/test_mm_economics.py --config test/e2e/offline/economics.yaml
 ```
 
+`--volatility-defense` adds a fourth explicit comparison variant (fee floor,
+volatility, spot skew and defense), leaving the original three variants intact.
+With the default YAML this is 864 cases, or 144 for `--probe`. A smaller declared
+YAML may be used for a scoped comparison; report that scope separately from the
+default matrix. Defense thresholds are synthetic assumptions retained in each
+effective controller configuration, not production calibration.
+
+`metrics.defense_seconds` counts simulated state time separately for each market;
+do not add both markets and call the result elapsed session time. The adapter
+uses the real controller's reduced sizing, cancellation proposals and sampled
+recovery. Its checkpoint callback is a local boundary shim: PostgreSQL persistence,
+owner fencing and real send/cancel behavior require the separate integration/image
+tests. No replay result establishes improved expected profit.
+
 Use the compiled Python environment. No local `.env`, exchange credentials,
 network connector or database is loaded. Reports go to a unique directory under
 ignored `build/mm-economics/`. `--output <new-directory>` selects another location;

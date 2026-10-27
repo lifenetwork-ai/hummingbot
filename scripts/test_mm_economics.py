@@ -154,8 +154,14 @@ def main():
     parser.add_argument('--config', type=Path, default=ROOT / 'test/e2e/offline/economics.yaml')
     parser.add_argument('--output', type=Path)
     parser.add_argument('--probe', action='store_true', help='Small diagnostic subset; not the full declared matrix.')
+    parser.add_argument('--volatility-defense', action='store_true', help='Add an explicitly declared defense comparison variant; no profit or production calibration claim')
     args = parser.parse_args()
     cfg = load_experiment(args.config)
+    if args.volatility_defense:
+        from test.e2e.offline.mm_economics_scenarios import Variant
+        cfg = cfg.model_copy(update={'variants': {**cfg.variants, 'volatility_defense': Variant(
+            fee_floor=True, volatility=True, inventory_skew=True, defense=True)}})
+        cfg = type(cfg).model_validate(cfg.model_dump())
     if args.probe:
         cfg = cfg.model_copy(update=dict(duration_seconds=60, seeds=cfg.seeds[:1],
                                          scenarios=[name for name in ('empty_no_flow', 'sideways') if name in cfg.scenarios]))

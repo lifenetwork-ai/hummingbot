@@ -14,6 +14,27 @@ make test-mm-load MM_LOAD_PROFILE=probe
 python scripts/test_mm_load.py --profile probe --probe-seconds 60 --history-rows 100000 --operations
 ```
 
+For opt-in volatility defense, use the dedicated image scenario and the same
+declared load budgets. The fixture uses three 50/30/20 levels per side, synthetic
+one-second candles and explicit defense thresholds; production YAML is untouched.
+
+```sh
+python scripts/test_e2e_offline.py --scenario volatility-defense --trading-env demo
+make test-mm-load-defense MM_LOAD_PROFILE=probe
+# Full mixed/burst/sixty-minute/fault gates with the existing enhancements enabled:
+python scripts/test_mm_load.py --profile all --enhancements --volatility-defense --operations
+```
+
+The dedicated scenario covers partial fills, deliberately delayed cancellation,
+first terminal proof before replacement, paused candle outage, clean restart,
+Stop/new continuous random session, fresh-data recovery and spot/perpetual/both.
+It compares one ledger snapshot at a time; separate reads during replacement
+cannot establish a consistent count/allocation observation. The simulator keeps
+the first cancellation terminal timestamp separately from later duplicate acks.
+The optional fixture changes the expected working-level count from eight to
+twelve; offered rates, healthy error/latency budgets and full durations stay the
+same. Intentional defense fault windows do not replace healthy acceptance.
+
 `CLOUDRUN_IMAGE` selects the deployment artifact. Full profiles pin its registry
 manifest through a disposable loopback-only registry, then remove the registry.
 Probe uses its immutable image ID and cannot count as final acceptance. Reports

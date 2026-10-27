@@ -153,6 +153,21 @@ async def test_replay_uses_real_controller_and_validates_independent_exchange_le
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('scenario', ['sustained_sells', 'gap_slow_cancel', 'empty_no_flow'])
+async def test_defense_replay_retains_independent_accounting_and_state_time(scenario):
+    from test.e2e.offline.mm_economics_replay import run_case
+    from test.e2e.offline.mm_economics_scenarios import Variant
+    cfg = experiment().model_copy(update={'duration_seconds': 60})
+    cfg = cfg.model_copy(update={'variants': {'defense': Variant(fee_floor=True, volatility=True, inventory_skew=True, defense=True)}})
+    result = await run_case(cfg, scenario=scenario, seed=11, profile='sideways',
+                            market_mode='both', variant='defense', sensitivity='assumed_stress')
+    assert result['ledger_verified']
+    for counts in result['metrics']['defense_seconds'].values():
+        assert sum(counts.values()) == 60
+    assert D(result['metrics']['peak_spot_outflow_with_reservations_quote']) <= cfg.outflow_cap_quote
+
+
+@pytest.mark.asyncio
 async def test_failed_matrix_retains_completed_case_without_claiming_acceptance(tmp_path):
     import json
     from test.e2e.offline.mm_economics_replay import run_case
