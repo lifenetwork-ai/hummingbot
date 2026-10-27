@@ -70,6 +70,12 @@ an explicitly accelerated synthetic schedule. It has no maintenance-margin,
 liquidation or dynamic exchange price-band model. Negative initial-margin
 headroom is reported as a model/capacity concern, not a successful real position.
 
+Fees/rebates are assumed paid in USDT; base/third-currency fee schedules are not
+modeled here. The 648 parameter combinations reuse twelve scenario/seed groups
+with eleven distinct tapes (empty/no-flow tapes are identical across seeds),
+so they are not 648 independent market observations. Positive-case counts are
+descriptive outcomes, not an estimated probability of making money.
+
 ## Metrics and evidence
 
 `integrity_passed` means the entire declared experiment completed and its ledger,
@@ -109,3 +115,6 @@ numbered case files retain effective configs/orders/fills/equity/funding, and
 deduplicated tapes retain prices/references/aggressor flow. Failure preserves
 completed cases and leaves integrity false. Do not interpret averages across
 different stress regimes as a fitted profit estimate or rank a global winner.
+
+`exogenous_tape_count` in the raw result counts paired scenario/seed groups;
+content-addressed tape files are deduplicated by SHA-256 and can be fewer.

@@ -8,13 +8,13 @@ conditional stress outcomes, not calibrated backtests or profit forecasts.
   shared flow consumption, exact cash/fee/funding accounting and hold baseline.
 - [x] E1: Replay the real LIFE controller, spread/inventory/quote policies and
   upstream position accounting with local providers and no exchange/DB access.
-- [ ] E2: Paired deterministic scenarios for empty/no-flow, sideways, sustained
+- [x] E2: Paired deterministic scenarios for empty/no-flow, sideways, sustained
   buys, sustained sells, independent-reference divergence and gaps/slow cancels.
-- [ ] E3: Compare fixed, fee/volatility and fee/volatility/inventory variants on
+- [x] E3: Compare fixed, fee/volatility and fee/volatility/inventory variants on
   spot, perpetual and both with the same seed, wallet and scenario within a pair.
 - [x] E4: Provide YAML assumptions, CLI/Make targets, bounded/censored markouts,
   liquidity denominators, equity/drawdown, costs, hold-relative PnL and raw ledgers.
-- [ ] E5: Run native and packaged-runtime verification, retain provenance and
+- [x] E5: Run native and packaged-runtime verification, retain provenance and
   publish a report with limitations, failures and conditional results.
 
 Reuse `LifeMMController`, `MMProfilesConfig`, `SpreadPolicy`, `QuoteGuard`,
@@ -29,3 +29,12 @@ executor, ownership, migration or recorder E2E tests. Those retain their existin
 image evidence. Random profile optimization, fitted LIFE correlations, real
 queue calibration, market impact estimation and exact live account accounting
 are outside this first experiment. No default production risk setting changes.
+
+Completed 2026-10-27: all 648 declared cases pass replay/accounting integrity on
+native and packaged Linux. Compared outcome fields agree for every case. This
+does not certify profitability or production acceptance. 17 economic tests,
+1613 native regressions/11 subtests, runtime smoke, Swagger/hooks and targeted
+real-PG V2 perpetual E2E pass. Initial failed matrix/setup/export attempts remain
+documented; rolling outflow overshoots and margin concerns remain visible.
+See [results](../../reports/life-mm-economic-stress.md) and
+[evidence](../../reports/life-mm-economic-stress-evidence.json).

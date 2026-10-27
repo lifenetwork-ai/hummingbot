@@ -49,6 +49,14 @@ positive USDT fixed fees are additionally reserved. Unknown estimates block BUY.
 The allowance is a conservative estimate, not a guarantee of future venue fees;
 new admission closes if actual recorded charges exceed available capacity.
 
+This is an admission constraint, not a guarantee that the observed rolling total
+stays below the cap forever. Earlier SELL credits can leave the window before
+later BUY debits, increasing the observed net without any new order or fill.
+Existing fills cannot be undone; subsequent BUY admission checks retain the cap.
+The economic stress replay reports these transitions explicitly. This policy is
+also distinct from a gross-spending limit, account-equity loss limit or guarantee
+of future fees.
+
 Only existing post-only spot entries are supported under this policy. Perpetual
 orders and funded spot sells remain subject to their ordinary account, balance,
 exposure, session, recorder and ownership checks. A BUY-only cap/coverage denial

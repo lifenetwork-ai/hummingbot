@@ -1201,3 +1201,36 @@ No new upgrade/rollback, load/soak, OKX account or Cloud Run run is claimed.
 The historical comparison image is absent, so `release_scope_complete` remains
 false. See [verification report](../cloudrun-logging-verification.md) and its
 [portable evidence](../cloudrun-logging-verification.json).
+
+## Pre-listing economic stress replay (2026-10-27)
+
+- [x] Add conservative exogenous flow/queue/latency rules and exact economic ledger checks with Red/Green tests.
+- [x] Reuse the real controller/catalogue, maker pricing, spread/inventory/guard/bootstrap helpers, outflow projection and upstream HEDGE holds.
+- [x] Provide YAML assumptions, paired scenarios, CLI/Make targets and incremental retained artifacts.
+- [x] Complete all 648 cases natively and in the packaged Linux runtime; compare outcome fields and provenance.
+- [x] Publish costs, hold-relative marked PnL, liquidity, censored markouts and risk outcomes with explicit model limitations.
+
+The final compared metrics, liquidity, market contributions, markouts, reasons,
+tape hashes and effective configuration hashes match for all 648 cases. There
+are twelve scenario/seed groups and eleven distinct price/flow tapes, not 648
+independent market samples; the two empty/no-flow tapes have identical content.
+17 focused economic tests, 1613 native tests plus eleven subtests, Swagger/hooks,
+runtime ABI/logging smoke and targeted V2-perpetual real-PG E2E pass. Image
+`54e2a1408e1e` is 1366591963 bytes; 61 production/runtime paths are unchanged and
+match source. Economic test drivers are explicitly mounted; no production policy
+or deployed credential/configuration changes are made.
+
+The first matrix failed after 432 cases because the experiment assumed a
+continuous rolling-outflow ceiling rather than the existing BUY-admission
+contract. A targeted reproduction and regression now retain above-cap window
+observations while checking every admitted BUY. Seven final cases observe such
+transitions. Fifty-eight cases have negative fixed initial-margin headroom;
+liquidation is not modeled and those results remain capacity warnings. An
+initial image-tag lookup and a stopped-tmpfs export also failed; the final
+unchanged Linux matrix writes directly to persisted host evidence. All failures
+and their scope remain recorded, and test containers are removed.
+
+No profitable/optimal strategy, new load/soak/full release matrix/upgrade,
+real OKX trading or Cloud Run run is claimed. See [results](../life-mm-economic-stress.md),
+[portable evidence](../life-mm-economic-stress-evidence.json) and
+[the completed plan](../../docs/plans/LIFE_MM_ECONOMIC_STRESS_PLAN.md).

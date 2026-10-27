@@ -30,6 +30,7 @@ does not certify a later image. Operational guides and plans live in [docs/](../
 | [Runtime flow optimization](life-mm-runtime-optimization.md) | Reader reuse, daily SQL, fresh state projections and exact outflow expiry; healthy soak plus separate five-fault retest |
 | [Maintainability verification](life-mm-maintainability.json) | Six refactor items; native/PG, 13 functional groups plus separate baseline-fixture upgrade, short load and five faults; details in the progress report |
 | [Cloud Run logging verification](cloudrun-logging-verification.md) | [Portable evidence](cloudrun-logging-verification.json); severity/UTC/redaction, SQL/warning fixes, rebuilt image and 13 functional groups; no new upgrade/soak or cloud deployment |
+| [Pre-listing economic stress](life-mm-economic-stress.md) | [Portable evidence](life-mm-economic-stress-evidence.json); paired 648-case native/Linux replay, synthetic costs/liquidity/PnL, rolling-credit and margin caveats; no profit forecast |
 | [OKX Demo acceptance](okx-demo-acceptance.md) | [Protocol JSON](okx-demo-acceptance.json), [natural-fill JSON](okx-demo-fill-acceptance.json) |
 | [Explicit Demo preset validation](okx-demo-preset-validation.json) | Nine static-metadata selections and runtime/package smoke; no connected or full release gate |
 | [Decimal precision evidence](postgres-decimal-precision.json) | Exact decimal storage migration and verification |
