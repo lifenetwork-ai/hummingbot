@@ -25,15 +25,21 @@ class ServiceAvailability:
             last_healthy_at=self.healthy.get(scope), retry_count=count,
             next_retry_at=now + delay if delay is not None else None,
             active_fallback=None, operator_action_required=operator)
-        if previous.get("reason_code") != reason or time.monotonic() - self.logged.get(scope, 0) >= 60:
-            logging.getLogger(__name__).warning("Service incident scope=%s reason=%s type=%s operator=%s",
-                                                scope, reason, type(error).__name__ if error else "-", operator)
+        if (previous.get("reason_code") != reason or previous.get("operator_action_required") != operator
+                or time.monotonic() - self.logged.get(scope, 0) >= 60):
+            logging.getLogger(__name__).log(
+                logging.ERROR if operator else logging.WARNING,
+                "Service incident scope=%s reason=%s type=%s operator=%s",
+                scope, reason, type(error).__name__ if error else "-", operator,
+                extra={"event": "service_incident", "scope": scope, "reason_code": reason,
+                       "error_type": type(error).__name__ if error else "-"})
             self.logged[scope] = time.monotonic()
         return delay
 
     def clear(self, scope):
         if scope in self.incidents:
-            logging.getLogger(__name__).info("Service observation recovered scope=%s", scope)
+            logging.getLogger(__name__).info("Service observation recovered scope=%s", scope,
+                                             extra={"event": "service_recovered", "scope": scope})
             del self.incidents[scope]
             self.logged.pop(scope, None)
         if scope in self.healthy or len(self.healthy) < 16:

@@ -11,6 +11,7 @@ under the ignored `build/` directory.
 |---|---|
 | [PostgreSQL runtime](postgres-runtime.md) | Environment, migrations, storage, ownership, recovery and funding observation |
 | [Cloud Run runtime image](cloudrun-runtime.md) | Build, packaging, image references and runtime caches |
+| [Cloud Run logging](cloudrun-logging.md) | JSON console logs, severity levels, redaction and operational filters |
 | [Cloud Run deployment](../deploy/cloudrun/README.md) | Service configuration and deployment verification |
 | [Admin API](admin-api.md) | Authentication, commands, reporting and reconciliation |
 | [Session history and liquidity](life-mm-history-liquidity.md) | Atomic transitions, recorded configuration, sampled quote coverage and FE polling |

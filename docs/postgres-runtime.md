@@ -34,6 +34,11 @@ policy remain as documented below; renaming an old key does not activate it.
 | `ENABLE_AUTO_MIGRATION` | `false` in the current centralized defaults; applies to PostgreSQL service startup |
 | `BOT_ID` | `hummingbot` |
 | `PORT` | `8080` locally; Cloud Run injects it |
+| `LOG_FORMAT` | `json` for the foreground service; optional `text` for local reading |
+| `LOG_LEVEL` | `INFO`; supports `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+
+Service logging and severity conventions are described in
+[Cloud Run logging](cloudrun-logging.md).
 
 Choose the backend before starting a process:
 

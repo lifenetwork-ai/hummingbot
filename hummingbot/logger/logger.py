@@ -29,6 +29,10 @@ else:   # pragma: no cover
 
 
 class HummingbotLogger(PythonLogger):
+    # The foreground service promotes NETWORK to WARNING before filtering.
+    # None preserves the original custom level for the legacy file runtime.
+    network_log_level = None
+
     def __init__(self, name: str):
         super().__init__(name)
 
@@ -56,7 +60,7 @@ class HummingbotLogger(PythonLogger):
 
         from . import NETWORK
 
-        self.log(NETWORK, log_msg, *args, **kwargs)
+        self.log(self.network_log_level or NETWORK, log_msg, *args, **kwargs)
         if app_warning_msg is not None and not HummingbotLogger.is_testing_mode():
             app_warning: ApplicationWarning = ApplicationWarning(
                 time.time(),

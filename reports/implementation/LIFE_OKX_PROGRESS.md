@@ -1137,3 +1137,31 @@ new service is involved.
 
 Implementation commits: `09dc7198d`, `1c405ba57`, `7400c296d`, `37cad9c0a`.
 See [portable verification evidence](../life-mm-maintainability.json).
+
+## Cloud Run logging severity (2026-10-27)
+
+- [x] Add JSON stdout logging with UTC timestamps, bot/config/owner/revision and current session context.
+- [x] Expose `LOG_FORMAT=json|text` and minimum `LOG_LEVEL=DEBUG|INFO|WARNING|ERROR|CRITICAL`; default JSON/INFO.
+- [x] Promote service NETWORK calls before admission filtering, retaining original custom levels for legacy YAML/file logging.
+- [x] Match operator incidents to ERROR; retain per-scope retry rate limiting and log severity transitions immediately.
+- [x] Redact known configured secret values and encoded/decoded DSN passwords; preserve sanitized outer failure handling.
+- [x] Verify console bootstrap, thresholds, custom levels, current owner/session context, redaction and early startup failures.
+
+Eleven initial behavioral Red cases failed against the old text formatter,
+missing environment thresholds, suppressed NETWORK records and incident severity
+mismatch. Fifteen final tests pass, including additional threshold-bypass,
+legacy-mode and subprocess startup-failure cases. The startup probes deliberately
+reject configuration before database ownership or exchange I/O. Output remains
+JSON ERROR/INFO even when log settings or the database URL are invalid; raw
+configuration inputs are absent.
+
+Full `make test-cloudrun-regression` passes 1593 tests plus 11 subtests
+(158 + 11 + 1009 + 415). Swagger validation and all applicable pre-commit hooks
+pass. Raw local output is under ignored `build/service-logging/`. No new logging
+dependency, background service, database migration or API schema is introduced.
+
+This verification covers source/native execution, not a rebuilt container,
+Cloud Logging ingestion, a new load/soak run or a Cloud Run deployment. Existing
+image tags and historical load evidence still refer to their previous source.
+Build and verify a new image before deployment. HTTP request trace propagation
+is not included in this change. See [the logging operations guide](../../docs/cloudrun-logging.md).

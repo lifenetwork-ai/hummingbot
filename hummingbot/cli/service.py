@@ -271,22 +271,8 @@ class ServiceHost:
         return True
 
     def configure_logging(self):
-        host = self
-
-        class Context(logging.Filter):
-            def filter(self, record):
-                record.hbot_id = host.settings.bot_id
-                record.hbot_config = getattr(host.owner, "config_file_path", None) or "-"
-                record.hbot_owner = getattr(host.owner, "owner_uuid", None) or "-"
-                record.hbot_generation = getattr(host.owner, "generation", None) or 0
-                record.hbot_revision = host.revision
-                return True
-
-        for handler in logging.getLogger().handlers:
-            handler.addFilter(Context())
-            handler.setFormatter(logging.Formatter(
-                "%(asctime)s %(levelname)s %(name)s bot=%(hbot_id)s config=%(hbot_config)s "
-                "owner=%(hbot_owner)s generation=%(hbot_generation)s revision=%(hbot_revision)s %(message)s"))
+        from hummingbot.logger.service_logging import configure_service_logging
+        configure_service_logging(self)
 
     async def health(self, request):
         path = request.path
@@ -778,11 +764,14 @@ async def run_service():
     clean = False
     started = time.monotonic()
     try:
+        from hummingbot.logger.service_logging import configure_service_logging
+        configure_service_logging()
         if not postgres_requested():
             raise RuntimeConfigurationError("The foreground service requires STORAGE_BACKEND=postgres; use hbot start for file mode.")
         settings = RuntimeSettings.from_environment()
         host = ServiceHost(settings, stop, deadline)
         host.configure_logging()
+        host.log.info("Service starting", extra={"event": "service_starting"})
         app = create_service_app(host)
         runner = web.AppRunner(app, access_log=None, shutdown_timeout=0.1)
         await runner.setup()
@@ -797,7 +786,9 @@ async def run_service():
         from hummingbot.core.bot_ownership import OwnershipLost
         reason = ("ownership_lost" if isinstance(error, OwnershipLost) else
                   "critical_persistence_failure" if isinstance(error, SQLAlchemyError) else "service_internal_failure")
-        logging.getLogger(__name__).error("Service stopped reason=%s type=%s", reason, type(error).__name__)
+        logging.getLogger(__name__).error("Service stopped reason=%s type=%s", reason, type(error).__name__,
+                                          extra={"event": "service_failed", "reason_code": reason,
+                                                 "error_type": type(error).__name__})
         code = 1
     finally:
         deadline.request()
@@ -807,7 +798,8 @@ async def run_service():
             clean = True
         if runner is not None:
             await runner.cleanup()
-        logging.getLogger(__name__).info("Service exit clean=%s elapsed_s=%.3f", clean, time.monotonic() - started)
+        logging.getLogger(__name__).info("Service exit clean=%s elapsed_s=%.3f", clean, time.monotonic() - started,
+                                         extra={"event": "service_exit"})
         if clean:
             deadline.close()
     if not clean:
@@ -819,7 +811,10 @@ async def run_service():
 
 def serve():
     """Run the foreground PostgreSQL service (the CLI already loaded dotenv)."""
-    logging.basicConfig(level=logging.INFO)
+    from hummingbot.logger.service_logging import configure_service_logging
+
+    # Safe defaults also cover rejected configuration before host construction.
+    configure_service_logging(environ={}, reset=True)
     raise SystemExit(asyncio.run(run_service()))
 
 

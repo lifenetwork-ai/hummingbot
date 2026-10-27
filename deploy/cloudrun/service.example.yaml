@@ -28,6 +28,10 @@ spec:
               cpu: '1'
               memory: 2Gi
           env:
+            - name: LOG_FORMAT
+              value: json
+            - name: LOG_LEVEL
+              value: INFO
             - name: STORAGE_BACKEND
               value: postgres
             - name: BOT_ID

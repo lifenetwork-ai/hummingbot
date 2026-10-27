@@ -139,6 +139,7 @@ def init_logging(conf_filename: str,
     import pandas as pd
     from ruamel.yaml import YAML
 
+    from hummingbot.logger import HummingbotLogger
     from hummingbot.logger.struct_logger import StructLogger, StructLogRecord
     global STRUCT_LOGGER_SET
     if not STRUCT_LOGGER_SET:
@@ -158,10 +159,12 @@ def init_logging(conf_filename: str,
                 logger.removeHandler(handler)
                 handler.close()
             logger.propagate = True
-        logging.basicConfig(level=override_log_level or "INFO", stream=sys.stdout,
-                            format="%(asctime)s %(levelname)s %(name)s %(message)s", force=True)
+            logger.setLevel(logging.NOTSET)
+        from hummingbot.logger.service_logging import configure_service_logging
+        configure_service_logging(reset=True, level_override=override_log_level)
         return
 
+    HummingbotLogger.network_log_level = None
     file_path: str = join(prefix_path(), "conf", conf_filename)
     yaml_parser: YAML = YAML()
     with open(file_path) as fd:
