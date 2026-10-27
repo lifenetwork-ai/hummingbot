@@ -1,0 +1,799 @@
+{
+  "date": "2026-10-27",
+  "source_commit": "9381458338b9a77acd4fcaefba2244af16da76b2",
+  "image_id": "sha256:df5d240f42c5d6bcf9aa2de648f17730bb602ac17b0e8580901185256776296e",
+  "image_bytes": 1366580877,
+  "architecture": "amd64",
+  "registry_manifest_digest": "sha256:43e05c41798b93acf0e0f43c268d8cca7e51a2b84d34b18825ed4c17e11bd0e2",
+  "passed": true,
+  "native": {
+    "tests": 1596,
+    "subtests": 11,
+    "targeted_logging_tests": 18,
+    "swagger": true,
+    "hooks": true,
+    "raw_log": "build/service-logging/followup-native.log"
+  },
+  "runtime_smoke": {
+    "passed": true,
+    "numba_jit": true,
+    "ta_lib": true,
+    "tls_trust": true,
+    "connector_count": 63,
+    "sql_scripts": 16,
+    "build_tools_absent": true,
+    "cli_version": "hbot 2.17.0",
+    "environment_bytes": 1266030472,
+    "service_logging": {
+      "passed": true,
+      "all_severities": true,
+      "network_warning": true,
+      "utc_context": true,
+      "redaction": true,
+      "startup_failure_json": true,
+      "python_warning_json": true,
+      "sql_parameters_suppressed": true
+    }
+  },
+  "packaged_runtime": {
+    "image_id": "sha256:df5d240f42c5d6bcf9aa2de648f17730bb602ac17b0e8580901185256776296e",
+    "image_bytes": 1366580877,
+    "architecture": "amd64",
+    "source_commit": "9381458338b9a77acd4fcaefba2244af16da76b2",
+    "source_sha256": {
+      "controllers/market_making/life_mm.py": "548872cea106d48aa3ae0e31399c97a353c28669eb197decbdc99fc385fb3908",
+      "hummingbot/cli/service.py": "4b1582bd142abfcf207c35596ee40fa3347d8f5e5d569ae7365d12192b3ca882",
+      "hummingbot/cli/service_availability.py": "e6448918a5105e16ef7dd11aa9d54532c9e23eaa49a42e8d3dac8c1620eb7245",
+      "hummingbot/cli/admin_api.py": "c9058892afa45d0eb19f36b78c9457911292a950ee4ec07b296dcfbd31631367",
+      "hummingbot/cli/admin_models.py": "681e31e1fb4521616aec21880557147e6255727ba20684e31cc33febfd449413",
+      "hummingbot/cli/admin_observations.py": "4ed8d8a4726e3c0a075e415e6afd0007febc1dacc91e58d65d10e472dbed4c5c",
+      "hummingbot/core/utils/read_retry.py": "5a8bfe29b0795f258a06a230c1ba1ecaa061b1ec6cf0f1fe40834535aecd7250",
+      "hummingbot/core/bot_ownership.py": "176bef1a79dfaa252ed18a371dc6c47f852769499f7ccaef74ffd6cc2cd9b4ce",
+      "hummingbot/model/bot_state_store.py": "f11caae204a6ff77555cfd97b877342b088e1f6434b3b4e1dd52a6a5ef04232b",
+      "hummingbot/strategy_v2/controllers/controller_base.py": "0a8f0a7aa250eab4433e27f0f9f2e1faddfdc45f4dbe23b345be2d565e7083a7",
+      "hummingbot/strategy_v2/runnable_base.py": "bd9b68f431921e2fb4111c2bbc5e92a9055f352d4d3c76cf5d5830985fc95cee",
+      "scripts/v2_with_controllers.py": "595ca4d939e14a62c811e7203b943dff12e25c1b97bddb6bd09c56dd259a32c2",
+      "docs/api/openapi.json": "e408362125a9624e8526c093ff2c30c3be9c4eb358ce2e50932e9fe213d1935f",
+      "hummingbot/connector/markets_recorder.py": "33c6849b1b1a8d8e57fd4a1c089f4456b8073cb523551b5346dfc36eaf94008a",
+      "hummingbot/strategy_v2/utils/quote_guard.py": "4e55c062036e8680809d529b5b7fc9693272780a28dde558ee16d77bbcc8322b",
+      "hummingbot/client/config/mm_profiles.py": "7b8b4bf81b89207af3f4f5dbf7d05b8ee9359875b2d32f5998eff23fb2c32f94",
+      "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_api_order_book_data_source.py": "1235d1e54a25747a886babc0093bc3232001d3d93bc766e7d670c3d2e7d8294d",
+      "deploy/cloudrun/conf/life_mm_profiles.yaml": "fb276ddd502e928d8299e476cb73db38467da4932ab431e5ecd8672971275783",
+      "hummingbot/core/mm_drawdown.py": "bc7af4a90366459803bff5bffdb5a7056a4c98cacfc04c8f3fa5b56a46557a93",
+      "hummingbot/strategy/strategy_v2_base.py": "b257d0cc5153da409b46dc83ff5f64245cc82d0c43bf0eca50191ea9162ceb1e",
+      "hummingbot/strategy_v2/executors/executor_orchestrator.py": "4e651501a8aee2ec0c48d55b22f31449b7993dd521c3c38d6b576d7c314a4877",
+      "hummingbot/core/spot_outflow.py": "c33a78c96e0a43c324c316404a648ad308d1314555e5af12850b03ad6e4dd481",
+      "hummingbot/core/spot_outflow_guard.py": "8433b544716f06a6bedd2e99216a57b0af830895245f8e408a59d716664ea168",
+      "hummingbot/core/order_submission_guard.py": "21bbdb3294f10e6171c7aae46ffbc3de43a0464cbb00d79ca00679e0b41a52bd",
+      "hummingbot/connector/exchange/okx/okx_exchange.py": "a549c43180b71b0e3531dc3ffd47ce00231ed4883b6f08fe71fb49c3334dad7c",
+      "hummingbot/core/listing_bootstrap.py": "806dd49d34984ff7c063efa5c3372d8f921ac850ddc0b4e77c7c228ef286b1b5",
+      "hummingbot/strategy_v2/utils/listing_bootstrap.py": "e305b3e755a46c8e4acdb6581131c66b416b69542edac2956cdf53b2bb85b064",
+      "hummingbot/strategy_v2/executors/position_executor/data_types.py": "4c0211f5d1a2124db0208e25b32fda378afec6f4b867b28205b70fb621772834",
+      "hummingbot/strategy_v2/executors/position_executor/position_executor.py": "f9c90127419bbf13c0ef9456b3d743ea5e473349024c76d602daa5fcca1de6e1",
+      "hummingbot/strategy_v2/utils/inventory_skew.py": "b6418c4050e4aadc42ec198f1d0912757f294520d43e49e5a22e88749777c9fe",
+      "hummingbot/core/mm_liquidity.py": "cd600074551704ca405c35c5d33751a65b11717a6eafb827aec53a5a15eb9c6c",
+      "hummingbot/model/mm_event.py": "a223bd7ae7be39835bb8e271db4833c0f7f16ea2435ecaabb79d82ad5c37af60",
+      "hummingbot/model/db_migration/postgres/scripts/016_create_mm_events.sql": "c47e142219204819ddb52ca37e1b535616aaf32787df87f08f47a89583e67ff2",
+      "hummingbot/strategy_v2/utils/mm_spread.py": "0ba20ca7a53627b830d507ca05adb2347fff634516d0c6073ea514845de68e4d",
+      "hummingbot/data_feed/market_data_provider.py": "5ac3ad219bea6063c24329d280c148b684bca11e701c02bfd0022d0f638b2279",
+      "hummingbot/model/db_migration/postgres/scripts/011_add_admin_check_result.sql": "e13cac5e07cb1a7b24493fc0470d2d5e1b024ecbba5e4426d05027ccf80fd78a",
+      "hummingbot/model/db_migration/postgres/scripts/001_create_core_tables.sql": "2fb9d2667763787818e218b19086cfbd92abcbda513e7aac13a707af48fab8cc",
+      "hummingbot/model/db_migration/postgres/scripts/003_create_auxiliary_tables.sql": "56919e2e157f6acefa42f2f912f31e6b738b9232e71d2c716e1ab7ebd4f64053",
+      "hummingbot/model/db_migration/postgres/scripts/007_add_recovery_state.sql": "919504d7a68fc7f82f5d3c88ee73d54c49ab0eb4ddddd9270325eb62e2d3398d",
+      "hummingbot/model/db_migration/postgres/scripts/009_create_admin_commands.sql": "d6d4a9fa9d14d171e9b2af356c5ca3c7a11de3d80d24544a433bb44e1a353706",
+      "hummingbot/model/db_migration/postgres/scripts/002_create_strategy_tables.sql": "7e1538d02af9f8a6ed6d28168accd11e816dce7d339f1eca258e5bff7ee0b256",
+      "hummingbot/model/db_migration/postgres/scripts/005_add_runtime_indexes.sql": "3141fa20662940043e14f7c7404d479ee05b5252fda4c7ee27056998bc072b14",
+      "hummingbot/model/db_migration/postgres/scripts/010_create_daily_balance_snapshots.sql": "b181b6c93fcc47a9a81959433804c76f909b4fe6d451c1a35b2f5bc29ecc7a6b",
+      "hummingbot/model/db_migration/postgres/scripts/008_add_mm_session.sql": "9bd5138aa0117b9c3744170826a42be00875ce26b129d2c8b46082dcfe44de0e",
+      "hummingbot/model/db_migration/postgres/scripts/004_create_bot_state.sql": "7473d4125ad6aadca0b0ab6b6afd849a6b1471eebcf75bef77981502f7f19206",
+      "hummingbot/model/db_migration/postgres/scripts/014_create_funding_bills.sql": "53e0b92d06650b15661fdd9b99e8942409147e11619bbc21c1b48c33fd8429b2",
+      "hummingbot/model/db_migration/postgres/scripts/008_add_recovery_lookup_indexes.sql": "418919055edf5f8a06f993dd4f16c099b555c7702d5bdbc560c7ef6d0b69dc8f",
+      "hummingbot/model/db_migration/postgres/scripts/006_add_order_recovery.sql": "b6ec22b48ba2b70e53c0e31caf44ce73540ff9b5fe28989c1cf82989a93353ac",
+      "hummingbot/model/db_migration/postgres/scripts/012_add_admin_history_indexes.sql": "70a8f9f867974c2fdd4fbbcdfcc96464594c53f0d9fb3af95cd7036e7058cdc1",
+      "hummingbot/model/db_migration/postgres/scripts/013_preserve_decimal_precision.sql": "9b259c32fa9a25e05d049194f7130ac9a283b9f3a0894f58039a6f80945711c0",
+      "hummingbot/model/admin_store.py": "a1e09220f7bbb8da84b2e15cffd1a32516e80f4f07528ce64679d4d3e19d31d9",
+      "hummingbot/model/db_migration/postgres/connection.py": "a44f0bdacb7c6c11a21e26bc1eb13b91603fac763eb8470f4a0225bfb302824e",
+      "hummingbot/model/admin_reporting.py": "8d0948eaab6ce9c688ec4d4dea8af5039184adb12d09aafe007220817fd6c0e4",
+      "hummingbot/core/mm_readiness.py": "c8b2df88ac7d0b5ffffaaeb648819cd94cdc052eca3d912ea744018c0c11c5b5",
+      "hummingbot/core/reporting.py": "c17895dadae3f786b4014913b71d6bfb0b890f7844ebd9fb2356654fc2b9bdcc",
+      "hummingbot/cli/funding_observer.py": "9427d99665ab6c083c7ba767035dc2bf65c1d1c6fac38d73089183635104594e",
+      "hummingbot/cli/service_observations.py": "8101400e8f48a0f60487d85676000bd89084aaaa9e3356ad101329e6d241abcf",
+      "hummingbot/__init__.py": "d001484904bcb7e6643f679ded26f0e3d9d6f7f3d8f6e56062a5d1a68e933290",
+      "hummingbot/client/config/defaults.py": "2add1658f0a5249b95364dca7362d0bf6a118bcdaa8b9bc57e73a5b417c9ae03",
+      "hummingbot/logger/logger.py": "d863e31987f7e4b51c98c639498f9df3360703558d445f407d379d003d7f9e88",
+      "hummingbot/logger/service_logging.py": "c6357d2d31875f3a28a285c7d182366db6c73d0b3e3641a477f31589a3209a90"
+    },
+    "packaged_sha256": {
+      "controllers/market_making/life_mm.py": "548872cea106d48aa3ae0e31399c97a353c28669eb197decbdc99fc385fb3908",
+      "hummingbot/cli/service.py": "4b1582bd142abfcf207c35596ee40fa3347d8f5e5d569ae7365d12192b3ca882",
+      "hummingbot/cli/service_availability.py": "e6448918a5105e16ef7dd11aa9d54532c9e23eaa49a42e8d3dac8c1620eb7245",
+      "hummingbot/cli/admin_api.py": "c9058892afa45d0eb19f36b78c9457911292a950ee4ec07b296dcfbd31631367",
+      "hummingbot/cli/admin_models.py": "681e31e1fb4521616aec21880557147e6255727ba20684e31cc33febfd449413",
+      "hummingbot/cli/admin_observations.py": "4ed8d8a4726e3c0a075e415e6afd0007febc1dacc91e58d65d10e472dbed4c5c",
+      "hummingbot/core/utils/read_retry.py": "5a8bfe29b0795f258a06a230c1ba1ecaa061b1ec6cf0f1fe40834535aecd7250",
+      "hummingbot/core/bot_ownership.py": "176bef1a79dfaa252ed18a371dc6c47f852769499f7ccaef74ffd6cc2cd9b4ce",
+      "hummingbot/model/bot_state_store.py": "f11caae204a6ff77555cfd97b877342b088e1f6434b3b4e1dd52a6a5ef04232b",
+      "hummingbot/strategy_v2/controllers/controller_base.py": "0a8f0a7aa250eab4433e27f0f9f2e1faddfdc45f4dbe23b345be2d565e7083a7",
+      "hummingbot/strategy_v2/runnable_base.py": "bd9b68f431921e2fb4111c2bbc5e92a9055f352d4d3c76cf5d5830985fc95cee",
+      "scripts/v2_with_controllers.py": "595ca4d939e14a62c811e7203b943dff12e25c1b97bddb6bd09c56dd259a32c2",
+      "docs/api/openapi.json": "e408362125a9624e8526c093ff2c30c3be9c4eb358ce2e50932e9fe213d1935f",
+      "hummingbot/connector/markets_recorder.py": "33c6849b1b1a8d8e57fd4a1c089f4456b8073cb523551b5346dfc36eaf94008a",
+      "hummingbot/strategy_v2/utils/quote_guard.py": "4e55c062036e8680809d529b5b7fc9693272780a28dde558ee16d77bbcc8322b",
+      "hummingbot/client/config/mm_profiles.py": "7b8b4bf81b89207af3f4f5dbf7d05b8ee9359875b2d32f5998eff23fb2c32f94",
+      "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_api_order_book_data_source.py": "1235d1e54a25747a886babc0093bc3232001d3d93bc766e7d670c3d2e7d8294d",
+      "deploy/cloudrun/conf/life_mm_profiles.yaml": "fb276ddd502e928d8299e476cb73db38467da4932ab431e5ecd8672971275783",
+      "hummingbot/core/mm_drawdown.py": "bc7af4a90366459803bff5bffdb5a7056a4c98cacfc04c8f3fa5b56a46557a93",
+      "hummingbot/strategy/strategy_v2_base.py": "b257d0cc5153da409b46dc83ff5f64245cc82d0c43bf0eca50191ea9162ceb1e",
+      "hummingbot/strategy_v2/executors/executor_orchestrator.py": "4e651501a8aee2ec0c48d55b22f31449b7993dd521c3c38d6b576d7c314a4877",
+      "hummingbot/core/spot_outflow.py": "c33a78c96e0a43c324c316404a648ad308d1314555e5af12850b03ad6e4dd481",
+      "hummingbot/core/spot_outflow_guard.py": "8433b544716f06a6bedd2e99216a57b0af830895245f8e408a59d716664ea168",
+      "hummingbot/core/order_submission_guard.py": "21bbdb3294f10e6171c7aae46ffbc3de43a0464cbb00d79ca00679e0b41a52bd",
+      "hummingbot/connector/exchange/okx/okx_exchange.py": "a549c43180b71b0e3531dc3ffd47ce00231ed4883b6f08fe71fb49c3334dad7c",
+      "hummingbot/core/listing_bootstrap.py": "806dd49d34984ff7c063efa5c3372d8f921ac850ddc0b4e77c7c228ef286b1b5",
+      "hummingbot/strategy_v2/utils/listing_bootstrap.py": "e305b3e755a46c8e4acdb6581131c66b416b69542edac2956cdf53b2bb85b064",
+      "hummingbot/strategy_v2/executors/position_executor/data_types.py": "4c0211f5d1a2124db0208e25b32fda378afec6f4b867b28205b70fb621772834",
+      "hummingbot/strategy_v2/executors/position_executor/position_executor.py": "f9c90127419bbf13c0ef9456b3d743ea5e473349024c76d602daa5fcca1de6e1",
+      "hummingbot/strategy_v2/utils/inventory_skew.py": "b6418c4050e4aadc42ec198f1d0912757f294520d43e49e5a22e88749777c9fe",
+      "hummingbot/core/mm_liquidity.py": "cd600074551704ca405c35c5d33751a65b11717a6eafb827aec53a5a15eb9c6c",
+      "hummingbot/model/mm_event.py": "a223bd7ae7be39835bb8e271db4833c0f7f16ea2435ecaabb79d82ad5c37af60",
+      "hummingbot/model/db_migration/postgres/scripts/016_create_mm_events.sql": "c47e142219204819ddb52ca37e1b535616aaf32787df87f08f47a89583e67ff2",
+      "hummingbot/strategy_v2/utils/mm_spread.py": "0ba20ca7a53627b830d507ca05adb2347fff634516d0c6073ea514845de68e4d",
+      "hummingbot/data_feed/market_data_provider.py": "5ac3ad219bea6063c24329d280c148b684bca11e701c02bfd0022d0f638b2279",
+      "hummingbot/model/db_migration/postgres/scripts/011_add_admin_check_result.sql": "e13cac5e07cb1a7b24493fc0470d2d5e1b024ecbba5e4426d05027ccf80fd78a",
+      "hummingbot/model/db_migration/postgres/scripts/001_create_core_tables.sql": "2fb9d2667763787818e218b19086cfbd92abcbda513e7aac13a707af48fab8cc",
+      "hummingbot/model/db_migration/postgres/scripts/003_create_auxiliary_tables.sql": "56919e2e157f6acefa42f2f912f31e6b738b9232e71d2c716e1ab7ebd4f64053",
+      "hummingbot/model/db_migration/postgres/scripts/007_add_recovery_state.sql": "919504d7a68fc7f82f5d3c88ee73d54c49ab0eb4ddddd9270325eb62e2d3398d",
+      "hummingbot/model/db_migration/postgres/scripts/009_create_admin_commands.sql": "d6d4a9fa9d14d171e9b2af356c5ca3c7a11de3d80d24544a433bb44e1a353706",
+      "hummingbot/model/db_migration/postgres/scripts/002_create_strategy_tables.sql": "7e1538d02af9f8a6ed6d28168accd11e816dce7d339f1eca258e5bff7ee0b256",
+      "hummingbot/model/db_migration/postgres/scripts/005_add_runtime_indexes.sql": "3141fa20662940043e14f7c7404d479ee05b5252fda4c7ee27056998bc072b14",
+      "hummingbot/model/db_migration/postgres/scripts/010_create_daily_balance_snapshots.sql": "b181b6c93fcc47a9a81959433804c76f909b4fe6d451c1a35b2f5bc29ecc7a6b",
+      "hummingbot/model/db_migration/postgres/scripts/008_add_mm_session.sql": "9bd5138aa0117b9c3744170826a42be00875ce26b129d2c8b46082dcfe44de0e",
+      "hummingbot/model/db_migration/postgres/scripts/004_create_bot_state.sql": "7473d4125ad6aadca0b0ab6b6afd849a6b1471eebcf75bef77981502f7f19206",
+      "hummingbot/model/db_migration/postgres/scripts/014_create_funding_bills.sql": "53e0b92d06650b15661fdd9b99e8942409147e11619bbc21c1b48c33fd8429b2",
+      "hummingbot/model/db_migration/postgres/scripts/008_add_recovery_lookup_indexes.sql": "418919055edf5f8a06f993dd4f16c099b555c7702d5bdbc560c7ef6d0b69dc8f",
+      "hummingbot/model/db_migration/postgres/scripts/006_add_order_recovery.sql": "b6ec22b48ba2b70e53c0e31caf44ce73540ff9b5fe28989c1cf82989a93353ac",
+      "hummingbot/model/db_migration/postgres/scripts/012_add_admin_history_indexes.sql": "70a8f9f867974c2fdd4fbbcdfcc96464594c53f0d9fb3af95cd7036e7058cdc1",
+      "hummingbot/model/db_migration/postgres/scripts/013_preserve_decimal_precision.sql": "9b259c32fa9a25e05d049194f7130ac9a283b9f3a0894f58039a6f80945711c0",
+      "hummingbot/model/admin_store.py": "a1e09220f7bbb8da84b2e15cffd1a32516e80f4f07528ce64679d4d3e19d31d9",
+      "hummingbot/model/db_migration/postgres/connection.py": "a44f0bdacb7c6c11a21e26bc1eb13b91603fac763eb8470f4a0225bfb302824e",
+      "hummingbot/model/admin_reporting.py": "8d0948eaab6ce9c688ec4d4dea8af5039184adb12d09aafe007220817fd6c0e4",
+      "hummingbot/core/mm_readiness.py": "c8b2df88ac7d0b5ffffaaeb648819cd94cdc052eca3d912ea744018c0c11c5b5",
+      "hummingbot/core/reporting.py": "c17895dadae3f786b4014913b71d6bfb0b890f7844ebd9fb2356654fc2b9bdcc",
+      "hummingbot/cli/funding_observer.py": "9427d99665ab6c083c7ba767035dc2bf65c1d1c6fac38d73089183635104594e",
+      "hummingbot/cli/service_observations.py": "8101400e8f48a0f60487d85676000bd89084aaaa9e3356ad101329e6d241abcf",
+      "hummingbot/__init__.py": "d001484904bcb7e6643f679ded26f0e3d9d6f7f3d8f6e56062a5d1a68e933290",
+      "hummingbot/client/config/defaults.py": "2add1658f0a5249b95364dca7362d0bf6a118bcdaa8b9bc57e73a5b417c9ae03",
+      "hummingbot/logger/logger.py": "d863e31987f7e4b51c98c639498f9df3360703558d445f407d379d003d7f9e88",
+      "hummingbot/logger/service_logging.py": "c6357d2d31875f3a28a285c7d182366db6c73d0b3e3641a477f31589a3209a90"
+    },
+    "packaged_paths": {
+      "controllers/market_making/life_mm.py": "controllers/market_making/life_mm.py",
+      "hummingbot/cli/service.py": "hummingbot/cli/service.py",
+      "hummingbot/cli/service_availability.py": "hummingbot/cli/service_availability.py",
+      "hummingbot/cli/admin_api.py": "hummingbot/cli/admin_api.py",
+      "hummingbot/cli/admin_models.py": "hummingbot/cli/admin_models.py",
+      "hummingbot/cli/admin_observations.py": "hummingbot/cli/admin_observations.py",
+      "hummingbot/core/utils/read_retry.py": "hummingbot/core/utils/read_retry.py",
+      "hummingbot/core/bot_ownership.py": "hummingbot/core/bot_ownership.py",
+      "hummingbot/model/bot_state_store.py": "hummingbot/model/bot_state_store.py",
+      "hummingbot/strategy_v2/controllers/controller_base.py": "hummingbot/strategy_v2/controllers/controller_base.py",
+      "hummingbot/strategy_v2/runnable_base.py": "hummingbot/strategy_v2/runnable_base.py",
+      "scripts/v2_with_controllers.py": "scripts/v2_with_controllers.py",
+      "docs/api/openapi.json": "docs/api/openapi.json",
+      "hummingbot/connector/markets_recorder.py": "hummingbot/connector/markets_recorder.py",
+      "hummingbot/strategy_v2/utils/quote_guard.py": "hummingbot/strategy_v2/utils/quote_guard.py",
+      "hummingbot/client/config/mm_profiles.py": "hummingbot/client/config/mm_profiles.py",
+      "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_api_order_book_data_source.py": "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_api_order_book_data_source.py",
+      "deploy/cloudrun/conf/life_mm_profiles.yaml": "conf/life_mm_profiles.yaml",
+      "hummingbot/core/mm_drawdown.py": "hummingbot/core/mm_drawdown.py",
+      "hummingbot/strategy/strategy_v2_base.py": "hummingbot/strategy/strategy_v2_base.py",
+      "hummingbot/strategy_v2/executors/executor_orchestrator.py": "hummingbot/strategy_v2/executors/executor_orchestrator.py",
+      "hummingbot/core/spot_outflow.py": "hummingbot/core/spot_outflow.py",
+      "hummingbot/core/spot_outflow_guard.py": "hummingbot/core/spot_outflow_guard.py",
+      "hummingbot/core/order_submission_guard.py": "hummingbot/core/order_submission_guard.py",
+      "hummingbot/connector/exchange/okx/okx_exchange.py": "hummingbot/connector/exchange/okx/okx_exchange.py",
+      "hummingbot/core/listing_bootstrap.py": "hummingbot/core/listing_bootstrap.py",
+      "hummingbot/strategy_v2/utils/listing_bootstrap.py": "hummingbot/strategy_v2/utils/listing_bootstrap.py",
+      "hummingbot/strategy_v2/executors/position_executor/data_types.py": "hummingbot/strategy_v2/executors/position_executor/data_types.py",
+      "hummingbot/strategy_v2/executors/position_executor/position_executor.py": "hummingbot/strategy_v2/executors/position_executor/position_executor.py",
+      "hummingbot/strategy_v2/utils/inventory_skew.py": "hummingbot/strategy_v2/utils/inventory_skew.py",
+      "hummingbot/core/mm_liquidity.py": "hummingbot/core/mm_liquidity.py",
+      "hummingbot/model/mm_event.py": "hummingbot/model/mm_event.py",
+      "hummingbot/model/db_migration/postgres/scripts/016_create_mm_events.sql": "hummingbot/model/db_migration/postgres/scripts/016_create_mm_events.sql",
+      "hummingbot/strategy_v2/utils/mm_spread.py": "hummingbot/strategy_v2/utils/mm_spread.py",
+      "hummingbot/data_feed/market_data_provider.py": "hummingbot/data_feed/market_data_provider.py",
+      "hummingbot/model/db_migration/postgres/scripts/011_add_admin_check_result.sql": "hummingbot/model/db_migration/postgres/scripts/011_add_admin_check_result.sql",
+      "hummingbot/model/db_migration/postgres/scripts/001_create_core_tables.sql": "hummingbot/model/db_migration/postgres/scripts/001_create_core_tables.sql",
+      "hummingbot/model/db_migration/postgres/scripts/003_create_auxiliary_tables.sql": "hummingbot/model/db_migration/postgres/scripts/003_create_auxiliary_tables.sql",
+      "hummingbot/model/db_migration/postgres/scripts/007_add_recovery_state.sql": "hummingbot/model/db_migration/postgres/scripts/007_add_recovery_state.sql",
+      "hummingbot/model/db_migration/postgres/scripts/009_create_admin_commands.sql": "hummingbot/model/db_migration/postgres/scripts/009_create_admin_commands.sql",
+      "hummingbot/model/db_migration/postgres/scripts/002_create_strategy_tables.sql": "hummingbot/model/db_migration/postgres/scripts/002_create_strategy_tables.sql",
+      "hummingbot/model/db_migration/postgres/scripts/005_add_runtime_indexes.sql": "hummingbot/model/db_migration/postgres/scripts/005_add_runtime_indexes.sql",
+      "hummingbot/model/db_migration/postgres/scripts/010_create_daily_balance_snapshots.sql": "hummingbot/model/db_migration/postgres/scripts/010_create_daily_balance_snapshots.sql",
+      "hummingbot/model/db_migration/postgres/scripts/008_add_mm_session.sql": "hummingbot/model/db_migration/postgres/scripts/008_add_mm_session.sql",
+      "hummingbot/model/db_migration/postgres/scripts/004_create_bot_state.sql": "hummingbot/model/db_migration/postgres/scripts/004_create_bot_state.sql",
+      "hummingbot/model/db_migration/postgres/scripts/014_create_funding_bills.sql": "hummingbot/model/db_migration/postgres/scripts/014_create_funding_bills.sql",
+      "hummingbot/model/db_migration/postgres/scripts/008_add_recovery_lookup_indexes.sql": "hummingbot/model/db_migration/postgres/scripts/008_add_recovery_lookup_indexes.sql",
+      "hummingbot/model/db_migration/postgres/scripts/006_add_order_recovery.sql": "hummingbot/model/db_migration/postgres/scripts/006_add_order_recovery.sql",
+      "hummingbot/model/db_migration/postgres/scripts/012_add_admin_history_indexes.sql": "hummingbot/model/db_migration/postgres/scripts/012_add_admin_history_indexes.sql",
+      "hummingbot/model/db_migration/postgres/scripts/013_preserve_decimal_precision.sql": "hummingbot/model/db_migration/postgres/scripts/013_preserve_decimal_precision.sql",
+      "hummingbot/model/admin_store.py": "hummingbot/model/admin_store.py",
+      "hummingbot/model/db_migration/postgres/connection.py": "hummingbot/model/db_migration/postgres/connection.py",
+      "hummingbot/model/admin_reporting.py": "hummingbot/model/admin_reporting.py",
+      "hummingbot/core/mm_readiness.py": "hummingbot/core/mm_readiness.py",
+      "hummingbot/core/reporting.py": "hummingbot/core/reporting.py",
+      "hummingbot/cli/funding_observer.py": "hummingbot/cli/funding_observer.py",
+      "hummingbot/cli/service_observations.py": "hummingbot/cli/service_observations.py",
+      "hummingbot/__init__.py": "hummingbot/__init__.py",
+      "hummingbot/client/config/defaults.py": "hummingbot/client/config/defaults.py",
+      "hummingbot/logger/logger.py": "hummingbot/logger/logger.py",
+      "hummingbot/logger/service_logging.py": "hummingbot/logger/service_logging.py"
+    },
+    "mismatches": []
+  },
+  "offline_matrix": {
+    "passed": true,
+    "release_scope_complete": false,
+    "scenarios": {
+      "schema": {
+        "passed": true,
+        "metrics": {
+          "valid_startup_s": 9.617,
+          "valid_shutdown_s": 0.987,
+          "repaired_startup_s": 9.957,
+          "repaired_shutdown_s": 0.961,
+          "file_backend_rejected": true,
+          "empty_rejected": true,
+          "drift_rejected": true,
+          "repaired_schema_validated": true
+        }
+      },
+      "spot": {
+        "passed": true,
+        "metrics": {
+          "first_startup_s": 8.747,
+          "second_startup_s": 13.6,
+          "local_steady_resources": "cpu=3.95% memory=243.9MiB / 2GiB",
+          "local_database": {
+            "select_one_p95_ms": 0.24841599997671437
+          },
+          "first_shutdown_s": 1.146,
+          "second_shutdown_s": 0.915,
+          "third_startup_s": 8.958,
+          "fourth_startup_s": 8.136,
+          "fifth_startup_s": 8.932,
+          "sixth_startup_s": 9.221,
+          "seventh_startup_s": 9.711,
+          "accepted_orders": 14,
+          "persisted_fills": 3,
+          "websocket_reconnect": true,
+          "interrupted_recorder_recovered": true
+        }
+      },
+      "v2-spot": {
+        "passed": true,
+        "metrics": {
+          "v2-first_startup_s": 8.708,
+          "first_shutdown_s": 0.802,
+          "v2-second_startup_s": 8.908,
+          "second_shutdown_s": 0.849,
+          "accepted_orders": 1,
+          "persisted_fills": 1,
+          "position_base": "0.1",
+          "pnl_peak_restored": "12.345678"
+        }
+      },
+      "v2-perpetual": {
+        "passed": true,
+        "metrics": {
+          "v2-first_startup_s": 8.863,
+          "first_shutdown_s": 1.393,
+          "v2-second_startup_s": 8.239,
+          "second_shutdown_s": 1.361,
+          "accepted_orders": 1,
+          "persisted_fills": 1,
+          "position_base": "0.1",
+          "pnl_peak_restored": "12.345678"
+        }
+      },
+      "life-mm": {
+        "passed": true,
+        "metrics": {
+          "mm-first_startup_s": 10.267,
+          "first_shutdown_s": 1.122,
+          "mm-restart_startup_s": 8.37,
+          "terminal_cancel_ack_before_create": true,
+          "mm-db-restart_startup_s": 8.898,
+          "matrix": [
+            {
+              "mode": "spot",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "both",
+              "profile": "follow_market",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "sideways",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "follow_token",
+              "count": 8
+            }
+          ],
+          "cli_mm_stop": true,
+          "legacy_replaces_mm": true,
+          "exact_quote_levels": true,
+          "restart_anchors": true,
+          "weighted_reference": true,
+          "stale_both": true,
+          "fills": 2,
+          "random_steps": true,
+          "expiry": true,
+          "expiry_funding": true,
+          "reconciliation": "matched",
+          "db_fault_halt": true
+        }
+      },
+      "funding": {
+        "passed": true,
+        "metrics": {
+          "funding-first_startup_s": 8.498,
+          "first_shutdown_s": 1.267,
+          "funding-restart_startup_s": 8.958,
+          "funding-standby_startup_s": 9.049,
+          "restart_shutdown_s": 1.299,
+          "funding-db-recovery_startup_s": 9.496,
+          "identified_bills": 6,
+          "original_amounts_exact": true,
+          "same_timestamp_bills": true,
+          "stopped_observation": true,
+          "closed_position_backfill": true,
+          "repeated_pages_idempotent": true,
+          "legacy_not_double_counted": true,
+          "owner_handover": true,
+          "unavailable_visible": true,
+          "db_failure_backfill": true,
+          "no_trading_mutations_after_stop": true
+        }
+      },
+      "availability": {
+        "passed": true,
+        "metrics": {
+          "availability_startup_s": 9.407,
+          "availability": {
+            "optional_failures_recovered": 3,
+            "startup_read_recovered": true,
+            "stale_feed_recovered": true,
+            "preserved_anchor_deadline": true,
+            "unexpected_process_restarts": 0,
+            "failed_controller_halted": true
+          }
+        }
+      },
+      "quote-guards": {
+        "passed": true,
+        "metrics": {
+          "guard_startup_s": 9.027,
+          "guard_shutdown_s": 2.32,
+          "guard-restart_startup_s": 8.645,
+          "quote_guards": {
+            "own_only_rejected": true,
+            "joint_cancel": true,
+            "range_breakout": true,
+            "deviation": true,
+            "delayed_resume": true,
+            "partial_fill": true,
+            "preserved_anchor_deadline": true,
+            "unexpected_process_restarts": 0,
+            "intentional_restarts": 1,
+            "effective_config_sha256": "27934355f7a38bce81e24fc892c6486ddadfa14e72817bd554fa96cc903c3bcb"
+          }
+        }
+      },
+      "drawdown": {
+        "passed": true,
+        "metrics": {
+          "drawdown_startup_s": 8.484,
+          "drawdown_shutdown_s": 2.215,
+          "drawdown-clean-restart_startup_s": 8.448,
+          "restart_shutdown_s": 1.849,
+          "drawdown-halt-restart_startup_s": 8.36,
+          "drawdown": {
+            "retained_disabled_market": true,
+            "partial_fill_preserved": true,
+            "stale_coverage_waits": true,
+            "coverage_recovers": true,
+            "clean_restart_peak": true,
+            "global_breach_halt": true,
+            "restart_halt": true,
+            "post_halt_start_rejected": true,
+            "retained_feed_has_no_account_mutations": true,
+            "global_peak_quote": "0.125262626000",
+            "fresh_stopped_pnl_not_invented": true,
+            "effective_config_sha256": "fc9556aac8952cd38e75308cf4f1dae242303bb892bafd212d10ed05b90d95c7"
+          }
+        }
+      },
+      "spot-outflow": {
+        "passed": true,
+        "metrics": {
+          "outflow_startup_s": 8.589,
+          "outflow_shutdown_s": 1.355,
+          "outflow-restart_startup_s": 8.795,
+          "spot_outflow": {
+            "buy_only_cap": true,
+            "perpetual_unaffected": true,
+            "funded_sells_continue": true,
+            "partial_commit": true,
+            "original_usdt_fee_and_rebate": true,
+            "duplicates": 2,
+            "terminal_proof_releases": true,
+            "restart_and_mode_switch": true,
+            "bound_identity": true,
+            "used_quote": "2.39999999974000",
+            "effective_config_sha256": "e78ce5a83ca7e391a1b07c78e5c564d65b2d8625fc92bb53c2c0a38544601163"
+          }
+        }
+      },
+      "listing-bootstrap": {
+        "passed": true,
+        "metrics": {
+          "bootstrap_startup_s": 9.104,
+          "bootstrap_shutdown_s": 1.235,
+          "bootstrap-restart_startup_s": 8.058,
+          "listing_bootstrap": {
+            "empty_and_own_only": true,
+            "both_market_budgets": true,
+            "original_band_and_clock": true,
+            "clean_restart_and_new_session": true,
+            "expiry_cancels": true,
+            "partial_market_cannot_admit": true,
+            "durable_qualification": true,
+            "lost_depth_never_rearms": true,
+            "forced_fills": 0,
+            "clean_stop_after_lost_depth": true,
+            "effective_config_sha256": "c3a71ff5f9eda00f17b5917e522662c952591f4c35ed18367b9ab9773de15992"
+          }
+        }
+      },
+      "inventory-skew": {
+        "passed": true,
+        "metrics": {
+          "inventory-skew_startup_s": 8.781,
+          "skew_shutdown_s": 1.29,
+          "inventory-skew-restart_startup_s": 8.41,
+          "inventory_skew": {
+            "spot_and_both": true,
+            "post_only": true,
+            "existing_refresh": true,
+            "underweight_quote": {
+              "buy": "75.74356192000000",
+              "sell": "24.25643807909000"
+            },
+            "overweight_quote": {
+              "buy": "37.31233944262000",
+              "sell": "62.68766055464000"
+            },
+            "cash_ratio_not_shared_equity": true,
+            "perpetual_unchanged": true,
+            "restart_fresh_observation": true,
+            "unique_fills": 2,
+            "no_extra_market_orders": true,
+            "effective_config_sha256": "c1798b3813502f27353cdfac035cc642eae53cc389180d5f02de828a4737ba17"
+          }
+        }
+      },
+      "spread-policy": {
+        "passed": true,
+        "metrics": {
+          "spread-policy_startup_s": 8.462,
+          "spread_policy": {
+            "baseline": {
+              "spot": {
+                "state": "dynamic",
+                "enabled": true,
+                "fee_floor": true,
+                "multiplier": "1.0000000000000009",
+                "buy_spreads": [
+                  "0.010000000000000009",
+                  "0.020000000000000018"
+                ],
+                "valid_until": 1793097264.0,
+                "completed_at": 1793097262.0,
+                "sell_spreads": [
+                  "0.010000000000000009",
+                  "0.020000000000000018"
+                ]
+              },
+              "perpetual": {
+                "state": "dynamic",
+                "enabled": true,
+                "fee_floor": true,
+                "multiplier": "1.0000000000000009",
+                "buy_spreads": [
+                  "0.010000000000000009",
+                  "0.020000000000000018"
+                ],
+                "valid_until": 1793097264.0,
+                "completed_at": 1793097262.0,
+                "sell_spreads": [
+                  "0.010000000000000009",
+                  "0.020000000000000018"
+                ]
+              }
+            },
+            "shock": {
+              "spot": {
+                "state": "dynamic",
+                "enabled": true,
+                "fee_floor": true,
+                "multiplier": "3",
+                "buy_spreads": [
+                  "0.03",
+                  "0.06"
+                ],
+                "valid_until": 1793097269.0,
+                "completed_at": 1793097267.0,
+                "sell_spreads": [
+                  "0.03",
+                  "0.06"
+                ]
+              },
+              "perpetual": {
+                "state": "dynamic",
+                "enabled": true,
+                "fee_floor": true,
+                "multiplier": "3",
+                "buy_spreads": [
+                  "0.03",
+                  "0.06"
+                ],
+                "valid_until": 1793097270.0,
+                "completed_at": 1793097268.0,
+                "sell_spreads": [
+                  "0.03",
+                  "0.06"
+                ]
+              }
+            },
+            "outage_recovers_in_place": true,
+            "candle_recovery_seconds": 7.0879606672097,
+            "service_restarts": 0,
+            "fee_floor": true,
+            "configured_maker_prices": true,
+            "events": 17,
+            "effective_config_sha256": "7576b98e79756eb45c8a1a02f1f97a34731c4640eb86661e617f069b0d3b9ed3"
+          }
+        }
+      }
+    },
+    "result": "build/e2e-offline/20261027-171618-8bf611/result.json"
+  },
+  "log_verification": {
+    "sql_verbose_records": 0,
+    "passed": true,
+    "service_files": [
+      {
+        "file": "availability/hbot-e2e-c95c32204c-availability.log",
+        "records": 113
+      },
+      {
+        "file": "drawdown/hbot-e2e-2c2d3b38c5-drawdown-clean-restart.log",
+        "records": 36
+      },
+      {
+        "file": "drawdown/hbot-e2e-2c2d3b38c5-drawdown-halt-restart.log",
+        "records": 19
+      },
+      {
+        "file": "drawdown/hbot-e2e-2c2d3b38c5-drawdown.log",
+        "records": 119
+      },
+      {
+        "file": "funding/hbot-e2e-469ffe8594-funding-db-recovery.log",
+        "records": 2
+      },
+      {
+        "file": "funding/hbot-e2e-469ffe8594-funding-first.log",
+        "records": 51
+      },
+      {
+        "file": "funding/hbot-e2e-469ffe8594-funding-restart.log",
+        "records": 7
+      },
+      {
+        "file": "funding/hbot-e2e-469ffe8594-funding-standby.log",
+        "records": 5
+      },
+      {
+        "file": "inventory-skew/hbot-e2e-41523317e0-inventory-skew-restart.log",
+        "records": 53
+      },
+      {
+        "file": "inventory-skew/hbot-e2e-41523317e0-inventory-skew.log",
+        "records": 108
+      },
+      {
+        "file": "life-mm/hbot-e2e-b83155b0e3-mm-db-restart.log",
+        "records": 31
+      },
+      {
+        "file": "life-mm/hbot-e2e-b83155b0e3-mm-first.log",
+        "records": 540
+      },
+      {
+        "file": "life-mm/hbot-e2e-b83155b0e3-mm-restart.log",
+        "records": 407
+      },
+      {
+        "file": "listing-bootstrap/hbot-e2e-d52d9cd547-bootstrap-restart.log",
+        "records": 82
+      },
+      {
+        "file": "listing-bootstrap/hbot-e2e-d52d9cd547-bootstrap.log",
+        "records": 69
+      },
+      {
+        "file": "quote-guards/hbot-e2e-260583e568-guard-restart.log",
+        "records": 53
+      },
+      {
+        "file": "quote-guards/hbot-e2e-260583e568-guard.log",
+        "records": 134
+      },
+      {
+        "file": "schema/hbot-e2e-69a981a96f-drift.log",
+        "records": 3
+      },
+      {
+        "file": "schema/hbot-e2e-69a981a96f-empty.log",
+        "records": 3
+      },
+      {
+        "file": "schema/hbot-e2e-69a981a96f-file-backend.log",
+        "records": 2
+      },
+      {
+        "file": "schema/hbot-e2e-69a981a96f-repaired.log",
+        "records": 3
+      },
+      {
+        "file": "schema/hbot-e2e-69a981a96f-valid.log",
+        "records": 19
+      },
+      {
+        "file": "spot/hbot-e2e-dffde58676-fifth.log",
+        "records": 41
+      },
+      {
+        "file": "spot/hbot-e2e-dffde58676-first.log",
+        "records": 53
+      },
+      {
+        "file": "spot/hbot-e2e-dffde58676-fourth.log",
+        "records": 62
+      },
+      {
+        "file": "spot/hbot-e2e-dffde58676-second.log",
+        "records": 25
+      },
+      {
+        "file": "spot/hbot-e2e-dffde58676-seventh.log",
+        "records": 20
+      },
+      {
+        "file": "spot/hbot-e2e-dffde58676-sixth.log",
+        "records": 50
+      },
+      {
+        "file": "spot/hbot-e2e-dffde58676-third.log",
+        "records": 18
+      },
+      {
+        "file": "spot-outflow/hbot-e2e-5289dd08b1-outflow-restart.log",
+        "records": 71
+      },
+      {
+        "file": "spot-outflow/hbot-e2e-5289dd08b1-outflow.log",
+        "records": 87
+      },
+      {
+        "file": "spread-policy/hbot-e2e-fcdc327c6f-spread-policy.log",
+        "records": 121
+      },
+      {
+        "file": "v2-perpetual/hbot-e2e-94cf154100-v2-first.log",
+        "records": 42
+      },
+      {
+        "file": "v2-perpetual/hbot-e2e-94cf154100-v2-second.log",
+        "records": 23
+      },
+      {
+        "file": "v2-spot/hbot-e2e-b167310679-v2-first.log",
+        "records": 39
+      },
+      {
+        "file": "v2-spot/hbot-e2e-b167310679-v2-second.log",
+        "records": 20
+      }
+    ],
+    "records": 2531,
+    "severity_counts": {
+      "INFO": 2405,
+      "WARNING": 73,
+      "ERROR": 53
+    },
+    "event_counts": {
+      "service_starting": 35,
+      "service_incident": 6,
+      "service_recovered": 4,
+      "service_exit": 25,
+      "service_failed": 8
+    },
+    "failures": [],
+    "scope": "Selected service container logs only; excludes PostgreSQL/simulator/standalone CLI output."
+  },
+  "rejected_candidate": {
+    "image_id": "sha256:bcd946aa339829c562dfb2b8c5c0805ed8889b95d441e550dad5523963203e6a",
+    "result": "build/e2e-offline/20261027-165522-708508/result.json",
+    "interrupted": true,
+    "completed_scenarios": [
+      "schema",
+      "spot",
+      "v2-spot",
+      "v2-perpetual"
+    ],
+    "sql_verbose_records": 27060,
+    "non_json_lines": 12,
+    "records": 27903,
+    "reason": "SQLAlchemy WARNING threshold was reset and Python warnings bypassed logging. Three Red/Green cases cover the fixes."
+  },
+  "verification_fixture_sha256": "7db71443cc4d84577d98e6fc67962f95524e56b954cc274b12be11bf1d03cb83",
+  "scope": {
+    "functional_groups": 13,
+    "new_upgrade_rollback": false,
+    "upgrade_reason": "Historical comparison image is no longer cached; no reconstructed comparison fixture in this run.",
+    "new_load_or_soak": false,
+    "okx_account": false,
+    "cloud_run": false,
+    "cloud_logging_ingestion": false
+  },
+  "raw_directory": "build/service-logging",
+  "cleanup": {
+    "test_containers_removed": true,
+    "rejected_candidate_image_removed": true,
+    "verified_local_tag": "hummingbot-cloudrun:local"
+  }
+}

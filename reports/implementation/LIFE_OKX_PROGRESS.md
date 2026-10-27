@@ -1181,5 +1181,23 @@ The fixes retain SQLAlchemy WARNING and route Python warnings through logging;
 legacy YAML logging restores its original warning handling. All 18 targeted
 logging tests pass. The reusable image smoke now also checks real SQL execution
 without emitted parameters and a multiline, redacted Python warning. Rebuilt
-image verification follows below when complete. Full native regression after
+image verification is summarized below. Full native regression after
 these fixes passes 1596 tests plus 11 subtests (158 + 11 + 1012 + 415).
+
+- [x] Rebuild and verify the corrected image against all 61 frozen runtime paths.
+- [x] Extend the reusable image smoke to cover severity, warnings and quiet SQL behavior.
+- [x] Pass all 13 functional offline groups on the corrected image.
+- [x] Inspect actual service logs for JSON, UTC/severity, incident consistency and configured dummy credential leakage.
+- [x] Preserve rejected-candidate evidence and remove the disposable test containers/rejected image.
+
+Final image `df5d240f42c5` is Linux amd64, 1366580877 bytes. The matrix includes
+nine profile/market selections and passes on the same image as its packaged
+logging smoke. Inspection of 2531 records from 36 service log files finds no
+non-JSON lines, verbose SQL records, incident severity mismatches or configured
+dummy credential values. WARNING/ERROR records from intentional fault scenarios
+remain visible. All test containers are cleaned up.
+
+No new upgrade/rollback, load/soak, OKX account or Cloud Run run is claimed.
+The historical comparison image is absent, so `release_scope_complete` remains
+false. See [verification report](../cloudrun-logging-verification.md) and its
+[portable evidence](../cloudrun-logging-verification.json).
