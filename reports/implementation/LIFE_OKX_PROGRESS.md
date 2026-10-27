@@ -1278,3 +1278,18 @@ and [completed plan](../../docs/plans/MM_QUOTE_ACTIVITY_TDD_PLAN.md).
 See [report](../mm-until-stopped.md), [evidence](../mm-until-stopped-evidence.json)
 and [completed plan](../../docs/plans/MM_UNTIL_STOPPED_TDD_PLAN.md). This work does
 not claim a new full release soak, real exchange, cloud deployment or FE browser verification.
+
+## Long-running memory retention (2026-10-28)
+
+- [x] Red/Green waiter cleanup and opt-in recent fill diagnostics with legacy balance safeguards.
+- [x] Remove unused PG/OKX reconstruction history and retire persisted executor/order identities without losing aggregates.
+- [x] Preserve executor state on persistence failure; keep a separate dirty position checkpoint signal.
+- [x] Fix Stop during read-only startup without weakening uncertain-cancel or existing-HALT recovery.
+- [x] Pass 1,691 native tests + 11 subtests and 219 PostgreSQL tests; verify the same image in a 10-minute churn/UI/fill diagnostic.
+- [x] Record 15k reads with zero unexpected HTTP errors, 599/599 fills, matched positions and collectible retired strategies/providers.
+
+See [report](../mm-memory-retention-review.md), [evidence](../mm-memory-retention-evidence.json)
+and [completed checklist](../../docs/plans/MM_MEMORY_RETENTION_REVIEW.md). This is
+scoped memory evidence, not a new release-hour/multi-day production guarantee.
+Early private-stream contract-size initialization errors remain a separately
+recorded startup follow-up; they were not hidden by the HTTP-error result.

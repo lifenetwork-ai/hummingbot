@@ -33,6 +33,39 @@ from hummingbot.connector.markets_recorder import MarketsRecorder  # noqa: E402
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base  # noqa: E402
 from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator  # noqa: E402
 
+# Memory diagnostics are test-only and keep weak references, never old runners.
+MEMORY_DIAGNOSTICS = os.environ.get("HBOT_MEMORY_DIAGNOSTICS") == "1"
+if MEMORY_DIAGNOSTICS:
+    from weakref import WeakSet
+    memory_strategies, memory_providers = WeakSet(), WeakSet()
+    original_strategy_init = StrategyV2Base.__init__
+
+    def memory_strategy_init(self, *args, **kwargs):
+        original_strategy_init(self, *args, **kwargs)
+        memory_strategies.add(self)
+        memory_providers.add(self.market_data_provider)
+
+    StrategyV2Base.__init__ = memory_strategy_init
+memory_gc_runs = 0
+
+
+def retention_counts(core, orchestrator):
+    from hummingbot.core.event.events import OrderFilledEvent
+    connectors = core.connector_manager.connectors if core else {}
+    resident = [executor for rows in orchestrator.active_executors.values() for executor in rows] if orchestrator else []
+    positions = [position for rows in orchestrator.positions_held.values() for position in rows] if orchestrator else []
+    return dict(tasks=len(asyncio.all_tasks()), strategies=len(memory_strategies), providers=len(memory_providers),
+                gc_runs=memory_gc_runs, resident_executors=len(resident),
+                processed_executor_ids=len(orchestrator.executors_ids_position_held) if orchestrator else 0,
+                position_order_ids=sum(len(position.order_ids) for position in positions),
+                resident_held_order_ids=len({order.get("client_order_id") for executor in resident
+                                             for order in executor.executor_info.custom_info.get("held_position_orders", [])}),
+                connectors={name: dict(fill_events=sum(isinstance(event, OrderFilledEvent) for event in connector.event_logs),
+                                       legacy_fills=len(connector._current_trade_fills),
+                                       legacy_order_ids=len(connector._exchange_order_ids))
+                            for name, connector in connectors.items()})
+
+
 request_queries = contextvars.ContextVar("load_request_queries", default=None)
 samples = defaultdict(lambda: deque(maxlen=12000))
 totals = defaultdict(int)
@@ -203,7 +236,7 @@ def distribution(values):
 
 
 async def probe(host):
-    global loop_beat_ns
+    global loop_beat_ns, memory_gc_runs
     next_sample, next_export = time.monotonic(), time.monotonic()
     while True:
         next_sample += .05
@@ -245,6 +278,13 @@ async def probe(host):
                                                 close_type=executor.close_type.name if executor.close_type else None,
                                                 held_orders=executor.executor_info.custom_info.get("held_position_orders", []))
                                            for rows in orchestrator.active_executors.values() for executor in rows if executor.is_closed][-20:]
+            if MEMORY_DIAGNOSTICS:
+                marker = Path("/tmp/memory-review-collect")
+                if marker.exists():
+                    marker.unlink()
+                    gc.collect()  # Requested only after the measured window/Stop.
+                    memory_gc_runs += 1
+                data["retention"] = retention_counts(core, orchestrator)
             temporary = Path("/tmp/load-metrics.new")
             temporary.write_text(json.dumps(data, default=str))
             temporary.replace("/tmp/load-metrics.json")

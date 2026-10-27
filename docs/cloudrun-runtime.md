@@ -46,3 +46,25 @@ image/manifest. Packaging changes require fresh image verification.
 Historical sizes, package inventories and startup measurements are in the
 [image optimization report](../reports/cloudrun-image-optimization.md) and
 [PostgreSQL verification report](../reports/postgres-verification.md).
+
+## Long-running memory
+
+The headless service retains at most 1,000 recent connector fill events for
+diagnostics; durable fills, fees and history remain in PostgreSQL. Legacy
+interactive/file mode keeps full history. When connector balance limits or
+snapshot adjustment require full fill history, the service preserves it and logs
+`connector_history_unbounded` at WARNING. Do not disable a balance limit simply
+to hide memory growth; this special mode requires a separate capacity decision.
+
+The offline memory check reuses the simulator and PostgreSQL harness, injects
+fills and UI reads, and rotates/replaces sessions. It records RSS plus task,
+strategy/provider and retained-ID counts. A diagnostic GC is requested only
+after the measured window and Stop to check collectability; production GC policy
+is unchanged. After building the image, run:
+
+```sh
+python scripts/test_mm_memory.py --image hummingbot-cloudrun:local --seconds 600
+```
+
+See [retention review](../reports/mm-memory-retention-review.md) for measured
+scope and limitations. A bounded probe is not proof of unlimited uptime.

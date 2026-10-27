@@ -1,0 +1,534 @@
+{
+  "date": "2026-10-28",
+  "status": "Scoped memory and lifecycle verification passed",
+  "revisions": {
+    "da08715b4": "da08715b43828b2a8a9b139db88ae12cec083e0f",
+    "23db70491": "23db70491e407e22d80e405063f6d02e721155d6"
+  },
+  "image": {
+    "sources": {
+      "hummingbot/cli/service.py": "dbca789a4cdd2728b92f45d26fd270235cbb589e7677466ae65e6f3b8e01b790",
+      "hummingbot/connector/markets_recorder.py": "62d3a1c05e9f7e8ee496ec44b329ffac0ba27e1248011292fddf6c694239320a",
+      "hummingbot/core/bot_ownership.py": "1bd44653dc7c79c93ac5b1450751c36820ecbf09ae2de452f93ffe68652af507",
+      "hummingbot/core/trading_core.py": "f5905a2102ed7f7cd9e5050dc9ac090285cddff57f078d9a0c23e7b8edda0ae2",
+      "hummingbot/strategy_v2/executors/executor_orchestrator.py": "2d44f48d962bb3f48237138b62a11bd5de638636606d14c9c297273d60f2c42f"
+    },
+    "binaries": {
+      "hummingbot/core/event/event_logger.cpython-313-x86_64-linux-gnu.so": "55390a27bec18e4505b130d6c9f9671be5fa2d83f5adc4753faed8669f4f9eb5",
+      "hummingbot/connector/connector_base.cpython-313-x86_64-linux-gnu.so": "2609cf9d59e4d4bb9695a71df650017543e2dcf4b40d92e0b639ae4bc85b2f69"
+    },
+    "image_id": "sha256:d8e084adc3076b0e67f074808d551164663e8c4af37e48c4a3a95e8dfe4f9893",
+    "image_bytes": 1366810183,
+    "architecture": "amd64",
+    "source_matches": true,
+    "cython_source_sha256": {
+      "hummingbot/connector/connector_base.pyx": "4c253c20381498ed6809b1a3bfb6db221b80eb79c806096a62c8e64af619cf4b",
+      "hummingbot/core/event/event_logger.pyx": "7ec1fc281c1ae8c86001c055f430fefbdd6a570915452c44b03cee9d9c5d80a7"
+    }
+  },
+  "host_architecture": "arm64",
+  "emulation": true,
+  "tests": {
+    "native": 1691,
+    "subtests": 11,
+    "native_groups": [
+      165,
+      11,
+      1064,
+      451
+    ],
+    "postgres": 219,
+    "fixture_binding_selection": 4
+  },
+  "raw_result": {
+    "path": "build/memory-review/20261028-024013/result.json",
+    "sha256": "ac1859ce1c1b2b59e0d1d84306957967f4cca9f6e20c23466f1c819229939387"
+  },
+  "diagnostic": true,
+  "release_scope_complete": false,
+  "duration_seconds": 600,
+  "workload": {
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "bot_cpu": 1,
+    "bot_memory_bytes": 2147483648,
+    "modes": "Both markets; until-stopped random (30-second steps), Stop/Start, fixed and random Switch",
+    "checkpoints": [
+      {
+        "action": "restart_session",
+        "elapsed_seconds": 187.64202850009315,
+        "receipt_id": "5e0376f0-0d97-437b-8bec-5fefb0edc802"
+      },
+      {
+        "action": "fixed",
+        "elapsed_seconds": 363.9939007079229,
+        "receipt_id": "1147ae32-fdea-43cb-b0ef-ef6d884ccf4a"
+      },
+      {
+        "action": "random",
+        "elapsed_seconds": 423.9832712500356,
+        "receipt_id": "6cb5fe65-9de5-46eb-9621-ddf82297cedd"
+      }
+    ]
+  },
+  "metrics": {
+    "completed_reads": 12000,
+    "requested_reads": 12000,
+    "unexpected_errors": 0,
+    "read_p95_ms": 191.21619299994563,
+    "read_p99_ms": 479.1468960002021,
+    "peak_rss_bytes": 345776128,
+    "auxiliary": {
+      "requested_reads": 3000,
+      "completed_reads": 3000,
+      "statuses": {
+        "200": 3000
+      },
+      "read_p95_ms": 170.63175599992064,
+      "read_p99_ms": 469.3115569998554
+    }
+  },
+  "rss_growth_bytes": 11227136.0,
+  "rss_growth_budget_bytes": 33554432,
+  "rss_growth_method": "Median last two minus median first two minute samples; no forced GC during workload",
+  "samples": [
+    {
+      "at": 1793130094.808572,
+      "rss_bytes": 331141120,
+      "phase": "running",
+      "retention": {
+        "tasks": 66,
+        "strategies": 1,
+        "providers": 1,
+        "gc_runs": 0,
+        "resident_executors": 8,
+        "processed_executor_ids": 0,
+        "position_order_ids": 0,
+        "resident_held_order_ids": 0,
+        "connectors": {
+          "okx": {
+            "fill_events": 15,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          },
+          "okx_perpetual": {
+            "fill_events": 15,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          }
+        }
+      }
+    },
+    {
+      "at": 1793130160.4585946,
+      "rss_bytes": 335466496,
+      "phase": "starting",
+      "retention": {
+        "tasks": 58,
+        "strategies": 2,
+        "providers": 2,
+        "gc_runs": 0,
+        "resident_executors": 0,
+        "processed_executor_ids": 0,
+        "position_order_ids": 0,
+        "resident_held_order_ids": 0,
+        "connectors": {
+          "okx": {
+            "fill_events": 0,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          },
+          "okx_perpetual": {
+            "fill_events": 0,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          }
+        }
+      }
+    },
+    {
+      "at": 1793130221.244871,
+      "rss_bytes": 336908288,
+      "phase": "stopped",
+      "retention": {
+        "tasks": 39,
+        "strategies": 2,
+        "providers": 2,
+        "gc_runs": 0,
+        "resident_executors": 0,
+        "processed_executor_ids": 0,
+        "position_order_ids": 0,
+        "resident_held_order_ids": 0,
+        "connectors": {}
+      }
+    },
+    {
+      "at": 1793130281.470374,
+      "rss_bytes": 339136512,
+      "phase": "running",
+      "retention": {
+        "tasks": 66,
+        "strategies": 1,
+        "providers": 1,
+        "gc_runs": 0,
+        "resident_executors": 8,
+        "processed_executor_ids": 0,
+        "position_order_ids": 0,
+        "resident_held_order_ids": 0,
+        "connectors": {
+          "okx": {
+            "fill_events": 15,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          },
+          "okx_perpetual": {
+            "fill_events": 16,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          }
+        }
+      }
+    },
+    {
+      "at": 1793130346.8171003,
+      "rss_bytes": 339922944,
+      "phase": "starting",
+      "retention": {
+        "tasks": 64,
+        "strategies": 2,
+        "providers": 2,
+        "gc_runs": 0,
+        "resident_executors": 0,
+        "processed_executor_ids": 0,
+        "position_order_ids": 0,
+        "resident_held_order_ids": 0,
+        "connectors": {
+          "okx": {
+            "fill_events": 0,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          },
+          "okx_perpetual": {
+            "fill_events": 0,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          }
+        }
+      }
+    },
+    {
+      "at": 1793130407.1184156,
+      "rss_bytes": 341671936,
+      "phase": "running",
+      "retention": {
+        "tasks": 65,
+        "strategies": 2,
+        "providers": 2,
+        "gc_runs": 0,
+        "resident_executors": 8,
+        "processed_executor_ids": 0,
+        "position_order_ids": 0,
+        "resident_held_order_ids": 0,
+        "connectors": {
+          "okx": {
+            "fill_events": 0,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          },
+          "okx_perpetual": {
+            "fill_events": 0,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          }
+        }
+      }
+    },
+    {
+      "at": 1793130467.3787558,
+      "rss_bytes": 343113728,
+      "phase": "running",
+      "retention": {
+        "tasks": 66,
+        "strategies": 2,
+        "providers": 2,
+        "gc_runs": 0,
+        "resident_executors": 8,
+        "processed_executor_ids": 0,
+        "position_order_ids": 0,
+        "resident_held_order_ids": 0,
+        "connectors": {
+          "okx": {
+            "fill_events": 6,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          },
+          "okx_perpetual": {
+            "fill_events": 7,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          }
+        }
+      }
+    },
+    {
+      "at": 1793130527.7420688,
+      "rss_bytes": 344203264,
+      "phase": "running",
+      "retention": {
+        "tasks": 67,
+        "strategies": 2,
+        "providers": 2,
+        "gc_runs": 0,
+        "resident_executors": 8,
+        "processed_executor_ids": 0,
+        "position_order_ids": 0,
+        "resident_held_order_ids": 0,
+        "connectors": {
+          "okx": {
+            "fill_events": 4,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          },
+          "okx_perpetual": {
+            "fill_events": 4,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          }
+        }
+      }
+    },
+    {
+      "at": 1793130593.3656476,
+      "rss_bytes": 344858624,
+      "phase": "running",
+      "retention": {
+        "tasks": 65,
+        "strategies": 1,
+        "providers": 1,
+        "gc_runs": 0,
+        "resident_executors": 8,
+        "processed_executor_ids": 0,
+        "position_order_ids": 0,
+        "resident_held_order_ids": 0,
+        "connectors": {
+          "okx": {
+            "fill_events": 8,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          },
+          "okx_perpetual": {
+            "fill_events": 8,
+            "legacy_fills": 0,
+            "legacy_order_ids": 0
+          }
+        }
+      }
+    }
+  ],
+  "after_stop_gc": {
+    "tasks": 2,
+    "strategies": 0,
+    "providers": 0,
+    "gc_runs": 1,
+    "resident_executors": 0,
+    "processed_executor_ids": 0,
+    "position_order_ids": 0,
+    "resident_held_order_ids": 0,
+    "connectors": {}
+  },
+  "ledger": {
+    "unique_exchange_fills": 599,
+    "unique_recorder_fills": 599,
+    "positions_matched": true,
+    "identified_funding_bills": 0,
+    "daily_snapshots": 3
+  },
+  "component_native": {
+    "legacy_unbounded_control": [
+      {
+        "injected": 1000,
+        "retained": 1000,
+        "python_bytes": 622818,
+        "peak_python_bytes": 623514
+      },
+      {
+        "injected": 10000,
+        "retained": 10000,
+        "python_bytes": 6268574,
+        "peak_python_bytes": 6269198
+      },
+      {
+        "injected": 50000,
+        "retained": 50000,
+        "python_bytes": 31398850,
+        "peak_python_bytes": 31399474
+      },
+      {
+        "injected": 100000,
+        "retained": 100000,
+        "python_bytes": 62811494,
+        "peak_python_bytes": 62812118
+      }
+    ],
+    "bounded_diagnostics": [
+      {
+        "injected": 1000,
+        "retained": 1000,
+        "python_bytes": 619674,
+        "peak_python_bytes": 620370
+      },
+      {
+        "injected": 10000,
+        "retained": 1000,
+        "python_bytes": 629844,
+        "peak_python_bytes": 635962
+      },
+      {
+        "injected": 50000,
+        "retained": 1000,
+        "python_bytes": 631120,
+        "peak_python_bytes": 646132
+      },
+      {
+        "injected": 100000,
+        "retained": 1000,
+        "python_bytes": 631396,
+        "peak_python_bytes": 647408
+      }
+    ]
+  },
+  "component_image": {
+    "legacy_unbounded_control": [
+      {
+        "injected": 1000,
+        "retained": 1000,
+        "python_bytes": 622818,
+        "peak_python_bytes": 623514
+      },
+      {
+        "injected": 10000,
+        "retained": 10000,
+        "python_bytes": 6268574,
+        "peak_python_bytes": 6269198
+      },
+      {
+        "injected": 50000,
+        "retained": 50000,
+        "python_bytes": 31398850,
+        "peak_python_bytes": 31399474
+      },
+      {
+        "injected": 100000,
+        "retained": 100000,
+        "python_bytes": 62811494,
+        "peak_python_bytes": 62812118
+      }
+    ],
+    "bounded_diagnostics": [
+      {
+        "injected": 1000,
+        "retained": 1000,
+        "python_bytes": 619674,
+        "peak_python_bytes": 620370
+      },
+      {
+        "injected": 10000,
+        "retained": 1000,
+        "python_bytes": 629844,
+        "peak_python_bytes": 635962
+      },
+      {
+        "injected": 50000,
+        "retained": 1000,
+        "python_bytes": 631120,
+        "peak_python_bytes": 646132
+      },
+      {
+        "injected": 100000,
+        "retained": 1000,
+        "python_bytes": 631396,
+        "peak_python_bytes": 647408
+      }
+    ]
+  },
+  "live_checkpoint": {
+    "observed_at": "2026-10-27T19:50:12.510657+00:00",
+    "phase": "running",
+    "halt": null,
+    "duration_mode": "until_stopped",
+    "generation": "4",
+    "fills": 568,
+    "steps": 18,
+    "profiles": [
+      "follow_market",
+      "follow_token",
+      "sideways"
+    ],
+    "commands": [
+      {
+        "action": "start",
+        "status": "succeeded"
+      },
+      {
+        "action": "stop",
+        "status": "succeeded"
+      },
+      {
+        "action": "start",
+        "status": "succeeded"
+      },
+      {
+        "action": "switch",
+        "status": "succeeded"
+      },
+      {
+        "action": "switch",
+        "status": "succeeded"
+      }
+    ]
+  },
+  "fixture_sha256": {
+    "test_mm_memory.py": "90bf72c800da24b7e83fe647afa3b9e8ff75b4052081ad411eb875cc414743fb",
+    "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+    "exchange.py": "efe73d8a850e1b645b8527c112fbc4a782e25d36d61ca23eefda7db66a8aa887",
+    "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "load_service.py": "713ae3a986fbdd13cf3cab852d77f5dbaf752ec61a1b8c04ac639bc5401bdd56",
+    "runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30",
+    "life_mm_profiles.yaml": "035a8743913fd9786ff36077762297334b059b09870e5a084318d49bbf34242e",
+    "load_trace.py": "0469550580134e390453ad1fd75513a9a43163493c53d5a260f2ea6d6003b0fe",
+    "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+    "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+    "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+    "load_client.py": "1113ad4c611075e372a388acda93e5287810f3d97d86fa4f7bab47aecc874f1f"
+  },
+  "log_sha256": {
+    "build/memory-review/event-logger-red.log": "e05c6707d8d1a95519e38ea8eb0559cb1e50a327d5f14c2be82e692e205a051d",
+    "build/memory-review/event-logger-green.log": "19b237fc35d237e4ccabdb5946c0d1ada1482bfda251cdd03add00ee051c47bf",
+    "build/memory-review/executors-red.log": "a74f1aac95e9858cf0137b3fc1d285b326b3a0350ef1dcb644909b3b9c74c0e7",
+    "build/memory-review/native-focused.log": "1606449475b8e0b3616bfe19c6a352624718ad015e38f118966e7e347ff025a6",
+    "build/memory-review/recorder-history-red.log": "037159365f7fa0aeb8bd06108cdaf7fe1ac90f5d511f07c4fdfb4259b87e3a22",
+    "build/memory-review/native-cancellation-final.log": "9d3bc8019f3a6459499d4a9b50eb7fdb58f6613ab6abac5270327c834afdd993",
+    "build/memory-review/postgres-cancellation-final.log": "c65387692770178d2c434366fc6aa3ae11f2f2d84d7d0d6ed962876dec457b8a",
+    "build/memory-review/cancellation-red.log": "647bba8561ff629f7120d0f57b04263a9575b2712a40ddbfc75e7e9e6c1bf53e",
+    "build/memory-review/cancellation-green.log": "9e78b36cf15a8f2ccb8999c8a846a6f40f2fa36d6d868e3d348c491dfde9c4ee",
+    "build/memory-review/fixture-binding-final.log": "bfe0f9a63f4b0c1ce9eb2ace9326ed58fc0d994612a98fda67a2fd5d26e864fb",
+    "build/memory-review/probe-hooks-final.log": "360c0680ffeedd2aacf06436710a7f51de37e1ca622b4794c532fd6d2b37fbda"
+  },
+  "failed_probe": {
+    "path": "build/memory-review/20261028-022433/result.json",
+    "passed": false,
+    "reason": "Explicit Stop cancelled read-only startup reconciliation and incorrectly created HALT; interrupted, not accepted"
+  },
+  "known_runtime_errors": {
+    "count": 4,
+    "root": "Early private-stream position snapshot before contract size initialization; subsequent REST position reconciliation and ledger checks passed; handler unchanged"
+  },
+  "not_verified": [
+    "New sixty-minute release soak",
+    "Multi-day production uptime",
+    "Real OKX",
+    "Cloud Run deployment",
+    "All optional plugins or legacy full-history balance modes"
+  ]
+}

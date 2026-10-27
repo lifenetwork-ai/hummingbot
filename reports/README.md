@@ -11,6 +11,7 @@ does not certify a later image. Operational guides and plans live in [docs/](../
 | [Admin API / dashboard UX review](admin-api-dashboard-ux-review.md) | Current contract, browser access, operator workflow gaps and proposed FE follow-up; no runtime changes |
 | [Operations API implementation](admin-operations-api-implementation.md) | YAML-only profile configuration, operator API changes and [scoped TDD/image/polling evidence](admin-operations-api-evidence.json) |
 | [Working-order activity](mm-quote-activity.md) | Per-side proposal reasons, current-order fill observations, bounded absence warnings and [read-only API evidence](mm-quote-activity-evidence.json) |
+| [Long-running memory](mm-memory-retention-review.md), [evidence](mm-memory-retention-evidence.json) | Red/Green retention fixes, component heap experiment and scoped image lifecycle/RSS diagnostics |
 | [Until-stopped sessions](mm-until-stopped.md), [evidence](mm-until-stopped-evidence.json) | Explicit continuous fixed/random mode, pinned restart clocks, finite transport/bootstrap limits and scoped verification |
 | [E0 service availability](life-mm-e0-availability.md) | Failure isolation, task supervision, recovery and switch/checkpoint regression evidence |
 | [E1 strict quote guards](life-mm-e1-quote-guards.md) | Target-market qualification, manual ranges, own-order bounds and recovery verification |

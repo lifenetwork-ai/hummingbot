@@ -1,7 +1,6 @@
 # Long-running MM memory retention review
 
-2026-10-28. Source review and Red/Green fixes; image lifecycle verification is
-recorded separately below when completed. The earlier one-hour image soak had
+2026-10-28. Source review, Red/Green fixes and a completed ten-minute image diagnostic. The earlier one-hour image soak had
 28.59 MiB first/last median RSS growth and passed its 64 MiB budget. That was a
 historical image and did not prove the current code free of retained objects.
 
@@ -87,4 +86,62 @@ After this additional correction, the complete native regression passes
 **1,691 tests + 11 subtests**, and the full disposable PG suite passes
 **219 tests**. The four new PG cases preserve existing HALT, distinguish
 read-only cancellation from a potentially dispatched cancel, and keep send
-authority closed. The failed image run remains failed; a new image run is needed.
+authority closed. The failed image run remains excluded from acceptance; the final run below uses the correction.
+
+Optional external notifier queues are not bounded by this patch; attaching a
+notifier whose consumer falls behind needs its own backlog/delivery policy.
+This workload attaches no external notifier. Rolling outflow projections retain
+fills within their configured time window, so their capacity scales with fill
+rate and window length even when expiry is correct. Those are capacity/configuration
+considerations, not evidence that all possible plugin/config combinations are
+leak-free.
+
+## Final image diagnostic — passed
+
+The rebuilt amd64 image `d8e084adc307` passed a 600-second run on the arm64 host
+with 1 CPU / 2 GiB for the bot and 100k historical orders plus 100k fills. Five
+changed Python runtime sources byte-match the image; two compiled extension
+fingerprints are recorded. Native and image allocation experiments agree.
+The test entrypoint adds bounded telemetry; this is diagnostic evidence, not a
+new unchanged full release soak or an uninstrumented production RSS measurement.
+
+| Measurement | Result |
+|---|---:|
+| Original UI reads | 12,000 / 12,000 |
+| Auxiliary UI reads | 3,000 / 3,000 |
+| Unexpected HTTP errors | 0 |
+| Original p95 / p99 | 191.2 / 479.1 ms |
+| Auxiliary p95 / p99 | 170.6 / 469.3 ms |
+| Peak bot RSS | 329.8 MiB |
+| First/last two-sample median RSS growth | 10.7 MiB (budget 32 MiB) |
+| Exact recorder / exchange fills | 599 / 599 |
+| Position comparison | Matched |
+| Strategy / provider instances after Stop + diagnostic GC | 0 / 0 |
+| Async tasks after Stop | 2 |
+
+Nine minute samples showed active task counts 58–67 (39 at the intentional Stop),
+and only one or two live strategy/provider instances despite repeated replacement.
+No forced GC occurred during the measured window. ID counts remained within
+resident executor/order counts, and unused OKX reconstruction caches stayed zero.
+The explicit Stop/Start and both Switch commands succeeded without HALT. A live
+checkpoint before completion recorded 18 step starts and all three profile types.
+Final collection was requested only after the measured window and Stop; it tests
+collectability and is not a production memory-management workaround.
+
+RSS rose gradually rather than staying perfectly flat. The bounded instrumentation
+also warms rolling sample deques, and Python/native allocators can keep freed
+pages. These samples do not prove that every byte of RSS growth is explained or
+exclude a slower leak over days. Deterministic retention tests and object cleanup
+support the narrower conclusion that the confirmed unbounded references above
+are fixed in the exercised service path.
+
+Four ERROR logs remain from private-stream position snapshots arriving before
+contract-size initialization. Later REST reconciliation and exact position checks
+passed; no HALT occurred. This startup ordering/logging issue is recorded as a
+separate follow-up, not suppressed or counted as zero runtime errors. “Zero
+errors” in the table specifically means unexpected HTTP/load-client errors.
+
+See [portable evidence](mm-memory-retention-evidence.json) and the
+[completed checklist](../docs/plans/MM_MEMORY_RETENTION_REVIEW.md). Raw artifacts
+remain in `build/memory-review/20261028-024013/`. No real exchange, cloud deploy,
+new sixty-minute release gate or multi-day uptime verification was performed.
