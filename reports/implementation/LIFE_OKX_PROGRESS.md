@@ -1081,7 +1081,7 @@ Work proceeds in small behavior-preserving commits on the existing runtime.
 - [x] Improve command diagnostics and persist partial fault results.
 - [x] Expose the all-feature load configuration through Make.
 - [x] Replace cross-layer controller state mutation with explicit methods.
-- [ ] Extract snapshot and funding orchestration from ServiceHost without changing ownership/control ordering.
+- [x] Extract snapshot and funding orchestration from ServiceHost without changing ownership/control ordering.
 
 Shared reasons/reporting projection: 83 focused controller, service and reporting
 tests pass. No response schema, freshness window or submission check changes.
@@ -1097,3 +1097,14 @@ tests protect idempotent revocation, generation fencing, copied shared baskets
 and incomplete-anchor refusal. The host still persists joint anchors before
 admission. Ordinary V2 controllers without the optional managed-session hook
 retain their existing strategy stop path.
+
+Service extraction: 50 focused service/funding/lifecycle tests pass. Snapshot
+observations and funding task state have explicit in-process owners;
+ServiceHost drops from 961 to 833 lines while keeping its control observer and
+owner/version checks in place. Funding continues to reuse FundingSync. Shutdown
+cancels funding before disposing the engine, and a new single-flight test checks
+that a poll deadline cannot create overlapping batches. Trace instrumentation
+follows the moved collector while preserving its existing span name.
+
+Final native/PostgreSQL, packaged-image E2E and short load verification remain
+pending; the earlier optimized image's sixty-minute result is historical evidence.

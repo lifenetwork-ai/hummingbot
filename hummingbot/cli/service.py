@@ -69,32 +69,22 @@ class ServiceHost:
         self.mm_liquidity_state = None
         self.liquidity_observer = None
         self.mm_readiness_reason = None
-        self.mm_drawdown_state = None
-        self.spot_outflow_state = None
         self.outflow_task = None
         self.next_outflow_poll = 0
         self.applied_mm_identity = None
         self.catalogue = {}
         self.config_hashes = {}
-        self.reporting = {}
         self._daily_signature = None
         self._daily_next_write_at = 0
         self._daily_retry_at = 0
         self.reconciliation_task = None
         self.next_check_poll = 0
-        self.funding_task = self.funding_sync = self.funding_store = None
-        self.funding_state = {}
-        self.funding_error = None
-        self.funding_configured = False
-        self.next_funding_poll = 0
-        self._funding_template_pairs = None
-        from hummingbot.client.config.defaults import DEFAULT_ENV_CONFIG
-        self.funding_interval = int(os.environ.get("FUNDING_SYNC_INTERVAL_SECONDS",
-                                                   DEFAULT_ENV_CONFIG["FUNDING_SYNC_INTERVAL_SECONDS"]))
-        if not 1 <= self.funding_interval <= 3600:
-            raise ValueError("FUNDING_SYNC_INTERVAL_SECONDS must be within 1..3600")
-        self.revision = os.environ.get("K_REVISION") or os.environ.get("COMMIT_SHA") or "local"
+        from hummingbot.cli.funding_observer import FundingObserver
+        from hummingbot.cli.service_observations import ServiceObservations
         self.log = logging.getLogger(__name__)
+        self.observations = ServiceObservations()
+        self.funding = FundingObserver(settings.bot_id, self.availability, self.log)
+        self.revision = os.environ.get("K_REVISION") or os.environ.get("COMMIT_SHA") or "local"
 
     def mm_effective_config(self, session):
         from controllers.market_making.life_mm import LifeMMConfig
@@ -339,7 +329,7 @@ class ServiceHost:
         self.engine = SQLConnectionManager.initialize_postgres(self.settings)
         self.store = BotStateStore(self.engine, self.settings.bot_id)
         self.store.ensure()
-        self.reporting = ((self.store.read() or {}).get("status") or {}).get("reporting") or {}
+        self.observations.reporting = ((self.store.read() or {}).get("status") or {}).get("reporting") or {}
         self.owner = BotOwnership(self.engine, self.settings.bot_id)
         self.catalogue = {kind: list_configs(kind) for kind in STRATEGY_TYPES}
         self.config_hashes = {kind: {name: hashlib.sha256(config_path(kind, name).read_bytes()).hexdigest()
@@ -436,7 +426,7 @@ class ServiceHost:
             await asyncio.gather(self.outflow_task, return_exceptions=True)
         strategy = self.hb.trading_core.strategy
         if strategy is not None and isinstance(getattr(getattr(strategy, "config", None), "mm_drawdown_scope", None), dict):
-            self.mm_drawdown_state = strategy.mm_drawdown_status()
+            self.observations.drawdown = strategy.mm_drawdown_status()
         if self.start_task is not None and not self.start_task.done():
             self.start_task.cancel()
             done, _ = await asyncio.wait({self.start_task}, timeout=0.5)
@@ -454,50 +444,14 @@ class ServiceHost:
             self.observer_progress_at = time.monotonic()
 
     def snapshot(self):
-        from hummingbot.cli.admin_models import DrawdownStatus, SpotOutflowStatus
-        from hummingbot.cli.admin_observations import capture_reporting
-        from hummingbot.core.funding_sync import public_status
-        core = self.hb.trading_core
-        from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
-        outflow = getattr(self.owner, "spot_outflow", None)
-        if isinstance(outflow, SpotOutflowGuard):
-            self.spot_outflow_state = outflow.status()
-        strategy = core.strategy
-        if strategy is not None and isinstance(getattr(getattr(strategy, "config", None), "mm_drawdown_scope", None), dict):
-            self.mm_drawdown_state = strategy.mm_drawdown_status()
-        elif strategy is None and self.mm_drawdown_state is not None:
-            self.mm_drawdown_state = {**self.mm_drawdown_state, "ready": False, "stale": True,
-                                      "global_pnl_quote": None, "global_drawdown_quote": None,
-                                      "reason_code": self.mm_drawdown_state.get("reason_code") or "drawdown_not_running",
-                                      "controllers": {identity: {**value, "pnl_quote": None, "drawdown_quote": None}
-                                                      for identity, value in self.mm_drawdown_state["controllers"].items()}}
-        try:
-            engine_status = core.get_status()
-            self.availability.clear("engine_reporting")
-        except Exception as error:
-            self.availability.fail("engine_reporting", "engine_reporting_unavailable", error)
-            # Receipt completion still needs known booleans. Missing values stay
-            # unknown rather than pretending a failed projection proves stop.
-            engine_status = {key: value if isinstance(value, bool) else None for key, value in (
-                ("strategy_running", getattr(core, "_strategy_running", None)),
-                ("clock_running", getattr(core, "_is_running", None)))}
-        try:
-            reporting = capture_reporting(core, self.reporting)
-            balances = {name: {asset: str(value) for asset, value in connector.get_all_balances().items()}
-                        for name, connector in core.connector_manager.connectors.items()}
-            self.reporting = reporting
-            self.availability.clear("reporting")
-            reporting_unavailable = False
-        except Exception as error:
-            self.availability.fail("reporting", "reporting_unavailable", error)
-            balances, reporting_unavailable = {}, True
+        observations = self.observations.capture(self.hb.trading_core, self.owner, self.availability)
         return {"name": self.settings.bot_id, "running": self.running, "phase": self.phase,
                 "error": self.error, "available_configs": self.catalogue,
-                "configuration_sha256": self.config_hashes, "engine": engine_status,
-                "balances": balances, "reporting_unavailable": reporting_unavailable,
+                "configuration_sha256": self.config_hashes, "engine": observations["engine"],
+                "balances": observations["balances"], "reporting_unavailable": observations["reporting_unavailable"],
                 "availability": self.service_status(persisted=True),
-                "mm_drawdown": DrawdownStatus.model_validate(self.mm_drawdown_state).model_dump(mode="json") if self.mm_drawdown_state is not None else None,
-                "spot_outflow": SpotOutflowStatus.model_validate(self.spot_outflow_state).model_dump(mode="json") if self.spot_outflow_state is not None else None,
+                "mm_drawdown": observations["mm_drawdown"],
+                "spot_outflow": observations["spot_outflow"],
                 "mm_session": self.mm_session.model_dump(mode="json", exclude={"catalogue"}) if self.mm_session else None,
                 "mm_liquidity": self.mm_liquidity_state,
                 "mm_markets": [{"market": "spot" if controller.config.connector_name == "okx" else "perpetual",
@@ -508,9 +462,8 @@ class ServiceHost:
                                 "quote_guard": controller.processed_data.get("quote_guard"),
                                 "inventory_skew": controller.processed_data.get("inventory_skew"),
                                 "spread_policy": controller.processed_data.get("spread_policy")} for controller in self._mm_controllers()],
-                "reporting": self.reporting,
-                "funding_sync": {**public_status(self.funding_state, now_ms=int(time.time() * 1000), error=self.funding_error),
-                                 **({"state": "not_configured"} if not self.funding_configured else {})},
+                "reporting": observations["reporting"],
+                "funding_sync": self.funding.status(now_ms=int(time.time() * 1000)),
                 "reporting_timezone": self.admin_settings.reporting_timezone if hasattr(self, "admin_settings") else "Asia/Ho_Chi_Minh",
                 "format_status": None}
 
@@ -526,7 +479,7 @@ class ServiceHost:
         guard = getattr(self.owner, "spot_outflow", None)
         if guard is None:
             from hummingbot.core.spot_outflow_guard import checkpoint_outflow_status
-            self.spot_outflow_state = checkpoint_outflow_status((row["recovery_state"] or {}).get("spot_outflow"))
+            self.observations.outflow = checkpoint_outflow_status((row["recovery_state"] or {}).get("spot_outflow"))
         if hasattr(guard, "projection") and guard.projection is not None:
             from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
             if isinstance(guard, SpotOutflowGuard):
@@ -534,7 +487,7 @@ class ServiceHost:
         from hummingbot.core.mm_drawdown import checkpoint_drawdown_status
         checkpoint = (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get("life_mm_profiles.yaml", {})
         if getattr(self.hb.trading_core, "strategy", None) is None:
-            self.mm_drawdown_state = checkpoint_drawdown_status(checkpoint)
+            self.observations.drawdown = checkpoint_drawdown_status(checkpoint)
         if row["config_type"] == "mm-session" and row.get("mm_session"):
             from random import SystemRandom
 
@@ -713,80 +666,10 @@ class ServiceHost:
                 self._daily_next_write_at, self._daily_retry_at = now + 60, 0
 
     def poll_funding(self):
-        from hummingbot.client.config.environment_credentials import configured_environment_connectors
-        if (self.funding_task is not None and not self.funding_task.done()) or time.monotonic() < self.next_funding_poll:
-            return
-        self.next_funding_poll = time.monotonic() + self.funding_interval
-        try:
-            self.funding_configured = bool(configured_environment_connectors(["okx_perpetual"]))
-        except Exception as error:
-            self.availability.fail("funding", "funding_configuration_unavailable", error, operator=True)
-            return
-        if not self.funding_configured:
-            self.availability.clear("funding")
-            return
-        self.funding_task = asyncio.create_task(self.collect_funding())
+        self.funding.poll(self.engine, self.owner, self.hb.trading_core)
 
     async def collect_funding(self):
-        from hummingbot.client.config.mm_profiles import MMProfilesConfig
-        from hummingbot.client.settings import CONF_DIR_PATH
-        from hummingbot.core.funding_sync import FundingReader, FundingSync
-        from hummingbot.model.funding_bill import FundingBillStore
-        try:
-            row = self.owner.check_owner()
-            if self.funding_store is None:
-                self.funding_store = FundingBillStore(self.engine, self.settings.bot_id,
-                                                      owner_backend_pid=self.owner.backend_pid)
-            self.funding_state = await asyncio.to_thread(self.funding_store.load)
-            pairs, earliest = await asyncio.to_thread(self.funding_store.scope)
-            pairs.update(self.funding_state.get("pairs", []))
-            if self._funding_template_pairs is None:
-                self._funding_template_pairs = set()
-                path = CONF_DIR_PATH / "life_mm_profiles.yaml"
-                if path.exists():
-                    catalogue = await MMProfilesConfig.load(path)
-                    template = catalogue.markets.get("perpetual")
-                    if template is not None:
-                        self._funding_template_pairs.add(template.trading_pair)
-            pairs.update(self._funding_template_pairs)
-            connector = self.hb.trading_core.connector_manager.connectors.get("okx_perpetual")
-            if connector is not None:
-                pairs.update(connector.trading_pairs or [])
-            if not pairs:
-                return
-            # Fresh REST assistant per batch survives the shared HTTP session's
-            # shutdown/recreation when the trading core stops. No network tasks,
-            # market data, RateOracle registration or exchange mutations start.
-            reader = FundingReader.from_environment()
-            if self.funding_sync is None:
-                self.funding_sync = FundingSync(self.funding_store, reader,
-                                                environment=reader.connector.trading_environment,
-                                                poll_interval_seconds=self.funding_interval)
-            else:
-                self.funding_sync.getter = reader
-            self.funding_state = await self.funding_sync.sync(
-                self.owner.owner_uuid, self.owner.generation, now_ms=int(float(row["database_now"]) * 1000),
-                pairs=pairs, earliest_ms=earliest)
-            self.funding_error = None
-            self.availability.clear("funding")
-            now_ms = int(time.time() * 1000)
-            if self.funding_state.get("pending") or self.funding_state.get("covered_until_ms", now_ms) < now_ms - 120000:
-                self.next_funding_poll = time.monotonic() + 1
-        except asyncio.CancelledError:
-            raise
-        except Exception as error:
-            self.availability.fail("funding", "funding_observation_unavailable", error)
-            self.funding_error = type(error).__name__
-            self.log.warning("Funding observation unavailable type=%s", self.funding_error)
-            if self.funding_store is not None:
-                try:
-                    checkpoint = await asyncio.to_thread(self.funding_store.load)
-                    checkpoint = {**checkpoint, "last_error": self.funding_error}
-                    await asyncio.to_thread(self.funding_store.commit, self.owner.owner_uuid,
-                                            self.owner.generation, [], checkpoint)
-                    self.funding_state = checkpoint
-                except Exception:
-                    pass  # Lost ownership/DB failure cannot acknowledge progress.
+        await self.funding.collect(self.engine, self.owner, self.hb.trading_core)
 
     async def poll_reconciliation(self):
         if self.reconciliation_task is not None and not self.reconciliation_task.done():
@@ -849,9 +732,7 @@ class ServiceHost:
     async def close(self):
         from hummingbot.core.order_submission_guard import install_guard
         self.running, self.phase = False, "stopping"
-        if self.funding_task is not None and not self.funding_task.done():
-            self.funding_task.cancel()
-            await asyncio.gather(self.funding_task, return_exceptions=True)
+        await self.funding.close()
         if self.reconciliation_task is not None and not self.reconciliation_task.done():
             self.reconciliation_task.cancel()
             await asyncio.gather(self.reconciliation_task, return_exceptions=True)

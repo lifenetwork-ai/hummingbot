@@ -219,7 +219,7 @@ async def probe(host):
                     fields[name.rstrip(":")] = int(amount) * 1024
             data = dict(at=time.time(), memory=fields, distributions={key: distribution(values) for key, values in list(samples.items())},
                         runtime_phase=host.phase, runtime_running=host.running,
-                        spot_outflow_fill_count=(host.spot_outflow_state or {}).get("fill_count"),
+                        spot_outflow_fill_count=(host.observations.outflow or {}).get("fill_count"),
                         latest={key: values[-1] for key, values in list(samples.items()) if values},
                         totals=dict(totals), route_queries=dict(route_queries),
                         checked_out=host.engine.pool.checkedout() if host.engine else None,
@@ -291,8 +291,12 @@ def gc_trace(phase, info):
 
 
 if tracer:
-    for name in ("observe_once", "collect_funding", "run_reconciliation"):
-        original = getattr(service.ServiceHost, name)
+    from hummingbot.cli.funding_observer import FundingObserver
+
+    for target, method, name in ((service.ServiceHost, "observe_once", "observe_once"),
+                                 (FundingObserver, "collect", "collect_funding"),
+                                 (service.ServiceHost, "run_reconciliation", "run_reconciliation")):
+        original = getattr(target, method)
 
         def wrap_async(original, name):
             async def measured(*args, **kwargs):
@@ -306,7 +310,7 @@ if tracer:
                 finally:
                     tracer.end(span, error=error)
             return measured
-        setattr(service.ServiceHost, name, wrap_async(original, name))
+        setattr(target, method, wrap_async(original, name))
 
 
 original_run = service.ServiceHost.run

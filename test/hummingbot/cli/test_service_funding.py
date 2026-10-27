@@ -35,8 +35,8 @@ async def test_idle_funding_does_not_activate_or_mutate_trading(phase):
     host.owner = SimpleNamespace(check_owner=MagicMock(return_value={'database_now': 1800000000}),
                                  owner_uuid='owner', generation=1, allow_new_orders=False)
     host.hb = SimpleNamespace(trading_core=SimpleNamespace(connector_manager=SimpleNamespace(connectors={})))
-    host.funding_store = Store()
-    host._funding_template_pairs = set()
+    host.funding.store = Store()
+    host.funding.template_pairs = set()
     host.start_strategy = AsyncMock()
     connector = SimpleNamespace(trading_environment='demo', _api_get=AsyncMock(side_effect=[
         {'code': '0', 'data': [{'uid': 'account'}]},
@@ -45,8 +45,8 @@ async def test_idle_funding_does_not_activate_or_mutate_trading(phase):
     with patch.object(FundingReader, 'from_environment', return_value=FundingReader(connector)):
         await host.collect_funding()
     assert host.phase == phase and host.owner.allow_new_orders is False
-    assert host.funding_state['covered_until_ms'] == 1800000000000
-    assert len(host.funding_store.rows) == 1 and host.funding_error is None
+    assert host.funding.state['covered_until_ms'] == 1800000000000
+    assert len(host.funding.store.rows) == 1 and host.funding.error is None
     host.start_strategy.assert_not_awaited()
     assert connector._api_get.await_count == 2
 
@@ -62,9 +62,31 @@ async def test_service_close_cancels_funding_observer_before_disposal():
             await asyncio.sleep(1000)
         finally:
             stopped.set()
-    host.funding_task = asyncio.create_task(observing())
+    host.funding.task = asyncio.create_task(observing())
     await asyncio.sleep(0)
     host.engine = MagicMock()
     assert await host.close()
-    assert stopped.is_set() and host.funding_task.cancelled()
+    assert stopped.is_set() and host.funding.task.cancelled()
     host.engine.dispose.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_funding_scheduler_keeps_one_inflight_batch_even_after_poll_deadline():
+    host = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
+                       asyncio.Event(), MagicMock())
+    host.hb = SimpleNamespace(trading_core=SimpleNamespace())
+    waiting = asyncio.Event()
+
+    async def collect(*args):
+        await waiting.wait()
+    host.funding.collect = AsyncMock(side_effect=collect)
+    with patch('hummingbot.client.config.environment_credentials.configured_environment_connectors', return_value=['okx_perpetual']):
+        host.poll_funding()
+        task = host.funding.task
+        await asyncio.sleep(0)
+        host.funding.next_poll = 0
+        host.poll_funding()
+    assert host.funding.task is task
+    host.funding.collect.assert_awaited_once()
+    await host.funding.close()
+    assert task.cancelled()
