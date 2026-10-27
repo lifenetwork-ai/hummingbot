@@ -131,6 +131,10 @@ class TestExecutorOrchestrator(unittest.TestCase):
         position_executor.config = config_mock
         self.orchestrator.active_executors["test"] = [position_executor]
         self.orchestrator.cached_performance["test"] = PerformanceReport()
+        position_executor.executor_info.close_type = CloseType.EARLY_STOP
+        position_executor.executor_info.net_pnl_quote = Decimal(0)
+        position_executor.executor_info.filled_amount_quote = Decimal(0)
+        position_executor.executor_info.custom_info = {}
         actions = [StoreExecutorAction(executor_id="test", controller_id="test")]
         self.orchestrator.execute_actions(actions)
         self.assertEqual(len(self.orchestrator.active_executors["test"]), 0)

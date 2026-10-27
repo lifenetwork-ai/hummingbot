@@ -171,6 +171,13 @@ cdef class ConnectorBase(NetworkIterator):
     def name(self) -> str:
         return self.__class__.__name__
 
+    def set_event_log_fill_limit(self, maximum):
+        # These legacy calculations read historical fills from event_logs.
+        # Never silently change an asset budget or a snapshot-based balance.
+        if maximum is not None and (not self._real_time_balance_update or self.get_exchange_limit_config(self.name)):
+            raise ValueError("Full fill history is required by connector balance calculations")
+        self._event_logger.set_fill_event_limit(maximum)
+
     @property
     def event_logs(self) -> List[any]:
         return self._event_logger.event_log

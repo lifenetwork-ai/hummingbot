@@ -95,7 +95,7 @@ def test_fill_before_create_duplicate_events_and_recovery(recording):
     market.restore_tracking_states.reset_mock()
     recorder.restore_market_states("test.yml", market)
     market.restore_tracking_states.assert_called_once_with(market.tracking_states)
-    assert len(market.persisted_fills) == 2
+    assert not market.persisted_fills  # PG owns deduplication; no unused OKX history set.
     assert manager.persistence_healthy
 
 
@@ -147,7 +147,7 @@ def test_commit_failure_rolls_back_all_state_without_acknowledgment(recording):
     recorder._did_fill_order(MarketEvent.OrderFilled.value, market, fill())
     with manager.get_new_session() as session:
         assert session.query(TradeFill).count() == 1
-    assert len(market.persisted_fills) == 1
+    assert not market.persisted_fills
     # A later write alone cannot reopen the send gate without reconciliation.
     with pytest.raises(RuntimeError, match="reconciliation"):
         manager.assert_persistence_healthy()
@@ -190,7 +190,7 @@ def test_precision_partial_fill_replay_and_exact_daily_totals(recording):
     assert day["buy_volume_base"] == Decimal("0.00024819")
     assert day["buy_volume_quote"] == price * Decimal("0.00024819")
     assert day["fee_in_usdt"] == fee * 2
-    assert manager.persistence_healthy and len(market.persisted_fills) == 2
+    assert manager.persistence_healthy and not market.persisted_fills
 
 
 def test_actual_db_session_loss_before_commit_keeps_fill_replayable(recording):

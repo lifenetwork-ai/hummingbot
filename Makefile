@@ -57,17 +57,20 @@ test-cloudrun-regression:
 	$(PYTHON) -m pytest -q test/hummingbot/client/test_performance.py
 	$(PYTHON) -m pytest -q test/hummingbot/cli test/hummingbot/model test/hummingbot/client/test_runner.py \
 		test/hummingbot/connector/test_markets_recorder.py \
+		test/hummingbot/connector/test_recorder_history_retention.py \
 		test/hummingbot/connector/exchange/okx test/hummingbot/connector/derivative/okx_perpetual \
 		test/hummingbot/core/test_trading_core.py test/hummingbot/core/web_assistant \
 		test/hummingbot/strategy/test_strategy_v2_base.py \
 		test/hummingbot/strategy_v2/executors/test_executor_orchestrator.py \
 		test/hummingbot/strategy_v2/executors/test_mm_drawdown_reports.py \
+		test/hummingbot/strategy_v2/executors/test_executor_retention.py \
 		test/hummingbot/strategy_v2/executors/position_executor
 	$(PYTHON) -m pytest -q test/hummingbot/connector/test_okx_environment.py \
 		test/hummingbot/connector/test_okx_environment_transport.py \
 		test/hummingbot/connector/test_okx_account_observations.py \
 		test/hummingbot/core/test_mm_session.py test/hummingbot/core/test_admin_reconciliation.py test/hummingbot/core/test_funding_sync.py \
 		test/hummingbot/core/test_mm_until_stopped.py \
+		test/hummingbot/core/test_event_logger_retention.py \
 		test/hummingbot/core/test_spot_outflow.py \
 		test/hummingbot/core/test_mm_liquidity.py \
 		test/hummingbot/core/test_mm_quote_activity.py \

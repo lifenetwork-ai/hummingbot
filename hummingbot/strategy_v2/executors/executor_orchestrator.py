@@ -2,7 +2,6 @@ import asyncio
 import logging
 import math
 import uuid
-from collections import deque
 from contextlib import closing
 from decimal import Decimal
 from typing import TYPE_CHECKING, Dict, List, Optional, Union
@@ -44,6 +43,7 @@ class PositionHold:
         self.side = side
         # Store only client order IDs
         self.order_ids = set()
+        self.has_unstored_updates = True
 
         # Net position tracking (positive = long, negative = short)
         self.net_amount_base = Decimal("0")
@@ -129,6 +129,7 @@ class PositionHold:
 
             # Add the order ID to our set
             self.order_ids.add(order_id)
+            self.has_unstored_updates = True
 
             # Update metrics incrementally
             executed_amount_base = Decimal(str(order.get("executed_amount_base", 0)))
@@ -234,7 +235,9 @@ class ExecutorOrchestrator:
         self.executors_max_retries = executors_max_retries
         self.active_executors = {}
         self.positions_held = {}
-        self.executors_ids_position_held = deque(maxlen=50)
+        # Deduplicate exactly the resident executors, then retire their IDs
+        # after persistence. A recent-only cache can forget still-resident holds.
+        self.executors_ids_position_held = set()
         self.cached_performance = {}
         self.initial_positions_by_controller = initial_positions_by_controller or {}
         self._initial_positions_initialized = False
@@ -366,6 +369,7 @@ class ExecutorOrchestrator:
         position_hold.avg_entry_price = db_position.breakeven_price
         # Restore realized PnL if available
         position_hold.realized_pnl_quote = getattr(db_position, 'realized_pnl_quote', Decimal("0"))
+        position_hold.has_unstored_updates = False
 
         # Add to positions held
         self.positions_held[controller_id].append(position_hold)
@@ -548,7 +552,7 @@ class ExecutorOrchestrator:
                     if self._mm_scope() and (not mid_price.is_finite() or mid_price <= 0):
                         raise ValueError("drawdown_checkpoint_mark_unavailable")
                 except (ValueError, KeyError, EnvironmentError):
-                    if self._mm_scope() and not position.order_ids:
+                    if self._mm_scope() and not position.has_unstored_updates:
                         continue  # An unchanged loaded row already preserves this exposure.
                     raise
                 position_summary = position.get_position_summary(mid_price if not mid_price.is_nan() else Decimal("0"))
@@ -587,6 +591,7 @@ class ExecutorOrchestrator:
         for controller_id, executor in pending:
             self._update_cached_performance(controller_id, executor.executor_info)
         self.active_executors = {}
+        self.executors_ids_position_held.clear()
 
     def execute_action(self, action: ExecutorAction):
         """
@@ -663,6 +668,8 @@ class ExecutorOrchestrator:
         Update positions from executors that are done but haven't been processed yet.
         This is called before generating reports to ensure position state is current.
         """
+        resident_ids = {executor.config.id for rows in self.active_executors.values() for executor in rows}
+        self.executors_ids_position_held = set(self.executors_ids_position_held) & resident_ids
         for controller_id, executors_list in self.active_executors.items():
             # Filter executors that need position updates
             executors_to_process = [
@@ -680,7 +687,7 @@ class ExecutorOrchestrator:
 
             for executor in executors_to_process:
                 executor_info = executor.executor_info
-                self.executors_ids_position_held.append(executor_info.config.id)
+                self.executors_ids_position_held.add(executor_info.config.id)
 
                 # Determine position side (handling perpetual markets)
                 position_side = self._determine_position_side(executor_info)
@@ -798,8 +805,17 @@ class ExecutorOrchestrator:
         except Exception as e:
             self.logger().error(f"Error storing executor id {executor_id}: {str(e)}.")
             self.logger().error(f"Executor info: {executor.executor_info} | Config: {executor.config}")
+            return  # Keep both exposure and deduplication state for the retry.
 
         self.active_executors[controller_id].remove(executor)
+        self.executors_ids_position_held = set(self.executors_ids_position_held) - {executor_id}
+        # Position totals already include retired fills. Their identities only
+        # need to outlive resident executors that might be visited again.
+        retained_orders = {order.get("client_order_id")
+                           for remaining in self.active_executors[controller_id]
+                           for order in remaining.executor_info.custom_info.get("held_position_orders", [])}
+        for position in self.positions_held.get(controller_id, []):
+            position.order_ids.intersection_update(retained_orders)
         del executor
         # Trigger garbage collection after executor cleanup
 

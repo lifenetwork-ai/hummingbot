@@ -337,6 +337,9 @@ class ServiceHost:
             raise ValueError("MQTT autostart is outside the reviewed service scope.")
         self.hb = await bootstrap_application(client, None, headless=True, environment_connectors=[],
                                               read_only_configuration=True)
+        # API reporting/PnL uses PostgreSQL and V2 aggregates. Keep only recent
+        # connector diagnostics; the connector refuses unsafe budget truncation.
+        self.hb.trading_core.connector_event_log_fill_limit = 1000
         self.configure_logging()
         # A strategy-triggered risk stop uses this same bounded service lifecycle.
         # It must not start the interactive stop coroutine behind the host's back.

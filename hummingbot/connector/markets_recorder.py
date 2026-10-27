@@ -84,15 +84,8 @@ class MarketsRecorder:
         self._strategy_name: str = strategy_name
         self._market_data_collection_config: MarketDataCollectionConfigMap = market_data_collection
         self._market_data_collection_task: Optional[asyncio.Task] = None
-        # Internal collection of trade fills in connector will be used for remote/local history reconciliation
         for market in self._markets:
-            trade_fills = self.get_trades_for_config(self._config_file_path, 2000, market=market.display_name)
-            market.add_trade_fills_from_market_recorder({TradeFillOrderDetails(tf.market,
-                                                                               tf.exchange_trade_id,
-                                                                               tf.symbol) for tf in trade_fills})
-
-            exchange_order_ids = self.get_orders_for_config_and_market(self._config_file_path, market, True, 2000)
-            market.add_exchange_order_ids_from_market_recorder({o.exchange_order_id: o.id for o in exchange_order_ids})
+            self._restore_reconstruction_history(market)
 
         self._create_order_forwarder: SourceInfoEventForwarder = SourceInfoEventForwarder(self._did_create_order)
         self._fill_order_forwarder: SourceInfoEventForwarder = SourceInfoEventForwarder(self._did_fill_order)
@@ -177,20 +170,28 @@ class MarketsRecorder:
         if self._market_data_collection_config.market_data_collection_enabled:
             self._start_market_data_recording()
 
+    def _uses_reconstruction_history(self, market):
+        # OKX trackers use their in-flight trade identities. PostgreSQL owns
+        # durable replay/deduplication; these legacy reconstruction sets are
+        # unused on this path and otherwise grow once per order/fill forever.
+        return not (self._sql_manager.engine.dialect.name == "postgresql"
+                    and market.name in ("okx", "okx_perpetual"))
+
+    def _restore_reconstruction_history(self, market):
+        if not self._uses_reconstruction_history(market):
+            return
+        trade_fills = self.get_trades_for_config(self._config_file_path, 2000, market=market.display_name)
+        market.add_trade_fills_from_market_recorder({TradeFillOrderDetails(tf.market, tf.exchange_trade_id, tf.symbol)
+                                                    for tf in trade_fills})
+        exchange_order_ids = self.get_orders_for_config_and_market(self._config_file_path, market, True, 2000)
+        market.add_exchange_order_ids_from_market_recorder({o.exchange_order_id: o.id for o in exchange_order_ids})
+
     def add_market(self, market: ConnectorBase):
         """Add a new market/connector dynamically."""
         if market not in self._markets:
             self._markets.append(market)
 
-            # Add trade fills from recorder
-            trade_fills = self.get_trades_for_config(self._config_file_path, 2000, market=market.display_name)
-            market.add_trade_fills_from_market_recorder({TradeFillOrderDetails(tf.market,
-                                                                               tf.exchange_trade_id,
-                                                                               tf.symbol) for tf in trade_fills})
-
-            # Add exchange order IDs
-            exchange_order_ids = self.get_orders_for_config_and_market(self._config_file_path, market, True, 2000)
-            market.add_exchange_order_ids_from_market_recorder({o.exchange_order_id: o.id for o in exchange_order_ids})
+            self._restore_reconstruction_history(market)
 
             # Add event listeners
             for event_pair in self._event_pairs:
@@ -504,7 +505,7 @@ class MarketsRecorder:
                         order_record.last_update_timestamp = max(order_record.last_update_timestamp, timestamp)
                 self._add_order_status(session, order_record, timestamp, event_type.name)
                 self.save_market_states(self._config_file_path, market, session=session)
-        if evt.exchange_order_id:
+        if evt.exchange_order_id and self._uses_reconstruction_history(market):
             market.add_exchange_order_ids_from_market_recorder({evt.exchange_order_id: evt.order_id})
 
     @staticmethod
@@ -552,9 +553,10 @@ class MarketsRecorder:
         # A failed commit must never acknowledge persistence to connector reconciliation.
         from hummingbot.core.order_submission_guard import fill_committed
         fill_committed(committed)
-        market.add_trade_fills_from_market_recorder({
-            TradeFillOrderDetails(market.display_name, evt.exchange_trade_id, evt.trading_pair)
-        })
+        if self._uses_reconstruction_history(market):
+            market.add_trade_fills_from_market_recorder({
+                TradeFillOrderDetails(market.display_name, evt.exchange_trade_id, evt.trading_pair)
+            })
 
     def _store_fill(self, session: Session, market: ConnectorBase, evt: OrderFilledEvent,
                     order_record: Optional[Order], timestamp: int, status: str, base_asset: str, quote_asset: str):

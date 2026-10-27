@@ -26,6 +26,13 @@ cdef class EventLogger(EventListener):
     def event_log(self) -> List[any]:
         return list(self._generic_logged_events) + list(self._order_filled_logged_events)
 
+    def set_fill_event_limit(self, maximum):
+        """Opt-in recent diagnostics; legacy callers keep complete fill history."""
+        if maximum is not None and (type(maximum) is not int or maximum < 0):
+            raise ValueError("Fill event limit must be a non-negative integer or None")
+        self._order_filled_logged_events = deque(self._order_filled_logged_events, maxlen=maximum)
+        self._logged_events[OrderFilledEvent] = self._order_filled_logged_events
+
     @property
     def event_source(self) -> str:
         return self._event_source
@@ -38,14 +45,15 @@ cdef class EventLogger(EventListener):
         notifier = asyncio.Event()
         self._waiting[notifier] = event_type
 
-        async with timeout(timeout_seconds):
-            await notifier.wait()
-
-        retval = self._wait_returns.get(notifier)
-        if notifier in self._wait_returns:
-            del self._wait_returns[notifier]
-        del self._waiting[notifier]
-        return retval
+        try:
+            async with timeout(timeout_seconds):
+                await notifier.wait()
+            return self._wait_returns.get(notifier)
+        finally:
+            # Cancellation can arrive after notification but before this task
+            # resumes. Release both the waiter and a possible delivered event.
+            self._wait_returns.pop(notifier, None)
+            self._waiting.pop(notifier, None)
 
     def __call__(self, event_object):
         self.c_call(event_object)

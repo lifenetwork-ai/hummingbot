@@ -103,6 +103,8 @@ class TradingCore:
         self.notifiers: List[NotifierBase] = []
         self.kill_switch: Optional[KillSwitch] = None
         self.markets_recorder: Optional[MarketsRecorder] = None
+        # Headless service opts in; interactive/file mode keeps full legacy logs.
+        self.connector_event_log_fill_limit: Optional[int] = None
         self.trade_fill_db: Optional[SQLConnectionManager] = None
         self.before_strategy_start = None
         self.after_order_cancellation = None
@@ -685,6 +687,13 @@ class TradingCore:
             connector = self.connector_manager.create_connector(
                 connector_name, trading_pairs, self._trading_required
             )
+            if connector and self.connector_event_log_fill_limit is not None:
+                try:
+                    connector.set_event_log_fill_limit(self.connector_event_log_fill_limit)
+                except ValueError:
+                    self.logger().warning(
+                        "Full connector fill-event history retained because balance calculations require it.",
+                        extra={"event": "connector_history_unbounded", "connector": connector_name})
 
             # Add to clock if running
             if self.clock and connector:
