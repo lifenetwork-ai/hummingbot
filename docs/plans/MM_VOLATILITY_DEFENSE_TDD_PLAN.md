@@ -1,7 +1,7 @@
 # LIFE / OKX volatility defense — incremental TDD plan
 
 Date: 2026-10-28 (Asia/Ho_Chi_Minh).
-Status: V0–V1 complete; V2–V5 implementation and acceptance remain open.
+Status: V0–V2 complete; V3–V5 implementation and acceptance remain open.
 Evidence: [implementation report](../../reports/mm-volatility-defense.md).
 
 Improve quote protection and automatic recovery while keeping the existing
@@ -232,16 +232,16 @@ snake_case migration and document why; do not prebuild a generic persistence lay
 
 ### V2 — Reduced sizing
 
-- [ ] Red/Green the optional schema, raw-NATR cache and reduction/recovery logic;
+- [x] Red/Green the optional schema, raw-NATR cache and reduction/recovery logic;
   include the defense-specific floor/fallback validation from V1. Final-send
   checks only read a fresh decision and cannot advance recovery. Until V3's
   pause/persistence behavior is complete, reject enabled defense at service
   admission rather than expose a partially implemented safety contract.
-- [ ] Red/Green composition with weighted levels, bootstrap and spot skew,
+- [x] Red/Green composition with weighted levels, bootstrap and spot skew,
   including flat fees, min size, rounding, balances, outflow and exposure caps.
-- [ ] Red/Green immediate reconciliation of oversized working quotes and queued
+- [x] Red/Green immediate reconciliation of oversized working quotes and queued
   proposals; retain full reservations until cancellation/terminal confirmation.
-- [ ] Prove disabled behavior and stable quantized quotes do not acquire new
+- [x] Prove disabled behavior and stable quantized quotes do not acquire new
   cancellation churn, DB reads, candle tasks or repeated indicator calculation.
 
 ### V3 — Extreme-volatility pause and durable recovery

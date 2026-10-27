@@ -35,3 +35,26 @@ now explains three-level weights and the existing floor settings.
 
 Verification: 31 focused spread/characterization tests pass. This phase needs
 no new runtime flag; defense-specific validation is implemented with V2's schema.
+
+## V2 — Reduced sizing and stale quote protection
+
+Red: six new schema/raw-NATR/sizing/controller cases failed before implementation;
+an additional task-context case failed because per-level authority did not exist.
+Green: raw NATR is retained separately from the clamped spread multiplier, reduced
+sizing composes with bootstrap/skew allocation, recovery needs distinct candles
+and elapsed monotonic time, and final terms are checked against their own level.
+Existing quote cancellation is coalesced, preserves positions and retains pending
+reservations; no replacement occurs while an executor is shutting down.
+
+The existing session context now carries optional level identity into async
+connector tasks without changing the session authority tuple. Legacy policies
+retain their existing send signature. Defense remains rejected at catalogue
+admission until V3 installs durable pause/recovery; this commit cannot enable a
+partial defense in the service.
+
+Verification: 107 controller/spread/skew/session tests pass; a separate 134-test
+selection including service and position executors passed before five additional
+bootstrap/skew/per-level cases were added. The regression Make target includes
+the new defense tests. Default deployed YAML and original file-mode policies
+remain unchanged. An initially incomplete bootstrap test book was corrected to
+supply real bid/ask entries; no production guard was weakened.

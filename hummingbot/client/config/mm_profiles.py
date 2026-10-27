@@ -161,6 +161,8 @@ class MMProfilesConfig(BaseModel):
         for market in selected:
             if market not in self.markets:
                 raise ValueError(f"Market is not configured: {market}")
+            if self.markets[market].spread_policy.volatility.defense is not None:
+                raise ValueError('Volatility defense admission is unavailable until durable pause support is installed')
             config = LifeMMConfig.model_validate({
                 **self.markets[market].model_dump(), "scenario": profile.scenario,
                 "reference_connector": self.reference_connector,

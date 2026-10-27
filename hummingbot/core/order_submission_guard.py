@@ -12,20 +12,27 @@ from hummingbot.client.config.runtime_config import postgres_requested
 _guard = None
 SUPPORTED_CONNECTORS = ("okx", "okx_perpetual")
 _session_scope = ContextVar("mm_order_session_scope", default=None)
+_quote_level_scope = ContextVar("mm_order_quote_level", default=None)
 
 
 @contextmanager
-def session_order_scope(session_id, generation):
+def session_order_scope(session_id, generation, *, level_id=None):
     """Carry executor authority into connector tasks, including delayed retries."""
     token = _session_scope.set((session_id, generation) if session_id is not None else None)
+    level_token = _quote_level_scope.set(level_id if session_id is not None else None)
     try:
         yield
     finally:
         _session_scope.reset(token)
+        _quote_level_scope.reset(level_token)
 
 
 def current_session_scope():
     return _session_scope.get()
+
+
+def current_quote_level():
+    return _quote_level_scope.get()
 
 
 class SubmissionBlocked(RuntimeError):

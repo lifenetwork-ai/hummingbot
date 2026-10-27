@@ -77,6 +77,14 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
     @model_validator(mode="after")
     def validate_mm_policy(self):
         vol = self.spread_policy.volatility
+        if vol.defense is not None:
+            if not self.quote_guards.enabled:
+                raise ValueError('Volatility defense requires enabled quote guards')
+            if vol.on_unavailable == 'static' and any(
+                    fallback < Decimal(str(base)) for bases, fallbacks in
+                    ((self.buy_spreads, vol.fallback_buy_spreads), (self.sell_spreads, vol.fallback_sell_spreads))
+                    for base, fallback in zip(bases, fallbacks)):
+                raise ValueError('Volatility defense fallback cannot narrow base spreads')
         if self.spread_policy.enabled:
             for spreads in (self.buy_spreads, self.sell_spreads):
                 if spreads != sorted(spreads):
@@ -153,6 +161,8 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
 
 class LifeMMController(pmm_simple.PMMSimpleController):
     def __init__(self, config: LifeMMConfig, *args, **kwargs):
+        if config.spread_policy.volatility.defense is not None and (not config.runtime_config_managed or not config.mm_session_id):
+            raise ValueError('Volatility defense requires managed PostgreSQL MM session ownership')
         if config.quote_guards.mode == "bootstrap_then_market" and (not config.runtime_config_managed or not config.mm_session_id):
             raise ValueError("Listing bootstrap requires managed MM session ownership")
         super().__init__(config, *args, **kwargs)
@@ -213,7 +223,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         if self.config.spread_policy.volatility.enabled:
             self.market_data_provider.acquire_candle_feed(self._spread_candle_config(), self)
 
-    def spread_quote_valid(self, side, price, amount):
+    def spread_quote_valid(self, side, price, amount, *, level_id=None):
         if not self.config.spread_policy.enabled:
             return True
         if not self.processed_data.get("ready"):
@@ -225,6 +235,13 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         spreads = self._effective_spreads[0 if side == TradeType.BUY else 1]
         actual = (reference - price if side == TradeType.BUY else price - reference) / reference
         connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
+        if self._spread_policy.defense is not None:
+            if level_id not in self.get_not_active_levels_ids([]) or self.get_trade_type_from_level_id(level_id) != side:
+                return False
+            index = int(self.get_level_from_level_id(level_id))
+            target_price, target_amount = self.get_price_and_amount(level_id)
+            if actual < spreads[index] or amount * price > target_price * target_amount:
+                return False
         return actual >= min(spreads) and self._spread_policy.quote_valid(
             connector, self.config.trading_pair, side, price, amount, reference)
 
@@ -405,8 +422,9 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         self.processed_data["inventory_skew"] = self._inventory_status
 
     def _quote_budget(self):
-        return (self.config.quote_guards.bootstrap.max_quote
+        base = (self.config.quote_guards.bootstrap.max_quote
                 if self._bootstrap is not None and not self._bootstrap.market_qualified else self.config.total_amount_quote)
+        return base * self._spread_policy.size_factor(self.market_data_provider.time())
 
     def update_reference(self, *, sample_guard=False):
         guard_status = None
@@ -459,9 +477,13 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                     key = provider._generate_candle_feed_key(candle)
                     # Use existing feed only. Readiness/send checks never create/fetch a feed.
                     self._spread_policy.refresh(provider.candles_feeds.get(key), provider.time())
+                    self._spread_policy.sample_defense(provider.time(), time.monotonic())
                 connector = provider.get_connector_with_fallback(self.config.connector_name)
                 buy, buy_quote = self.config.get_spreads_and_amounts_in_quote(TradeType.BUY)
                 sell, sell_quote = self.config.get_spreads_and_amounts_in_quote(TradeType.SELL)
+                if cfg.defense is not None:
+                    scale = self._quote_budget() / self.config.total_amount_quote
+                    buy_quote, sell_quote = ([value * scale for value in allocations] for allocations in (buy_quote, sell_quote))
                 self._effective_spreads = self._spread_policy.compose(
                     connector, self.config.trading_pair, reference, buy, sell, buy_quote, sell_quote, now=provider.time())
                 self.processed_data["spread_policy"] = self._spread_policy.status(provider.time())
@@ -521,7 +543,24 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             self._reset_quote_diagnostics()
             self._quote_reason(self._quote_readiness_reason() or 'inventory_limit')
             return self.stop_quote_actions()
+        refresh = self._defense_refresh_actions()
+        if refresh or (self._spread_policy.defense is not None and self._stops_requested):
+            return refresh
         return super().determine_executor_actions()
+
+    def _defense_refresh_actions(self):
+        if self._spread_policy.defense is None:
+            return []
+        resident = {executor.id for executor in self.executors_info
+                    if executor.is_active or executor.status == RunnableStatus.SHUTTING_DOWN}
+        self._stops_requested.intersection_update(resident)
+        actions = []
+        for executor in self.executors_info:
+            if executor.is_active and executor.id not in self._stops_requested and not self.spread_quote_valid(
+                    executor.config.side, executor.config.entry_price, executor.config.amount, level_id=executor.config.level_id):
+                self._stops_requested.add(executor.id)
+                actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=executor.id, keep_position=True))
+        return actions
 
     def get_levels_to_execute(self):
         levels = super().get_levels_to_execute()
@@ -587,10 +626,14 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             accepted = []
             pending_allocation = sum((executor.config.amount * executor.config.entry_price for executor in self.executors_info
                                       if executor.is_active or executor.status == RunnableStatus.SHUTTING_DOWN), Decimal("0")) \
-                if self.config.inventory_skew.enabled else Decimal("0")
+                if self.config.inventory_skew.enabled or self._spread_policy.defense is not None else Decimal("0")
+            if self._spread_policy.defense is not None and any(
+                    executor.status == RunnableStatus.SHUTTING_DOWN for executor in self.executors_info):
+                self._quote_reason('allocation_limit')
+                return []
             for action in super().create_actions_proposal():
                 config = action.executor_config
-                if self.config.inventory_skew.enabled and pending_allocation + config.amount * config.entry_price > self._quote_budget():
+                if (self.config.inventory_skew.enabled or self._spread_policy.defense is not None) and pending_allocation + config.amount * config.entry_price > self._quote_budget():
                     self._quote_reason('allocation_limit', config.side)
                     continue
                 is_buy = config.side == TradeType.BUY
@@ -731,6 +774,10 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 context.rounding = ROUND_DOWN
                 amount = (Decimal(allocations[int(self.get_level_from_level_id(level_id))])
                           * self.config.quote_guards.bootstrap.max_quote / self.config.total_amount_quote / price)
+        if self._spread_policy.defense is not None:
+            with localcontext() as context:
+                context.rounding = ROUND_DOWN
+                amount *= self._spread_policy.size_factor(self.market_data_provider.time())
         return price, amount
 
     def get_price_and_amount(self, level_id):
@@ -769,7 +816,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             return None
         if self.config.spread_policy.enabled:
             try:
-                if not self.spread_quote_valid(self.get_trade_type_from_level_id(level_id), price, amount):
+                if not self.spread_quote_valid(self.get_trade_type_from_level_id(level_id), price, amount, level_id=level_id):
                     self._quote_reason('spread_policy_rejected', self.get_trade_type_from_level_id(level_id))
                     return None
             except ValueError:

@@ -10,6 +10,53 @@ from hummingbot.core.data_type.common import OrderType, PositionAction, TradeTyp
 ONE = Decimal('1')
 
 
+class VolatilityDefenseConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid', frozen=True)
+    reduce_at_natr: Decimal = Field(gt=0, lt=1, allow_inf_nan=False)
+    stop_at_natr: Decimal = Field(gt=0, lt=1, allow_inf_nan=False)
+    resume_below_natr: Decimal = Field(gt=0, lt=1, allow_inf_nan=False)
+    reduced_size_factor: Decimal = Field(gt=0, lt=1, allow_inf_nan=False)
+    recovery_seconds: int = Field(gt=0, le=3600, strict=True)
+
+    @model_validator(mode='after')
+    def ordered(self):
+        if not self.resume_below_natr < self.reduce_at_natr < self.stop_at_natr:
+            raise ValueError('Volatility defense thresholds must be strictly ordered')
+        return self
+
+
+class VolatilityDefense:
+    """Bounded sampled decision; callers supply monotonic recovery time."""
+
+    def __init__(self, config):
+        self.config = config
+        self.state = 'normal'
+        self.good_since = self.last_sample = None
+        self.good_samples = 0
+
+    def reset_recovery(self):
+        self.good_since = self.last_sample = None
+        self.good_samples = 0
+
+    def sample(self, raw, token, monotonic_now):
+        if raw is None:
+            self.reset_recovery()
+            return
+        if raw >= self.config.reduce_at_natr:
+            self.state = 'reduced'
+            self.reset_recovery()
+        elif self.state == 'reduced':
+            if raw >= self.config.resume_below_natr:
+                self.reset_recovery()
+            elif token != self.last_sample:
+                self.good_since = monotonic_now if self.good_since is None else self.good_since
+                self.last_sample = token
+                self.good_samples += 1
+                if self.good_samples >= 2 and monotonic_now - self.good_since >= self.config.recovery_seconds:
+                    self.state = 'normal'
+                    self.reset_recovery()
+
+
 class VolatilitySpreadConfig(BaseModel):
     model_config = ConfigDict(extra='forbid', frozen=True)
     enabled: bool = False
@@ -22,9 +69,12 @@ class VolatilitySpreadConfig(BaseModel):
     on_unavailable: Literal['static', 'wait'] = 'wait'
     fallback_buy_spreads: Optional[List[Decimal]] = None
     fallback_sell_spreads: Optional[List[Decimal]] = None
+    defense: Optional[VolatilityDefenseConfig] = None
 
     @model_validator(mode='after')
     def check_limits(self):
+        if self.defense is not None and (not self.enabled or self.min_multiplier < 1):
+            raise ValueError('Volatility defense requires enabled volatility and min_multiplier >= 1')
         if self.min_multiplier > self.max_multiplier:
             raise ValueError('Volatility multiplier limits are reversed')
         if self.enabled and self.on_unavailable == 'static' and (
@@ -41,6 +91,12 @@ class SpreadPolicyConfig(BaseModel):
     model_config = ConfigDict(extra='forbid', frozen=True)
     fee_floor: bool = False
     volatility: VolatilitySpreadConfig = Field(default_factory=VolatilitySpreadConfig)
+
+    @model_validator(mode='after')
+    def defense_fee_floor(self):
+        if self.volatility.defense is not None and not self.fee_floor:
+            raise ValueError('Volatility defense requires maker fee floor')
+        return self
 
     @property
     def enabled(self):
@@ -62,10 +118,12 @@ class SpreadPolicy:
         self.config = config
         self.key = None
         self.value = None
+        self.raw_natr = None
         self.valid_until = None
         self.completed_at = None
         self.state = 'disabled' if not config.enabled else 'static'
         self.effective = None
+        self.defense = VolatilityDefense(config.volatility.defense) if config.volatility.defense is not None else None
 
     def refresh(self, feed, now):
         """Only owner/control samples inspect bounded candles; send gates use cache."""
@@ -101,15 +159,29 @@ class SpreadPolicy:
                         or index and stamp - selected[index - 1][0] != interval):
                     raise ValueError('candles_unavailable')
             frame = pd.DataFrame(selected, columns=['timestamp', 'open', 'high', 'low', 'close'])
-            value = natr_value(frame, cfg.length) / cfg.target_natr
+            raw = natr_value(frame, cfg.length)
+            value = raw / cfg.target_natr
             if not value.is_finite() or value < 0:
                 raise ValueError('candles_unavailable')
             self.value = max(cfg.min_multiplier, min(cfg.max_multiplier, value))
+            self.raw_natr = raw
             self.key, self.completed_at = key, completed + interval
             self.valid_until = self.completed_at + cfg.max_age_seconds
         except Exception:
             # Optional outage follows the declared policy and recovers next sample.
             self.key, self.value, self.completed_at, self.valid_until = None, None, None, None
+            self.raw_natr = None
+
+    def sample_defense(self, now, monotonic_now):
+        if self.defense is not None:
+            self.defense.sample(self.raw_natr if self.multiplier(now) is not None else None,
+                                self.completed_at, monotonic_now)
+
+    def size_factor(self, now):
+        if self.defense is None:
+            return ONE
+        return (self.defense.config.reduced_size_factor
+                if self.defense.state != 'normal' or self.multiplier(now) is None else ONE)
 
     def multiplier(self, now):
         if not self.config.volatility.enabled:

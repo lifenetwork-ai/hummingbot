@@ -79,6 +79,7 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/controllers/test_life_mm.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_diagnostics.py \
 		test/hummingbot/strategy_v2/controllers/test_life_mm_spread.py \
+		test/hummingbot/strategy_v2/controllers/test_volatility_defense.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_guard.py \
 		test/hummingbot/strategy_v2/controllers/test_listing_bootstrap.py \
 		test/hummingbot/strategy_v2/controllers/test_inventory_skew.py \

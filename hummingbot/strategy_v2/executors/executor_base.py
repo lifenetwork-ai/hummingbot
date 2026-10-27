@@ -370,7 +370,7 @@ class ExecutorBase(RunnableBase):
         :param price: The price for the order.
         :return: The result of the order placement.
         """
-        with session_order_scope(self.config.mm_session_id, self.config.mm_generation):
+        with session_order_scope(self.config.mm_session_id, self.config.mm_generation, level_id=getattr(self.config, 'level_id', None)):
             if side == TradeType.BUY:
                 return self._strategy.buy(connector_name, trading_pair, amount, order_type, price, position_action)
             else:

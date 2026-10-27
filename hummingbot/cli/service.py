@@ -146,7 +146,11 @@ class ServiceHost:
         controller = next((value for value in self._mm_controllers()
                            if (value.config.connector_name, value.config.trading_pair) == (connector.name, order.trading_pair)), None)
         try:
-            valid = controller is not None and controller.spread_quote_valid(order.trade_type, order.price, order.amount)
+            if controller is not None and controller.config.spread_policy.volatility.defense is not None:
+                from hummingbot.core.order_submission_guard import current_quote_level
+                valid = controller.spread_quote_valid(order.trade_type, order.price, order.amount, level_id=current_quote_level())
+            else:
+                valid = controller is not None and controller.spread_quote_valid(order.trade_type, order.price, order.amount)
         except ValueError:
             valid = False
         if not valid:
