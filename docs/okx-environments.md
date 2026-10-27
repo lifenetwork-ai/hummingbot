@@ -1,5 +1,8 @@
 # OKX live and Demo routing
 
+The [explicit Demo preset](okx-demo-configuration.md) packages BTC-USDT spot/perpetual
+with enabled guard, risk and spread settings and a separate environment example.
+
 `OKX_TRADING_ENV=live|demo` selects one environment for the entire process,
 independent of API `market_mode: spot|perpetual|both`. The compatible default is
 `live`. Changing environment requires a process restart, dedicated credentials

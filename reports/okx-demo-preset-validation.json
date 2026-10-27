@@ -1,0 +1,40 @@
+{
+  "passed": true,
+  "cases": [
+    "follow_market/spot",
+    "follow_market/perpetual",
+    "follow_market/both",
+    "sideways/spot",
+    "sideways/perpetual",
+    "sideways/both",
+    "follow_token/spot",
+    "follow_token/perpetual",
+    "follow_token/both"
+  ],
+  "python": "3.13.18",
+  "catalogue_sha256": "3efb3bba6132dd7c6be3f7d3d54b2a02c5c6beae9e5f75dc91dc9a5f61aaf263",
+  "metadata_scope": "static supported-pair fixture; no exchange requests",
+  "base_image_id": "sha256:865cc81a5c05e31a6ba975acc7d3b9599ad68ba34b38299841d9bb830aafbc25",
+  "demo_image_id": "sha256:3164d8ceee24f02d1815310d9c0993f6553259997e8d24ce310406e9f2a6a838",
+  "image_bytes": 1366524345,
+  "runtime_layers_inherited": true,
+  "runtime_smoke": {
+    "passed": true,
+    "numba_jit": true,
+    "ta_lib": true,
+    "tls_trust": true,
+    "connector_count": 63,
+    "sql_scripts": 16,
+    "build_tools_absent": true,
+    "cli_version": "hbot 2.17.0",
+    "environment_bytes": 1265980605
+  },
+  "connected_okx_run": false,
+  "full_release_gate": false,
+  "date": "2026-10-27",
+  "native_regression_tests": 26,
+  "catalogue": "deploy/cloudrun/demo/life_mm_profiles.yaml",
+  "scope": "Configuration and inherited runtime smoke only; static supported-pair metadata, no connected OKX or full release gate",
+  "raw_build_log": "build/demo-base-build.log",
+  "raw_demo_build_log": "build/demo-preset-build.log"
+}

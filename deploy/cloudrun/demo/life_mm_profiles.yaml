@@ -1,0 +1,124 @@
+# Paper-test preset, not production risk settings. Pair with OKX_TRADING_ENV=demo.
+# Loading this catalogue does not start trading. Use a dedicated Demo account/DB.
+reference_connector: okx
+min_duration_seconds: 60
+default_duration_seconds: 1800
+max_duration_seconds: 7200
+max_total_amount_quote: "200"
+# USDT decline from the covered V2 PnL peak; these are not wallet-equity stops.
+max_global_drawdown_quote: "25"
+max_controller_drawdown_quote: "15"
+# Rolling spot BUY cost minus SELL proceeds plus actual USDT fees/rebates.
+# Binding persists across sessions. Review the guide before changing it.
+spot_outflow:
+  window_seconds: 3600
+  max_net_outflow_quote: "500"
+  fee_allowance_rate: "0.01"
+profiles:
+  follow_market:
+    scenario: follow_market
+    references:
+      - pair: BTC-USDT
+        weight: "0.6"
+      - pair: ETH-USDT
+        weight: "0.4"
+  sideways:
+    scenario: sideways
+    anchor: session_start_mid
+  follow_token:
+    scenario: follow_token
+    references:
+      - pair: AVAX-USDT
+        weight: "1"
+random:
+  profile_ids: [follow_market, sideways, follow_token]
+  step_duration_seconds: 600
+markets:
+  spot:
+    id: demo_btc_spot
+    controller_type: market_making
+    controller_name: life_mm
+    connector_name: okx
+    trading_pair: BTC-USDT
+    total_amount_quote: "100"
+    # Fractions: 0.001 = 0.1% = 10 bps; maker fee floor can widen them.
+    buy_spreads: [0.001, 0.002]
+    sell_spreads: [0.001, 0.002]
+    executor_refresh_time: 60
+    cooldown_time: 15
+    leverage: 1
+    min_price: "1"
+    max_price: "1000000"
+    max_base_inventory: "2"
+    max_data_age_seconds: "10"
+    # 50% of observed BTC+USDT account cash value. Imbalance can suppress a side.
+    inventory_skew:
+      enabled: true
+      target_base_pct: "0.5"
+      inventory_range_multiplier: "1"
+    # BTC already has outside depth: strict mode; no listing bootstrap here.
+    quote_guards:
+      enabled: true
+      mode: strict
+      max_deviation_bps: "200"
+      resume_deviation_bps: "100"
+      recovery_delay_seconds: "5"
+      max_book_levels: 50
+      max_own_orders: 200
+    spread_policy:
+      fee_floor: true
+      volatility:
+        enabled: true
+        interval: 1m
+        length: 14
+        target_natr: "0.01"
+        min_multiplier: "0.5"
+        max_multiplier: "3"
+        max_age_seconds: 120
+        # Continue with explicit spreads if optional candles are unavailable.
+        on_unavailable: static
+        fallback_buy_spreads: ["0.001", "0.002"]
+        fallback_sell_spreads: ["0.001", "0.002"]
+  perpetual:
+    id: demo_btc_perpetual
+    controller_type: market_making
+    controller_name: life_mm
+    connector_name: okx_perpetual
+    trading_pair: BTC-USDT
+    total_amount_quote: "100"
+    buy_spreads: [0.001, 0.002]
+    sell_spreads: [0.001, 0.002]
+    executor_refresh_time: 60
+    cooldown_time: 15
+    leverage: 1
+    position_mode: HEDGE
+    margin_mode: CROSS
+    min_price: "1"
+    max_price: "1000000"
+    # BTC base quantities, not numbers of contracts.
+    max_long_base: "0.005"
+    max_short_base: "0.005"
+    max_gross_base: "0.008"
+    max_data_age_seconds: "10"
+    # Inventory skew is a spot-cash policy; it does not apply to perpetual.
+    quote_guards:
+      enabled: true
+      mode: strict
+      max_deviation_bps: "200"
+      resume_deviation_bps: "100"
+      recovery_delay_seconds: "5"
+      max_book_levels: 50
+      max_own_orders: 200
+    spread_policy:
+      fee_floor: true
+      volatility:
+        enabled: true
+        interval: 1m
+        length: 14
+        target_natr: "0.01"
+        min_multiplier: "0.5"
+        max_multiplier: "3"
+        max_age_seconds: 120
+        on_unavailable: static
+        fallback_buy_spreads: ["0.001", "0.002"]
+        fallback_sell_spreads: ["0.001", "0.002"]

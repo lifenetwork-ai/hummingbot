@@ -1014,3 +1014,25 @@ Cold traced large-window admission latency failures remain an explicit residual;
 the ordinary passing gate is untraced. See [E6 report](../life-mm-e6-verification.md),
 [evidence](../life-mm-e6-verification.json) and
 [completed plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md).
+
+
+## Explicit Demo configuration preset (complete)
+
+Added a BTC-USDT spot/perpetual preset, dedicated environment example, thin Demo
+image layer and `make build-cloudrun-demo`. Reuses the existing runtime and
+canonical catalogue path; no trading engine or runtime recovery logic changes.
+Guard, drawdown/outflow, fee/NATR and spot inventory skew are explicit. The guide
+explains enable switches, availability, reason-based recovery and durable HALT.
+Legacy image E2E fixtures now explicitly disable admin routes before scenarios
+that enable them, so image defaults cannot leak into legacy cases.
+
+Nine profile/market selections validate on host and in the read-only,
+network-disabled amd64 Demo container. Native config/packaging regression: 26.
+Existing ABI/JIT/TA-Lib/TLS/SDK/SQL runtime smoke passes. Runtime layers are
+inherited; the packaged catalogue hash matches source. The missing local base
+image was rebuilt, so these new image IDs have configuration/runtime smoke
+evidence, not the previous E6 artifact's full release certification. No connected
+OKX request, trading session or deployment was started.
+
+See [guide](../../docs/okx-demo-configuration.md) and
+[sanitized validation](../okx-demo-preset-validation.json).

@@ -107,6 +107,7 @@ class Harness:
         self.password = secrets.token_hex(16)
         self.env = {"DATABASE_URL": f"postgresql+psycopg2://postgres:{self.password}@db:5432/hbot_test_offline",
                     "ENABLE_AUTO_MIGRATION": "true", "BOT_ID": "hummingbot", "PORT": "8080",
+                    "ADMIN_API_ENABLED": "false",
                     "HBOT_OKX_API_KEY": "offline-key", "HBOT_OKX_SECRET_KEY": "offline-secret",
                     "HBOT_OKX_PASSPHRASE": "offline-pass", "HBOT_OFFLINE_HTTP_ORIGIN": "http://exchange:8080"}
         self.metrics = {}

@@ -5,6 +5,7 @@ DYDX ?= 0
 ENV_FILE := setup/environment.yml
 PYTHON ?= python
 CLOUDRUN_IMAGE ?= hummingbot-cloudrun:local
+CLOUDRUN_DEMO_IMAGE ?= hummingbot-cloudrun:demo
 BUILD_JOBS ?= 2
 CLOUDRUN_CONFIG ?= deploy/cloudrun/service.example.yaml
 CLOUDRUN_REGION ?= asia-southeast1
@@ -87,6 +88,14 @@ build-cloudrun:
 	docker buildx build --platform linux/amd64 --target cloudrun --load \
 		--build-arg BUILD_JOBS=$(BUILD_JOBS) --metadata-file build/cloudrun-image.json \
 		-t $(CLOUDRUN_IMAGE) -f Dockerfile .
+
+.PHONY: build-cloudrun-demo
+build-cloudrun-demo:
+	set -eu
+	docker image inspect $(CLOUDRUN_IMAGE) >/dev/null
+	docker buildx build --platform linux/amd64 --load \
+		--build-arg BOT_IMAGE=$(CLOUDRUN_IMAGE) \
+		-t $(CLOUDRUN_DEMO_IMAGE) -f deploy/cloudrun/Dockerfile.demo .
 
 test-e2e-offline:
 	$(PYTHON) scripts/test_e2e_offline.py --image $(CLOUDRUN_IMAGE) --trading-env $(OFFLINE_OKX_TRADING_ENV) $(if $(CLOUDRUN_PREVIOUS_IMAGE),--previous-image $(CLOUDRUN_PREVIOUS_IMAGE),)

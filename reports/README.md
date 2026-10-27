@@ -28,6 +28,7 @@ does not certify a later image. Operational guides and plans live in [docs/](../
 | [Load and soak results](life-mm-load-tests.md) | [Original acceptance JSON](life-mm-load-acceptance.json) |
 | [MM optimization review](life-mm-optimization-review.md) | Cache, SQL and task-lifecycle follow-up |
 | [OKX Demo acceptance](okx-demo-acceptance.md) | [Protocol JSON](okx-demo-acceptance.json), [natural-fill JSON](okx-demo-fill-acceptance.json) |
+| [Explicit Demo preset validation](okx-demo-preset-validation.json) | Nine static-metadata selections and runtime/package smoke; no connected or full release gate |
 | [Decimal precision evidence](postgres-decimal-precision.json) | Exact decimal storage migration and verification |
 | [Funding backfill evidence](funding-backfill-evidence.json) | Implementation, image E2E/load probe and Demo acceptance scope |
 

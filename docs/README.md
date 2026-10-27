@@ -21,6 +21,7 @@ under the ignored `build/` directory.
 | [Listing bootstrap](life-mm-listing-bootstrap.md) | Bounded empty/own-only listing quotes, durable deadline and outside-market qualification |
 | [Spot USDT outflow](life-mm-spot-outflow.md) | Rolling committed cashflow, pending BUY reservations, account binding and BUY-only admission |
 | [OKX environments](okx-environments.md) | Live/Demo routing, sites and credential variables |
+| [Explicit OKX Demo preset](okx-demo-configuration.md) | Enabled switches, BTC-USDT policies, packaging and reason-based recovery |
 | [Local load testing](life-mm-load-tests.md) | Commands, workload, budgets and verification policy |
 
 ## Plans and API contract

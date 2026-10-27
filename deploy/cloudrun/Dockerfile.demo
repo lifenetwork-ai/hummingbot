@@ -1,0 +1,9 @@
+# Reuse a reviewed runtime image; this layer contains only public Demo settings.
+ARG BOT_IMAGE=hummingbot-cloudrun:local
+FROM ${BOT_IMAGE}
+COPY deploy/cloudrun/demo/life_mm_profiles.yaml /home/hummingbot/conf/life_mm_profiles.yaml
+ENV STORAGE_BACKEND=postgres \
+    ENABLE_AUTO_MIGRATION=true \
+    ADMIN_API_ENABLED=true \
+    BOT_ID=hummingbot-demo \
+    OKX_TRADING_ENV=demo

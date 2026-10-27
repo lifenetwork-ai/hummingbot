@@ -7,6 +7,11 @@ has been provisioned or contacted by these local tests.
 
 ## Foreground service and configuration
 
+For a complete BTC-USDT paper preset with explicit policy settings, see
+[OKX Demo configuration](../../docs/okx-demo-configuration.md).
+`make build-cloudrun-demo` adds that catalogue and Demo environment defaults to
+an existing runtime image; it does not deploy or start a trading session.
+
 Run `hbot serve`, or the equivalent production command
 `python -m hummingbot.cli.service`. Set `STORAGE_BACKEND=postgres`; `DATABASE_URL`
 is required. Cloud Run rejects file mode. Local invocation
@@ -22,7 +27,9 @@ constructing connectors/strategies. Status and versioned acknowledgments come
 from PostgreSQL. Unclean exits/unknown external effects retain HALT; process
 restart does not reset that state.
 
-The HTTP API contains only GET `/startup`, `/live`, and `/ready`. Startup becomes
+The service exposes GET `/startup`, `/live`, and `/ready`. With
+`ADMIN_API_ENABLED=true`, it also exposes Basic Auth control/reporting endpoints
+and Swagger; see the [admin API guide](../../docs/admin-api.md). Startup becomes
 successful after migrations/schema/configuration/credential bootstrap, including
 valid stopped or standby states. Liveness does not query the DB/exchange.
 Readiness describes active trading; do not use it as a deployment startup probe,
