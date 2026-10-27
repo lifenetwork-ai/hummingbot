@@ -1165,3 +1165,21 @@ Cloud Logging ingestion, a new load/soak run or a Cloud Run deployment. Existing
 image tags and historical load evidence still refer to their previous source.
 Build and verify a new image before deployment. HTTP request trace propagation
 is not included in this change. See [the logging operations guide](../../docs/cloudrun-logging.md).
+
+### Image logging follow-up
+
+The first rebuilt candidate, `bcd946aa3398`, matches all 61 frozen runtime paths
+and passes its packaged ABI/logging smoke, but actual container log inspection
+rejects it. Resetting all named logger levels removed SQLAlchemy's protective
+WARNING threshold, enabling verbose SQL/row parameter logging at INFO. Pydantic
+serializer warnings also bypassed logging and produced multiline stderr text.
+The offline matrix was interrupted after preserving the affected logs; this is
+not a passing full-image acceptance run.
+
+Three Red cases reproduce SQL output at INFO/DEBUG and warnings bypassing JSON.
+The fixes retain SQLAlchemy WARNING and route Python warnings through logging;
+legacy YAML logging restores its original warning handling. All 18 targeted
+logging tests pass. The reusable image smoke now also checks real SQL execution
+without emitted parameters and a multiline, redacted Python warning. Rebuilt
+image verification follows below when complete. Full native regression after
+these fixes passes 1596 tests plus 11 subtests (158 + 11 + 1012 + 415).

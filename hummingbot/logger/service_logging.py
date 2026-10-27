@@ -88,6 +88,10 @@ def configure_service_logging(host=None, *, environ=None, reset=False, level_ove
         logging.basicConfig(stream=sys.stdout, force=True)
     root.setLevel(level)
     logging.raiseExceptions = False
+    # SQLAlchemy uses effective logger levels to decide whether to render SQL
+    # and bound values even when engine.echo=False. Keep those out of DEBUG too.
+    logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
+    logging.captureWarnings(True)
     HummingbotLogger.network_log_level = logging.WARNING
     formatter = ServiceFormatter(style, values, host)
     for handler in root.handlers:

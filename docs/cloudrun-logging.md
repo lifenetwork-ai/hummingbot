@@ -35,6 +35,12 @@ visible at INFO. Custom EVENT/METRIC records remain diagnostic verbosity and
 render as DEBUG when admitted. Legacy interactive/file YAML logging keeps its
 original NETWORK level and configuration.
 
+SQLAlchemy keeps its WARNING threshold even when the service uses DEBUG, so
+routine queries and bound row values do not flood console output. SQLAlchemy
+warnings/errors remain visible according to the service threshold. Python
+warnings, including Pydantic serializer warnings, go through the same JSON
+formatter as WARNING instead of writing multiline text directly to stderr.
+
 `LOG_FORMAT=text` provides readable local output with the same level threshold,
 UTC time and context; use JSON for Cloud Logging severity extraction. The service
 reinstalls its console formatter after the shared application bootstrap resets

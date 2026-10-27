@@ -5,6 +5,7 @@ import logging
 import os
 import subprocess
 import sys
+import warnings
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -21,6 +22,8 @@ def console(monkeypatch):
     root = logging.getLogger()
     old_handlers, old_level = root.handlers[:], root.level
     old_network = getattr(HummingbotLogger, "network_log_level", None)
+    old_sql_level = logging.getLogger("sqlalchemy").level
+    old_warning_handler, old_warning_capture = warnings.showwarning, logging._warnings_showwarning
     root.handlers = [logging.StreamHandler(stream)]
     root.setLevel(logging.INFO)
     monkeypatch.setenv("LOG_FORMAT", "json")
@@ -38,6 +41,8 @@ def console(monkeypatch):
         root.handlers = old_handlers
         root.setLevel(old_level)
         HummingbotLogger.network_log_level = old_network
+        logging.getLogger("sqlalchemy").setLevel(old_sql_level)
+        warnings.showwarning, logging._warnings_showwarning = old_warning_handler, old_warning_capture
 
 
 def records(stream):
@@ -158,6 +163,39 @@ def test_console_bootstrap_honors_env_and_custom_levels(console, monkeypatch):
     logger.log(METRICS_LOG_LEVEL, "metric detail")
     logger.network("network failure")
     assert [r["severity"] for r in records(stream)] == ["DEBUG", "DEBUG", "WARNING"]
+
+
+@pytest.mark.parametrize("level", ["INFO", "DEBUG"])
+def test_bootstrap_does_not_enable_sql_queries_or_parameter_logging(console, monkeypatch, level):
+    from sqlalchemy import create_engine, text
+
+    from hummingbot import init_logging
+    _, _, stream = console
+    monkeypatch.setattr("sys.stdout", stream)
+    monkeypatch.setenv("LOG_LEVEL", level)
+    engine = create_engine("sqlite://")
+    try:
+        init_logging("unused.yml", None, console_only=True)
+        with engine.connect() as connection:
+            connection.execute(text("SELECT :value"), {"value": "private-row-value"})
+        logging.getLogger("sqlalchemy.engine.Engine").warning("pool health warning")
+        values = records(stream)
+        assert len(values) == 1 and values[0]["severity"] == "WARNING"
+        assert values[0]["message"] == "pool health warning"
+        assert "private-row-value" not in stream.getvalue()
+    finally:
+        engine.dispose()
+
+
+def test_python_warning_uses_single_json_warning(console):
+    host, _, stream = console
+    ServiceHost.configure_logging(host)
+    with warnings.catch_warnings():
+        warnings.simplefilter("always")
+        warnings.warn("serializer warning\nsecond line", UserWarning)
+    values = records(stream)
+    assert len(values) == 1 and values[0]["severity"] == "WARNING"
+    assert values[0]["logger"] == "py.warnings" and "serializer warning" in values[0]["message"]
 
 
 def test_legacy_yaml_logging_retains_original_network_level(console, monkeypatch, tmp_path):

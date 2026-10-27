@@ -165,6 +165,7 @@ def init_logging(conf_filename: str,
         return
 
     HummingbotLogger.network_log_level = None
+    logging.captureWarnings(False)
     file_path: str = join(prefix_path(), "conf", conf_filename)
     yaml_parser: YAML = YAML()
     with open(file_path) as fd:
