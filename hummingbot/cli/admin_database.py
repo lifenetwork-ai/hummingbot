@@ -14,7 +14,8 @@ class DatabaseBusy(RuntimeError):
 
 
 class AdminDatabaseExecutor:
-    MAX_PENDING = 16
+    # Keep the existing ten-retry control burst admissible alongside ten readers.
+    MAX_PENDING = 32
     MAX_REPORTS = 12
     WORKERS = 2
 

@@ -76,12 +76,14 @@ async def test_overload_is_bounded_and_reserves_control_admission():
         for task in tasks[:2]:
             task.cancel()
         await asyncio.gather(*tasks[:2], return_exceptions=True)
-        control = asyncio.create_task(instance.run_control_database(lambda: 'accepted'))
-        tasks.append(control)
+        controls = [asyncio.create_task(instance.run_control_database(lambda: 'accepted')) for _ in range(20)]
+        tasks.extend(controls)
         await asyncio.sleep(.01)
-        assert not control.done()
+        assert all(not control.done() for control in controls)
+        with pytest.raises(APIUnavailable):
+            await instance.run_control_database(lambda: None)
         release.set()
-        assert await control == 'accepted'
+        assert await asyncio.gather(*controls) == ['accepted'] * 20
     finally:
         release.set()
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -131,3 +133,35 @@ async def test_database_failure_releases_admission_and_close_cancels_pending():
             await closing
         else:
             await instance.close(None)
+
+
+@pytest.mark.asyncio
+async def test_declared_ten_retry_burst_remains_admissible_while_reports_are_running():
+    instance = api()
+    release = threading.Event()
+    ready = threading.Event()
+    lock = threading.Lock()
+    active = 0
+
+    def blocked():
+        nonlocal active
+        with lock:
+            active += 1
+            if active == 2:
+                ready.set()
+        assert release.wait(5)
+
+    tasks = []
+    try:
+        tasks = [asyncio.create_task(instance.run_database(blocked)) for _ in range(10)]
+        assert await asyncio.to_thread(ready.wait, 2)
+        controls = [asyncio.create_task(instance.run_control_database(lambda: 'receipt')) for _ in range(10)]
+        tasks.extend(controls)
+        await asyncio.sleep(.02)
+        assert all(not task.done() for task in controls), 'The unchanged ten-retry workload must be admitted'
+        release.set()
+        assert await asyncio.gather(*controls) == ['receipt'] * 10
+    finally:
+        release.set()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await instance.close(None)

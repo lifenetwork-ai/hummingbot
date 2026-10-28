@@ -70,7 +70,7 @@ The owner retains one connection; warm readers use the remaining slots. Admin AP
 DB calls share this engine and have a separate fixed two-worker concurrency cap,
 including after request cancellation. This limits API contention but is not an
 exclusive connection reservation for every background task.
-At most 16 API DB jobs are admitted, including running work; reporting can occupy
+At most 32 API DB jobs are admitted, including running work; reporting can occupy
 at most 12. Commands and individual command receipts take priority over pending
 reports. Running queries are not preempted. Excess requests receive the existing
 HTTP 503 contract; retry commands with the same idempotency key.

@@ -35,7 +35,10 @@ backoff is reused. Raw logs: `aud002-red.log` / `aud002-green.log`.
 
 ## AUD-003
 
-Red: five subprocess/proxy response-loss cases failed before the driver change.
+Red: query, commit, rollback and streamed-fetch response-loss cases fail before
+the driver change. The corrected owner worker also reproduces a >4.5s stall with
+the exact engine factory from `5c8bc5575`, separately from its initial setup error
+(`aud003-owner-baseline-red.log`).
 Green: 27 real-PostgreSQL cases pass, including query, commit, rollback, streamed
 fetch and owner loss, optional statement failures and migration tests; six native
 deadline tests pass. The owner worker fixture explicitly registers existing ORM
@@ -52,7 +55,7 @@ DSN or credentials enter the timeout event. Raw logs: `aud003-red.log`,
 Red: two new native tests and the seven-slow-reads/Stop HTTP probe fail before
 the change. Green: nine native executor/cache tests and four real-PostgreSQL
 control/capacity/workflow tests pass. A small dispatcher reuses the standard
-two-worker thread executor, admits at most 16 outstanding jobs (12 reports),
+two-worker thread executor, admits at most 32 outstanding jobs (12 reports),
 and puts commands/individual command receipts ahead of pending reports. Already
 running jobs retain their capacity after client cancellation. Close cancels the
 pending queue and joins running workers; exceptions release admission normally.
@@ -87,3 +90,17 @@ requests, Demo bot restart, cloud deployment or persistent Demo DB changes were
 performed. Driver stalls are bounded per operation; pool checkout, initial
 connection and reconnect attempts retain separate budgets. Mandatory persistence
 or owner loss still fences trading and may deliberately restart the service.
+
+### Control-burst admission follow-up
+
+Before starting the hour gate, review of the unchanged load client revealed its
+explicit ten-reader plus ten-idempotent-command burst. A new test reproduces the
+initial 16-total admission limit rejecting four valid queued controls. Increase
+only the bounded total to 32; reporting remains capped at 12 and execution at two
+workers. Tests also prove the 33rd outstanding control/read job is rejected and
+canceled running awaiters do not release capacity. Six executor/admission tests
+pass. Raw logs: `aud004-burst-red.log` / `aud004-burst-green.log`.
+
+The first image `e8bb8897…` E2E invocation was deliberately interrupted after
+finding this incompatibility; its partial passes do not count as final
+acceptance. Retain its artifacts and repeat verification on the corrected image.
