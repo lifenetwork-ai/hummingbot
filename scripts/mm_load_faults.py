@@ -92,8 +92,21 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
             return [row for row in harness.ledger()['orders'] if row['state'] in ('live', 'partially_filled')]
 
         def defense():
-            positions = harness.ledger()['positions']
-            baseline = working()
+            initial = {}
+
+            def stable_baseline():
+                ledger = harness.ledger()
+                rows = [row for row in ledger['orders'] if row['state'] in ('live', 'partially_filled')]
+                states = defense_states()
+                if len(rows) == 12 and len(states) == 2 and all(row.get('state') == 'normal' for row in states):
+                    initial.update(positions=ledger['positions'], baseline=rows)
+                    return True
+                return False
+
+            # Ordinary refresh can retire a whole cohort between fault windows.
+            # Keep the read load running while waiting for a measurable baseline.
+            poll(stable_baseline, timeout=30, description='loaded normal quote cohort before volatility input')
+            positions, baseline = initial['positions'], initial['baseline']
             started = time.time()
             harness.control(candle_width='.015')
             poll(lambda: len(defense_states()) == 2 and all(row.get('state') == 'reduced' for row in defense_states()),
