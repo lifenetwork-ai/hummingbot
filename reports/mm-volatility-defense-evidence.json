@@ -1,0 +1,2065 @@
+{
+  "status": "complete",
+  "updated_at": "2026-10-28T16:12:42.631008+00:00",
+  "runtime": {
+    "image_id": "sha256:c924030a895a2cb37ec47ef56389462b940b306a89f80e6630dbad887ef68043",
+    "manifest": "127.0.0.1:55247/hummingbot@sha256:1ca72e6642416bbb54394dc73039bbd1a1a785e6c8a020f502bd80c437b5b626",
+    "image_size_bytes": 1366856929,
+    "runtime_sources": {
+      "controllers/market_making/life_mm.py": "2c1821b3552ec1001e39a4802bab06f738a5e4d6f05ba8c413abf48e9739f249",
+      "hummingbot/cli/admin_api.py": "b675b929c077730d6b04604b3d64fdd62619b8b7d9a6a7dac31d64723658e0ec",
+      "hummingbot/cli/admin_errors.py": "6820eb81ff1e3785806697efa4c60b173f7187b54ab6769e938e2eed001d8b05",
+      "hummingbot/cli/admin_models.py": "1f07ab125e32083c866ee3b3d90ca5619ebcc9e20d408f789e036d21f0cb2e84",
+      "hummingbot/cli/admin_operations.py": "2ef083d3f93594c9f025eb7d92e4cbffa540759bc9d1b56d0b63911edc51cdaf",
+      "hummingbot/cli/service.py": "d27285632d5aa6d2a8054c7098549b4f5da3b2e9f2b260761ee660d1e72f1254",
+      "hummingbot/client/config/defaults.py": "9f5bb0839604a16f9a743743d170a5de8f453e499ebdac7fb537ddca169bb243",
+      "hummingbot/client/config/mm_profiles.py": "0a57fdb1084d3ffdb7ff48c59f1671c38aec769a731372622841126439b445de",
+      "hummingbot/client/config/runtime_config.py": "7276ed96b83ed15751c5380c20360a4a9832335ba6b80c204c543549d052c03d",
+      "hummingbot/connector/okx_account_observations.py": "74850f69a64bee1fc69442773adb620634edee09b4e8323a905afdb8afd1f89b",
+      "hummingbot/core/bot_ownership.py": "0bb81e7fb420b9e5a7128c056f597a7524be1b819e01401df9f578414bd3c963",
+      "hummingbot/core/data_type/order_book_tracker.py": "6bb08f0d8fb0f3786c512e8ba7726a8de3283ec74a63253d2258632156f189ab",
+      "hummingbot/core/mm_quote_activity.py": "a2823a375a4f21beda5d543ac877aa95e58c4035d8f63914d0de01b603ca668b",
+      "hummingbot/core/mm_readiness.py": "f859a0a8d826798d29667679351511adda0ac69ecd91aa5dd4769c0fcaa65536",
+      "hummingbot/core/order_submission_guard.py": "5ece2b0547211a07d35ca8d8fb830292a4f3ea2b4944f5afe4dd1165b2e3fccc",
+      "hummingbot/core/spot_outflow.py": "8c02c16533256cd1e311d6a2c7972cc5ee9283ba6b6fee2d2912b5daf3be0d59",
+      "hummingbot/core/spot_outflow_guard.py": "4e1ca6ff85e9a4ada1f1c5bfcfc1a9a5c7f546488e7ae7d2b8b1024dd4471a63",
+      "hummingbot/core/volatility_defense.py": "e66deef666b6b080f053d4bf964fa10358a74fefc9444e3e8a0edd5d4327fa8e",
+      "hummingbot/model/admin_reporting.py": "4819e5c3699a4f8a0971888b91a4eb3f9324b4ebefe61db1a378209af21c6153",
+      "hummingbot/model/admin_store.py": "4bba3f3e23918ff38e02cae2d7b0117e36180e48cb49d36120f26cc40a4b7fa3",
+      "hummingbot/model/bot_state_store.py": "5d5aee47599dfd26e43a200c97010ee86d0107467ac8c89ad646857ba0786abb",
+      "hummingbot/model/db_migration/postgres/connection.py": "ff136fac6dd289de479d097fc1dd48084ec8abb4ea96183e20cffb333fc5e472",
+      "hummingbot/model/mm_event.py": "966ed59cce65a3390db498b40bce4cfed64fb5c7913c8f121b5ce53f98fe8670",
+      "hummingbot/strategy_v2/executors/executor_base.py": "b162f1847e7fb6dd91bfa8562c3ee0961307b0f050a3a1d113eb290cf4a26baa",
+      "hummingbot/strategy_v2/utils/mm_spread.py": "66fbd6a2f881a24d67428c54b944224afe1575101134932bce14a2023b4d8a79",
+      "hummingbot/strategy_v2/utils/quote_guard.py": "2609c3e7c9f6d2b74b587b79c95410710d4b13b26635556897379ceab4548b86"
+    },
+    "commit": "f52f6ee3f548fa9ed6646a06b1c9ff65534e75d2",
+    "harness_commit": "f52f6ee3f548fa9ed6646a06b1c9ff65534e75d2"
+  },
+  "scope": "Weighted existing quote levels, base/fee floors, opt-in raw-NATR sizing/pause/recovery; no new service, migration or strategy environment switch; operator-requested DB_POOL_SIZE retains default 5",
+  "native": {
+    "passed": 1829,
+    "subtests_passed": 11,
+    "raw": {
+      "path": "build/volatility-defense/gate-native-pool-env.log",
+      "sha256": "8d84b76850163d3d63d0ce8af428a86c47f922a0bafb2c3035365e338d1c0d40"
+    }
+  },
+  "postgres": {
+    "passed": 243,
+    "raw": {
+      "path": "build/volatility-defense/gate-postgres-pool-env.log",
+      "sha256": "d0728ad134158658eda3e4579328f6c8e743a2692f02593065cae57b079d856a"
+    }
+  },
+  "tdd": {
+    "failing_before": 2,
+    "passing_before": 2,
+    "focused_passed_after": 18,
+    "red": {
+      "path": "build/volatility-defense/outflow-retention-red.log",
+      "sha256": "5c2938c920b11d6ae652f44be20e366a8107d7fdd0edb01f7ba719af63140132"
+    },
+    "green": {
+      "path": "build/volatility-defense/outflow-retention-green.log",
+      "sha256": "0e9453a485250d57e33defb5bcd1aea5d35663c151648f908d8a5466110d96c1"
+    }
+  },
+  "swagger": {
+    "passed": true,
+    "raw": {
+      "path": "build/volatility-defense/gate-swagger-pool-env.log",
+      "sha256": "73aa40e366acedf5cbdfc288fe5aa6b4f733bd07b21acb1141d9a519cbc718b4"
+    }
+  },
+  "synthetic": {
+    "passed": true,
+    "cases": 72,
+    "raw": {
+      "path": "build/volatility-defense/economic-retention/result.json",
+      "sha256": "d40d00c8d617ea20aee4ecbb914e99b298478bfb3266db62daf3b4713ae168f9"
+    },
+    "scope": "Declared scoped matrix, not the default exhaustive matrix or a profit forecast"
+  },
+  "image_e2e": {
+    "status": "passed",
+    "passed": true,
+    "groups": 16,
+    "single_invocation": true,
+    "raw": {
+      "path": "build/e2e-offline/20261028-205052-85f479/result.json",
+      "sha256": "60accc2959f5f6f6a272d3164728a24e93fac799f8e99b0f2247795ecb51ddef"
+    },
+    "scenarios": [
+      "availability",
+      "drawdown",
+      "funding",
+      "inventory-skew",
+      "life-mm",
+      "listing-bootstrap",
+      "quote-guards",
+      "schema",
+      "spot",
+      "spot-outflow",
+      "spread-policy",
+      "until-stopped",
+      "upgrade",
+      "v2-perpetual",
+      "v2-spot",
+      "volatility-defense"
+    ],
+    "defense": {
+      "baseline_quote": "199.99899132772911",
+      "reduced_quote": "99.99973021475888",
+      "three_levels": true,
+      "delayed_cancel_seconds": 2,
+      "partial_fills": 2,
+      "paused_random_deadline_preserved": true,
+      "pause_survives_restart_and_start": true,
+      "held_positions_preserved": true,
+      "recovery_seconds": 8.091997167095542,
+      "market_modes": [
+        "spot",
+        "perpetual",
+        "both"
+      ],
+      "effective_config_sha256": "ac019875d563ab261869e6d5e0d2876e65786406233bd43d53d60141ffaf599a"
+    },
+    "logs": {
+      "report": "build/e2e-offline/20261028-205052-85f479",
+      "scenario": "volatility-defense",
+      "severity_counts": {
+        "INFO": 403,
+        "WARNING": 30
+      },
+      "unexpected_errors": [],
+      "non_json_lines": [],
+      "warning_messages": {
+        "MM volatility defense controller=life_spot state=waiting reason=guard_recovering": 3,
+        "MM volatility defense controller=life_perpetual state=waiting reason=guard_recovering": 4,
+        "MM volatility defense controller=life_spot state=reduced reason=-": 5,
+        "MM volatility defense controller=life_perpetual state=reduced reason=-": 6,
+        "MM volatility defense controller=life_spot state=paused reason=volatility_paused": 3,
+        "MM volatility defense controller=life_perpetual state=paused reason=volatility_paused": 3,
+        "Candles are malformed. Restarting...": 4,
+        "MM volatility defense controller=life_spot state=checkpoint_pending reason=volatility_checkpoint_pending": 1,
+        "MM volatility defense controller=life_perpetual state=checkpoint_pending reason=volatility_checkpoint_pending": 1
+      }
+    }
+  },
+  "receipt_observer_followup": {
+    "provenance": {
+      "runtime_sources_unchanged": true,
+      "unchanged_harness_outside": "Harness.mm_command",
+      "reference_commit": "53932a579",
+      "helper_commit": "22fc7e6c7"
+    },
+    "red": {
+      "path": "build/volatility-defense/receipt-poll-red.log",
+      "sha256": "b7f7c75cc7fac79675a79924d487d07658727a28db3d2c4de6a2c949534dc987"
+    },
+    "green": {
+      "path": "build/volatility-defense/receipt-poll-green.log",
+      "sha256": "6813a01e443ba0b5d2b51dba6b1f9d7dd7a49d5522a726c16a47b9e2fe03e4e9"
+    },
+    "red_failures": 2,
+    "focused_green": 20,
+    "new_test_cases": 3
+  },
+  "controlled_gc_diagnostics": {
+    "before": {
+      "path": "build/mm-load/20261028-110324-aabc95",
+      "image_id": "sha256:4a553d37b531e5c47464749d496d16c600465f8852b35352d269e243ce3077e6",
+      "passed": false,
+      "diagnostic": true,
+      "duration_seconds": 300,
+      "read_p95_ms": 879.4088649992773,
+      "read_p99_ms": 2900.190031999955,
+      "auxiliary_p95_ms": 840.5623670005298,
+      "auxiliary_p99_ms": 2980.0088230003894,
+      "requested_reads": 6000,
+      "completed_reads": 6000,
+      "valid_fills": 300,
+      "unexpected_errors": 0,
+      "peak_rss_bytes": 500023296,
+      "full_gc_count": 27,
+      "max_full_gc_wall_ms": 2125.573126,
+      "max_full_gc_thread_cpu_ms": 1031.792954,
+      "ledger": {
+        "unique_exchange_fills": 300,
+        "unique_recorder_fills": 300,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "violations": [
+        "auxiliary_read_p95",
+        "auxiliary_read_p99",
+        "read_p95",
+        "read_p99"
+      ]
+    },
+    "candidate": {
+      "path": "build/mm-load/20261028-113012-b12524",
+      "image_id": "sha256:c1263fe02d886f37688fa10e0696be28e718b955172074439aa69d2f68ffb2fe",
+      "passed": true,
+      "diagnostic": true,
+      "duration_seconds": 300,
+      "read_p95_ms": 168.86230900126975,
+      "read_p99_ms": 784.7426480002468,
+      "auxiliary_p95_ms": 145.3040679989499,
+      "auxiliary_p99_ms": 829.7837319987593,
+      "requested_reads": 6000,
+      "completed_reads": 6000,
+      "valid_fills": 300,
+      "unexpected_errors": 0,
+      "peak_rss_bytes": 446574592,
+      "full_gc_count": 30,
+      "max_full_gc_wall_ms": 298.325625,
+      "max_full_gc_thread_cpu_ms": 285.690121,
+      "ledger": {
+        "unique_exchange_fills": 300,
+        "unique_recorder_fills": 300,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "violations": []
+    },
+    "scope": "Two controlled 300-second GC-instrumented diagnostics, not full release acceptance or a causal guarantee from one paired run."
+  },
+  "history_page_optimization": {
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "page_limit": 500,
+    "counterbalanced_order": "ABBA x 10 per method",
+    "outputs_equal": true,
+    "baseline_sha256": "6cadc3f6027dd68fbfedd3956083d8e2262a46e304547304963d05f4d36f476d",
+    "candidate_sha256": "4bba3f3e23918ff38e02cae2d7b0117e36180e48cb49d36120f26cc40a4b7fa3",
+    "measurements": {
+      "orders": {
+        "before": {
+          "wall_ms": 33.4133125,
+          "cpu_ms": 13.6492085,
+          "pool_held_ms": 32.117125,
+          "queries": 3.0,
+          "samples": 20,
+          "peak_python_bytes": 2302666
+        },
+        "candidate": {
+          "wall_ms": 31.108417,
+          "cpu_ms": 11.420396,
+          "pool_held_ms": 27.130687,
+          "queries": 3.0,
+          "samples": 20,
+          "peak_python_bytes": 1733160
+        }
+      },
+      "fills": {
+        "before": {
+          "wall_ms": 10.8468545,
+          "cpu_ms": 7.5623125,
+          "pool_held_ms": 9.380646,
+          "queries": 1.0,
+          "samples": 20,
+          "peak_python_bytes": 1983263
+        },
+        "candidate": {
+          "wall_ms": 8.589437499999999,
+          "cpu_ms": 5.4974165,
+          "pool_held_ms": 5.7098960000000005,
+          "queries": 1.0,
+          "samples": 20,
+          "peak_python_bytes": 1357141
+        }
+      }
+    },
+    "scope": "Native isolated PostgreSQL read benchmark; no simulated/live exchange or full-release claim"
+  },
+  "daily_fee_query_optimization": {
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "postgres_cpus": 2,
+    "postgres_memory_bytes": 536870912,
+    "outputs_equal": true,
+    "measurements": {
+      "old_parallel": {
+        "samples": 16,
+        "median_ms": 252.47387506533414,
+        "p95_ms": 424.0127499215305
+      },
+      "old_serial": {
+        "samples": 16,
+        "median_ms": 514.3120420398191,
+        "p95_ms": 1018.3420418761671
+      },
+      "typed_parallel": {
+        "samples": 16,
+        "median_ms": 160.59556254185736,
+        "p95_ms": 184.7387091256678
+      },
+      "typed_serial": {
+        "samples": 16,
+        "median_ms": 344.862625002861,
+        "p95_ms": 380.6399169843644
+      }
+    },
+    "scope": "Isolated native-client fee aggregation on PostgreSQL 14; no full release/load claim"
+  },
+  "followup_tdd": {
+    "history_red": {
+      "path": "build/volatility-defense/history-resources-red.log",
+      "sha256": "fea2a86d7216c97fabf01337845f85dfbd50811a7e9ad30e142ae10d09cf8801"
+    },
+    "history_green": {
+      "path": "build/volatility-defense/history-resources-green.log",
+      "sha256": "09ba5e3a6732ade641f03e252debedd0eeeb4ce80f3193dbf52030d3b9b931e9"
+    },
+    "history_red_failures": 4,
+    "history_focused_green": 8,
+    "unavailable_red": {
+      "path": "build/volatility-defense/admin-unavailable-red.log",
+      "sha256": "337c7115aef84119402e96f7c4de34b84c4c365b9d4693748264baebae5ecb94"
+    },
+    "unavailable_green": {
+      "path": "build/volatility-defense/admin-unavailable-green.log",
+      "sha256": "196245af1b99e0bec37410f55a365731a678ce87e0ca78fd92ca1169eaf69763"
+    },
+    "unavailable_red_failures": 4,
+    "unavailable_focused_green": 34,
+    "daily_focused": {
+      "path": "build/volatility-defense/daily-fee-green.log",
+      "sha256": "3f9a85316a99c5556b6e47c7a2532d3ca0f8afea0fa589b0752b3a2707fd6621"
+    },
+    "daily_focused_passed": 19
+  },
+  "database_capacity_followup": {
+    "runtime_commits": [
+      "174fee57b",
+      "dafe9387b",
+      "f52f6ee3f"
+    ],
+    "capacity_red": {
+      "path": "build/volatility-defense/admin-capacity-red.log",
+      "sha256": "f5757e7a933b574c2ce9c6cbbc6afb7e1d89c4c3ad43eaf93d67c29580ffe9b7"
+    },
+    "executor_red": {
+      "path": "build/volatility-defense/admin-executor-red.log",
+      "sha256": "8bd0577eb4fdd661233db34991ce8537aeb16282af570fb7070218540b2381a1"
+    },
+    "capacity_green": {
+      "path": "build/volatility-defense/admin-capacity-green.log",
+      "sha256": "9a47a83ac7dcb0b941ed5952433959fb42cd5b0dd97916781ea1a80631b19c75"
+    },
+    "executor_green": {
+      "path": "build/volatility-defense/admin-executor-green.log",
+      "sha256": "217e0cf01c24e2cec0dd6fc5f438140db2b2e889ed412bbd913ae84bf012f186"
+    },
+    "capacity_red_failures": 1,
+    "executor_red_failures": 2,
+    "focused_postgres_green": 9,
+    "focused_native_green": 18,
+    "history_encoding_before": {
+      "path": "build/volatility-defense/history-encoding-before.log",
+      "sha256": "39d51c000a1b8d448db04f49fa15d0d3fc1729d51e466e0a8978dbfa8b1705a9"
+    },
+    "history_encoding_after": {
+      "path": "build/volatility-defense/history-encoding-after.log",
+      "sha256": "e68a8d9de53e4a17ce4b3d76b4256efcd91169c65a1f3aeda43ed37ae7f519d8"
+    },
+    "history_encoding_cases": 2,
+    "response_encoding_benchmark": {
+      "rows": 500,
+      "outputs_equal": true,
+      "results": {
+        "OrdersPage": {
+          "dict_then_json": {
+            "median_cpu_ms": 4.77982664,
+            "measurements": [
+              4.83498957,
+              4.77699082,
+              4.7788303899999995,
+              4.80319747,
+              4.76044874,
+              4.759425820000001,
+              4.99336457,
+              4.78082289,
+              4.83825374,
+              4.77156749,
+              4.774152480000001,
+              4.81508623
+            ],
+            "peak_python_bytes": 664936
+          },
+          "pydantic_json": {
+            "median_cpu_ms": 3.0973174850000005,
+            "measurements": [
+              3.1173337400000003,
+              3.0834699899999998,
+              3.0975312400000004,
+              3.06701165,
+              3.09780291,
+              3.04765249,
+              3.09851081,
+              3.10159915,
+              3.05008415,
+              3.0894208300000003,
+              3.09710373,
+              3.10322415
+            ],
+            "peak_python_bytes": 445964
+          }
+        },
+        "FillsPage": {
+          "dict_then_json": {
+            "median_cpu_ms": 5.975867065000001,
+            "measurements": [
+              5.946609560000001,
+              6.10781081,
+              5.9428370600000004,
+              5.96230539,
+              5.97723415,
+              5.98874707,
+              6.00056498,
+              5.932792470000001,
+              5.993305810000001,
+              5.91951459,
+              5.974499980000001,
+              6.31104499
+            ],
+            "peak_python_bytes": 869458
+          },
+          "pydantic_json": {
+            "median_cpu_ms": 3.556758115,
+            "measurements": [
+              3.64096915,
+              3.56096082,
+              3.52266581,
+              3.51310498,
+              3.54368915,
+              3.52124791,
+              3.80636372,
+              3.55255541,
+              3.60134164,
+              3.54780458,
+              9.69622541,
+              3.67546207
+            ],
+            "peak_python_bytes": 423214
+          }
+        }
+      },
+      "scope": "Isolated final response encoding CPU, not DB/network/load acceptance"
+    },
+    "pool_env_red": {
+      "path": "build/volatility-defense/pool-env-red.log",
+      "sha256": "b301d23df8dd1137eca1c3243eb84243c8ccd292b9b86e9fb1d4fdbe28f57739"
+    },
+    "pool_env_green": {
+      "path": "build/volatility-defense/pool-env-green.log",
+      "sha256": "566825f58990709287b6ab5fed63b4d4fcecbdad1eae38ccc51522ff0b56305f"
+    },
+    "pool_env_red_failures": 13,
+    "pool_env_focused_green": 50,
+    "default_pool_size": 5,
+    "api_db_workers": 2,
+    "max_overflow": 0
+  },
+  "current_cold_burst": {
+    "duration_seconds": 90,
+    "requested_reads": 1800,
+    "completed_reads": 1800,
+    "read_p95_ms": 169.01259300357196,
+    "read_p99_ms": 434.2549010034418,
+    "unexpected_errors": 0,
+    "command_seconds": {
+      "switch": 7.573520378995454,
+      "stop": 0.6604490000026999,
+      "start": 5.629066168999998
+    },
+    "peak_rss_bytes": 436506624,
+    "violations": [],
+    "ledger": {
+      "unique_exchange_fills": 90,
+      "unique_recorder_fills": 90,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "image_id": "sha256:c924030a895a2cb37ec47ef56389462b940b306a89f80e6630dbad887ef68043",
+    "path": "build/mm-load/20261028-211740-ea8413/result.json",
+    "scope": "Cold untraced 90-second burst; not the warmed full gate or an exclusive causal comparison",
+    "command_receipt_transport_retries": 0
+  },
+  "current_hour_retention": {
+    "duration_seconds": 3600,
+    "completed_main_reads": 72000,
+    "completed_auxiliary_reads": 18000,
+    "unexpected_errors": 0,
+    "read_p95_ms": 142.68772700597765,
+    "read_p99_ms": 459.19046299968613,
+    "auxiliary_p99_ms": 395.4087670063018,
+    "drain_seconds": 0.1796817499998724,
+    "minute_samples": 58,
+    "rss_first_median_mib": 422.328125,
+    "rss_last_median_mib": 434.05859375,
+    "pool_first_median_ms": 4.653708,
+    "pool_last_median_ms": 5.841292,
+    "maximum_retained_executor_states": 20,
+    "maximum_held_executors": 10,
+    "scope": "Completed 3600-second healthy window within the passing unchanged full non-diagnostic profile, including all six post-hour faults",
+    "full_profile_passed": true
+  },
+  "historical_failed_burst": {
+    "image_id": "sha256:795008ea0220ed4497b8c75a3975f282ca8556b132e45df66e9cd46d44eb1b81",
+    "raw": {
+      "path": "build/mm-load/20261028-193345-cd8d56/result.json",
+      "sha256": "afcb06fe322ec8fcfc2c7609ba3796342288c7d6486fc52626cabcc282163bf0"
+    },
+    "warmup_and_mixed_passed": true,
+    "read_p95_ms": 575.35,
+    "read_p99_ms": 1747.86,
+    "unexpected_errors": 0,
+    "hour_ran": false,
+    "cold_trace": {
+      "path": "build/mm-load/20261028-200032-88bbe5/result.json",
+      "sha256": "c523c6025dcd06f8f17b2fa3512efc6a31205c9252c764dfa52eab2ae88cfb0f"
+    },
+    "scope": "Cold traced burst had 50k active outflow history; warmed full burst had 645 entries. Not state-equivalent or exclusive causal proof."
+  },
+  "historical_failed_hour": {
+    "image_id": "sha256:c1263fe02d886f37688fa10e0696be28e718b955172074439aa69d2f68ffb2fe",
+    "raw": {
+      "path": "build/mm-load/20261028-121114-81c318/result.json",
+      "sha256": "252490372c78e8ed8f3d40a1c8a3345624cb17b5670955cad984a0052f3104d8"
+    },
+    "read_p99_ms": 1058.8089839984605,
+    "unexpected_errors": 3,
+    "violations": [
+      "errors",
+      "backlog",
+      "auxiliary_read_p99",
+      "read_p99",
+      "pool_wait_growth"
+    ]
+  },
+  "gates": {
+    "probe": {
+      "status": "passed",
+      "raw": {
+        "path": "/Users/deeznuts/hummingbot/build/mm-load/20261028-212129-86d995/result.json",
+        "sha256": "476e50e8dc6b85a34b3ae61fda0c59a658fffe67a03e4c63f46b0ec5f0d87b02"
+      },
+      "profile": "probe",
+      "diagnostic": true,
+      "image_id": "sha256:c924030a895a2cb37ec47ef56389462b940b306a89f80e6630dbad887ef68043",
+      "command_receipt_transport_retries": 0,
+      "windows": {
+        "probe": {
+          "duration_seconds": 60,
+          "requested_reads": 1200,
+          "completed_reads": 1200,
+          "read_p95_ms": 73.64219399460126,
+          "read_p99_ms": 416.48534900014056,
+          "unexpected_errors": 0,
+          "valid_fills": 60,
+          "peak_rss_bytes": 432881664,
+          "ledger": {
+            "unique_exchange_fills": 60,
+            "unique_recorder_fills": 60,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "command_seconds": {
+            "start": 7.651540665887296,
+            "switch": 8.857397999847308,
+            "stop": 1.3995876668486744
+          },
+          "violations": [],
+          "profile_running_coverage": null,
+          "auxiliary": {
+            "requested_reads": 300,
+            "completed_reads": 300,
+            "read_p95_ms": 85.8193929961999,
+            "read_p99_ms": 158.62452399596805
+          }
+        }
+      },
+      "faults": {}
+    },
+    "fault-preflight": {
+      "status": "passed",
+      "raw": {
+        "path": "/Users/deeznuts/hummingbot/build/mm-load/20261028-212340-3b48f4/result.json",
+        "sha256": "6ecf3a565e6f3939d8717b51545ad77411e3ff7caef017a570158b9ceedc8245"
+      },
+      "profile": "faults",
+      "diagnostic": true,
+      "image_id": "sha256:c924030a895a2cb37ec47ef56389462b940b306a89f80e6630dbad887ef68043",
+      "command_receipt_transport_retries": 0,
+      "windows": {},
+      "faults": {
+        "feed": {
+          "duration_seconds": 45,
+          "read_p95_ms": 117.64180300815497,
+          "read_p99_ms": 413.2290110064787,
+          "unexpected_errors": 0,
+          "statuses": {
+            "200": 900
+          },
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "defense": null
+        },
+        "volatility-defense": {
+          "duration_seconds": 90,
+          "read_p95_ms": 97.2927230031928,
+          "read_p99_ms": 397.0098930076347,
+          "unexpected_errors": 0,
+          "statuses": {
+            "200": 1800
+          },
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "defense": {
+            "stimulus_to_terminal_cancel_ms": {
+              "LIFE-USDT": 1549.588134765625,
+              "LIFE-USDT-SWAP": 2582.588134765625
+            },
+            "latency_scope": "Conservative upper bound: input precedes controller restriction; first terminal proof, not duplicate acknowledgment time",
+            "working_at_joint_pause": {
+              "LIFE-USDT": 0,
+              "LIFE-USDT-SWAP": 0
+            },
+            "joint_pause_to_terminal_cancel_ms": {
+              "LIFE-USDT": null,
+              "LIFE-USDT-SWAP": null
+            },
+            "reduced_allocation_verified": true,
+            "pause_checkpoint_count": 2,
+            "no_submissions_during_stale_pause": true,
+            "positions_preserved": true,
+            "recovery_seconds": 12.67114558396861
+          }
+        },
+        "owner-restart": {
+          "duration_seconds": 45,
+          "read_p95_ms": 513.0410509955254,
+          "read_p99_ms": 1109.8401339986594,
+          "unexpected_errors": 223,
+          "statuses": {
+            "200": 698
+          },
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "defense": null
+        },
+        "queued-expiry": {
+          "duration_seconds": 75,
+          "read_p95_ms": 388.3841300048516,
+          "read_p99_ms": 1841.7819020032766,
+          "unexpected_errors": 0,
+          "statuses": {
+            "200": 1500
+          },
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "defense": null
+        },
+        "database-delay": {
+          "duration_seconds": 45,
+          "read_p95_ms": 652.6928009989206,
+          "read_p99_ms": 1464.0249629956088,
+          "unexpected_errors": 224,
+          "statuses": {
+            "200": 697,
+            "503": 2
+          },
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "defense": null
+        },
+        "database-failure": {
+          "duration_seconds": 45,
+          "read_p95_ms": 332.2087159976945,
+          "read_p99_ms": 1004.3605459941318,
+          "unexpected_errors": 141,
+          "statuses": {
+            "200": 772,
+            "503": 6
+          },
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "defense": null
+        }
+      }
+    },
+    "load": {
+      "status": "passed",
+      "raw": {
+        "path": "/Users/deeznuts/hummingbot/build/mm-load/20261028-213108-851dbd/result.json",
+        "sha256": "087fe7e94ad59ae69560c4d1e1c4a60cfb78074d1cc6e5839e1a07ecc3e8e4bc"
+      },
+      "profile": "all",
+      "diagnostic": false,
+      "image_id": "sha256:c924030a895a2cb37ec47ef56389462b940b306a89f80e6630dbad887ef68043",
+      "command_receipt_transport_retries": 0,
+      "windows": {
+        "warmup": {
+          "duration_seconds": 300,
+          "requested_reads": 6000,
+          "completed_reads": 6000,
+          "read_p95_ms": 86.32189800118795,
+          "read_p99_ms": 422.3917100025574,
+          "unexpected_errors": 0,
+          "valid_fills": 300,
+          "peak_rss_bytes": 439435264,
+          "ledger": {
+            "unique_exchange_fills": 300,
+            "unique_recorder_fills": 300,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "command_seconds": {
+            "start": 8.199016541009769,
+            "switch": 7.662821457954124,
+            "stop": 2.51370875001885
+          },
+          "violations": [],
+          "profile_running_coverage": null,
+          "auxiliary": {
+            "requested_reads": 1500,
+            "completed_reads": 1500,
+            "read_p95_ms": 75.25815400003921,
+            "read_p99_ms": 358.0702379986178
+          }
+        },
+        "mixed": {
+          "duration_seconds": 900,
+          "requested_reads": 18000,
+          "completed_reads": 18000,
+          "read_p95_ms": 106.57308700319845,
+          "read_p99_ms": 426.1729410063708,
+          "unexpected_errors": 0,
+          "valid_fills": 900,
+          "peak_rss_bytes": 441925632,
+          "ledger": {
+            "unique_exchange_fills": 1200,
+            "unique_recorder_fills": 1200,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "command_seconds": {
+            "start": 8.199016541009769,
+            "switch": 7.662821457954124,
+            "stop": 2.51370875001885
+          },
+          "violations": [],
+          "profile_running_coverage": null,
+          "auxiliary": {
+            "requested_reads": 4500,
+            "completed_reads": 4500,
+            "read_p95_ms": 101.51849200337892,
+            "read_p99_ms": 294.28699600248365
+          }
+        },
+        "bursts": {
+          "duration_seconds": 90,
+          "requested_reads": 1800,
+          "completed_reads": 1800,
+          "read_p95_ms": 145.87135300098453,
+          "read_p99_ms": 443.34577799600083,
+          "unexpected_errors": 0,
+          "valid_fills": 90,
+          "peak_rss_bytes": 442712064,
+          "ledger": {
+            "unique_exchange_fills": 1290,
+            "unique_recorder_fills": 1290,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "command_seconds": {
+            "switch": 3.593227793004189,
+            "stop": 0.5678497920016525,
+            "start": 3.1900138769997284
+          },
+          "violations": [],
+          "profile_running_coverage": null,
+          "auxiliary": {
+            "requested_reads": 450,
+            "completed_reads": 450,
+            "read_p95_ms": 182.1060229995055,
+            "read_p99_ms": 340.50690900039626
+          }
+        },
+        "soak": {
+          "duration_seconds": 3600,
+          "requested_reads": 72000,
+          "completed_reads": 72000,
+          "read_p95_ms": 142.68772700597765,
+          "read_p99_ms": 459.19046299968613,
+          "unexpected_errors": 0,
+          "valid_fills": 3594,
+          "peak_rss_bytes": 457392128,
+          "ledger": {
+            "unique_exchange_fills": 4884,
+            "unique_recorder_fills": 4884,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "command_seconds": {
+            "start": 8.199016541009769,
+            "switch": 7.662821457954124,
+            "stop": 2.51370875001885
+          },
+          "violations": [],
+          "profile_running_coverage": [
+            {
+              "profile": "follow_market",
+              "step": 0,
+              "running_overlap_seconds": 598.4591388702393
+            },
+            {
+              "profile": "sideways",
+              "step": 1,
+              "running_overlap_seconds": 595.656182050705
+            },
+            {
+              "profile": "sideways",
+              "step": 2,
+              "running_overlap_seconds": 595.9779999256134
+            },
+            {
+              "profile": "follow_market",
+              "step": 3,
+              "running_overlap_seconds": 594.0235199928284
+            },
+            {
+              "profile": "follow_market",
+              "step": 4,
+              "running_overlap_seconds": 595.74871301651
+            },
+            {
+              "profile": "follow_token",
+              "step": 5,
+              "running_overlap_seconds": 595.7667269706726
+            }
+          ],
+          "auxiliary": {
+            "requested_reads": 18000,
+            "completed_reads": 18000,
+            "read_p95_ms": 139.3180380036938,
+            "read_p99_ms": 395.4087670063018
+          }
+        }
+      },
+      "faults": {
+        "feed": {
+          "duration_seconds": 45,
+          "read_p95_ms": 88.67743499286007,
+          "read_p99_ms": 429.5672630032641,
+          "unexpected_errors": 0,
+          "statuses": {
+            "200": 900
+          },
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "defense": null
+        },
+        "volatility-defense": {
+          "duration_seconds": 90,
+          "read_p95_ms": 288.91326099983416,
+          "read_p99_ms": 634.8630430002231,
+          "unexpected_errors": 0,
+          "statuses": {
+            "200": 1800
+          },
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "defense": {
+            "stimulus_to_terminal_cancel_ms": {
+              "LIFE-USDT": 3431.35498046875,
+              "LIFE-USDT-SWAP": 3261.35498046875
+            },
+            "latency_scope": "Conservative upper bound: input precedes controller restriction; first terminal proof, not duplicate acknowledgment time",
+            "working_at_joint_pause": {
+              "LIFE-USDT": 0,
+              "LIFE-USDT-SWAP": 0
+            },
+            "joint_pause_to_terminal_cancel_ms": {
+              "LIFE-USDT": null,
+              "LIFE-USDT-SWAP": null
+            },
+            "reduced_allocation_verified": true,
+            "pause_checkpoint_count": 2,
+            "no_submissions_during_stale_pause": true,
+            "positions_preserved": true,
+            "recovery_seconds": 12.693760083056986
+          }
+        },
+        "owner-restart": {
+          "duration_seconds": 45,
+          "read_p95_ms": 601.2145939967013,
+          "read_p99_ms": 1165.557884000009,
+          "unexpected_errors": 238,
+          "statuses": {
+            "200": 683
+          },
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "defense": null
+        },
+        "queued-expiry": {
+          "duration_seconds": 75,
+          "read_p95_ms": 361.2514439955703,
+          "read_p99_ms": 1688.782776996959,
+          "unexpected_errors": 0,
+          "statuses": {
+            "200": 1500
+          },
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "defense": null
+        },
+        "database-delay": {
+          "duration_seconds": 45,
+          "read_p95_ms": 645.9175929994672,
+          "read_p99_ms": 1515.4767959975288,
+          "unexpected_errors": 220,
+          "statuses": {
+            "200": 700,
+            "503": 2
+          },
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "defense": null
+        },
+        "database-failure": {
+          "duration_seconds": 45,
+          "read_p95_ms": 461.4331420016242,
+          "read_p99_ms": 1034.526673000073,
+          "unexpected_errors": 259,
+          "statuses": {
+            "200": 665,
+            "503": 7
+          },
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "defense": null
+        }
+      }
+    }
+  },
+  "demo": {
+    "status": "passed",
+    "raw": {
+      "path": "build/volatility-defense/demo/acceptance.json",
+      "sha256": "e02476f341d104a260dee6534855606e25d4b25e7226c60ed37c899509588eec"
+    },
+    "summary": {
+      "started_at": "2026-10-28T16:07:09.934860+00:00",
+      "environment": "demo",
+      "image_id": "sha256:c924030a895a2cb37ec47ef56389462b940b306a89f80e6630dbad887ef68043",
+      "passed": true,
+      "forced_fills": false,
+      "runtime_resets": false,
+      "checks": {
+        "initially_stopped": true,
+        "twelve_recorded_independent_orders": true,
+        "three_weighted_levels": true,
+        "post_only": true,
+        "tick_lot_minimum_and_budget": true,
+        "fee_floor_enabled": true,
+        "both_completed_candle_feeds_advance": true,
+        "stop_cancels_quotes": true,
+        "stop_preserves_positions": true
+      },
+      "observations": [
+        {
+          "at": "2026-10-28T16:07:29.504615+00:00",
+          "markets": [
+            {
+              "market": "spot",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.00046216723080129286",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "100.0",
+                  "evaluated_at": "2026-10-28T16:07:29.021811Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 7.286793254002987,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            },
+            {
+              "market": "perpetual",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.0011206291974652088",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "200.0",
+                  "evaluated_at": "2026-10-28T16:07:29.023663Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 7.2822270870019565,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            }
+          ]
+        },
+        {
+          "at": "2026-10-28T16:07:34.518212+00:00",
+          "markets": [
+            {
+              "market": "spot",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.00046216723080129286",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "100.0",
+                  "evaluated_at": "2026-10-28T16:07:34.445621Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 12.71059717299795,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            },
+            {
+              "market": "perpetual",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.0011206291974652088",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "200.0",
+                  "evaluated_at": "2026-10-28T16:07:34.447547Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 12.706113590000314,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            }
+          ]
+        },
+        {
+          "at": "2026-10-28T16:07:39.534589+00:00",
+          "markets": [
+            {
+              "market": "spot",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.00046216723080129286",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "100.0",
+                  "evaluated_at": "2026-10-28T16:07:39.318161Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 17.584491216999595,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            },
+            {
+              "market": "perpetual",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.0011206291974652088",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "200.0",
+                  "evaluated_at": "2026-10-28T16:07:39.320381Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 17.580297842003347,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            }
+          ]
+        },
+        {
+          "at": "2026-10-28T16:07:44.555007+00:00",
+          "markets": [
+            {
+              "market": "spot",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.00046216723080129286",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "100.0",
+                  "evaluated_at": "2026-10-28T16:07:44.172749Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 22.439075594003953,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            },
+            {
+              "market": "perpetual",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.0011206291974652088",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "200.0",
+                  "evaluated_at": "2026-10-28T16:07:44.174646Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 22.43456217700441,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            }
+          ]
+        },
+        {
+          "at": "2026-10-28T16:07:49.570409+00:00",
+          "markets": [
+            {
+              "market": "spot",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.00046216723080129286",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "100.0",
+                  "evaluated_at": "2026-10-28T16:07:49.165540Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 27.43186655500176,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            },
+            {
+              "market": "perpetual",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.0011206291974652088",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "200.0",
+                  "evaluated_at": "2026-10-28T16:07:49.167498Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 27.427414846002648,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            }
+          ]
+        },
+        {
+          "at": "2026-10-28T16:07:54.594935+00:00",
+          "markets": [
+            {
+              "market": "spot",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.00046216723080129286",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "100.0",
+                  "evaluated_at": "2026-10-28T16:07:54.571437Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 32.837763889998314,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            },
+            {
+              "market": "perpetual",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.0011206291974652088",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "200.0",
+                  "evaluated_at": "2026-10-28T16:07:54.573427Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 32.83334434900462,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            }
+          ]
+        },
+        {
+          "at": "2026-10-28T16:07:59.612127+00:00",
+          "markets": [
+            {
+              "market": "spot",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.00046216723080129286",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "100.0",
+                  "evaluated_at": "2026-10-28T16:07:59.438988Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 37.70531547599967,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            },
+            {
+              "market": "perpetual",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:07:00Z",
+                "valid_until": "2026-10-28T16:09:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.0011206291974652088",
+                "defense": {
+                  "state": "reduced",
+                  "reason_code": null,
+                  "label": "Trading with smaller orders",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": true,
+                  "size_factor": "0.5",
+                  "effective_allocation_quote": "200.0",
+                  "evaluated_at": "2026-10-28T16:07:59.440908Z",
+                  "recovery_samples": 1,
+                  "recovery_elapsed_seconds": 37.70082480900601,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            }
+          ]
+        },
+        {
+          "at": "2026-10-28T16:08:04.629557+00:00",
+          "markets": [
+            {
+              "market": "spot",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:08:00Z",
+                "valid_until": "2026-10-28T16:10:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.00049046191063379915",
+                "defense": {
+                  "state": "normal",
+                  "reason_code": null,
+                  "label": "Normal order sizing",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": false,
+                  "size_factor": "1",
+                  "effective_allocation_quote": "200",
+                  "evaluated_at": "2026-10-28T16:08:04.292561Z",
+                  "recovery_samples": 0,
+                  "recovery_elapsed_seconds": 0.0,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            },
+            {
+              "market": "perpetual",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:08:00Z",
+                "valid_until": "2026-10-28T16:10:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.0011946636231850911",
+                "defense": {
+                  "state": "normal",
+                  "reason_code": null,
+                  "label": "Normal order sizing",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": false,
+                  "size_factor": "1",
+                  "effective_allocation_quote": "400",
+                  "evaluated_at": "2026-10-28T16:08:04.294477Z",
+                  "recovery_samples": 0,
+                  "recovery_elapsed_seconds": 0.0,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            }
+          ]
+        },
+        {
+          "at": "2026-10-28T16:08:09.646218+00:00",
+          "markets": [
+            {
+              "market": "spot",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:08:00Z",
+                "valid_until": "2026-10-28T16:10:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.00049046191063379915",
+                "defense": {
+                  "state": "normal",
+                  "reason_code": null,
+                  "label": "Normal order sizing",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": false,
+                  "size_factor": "1",
+                  "effective_allocation_quote": "200",
+                  "evaluated_at": "2026-10-28T16:08:09.170382Z",
+                  "recovery_samples": 0,
+                  "recovery_elapsed_seconds": 0.0,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            },
+            {
+              "market": "perpetual",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:08:00Z",
+                "valid_until": "2026-10-28T16:10:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.0011946636231850911",
+                "defense": {
+                  "state": "normal",
+                  "reason_code": null,
+                  "label": "Normal order sizing",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": false,
+                  "size_factor": "1",
+                  "effective_allocation_quote": "400",
+                  "evaluated_at": "2026-10-28T16:08:09.171778Z",
+                  "recovery_samples": 0,
+                  "recovery_elapsed_seconds": 0.0,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            }
+          ]
+        },
+        {
+          "at": "2026-10-28T16:08:14.658090+00:00",
+          "markets": [
+            {
+              "market": "spot",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:08:00Z",
+                "valid_until": "2026-10-28T16:10:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.00049046191063379915",
+                "defense": {
+                  "state": "normal",
+                  "reason_code": null,
+                  "label": "Normal order sizing",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": false,
+                  "size_factor": "1",
+                  "effective_allocation_quote": "200",
+                  "evaluated_at": "2026-10-28T16:08:14.558897Z",
+                  "recovery_samples": 0,
+                  "recovery_elapsed_seconds": 0.0,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            },
+            {
+              "market": "perpetual",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:08:00Z",
+                "valid_until": "2026-10-28T16:10:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.0011946636231850911",
+                "defense": {
+                  "state": "normal",
+                  "reason_code": null,
+                  "label": "Normal order sizing",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": false,
+                  "size_factor": "1",
+                  "effective_allocation_quote": "400",
+                  "evaluated_at": "2026-10-28T16:08:14.560794Z",
+                  "recovery_samples": 0,
+                  "recovery_elapsed_seconds": 0.0,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            }
+          ]
+        },
+        {
+          "at": "2026-10-28T16:08:19.675069+00:00",
+          "markets": [
+            {
+              "market": "spot",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:08:00Z",
+                "valid_until": "2026-10-28T16:10:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.00049046191063379915",
+                "defense": {
+                  "state": "normal",
+                  "reason_code": null,
+                  "label": "Normal order sizing",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": false,
+                  "size_factor": "1",
+                  "effective_allocation_quote": "200",
+                  "evaluated_at": "2026-10-28T16:08:19.438377Z",
+                  "recovery_samples": 0,
+                  "recovery_elapsed_seconds": 0.0,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            },
+            {
+              "market": "perpetual",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:08:00Z",
+                "valid_until": "2026-10-28T16:10:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.0011946636231850911",
+                "defense": {
+                  "state": "normal",
+                  "reason_code": null,
+                  "label": "Normal order sizing",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": false,
+                  "size_factor": "1",
+                  "effective_allocation_quote": "400",
+                  "evaluated_at": "2026-10-28T16:08:19.440263Z",
+                  "recovery_samples": 0,
+                  "recovery_elapsed_seconds": 0.0,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": false
+                },
+                "stale": false
+              }
+            }
+          ]
+        },
+        {
+          "at": "2026-10-28T16:08:24.738513+00:00",
+          "markets": [
+            {
+              "market": "spot",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:08:00Z",
+                "valid_until": "2026-10-28T16:10:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.00049046191063379915",
+                "defense": {
+                  "state": "normal",
+                  "reason_code": null,
+                  "label": "Normal order sizing",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": false,
+                  "size_factor": "1",
+                  "effective_allocation_quote": "200",
+                  "evaluated_at": "2026-10-28T16:08:24.337520Z",
+                  "recovery_samples": 0,
+                  "recovery_elapsed_seconds": 0.0,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": true
+                },
+                "stale": false
+              }
+            },
+            {
+              "market": "perpetual",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:08:00Z",
+                "valid_until": "2026-10-28T16:10:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.0011946636231850911",
+                "defense": {
+                  "state": "normal",
+                  "reason_code": null,
+                  "label": "Normal order sizing",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": false,
+                  "size_factor": "1",
+                  "effective_allocation_quote": "400",
+                  "evaluated_at": "2026-10-28T16:08:24.339656Z",
+                  "recovery_samples": 0,
+                  "recovery_elapsed_seconds": 0.0,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": true
+                },
+                "stale": false
+              }
+            }
+          ]
+        },
+        {
+          "at": "2026-10-28T16:08:29.752687+00:00",
+          "markets": [
+            {
+              "market": "spot",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:08:00Z",
+                "valid_until": "2026-10-28T16:10:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.00049046191063379915",
+                "defense": {
+                  "state": "normal",
+                  "reason_code": null,
+                  "label": "Normal order sizing",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": false,
+                  "size_factor": "1",
+                  "effective_allocation_quote": "200",
+                  "evaluated_at": "2026-10-28T16:08:29.254837Z",
+                  "recovery_samples": 0,
+                  "recovery_elapsed_seconds": 0.0,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": true
+                },
+                "stale": false
+              }
+            },
+            {
+              "market": "perpetual",
+              "spread_policy": {
+                "enabled": true,
+                "fee_floor": true,
+                "state": "dynamic",
+                "multiplier": "1",
+                "completed_at": "2026-10-28T16:08:00Z",
+                "valid_until": "2026-10-28T16:10:00Z",
+                "buy_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "sell_spreads": [
+                  "0.004",
+                  "0.009",
+                  "0.018"
+                ],
+                "raw_natr": "0.0011946636231850911",
+                "defense": {
+                  "state": "normal",
+                  "reason_code": null,
+                  "label": "Normal order sizing",
+                  "next_action": "Monitor working orders and inventory.",
+                  "automatic_recovery_expected": false,
+                  "size_factor": "1",
+                  "effective_allocation_quote": "400",
+                  "evaluated_at": "2026-10-28T16:08:29.256305Z",
+                  "recovery_samples": 0,
+                  "recovery_elapsed_seconds": 0.0,
+                  "paused_latch_persisted": false,
+                  "cancellation_pending": true
+                },
+                "stale": false
+              }
+            }
+          ]
+        }
+      ],
+      "stop_seconds": 1.2406578329391778,
+      "commands": [
+        {
+          "action": "start",
+          "elapsed_seconds": 8.185732291080058,
+          "status": "succeeded"
+        },
+        {
+          "action": "stop",
+          "elapsed_seconds": 1.0277997499797493,
+          "status": "succeeded"
+        }
+      ]
+    },
+    "log_audit": {
+      "severity_counts": {
+        "INFO": 89,
+        "WARNING": 8
+      },
+      "warnings": {
+        "Error getting server time.": 2,
+        "Could not refresh server time. Check network connection.": 2,
+        "MM volatility defense controller=demo_btc_spot state=waiting reason=guard_recovering": 1,
+        "MM volatility defense controller=demo_btc_perpetual state=waiting reason=guard_recovering": 1,
+        "MM volatility defense controller=demo_btc_spot state=reduced reason=-": 1,
+        "MM volatility defense controller=demo_btc_perpetual state=reduced reason=-": 1
+      },
+      "errors": [],
+      "non_json_lines": []
+    },
+    "initial_readonly_prelaunch": {
+      "bot_state_exists": true,
+      "admin_commands_exists": true,
+      "state_rows": [
+        {
+          "bot_id": "okx-demo-btc",
+          "desired_state": "stopped",
+          "has_session": false
+        }
+      ],
+      "pending_commands": 0
+    },
+    "observer_startup_followup": {
+      "failed_before_start": {
+        "path": "build/volatility-defense/demo/attempt-1-startup-disconnect/acceptance.json",
+        "sha256": "5ff4640b01388c052319a8dedd298f9eb589698037acd22cb5c5cea11b9f7f0a"
+      },
+      "red": {
+        "path": "build/volatility-defense/demo/startup-observer-red.log",
+        "sha256": "6c6cd482f3d6710a5f334cc5a8c6652396e36e06286b3cfd4039486df0bed900"
+      },
+      "green": {
+        "path": "build/volatility-defense/demo/startup-observer-green.log",
+        "sha256": "05f7f7d7e74af6e23fe4984046332ed347e22cf50f99a33856b9d2f589167249"
+      },
+      "red_failed": 1,
+      "green_passed": 3,
+      "scope": "Bounded GET startup probe handles a transient disconnect; no runtime, deadline, trading POST or load-budget change"
+    }
+  },
+  "limitations": [
+    "No Cloud Run staging/deployment or live LIFE acceptance",
+    "One paired diagnostic is not a general latency improvement guarantee",
+    "Synthetic one-second candle recovery is not a real one-minute candle ETA",
+    "Historical passing results retain their original image and source scope"
+  ]
+}

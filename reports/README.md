@@ -8,6 +8,7 @@ does not certify a later image. Operational guides and plans live in [docs/](../
 | Report | Associated artifact or scope |
 |---|---|
 | [LIFE / OKX progress](implementation/LIFE_OKX_PROGRESS.md) | Phase history and Red/Green verification |
+| [MM volatility defense](mm-volatility-defense.md), [evidence](mm-volatility-defense-evidence.json) | Weighted levels, reduced sizing, durable pause/recovery and current acceptance status |
 | [Admin API / dashboard UX review](admin-api-dashboard-ux-review.md) | Current contract, browser access, operator workflow gaps and proposed FE follow-up; no runtime changes |
 | [Operations API implementation](admin-operations-api-implementation.md) | YAML-only profile configuration, operator API changes and [scoped TDD/image/polling evidence](admin-operations-api-evidence.json) |
 | [Working-order activity](mm-quote-activity.md) | Per-side proposal reasons, current-order fill observations, bounded absence warnings and [read-only API evidence](mm-quote-activity-evidence.json) |

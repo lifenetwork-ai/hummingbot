@@ -765,6 +765,13 @@ Cold starts and profile transitions also begin at reduced size until fresh data
 qualifies normal sizing. Recreating a controller therefore cannot jump past the
 resume threshold inside the hysteresis band. Smaller orders can remain active
 during this qualification; no additional durable reduction record is needed.
+After qualification, smaller safe quotes can also remain until ordinary refresh.
+Normal proposal sizing does not force an immediate increase in working orders.
+
+Startup admission retains its conservative available-USDT check against the full
+declared budgets of the selected markets. Reduced quote sizing does not reduce
+that check. The BUY/SELL allocation split describes orders, not the minimum cash
+required to admit the session.
 
 At/above the stop threshold, new quotes pause and working remainders are
 cancelled. The PostgreSQL owner checkpoints a small account/environment and

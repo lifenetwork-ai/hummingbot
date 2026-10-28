@@ -1306,3 +1306,26 @@ HTTP-error result did not hide those runtime logs.
 See [report](../okx-ws-position-startup.md), [evidence](../okx-ws-position-startup-evidence.json)
 and [completed plan](../../docs/plans/OKX_WS_POSITION_STARTUP_TDD_PLAN.md). No real
 OKX, cloud deployment, hour-long release gate or multi-day uptime claim is added.
+
+## Weighted levels and volatility defense (2026-10-28; complete)
+
+- [x] Characterize upstream weighted levels and preserve disabled spread behavior.
+- [x] Implement reduced sizing, raw-NATR pause/recovery, per-level send checks and durable account-bound pause latches through existing components.
+- [x] Cover cold/profile hysteresis, Stop racing first persistence, random-step recovery, weak controller retention and single stable-tick composition with TDD.
+- [x] Publish English typed operations/status, Swagger and YAML-only policy guidance.
+- [x] Pass 1,800 native tests + 11 subtests, 237 PostgreSQL tests and a declared 72-case synthetic comparison after the fallback/own-depth availability fixes.
+- [x] Fix mutable fee-payload retention and reduce the rolling outflow GC graph with exact immutable values; pass 1,805 native tests + 11 subtests, 237 PostgreSQL tests, 72 scoped replays and all 16 current-image E2E groups.
+- [x] Reproduce API pool exhaustion with a real-PG Red test; cap API DB work at two workers while retaining request context, cancellation bounds and cleanup (`174fee57b`).
+- [x] Preserve 500-row HTTP history contracts while using Pydantic JSON directly; isolated one-CPU Linux encoding improves orders 4.780 → 3.097 ms and fills 5.976 → 3.557 ms (`dafe9387b`).
+- [x] Add operator-requested `DB_POOL_SIZE` (default 5, range 5–50, restart required), with 13 Red/Green configuration cases (`f52f6ee3f`); retain API workers 2 and zero overflow.
+- [x] Repeat final-source regression: 1,829 native tests + 11 subtests, 243 PostgreSQL tests and Swagger pass.
+- [x] Verify all 26 selected files in image `c924030a…`; pass all 16 E2E groups, upgrade/rollback and defense log audit in one invocation.
+- [x] Pass current-image unchanged warmup/mixed/burst/hour and six post-hour faults: hour 90k reads, zero errors, p99 459.19 ms, median RSS growth 11.73 MiB, matched 4,884 fills/positions. Keep failed earlier images/runs as history.
+- [x] Pass bounded BTC spot/perpetual OKX Demo: twelve independently confirmed weighted post-only quotes, both real 1m feeds advance, Stop retains positions and removes quotes; container stopped, persistent DB kept.
+- [x] Retain the first Demo startup-observer failure and its focused Red/Green correction; runtime/image/load scope is unchanged.
+
+See [current report](../mm-volatility-defense.md) and
+[ordered checklist](../../docs/plans/MM_VOLATILITY_DEFENSE_TDD_PLAN.md). The runtime
+and final V5 acceptance are complete on `f52f6ee3f` / `c924030a…`. Earlier
+images and failed observer attempts retain their original scope; no Cloud Run
+deployment, live LIFE or multi-day uptime claim is added.

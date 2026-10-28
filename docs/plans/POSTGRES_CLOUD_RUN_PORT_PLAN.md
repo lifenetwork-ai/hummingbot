@@ -216,6 +216,7 @@ Precedence for bootstrap and credential values: **existing process environment >
 |---|---|
 | `STORAGE_BACKEND` | `postgres` or `file`; explicit selection wins locally. Omitted preserves URL/Cloud Run detection, otherwise defaults to local file mode; service/Cloud Run requires PostgreSQL. |
 | `DATABASE_URL` | PostgreSQL connection URL; required for DB-dependent commands/service startup; use an explicitly supported sync driver |
+| `DB_POOL_SIZE` | Per-engine connection ceiling, default `5`, validated integer `5`–`50`; no overflow; restart required. Admin DB workers remain capped at two. Budget all instances/revisions and migration engines; see [runtime guide](../postgres-runtime.md). |
 | `ENABLE_AUTO_MIGRATION` | `true` or `false`; current code default `false`; deployment examples explicitly use `true`; controls automatic service-start migrations only |
 | `BOT_ID` | Stable identity for the logical bot; default `hummingbot` for the initial single-bot deployment |
 | `PORT` | Cloud Run supplies it; local service default `8080` |
@@ -228,6 +229,7 @@ Illustrative `.env.example` content; these values are placeholders, not actual c
 ```dotenv
 STORAGE_BACKEND=postgres
 DATABASE_URL=postgresql+psycopg2://hummingbot:replace_me@127.0.0.1:5432/hummingbot
+DB_POOL_SIZE=5
 ENABLE_AUTO_MIGRATION=true
 BOT_ID=hummingbot
 PORT=8080

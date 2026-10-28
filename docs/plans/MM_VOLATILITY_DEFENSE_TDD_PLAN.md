@@ -1,7 +1,7 @@
 # LIFE / OKX volatility defense — incremental TDD plan
 
 Date: 2026-10-28 (Asia/Ho_Chi_Minh).
-Status: V0–V4 complete; V5 image/load/Demo acceptance remains open.
+Status: V0–V5 complete; final current-image local/load and bounded OKX Demo acceptance pass.
 Evidence: [implementation report](../../reports/mm-volatility-defense.md).
 
 Improve quote protection and automatic recovery while keeping the existing
@@ -53,12 +53,14 @@ tests. That verifies the baseline only, not the additions described here.
 All policy belongs in the existing market YAML and pinned session catalogue.
 API controls remain limited to session selection/timing/Start/Stop/Switch. No API
 may override thresholds, allocations, fallback, weights or reference sources.
-No new `.env` setting is required. Do not change production budgets or enable
+No new strategy `.env` setting is required. A later operator-requested
+`DB_POOL_SIZE` controls PostgreSQL capacity only (default remains 5); it is not a
+strategy/API override. Do not change production budgets or enable
 these additions in the default LIFE catalogue as part of implementation.
 
-The following is a **proposed market fragment for deterministic tests**, not a
-complete catalogue or recommended listing policy. `defense` is not implemented
-yet. Its absence/null preserves existing spread and sizing behavior.
+The following is an **implemented market fragment for deterministic tests**, not
+a complete catalogue or recommended listing policy. Its absence/null preserves
+existing spread and sizing behavior. Final acceptance is tracked in V5 below.
 
 ```yaml
 buy_spreads: [0.004, 0.009, 0.018]
@@ -300,36 +302,45 @@ snake_case migration and document why; do not prebuild a generic persistence lay
 
 ### V5 — Local acceptance, load and final Demo compatibility
 
-- [ ] Run focused Red/Green suites, `make test-cloudrun-regression`, relevant
+The `795008ea…` artifact passed native/PG and all 16 image groups, but its full
+load attempt failed burst latency after passing warmup/mixed. The bounded Admin
+DB worker follow-up changes runtime source, so final-source regression/image
+checks were reopened. Source `f52f6ee3f` now passes 1,829 native tests + 11
+subtests, 243 PostgreSQL tests, Swagger and all 16 image E2E groups; load
+checks and final bounded OKX Demo now pass. The full unchanged load profile
+includes the sixty-minute zero-error window and all six post-hour faults.
+Prior passing and failed results retain their original scope.
+
+- [x] Run focused Red/Green suites, `make test-cloudrun-regression`, relevant
   real-PostgreSQL tests and Swagger checks against the final source.
-- [ ] Extend the existing offline simulator/image harness with deterministic
+- [x] Extend the existing offline simulator/image harness with deterministic
   volatility and lifecycle faults, real adapters/executors/recorder and independent
   fill/fee/position truth. Explicitly enable defense in fixtures and keep the
   unchanged legacy/disabled scenarios as regression coverage.
-- [ ] Build and verify one immutable deployment image against its source. Run
+- [x] Build and verify one immutable deployment image against its source. Run
   image E2E for spot-only plus perpetual/both, three levels, wait/static listing,
   slow cancellation, pause/recovery and restart. Check logs as well as HTTP errors.
-- [ ] Run a short diagnostic first, then existing mixed/burst and unchanged
+- [x] Run a short diagnostic first, then existing mixed/burst and unchanged
   sixty-minute zero-unexpected-error acceptance gates on the final image. Include
   enabled-defense transitions in additional declared windows; intentional waits
   must not reduce the offered healthy load or conceal missed requests/fills.
-- [ ] Reuse the [declared load budgets](../life-mm-load-tests.md): p95 <= 500 ms,
+- [x] Reuse the [declared load budgets](../life-mm-load-tests.md): p95 <= 500 ms,
   p99 <= 1 s, stop/cancel <= 5 s under responsive simulated exchange conditions,
   RSS <= 1.5 GiB and the existing memory/backlog/SQL budgets. Deliberately delayed
   cancellations are separate fault windows, with no replacement before proof.
-- [ ] Measure decision-to-cancel latency, rejected stale submissions, cancellation
+- [x] Measure decision-to-cancel latency, rejected stale submissions, cancellation
   churn, state/recovery correctness, task/cache retention and query counts. Recovery
   timing must account for candle completion and configured qualification; ordinary
   healthy Start/Switch budgets do not imply bypassing an active defense wait.
-- [ ] Extend existing synthetic economic replay for one-sided pressure, price
+- [x] Extend existing synthetic economic replay for one-sided pressure, price
   gaps and missing liquidity. Compare allocation, outstanding exposure, time
   paused, two-sided presence and turnover under identical assumptions; do not
   claim a better profit outcome from a synthetic fill model.
-- [ ] After local/image/load acceptance, run a bounded OKX Demo compatibility
+- [x] After local/image/load acceptance, run a bounded OKX Demo compatibility
   check on listed instruments using the existing explicit Demo configuration.
   Verify candle routing, weighted maker quotes, final size/fee checks and
   position-preserving Stop. Record unmet prerequisites as blockers, not passes.
-- [ ] Record report and sanitized JSON evidence under `reports/`, raw logs under
+- [x] Record report and sanitized JSON evidence under `reports/`, raw logs under
   ignored `build/`; update this checklist only for actually verified outcomes and
   commit the completed phase. Retain failed attempts and explain their resolution.
 

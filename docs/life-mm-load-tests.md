@@ -35,6 +35,17 @@ The optional fixture changes the expected working-level count from eight to
 twelve; offered rates, healthy error/latency budgets and full durations stay the
 same. Intentional defense fault windows do not replace healthy acceptance.
 
+With `--volatility-defense`, the full fault profile also runs a separate
+90-second window at the existing read load: reduced allocation, extreme-volatility
+pause, stale candles while paused and fresh-data recovery. It compares controlled
+volatility-input timestamps with independent first terminal-cancel acknowledgments
+(a conservative upper bound on decision-to-cancel, with the same 5-second budget
+on the responsive simulator). It separately observes the first joint pause;
+if widening has already canceled all quotes, pause-only latency is not applicable.
+It verifies durable latches/no submissions during the outage and retains filled
+exposure. This window is additional to the
+unchanged healthy mixed/burst/sixty-minute gates.
+
 `CLOUDRUN_IMAGE` selects the deployment artifact. Full profiles pin its registry
 manifest through a disposable loopback-only registry, then remove the registry.
 Probe uses its immutable image ID and cannot count as final acceptance. Reports
@@ -149,6 +160,15 @@ it is not a pure server execution measurement. Existing bounded query-count
 checks remain: order pages ≤3 SQL statements, fills and cached performance ≤1.
 
 ## Opt-in causal diagnostics
+
+For a lower-overhead GC-only diagnostic, add `--gc-diagnostics` to a probe:
+`python scripts/test_mm_load.py --profile probe --probe-seconds 300 --enhancements --volatility-defense --operations --gc-diagnostics`.
+The mounted test wrapper retains at most 128 generation-two collection timings,
+including wall and collecting-thread CPU time, in runtime metrics. It does not
+record object references, enable span tracing or change GC policy/thresholds.
+This is test instrumentation; it adds no production environment setting or API.
+Compare identical workloads and keep diagnostic results separate from full
+untraced release acceptance.
 
 ```sh
 make test-mm-load MM_LOAD_PROFILE=mixed MM_LOAD_TRACE=true

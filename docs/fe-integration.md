@@ -68,6 +68,10 @@ API commands control sessions. Maintainers change strategy/profile settings in
 YAML and service settings in the process environment. No API edits or overrides
 either file, including an override equal to YAML or set to null.
 
+`DB_POOL_SIZE` is an environment-only PostgreSQL pool ceiling (default 5, range
+5–50), applied after restart. It is not exposed as an editable FE setting or API
+override. Admin database concurrency remains capped at two workers.
+
 ### What can change, and when
 
 | Setting | Source of truth | API editable? | When a change applies |
@@ -369,6 +373,9 @@ Use the returned `label`, `next_action`, `reason_code` and global operator state
 the clamped spread multiplier. Money/factors remain Decimal strings and times
 remain UTC. `effective_allocation_quote` describes the current proposal budget;
 it is not remaining wallet cash, cumulative session spending or maximum loss.
+Startup still applies the existing conservative check of full declared selected
+market budgets against available USDT. The BUY/SELL split or reduced allocation
+does not lower that admission requirement.
 Show `cancellation_pending` separately from observed working orders: a request to
 cancel does not prove that orders have disappeared. Null means unknown.
 
@@ -391,6 +398,11 @@ replacement waits for recovery so it cannot repeatedly reset qualification.
 The displayed step may have expired while quotes remain blocked: send authority
 has still expired, and elapsed random windows are skipped on recovery. Explicit
 Stop/Switch and overall session expiry remain effective.
+
+`normal` permits normal sizing for new proposals. Existing smaller safe orders
+may remain until ordinary refresh; it does not promise that current working
+orders instantly consume the full proposal budget. Show observed order amounts
+alongside the policy state.
 
 ## Session command workflow
 
