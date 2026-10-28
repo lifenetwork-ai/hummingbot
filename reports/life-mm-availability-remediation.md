@@ -9,7 +9,7 @@ live trading is part of this work. Retain the original audit/probe evidence.
 - [x] AUD-003: Bound established DB I/O and prove fenced recovery under response loss.
 - [x] AUD-004: Bound API admission and prioritize control without increasing DB concurrency.
 - [x] AUD-005: Supervise the required executor-action consumer.
-- [ ] Re-run regression, real PostgreSQL, Swagger and a newly verified immutable image.
+- [x] Re-run regression, real PostgreSQL, Swagger and a newly verified immutable image (all 16 E2E groups).
 - [ ] Re-run the unchanged healthy/fault load gates on the final source/image.
 
 Each fix records Red/Green before its local commit. Prior image/load results remain
@@ -87,7 +87,9 @@ The initial failure is retained in `postgres-setup-green.log` (a failed attempt,
 despite its original filename); current results are in `postgres.log`.
 
 Image `be3efe46…` matches all 29 selected source files and is pinned to a local
-registry manifest; image E2E and unchanged load acceptance remain pending. No real exchange
+registry manifest. All 16 image E2E groups pass in one invocation, including
+compatible-image takeover/rollback against `c924030a…`. The unchanged load
+acceptance remains pending. No real exchange
 requests, Demo bot restart, cloud deployment or persistent Demo DB changes were
 performed. Driver stalls are bounded per operation; pool checkout, initial
 connection and reconnect attempts retain separate budgets. Mandatory persistence
@@ -106,3 +108,23 @@ pass. Raw logs: `aud004-burst-red.log` / `aud004-burst-green.log`.
 The first image `e8bb8897…` E2E invocation was deliberately interrupted after
 finding this incompatibility; its partial passes do not count as final
 acceptance. Retain its artifacts and repeat verification on the corrected image.
+
+## New-image load verification (in progress)
+
+All results below bind image `be3efe46…`, pool size five, two API DB workers,
+100k historical orders/fills and the unchanged enabled-feature workload.
+The separate diagnostic probe and all six preflight faults pass. The structured
+ERROR review of all 16 E2E groups classifies 55 records within explicitly induced
+schema, ownership, recorder, valuation or final-send-rejection fixtures; no
+unclassified message type was found.
+
+| Healthy window | Seconds | Read p95 | Read p99 | Unexpected errors |
+|---|---:|---:|---:|---:|
+| Warmup | 300 | 101.31 ms | 431.32 ms | 0 |
+| Mixed | 900 | 89.27 ms | 398.01 ms | 0 |
+| Burst | 90 | 103.63 ms | 394.60 ms | 0 |
+
+Burst verifies ten matching idempotent retries and ten expected stale-version
+conflicts; actual Stop takes 0.594s. These are healthy-window results, separate
+from the adverse seven-slow-reads priority test. The sixty-minute soak and
+post-hour fault verification remain open.

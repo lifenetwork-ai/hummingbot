@@ -1338,6 +1338,8 @@ and required executor-consumer supervision. The existing ten-retry burst remains
 admissible with 32 total/12 reporting slots and two physical workers. Final-source
 native regression passes 1,851 tests plus 11 subtests; PostgreSQL passes 257 tests
 and Swagger passes. Artifact `be3efe46…` matches 29 selected files on `04cca6caf`.
-Image E2E and unchanged load gates remain pending; see the canonical
+All 16 image E2E groups pass in one invocation, including predecessor
+takeover/rollback. The short diagnostic passes (p95 151 ms, p99 498 ms); unchanged
+load gates remain pending. See the canonical
 [remediation checklist](../life-mm-availability-remediation.md) and
 [portable evidence](../life-mm-availability-remediation-evidence.json).

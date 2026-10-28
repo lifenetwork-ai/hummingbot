@@ -63,6 +63,369 @@
     "source_commit": "04cca6caf",
     "harness_commit": "04cca6cafd391d0be5216d7af4be3f42bca3a014"
   },
+  "image_gates": {
+    "e2e": {
+      "exit_code": 0,
+      "result_path": "build/e2e-offline/20261029-005631-e305e0/result.json",
+      "image_id": "sha256:be3efe46695f7dfc4b6a4b999d0552c35bbd5e6df6a3d2823fa7fcec03447899",
+      "passed": true,
+      "result_sha256": "836ecd9be2171453905db999d96107fcab775f6e146781846485fe87c766ac15"
+    },
+    "probe": {
+      "exit_code": 0,
+      "result_path": "/Users/deeznuts/hummingbot/build/mm-load/20261029-012025-a46d15/result.json",
+      "image_id": "sha256:be3efe46695f7dfc4b6a4b999d0552c35bbd5e6df6a3d2823fa7fcec03447899",
+      "passed": true,
+      "result_sha256": "6e84aa91adeffdd15d02053b17ee9b79593ff0746c78dd1c17e54ed4805673c0",
+      "windows": {
+        "probe": {
+          "duration_seconds": 60,
+          "requested_reads": 1200,
+          "completed_reads": 1200,
+          "unexpected_errors": 0,
+          "read_p95_ms": 151.16935700643808,
+          "read_p99_ms": 497.7347730018664,
+          "statuses": {
+            "200": 1200
+          },
+          "peak_rss_bytes": 439533568,
+          "backlog_drain_seconds": 0.0038848330004839227,
+          "queued_reads_at_generation_end": 0,
+          "command_seconds": {
+            "start": 7.249284042045474,
+            "switch": 6.512340083019808,
+            "stop": 2.0187175839673728
+          },
+          "command_accept_p95_ms": 19.612124990089796,
+          "command_accept_p99_ms": 19.612124990089796,
+          "market_updates_per_second": 99.9995902298638,
+          "fills_per_second": 1.0,
+          "ledger": {
+            "unique_exchange_fills": 60,
+            "unique_recorder_fills": 60,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "violations": [],
+          "auxiliary": {
+            "requested_reads": 300,
+            "completed_reads": 300,
+            "read_p95_ms": 109.53560599591583,
+            "read_p99_ms": 529.1446519986494,
+            "statuses": {
+              "200": 300
+            }
+          },
+          "runtime": {
+            "memory": {
+              "VmHWM": 439533568,
+              "VmRSS": 439533568
+            },
+            "pool_size": 5,
+            "checked_out": 3,
+            "held_executor_count": 0,
+            "positions_unsettled": false,
+            "runtime_phase": "running",
+            "resident_executor_count": 0
+          }
+        }
+      },
+      "faults": {},
+      "scope": {
+        "profile": "probe",
+        "diagnostic": true,
+        "tracing": false,
+        "history_orders": 100000,
+        "history_fills": 100000,
+        "bot_limits": {
+          "cpus": 1,
+          "memory_bytes": 2147483648
+        },
+        "postgres_limits": {
+          "cpus": 2,
+          "memory_bytes": 536870912
+        },
+        "client_limits": {
+          "cpus": 1,
+          "memory_bytes": 536870912
+        },
+        "enhancements": true,
+        "volatility_defense": true,
+        "operations_reads_per_second": 3,
+        "command_receipt_transport_retries": 0
+      }
+    },
+    "fault-preflight": {
+      "exit_code": 0,
+      "result_path": "/Users/deeznuts/hummingbot/build/mm-load/20261029-012232-dbabee/result.json",
+      "image_id": "sha256:be3efe46695f7dfc4b6a4b999d0552c35bbd5e6df6a3d2823fa7fcec03447899",
+      "passed": true,
+      "result_sha256": "fc489792f77cf615356a025392c4f52f73aa57fd020a648903e70bda4c2204c5",
+      "windows": {},
+      "faults": {
+        "feed": {
+          "duration_seconds": 45,
+          "requested_reads": 900,
+          "completed_reads": 900,
+          "unexpected_errors": 0,
+          "read_p95_ms": 82.5597600050969,
+          "read_p99_ms": 413.35767701093573,
+          "statuses": {
+            "200": 900
+          },
+          "peak_rss_bytes": 440901632,
+          "backlog_drain_seconds": 0.21087450000050012,
+          "queued_reads_at_generation_end": 0,
+          "command_accept_p95_ms": null,
+          "command_accept_p99_ms": null,
+          "market_updates_per_second": 92.78158251433395,
+          "fills_per_second": 0.0,
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "auxiliary": {
+            "requested_reads": 90,
+            "completed_reads": 90,
+            "read_p95_ms": 68.01900200662203,
+            "read_p99_ms": 521.2768030032748,
+            "statuses": {
+              "200": 90
+            }
+          },
+          "runtime": {
+            "memory": {
+              "VmHWM": 440901632,
+              "VmRSS": 440901632
+            },
+            "pool_size": 5,
+            "checked_out": 2,
+            "held_executor_count": 0,
+            "positions_unsettled": false,
+            "runtime_phase": "running",
+            "resident_executor_count": 12
+          }
+        },
+        "volatility-defense": {
+          "duration_seconds": 90,
+          "requested_reads": 1800,
+          "completed_reads": 1800,
+          "unexpected_errors": 0,
+          "read_p95_ms": 97.9382160003297,
+          "read_p99_ms": 431.69379999744706,
+          "statuses": {
+            "200": 1800
+          },
+          "peak_rss_bytes": 441425920,
+          "backlog_drain_seconds": 0.013387125000008382,
+          "queued_reads_at_generation_end": 0,
+          "command_accept_p95_ms": null,
+          "command_accept_p99_ms": null,
+          "market_updates_per_second": 100.01542593939634,
+          "fills_per_second": 0.0,
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "auxiliary": {
+            "requested_reads": 180,
+            "completed_reads": 180,
+            "read_p95_ms": 47.28854799759574,
+            "read_p99_ms": 417.4134380009491,
+            "statuses": {
+              "200": 180
+            }
+          },
+          "runtime": {
+            "memory": {
+              "VmHWM": 441425920,
+              "VmRSS": 441425920
+            },
+            "pool_size": 5,
+            "checked_out": 1,
+            "held_executor_count": 0,
+            "positions_unsettled": false,
+            "runtime_phase": "running",
+            "resident_executor_count": 20
+          }
+        },
+        "owner-restart": {
+          "duration_seconds": 45,
+          "requested_reads": 900,
+          "completed_reads": 900,
+          "unexpected_errors": 222,
+          "read_p95_ms": 492.0540090097347,
+          "read_p99_ms": 1134.910549997585,
+          "statuses": {
+            "200": 698
+          },
+          "peak_rss_bytes": 383021056,
+          "backlog_drain_seconds": 0.016423583001596853,
+          "queued_reads_at_generation_end": 0,
+          "command_accept_p95_ms": null,
+          "command_accept_p99_ms": null,
+          "market_updates_per_second": 74.218846398492,
+          "fills_per_second": 0.0,
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "auxiliary": {
+            "requested_reads": 90,
+            "completed_reads": 90,
+            "read_p95_ms": 448.1770940037677,
+            "read_p99_ms": 1181.31967500085,
+            "statuses": {
+              "200": 70
+            }
+          },
+          "runtime": {
+            "memory": {
+              "VmHWM": 383021056,
+              "VmRSS": 383021056
+            },
+            "pool_size": 5,
+            "checked_out": 1,
+            "held_executor_count": 0,
+            "positions_unsettled": false,
+            "runtime_phase": "running",
+            "resident_executor_count": 0
+          }
+        },
+        "queued-expiry": {
+          "duration_seconds": 75,
+          "requested_reads": 1500,
+          "completed_reads": 1500,
+          "unexpected_errors": 0,
+          "read_p95_ms": 412.43278099864256,
+          "read_p99_ms": 2073.2558599993354,
+          "statuses": {
+            "200": 1500
+          },
+          "peak_rss_bytes": 387481600,
+          "backlog_drain_seconds": 0.014061416004551575,
+          "queued_reads_at_generation_end": 0,
+          "command_accept_p95_ms": null,
+          "command_accept_p99_ms": null,
+          "market_updates_per_second": 98.8615140428541,
+          "fills_per_second": 0.0,
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "auxiliary": {
+            "requested_reads": 150,
+            "completed_reads": 150,
+            "read_p95_ms": 226.73271299572662,
+            "read_p99_ms": 2096.2783610011684,
+            "statuses": {
+              "200": 150
+            }
+          },
+          "runtime": {
+            "memory": {
+              "VmHWM": 387481600,
+              "VmRSS": 387481600
+            },
+            "pool_size": 5,
+            "checked_out": 1,
+            "runtime_phase": "stopped",
+            "resident_executor_count": 0
+          }
+        },
+        "database-delay": {
+          "duration_seconds": 45,
+          "requested_reads": 900,
+          "completed_reads": 900,
+          "unexpected_errors": 217,
+          "read_p95_ms": 496.50147699867375,
+          "read_p99_ms": 1269.8687119991519,
+          "statuses": {
+            "200": 703
+          },
+          "peak_rss_bytes": 325783552,
+          "backlog_drain_seconds": 0.013724624994210899,
+          "queued_reads_at_generation_end": 0,
+          "command_accept_p95_ms": null,
+          "command_accept_p99_ms": null,
+          "market_updates_per_second": 25.428280498536022,
+          "fills_per_second": 0.0,
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "auxiliary": {
+            "requested_reads": 90,
+            "completed_reads": 90,
+            "read_p95_ms": 509.1172539978288,
+            "read_p99_ms": 1220.4962539981352,
+            "statuses": {
+              "200": 70
+            }
+          },
+          "runtime": {
+            "memory": {
+              "VmHWM": 325783552,
+              "VmRSS": 325783552
+            },
+            "pool_size": 5,
+            "checked_out": 3,
+            "runtime_phase": "halted",
+            "resident_executor_count": 0
+          }
+        },
+        "database-failure": {
+          "duration_seconds": 45,
+          "requested_reads": 900,
+          "completed_reads": 900,
+          "unexpected_errors": 261,
+          "read_p95_ms": 427.626221004175,
+          "read_p99_ms": 1004.0441769961035,
+          "statuses": {
+            "200": 663,
+            "503": 7
+          },
+          "peak_rss_bytes": 325357568,
+          "backlog_drain_seconds": 0.01696004200493917,
+          "queued_reads_at_generation_end": 0,
+          "command_accept_p95_ms": null,
+          "command_accept_p99_ms": null,
+          "market_updates_per_second": 32.53120695633666,
+          "fills_per_second": 0.0,
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "auxiliary": {
+            "requested_reads": 90,
+            "completed_reads": 90,
+            "read_p95_ms": 396.0797530016862,
+            "read_p99_ms": 1017.1719240024686,
+            "statuses": {
+              "200": 66,
+              "503": 1
+            }
+          },
+          "runtime": {
+            "memory": {
+              "VmHWM": 325357568,
+              "VmRSS": 325357568
+            },
+            "pool_size": 5,
+            "checked_out": 1,
+            "runtime_phase": "halted",
+            "resident_executor_count": 0
+          }
+        }
+      },
+      "scope": {
+        "profile": "faults",
+        "diagnostic": true,
+        "tracing": false,
+        "history_orders": 100000,
+        "history_fills": 100000,
+        "bot_limits": {
+          "cpus": 1,
+          "memory_bytes": 2147483648
+        },
+        "postgres_limits": {
+          "cpus": 2,
+          "memory_bytes": 536870912
+        },
+        "client_limits": {
+          "cpus": 1,
+          "memory_bytes": 536870912
+        },
+        "enhancements": true,
+        "volatility_defense": true,
+        "operations_reads_per_second": 3,
+        "command_receipt_transport_retries": 0
+      }
+    }
+  },
   "raw_log_sha256": {
     "aud004-burst-red.log": "47b3943daf986282d2ce79905407b00dde6ba946a089833989d36f893d5d929b",
     "aud004-burst-green.log": "39587fab248577d4bd0217bc9a421aa5ba5bb43acadcd83b7d5b1da2df5873ee",
@@ -84,5 +447,350 @@
     "regression.log": "293818f568b8f8d59a1abcb9160407af99efc6c62ea7015c83d5d5ab97faa183",
     "postgres.log": "5af7e3f0d227e307c1076952a77130dc8e679e156bd22105c8b25b9f505b3521",
     "swagger.log": "73aa40e366acedf5cbdfc288fe5aa6b4f733bd07b21acb1141d9a519cbc718b4"
+  },
+  "e2e": {
+    "passed": true,
+    "release_scope_complete": true,
+    "scenario_passes": {
+      "schema": true,
+      "spot": true,
+      "v2-spot": true,
+      "v2-perpetual": true,
+      "life-mm": true,
+      "until-stopped": true,
+      "funding": true,
+      "availability": true,
+      "quote-guards": true,
+      "drawdown": true,
+      "spot-outflow": true,
+      "listing-bootstrap": true,
+      "inventory-skew": true,
+      "spread-policy": true,
+      "volatility-defense": true,
+      "upgrade": true
+    },
+    "runtime_smoke": {
+      "passed": true,
+      "numba_jit": true,
+      "ta_lib": true,
+      "tls_trust": true,
+      "connector_count": 63,
+      "sql_scripts": 17,
+      "build_tools_absent": true,
+      "cli_version": "hbot 2.17.0",
+      "environment_bytes": 1266556462,
+      "service_logging": {
+        "passed": true,
+        "all_severities": true,
+        "network_warning": true,
+        "utc_context": true,
+        "redaction": true,
+        "startup_failure_json": true,
+        "python_warning_json": true,
+        "sql_parameters_suppressed": true
+      }
+    }
+  },
+  "e2e_log_review": {
+    "scope": "Structured ERROR/CRITICAL records in application logs of all 16 E2E groups",
+    "rows": [
+      {
+        "group": "spot-outflow",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.executors.position_executor.position_executor",
+        "message": "Open order failed 93027a12dac34fBCBLEUT5bf6a4bb4e7. Retrying 0/10",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot-outflow",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.executors.position_executor.position_executor",
+        "message": "Open order failed 93027a12dac34fBCBLEUT9a676deed37. Retrying 1/10",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot-outflow",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.executors.position_executor.position_executor",
+        "message": "Open order failed 93027a12dac34fBCBLEUT3a7fb6a337e. Retrying 2/10",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot-outflow",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.executors.position_executor.position_executor",
+        "message": "Open order failed 93027a12dac34fBCBLEUT7ce5fe140f8. Retrying 3/10",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot-outflow",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.executors.position_executor.position_executor",
+        "message": "Open order failed 93027a12dac34fBCBLEUT03781fce225. Retrying 4/10",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot-outflow",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.executors.position_executor.position_executor",
+        "message": "Open order failed 93027a12dac34fBCBLEUT45e8374cfea. Retrying 5/10",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot-outflow",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.executors.position_executor.position_executor",
+        "message": "Open order failed 93027a12dac34fBCBLEUT33a046b276b. Retrying 0/10",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot-outflow",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.executors.position_executor.position_executor",
+        "message": "Open order failed 93027a12dac34fBCBLEUT54e5675a8ae. Retrying 1/10",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot-outflow",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.executors.position_executor.position_executor",
+        "message": "Open order failed 93027a12dac34fBCBLEUT10f5558b217. Retrying 2/10",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "life-mm",
+        "event": "service_failed",
+        "logger": "__main__",
+        "message": "Service stopped reason=ownership_lost type=OwnershipLost",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "life-mm",
+        "event": null,
+        "logger": "__main__",
+        "message": "Service cleanup incomplete; ownership retained until process exit.",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "life-mm",
+        "event": null,
+        "logger": "hummingbot.core.trading_core",
+        "message": "Error starting strategy execution: Reconciliation ran, but prior unresolved effects still require operator recovery.",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "life-mm",
+        "event": null,
+        "logger": "hummingbot.core.trading_core",
+        "message": "Failed to start strategy v2_with_controllers: Reconciliation ran, but prior unresolved effects still require operator recovery.",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "schema",
+        "event": "service_failed",
+        "logger": "__main__",
+        "message": "Service stopped reason=service_internal_failure type=PostgreSQLBootstrapError",
+        "count": 2,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "schema",
+        "event": "service_failed",
+        "logger": "__main__",
+        "message": "Service stopped reason=service_internal_failure type=RuntimeConfigurationError",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "quote-guards",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.executors.position_executor.position_executor",
+        "message": "Open order failed 93027a12dac34fBCBLEUTac9e096b489. Retrying 0/10",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "quote-guards",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.executors.position_executor.position_executor",
+        "message": "Open order failed 93027a12dac34fBCBLEUT24fc69ba0f3. Retrying 0/10",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "quote-guards",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.executors.position_executor.position_executor",
+        "message": "Open order failed 93027a12dac34fBCSLEUT3d7cffefc20. Retrying 0/10",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "quote-guards",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.executors.position_executor.position_executor",
+        "message": "Open order failed 93027a12dac34fBCSLEUT94f7ea87be0. Retrying 0/10",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "availability",
+        "event": null,
+        "logger": "hummingbot.strategy_v2.runnable_base",
+        "message": "offline injected controller failure",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "availability",
+        "event": "service_incident",
+        "logger": "hummingbot.cli.service_availability",
+        "message": "Service incident scope=runtime reason=controller_task_failed type=- operator=True",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "funding",
+        "event": "service_failed",
+        "logger": "__main__",
+        "message": "Service stopped reason=ownership_lost type=OwnershipLost",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "funding",
+        "event": null,
+        "logger": "__main__",
+        "message": "Service cleanup incomplete; ownership retained until process exit.",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "drawdown",
+        "event": "service_incident",
+        "logger": "hummingbot.cli.service_availability",
+        "message": "Service incident scope=drawdown reason=drawdown_global_limit type=- operator=True",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "drawdown",
+        "event": null,
+        "logger": "hummingbot.strategy.strategy_v2_base",
+        "message": "Error updating controller reports: drawdown_valuation_unavailable",
+        "count": 4,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "drawdown",
+        "event": null,
+        "logger": "hummingbot.core.trading_core",
+        "message": "Error starting strategy execution: Reconciliation ran, but prior unresolved effects still require operator recovery.",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "drawdown",
+        "event": null,
+        "logger": "hummingbot.core.trading_core",
+        "message": "Failed to start strategy v2_with_controllers: Reconciliation ran, but prior unresolved effects still require operator recovery.",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot",
+        "event": null,
+        "logger": "hummingbot.core.trading_core",
+        "message": "Error starting strategy execution: Reconciliation ran, but prior unresolved effects still require operator recovery.",
+        "count": 4,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot",
+        "event": null,
+        "logger": "hummingbot.core.trading_core",
+        "message": "Failed to start strategy pure_market_making: Reconciliation ran, but prior unresolved effects still require operator recovery.",
+        "count": 4,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot",
+        "event": null,
+        "logger": "root",
+        "message": "Failed to start strategy",
+        "count": 4,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot",
+        "event": null,
+        "logger": "hummingbot.connector.exchange.okx.okx_exchange.OkxExchange",
+        "message": "Unexpected error while processing event 107.",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot",
+        "event": null,
+        "logger": "hummingbot.connector.exchange.okx.okx_exchange.OkxExchange",
+        "message": "Unexpected error while processing event 106.",
+        "count": 2,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot",
+        "event": null,
+        "logger": "hummingbot.core.trading_core",
+        "message": "Error during shutdown: Persistence failed; ownership and exchange reconciliation are required before new orders.",
+        "count": 2,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot",
+        "event": "service_failed",
+        "logger": "__main__",
+        "message": "Service stopped reason=service_internal_failure type=RuntimeError",
+        "count": 1,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot",
+        "event": "service_failed",
+        "logger": "__main__",
+        "message": "Service stopped reason=ownership_lost type=OwnershipLost",
+        "count": 2,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot",
+        "event": null,
+        "logger": "__main__",
+        "message": "Service cleanup incomplete; ownership retained until process exit.",
+        "count": 2,
+        "expected_fault_fixture": true
+      },
+      {
+        "group": "spot",
+        "event": null,
+        "logger": "hummingbot.connector.exchange.okx.okx_exchange.OkxExchange",
+        "message": "Unexpected error while processing event 198.",
+        "count": 2,
+        "expected_fault_fixture": true
+      }
+    ],
+    "unclassified": []
   }
 }
