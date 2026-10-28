@@ -1336,10 +1336,16 @@ Five audited findings have focused TDD fixes: shutdown send fencing, optional
 statement isolation, established DB I/O deadlines, bounded priority API admission
 and required executor-consumer supervision. The existing ten-retry burst remains
 admissible with 32 total/12 reporting slots and two physical workers. Final-source
-native regression passes 1,851 tests plus 11 subtests; PostgreSQL passes 257 tests
+native regression passes 1,857 tests plus 11 subtests (including six subsequent
+harness-continuity tests); PostgreSQL passes 257 tests
 and Swagger passes. Artifact `be3efe46…` matches 29 selected files on `04cca6caf`.
 All 16 image E2E groups pass in one invocation, including predecessor
 takeover/rollback. The short diagnostic passes (p95 151 ms, p99 498 ms); unchanged
-load gates remain pending. See the canonical
+warmup/mixed/burst and six preflight faults pass. The continuous final soak was
+interrupted by macOS Clamshell Sleep at 02:35; its 966.889s sample gap is retained
+and is not accepted as a continuous hour. The host-side acceptance gate now rejects
+gaps/reversed/missing/non-finite timestamps (six Red cases, ten focused Green).
+The final uninterrupted load/post-hour gate remains pending a lid-open host.
+See the canonical
 [remediation checklist](../life-mm-availability-remediation.md) and
 [portable evidence](../life-mm-availability-remediation-evidence.json).

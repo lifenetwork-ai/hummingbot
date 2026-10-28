@@ -1,3 +1,5 @@
+import pytest
+
 from scripts.mm_load_budgets import soak_violations, violations
 
 
@@ -26,10 +28,11 @@ def test_failures_cannot_be_hidden_by_low_achieved_rate_or_missing_measurements(
 
 def test_soak_requires_late_samples_and_rejects_sustained_resource_growth():
     sample = dict(memory={"VmRSS": 300_000_000}, latest={"book_backlog": 1}, distributions={"pool_checkout_ms": {"p95": 1}})
-    assert soak_violations([sample] * 59) == []
+    rows = [{**sample, 'at': 60 * (index + 1)} for index in range(59)]
+    assert soak_violations(rows) == []
     assert soak_violations([sample] * 2) == ["missing_minute_samples"]
     grown = dict(memory={"VmRSS": 500_000_000}, latest={"book_backlog": 100}, distributions={"pool_checkout_ms": {"p95": 100}})
-    assert set(soak_violations([sample] * 50 + [grown] * 9)) == {"rss_growth", "book_queue_growth", "pool_wait_growth"}
+    assert set(soak_violations(rows[:50] + [{**grown, 'at': row['at']} for row in rows[50:]])) == {"rss_growth", "book_queue_growth", "pool_wait_growth"}
 
 
 def test_auxiliary_history_reads_add_load_without_weakening_original_budgets():
@@ -38,3 +41,20 @@ def test_auxiliary_history_reads_add_load_without_weakening_original_budgets():
     assert 'auxiliary_reads' in violations({**healthy(), 'auxiliary': {**extra, 'completed_reads': 1799}})
     assert 'auxiliary_read_p99' in violations({**healthy(), 'auxiliary': {**extra, 'read_p99_ms': 1001}})
     assert 'read_p99' in violations({**healthy(), 'read_p99_ms': 1001, 'auxiliary': extra})
+
+
+@pytest.mark.parametrize('fault', ['sleep_gap', 'backwards', 'missing', 'nan', 'infinite', 'boolean'])
+def test_soak_cannot_accept_discontinuous_or_unverifiable_minute_samples(fault):
+    rows = [dict(at=60 * (index + 1), memory={'VmRSS': 300_000_000}, latest={'book_backlog': 1},
+                 distributions={'pool_checkout_ms': {'p95': 1}}) for index in range(59)]
+    if fault == 'sleep_gap':
+        # A suspended host can still eventually collect 59 samples of active time.
+        for row in rows[30:]:
+            row['at'] += 900
+    elif fault == 'backwards':
+        rows[30]['at'] = rows[29]['at'] - 1
+    elif fault == 'missing':
+        rows[30].pop('at')
+    else:
+        rows[30]['at'] = {'nan': float('nan'), 'infinite': float('inf'), 'boolean': True}[fault]
+    assert 'sampling_continuity' in soak_violations(rows)

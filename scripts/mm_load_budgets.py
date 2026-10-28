@@ -40,7 +40,15 @@ def soak_violations(samples):
     if len(samples) < 55:
         return ["missing_minute_samples"]
     first, last = samples[:5], samples[-5:]
+    times = [row.get("at") for row in samples]
+    continuous = all(isinstance(stamp, (int, float)) and not isinstance(stamp, bool) and math.isfinite(stamp)
+                     for stamp in times)
+    if continuous:
+        # A suspended host can eventually collect enough active-time samples.
+        # Their wall-clock cadence must also prove one continuous hour.
+        continuous = all(0 < right - left <= 90 for left, right in zip(times, times[1:]))
     checks = {
+        "sampling_continuity": continuous,
         "runtime_halt": not any(row.get("runtime_phase") == "halted" for row in samples),
         "rss_growth": median(row["memory"]["VmRSS"] for row in last) <= median(row["memory"]["VmRSS"] for row in first) + 64 * 1024**2,
         "book_queue_growth": median(row["latest"].get("book_backlog", 0) for row in last) <= max(10, median(row["latest"].get("book_backlog", 0) for row in first) + 4),

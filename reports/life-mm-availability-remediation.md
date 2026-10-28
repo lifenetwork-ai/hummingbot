@@ -4,12 +4,16 @@ Baseline audit: [five findings](life-mm-availability-audit.md). No cloud deploym
 live trading is part of this work. Retain the original audit/probe evidence.
 [Portable verification summary](life-mm-availability-remediation-evidence.json).
 
+Status: source fixes complete; final continuous load acceptance remains open
+after an observed host clamshell-sleep interruption.
+
 - [x] AUD-001: Immediately fence shutdown new orders/account setup; preserve cancels.
 - [x] AUD-002: Isolate optional PostgreSQL statement/lock failures; preserve mandatory failures.
 - [x] AUD-003: Bound established DB I/O and prove fenced recovery under response loss.
 - [x] AUD-004: Bound API admission and prioritize control without increasing DB concurrency.
 - [x] AUD-005: Supervise the required executor-action consumer.
 - [x] Re-run regression, real PostgreSQL, Swagger and a newly verified immutable image (all 16 E2E groups).
+- [x] Reject discontinuous or unverifiable soak timestamps with Red/Green coverage.
 - [ ] Re-run the unchanged healthy/fault load gates on the final source/image.
 
 Each fix records Red/Green before its local commit. Prior image/load results remain
@@ -77,7 +81,8 @@ not create an operator incident. Raw logs: `aud005-red.log` / `aud005-green.log`
 
 ## Final-source verification (in progress)
 
-`make test-cloudrun-regression`: 1,851 passed plus 11 subtests on `04cca6caf`.
+`make test-cloudrun-regression`: 1,857 passed plus 11 subtests, including six
+additional harness-continuity cases. Bot runtime source remains `04cca6caf`.
 Full disposable PostgreSQL suite: 257 passed. Swagger check passes.
 The first full PG run exposed historical bulk-fixture operations with explicit
 30/60s SQL budgets but no corresponding client budget. Only those seed/baseline
@@ -128,3 +133,30 @@ Burst verifies ten matching idempotent retries and ten expected stale-version
 conflicts; actual Stop takes 0.594s. These are healthy-window results, separate
 from the adverse seven-slow-reads priority test. The sixty-minute soak and
 post-hour fault verification remain open.
+
+### Host interruption and acceptance continuity
+
+macOS records **Clamshell Sleep at 02:35:00 +0700 on 2026-10-29**. The run
+`build/mm-load/20261029-013006-02b737` contains a **966.889s** gap between
+minute samples. It was explicitly interrupted and cleaned up with 48 measured
+samples; it is not accepted as a continuous hour and is not classified as a bot
+runtime defect. Earlier warmup/mixed/burst results retain their declared scope.
+No post-hour faults were claimed for this interrupted run.
+
+Red: six synthetic gap/reversed/missing/NaN/infinite/boolean timestamp cases were
+incorrectly accepted. Green: ten focused budget tests pass. The gate now requires
+finite, strictly increasing timestamps with no gap over 90s, in addition to the
+existing minimum 55 samples and unchanged workload/latency/error/resource limits.
+An explicit replay retaining the observed real gap plus synthetic continuation
+to 59 samples is rejected as `sampling_continuity`; that continuation is a
+diagnostic, not additional measured runtime. Full native regression and Swagger
+pass after this host-side harness change; the application image is unchanged.
+Raw evidence: `interrupted-soak.json`, `continuity-red.log`,
+`continuity-green.log` and `regression-continuity.log` under
+`build/availability-fixes/`.
+
+The lid was still closed when inspected; a clarification is pending. Keep the
+Mac open/on power for the next uninterrupted full gate. A foreground `caffeinate`
+session can prevent idle sleep but is not used as proof that no lid closure or
+sample gap occurred. There is no active bot/test container; the persistent Demo
+PostgreSQL remains untouched.

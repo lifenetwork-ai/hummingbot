@@ -5,6 +5,15 @@ results and measured fixes are in [the load report](../reports/life-mm-load-test
 
 Run with the compiled environment and Docker available:
 
+Keep the host awake for continuous acceptance (on a Mac, leave the lid open and
+connect power). Run a sleep assertion in a foreground tool/session tied to the
+gate process; a detached child may be cleaned up when its launcher exits.
+A sixty-minute soak needs at least 55 valid minute samples with strictly
+increasing finite wall-clock timestamps and no gap over 90 seconds. Host sleep,
+clock reversal or missing timestamps invalidate that acceptance even if enough
+active-time samples are eventually collected. This adds a continuity check;
+offered rates, durations, latency/error and resource budgets remain unchanged.
+
 ```sh
 make build-cloudrun
 make test-mm-load
