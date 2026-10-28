@@ -13,7 +13,7 @@ import time
 import unittest
 from collections import deque
 from test.isolated_asyncio_wrapper_test_case import IsolatedAsyncioWrapperTestCase
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 
@@ -579,6 +579,43 @@ class OrderBookTrackerMetricsIntegrationTests(IsolatedAsyncioWrapperTestCase):
 
         self.assertTrue(result)
         self.assertNotIn("SOL-USDT", tracker.metrics.per_pair_metrics)
+
+
+class OrderBookTrackerLastPriceTests(IsolatedAsyncioWrapperTestCase):
+    async def check_rest_result(self, *, retire_during_request):
+        source = MagicMock(spec=OrderBookTrackerDataSource)
+        tracker = OrderBookTracker(source, ['BTC-USDT'])
+        book = OrderBook()
+        tracker._order_books['BTC-USDT'] = book
+        retired = OrderBook()
+        retired.last_trade_price_rest_updated = 0
+        if retire_during_request:
+            tracker._order_books['ETH-USDT'] = retired
+        tracker._order_books_initialized.set()
+
+        async def prices(**kwargs):
+            if retire_during_request:
+                tracker._order_books.pop('ETH-USDT')
+            return {'ETH-USDT': 2000.0, 'BTC-USDT': 100.0}
+
+        source.get_last_traded_prices = AsyncMock(side_effect=prices)
+        logger = MagicMock()
+        with patch.object(OrderBookTracker, 'logger', return_value=logger), \
+                patch('hummingbot.core.data_type.order_book_tracker.time.perf_counter', return_value=1000), \
+                patch('hummingbot.core.data_type.order_book_tracker.asyncio.sleep', new=AsyncMock(side_effect=asyncio.CancelledError)):
+            with self.assertRaises(asyncio.CancelledError):
+                await tracker._update_last_trade_prices_loop()
+        self.assertEqual(100.0, book.last_trade_price)
+        self.assertEqual(1000, book.last_trade_price_rest_updated)
+        self.assertNotIn('ETH-USDT', tracker._order_books)
+        self.assertEqual(0, retired.last_trade_price_rest_updated)
+        logger.network.assert_not_called()
+
+    async def test_bulk_tickers_do_not_abort_tracked_last_price_updates(self):
+        await self.check_rest_result(retire_during_request=False)
+
+    async def test_pair_retired_during_rest_request_does_not_abort_other_updates(self):
+        await self.check_rest_result(retire_during_request=True)
 
 
 class OrderBookTrackerDynamicPairTests(IsolatedAsyncioWrapperTestCase):

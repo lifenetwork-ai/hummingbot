@@ -73,6 +73,7 @@ test-cloudrun-regression:
 		test/hummingbot/core/test_mm_until_stopped.py \
 		test/hummingbot/core/test_event_logger_retention.py \
 		test/hummingbot/core/test_reconciliation_cancellation.py \
+		test/hummingbot/core/data_type/test_order_book_tracker.py \
 		test/hummingbot/core/test_spot_outflow.py \
 		test/hummingbot/core/test_mm_liquidity.py \
 		test/hummingbot/core/test_mm_quote_activity.py \
