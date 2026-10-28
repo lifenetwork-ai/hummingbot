@@ -1,0 +1,143 @@
+{
+  "status": "audit_complete_remediation_open",
+  "date": "2026-10-28",
+  "timezone": "Asia/Saigon",
+  "audited_commit": "06580fbcf009c48d2dc63da94e7cf1589e417141",
+  "application_source_commit": "f52f6ee3f",
+  "runtime_changed": false,
+  "exchange_transport_requests": 0,
+  "scope": "Lifecycle/control/database/action-consumer adversarial probes; not a complete security or financial audit",
+  "verification": {
+    "command": "python scripts/test_postgres.py -k availability_audit build/availability-audit/test_auditor_edges.py",
+    "cases": 5,
+    "passed": 5,
+    "existing_integration_tests_deselected": 243,
+    "meaning": "Tests assert the observed defect is present. Passing probes are not Green remediation tests.",
+    "raw": {
+      "path": "build/availability-audit/reproductions.log",
+      "sha256": "1be71565d405ba7ea02160d13c38726d3fd9caa477e1a295e06bf5743e6da214"
+    }
+  },
+  "findings": [
+    {
+      "id": "AUD-001",
+      "priority": "P1",
+      "title": "Shutdown waits for optional cleanup before revoking send authority",
+      "status": "confirmed_open",
+      "evidence": {
+        "stop_requested": true,
+        "phase": "stopping",
+        "running": false,
+        "owner_allows_orders": true,
+        "runtime_gate_healthy": true,
+        "final_send_authorized": true,
+        "stop_core_called": 0,
+        "transport_sent": false
+      },
+      "source": [
+        "hummingbot/cli/service.py:748",
+        "hummingbot/cli/service.py:247",
+        "hummingbot/core/bot_ownership.py:265"
+      ]
+    },
+    {
+      "id": "AUD-002",
+      "priority": "P1",
+      "title": "Optional daily snapshot row-lock timeout escapes the control publication",
+      "status": "confirmed_open",
+      "evidence": {
+        "escaped_type": "OperationalError",
+        "sqlstate": "55P03",
+        "elapsed_seconds": 1.0274838330224156,
+        "owner_still_healthy": true,
+        "daily_fallback_reported": false
+      },
+      "source": [
+        "hummingbot/model/bot_state_store.py:134",
+        "hummingbot/model/bot_state_store.py:138",
+        "hummingbot/cli/service.py:741",
+        "hummingbot/cli/service.py:811"
+      ]
+    },
+    {
+      "id": "AUD-003",
+      "priority": "P1",
+      "title": "Synchronous DB calls have no demonstrated client response deadline",
+      "status": "confirmed_open",
+      "evidence": {
+        "server_statement_timeout_ms": 2000,
+        "observed_seconds": 4,
+        "process_still_waiting": true,
+        "server_states": [
+          [
+            "idle in transaction (aborted)",
+            "ClientRead"
+          ]
+        ]
+      },
+      "source": [
+        "hummingbot/model/db_migration/postgres/connection.py:18",
+        "hummingbot/core/bot_ownership.py:110",
+        "hummingbot/cli/service.py:741"
+      ]
+    },
+    {
+      "id": "AUD-004",
+      "priority": "P2",
+      "title": "Slow reporting occupies the FIFO queue ahead of Stop",
+      "status": "confirmed_open",
+      "evidence": {
+        "reads_ahead": 7,
+        "read_sleep_seconds": 1.8,
+        "total_requests": 8,
+        "statement_timeout_ms": 2000,
+        "stop_accept_seconds": 5.428421374876052,
+        "response_status": 202,
+        "command_status": "accepted",
+        "owner_connection_available": true
+      },
+      "source": [
+        "hummingbot/cli/admin_api.py:133",
+        "hummingbot/cli/admin_api.py:148",
+        "hummingbot/cli/admin_api.py:302"
+      ]
+    },
+    {
+      "id": "AUD-005",
+      "priority": "P2",
+      "title": "Required executor-action consumer is missing from runtime supervision",
+      "status": "confirmed_open",
+      "evidence": {
+        "listener_done": true,
+        "listener_cancelled": true,
+        "runtime_problem": null,
+        "runtime_gate_healthy": true,
+        "queued_stop_batches": 1,
+        "executed_batches": 0,
+        "fault_injection": true,
+        "observed_spontaneous_failure": false
+      },
+      "source": [
+        "hummingbot/cli/service.py:207",
+        "hummingbot/strategy/strategy_v2_base.py:729"
+      ]
+    }
+  ],
+  "reproduction_sources": {
+    "build/availability-audit/test_auditor_edges.py": {
+      "sha256": "01f54c361d10ced2aa6b3f6a710593d65a7150c8d028e50d7f20d3fd0631d189",
+      "text": "\"\"\"Audit probes assert observed behavior; no exchange calls or production patches.\"\"\"\nimport asyncio\nimport json\nimport os\nimport sys\nimport subprocess\nimport threading\nimport time\nfrom datetime import datetime, timedelta, timezone\nfrom pathlib import Path\nfrom types import SimpleNamespace\nfrom unittest.mock import AsyncMock, MagicMock\n\nimport pytest\nfrom aiohttp import BasicAuth, web\nfrom aiohttp.test_utils import TestClient, TestServer\nfrom sqlalchemy import text\nfrom sqlalchemy.exc import OperationalError\nfrom test.integration.postgres.conftest import pg_engine  # noqa: F401\n\nfrom hummingbot.cli.admin_api import ADMIN_PREFIX, AdminAPI, admin_middleware\nfrom hummingbot.cli.service import ServiceHost\nfrom hummingbot.client.config.admin_config import AdminSettings\nfrom hummingbot.client.config.runtime_config import RuntimeSettings\nfrom hummingbot.core.bot_ownership import BotOwnership\nfrom hummingbot.model.bot_state_store import BotStateStore\nfrom hummingbot.model.db_migration.postgres.runner import bootstrap_postgres\n\nROOT = Path(__file__).resolve().parent\n\n\ndef evidence(name, data):\n    (ROOT / (name + '.json')).write_text(json.dumps(data, indent=2) + '\\n')\n\n\n@pytest.mark.asyncio\nasync def test_availability_audit_stop_waits_behind_seven_legal_slow_reads(pg_engine):\n    arrived = 0\n    all_arrived = asyncio.Event()\n    entered = threading.Event()\n    active = 0\n    lock = threading.Lock()\n\n    def orders(**filters):\n        nonlocal active\n        with pg_engine.connect() as connection:\n            with lock:\n                active += 1\n                if active >= 2:\n                    entered.set()\n            # This remains below the unchanged two-second server statement budget.\n            connection.exec_driver_sql('SELECT pg_sleep(1.8)')\n            return dict(items=[], next_cursor=None)\n\n    def command(key, payload, **kwargs):\n        now = datetime.now(timezone.utc)\n        return dict(id='stop-1', action='stop', session_id='audit-session', expected_version=0,\n                    effective_version=1, status='accepted', payload=payload, created_at=now, updated_at=now)\n\n    @web.middleware\n    async def arrivals(request, handler):\n        nonlocal arrived\n        if request.path.endswith('/orders'):\n            arrived += 1\n            if arrived == 7:\n                all_arrived.set()\n        return await handler(request)\n\n    settings = AdminSettings(True, 'operator', 'audit-password')\n    app = web.Application(middlewares=[arrivals, admin_middleware(settings)])\n    AdminAPI(None, settings, store=SimpleNamespace(orders=orders, command=command)).register(app)\n    async with TestClient(TestServer(app), headers={'Authorization': BasicAuth('operator', 'audit-password').encode()}) as client:\n        reads = [asyncio.create_task(client.get(ADMIN_PREFIX + '/orders')) for _ in range(7)]\n        try:\n            await asyncio.wait_for(all_arrived.wait(), 3)\n            assert await asyncio.to_thread(entered.wait, 3)\n            with pg_engine.connect() as connection:\n                owner_available = connection.exec_driver_sql('SELECT 1').scalar_one() == 1\n            started = time.monotonic()\n            response = await client.post(ADMIN_PREFIX + '/commands', json=dict(action='stop', expected_version=0, session_id='audit-session'),\n                                         headers={'Idempotency-Key': 'audit-stop'})\n            elapsed = time.monotonic() - started\n            body = await response.json()\n            evidence('stop-queue', dict(reads_ahead=7, read_sleep_seconds=1.8, total_requests=8,\n                                       statement_timeout_ms=2000, stop_accept_seconds=elapsed,\n                                       response_status=response.status, command_status=body.get('status'),\n                                       owner_connection_available=owner_available))\n            assert response.status == 202 and owner_available\n            assert elapsed > 5, 'Expected to reproduce FIFO Stop starvation; not reproduced'\n        finally:\n            responses = await asyncio.gather(*reads, return_exceptions=True)\n        assert all(not isinstance(row, Exception) and row.status == 200 for row in responses)\n\n\ndef test_availability_audit_optional_daily_lock_escapes_with_healthy_owner(pg_engine):\n    bootstrap_postgres(pg_engine, auto_migrate=True)\n    store = BotStateStore(pg_engine, 'hummingbot')\n    store.ensure()\n    owner = BotOwnership(pg_engine, 'hummingbot')\n    assert owner.try_acquire()\n    observation = datetime.now(timezone.utc) - timedelta(seconds=10)\n    account = dict(account_id='audit', environment='demo', identity_verified=True, balances=[dict(\n        currency='USDT', connector='okx', source='okx_account_balance', observed_at=observation.timestamp(),\n        cash_balance='100', available_cash='100', equity='100', available_equity='100')])\n    status = dict(reporting={'accounts': [account]}, reporting_timezone='UTC')\n    try:\n        assert store.publish(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=0, status=status)\n        with pg_engine.begin() as aging:\n            aging.exec_driver_sql(\"UPDATE daily_balance_snapshots SET updated_at=clock_timestamp()-interval '90 seconds'\")\n        account['balances'][0]['observed_at'] += 1\n        with pg_engine.begin() as blocker:\n            blocker.exec_driver_sql('SELECT * FROM daily_balance_snapshots FOR UPDATE').all()\n            started = time.monotonic()\n            try:\n                store.publish(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=0, status=status)\n            except OperationalError as error:\n                code = error.orig.pgcode\n                elapsed = time.monotonic() - started\n            else:\n                pytest.fail('Optional row-lock escape not reproduced')\n        healthy = owner.check_owner()['owner_uuid'] == owner.owner_uuid\n        evidence('optional-daily-lock', dict(escaped_type='OperationalError', sqlstate=code,\n                                             elapsed_seconds=elapsed, owner_still_healthy=healthy,\n                                             daily_fallback_reported=bool(store.read()['status'].get('daily_snapshot_error'))))\n        assert code == '55P03' and healthy\n    finally:\n        owner.release()\n\n\n@pytest.mark.asyncio\nasync def test_availability_audit_sigterm_drain_still_authorizes_order(monkeypatch):\n    from hummingbot.connector.markets_recorder import MarketsRecorder\n    item = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),\n                       asyncio.Event(), MagicMock())\n    clock = asyncio.create_task(asyncio.sleep(100))\n    item.hb = SimpleNamespace(trading_core=SimpleNamespace(_clock_task=clock, strategy=SimpleNamespace(controllers={}),\n                                                          connector_manager=SimpleNamespace(connectors={})))\n    owner = BotOwnership(MagicMock(), 'hummingbot')\n    item.owner, item.engine = owner, MagicMock()\n    owner.connection = MagicMock()\n    owner.store = MagicMock()\n    owner.allow_new_orders = True\n    owner.runtime_ready_check = item.runtime_healthy\n    owner.check_owner = MagicMock(return_value=dict(config_type='controller', control_version=1))\n    owner._check_intents = MagicMock()\n    owner.active_intents.add('queued-before-signal')\n    owner.release = MagicMock()\n    monkeypatch.setattr(MarketsRecorder, '_shared_instance', MagicMock())\n    monkeypatch.setattr('hummingbot.core.order_submission_guard.install_guard', lambda guard: None)\n    entered, release = asyncio.Event(), asyncio.Event()\n\n    async def optional_close():\n        entered.set()\n        await release.wait()\n\n    item.funding.close = optional_close\n    item.stop_core = AsyncMock(return_value=True)\n    item.snapshot = lambda: {}\n    item.stop.set()  # SIGTERM's handler has requested shutdown.\n    closing = asyncio.create_task(item.close())\n    try:\n        await asyncio.wait_for(entered.wait(), 1)\n        result = await owner.authorize_rest(SimpleNamespace(\n            url='https://www.okx.com/api/v5/trade/order', data=json.dumps({'clOrdId': 'queued-before-signal'}), headers={}))\n        evidence('shutdown-send-window', dict(stop_requested=item.stop.is_set(), phase=item.phase,\n                                               running=item.running, owner_allows_orders=owner.allow_new_orders,\n                                               runtime_gate_healthy=item.runtime_healthy(),\n                                               final_send_authorized=result is None,\n                                               stop_core_called=item.stop_core.await_count,\n                                               transport_sent=False))\n        assert result is None and 'queued-before-signal' in owner.sent_intents\n        assert item.stop_core.await_count == 0\n    finally:\n        release.set()\n        await closing\n        clock.cancel()\n        await asyncio.gather(clock, return_exceptions=True)\n\n\n@pytest.mark.asyncio\nasync def test_availability_audit_server_timeout_does_not_bound_client_socket(pg_engine):\n    upstream_url = pg_engine.url\n    armed = asyncio.Event()\n    sockets, pumps = [], []\n\n    async def pump(reader, writer, downstream=False):\n        while data := await reader.read(65536):\n            if not (downstream and armed.is_set()):\n                writer.write(data)\n                await writer.drain()\n\n    async def proxy(reader, writer):\n        upstream_reader, upstream_writer = await asyncio.open_connection(upstream_url.host, upstream_url.port)\n        sockets.extend([writer, upstream_writer])\n        tasks = [asyncio.create_task(pump(reader, upstream_writer)),\n                 asyncio.create_task(pump(upstream_reader, writer, True))]\n        pumps.extend(tasks)\n        await asyncio.gather(*tasks, return_exceptions=True)\n\n    server = await asyncio.start_server(proxy, '127.0.0.1', 0)\n    proxy_url = upstream_url.set(host='127.0.0.1', port=server.sockets[0].getsockname()[1])\n    child = ROOT / 'blackhole_client.py'\n    process = subprocess.Popen([sys.executable, str(child)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,\n                               stderr=subprocess.PIPE, env={**os.environ, 'HBOT_AUDIT_URL': proxy_url.render_as_string(hide_password=False)})\n    lines = []\n    try:\n        while True:\n            line = (await asyncio.wait_for(asyncio.to_thread(process.stdout.readline), 15)).decode().strip()\n            lines.append(line)\n            if line == 'READY':\n                break\n        armed.set()\n        process.stdin.write(b'go\\n')\n        process.stdin.flush()\n        await asyncio.sleep(4)\n        # The server canceled the query after two seconds; its reply was lost.\n        with pg_engine.connect() as connection:\n            states = connection.execute(text(\"\"\"SELECT state, wait_event FROM pg_stat_activity\n                WHERE pid <> pg_backend_pid() AND application_name='hummingbot'\n                AND query LIKE '%availability_audit_blackhole%'\"\"\")).all()\n        still_running = process.poll() is None\n        evidence('db-blackhole', dict(server_statement_timeout_ms=2000, observed_seconds=4,\n                                      process_still_waiting=still_running,\n                                      server_states=[list(row) for row in states]))\n        assert still_running\n        assert any(row.state == 'idle in transaction (aborted)' for row in states)\n    finally:\n        if process.poll() is None:\n            process.kill()\n        await asyncio.to_thread(process.wait, timeout=3)\n        process.stdin.close()\n        process.stdout.close()\n        process.stderr.close()\n        server.close()\n        for task in pumps:\n            task.cancel()\n        for writer in sockets:\n            writer.close()\n        await asyncio.wait_for(asyncio.gather(*pumps, return_exceptions=True), timeout=3)\n        await asyncio.wait_for(server.wait_closed(), timeout=3)\n\n\n@pytest.mark.asyncio\nasync def test_availability_audit_dead_action_consumer_is_not_supervised():\n    from hummingbot.strategy.strategy_v2_base import StrategyV2Base\n    from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction\n\n    item = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),\n                       asyncio.Event(), MagicMock())\n    clock = asyncio.create_task(asyncio.sleep(100))\n    controller = SimpleNamespace(config=SimpleNamespace(manual_kill_switch=False),\n                                 _control_error=None, processed_data={},\n                                 _control_progress_at=time.monotonic(), _control_wait_until=None, update_interval=1)\n    strategy = SimpleNamespace(actions_queue=asyncio.Queue(), controllers={'audit': controller},\n                               executor_orchestrator=SimpleNamespace(execute_actions=MagicMock()))\n    strategy.logger = MagicMock()\n    task = asyncio.create_task(StrategyV2Base.listen_to_executor_actions(strategy))\n    strategy.listen_to_executor_actions_task = task\n    item.hb = SimpleNamespace(trading_core=SimpleNamespace(_clock_task=clock, strategy=strategy,\n                                                         connector_manager=SimpleNamespace(connectors={})))\n    try:\n        await asyncio.sleep(0)\n        task.cancel()  # Inject a required action-consumer failure while the host is otherwise running.\n        await asyncio.gather(task, return_exceptions=True)\n        await strategy.actions_queue.put([StopExecutorAction(controller_id='audit', executor_id='executor', keep_position=True)])\n        await asyncio.sleep(0)\n        problem = item.runtime_problem()\n        evidence('dead-action-consumer', dict(listener_done=task.done(), listener_cancelled=task.cancelled(),\n                                              runtime_problem=problem, runtime_gate_healthy=item.runtime_healthy(),\n                                              queued_stop_batches=strategy.actions_queue.qsize(),\n                                              executed_batches=strategy.executor_orchestrator.execute_actions.call_count,\n                                              fault_injection=True, observed_spontaneous_failure=False))\n        assert problem is None and strategy.actions_queue.qsize() == 1\n        strategy.executor_orchestrator.execute_actions.assert_not_called()\n    finally:\n        task.cancel()\n        clock.cancel()\n        await asyncio.gather(task, clock, return_exceptions=True)\n"
+    },
+    "build/availability-audit/blackhole_client.py": {
+      "sha256": "7c3fd61d5d2967d618ba81a93567cfe103bad1d18077865be3efd0b57fa17e27",
+      "text": "import os\nfrom hummingbot.client.config.runtime_config import RuntimeSettings\nfrom hummingbot.model.db_migration.postgres.connection import create_postgres_engine\n\nsettings = RuntimeSettings.from_environment({'DATABASE_URL': os.environ['HBOT_AUDIT_URL']})\nengine = create_postgres_engine(settings)\nwith engine.connect() as connection:\n    assert connection.exec_driver_sql('SHOW statement_timeout').scalar_one() == '2s'\n    print('READY', flush=True)\n    input()\n    connection.exec_driver_sql('SELECT pg_sleep(10) /* availability_audit_blackhole */')\n    print('DONE', flush=True)\n"
+    }
+  },
+  "limits": [
+    "No real exchange requests, no Cloud Run deployment, no runtime patch",
+    "Blackhole probe observed a four-second wait; it did not measure eventual OS/network timeout",
+    "Shutdown and action-listener probes use fault injection and mocked side effects; no order was transported",
+    "Initial probe-fixture/cleanup failures are retained under build and are not classified as product findings",
+    "Previous passing healthy-load acceptance retains its original workload/source scope"
+  ]
+}
