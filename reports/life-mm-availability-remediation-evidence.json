@@ -1,8 +1,9 @@
 {
-  "status": "verification_in_progress",
+  "status": "awaiting_continuous_soak",
   "source_commit": "04cca6caf",
   "baseline_audit": "b96f26117",
-  "native_tests_passed": 1851,
+  "native_log": "regression-continuity.log",
+  "native_tests_passed": 1857,
   "native_subtests_passed": 11,
   "control_burst_followup_commit": "04cca6caf",
   "fixes": {
@@ -424,9 +425,210 @@
         "operations_reads_per_second": 3,
         "command_receipt_transport_retries": 0
       }
+    },
+    "load": {
+      "exit_code": -2,
+      "result_path": "/Users/deeznuts/hummingbot/build/mm-load/20261029-013006-02b737/result.json",
+      "image_id": "sha256:be3efe46695f7dfc4b6a4b999d0552c35bbd5e6df6a3d2823fa7fcec03447899",
+      "passed": false,
+      "result_sha256": "aa3b0f6f33db158825b58385a68a51f00750ae4db0c10e645b6436c3d8f531f9",
+      "windows": {
+        "warmup": {
+          "duration_seconds": 300,
+          "requested_reads": 6000,
+          "completed_reads": 6000,
+          "unexpected_errors": 0,
+          "read_p95_ms": 101.30644499440677,
+          "read_p99_ms": 431.3167290092679,
+          "statuses": {
+            "200": 6000
+          },
+          "peak_rss_bytes": 443121664,
+          "backlog_drain_seconds": 0.008005666997632943,
+          "queued_reads_at_generation_end": 0,
+          "command_seconds": {
+            "start": 7.706029166933149,
+            "switch": 6.484688791912049,
+            "stop": 1.3660159998107702
+          },
+          "command_accept_p95_ms": 33.53654200327583,
+          "command_accept_p99_ms": 33.53654200327583,
+          "market_updates_per_second": 99.9934174703216,
+          "fills_per_second": 1.0,
+          "ledger": {
+            "unique_exchange_fills": 300,
+            "unique_recorder_fills": 300,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "violations": [],
+          "auxiliary": {
+            "requested_reads": 1500,
+            "completed_reads": 1500,
+            "read_p95_ms": 110.8344560052501,
+            "read_p99_ms": 308.4025179996388,
+            "statuses": {
+              "200": 1500
+            }
+          },
+          "runtime": {
+            "memory": {
+              "VmHWM": 443121664,
+              "VmRSS": 443121664
+            },
+            "pool_size": 5,
+            "checked_out": 1,
+            "held_executor_count": 10,
+            "positions_unsettled": false,
+            "runtime_phase": "running",
+            "resident_executor_count": 20
+          }
+        },
+        "mixed": {
+          "duration_seconds": 900,
+          "requested_reads": 18000,
+          "completed_reads": 18000,
+          "unexpected_errors": 0,
+          "read_p95_ms": 89.27488898916636,
+          "read_p99_ms": 398.01168598933145,
+          "statuses": {
+            "200": 18000
+          },
+          "peak_rss_bytes": 445349888,
+          "backlog_drain_seconds": 0.07659312500618398,
+          "queued_reads_at_generation_end": 0,
+          "command_seconds": {
+            "start": 7.706029166933149,
+            "switch": 6.484688791912049,
+            "stop": 1.3660159998107702
+          },
+          "command_accept_p95_ms": 30.54816600342747,
+          "command_accept_p99_ms": 30.54816600342747,
+          "market_updates_per_second": 99.99708570135067,
+          "fills_per_second": 1.0,
+          "ledger": {
+            "unique_exchange_fills": 1200,
+            "unique_recorder_fills": 1200,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "violations": [],
+          "auxiliary": {
+            "requested_reads": 4500,
+            "completed_reads": 4500,
+            "read_p95_ms": 99.42007799691055,
+            "read_p99_ms": 247.49367199547123,
+            "statuses": {
+              "200": 4500
+            }
+          },
+          "runtime": {
+            "memory": {
+              "VmHWM": 445349888,
+              "VmRSS": 445349888
+            },
+            "pool_size": 5,
+            "checked_out": 1,
+            "held_executor_count": 10,
+            "positions_unsettled": false,
+            "runtime_phase": "running",
+            "resident_executor_count": 20
+          }
+        },
+        "bursts": {
+          "duration_seconds": 90,
+          "requested_reads": 1800,
+          "completed_reads": 1800,
+          "unexpected_errors": 0,
+          "read_p95_ms": 103.63022900128271,
+          "read_p99_ms": 394.6005689940648,
+          "statuses": {
+            "200": 1800
+          },
+          "peak_rss_bytes": 446136320,
+          "backlog_drain_seconds": 0.055861542001366615,
+          "queued_reads_at_generation_end": 0,
+          "command_seconds": {
+            "switch": 4.899454878002871,
+            "stop": 0.5939552920026472,
+            "start": 3.193135751003865
+          },
+          "command_accept_p95_ms": 32.90691699658055,
+          "command_accept_p99_ms": 35.63179100456182,
+          "market_updates_per_second": 144.42213721495793,
+          "fills_per_second": 1.0,
+          "ledger": {
+            "unique_exchange_fills": 1290,
+            "unique_recorder_fills": 1290,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "violations": [],
+          "auxiliary": {
+            "requested_reads": 450,
+            "completed_reads": 450,
+            "read_p95_ms": 83.02088099298999,
+            "read_p99_ms": 222.86655798961874,
+            "statuses": {
+              "200": 450
+            }
+          },
+          "runtime": {
+            "memory": {
+              "VmHWM": 446136320,
+              "VmRSS": 446136320
+            },
+            "pool_size": 5,
+            "checked_out": 1,
+            "held_executor_count": 0,
+            "positions_unsettled": false,
+            "runtime_phase": "running",
+            "resident_executor_count": 0
+          }
+        }
+      },
+      "faults": {},
+      "scope": {
+        "profile": "all",
+        "diagnostic": false,
+        "tracing": false,
+        "history_orders": 100000,
+        "history_fills": 100000,
+        "bot_limits": {
+          "cpus": 1,
+          "memory_bytes": 2147483648
+        },
+        "postgres_limits": {
+          "cpus": 2,
+          "memory_bytes": 536870912
+        },
+        "client_limits": {
+          "cpus": 1,
+          "memory_bytes": 536870912
+        },
+        "enhancements": true,
+        "volatility_defense": true,
+        "operations_reads_per_second": 3,
+        "command_receipt_transport_retries": 0
+      },
+      "soak_retention": {
+        "samples": 48,
+        "first_median_rss_bytes": 446791680,
+        "last_median_rss_bytes": 455856128,
+        "first_pool_checkout_p95_ms": 3.68025,
+        "last_pool_checkout_p95_ms": 5.071125,
+        "peak_book_backlog": 2
+      }
     }
   },
   "raw_log_sha256": {
+    "continuity-red.log": "61e43c8255472fc6f86d6f825f67c941b8c75ee3d4a43bc283eb37bf6427d9e0",
+    "continuity-green.log": "e8b981c8b9010bb633ad4e4d591190d80aad92cbe20d00915232255ce3e7fd94",
+    "regression-continuity.log": "37f9dd43afc0ee5ae5db9c4ce51dd8cdb73a346abd4a50ed3c510930897a7ecf",
+    "swagger-continuity.log": "73aa40e366acedf5cbdfc288fe5aa6b4f733bd07b21acb1141d9a519cbc718b4",
     "aud004-burst-red.log": "47b3943daf986282d2ce79905407b00dde6ba946a089833989d36f893d5d929b",
     "aud004-burst-green.log": "39587fab248577d4bd0217bc9a421aa5ba5bb43acadcd83b7d5b1da2df5873ee",
     "aud003-owner-baseline-red.log": "dd80ba4b3e0731590e63c10a1e83a13bae5cda909f548b006d7718e40efc2daf",
@@ -792,5 +994,31 @@
       }
     ],
     "unclassified": []
+  },
+  "historical_environment_interruptions": [
+    {
+      "status": "infrastructure_interrupted",
+      "cause": "macos_clamshell_sleep",
+      "sleep_at_local": "2026-10-29 02:35:00 +0700",
+      "lid_currently_closed": true,
+      "samples": 48,
+      "max_sample_gap_seconds": 966.8890707492828,
+      "last_sample_at": 1793217436.978965,
+      "observed_at": 1793217493.9430988,
+      "runtime_image": "be3efe46695f7dfc4b6a4b999d0552c35bbd5e6df6a3d2823fa7fcec03447899",
+      "raw_run": "build/mm-load/20261029-013006-02b737",
+      "acceptance_passed": false
+    }
+  ],
+  "runtime_source_commit": "04cca6caf",
+  "continuity_gate": {
+    "red_cases": 6,
+    "focused_green_cases": 10,
+    "max_sample_gap_seconds": 90,
+    "source_files": {
+      "scripts/mm_load_budgets.py": "61c51d8a93908f9047810135f49ae6eee9bc11d8c5d92aa08da042e5a4dc05b9",
+      "test/hummingbot/cli/test_mm_load_budgets.py": "32d51d5086e15e5b204ec475b0b264ca2f8f626e98c9be6aaeb9e44b57cc87d1"
+    },
+    "scope": "Host-side verification only; application image unchanged"
   }
 }
