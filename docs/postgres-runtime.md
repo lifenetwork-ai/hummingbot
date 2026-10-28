@@ -71,6 +71,16 @@ DB calls share this engine and have a separate fixed two-worker concurrency cap,
 including after request cancellation. This limits API contention but is not an
 exclusive connection reservation for every background task.
 
+Managed psycopg2 connections also bound an established operation's response wait
+to 3s on the client, including commit, rollback and streamed fetches. Partial
+response progress does not renew that deadline. A lost response discards the
+physical session; loss of the owner session fences trading and requires recovery.
+The synchronous call can still delay the event loop within this bound; this is
+not a promise of uninterrupted health responses during a DB failure. Connection
+establishment retains its 5s budget, and bootstrap keeps its existing total budget.
+The driver wait callback is process-wide; another coroutine integration cannot
+replace it. COPY and large-object operations are not supported on managed engines.
+
 Pool connections open on demand; the setting is a ceiling, not a preallocation.
 Size the database budget for the sum of all process/engine ceilings, including
 separate migration engines and old/new revisions during deployment overlap, and

@@ -3,9 +3,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
 from hummingbot.client.config.runtime_config import RuntimeSettings
+from hummingbot.model.db_migration.postgres.io_deadline import DeadlineConnection, install_io_deadline
 
 
 def create_postgres_engine(settings: RuntimeSettings) -> Engine:
+    install_io_deadline()
     return create_engine(
         settings.database_url,
         pool_pre_ping=True,
@@ -16,6 +18,7 @@ def create_postgres_engine(settings: RuntimeSettings) -> Engine:
         pool_timeout=2,
         hide_parameters=True,
         connect_args={
+            "connection_factory": DeadlineConnection,
             "connect_timeout": 5,
             "application_name": "hummingbot",
             # Runtime requests have a smaller budget than migration DDL; the runner

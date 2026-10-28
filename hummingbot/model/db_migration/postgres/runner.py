@@ -10,6 +10,7 @@ from sqlalchemy import Float, Numeric, Sequence, inspect, text
 from sqlalchemy.engine import Connection, Engine
 
 from hummingbot.model import get_declarative_base
+from hummingbot.model.db_migration.postgres.io_deadline import bootstrap_io_budget
 
 LOGGER = logging.getLogger(__name__)
 SCRIPTS = Path(__file__).resolve().parent / "scripts"
@@ -156,7 +157,7 @@ def bootstrap_postgres(
     if legacy_cutover and not auto_migrate:
         raise PostgreSQLBootstrapError("Explicit legacy cutover must execute migrations.")
     try:
-        with engine.connect() as connection:
+        with engine.connect() as connection, bootstrap_io_budget(connection, deadline):
             raw = connection.connection
             timer = threading.Timer(max(0, deadline - time.monotonic()), raw.cancel)
             timer.daemon = True

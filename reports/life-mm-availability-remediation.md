@@ -5,7 +5,7 @@ live trading is part of this work. Retain the original audit/probe evidence.
 
 - [x] AUD-001: Immediately fence shutdown new orders/account setup; preserve cancels.
 - [x] AUD-002: Isolate optional PostgreSQL statement/lock failures; preserve mandatory failures.
-- [ ] AUD-003: Bound established DB I/O and prove fenced recovery under response loss.
+- [x] AUD-003: Bound established DB I/O and prove fenced recovery under response loss.
 - [ ] AUD-004: Bound API admission and prioritize control without increasing DB concurrency.
 - [ ] AUD-005: Supervise the required executor-action consumer.
 - [ ] Re-run regression, real PostgreSQL, Swagger and a newly verified immutable image.
@@ -32,3 +32,17 @@ Only SQLSTATE 55P03/57014 on a non-invalidated connection may degrade an optiona
 write after its savepoint rollback. Lost connections, mandatory writes/commits,
 unknown operational errors and recovery rules remain fatal. Daily observation
 backoff is reused. Raw logs: `aud002-red.log` / `aud002-green.log`.
+
+## AUD-003
+
+Red: five subprocess/proxy response-loss cases failed before the driver change.
+Green: 27 real-PostgreSQL cases pass, including query, commit, rollback, streamed
+fetch and owner loss, optional statement failures and migration tests; six native
+deadline tests pass. The owner worker fixture explicitly registers existing ORM
+models before acquisition (its initial setup error was not a runtime defect).
+The existing Psycopg wait-callback mechanism bounds managed runtime operations to
+3s and discards the physical session on failure. Owner loss remains latched and
+its replacement requires recovery. Bootstrap retains its longer total budget.
+This bounds synchronous stalls; it does not make DB work asynchronous. No SQL,
+DSN or credentials enter the timeout event. Raw logs: `aud003-red.log`,
+`aud003-green.log`, `aud003-unit-red.log` and `aud003-unit-green.log`.
