@@ -26,6 +26,17 @@ def poll_once(check, **kwargs):
         raise AssertionError('Timed out: MM start actual command completion')
 
 
+def test_position_preservation_compares_exposure_instead_of_market_valuation():
+    original = dict(instId='LIFE-USDT-SWAP', posSide='long', pos='2', avgPx='.1',
+                    lever='2', notionalUsd='.2', upl='0')
+    marked = dict(original, notionalUsd='.16', upl='-.04')
+    snapshot = test_e2e_offline.position_exposure([original])
+    assert test_e2e_offline.position_exposure([marked]) == snapshot
+    for field, value in [('pos', '1'), ('posSide', 'short'), ('avgPx', '.09'), ('lever', '3')]:
+        assert test_e2e_offline.position_exposure([dict(marked, **{field: value})]) != snapshot
+    assert test_e2e_offline.position_exposure([]) != snapshot
+
+
 @pytest.mark.parametrize('status', ['failed', 'superseded'])
 def test_command_terminal_failure_is_immediate_and_includes_receipt(monkeypatch, status):
     monkeypatch.setattr(test_e2e_offline, 'poll', poll_once)

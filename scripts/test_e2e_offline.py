@@ -17,6 +17,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
+def position_exposure(positions):
+    """Compare held contracts and entry terms independently of changing marks."""
+    return sorted((row["instId"], row["posSide"], Decimal(row["pos"]),
+                   Decimal(row["avgPx"]), Decimal(row["lever"])) for row in positions)
+
+
 def pin_manifest(reference):
     """Publish only to a temporary loopback registry, then cache immutable ref.
 
@@ -889,7 +895,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                    description="perpetual quote for partial drawdown fill")
         self.control(fill={"clOrdId": buy["clOrdId"], "amount": str(Decimal(buy["sz"]) / 2), "fee": ".001"}, duplicate=True)
         poll(lambda: self.sql("SELECT count(*) FROM trade_fills") == "1", description="drawdown partial fill recorded once")
-        held = self.ledger()["positions"]
+        held = position_exposure(self.ledger()["positions"])
         assert held
         self.mm_command(port, "switch", market_mode="spot", selection="fixed", profile_id="sideways", duration_seconds=600)
         self.wait_running(port)
@@ -909,7 +915,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
              description="stale disabled-market valuation blocks new spot risk")
         poll(lambda: all(row["state"] in ("filled", "canceled") for row in self.ledger()["orders"]),
              description="missing drawdown coverage cancels new quotes without closing held exposure")
-        assert risk()["global_pnl_quote"] is None and self.ledger()["positions"] == held
+        assert risk()["global_pnl_quote"] is None and position_exposure(self.ledger()["positions"]) == held
         assert http(port, "/live")[0] == 200 and not self.state()["recovery_state"].get("halt")
         self.control(stale_instruments=[])
         self.wait_running(port)
@@ -926,7 +932,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         poll(lambda: self.state()["status"].get("phase") == "halted", description="covered drawdown breach HALTs service trading")
         poll(lambda: all(row["state"] in ("filled", "canceled") for row in self.ledger()["orders"]),
              description="risk HALT cancels remainders and preserves partial fill")
-        assert self.ledger()["positions"] == held
+        assert position_exposure(self.ledger()["positions"]) == held
         assert all(row["instId"] == "LIFE-USDT" and row["ordType"] == "post_only" for row in self.ledger()["accepted"][boundary:])
         assert risk()["reason_code"] == "drawdown_global_limit" and risk()["operator_action_required"]
         accepted = len(self.ledger()["accepted"])
@@ -939,7 +945,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         status, _ = self.admin(port, "/commands", dict(action="start", expected_version=self.state()["control_version"],
                                                        market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600), str(uuid.uuid4()))
         assert status == 409
-        assert len(self.ledger()["accepted"]) == accepted and self.ledger()["positions"] == held
+        assert len(self.ledger()["accepted"]) == accepted and position_exposure(self.ledger()["positions"]) == held
         assert len(self.ledger()["mutations"]) == mutation_boundary
         assert not self.ledger()["unknown"]
         self.metrics["drawdown"] = dict(retained_disabled_market=True, partial_fill_preserved=True,
