@@ -180,6 +180,25 @@ def test_daily_multiple_fee_currencies_and_empty_fees_do_not_multiply_volumes(da
                                 rebates=Decimal("0.003456789012345678"), net=Decimal("0.12"))]
 
 
+def test_daily_fee_record_fields_preserve_numeric_and_string_amounts_exactly(daily_store):
+    from sqlalchemy import update
+    timestamp = millis("2026-01-01T12:00:00+00:00")
+    add_fill(daily_store.engine, "typed-fees", "okx", timestamp, "0", None)
+    with daily_store.engine.begin() as connection:
+        connection.execute(update(TradeFill).where(TradeFill.exchange_trade_id == "typed-fees").values(trade_fee={
+            "percent": "0", "flat_fees": [
+                {"token": "USDT", "amount": "0.12345678901234567890123456789"},
+                {"token": "USDT", "amount": 2},
+                {"token": "USDT", "amount": "-1e-28"},
+                {"token": "ETH", "amount": "-1e-28"},
+                {"token": "ETH", "amount": 0}]}))
+    day = daily_store.daily(start_day="2026-01-01", end_day="2026-01-02", reporting_timezone="UTC", market="spot")["markets"][0]["days"][0]
+    assert day["fill_count"] == 1 and day["unconverted_fill_count"] == 1
+    assert day["fees"] == [dict(currency="ETH", paid=Decimal("0"), rebates=Decimal("1e-28"), net=Decimal("-1e-28")),
+                           dict(currency="USDT", paid=Decimal("2.12345678901234567890123456789"),
+                                rebates=Decimal("1e-28"), net=Decimal("2.12345678901234567890123456779"))]
+
+
 def test_snapshot_batch_filters_ineligible_rows_and_keeps_latest_duplicate(daily_store):
     from sqlalchemy import select
 

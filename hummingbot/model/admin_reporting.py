@@ -101,13 +101,16 @@ def daily(engine, *, start_day=None, end_day=None, reporting_timezone, market="a
                 SUM(trade_fee_in_quote) FILTER (WHERE valid_conversion) AS fee_in_usdt
             FROM converted GROUP BY market, day ORDER BY market, day
         """), params).mappings().all()
+        # Decode each fee into native fields once, retaining PostgreSQL NUMERIC
+        # rather than repeating JSON extraction/casts for each aggregate.
         fees = connection.execute(text("WITH scoped AS (" + FILL_SCOPE + """)
-            SELECT market, day, fee->>'token' AS currency,
-                SUM(GREATEST((fee->>'amount')::numeric,0)) AS paid,
-                SUM(GREATEST(-(fee->>'amount')::numeric,0)) AS rebates,
-                SUM((fee->>'amount')::numeric) AS net
-            FROM scoped CROSS JOIN LATERAL json_array_elements(COALESCE(trade_fee->'flat_fees','[]'::json)) fee
-            GROUP BY market, day, fee->>'token' ORDER BY market, day, currency
+            SELECT market, day, fee.token AS currency,
+                SUM(GREATEST(fee.amount,0)) AS paid,
+                SUM(GREATEST(-fee.amount,0)) AS rebates,
+                SUM(fee.amount) AS net
+            FROM scoped CROSS JOIN LATERAL json_to_recordset(COALESCE(trade_fee->'flat_fees','[]'::json))
+                AS fee(token TEXT, amount NUMERIC)
+            GROUP BY market, day, fee.token ORDER BY market, day, currency
         """), params).mappings().all()
         funding = connection.execute(text("""
             WITH identified AS (
