@@ -64,7 +64,8 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
                          description=f'working {instrument} BUY for standalone fault setup')
             harness.control(fill={"clOrdId": order["clOrdId"], "amount": order["sz"], "fee": "0.01"}, duplicate=True)
         poll(lambda: len(harness.ledger()["fills"]) == 2, description="standalone fault fills in both markets")
-        poll(lambda: harness.sql('SELECT count(*) FROM trade_fills') == '2', description='standalone fault fills committed')
+        poll(lambda: harness.sql("SELECT count(*) FROM trade_fills WHERE config_file_path <> 'load-history.yaml'") == '2',
+             description='standalone fault fills committed separately from seeded history')
         verify(harness, port)
 
     def feed():
