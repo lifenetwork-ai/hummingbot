@@ -758,6 +758,11 @@ Do not issue per-row balance, position, fill or reconciliation calls. Open one
 order drawer on demand. Cursor changes must reset when filters change. Charts
 and history failures should not prevent Stop/status controls from rendering.
 The service's optional reporting remains independent of trading admission.
+API database work is bounded. Commands and individual command receipts are
+dispatched before pending reports, with capacity reserved for control admission.
+Already-running queries finish first. On HTTP 503, back off optional polling and
+keep the same idempotency key when checking/retrying a command; a failed HTTP
+response does not prove that an earlier command was never accepted.
 
 ## Browser acceptance checklist
 

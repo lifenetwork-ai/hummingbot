@@ -6,7 +6,7 @@ live trading is part of this work. Retain the original audit/probe evidence.
 - [x] AUD-001: Immediately fence shutdown new orders/account setup; preserve cancels.
 - [x] AUD-002: Isolate optional PostgreSQL statement/lock failures; preserve mandatory failures.
 - [x] AUD-003: Bound established DB I/O and prove fenced recovery under response loss.
-- [ ] AUD-004: Bound API admission and prioritize control without increasing DB concurrency.
+- [x] AUD-004: Bound API admission and prioritize control without increasing DB concurrency.
 - [ ] AUD-005: Supervise the required executor-action consumer.
 - [ ] Re-run regression, real PostgreSQL, Swagger and a newly verified immutable image.
 - [ ] Re-run the unchanged healthy/fault load gates on the final source/image.
@@ -46,3 +46,17 @@ its replacement requires recovery. Bootstrap retains its longer total budget.
 This bounds synchronous stalls; it does not make DB work asynchronous. No SQL,
 DSN or credentials enter the timeout event. Raw logs: `aud003-red.log`,
 `aud003-green.log`, `aud003-unit-red.log` and `aud003-unit-green.log`.
+
+## AUD-004
+
+Red: two new native tests and the seven-slow-reads/Stop HTTP probe fail before
+the change. Green: nine native executor/cache tests and four real-PostgreSQL
+control/capacity/workflow tests pass. A small dispatcher reuses the standard
+two-worker thread executor, admits at most 16 outstanding jobs (12 reports),
+and puts commands/individual command receipts ahead of pending reports. Already
+running jobs retain their capacity after client cancellation. Close cancels the
+pending queue and joins running workers; exceptions release admission normally.
+The HTTP probe accepts Stop and reads its receipt each within 2.7s despite seven
+1.8s reads, retaining an available owner connection. Pool size stays five.
+Raw logs: `aud004-unit-red.log`, `aud004-pg-red.log`, `aud004-unit-green.log`
+and `aud004-pg-green.log`.

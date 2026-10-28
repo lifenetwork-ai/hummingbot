@@ -8,7 +8,6 @@ import hmac
 import json
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -18,6 +17,7 @@ from cachetools import TTLCache
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
+from hummingbot.cli.admin_database import AdminDatabaseExecutor, DatabaseBusy
 from hummingbot.cli.admin_errors import error_response, request_id, validation_fields
 from hummingbot.cli.admin_models import (
     COMMAND_REQUEST,
@@ -130,7 +130,7 @@ class AdminAPI:
         self._daily_lock = asyncio.Lock()
         # Bound API database concurrency independently of the default executor.
         # The shared pool has five slots; reporting must not consume all five.
-        self._database_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="admin-db")
+        self._database_executor = AdminDatabaseExecutor()
 
     def register(self, app):
         app.middlewares.append(admin_errors)
@@ -142,10 +142,20 @@ class AdminAPI:
                 app.router.add_route(method, ADMIN_PREFIX + path, getattr(self, name))
 
     async def run_database(self, function, /, *args, **kwargs):
+        return await self._run_database(False, function, *args, **kwargs)
+
+    async def run_control_database(self, function, /, *args, **kwargs):
+        return await self._run_database(True, function, *args, **kwargs)
+
+    async def _run_database(self, control, function, /, *args, **kwargs):
         # Preserve tracing/query context just as asyncio.to_thread does. Canceling
         # an awaiter cannot release a worker that is still using a connection.
         call = functools.partial(contextvars.copy_context().run, function, *args, **kwargs)
-        return await asyncio.get_running_loop().run_in_executor(self._database_executor, call)
+        try:
+            result = self._database_executor.submit(call, control=control)
+        except DatabaseBusy:
+            raise APIUnavailable('Admin database capacity is busy') from None
+        return await result
 
     async def close(self, app):
         try:
@@ -153,7 +163,7 @@ class AdminAPI:
                 for connector in self._reference_provider._non_trading_connectors.values():
                     await connector.stop_network()
         finally:
-            await asyncio.to_thread(self._database_executor.shutdown, wait=True, cancel_futures=True)
+            await self._database_executor.close()
 
     def reference_source(self):
         # Public instrument discovery uses the existing connector parser and
@@ -299,7 +309,7 @@ class AdminAPI:
             raise RequestError("Idempotency-Key is required", code="idempotency_key_required", field="Idempotency-Key")
         catalogue = await self.deployed_profiles() if command.action != "stop" else None
         session_request = command.session_request(catalogue) if command.action != "stop" else None
-        receipt = await self.run_database(self.storage().command, key, payload, catalogue=catalogue, request=session_request, principal=self.settings.username)
+        receipt = await self.run_control_database(self.storage().command, key, payload, catalogue=catalogue, request=session_request, principal=self.settings.username)
         return web.json_response(self.command_response(receipt).model_dump(mode="json"), status=202)
 
     @api_operation(operation_id="getCommand", summary="Read accepted, applying or final command outcome", tag="Control",
@@ -308,7 +318,7 @@ class AdminAPI:
         command_id = request.match_info["command_id"]
         if len(command_id) > 128:
             raise ValueError("Command identity is too long")
-        receipt = await self.run_database(self.storage().command_by_id, command_id)
+        receipt = await self.run_control_database(self.storage().command_by_id, command_id)
         if receipt is None or receipt["action"] not in ("start", "switch", "stop"):
             raise web.HTTPNotFound()
         return web.json_response(self.command_response(receipt).model_dump(mode="json"))
