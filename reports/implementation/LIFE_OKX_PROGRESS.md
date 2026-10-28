@@ -1329,3 +1329,15 @@ See [current report](../mm-volatility-defense.md) and
 and final V5 acceptance are complete on `f52f6ee3f` / `c924030a…`. Earlier
 images and failed observer attempts retain their original scope; no Cloud Run
 deployment, live LIFE or multi-day uptime claim is added.
+
+## Service availability audit remediation (2026-10-29; image/load verification in progress)
+
+Five audited findings have focused TDD fixes: shutdown send fencing, optional
+statement isolation, established DB I/O deadlines, bounded priority API admission
+and required executor-consumer supervision. The existing ten-retry burst remains
+admissible with 32 total/12 reporting slots and two physical workers. Final-source
+native regression passes 1,851 tests plus 11 subtests; PostgreSQL passes 257 tests
+and Swagger passes. Artifact `be3efe46…` matches 29 selected files on `04cca6caf`.
+Image E2E and unchanged load gates remain pending; see the canonical
+[remediation checklist](../life-mm-availability-remediation.md) and
+[portable evidence](../life-mm-availability-remediation-evidence.json).

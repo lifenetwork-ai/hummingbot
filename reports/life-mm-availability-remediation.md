@@ -2,6 +2,7 @@
 
 Baseline audit: [five findings](life-mm-availability-audit.md). No cloud deployment or
 live trading is part of this work. Retain the original audit/probe evidence.
+[Portable verification summary](life-mm-availability-remediation-evidence.json).
 
 - [x] AUD-001: Immediately fence shutdown new orders/account setup; preserve cancels.
 - [x] AUD-002: Isolate optional PostgreSQL statement/lock failures; preserve mandatory failures.
@@ -76,7 +77,7 @@ not create an operator incident. Raw logs: `aud005-red.log` / `aud005-green.log`
 
 ## Final-source verification (in progress)
 
-`make test-cloudrun-regression`: 1,850 passed plus 11 subtests.
+`make test-cloudrun-regression`: 1,851 passed plus 11 subtests on `04cca6caf`.
 Full disposable PostgreSQL suite: 257 passed. Swagger check passes.
 The first full PG run exposed historical bulk-fixture operations with explicit
 30/60s SQL budgets but no corresponding client budget. Only those seed/baseline
@@ -85,7 +86,8 @@ and fault budgets are unchanged. The corrected full suite passes without skips.
 The initial failure is retained in `postgres-setup-green.log` (a failed attempt,
 despite its original filename); current results are in `postgres.log`.
 
-Immutable-image and unchanged load acceptance remain pending. No real exchange
+Image `be3efe46…` matches all 29 selected source files and is pinned to a local
+registry manifest; image E2E and unchanged load acceptance remain pending. No real exchange
 requests, Demo bot restart, cloud deployment or persistent Demo DB changes were
 performed. Driver stalls are bounded per operation; pool checkout, initial
 connection and reconnect attempts retain separate budgets. Mandatory persistence
