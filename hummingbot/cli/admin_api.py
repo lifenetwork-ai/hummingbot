@@ -1,11 +1,14 @@
 """Admin adapters on the existing aiohttp service."""
 import asyncio
+import contextvars
+import functools
 import gzip
 import hashlib
 import hmac
 import json
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -125,6 +128,9 @@ class AdminAPI:
         self._reference_provider = None
         self._daily_cache = TTLCache(maxsize=32, ttl=settings.statistics_cache_ttl_seconds)
         self._daily_lock = asyncio.Lock()
+        # Bound API database concurrency independently of the default executor.
+        # The shared pool has five slots; reporting must not consume all five.
+        self._database_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="admin-db")
 
     def register(self, app):
         app.middlewares.append(admin_errors)
@@ -135,10 +141,19 @@ class AdminAPI:
             else:
                 app.router.add_route(method, ADMIN_PREFIX + path, getattr(self, name))
 
+    async def run_database(self, function, /, *args, **kwargs):
+        # Preserve tracing/query context just as asyncio.to_thread does. Canceling
+        # an awaiter cannot release a worker that is still using a connection.
+        call = functools.partial(contextvars.copy_context().run, function, *args, **kwargs)
+        return await asyncio.get_running_loop().run_in_executor(self._database_executor, call)
+
     async def close(self, app):
-        if self._reference_provider is not None:
-            for connector in self._reference_provider._non_trading_connectors.values():
-                await connector.stop_network()
+        try:
+            if self._reference_provider is not None:
+                for connector in self._reference_provider._non_trading_connectors.values():
+                    await connector.stop_network()
+        finally:
+            await asyncio.to_thread(self._database_executor.shutdown, wait=True, cancel_futures=True)
 
     def reference_source(self):
         # Public instrument discovery uses the existing connector parser and
@@ -219,7 +234,7 @@ class AdminAPI:
         if self.host is None or self.host.store is None:
             raise APIUnavailable("Control store is not ready")
         try:
-            row = await asyncio.to_thread(self.host.store.read, publication=True)
+            row = await self.run_database(self.host.store.read, publication=True)
         except (SQLAlchemyError, asyncio.TimeoutError):
             if not hasattr(self.host, "service_status"):
                 raise APIUnavailable("Control store is unavailable") from None
@@ -284,7 +299,7 @@ class AdminAPI:
             raise RequestError("Idempotency-Key is required", code="idempotency_key_required", field="Idempotency-Key")
         catalogue = await self.deployed_profiles() if command.action != "stop" else None
         session_request = command.session_request(catalogue) if command.action != "stop" else None
-        receipt = await asyncio.to_thread(self.storage().command, key, payload, catalogue=catalogue, request=session_request, principal=self.settings.username)
+        receipt = await self.run_database(self.storage().command, key, payload, catalogue=catalogue, request=session_request, principal=self.settings.username)
         return web.json_response(self.command_response(receipt).model_dump(mode="json"), status=202)
 
     @api_operation(operation_id="getCommand", summary="Read accepted, applying or final command outcome", tag="Control",
@@ -293,7 +308,7 @@ class AdminAPI:
         command_id = request.match_info["command_id"]
         if len(command_id) > 128:
             raise ValueError("Command identity is too long")
-        receipt = await asyncio.to_thread(self.storage().command_by_id, command_id)
+        receipt = await self.run_database(self.storage().command_by_id, command_id)
         if receipt is None or receipt["action"] not in ("start", "switch", "stop"):
             raise web.HTTPNotFound()
         return web.json_response(self.command_response(receipt).model_dump(mode="json"))
@@ -302,7 +317,7 @@ class AdminAPI:
                    response_model=CommandsPage, query_model=CommandsQuery)
     async def commands_history(self, request):
         query = self.query(request, CommandsQuery)
-        page = await asyncio.to_thread(self.storage().commands_page, **query.model_dump())
+        page = await self.run_database(self.storage().commands_page, **query.model_dump())
         model = CommandsPage(items=[self.command_response(row) for row in page["items"]], next_cursor=page["next_cursor"])
         return web.json_response(model.model_dump(mode="json"))
 
@@ -310,14 +325,14 @@ class AdminAPI:
                    response_model=SessionsPage, query_model=PageQuery)
     async def sessions(self, request):
         query = self.query(request, PageQuery)
-        page = await asyncio.to_thread(self.storage().sessions_page, **query.model_dump())
+        page = await self.run_database(self.storage().sessions_page, **query.model_dump())
         return web.json_response(SessionsPage.model_validate(page).model_dump(mode="json"))
 
     @api_operation(operation_id="listOrders", summary="Read bounded bot-owned order history", tag="History",
                    response_model=OrdersPage, query_model=OrdersQuery)
     async def orders(self, request):
         query = self.query(request, OrdersQuery)
-        page = await asyncio.to_thread(self.storage().orders, **query.filters())
+        page = await self.run_database(self.storage().orders, **query.filters())
         return web.json_response(OrdersPage.model_validate(page).model_dump(mode="json"))
 
     @api_operation(operation_id="getOrder", summary="Read one recorded order and its bounded status timeline", tag="History",
@@ -327,7 +342,7 @@ class AdminAPI:
         if len(order_id) > 128:
             raise ValueError("Order identity is too long")
         query = self.query(request, OrderDetailQuery)
-        row = await asyncio.to_thread(self.storage().order, order_id, timeline_limit=query.timeline_limit)
+        row = await self.run_database(self.storage().order, order_id, timeline_limit=query.timeline_limit)
         if row is None:
             raise web.HTTPNotFound()
         return web.json_response(OrderDetail.model_validate(row).model_dump(mode="json"))
@@ -336,13 +351,13 @@ class AdminAPI:
                    response_model=FillsPage, query_model=FillsQuery)
     async def fills(self, request):
         query = self.query(request, FillsQuery)
-        page = await asyncio.to_thread(self.storage().fills, **query.filters())
+        page = await self.run_database(self.storage().fills, **query.filters())
         return web.json_response(FillsPage.model_validate(page).model_dump(mode="json"))
 
     @api_operation(operation_id="getBalances", summary="Read account cash and equity once, with observation freshness", tag="Reporting",
                    response_model=BalancesResponse)
     async def balances(self, request):
-        row = await asyncio.to_thread(self.storage().observations)
+        row = await self.run_database(self.storage().observations)
         model = BalancesResponse(**{key: row[key] for key in ("accounts", "server_time", "owner_available")})
         return web.json_response(model.model_dump(mode="json"))
 
@@ -350,7 +365,7 @@ class AdminAPI:
                    response_model=PositionsResponse, query_model=MarketQuery)
     async def positions(self, request):
         query = self.query(request, MarketQuery)
-        row = await asyncio.to_thread(self.storage().observations)
+        row = await self.run_database(self.storage().observations)
         markets = []
         for market in (("spot", "perpetual") if query.market == "all" else (query.market,)):
             observation = next((item for item in row["positions"] if item["market"] == market), None)
@@ -363,7 +378,7 @@ class AdminAPI:
                    response_model=PerformanceResponse, query_model=MarketQuery)
     async def performance(self, request):
         query = self.query(request, MarketQuery)
-        row = await asyncio.to_thread(self.storage().observations)
+        row = await self.run_database(self.storage().observations)
         markets = []
         for market in (("spot", "perpetual") if query.market == "all" else (query.market,)):
             observations = [item for item in row["performance"] if item["market"] == market]
@@ -386,7 +401,7 @@ class AdminAPI:
             async with self._daily_lock:
                 body = self._daily_cache.get(key)
                 if body is None:
-                    row = await asyncio.to_thread(self.storage().daily, **query.model_dump(), reporting_timezone=self.settings.reporting_timezone)
+                    row = await self.run_database(self.storage().daily, **query.model_dump(), reporting_timezone=self.settings.reporting_timezone)
                     body = DailyResponse.model_validate(row).model_dump(mode="json")
                     self._daily_cache[key] = body
         return web.json_response(body)
@@ -407,13 +422,13 @@ class AdminAPI:
         except (json.JSONDecodeError, UnicodeError):
             raise web.HTTPBadRequest() from None
         ReconciliationRequest.model_validate(payload)
-        row = await asyncio.to_thread(self.storage().request_check, request.headers.get("Idempotency-Key", ""), payload)
+        row = await self.run_database(self.storage().request_check, request.headers.get("Idempotency-Key", ""), payload)
         return web.json_response(self.check_response(row).model_dump(mode="json"), status=202)
 
     @api_operation(operation_id="getReconciliation", summary="Read the latest stored check outcome without contacting OKX", tag="Reconciliation",
                    response_model=ReconciliationResponse)
     async def reconciliation(self, request):
-        row = await asyncio.to_thread(self.storage().latest_check)
+        row = await self.run_database(self.storage().latest_check)
         check = self.check_response(row) if row else None
         model = ReconciliationResponse(check=check, report=check.report if check else {})
         return web.json_response(model.model_dump(mode="json"))
@@ -424,7 +439,7 @@ class AdminAPI:
         identity = request.match_info["check_id"]
         if not 1 <= len(identity) <= 128:
             raise ValueError("Invalid check identity")
-        row = await asyncio.to_thread(self.storage().check_by_id, identity)
+        row = await self.run_database(self.storage().check_by_id, identity)
         if row is None:
             raise web.HTTPNotFound()
         return web.json_response(self.check_response(row).model_dump(mode="json"))
@@ -434,7 +449,7 @@ class AdminAPI:
     async def session_events(self, request):
         from hummingbot.model.mm_event import session_events
         query = self.query(request, MMEventsQuery)
-        result = await asyncio.to_thread(session_events, self.storage().store, request.match_info["session_id"], **query.model_dump())
+        result = await self.run_database(session_events, self.storage().store, request.match_info["session_id"], **query.model_dump())
         return web.json_response(MMEventsPage.model_validate(result).model_dump(mode="json"))
 
     @api_operation(operation_id="getSessionConfiguration", summary="Read pinned session configuration; restart never replaces it with current YAML",
@@ -443,7 +458,7 @@ class AdminAPI:
         identity = request.match_info["session_id"]
         if not 1 <= len(identity) <= 128:
             raise ValueError("Invalid session identity")
-        row = await asyncio.to_thread(self.storage().session_configuration, identity)
+        row = await self.run_database(self.storage().session_configuration, identity)
         if row is None:
             raise web.HTTPNotFound()
         return web.json_response(SessionConfigurationResponse.model_validate(row).model_dump(mode="json"))
@@ -453,7 +468,7 @@ class AdminAPI:
     async def liquidity(self, request):
         from hummingbot.core.mm_liquidity import liquidity_view
         query = self.query(request, LiquidityQuery)
-        row = await asyncio.to_thread(self.storage().store.read, publication=True)
+        row = await self.run_database(self.storage().store.read, publication=True)
         if row is None:
             raise APIUnavailable("Bot status unavailable")
         result = liquidity_view(row, **query.model_dump())
