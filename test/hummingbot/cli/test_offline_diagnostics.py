@@ -1,4 +1,5 @@
 import json
+import subprocess
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -46,6 +47,16 @@ def test_cancel_upper_bound_uses_first_terminal_proof_not_later_duplicate_time()
     observed[0].pop('cancel_terminal_ms')
     with pytest.raises(AssertionError, match='terminal proof'):
         mm_load_faults.cancel_upper_bound(baseline, observed, 1000)
+
+
+def test_docker_startup_probe_timeout_remains_unavailable_without_retrying_mutations(monkeypatch):
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired('docker exec', 10)
+    monkeypatch.setattr(test_e2e_offline, 'docker', timeout)
+    assert test_e2e_offline.http('bot', '/startup') == (None, None)
+    for path, payload in [('/control', {'fill': 'one'}), ('/startup', {'mutation': True}), ('/ledger', None)]:
+        with pytest.raises(subprocess.TimeoutExpired):
+            test_e2e_offline.http('bot', path, payload)
 
 
 @pytest.mark.parametrize('status', ['failed', 'superseded'])

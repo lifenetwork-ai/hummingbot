@@ -96,7 +96,14 @@ except HTTPError as error:
 except (URLError, TimeoutError):
     print('[null,null]')
 """
-    result = docker("exec", container, "python", "-c", program, path, json.dumps(data), json.dumps(headers or {}), timeout=10, check=False)
+    try:
+        result = docker("exec", container, "python", "-c", program, path, json.dumps(data), json.dumps(headers or {}), timeout=10, check=False)
+    except subprocess.TimeoutExpired:
+        # Cold emulated imports may delay the probe process itself. Keep the
+        # enclosing health deadline; never retry an uncertain POST or data read.
+        if data is None and path in ("/startup", "/ready", "/live"):
+            return None, None
+        raise
     return json.loads(result.stdout) if result.returncode == 0 else (None, None)
 
 
