@@ -1,5 +1,6 @@
 """Bounded rolling projection of committed recorder fills and pending BUY risk."""
 import heapq
+import json
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Dict
@@ -63,7 +64,7 @@ class SpotOutflowProjection:
                 continue
             reservation = self.reservations.get(key[1])
             if reservation is not None and key not in reservation.seen:
-                self._commit_quantity(reservation, key, value[1])
+                self._commit_quantity(reservation, key, Decimal(value[1]))
             if stamp >= start:
                 self._apply(value, 1)
                 heapq.heappush(self.expiry, (stamp, key))
@@ -98,9 +99,9 @@ class SpotOutflowProjection:
     def _apply(self, value, direction):
         _, _, cash, fees, _ = value
         if cash is not None:
-            self.net += cash * direction
-            for token, amount in fees.items():
-                self.fees[token] = self.fees.get(token, ZERO) + amount * direction
+            self.net += Decimal(cash) * direction
+            for token, amount in fees:
+                self.fees[token] = self.fees.get(token, ZERO) + Decimal(amount) * direction
 
     def _commit_quantity(self, reservation, key, amount):
         if len(reservation.seen) >= MAX_ORDER_FILLS:
@@ -133,9 +134,15 @@ class SpotOutflowProjection:
             cash = price * amount * (1 if row["trade_type"] == "BUY" else -1) + fees.pop("USDT", ZERO)
         except (KeyError, ValueError, TypeError, ArithmeticError):
             pass
-        value = (stamp, amount, cash, fees, (price, row["trade_type"], row["trade_fee"]))
         if key in self.entries:
-            if self.entries[key] != value:
+            old_stamp, old_amount, old_cash, old_fees, (old_price, old_side, old_payload) = self.entries[key]
+            # Compare decoded values, preserving Decimal numeric equality (even
+            # with different quantum) and normal JSON object/list equality.
+            if (old_stamp != stamp or Decimal(old_amount) != amount
+                    or (None if old_cash is None else Decimal(old_cash)) != cash
+                    or {token: Decimal(cost) for token, cost in old_fees} != fees
+                    or Decimal(old_price) != price or old_side != row["trade_type"]
+                    or json.loads(old_payload) != row["trade_fee"]):
                 self.failure = "spot_outflow_fill_conflict"
             return
         reservation = self.reservations.get(row["order_id"])
@@ -149,6 +156,13 @@ class SpotOutflowProjection:
         if len(self.entries) >= MAX_FILLS:
             self.failure = "spot_outflow_projection_limit"
             return
+        # Exact text avoids retaining a large graph of GC-tracked Decimals and
+        # mutable fee JSON for the entire rolling window. Decode only when a
+        # fill is applied, expires or is replayed; arithmetic remains Decimal.
+        # Snapshot the original JSON rather than retaining the caller's object.
+        value = (stamp, str(amount), None if cash is None else str(cash),
+                 tuple((token, str(cost)) for token, cost in fees.items()),
+                 (str(price), row["trade_type"], json.dumps(row["trade_fee"], separators=(",", ":"))))
         self.entries[key] = value
         if cash is None:
             self.invalid.add(key)
