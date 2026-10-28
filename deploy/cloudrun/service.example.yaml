@@ -42,6 +42,9 @@ spec:
               value: hummingbot
             - name: ENABLE_AUTO_MIGRATION
               value: 'true'
+            # Per-engine ceiling; includes the owner connection. No overflow.
+            - name: DB_POOL_SIZE
+              value: '5'
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

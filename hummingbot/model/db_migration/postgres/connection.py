@@ -9,9 +9,9 @@ def create_postgres_engine(settings: RuntimeSettings) -> Engine:
     return create_engine(
         settings.database_url,
         pool_pre_ping=True,
-        # Keep the existing five-backend ceiling, retaining reader connections
-        # instead of closing/recreating overflow after a burst beside the owner.
-        pool_size=5,
+        # Retain warm reader connections within the configured ceiling.
+        # API DB concurrency is bounded separately; never create overflow.
+        pool_size=settings.database_pool_size,
         max_overflow=0,
         pool_timeout=2,
         hide_parameters=True,

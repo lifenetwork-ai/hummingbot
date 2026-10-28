@@ -7,6 +7,7 @@ DEFAULT_ENV_CONFIG = MappingProxyType({
     "ENV_FILE": ".env",
     "STORAGE_BACKEND": "file",
     "ENABLE_AUTO_MIGRATION": "false",
+    "DB_POOL_SIZE": "5",
     "BOT_ID": "hummingbot",
     "PORT": "8080",
     "LOG_FORMAT": "json",

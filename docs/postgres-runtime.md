@@ -46,6 +46,7 @@ Choose the backend before starting a process:
 # PostgreSQL service: hbot serve
 STORAGE_BACKEND=postgres
 DATABASE_URL=postgresql+psycopg2://hummingbot:replace_me@127.0.0.1:5432/hummingbot
+DB_POOL_SIZE=5
 ENABLE_AUTO_MIGRATION=true
 ```
 
@@ -62,9 +63,20 @@ of the selected trading backend or automatic-migration flag.
 special characters in URL credentials; SSL query settings such as `sslmode=require`
 are passed to the driver. Only the synchronous psycopg2 driver is supported.
 Connections use `public`, connect timeout 5s, runtime statement timeout 2s, lock timeout 1s,
-pool size 5, no overflow and pool checkout timeout 2s. The owner retains one of
-these connections; warm readers use the remaining slots. Budget separate migration
-engines and both old/new processes during deployment overlap.
+pool checkout timeout 2s and no overflow. `DB_POOL_SIZE` sets the per-engine
+connection ceiling (integer 5–50, default 5); changes require a process restart.
+Invalid values fail configuration validation without echoing the supplied value.
+The owner retains one connection; warm readers use the remaining slots. Admin API
+DB calls share this engine and have a separate fixed two-worker concurrency cap,
+including after request cancellation. This limits API contention but is not an
+exclusive connection reservation for every background task.
+
+Pool connections open on demand; the setting is a ceiling, not a preallocation.
+Size the database budget for the sum of all process/engine ceilings, including
+separate migration engines and old/new revisions during deployment overlap, and
+leave capacity for operations. Increasing the pool does not repair slow queries
+or main-loop CPU stalls. Keep the default until measurements justify a change;
+load acceptance continues to use five connections.
 Session advisory locks require direct/session-pooled PostgreSQL connections;
 transaction-pooling proxies are unsupported.
 

@@ -135,3 +135,33 @@ def test_invalid_or_cloud_env_file_is_rejected(values):
     with patch.dict(os.environ, values, clear=True):
         with pytest.raises(RuntimeConfigurationError, match="ENV_FILE"):
             load_environment()
+
+
+@pytest.mark.parametrize('value,expected', [(None, 5), ('5', 5), ('10', 10), (' 50 ', 50)])
+def test_database_pool_size_reaches_engine_with_no_overflow(value, expected):
+    from hummingbot.model.db_migration.postgres.connection import create_postgres_engine
+
+    values = {'DATABASE_URL': 'postgresql://host/db'}
+    if value is not None:
+        values['DB_POOL_SIZE'] = value
+    settings = RuntimeSettings.from_environment(values)
+    assert settings.database_pool_size == expected
+    with patch('hummingbot.model.db_migration.postgres.connection.create_engine') as create:
+        create_postgres_engine(settings)
+    assert create.call_args.kwargs['pool_size'] == expected
+    assert create.call_args.kwargs['max_overflow'] == 0
+
+
+@pytest.mark.parametrize('value', ['', '0', '4', '-1', '51', '1.5', 'nan', 'secret-value'])
+def test_invalid_database_pool_size_fails_without_echoing_input(value):
+    with pytest.raises(RuntimeConfigurationError, match='DB_POOL_SIZE') as error:
+        RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://host/db', 'DB_POOL_SIZE': value})
+    assert 'secret-value' not in str(error.value)
+
+
+def test_database_pool_size_follows_dotenv_process_precedence(tmp_path):
+    file = tmp_path / 'pool.env'
+    file.write_text('DB_POOL_SIZE=10\n')
+    with patch.dict(os.environ, {'ENV_FILE': str(file), 'DB_POOL_SIZE': '7'}, clear=True):
+        load_environment()
+        assert RuntimeSettings.from_environment({**os.environ, 'DATABASE_URL': 'postgresql://host/db'}).database_pool_size == 7

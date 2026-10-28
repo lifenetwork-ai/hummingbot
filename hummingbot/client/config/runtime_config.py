@@ -45,6 +45,7 @@ class RuntimeSettings:
     enable_auto_migration: bool = DEFAULT_ENV_CONFIG["ENABLE_AUTO_MIGRATION"] == "true"
     bot_id: str = DEFAULT_ENV_CONFIG["BOT_ID"]
     port: int = int(DEFAULT_ENV_CONFIG["PORT"])
+    database_pool_size: int = int(DEFAULT_ENV_CONFIG["DB_POOL_SIZE"])
 
     @classmethod
     def from_environment(cls, environ: Optional[Mapping[str, str]] = None) -> "RuntimeSettings":
@@ -66,11 +67,17 @@ class RuntimeSettings:
                 raise ValueError
         except ValueError:
             raise RuntimeConfigurationError("PORT must be an integer between 1 and 65535.") from None
+        try:
+            pool_size = int(values.get("DB_POOL_SIZE", DEFAULT_ENV_CONFIG["DB_POOL_SIZE"]))
+            if not 5 <= pool_size <= 50:
+                raise ValueError
+        except (ValueError, TypeError):
+            raise RuntimeConfigurationError("DB_POOL_SIZE must be an integer between 5 and 50.") from None
         bot_id = values.get("BOT_ID", DEFAULT_ENV_CONFIG["BOT_ID"])
         if not bot_id.strip() or len(bot_id) > 128:
             raise RuntimeConfigurationError("BOT_ID must contain 1–128 characters.")
         return cls(url, parse_boolean(values.get("ENABLE_AUTO_MIGRATION", DEFAULT_ENV_CONFIG["ENABLE_AUTO_MIGRATION"])),
-                   bot_id, port)
+                   bot_id, port, pool_size)
 
 
 def storage_backend(environ: Optional[Mapping[str, str]] = None) -> str:
