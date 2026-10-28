@@ -398,6 +398,7 @@ def main():
                     raise AssertionError("Declared load budgets failed: " + json.dumps(failed))
                 evidence["passed"] = True
             finally:
+                evidence['command_receipt_transport_retries'] = harness.metrics.get('command_receipt_transport_retries', 0)
                 try:
                     (report / "final-positions.json").write_text(harness.sql("SELECT COALESCE(json_agg(t),'[]') FROM positions t"))
                     (report / "final-executors.json").write_text(harness.sql("SELECT COALESCE(json_agg(t),'[]') FROM (SELECT * FROM executors ORDER BY timestamp DESC LIMIT 200) t"))
