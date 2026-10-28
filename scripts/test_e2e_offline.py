@@ -1162,6 +1162,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         original = path.read_bytes()
         profiles = yaml.safe_load(path.read_text())
         enable_volatility_defense(profiles)
+        profiles['random']['step_duration_seconds'] = 60
         path.write_text(yaml.safe_dump(profiles))
         self.report.joinpath('effective-volatility-defense.yaml').write_bytes(path.read_bytes())
         self.env.update(ADMIN_API_ENABLED='true', ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')
@@ -1169,7 +1170,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             self.env['HBOT_OKX_PERPETUAL_' + field] = value
         self.control(include_own_orders=True, candle_width='.005')
         bot, port = self.start('volatility-defense')
-        self.mm_command(port, 'start', market_mode='both', selection='fixed', profile_id='sideways', duration_seconds=600)
+        self.mm_command(port, 'start', market_mode='both', selection='random', duration_seconds=600)
 
         def states():
             return {row['market']: (row.get('spread_policy') or {}).get('defense') or {}
@@ -1217,12 +1218,20 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
              timeout=60, description='extreme NATR pauses both markets and cancels remainders')
         poll(lambda: len((self.state()['recovery_state'].get('volatility_defense') or {}).get('pauses', {})) == 2,
              description='both pause latches are durable')
+        paused_session = self.state()['mm_session']
         self.control(candle_stale=True)
         accepted = len(self.ledger()['accepted'])
         poll(lambda: len(states()) == 2 and all((row.get('spread_policy') or {}).get('raw_natr') is None
                                                 for row in self.state()['status'].get('mm_markets', [])),
              description='paused candle outage becomes explicit')
         assert http(port, '/live')[0] == 200 and not live()
+        assert paused_session['step_expires_at'] is not None
+        poll(lambda: time.time() >= paused_session['step_expires_at'] + 2,
+             description='paused random step reaches its original deadline')
+        observed_session = self.state()['mm_session']
+        assert observed_session['generation'] == paused_session['generation']
+        assert observed_session['step_expires_at'] == paused_session['step_expires_at']
+        assert not live()
         docker('stop', '--time', '15', bot)
         bot, port = self.start('volatility-defense-restart', auto_migrate=False)
         poll(lambda: len(states()) == 2 and all(row.get('state') == 'paused' for row in states().values()),
@@ -1255,6 +1264,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert http(port, '/live')[0] == 200
         self.metrics['volatility_defense'] = dict(baseline_quote=baseline, reduced_quote=reduced,
                                                   three_levels=True, delayed_cancel_seconds=2, partial_fills=2,
+                                                  paused_random_deadline_preserved=True,
                                                   pause_survives_restart_and_start=True, held_positions_preserved=True,
                                                   recovery_seconds=recovery_seconds, market_modes=['spot', 'perpetual', 'both'],
                                                   effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())

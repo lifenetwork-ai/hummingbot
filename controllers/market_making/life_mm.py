@@ -619,8 +619,10 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             await self.send_actions(self.determine_executor_actions())
         # Publish cancellation requests before the synchronous, owner-fenced
         # transition write. A failed/pending write never reopens admission.
-        if self._spread_policy.defense is not None and self.sync_volatility_checkpoint():
-            self.update_reference()
+        if self._spread_policy.defense is not None:
+            previous = self._volatility_saved_pause
+            if self.sync_volatility_checkpoint() and previous != self._volatility_saved_pause:
+                self.update_reference()
 
     def stop_quote_actions(self):
         active = {executor.id for executor in self.executors_info if executor.is_active}

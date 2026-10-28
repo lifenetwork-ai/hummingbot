@@ -187,6 +187,15 @@ def test_unbound_controller_waits_before_sampling_account_scoped_defense(monkeyp
     indicator.assert_not_called()
 
 
+@pytest.mark.asyncio
+async def test_stable_control_tick_composes_policy_only_once(monkeypatch, clock):
+    controller = defended_controller(monkeypatch, clock)
+    monkeypatch.setattr('hummingbot.strategy_v2.utils.mm_spread.natr_value', lambda *args: Decimal('.025'))
+    controller._spread_policy.compose = MagicMock(wraps=controller._spread_policy.compose)
+    await controller.control_task()
+    assert controller._spread_policy.compose.call_count == 1
+
+
 def test_random_rotation_defers_known_pause_recovery_without_extending_authority(monkeypatch, clock):
     from hummingbot.cli.service import ServiceHost
     controller = defended_controller(monkeypatch, clock)

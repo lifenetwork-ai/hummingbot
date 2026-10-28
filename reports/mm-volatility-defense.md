@@ -157,3 +157,11 @@ Recording risk during HALT does not clear it; automatic clearing remains blocked
 The 68-case focused selection and 32 PostgreSQL defense/session cases pass. The
 plan/guides now state these contracts explicitly. Earlier image results remain
 historical; final artifact/load acceptance uses this corrected runtime.
+
+A hot-path Red test measured two spread compositions in one unchanged control
+tick. Green refreshes the cached decision after a checkpoint only when its
+persisted pause state actually changes. Stable ticks compose once, while the
+existing intent/final-transport fee and policy checks remain active. The 67-case
+defense/service/replay selection passes after the optimization. The dedicated
+image fixture now also keeps a paused random controller across its original step
+deadline, verifies that the deadline is unchanged and then exercises recovery.
