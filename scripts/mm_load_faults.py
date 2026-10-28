@@ -11,7 +11,7 @@ from scripts.test_e2e_offline import docker, poll
 def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_result=None, volatility_defense=False):
     results = {}
 
-    def window(name, action, duration=45, delay=8, details=None):
+    def window(name, action, duration=45, delay=8, details=None, clean_reads=False):
         errors = []
 
         def invoke():
@@ -28,6 +28,8 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
             timer.join(timeout=60)
         assert not timer.is_alive() and not errors, errors
         assert not any(data["statuses"].get(str(status), 0) for status in (400, 422, 500)), data["errors"]
+        if clean_reads:
+            assert data.get('unexpected_errors', 1) == 0, data['errors']
         data["classification"] = "injected_fault_excluded_from_healthy_latency"
         if details is not None:
             data.update(details)
@@ -127,7 +129,7 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
                          pause_checkpoint_count=2, no_submissions_during_stale_pause=True,
                          positions_preserved=True, recovery_seconds=time.monotonic() - recovery)
 
-        window('volatility-defense', defense, duration=90, details={'defense': proof})
+        window('volatility-defense', defense, duration=90, details={'defense': proof}, clean_reads=True)
         verify(harness, port)
 
     def restart():
