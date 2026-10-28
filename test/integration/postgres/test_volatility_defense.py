@@ -52,6 +52,27 @@ def test_stale_control_version_cannot_clear_pause(owned):
     assert owned.store.read()['recovery_state']['volatility_defense']['pauses']
 
 
+def test_stop_racing_first_pause_write_cannot_discard_known_breach(owned):
+    item = controller()
+    checkpoints(owned, item)
+    item._spread_policy.defense.state = 'paused'
+    owned.store.control(expected_version=1, desired_state='stopped')
+    assert item.sync_volatility_checkpoint()
+    assert owned.store.read()['recovery_state']['volatility_defense']['pauses']
+
+
+def test_halt_allows_recording_breach_but_never_automatic_clearing(owned):
+    item = controller()
+    checkpoints(owned, item)
+    owned.owner.require_recovery('test_review_required')
+    item._spread_policy.defense.state = 'paused'
+    assert item.sync_volatility_checkpoint()
+    item._spread_policy.defense.state = 'reduced'
+    assert not item.sync_volatility_checkpoint()
+    state = owned.store.read()['recovery_state']
+    assert state['halt'] and state['volatility_defense']['pauses']
+
+
 def test_failed_checkpoint_cannot_reopen_admission(owned, monkeypatch):
     item = controller()
     checkpoints(owned, item)

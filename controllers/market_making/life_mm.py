@@ -253,6 +253,11 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         self._volatility_checkpoint = checkpoint
         if paused:
             self._spread_policy.defense.state = 'paused'
+        else:
+            # A cold controller/profile cannot jump past reduced recovery.
+            # It may quote conservatively while fresh low-volatility samples
+            # qualify normal size; no extra persistent state is needed.
+            self._spread_policy.defense.state = 'reduced'
         self._spread_policy.defense.reset_recovery()
 
     def sync_volatility_checkpoint(self):
@@ -542,6 +547,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             if self.config.spread_policy.enabled:
                 provider = self.market_data_provider
                 cfg = self.config.spread_policy.volatility
+                if cfg.defense is not None and self._volatility_saved_pause is None:
+                    raise ValueError('volatility_checkpoint_pending')
                 if sample_guard and cfg.enabled:
                     candle = self._spread_candle_config()
                     key = provider._generate_candle_feed_key(candle)

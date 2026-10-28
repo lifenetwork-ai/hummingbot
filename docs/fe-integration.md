@@ -385,6 +385,13 @@ NATR/spreads and make cancellation/latch confirmation unknown. Never present the
 last cached sizing state as live health. Continue the existing bounded polling;
 these fields need no additional exchange request or new endpoint.
 
+Cold starts/profile changes can initially show smaller orders while fresh data
+qualifies normal size. During a known volatility pause, automatic random profile
+replacement waits for recovery so it cannot repeatedly reset qualification.
+The displayed step may have expired while quotes remain blocked: send authority
+has still expired, and elapsed random windows are skipped on recovery. Explicit
+Stop/Switch and overall session expiry remain effective.
+
 ## Session command workflow
 
 ### Operator form and review

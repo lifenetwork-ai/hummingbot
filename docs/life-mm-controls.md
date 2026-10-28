@@ -761,6 +761,11 @@ through the existing position-preserving executor lifecycle. Pending original
 allocation stays reserved until terminal proof; replacements cannot stack over
 an unconfirmed cancellation.
 
+Cold starts and profile transitions also begin at reduced size until fresh data
+qualifies normal sizing. Recreating a controller therefore cannot jump past the
+resume threshold inside the hysteresis band. Smaller orders can remain active
+during this qualification; no additional durable reduction record is needed.
+
 At/above the stop threshold, new quotes pause and working remainders are
 cancelled. The PostgreSQL owner checkpoints a small account/environment and
 connector/pair pause latch. Stop/Start, random steps, switching market/profile
@@ -771,6 +776,14 @@ window below `resume_below_natr` permits normal sizing. Offline time and repeate
 API/send checks earn no recovery credit. A paused policy cannot be removed or
 changed on session admission until it recovers under its saved policy; restore
 the YAML or arrange operator-reviewed maintenance if necessary.
+
+Automatic random rotation keeps the recovering controller while a known pause
+or its pending checkpoint remains active, then skips elapsed windows after
+recovery. The old step's send authority still expires on schedule; overall timed
+expiry and explicit Stop/Switch still apply. This prevents short random steps
+from repeatedly erasing recovery samples. Recording a newly observed breach may
+survive a racing Stop/Switch, but clearing the latch requires the exact current
+control version and never clears HALT.
 
 Missing candles use the declared `wait` or explicit `static` policy. Static
 fallback uses reduced size and still requires trustworthy mandatory price data;

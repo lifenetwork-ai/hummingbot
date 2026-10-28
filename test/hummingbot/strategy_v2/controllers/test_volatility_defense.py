@@ -169,6 +169,38 @@ def test_failed_quote_validation_logs_only_final_defense_decision(monkeypatch, c
     assert controller.processed_data['spread_policy']['defense']['state'] == 'waiting'
 
 
+def test_cold_controller_cannot_skip_reduced_recovery_by_switching(monkeypatch, clock):
+    controller = defended_controller(monkeypatch, clock)
+    monkeypatch.setattr('hummingbot.strategy_v2.utils.mm_spread.natr_value', lambda *args: Decimal('.019'))
+    controller.update_reference(sample_guard=True)
+    assert controller._spread_policy.defense.state == 'reduced'
+    assert controller._spread_policy.size_factor(clock.epoch) == Decimal('.5')
+
+
+def test_unbound_controller_waits_before_sampling_account_scoped_defense(monkeypatch, clock):
+    controller = defended_controller(monkeypatch, clock)
+    controller._volatility_saved_pause = None
+    indicator = MagicMock(return_value=Decimal('.05'))
+    monkeypatch.setattr('hummingbot.strategy_v2.utils.mm_spread.natr_value', indicator)
+    controller.update_reference(sample_guard=True)
+    assert controller.processed_data['reason'] == 'volatility_checkpoint_pending'
+    indicator.assert_not_called()
+
+
+def test_random_rotation_defers_known_pause_recovery_without_extending_authority(monkeypatch, clock):
+    from hummingbot.cli.service import ServiceHost
+    controller = defended_controller(monkeypatch, clock)
+    controller._startup_stage = 'ready'
+    controller.bind_volatility_defense(paused=True, checkpoint=lambda paused: True)
+    host = ServiceHost.__new__(ServiceHost)
+    host.start_task = None
+    host._mm_controllers = lambda: [controller]
+    assert host.mm_startup_pending()
+    controller._spread_policy.defense.state = 'reduced'
+    controller._volatility_saved_pause = False
+    assert not host.mm_startup_pending()
+
+
 @pytest.mark.parametrize('updates', [dict(min_multiplier='.5'), dict(enabled=False),
                                      dict(defense=dict(reduce_at_natr='.02', stop_at_natr='.01',
                                                        resume_below_natr='.015', reduced_size_factor='.5', recovery_seconds=60))])

@@ -114,12 +114,17 @@ class VolatilityCheckpoints:
         return True
 
     def checkpoint(self, policy, paused):
-        now = float(self.owner.check_owner()['database_now'])
+        if account_identity(self.owner.connectors) != self.binding:
+            raise SubmissionBlocked('Volatility account binding changed')
+        row = self.owner.check_owner()
+        if not paused and (row['recovery_state'] or {}).get('halt'):
+            return False
+        now = float(row['database_now'])
 
         def change(state):
             raw = state.get('volatility_defense')
             frame = VolatilityCheckpoint.model_validate(raw) if raw is not None else VolatilityCheckpoint(binding=self.binding, pauses={})
-            if frame.binding.model_dump() != self.binding or state.get('halt'):
+            if frame.binding.model_dump() != self.binding or state.get('halt') and not paused:
                 raise SubmissionBlocked('Volatility checkpoint authority changed')
             pauses = dict(frame.pauses)
             previous = pauses.get(policy.key)
@@ -130,4 +135,7 @@ class VolatilityCheckpoints:
             else:
                 pauses.pop(policy.key, None)
             state['volatility_defense'] = VolatilityCheckpoint(binding=self.binding, pauses=pauses).model_dump(mode='json')
-        return self.owner._mutate_recovery(change, expected_version=self.owner.version)
+        # A superseding Stop/Switch cannot discard a newly observed breach.
+        # Recording it grants no trading permission. Clearing still requires
+        # the exact current control version in addition to owner fencing.
+        return self.owner._mutate_recovery(change, expected_version=None if paused else self.owner.version)

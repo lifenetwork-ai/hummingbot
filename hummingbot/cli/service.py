@@ -123,15 +123,20 @@ class ServiceHost:
         return [current[config.id] for config in configs]
 
     def mm_startup_pending(self):
-        """Do not abort read/account initialization just to rotate a random step.
+        """Keep initialization or volatility recovery alive across step expiry.
 
         Expired step authority still blocks every new order at the send gates.
         Explicit stop/switch and overall timed expiry retain their normal cleanup.
         """
         if self.start_task is not None and not self.start_task.done():
             return True
-        return any(getattr(controller, '_startup_stage', None) not in (None, 'ready')
-                   for controller in self._mm_controllers())
+        for controller in self._mm_controllers():
+            if getattr(controller, '_startup_stage', None) not in (None, 'ready'):
+                return True
+            defense = getattr(getattr(controller, '_spread_policy', None), 'defense', None)
+            if getattr(defense, 'state', None) == 'paused' or getattr(controller, '_volatility_saved_pause', None) is True:
+                return True
+        return False
 
     def _mm_available_quote(self, controllers):
         available = [Decimal(str(controller.market_data_provider.get_connector_with_fallback(

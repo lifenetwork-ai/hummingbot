@@ -115,7 +115,8 @@ control loop. A severity increase takes effect immediately on a valid sample.
 
 | Condition | Required behavior |
 |---|---|
-| Fresh NATR below `reduce_at_natr`, no prior restriction | Normal sizing and effective spreads |
+| Cold controller, including a new profile or restart without a saved pause | Start with reduced sizing; qualify fresh NATR below `resume_below_natr` before normal size |
+| Normal sizing, fresh NATR below `reduce_at_natr` | Keep normal sizing and effective spreads |
 | NATR at/above `reduce_at_natr` but below `stop_at_natr` | Reduced sizing; maintain dynamic/base/fee spread floors |
 | NATR at/above `stop_at_natr` | Pause new quotes, request cancellation of working quote remainders and retain filled positions |
 | Reduced state, NATR below `resume_below_natr` | Return to normal only after recovery qualification |
@@ -130,6 +131,11 @@ status/final-send checks or repeated use of one candle do not advance sample
 counts. An unhealthy observation resets qualification. Restart never credits
 offline time, and the nominal delay is not a promise to resume before the next
 qualifying candles arrive.
+
+Cold/profile-transition reduced sizing closes the hysteresis bypass where a new
+controller could otherwise return directly to normal inside the resume/reduce
+band. It needs no additional persistent reduction state and can keep providing
+smaller quotes while qualifying normal size.
 
 NATR is a closed-candle measure and is not an instantaneous price-jump detector.
 Keep existing fresh-book/reference-deviation/range checks active for current
@@ -185,12 +191,25 @@ uses existing unclean-recovery fencing; it must not silently enable fallback.
 
 Stop/Start, clean restart, market switching and random rotation must retain a
 pause. On restore, reset recovery timers/sample counts and require fresh data.
+Automatic random rotation defers controller replacement during a known pause or
+its pending durable recovery so short steps cannot repeatedly erase qualification.
+The stored step deadline and every send gate still expire on schedule; once
+recovered, skip elapsed windows using the existing session logic. Explicit
+Stop/Switch and overall timed expiry remain authoritative. This is not permission
+to trade under an expired step or renew a bootstrap deadline.
 While a pause remains latched, reject removing/changing that market's defense
 policy on re-admission with an actionable English conflict; normal session API
 commands cannot reset it. Fresh-data recovery under the bound policy clears the
 latch. Operator-reviewed maintenance remains the existing exceptional path, with
 no new bypass/reset endpoint. Do not turn this into permanent policy binding
 after ordinary recovery.
+
+Recording a new breach is always owner/generation and account fenced, but may
+persist across a superseding Stop/Switch control version: recording risk data
+grants no trading permission. Otherwise a Stop racing the first write could
+discard the known breach. Clearing a pause still requires the exact current
+control version and cannot clear or bypass HALT. Bind the account before sampling
+account-scoped defense in a cold controller.
 
 Keep the existing joint readiness behavior in `both` mode: one market's required
 wait/pause prevents joint quote admission and cancels through the current path.

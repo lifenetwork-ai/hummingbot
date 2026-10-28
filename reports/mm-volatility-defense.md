@@ -145,3 +145,15 @@ container/backup was found. The user requested recreating the container. A Demo
 PostgreSQL container has been recreated with a dedicated named persistent volume;
 no exchange position or recovery state has been reset. Exchange compatibility
 testing remains after the local gates and account-state checks.
+
+Three further boundary Red tests reproduced: Stop racing the first pause write
+discarded the breach, automatic random replacement could reset an unfinished
+recovery window, and a cold profile could jump directly to normal sizing inside
+the hysteresis band. Green allows owner/account-fenced recording across control
+changes while retaining strict CAS for clearing, defers automatic replacement
+without extending old step authority, and starts cold controllers conservatively
+at reduced size until qualification. Account binding precedes defense sampling.
+Recording risk during HALT does not clear it; automatic clearing remains blocked.
+The 68-case focused selection and 32 PostgreSQL defense/session cases pass. The
+plan/guides now state these contracts explicitly. Earlier image results remain
+historical; final artifact/load acceptance uses this corrected runtime.
