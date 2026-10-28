@@ -96,7 +96,12 @@ async def admin_errors(request, handler):
                               fields=[dict(path=error.field, code=error.code)] if error.field else [])
     except ValueError:
         return error_response(request, "validation_failed", status=422)
-    except (APIUnavailable, SQLAlchemyError, asyncio.TimeoutError):
+    except (APIUnavailable, SQLAlchemyError, asyncio.TimeoutError) as error:
+        # Preserve the safe response contract while distinguishing pool/DB and
+        # application timeouts. Exception messages can contain SQL parameters.
+        kind = type(error).__module__ + "." + type(error).__name__
+        logging.getLogger(__name__).warning("Admin request unavailable type=%s request_id=%s", kind, request_id(request),
+                                            extra={"event": "admin_request_unavailable", "error_type": kind})
         return error_response(request, "unavailable", status=503)
     except web.HTTPException as error:
         return error_response(request, {400: "invalid_json", 404: "not_found", 415: "unsupported_media_type"}.get(

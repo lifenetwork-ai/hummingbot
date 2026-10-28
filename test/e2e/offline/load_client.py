@@ -277,9 +277,10 @@ async def main(args):
                     if path == "/status" and status == 200:
                         last_status = body
                     if status != 200:
-                        errors.append(dict(path=path, status=status))
+                        errors.append(dict(path=path, status=status, at=time.time(),
+                                           server_request_id=body.get("request_id") if isinstance(body, dict) else None))
                 except Exception as error:
-                    errors.append(dict(path=path, error=type(error).__name__))
+                    errors.append(dict(path=path, error=type(error).__name__, at=time.time()))
                 last_completion = time.monotonic()
                 if not auxiliary:
                     completed_in_window += last_completion <= origin + args.duration
