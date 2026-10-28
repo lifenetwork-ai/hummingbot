@@ -1175,7 +1175,13 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         original = path.read_bytes()
         profiles = yaml.safe_load(path.read_text())
         enable_volatility_defense(profiles)
-        profiles['random']['step_duration_seconds'] = 60
+        # Accelerate only this functional fixture's ordinary refresh. The
+        # separate load fixture keeps its original timers and all gate budgets.
+        for market in profiles['markets'].values():
+            market['executor_refresh_time'] = 30
+        # Leave time for safe cold reduced quotes to reach their ordinary
+        # refresh before asserting a full-size -> reduced-size transition.
+        profiles['random']['step_duration_seconds'] = 120
         path.write_text(yaml.safe_dump(profiles))
         self.report.joinpath('effective-volatility-defense.yaml').write_bytes(path.read_bytes())
         self.env.update(ADMIN_API_ENABLED='true', ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')
@@ -1196,8 +1202,9 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             return sum((Decimal(row['px']) * Decimal(row['sz']) * (Decimal('.01') if row['instId'].endswith('-SWAP') else 1)
                         for row in (live() if rows is None else rows)), Decimal('0'))
 
-        poll(lambda: len(states()) == 2 and all(row.get('state') == 'normal' for row in states().values()) and len(live()) == 12,
-             description='three weighted levels on both markets')
+        poll(lambda: len(states()) == 2 and all(row.get('state') == 'normal' for row in states().values())
+             and len(live()) == 12 and allocation() >= Decimal('199'), timeout=115,
+             description='three full-size weighted levels after ordinary cold-quote refresh')
         baseline = str(allocation())
         for perpetual in (False, True):
             order = next(row for row in live() if row['instId'].endswith('-SWAP') == perpetual and row['side'] == 'buy')
@@ -1240,6 +1247,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert http(port, '/live')[0] == 200 and not live()
         assert paused_session['step_expires_at'] is not None
         poll(lambda: time.time() >= paused_session['step_expires_at'] + 2,
+             timeout=profiles['random']['step_duration_seconds'] + 10,
              description='paused random step reaches its original deadline')
         observed_session = self.state()['mm_session']
         assert observed_session['generation'] == paused_session['generation']
