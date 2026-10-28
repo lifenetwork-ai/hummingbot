@@ -387,6 +387,7 @@ def main():
                     evidence["faults"] = fault_windows(
                         harness, bot, port, client, report, run_window,
                         lambda h, p: verify_ledger(h, p, require_running=False),
+                        volatility_defense=args.volatility_defense,
                         on_result=lambda name, data: save_fault_progress(report, evidence, name, data))
                 failed = {name: data["violations"] for name, data in evidence["windows"].items() if data.get("violations")}
                 if failed:
