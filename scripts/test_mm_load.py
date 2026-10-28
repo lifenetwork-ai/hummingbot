@@ -173,6 +173,7 @@ def main():
     parser.add_argument("--diagnostic", action="store_true", help="Use local image ID for iteration; cannot serve as final artifact acceptance")
     parser.add_argument("--refresh-seconds", type=int, help="Diagnostic-only accelerated quote refresh")
     parser.add_argument("--trace", action="store_true", help="Bounded request/SQL/commit/loop-stack/PG-wait traces; no parameters or credentials")
+    parser.add_argument('--gc-diagnostics', action='store_true', help='Minimal bounded full-GC timing in the test wrapper; no GC policy changes')
     parser.add_argument("--strict-guards", action="store_true", help="Explicit strict-guard fixture; production defaults remain disabled")
     parser.add_argument("--drawdown", action="store_true", help="Explicit drawdown limits; production defaults remain disabled")
     parser.add_argument("--spot-outflow", action="store_true", help="Explicit outflow policy, bound on an empty DB before historical seeding")
@@ -206,6 +207,7 @@ def main():
                     volatility_defense=args.volatility_defense,
                     operations_reads_per_second=3 if args.operations else 0,
                     tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap, inventory_skew=args.inventory_skew,
+                    gc_diagnostics=args.gc_diagnostics,
                     continue_after_budget_failure=args.keep_going, windows={})
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
         ROOT / "scripts/test_mm_load.py", ROOT / "scripts/test_e2e_offline.py", ROOT / "scripts/analyze_mm_load_trace.py",
@@ -293,6 +295,8 @@ def main():
                 docker("update", "--cpus", "1", "--memory", "512m", "--memory-swap", "512m", harness.simulator)
                 docker("update", "--cpus", "2", "--memory", "512m", "--memory-swap", "512m", harness.pg)
                 harness.env["FUNDING_SYNC_INTERVAL_SECONDS"] = "5"
+                if args.gc_diagnostics:
+                    harness.env['HBOT_LOAD_GC_DIAGNOSTICS'] = '1'
                 trace_directory = report / "trace" if args.trace else None
                 if trace_directory:
                     trace_directory.mkdir()

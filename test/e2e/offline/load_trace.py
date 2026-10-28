@@ -9,8 +9,30 @@ import threading
 import time
 import traceback
 import uuid
+from collections import deque
 from functools import lru_cache
 from pathlib import Path
+
+
+class FullGCProbe:
+    """Minimal optional measurement; never changes GC policy or retains objects."""
+
+    def __init__(self, limit=128):
+        self.events = deque(maxlen=limit)
+        self.started = {}
+
+    def __call__(self, phase, info):
+        if info['generation'] != 2:
+            return
+        identity = threading.get_ident()
+        if phase == 'start':
+            self.started[identity] = time.monotonic_ns(), time.thread_time_ns()
+        elif identity in self.started:
+            started, cpu = self.started.pop(identity)
+            self.events.append(dict(start_ns=started, at=time.time(), thread_id=identity,
+                                    duration_ms=(time.monotonic_ns() - started) / 1e6,
+                                    thread_cpu_ms=(time.thread_time_ns() - cpu) / 1e6,
+                                    collected=info['collected']))
 
 
 def instrument_sync(owner, name, key, samples, totals, tracer, attributes=None):

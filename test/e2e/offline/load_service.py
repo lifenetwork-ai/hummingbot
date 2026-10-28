@@ -18,7 +18,7 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 from aiohttp import web
-from load_trace import TraceRecorder, TraceSink, backend_pid, instrument_sync, sql_metadata, stack_snapshot
+from load_trace import FullGCProbe, TraceRecorder, TraceSink, backend_pid, instrument_sync, sql_metadata, stack_snapshot
 from sqlalchemy import event
 from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 from sqlalchemy.engine import Engine
@@ -76,6 +76,7 @@ tracer = TraceRecorder(trace_sink.emit) if trace_sink else None
 loop_beat_ns = time.monotonic_ns()
 watchdog_stop = threading.Event()
 gc_started = {}
+full_gc_probe = FullGCProbe() if os.environ.get('HBOT_LOAD_GC_DIAGNOSTICS') == '1' else None
 if trace_sink:
     atexit.register(trace_sink.close)
 
@@ -257,6 +258,8 @@ async def probe(host):
                         totals=dict(totals), route_queries=dict(route_queries),
                         checked_out=host.engine.pool.checkedout() if host.engine else None,
                         pool_size=host.engine.pool.size() if host.engine else None)
+            if full_gc_probe is not None:
+                data['full_gc_events'] = list(full_gc_probe.events)
             if tracer:
                 data["trace"] = {**trace_sink.summary(), "dropped_spans": tracer.dropped_spans,
                                  "slow_trace_threshold_ms": tracer.slow_ms}
@@ -358,6 +361,8 @@ original_run = service.ServiceHost.run
 
 async def run(host):
     task = asyncio.create_task(probe(host))
+    if full_gc_probe is not None:
+        gc.callbacks.append(full_gc_probe)
     if tracer:
         gc.callbacks.append(gc_trace)
         threading.Thread(target=watchdog, args=(threading.get_ident(),), name="load-loop-watchdog", daemon=True).start()
@@ -366,6 +371,8 @@ async def run(host):
     finally:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
+        if full_gc_probe is not None:
+            gc.callbacks.remove(full_gc_probe)
         if tracer:
             watchdog_stop.set()
             gc.callbacks.remove(gc_trace)

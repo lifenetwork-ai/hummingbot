@@ -85,3 +85,18 @@ def test_request_children_are_bounded_and_loss_is_explicit():
     assert len(records[0]['spans']) == 2
     assert records[0]['dropped_spans'] == 19
     assert recorder.active_snapshot() == []
+
+
+def test_full_gc_probe_is_bounded_and_ignores_young_collections(monkeypatch):
+    from test.e2e.offline import load_trace
+    probe = load_trace.FullGCProbe(limit=2)
+    ticks = iter([1000000, 3000000, 4000000, 7000000, 8000000, 12000000])
+    monkeypatch.setattr(load_trace.time, 'monotonic_ns', lambda: next(ticks))
+    probe('start', {'generation': 0})
+    probe('stop', {'generation': 0, 'collected': 999})
+    for collected in (1, 2, 3):
+        probe('start', {'generation': 2})
+        probe('stop', {'generation': 2, 'collected': collected})
+    assert [row['collected'] for row in probe.events] == [2, 3]
+    assert [row['duration_ms'] for row in probe.events] == [3, 4]
+    assert probe.started == {}
