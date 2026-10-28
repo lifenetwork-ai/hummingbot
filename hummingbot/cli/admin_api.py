@@ -333,7 +333,7 @@ class AdminAPI:
     async def orders(self, request):
         query = self.query(request, OrdersQuery)
         page = await self.run_database(self.storage().orders, **query.filters())
-        return web.json_response(OrdersPage.model_validate(page).model_dump(mode="json"))
+        return web.json_response(text=OrdersPage.model_validate(page).model_dump_json())
 
     @api_operation(operation_id="getOrder", summary="Read one recorded order and its bounded status timeline", tag="History",
                    response_model=OrderDetail, query_model=OrderDetailQuery, path_parameters=("order_id",))
@@ -352,7 +352,7 @@ class AdminAPI:
     async def fills(self, request):
         query = self.query(request, FillsQuery)
         page = await self.run_database(self.storage().fills, **query.filters())
-        return web.json_response(FillsPage.model_validate(page).model_dump(mode="json"))
+        return web.json_response(text=FillsPage.model_validate(page).model_dump_json())
 
     @api_operation(operation_id="getBalances", summary="Read account cash and equity once, with observation freshness", tag="Reporting",
                    response_model=BalancesResponse)
