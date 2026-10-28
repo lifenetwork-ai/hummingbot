@@ -357,3 +357,7 @@ Post-acceptance availability audit: track the five source fixes and new-source
 verification in the [ordered TDD remediation checklist](../../reports/life-mm-availability-remediation.md).
 The V5 image/load results above remain historical acceptance for their declared
 source; they do not certify later runtime changes.
+
+The availability follow-up completed on 2026-10-29: five TDD fixes, current-image
+16-group E2E, continuous sixty-minute load and six post-hour faults pass. The
+linked remediation report records the new image/source and retained failed runs.

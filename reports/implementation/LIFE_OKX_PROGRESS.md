@@ -1330,22 +1330,23 @@ and final V5 acceptance are complete on `f52f6ee3f` / `c924030a…`. Earlier
 images and failed observer attempts retain their original scope; no Cloud Run
 deployment, live LIFE or multi-day uptime claim is added.
 
-## Service availability audit remediation (2026-10-29; image/load verification in progress)
+## Service availability audit remediation (2026-10-29; complete)
 
-Five audited findings have focused TDD fixes: shutdown send fencing, optional
-statement isolation, established DB I/O deadlines, bounded priority API admission
-and required executor-consumer supervision. The existing ten-retry burst remains
-admissible with 32 total/12 reporting slots and two physical workers. Final-source
-native regression passes 1,857 tests plus 11 subtests (including six subsequent
-harness-continuity tests); PostgreSQL passes 257 tests
-and Swagger passes. Artifact `be3efe46…` matches 29 selected files on `04cca6caf`.
-All 16 image E2E groups pass in one invocation, including predecessor
-takeover/rollback. The short diagnostic passes (p95 151 ms, p99 498 ms); unchanged
-warmup/mixed/burst and six preflight faults pass. The continuous final soak was
-interrupted by macOS Clamshell Sleep at 02:35; its 966.889s sample gap is retained
-and is not accepted as a continuous hour. The host-side acceptance gate now rejects
-gaps/reversed/missing/non-finite timestamps (six Red cases, ten focused Green).
-The final uninterrupted load/post-hour gate remains pending a lid-open host.
-See the canonical
-[remediation checklist](../life-mm-availability-remediation.md) and
-[portable evidence](../life-mm-availability-remediation-evidence.json).
+- [x] Fix all five findings with Red/Green coverage: shutdown send fencing, optional SQL isolation, established DB I/O deadlines, bounded priority API admission and required action-consumer supervision.
+- [x] Preserve the ten-retry burst with 32 total / 12 reporting admissions, two workers and pool size five.
+- [x] Pass 1,857 native tests plus 11 subtests, 257 PostgreSQL tests and Swagger; verify 29 selected runtime files in immutable image `be3efe46…` on `04cca6caf`.
+- [x] Pass all 16 image E2E groups in one invocation, including predecessor takeover/rollback; classify all 55 induced structured ERROR records.
+- [x] Add six Red / ten focused Green harness-continuity cases after the actual 02:35 clamshell interruption; retain its rejected 966.889s gap.
+- [x] Complete the unchanged full load profile and six post-hour faults in `build/mm-load/20261029-051533-6462ca`: 90k hour reads, zero healthy errors, p99 674.21 ms, median RSS growth 9.46 MiB and 4,885 matching fills/positions.
+- [x] Verify 58 continuous runtime samples (maximum gap 65.70s), unchanged thresholds and final runtime/harness hashes; clean test containers and retain the persistent Demo DB.
+
+The first lid-open retry failed mixed p99 at 1,013.10 ms. Controlled traced and
+untraced short diagnostics passed without reproducing that failure; its root
+cause remains unconfirmed. No runtime/threshold change was made to obtain the
+successful full repeat. Restart/DB fault HTTP failures are retained separately
+from the zero-error healthy windows. This work adds no real exchange, Cloud Run
+or multi-day uptime claim.
+
+See the canonical [remediation checklist](../life-mm-availability-remediation.md)
+and [portable evidence](../life-mm-availability-remediation-evidence.json), which
+retain both earlier failed/interrupted attempts and the final accepted run.
