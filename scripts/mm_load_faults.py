@@ -8,6 +8,19 @@ from decimal import Decimal
 from scripts.test_e2e_offline import docker, poll
 
 
+def cancel_upper_bound(baseline, observed, stimulus_ms):
+    """Input precedes restriction decisions, so this bounds decision-to-ACK time."""
+    by_id = {row['clOrdId']: row for row in observed}
+    maximum = {}
+    assert baseline, 'Cancellation measurement needs known working orders'
+    for before in baseline:
+        row = by_id.get(before['clOrdId']) or {}
+        assert row.get('state') == 'canceled' and row.get('cancel_terminal_ms'), 'Missing first terminal proof'
+        latency = max(0, int(row['cancel_terminal_ms']) - stimulus_ms)
+        maximum[before['instId']] = max(maximum.get(before['instId'], 0), latency)
+    return maximum
+
+
 def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_result=None, volatility_defense=False):
     results = {}
 
@@ -77,6 +90,7 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
 
         def defense():
             positions = harness.ledger()['positions']
+            baseline = working()
             started = time.time()
             harness.control(candle_width='.015')
             poll(lambda: len(defense_states()) == 2 and all(row.get('state') == 'reduced' for row in defense_states()),
@@ -88,6 +102,8 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
                                   (Decimal('.01') if row['instId'].endswith('-SWAP') else 1) for row in rows), Decimal(0))
                 return len(rows) == 12 and allocation <= 100
             poll(smaller, description='loaded reduced orders respect the effective allocation')
+            cancel_ms = cancel_upper_bound(baseline, harness.ledger()['orders'], started * 1000)
+            assert all(value <= 5000 for value in cancel_ms.values()), cancel_ms
             harness.control(candle_width='.03')
             poll(lambda: len(defense_states()) == 2 and all(row.get('state') == 'paused' for row in defense_states()) and not working(),
                  description='loaded extreme volatility cancels both quote sets')
@@ -105,15 +121,16 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
                     if stamp >= started:
                         decisions.setdefault(row['scope'], stamp * 1000)
             assert set(decisions) == {'life_spot', 'life_perpetual'}, 'Both sampled pause decisions must be observable'
-            cancel_ms = {}
-            for scope, decision in decisions.items():
-                instrument = 'LIFE-USDT-SWAP' if scope.endswith('perpetual') else 'LIFE-USDT'
+            pause_cancel_ms, pause_working = {}, {}
+            # Joint readiness closes both markets on the first pause. Earlier
+            # spread widening may already have removed every working order.
+            decision = min(decisions.values())
+            for instrument in ('LIFE-USDT', 'LIFE-USDT-SWAP'):
                 terminals = [int(row['cancel_terminal_ms']) for row in ledger['orders']
-                             if row['instId'] == instrument and int(row['cTime']) <= decision
-                             and int(row.get('cancel_terminal_ms', 0)) >= decision]
-                assert terminals, 'Cancellation latency needs an observed terminal acknowledgment after the decision'
-                cancel_ms[scope] = max(stamp - decision for stamp in terminals)
-            assert all(value <= 5000 for value in cancel_ms.values()), cancel_ms
+                             if row['instId'] == instrument and int(row.get('cancel_terminal_ms', 0)) > decision]
+                pause_working[instrument] = len(terminals)
+                pause_cancel_ms[instrument] = max(stamp - decision for stamp in terminals) if terminals else None
+            assert all(value is None or value <= 5000 for value in pause_cancel_ms.values()), pause_cancel_ms
             accepted = len(ledger['accepted'])
             harness.control(candle_stale=True)
             time.sleep(6)
@@ -125,7 +142,10 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
             poll(lambda: len(defense_states()) == 2 and all(row.get('state') == 'normal' for row in defense_states()),
                  description='loaded fresh candles recover normal sizing')
             assert not harness.state()['recovery_state']['volatility_defense']['pauses']
-            proof.update(decision_to_terminal_cancel_ms=cancel_ms, reduced_allocation_verified=True,
+            proof.update(stimulus_to_terminal_cancel_ms=cancel_ms,
+                         latency_scope='Conservative upper bound: input precedes controller restriction; first terminal proof, not duplicate acknowledgment time',
+                         working_at_joint_pause=pause_working, joint_pause_to_terminal_cancel_ms=pause_cancel_ms,
+                         reduced_allocation_verified=True,
                          pause_checkpoint_count=2, no_submissions_during_stale_pause=True,
                          positions_preserved=True, recovery_seconds=time.monotonic() - recovery)
 

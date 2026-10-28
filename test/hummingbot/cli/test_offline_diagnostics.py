@@ -37,6 +37,17 @@ def test_position_preservation_compares_exposure_instead_of_market_valuation():
     assert test_e2e_offline.position_exposure([]) != snapshot
 
 
+def test_cancel_upper_bound_uses_first_terminal_proof_not_later_duplicate_time():
+    baseline = [dict(clOrdId='one', instId='LIFE-USDT'), dict(clOrdId='two', instId='LIFE-USDT-SWAP')]
+    observed = [dict(row, state='canceled', cancel_terminal_ms=stamp, uTime='99000')
+                for row, stamp in zip(baseline, [1100, 1200])]
+    assert mm_load_faults.cancel_upper_bound(baseline, observed, 1000) == {'LIFE-USDT': 100, 'LIFE-USDT-SWAP': 200}
+    assert mm_load_faults.cancel_upper_bound(baseline, observed, 1300) == {'LIFE-USDT': 0, 'LIFE-USDT-SWAP': 0}
+    observed[0].pop('cancel_terminal_ms')
+    with pytest.raises(AssertionError, match='terminal proof'):
+        mm_load_faults.cancel_upper_bound(baseline, observed, 1000)
+
+
 @pytest.mark.parametrize('status', ['failed', 'superseded'])
 def test_command_terminal_failure_is_immediate_and_includes_receipt(monkeypatch, status):
     monkeypatch.setattr(test_e2e_offline, 'poll', poll_once)
