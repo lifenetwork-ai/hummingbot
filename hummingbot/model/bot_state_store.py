@@ -5,9 +5,17 @@ from typing import Optional
 from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import OperationalError
 
 from hummingbot.core.control_errors import ControlConflict
 from hummingbot.model.bot_state import BotState
+
+
+def _optional_statement_timeout(error):
+    # These failures leave the physical session usable after SAVEPOINT rollback.
+    # A lost/invalidated connection or another operational failure stays fatal.
+    return (not error.connection_invalidated
+            and getattr(error.orig, "pgcode", None) in {"55P03", "57014"})
 
 
 class BotStateStore:
@@ -113,7 +121,9 @@ class BotStateStore:
             from hummingbot.model.mm_event import record_guards
             try:
                 record_guards(connection, self.bot_id, previous["mm_session"], previous["status"] or {}, status, version)
-            except (ValueError, TypeError, KeyError, AttributeError, OverflowError, DataError, IntegrityError):
+            except (ValueError, TypeError, KeyError, AttributeError, OverflowError, DataError, IntegrityError, OperationalError) as error:
+                if isinstance(error, OperationalError) and not _optional_statement_timeout(error):
+                    raise
                 status["mm_guard_observation"] = (previous["status"] or {}).get("mm_guard_observation")
                 status["mm_history_error"] = "guard_history_unavailable"
             result = connection.execute(update(BotState).where(
@@ -135,7 +145,9 @@ class BotStateStore:
                     with connection.begin_nested():
                         save_daily_balances(connection, (status.get("reporting") or {}).get("accounts", []),
                                             status.get("reporting_timezone", "Asia/Ho_Chi_Minh"))
-            except (ValueError, TypeError, KeyError, OverflowError, DataError, IntegrityError) as error:
+            except (ValueError, TypeError, KeyError, OverflowError, DataError, IntegrityError, OperationalError) as error:
+                if isinstance(error, OperationalError) and not _optional_statement_timeout(error):
+                    raise
                 status["daily_snapshot_error"] = type(error).__name__
                 connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(status=status))
             return True
