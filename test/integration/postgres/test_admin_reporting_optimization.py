@@ -1,4 +1,5 @@
 """Reproducible reporting measurements; milliseconds are evidence, not gates."""
+import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from test.integration.postgres.test_performance import measure, queries, report
@@ -6,6 +7,7 @@ from test.integration.postgres.test_performance import measure, queries, report
 from sqlalchemy import event, text
 
 from hummingbot.model.admin_reporting import daily, save_daily_balances
+from hummingbot.model.db_migration.postgres.io_deadline import bootstrap_io_budget
 from hummingbot.model.db_migration.postgres.runner import bootstrap_postgres
 from scripts.test_mm_load import seed_history
 
@@ -15,7 +17,7 @@ def test_reporting_large_history_measurement(pg_engine):
 
     class Seeder:
         def sql(self, sql):
-            with pg_engine.begin() as connection:
+            with pg_engine.begin() as connection, bootstrap_io_budget(connection, time.monotonic() + 30):
                 connection.execute(text("SET LOCAL statement_timeout='30s'"))
                 connection.execute(text(sql))
     seed_history(Seeder(), 100000)
@@ -39,7 +41,7 @@ def test_reporting_large_history_measurement(pg_engine):
         read()
     finally:
         event.remove(pg_engine, "before_cursor_execute", capture)
-    with pg_engine.begin() as connection:
+    with pg_engine.begin() as connection, bootstrap_io_budget(connection, time.monotonic() + 30):
         # Measure the deliberately JIT-enabled baseline even when compilation
         # exceeds the runtime budget. Actual daily() reads retain their 2s limit.
         connection.exec_driver_sql("SET LOCAL statement_timeout='30s'")

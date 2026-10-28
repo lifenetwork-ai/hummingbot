@@ -352,3 +352,8 @@ remains open unless the user explicitly waives it. No Cloud Run staging or live
 LIFE trading is required by this plan. Real listing thresholds and capital
 allocation remain an operational decision after instrument rules, inventory and
 budget are known.
+
+Post-acceptance availability audit: track the five source fixes and new-source
+verification in the [ordered TDD remediation checklist](../../reports/life-mm-availability-remediation.md).
+The V5 image/load results above remain historical acceptance for their declared
+source; they do not certify later runtime changes.

@@ -22,6 +22,7 @@ from hummingbot.core.order_submission_guard import SubmissionBlocked, session_or
 from hummingbot.core.spot_outflow import SpotOutflowPolicy
 from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest
+from hummingbot.model.db_migration.postgres.io_deadline import bootstrap_io_budget
 from hummingbot.model.order import Order
 from hummingbot.model.trade_fill import TradeFill
 
@@ -247,7 +248,7 @@ def test_large_window_rebuild_has_bounded_queries_and_no_sql_on_projection_or_re
     _, catalogue = setup(owned, window_seconds=60)
     historical_fill(owned)
     stamp = int(time.time() * 1000) - 1
-    with owned.engine.begin() as connection:
+    with owned.engine.begin() as connection, bootstrap_io_budget(connection, time.monotonic() + 60):
         connection.execute(text("SET LOCAL statement_timeout = '60s'"))
         connection.execute(text("""INSERT INTO trade_fills
             (market, order_id, exchange_trade_id, config_file_path, strategy, symbol, base_asset, quote_asset,

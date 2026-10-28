@@ -2,7 +2,10 @@
 
 Date: 2026-10-28 (client timezone Asia/Saigon). Audited baseline: `06580fbcf`;
 application source: `f52f6ee3f`, previously accepted image `c924030a…`.
-Status: audit complete; **three P1 and two P2 findings remain open**.
+Status at the audited baseline: **three P1 and two P2 findings confirmed**.
+Subsequent fixes and remaining acceptance gates are tracked in the
+[TDD remediation report](life-mm-availability-remediation.md); the reproductions
+below deliberately retain their original defect-present results.
 [Portable evidence and reproducer sources](life-mm-availability-audit-evidence.json).
 
 This review did not change runtime code, send exchange requests, start the Demo

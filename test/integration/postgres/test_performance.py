@@ -21,6 +21,7 @@ from sqlalchemy import event, func, inspect, select, text
 
 from hummingbot.cli.data import get_trades
 from hummingbot.core.event.events import MarketEvent
+from hummingbot.model.db_migration.postgres.io_deadline import bootstrap_io_budget
 from hummingbot.model.db_migration.postgres.runner import SCRIPTS, bootstrap_postgres
 from hummingbot.model.executors import Executors
 from hummingbot.model.position import Position
@@ -80,7 +81,7 @@ def report(name, values):
 
 def seed_executors(engine):
     # 20k realistic JSON snapshots, 2k belonging to this strategy (20 controllers).
-    with engine.begin() as connection:
+    with engine.begin() as connection, bootstrap_io_budget(connection, time.monotonic() + 30):
         connection.execute(text("SET LOCAL statement_timeout = '30s'"))
         connection.execute(text("""
             INSERT INTO executors
@@ -194,7 +195,7 @@ def test_performance_invalid_history_fails_closed_and_releases_cursor(recording,
 
 
 def seed_orders(engine, count=100000):
-    with engine.begin() as connection:
+    with engine.begin() as connection, bootstrap_io_budget(connection, time.monotonic() + 30):
         connection.execute(text("SET LOCAL statement_timeout = '30s'"))
         connection.execute(text("""
             INSERT INTO orders (id, config_file_path, strategy, market, symbol, base_asset,

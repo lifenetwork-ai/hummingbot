@@ -70,3 +70,20 @@ listener task. A stopped listener immediately blocks new risk before the next
 observer tick; the observer uses the existing recovery latch and teardown rather
 than inventing a second consumer or restart mechanism. Ordinary shutdown does
 not create an operator incident. Raw logs: `aud005-red.log` / `aud005-green.log`.
+
+## Final-source verification (in progress)
+
+`make test-cloudrun-regression`: 1,850 passed plus 11 subtests.
+Full disposable PostgreSQL suite: 257 passed. Swagger check passes.
+The first full PG run exposed historical bulk-fixture operations with explicit
+30/60s SQL budgets but no corresponding client budget. Only those seed/baseline
+measurement scopes now use the existing bootstrap budget context; runtime read
+and fault budgets are unchanged. The corrected full suite passes without skips.
+The initial failure is retained in `postgres-setup-green.log` (a failed attempt,
+despite its original filename); current results are in `postgres.log`.
+
+Immutable-image and unchanged load acceptance remain pending. No real exchange
+requests, Demo bot restart, cloud deployment or persistent Demo DB changes were
+performed. Driver stalls are bounded per operation; pool checkout, initial
+connection and reconnect attempts retain separate budgets. Mandatory persistence
+or owner loss still fences trading and may deliberately restart the service.

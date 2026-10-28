@@ -1,6 +1,9 @@
+import time
+
 import pytest
 from sqlalchemy import text
 
+from hummingbot.model.db_migration.postgres.io_deadline import bootstrap_io_budget
 from hummingbot.model.db_migration.postgres.runner import bootstrap_postgres
 from scripts.test_mm_load import seed_history
 
@@ -20,7 +23,7 @@ def test_default_all_market_pages_use_bounded_index_order_on_large_history(pg_en
 
     class Seeder:
         def sql(self, sql):
-            with pg_engine.begin() as connection:
+            with pg_engine.begin() as connection, bootstrap_io_budget(connection, time.monotonic() + 30):
                 connection.execute(text("SET LOCAL statement_timeout='30s'"))
                 connection.execute(text(sql))
     seed_history(Seeder(), 100000)
