@@ -7,7 +7,7 @@ live trading is part of this work. Retain the original audit/probe evidence.
 - [x] AUD-002: Isolate optional PostgreSQL statement/lock failures; preserve mandatory failures.
 - [x] AUD-003: Bound established DB I/O and prove fenced recovery under response loss.
 - [x] AUD-004: Bound API admission and prioritize control without increasing DB concurrency.
-- [ ] AUD-005: Supervise the required executor-action consumer.
+- [x] AUD-005: Supervise the required executor-action consumer.
 - [ ] Re-run regression, real PostgreSQL, Swagger and a newly verified immutable image.
 - [ ] Re-run the unchanged healthy/fault load gates on the final source/image.
 
@@ -60,3 +60,13 @@ The HTTP probe accepts Stop and reads its receipt each within 2.7s despite seven
 1.8s reads, retaining an available owner connection. Pool size stays five.
 Raw logs: `aud004-unit-red.log`, `aud004-pg-red.log`, `aud004-unit-green.log`
 and `aud004-pg-green.log`.
+
+## AUD-005
+
+Red: four new canceled/failed-consumer cases fail; the healthy/intentional-close
+case already passes. Green: 36 focused consumer, availability, shutdown and
+service tests pass. The cheap final runtime gate now checks the existing action
+listener task. A stopped listener immediately blocks new risk before the next
+observer tick; the observer uses the existing recovery latch and teardown rather
+than inventing a second consumer or restart mechanism. Ordinary shutdown does
+not create an operator incident. Raw logs: `aud005-red.log` / `aud005-green.log`.

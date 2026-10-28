@@ -219,6 +219,9 @@ class ServiceHost:
         strategy = core.strategy
         if strategy is None:
             return None
+        task = getattr(strategy, "listen_to_executor_actions_task", None)
+        if isinstance(task, asyncio.Task) and task.done():
+            return "executor_action_listener_stopped"
         for identity, controller in getattr(strategy, "controllers", {}).items():
             if (controller.config.manual_kill_switch
                     or identity in getattr(strategy, "drawdown_exited_controllers", [])):
