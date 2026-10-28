@@ -6,6 +6,24 @@ import pytest
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('path,query,expected', [
+    ('/api/v5/market/ticker', {'instId': 'LIFE-USDT'}, {'LIFE-USDT': '0.1'}),
+    ('/api/v5/market/tickers', {'instType': 'SWAP'}, {'BTC-USDT-SWAP': '100', 'LIFE-USDT-SWAP': '0.1'}),
+    ('/api/v5/market/tickers', {'instType': 'SPOT'}, {'BTC-USDT': '100', 'LIFE-USDT': '0.1'}),
+])
+async def test_public_tickers_follow_requested_instruments_and_fixture_prices(path, query, expected):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    fixtures = {key: {'data': [{'instId': f'{base}-USDT{suffix}'} for base in ('BTC', 'LIFE')]}
+                for key, suffix in [('instruments', ''), ('perpetual_instruments', '-SWAP')]}
+    exchange = Exchange(fixtures=fixtures)
+    request = SimpleNamespace(path=path, method='GET', query=query, headers={}, text=AsyncMock(return_value=''))
+    response = json.loads((await exchange.handle(request)).text)
+    assert {row['instId']: row['last'] for row in response['data']} == expected
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("state", ["canceled", "filled"])
 async def test_fill_candidate_canceled_after_ledger_read_cannot_reopen_terminal_order(state):
     fixtures = dict(order_event={"arg": {"channel": "orders"}, "data": [{}]}, balances={"data": [{"details": []}]})

@@ -271,8 +271,19 @@ class Exchange:
         if path == "/api/v5/market/books":
             return self.ok([self.book(request.query.get("instId", "BTC-USDT"))])
         if path in ("/api/v5/market/ticker", "/api/v5/market/tickers"):
-            symbol = "BTC-USDT-SWAP" if request.query.get("instType") == "SWAP" else "BTC-USDT"
-            return self.ok([{"instId": symbol, "last": "100", "askPx": "101", "bidPx": "99", "ts": millis()}])
+            single = request.query.get('instId') if path.endswith('/ticker') else None
+            swaps = request.query.get('instType') == 'SWAP' or bool(single and single.endswith('-SWAP'))
+            instruments = self.fixtures['perpetual_instruments' if swaps else 'instruments']['data']
+            rows = []
+            for instrument in instruments:
+                symbol = instrument['instId']
+                pair = symbol.removesuffix('-SWAP')
+                if (single is not None and symbol != single) or pair not in self.prices:
+                    continue
+                price = Decimal(self.prices[pair])
+                rows.append(dict(instId=symbol, last=str(price), askPx=str(price * Decimal('1.01')),
+                                 bidPx=str(price * Decimal('.99')), ts=millis()))
+            return self.ok(rows)
         if path == "/api/v5/trade/orders-pending":
             return self.ok([order for order in self.orders.values() if order["state"] in ("live", "partially_filled")])
         if path == "/api/v5/trade/fills":
