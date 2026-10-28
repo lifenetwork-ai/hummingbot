@@ -553,6 +553,13 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 
         def completed():
             code, observed = self.admin(port, "/commands/" + receipt["id"])
+            if code is None:
+                # The mutation was accepted. A missing transport reply on this
+                # read-only poll does not mean the command failed; keep its ID
+                # and original completion deadline. Actual load reads and HTTP
+                # failures retain their unchanged error/latency gates.
+                self.metrics['command_receipt_transport_retries'] = self.metrics.get('command_receipt_transport_retries', 0) + 1
+                return False
             assert code == 200, f"MM {action} receipt unavailable HTTP {code}"
             latest.update({field: observed.get(field) for field in ("id", "status", "error", "effective_version")})
             if observed["status"] in ("failed", "superseded"):
