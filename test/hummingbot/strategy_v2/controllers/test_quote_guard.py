@@ -167,6 +167,27 @@ def test_rounding_noise_is_not_external_liquidity():
     assert value.market_mid is None
 
 
+@pytest.mark.parametrize('side', [TradeType.BUY, TradeType.SELL])
+def test_downward_double_rounding_of_own_quantity_keeps_real_outside_depth(side):
+    # Actual observed 5,091.6496 contracts at ctVal=.01: native book rows
+    # contain 50.916495999999995 while the order ledger retains 50.916496.
+    amount = Decimal('50.916496')
+    projected = float('5091.6496') * .01
+    own = order(side=side, price='99' if side == TradeType.BUY else '101', amount=str(amount))
+    bids = [(99, projected), (98, 20)] if side == TradeType.BUY else [(99, 20)]
+    asks = [(101, projected), (102, 20)] if side == TradeType.SELL else [(101, 20)]
+    value = observation([own], bids=bids, asks=asks)
+    assert value.market_mid == Decimal('99.5' if side == TradeType.BUY else '100.5')
+    own_only = observation([own], bids=bids[:1], asks=asks[:1])
+    assert own_only.market_mid is None
+    # A real deficit outside floating-point noise remains inconsistent.
+    if side == TradeType.BUY:
+        bids[0] = (99, float(amount - Decimal('.0001')))
+    else:
+        asks[0] = (101, float(amount - Decimal('.0001')))
+    assert observation([own], bids=bids, asks=asks).detail == 'inconsistent_own_depth'
+
+
 def test_crossed_and_mutating_book_are_unavailable():
     connector = SimpleNamespace(name="okx", in_flight_orders={})
     crossed = SimpleNamespace(snapshot_uid=1000, last_diff_uid=1000,

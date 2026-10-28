@@ -150,13 +150,15 @@ def observe_market(connector, book, pair, *, now, max_age_seconds, max_levels, m
                 previous = price
                 seen.add(price)
                 remaining = quantity - own[index].get(price, Decimal("0"))
-                if remaining < 0:
+                # Native book doubles can round an own-only level either way.
+                # Mask both signs of noise; neither is outside liquidity.
+                noise = Decimal(str(math.ulp(float(quantity)))) * 2
+                if remaining < -noise:
                     if price not in ambiguous[index]:
                         raise ValueError("inconsistent_own_depth")
                     continue
                 # Discard residual that could be the upstream double's rounding
                 # error, including very large quantities with tiny tick sizes.
-                noise = Decimal(str(math.ulp(float(quantity)))) * 2
                 if remaining > noise and remaining >= minimum:
                     depth += remaining * price
                     if candidate is None:
