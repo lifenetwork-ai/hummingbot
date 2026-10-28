@@ -254,12 +254,17 @@ class AdminStore:
                 query = query.filter(closed if state == "closed" else ~closed)
             if point:
                 query = query.filter(tuple_(Order.creation_timestamp, Order.id) < tuple(point))
-            rows = query.order_by(Order.creation_timestamp.desc(), Order.id.desc()).limit(limit + 1).all()
+            # These pages only need scalar values. Entity hydration creates an
+            # identity-map/attribute graph for every row without using relations.
+            rows = query.with_entities(*Order.__table__.c).order_by(
+                Order.creation_timestamp.desc(), Order.id.desc()).limit(limit + 1).all()
             selected = rows[:limit]
             stats = self._fill_stats(session, selected)
             sides = self._order_sides(session, selected, stats)
-            next_cursor = _cursor("orders", scope, [selected[-1].creation_timestamp, selected[-1].id]) if len(rows) > limit else None
-            return dict(items=[self._order_view(row, sides, stats) for row in selected], next_cursor=next_cursor)
+        # All values are materialized; release the transaction/pooled connection
+        # before page formatting. Read-only scalar rows cannot lazy-load.
+        next_cursor = _cursor("orders", scope, [selected[-1].creation_timestamp, selected[-1].id]) if len(rows) > limit else None
+        return dict(items=[self._order_view(row, sides, stats) for row in selected], next_cursor=next_cursor)
 
     def order(self, order_id, *, timeline_limit=100):
         if type(timeline_limit) is not int or not 1 <= timeline_limit <= 500:
@@ -288,23 +293,24 @@ class AdminStore:
                 query = query.filter(TradeFill.order_id == order_id)
             if point:
                 query = query.filter(tuple_(TradeFill.timestamp, TradeFill.market, TradeFill.order_id, TradeFill.exchange_trade_id) < tuple(point))
-            rows = query.order_by(TradeFill.timestamp.desc(), TradeFill.market.desc(), TradeFill.order_id.desc(),
-                                  TradeFill.exchange_trade_id.desc()).limit(limit + 1).all()
-            selected = rows[:limit]
-            items = []
-            for row in selected:
-                conversion = "recorded" if row.trade_fee_in_quote is not None else "unavailable"
-                if row.trade_fee_in_quote == 0 and self._has_original_fee(row.trade_fee):
-                    conversion = "legacy_ambiguous"
-                items.append(dict(id=row.exchange_trade_id, order_id=row.order_id,
-                                  market="spot" if row.market == "okx" else "perpetual", connector=row.market, pair=row.symbol,
-                                  side=row.trade_type, price=row.price, amount=row.amount, timestamp=_timestamp(row.timestamp),
-                                  leverage=row.leverage, position=row.position, fee=row.trade_fee,
-                                  fee_in_quote=row.trade_fee_in_quote if conversion == "recorded" else None,
-                                  quote_currency=row.quote_asset, conversion_status=conversion))
-            last = selected[-1] if selected else None
-            next_cursor = _cursor("fills", scope, [last.timestamp, last.market, last.order_id, last.exchange_trade_id]) if len(rows) > limit else None
-            return dict(items=items, next_cursor=next_cursor)
+            rows = query.with_entities(*TradeFill.__table__.c).order_by(
+                TradeFill.timestamp.desc(), TradeFill.market.desc(), TradeFill.order_id.desc(),
+                TradeFill.exchange_trade_id.desc()).limit(limit + 1).all()
+        selected = rows[:limit]
+        items = []
+        for row in selected:
+            conversion = "recorded" if row.trade_fee_in_quote is not None else "unavailable"
+            if row.trade_fee_in_quote == 0 and self._has_original_fee(row.trade_fee):
+                conversion = "legacy_ambiguous"
+            items.append(dict(id=row.exchange_trade_id, order_id=row.order_id,
+                              market="spot" if row.market == "okx" else "perpetual", connector=row.market, pair=row.symbol,
+                              side=row.trade_type, price=row.price, amount=row.amount, timestamp=_timestamp(row.timestamp),
+                              leverage=row.leverage, position=row.position, fee=row.trade_fee,
+                              fee_in_quote=row.trade_fee_in_quote if conversion == "recorded" else None,
+                              quote_currency=row.quote_asset, conversion_status=conversion))
+        last = selected[-1] if selected else None
+        next_cursor = _cursor("fills", scope, [last.timestamp, last.market, last.order_id, last.exchange_trade_id]) if len(rows) > limit else None
+        return dict(items=items, next_cursor=next_cursor)
 
     @staticmethod
     def _has_original_fee(fee):
