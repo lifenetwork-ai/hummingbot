@@ -26,7 +26,7 @@ class OwnershipLost(SubmissionBlocked):
 
 
 class BotOwnership:
-    def __init__(self, engine, bot_id):
+    def __init__(self, engine, bot_id, *, stopping=None):
         self.engine = engine
         self.store = BotStateStore(engine, bot_id)
         self.owner_uuid = str(uuid.uuid4())
@@ -35,6 +35,8 @@ class BotOwnership:
         self.backend_pid = None
         self.lost = False
         self.allow_new_orders = False
+        self.shutdown_requested = False
+        self.stopping = stopping or (lambda: False)
         self.reconciling = False
         self.version = None
         self.config_file_path = None
@@ -53,6 +55,16 @@ class BotOwnership:
         self.spot_outflow = None
         self.listing_bootstrap = None
         self.volatility_checkpoints = None
+
+    def begin_shutdown(self):
+        """Process-lifetime fence; cleanup/cancellation still retains ownership."""
+        self.shutdown_requested = True
+        self.allow_new_orders = False
+        self.reconciling = False
+
+    def _check_shutdown(self):
+        if self.shutdown_requested or self.stopping():
+            raise SubmissionBlocked("Service shutdown requested; new exchange mutations are closed.")
 
     def try_acquire(self) -> bool:
         if self.lost:
@@ -101,6 +113,8 @@ class BotOwnership:
         self._mutate_recovery(lambda state: state.update(runtime_active=True))
 
     def check_owner(self, *, new_risk=False, allow_setup=False):
+        if new_risk:
+            self._check_shutdown()
         connection = self.connection
         if self.lost or connection is None or connection.closed or connection.invalidated:
             self.lost = True
@@ -124,6 +138,9 @@ class BotOwnership:
             self.lost = True
             self.allow_new_orders = False
             raise OwnershipLost("The bot ownership session failed; submissions are closed.") from None
+        # A signal can arrive while the synchronous database check is in flight.
+        if new_risk:
+            self._check_shutdown()
         if new_risk and ((not self.allow_new_orders and not allow_setup) or row["desired_state"] != "running"
                          or row["control_version"] != self.version or row["config_file_path"] != self.config_file_path
                          or (row["recovery_state"] or {}).get("halt")

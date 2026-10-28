@@ -246,7 +246,8 @@ class ServiceHost:
         # Ownership already checks reconciled permission/intent before calling
         # this gate. The observer's UI acknowledgement can lag a healthy first
         # clock tick, especially on standby handover; it is not send authority.
-        return self.runtime_problem() is None
+        return (not self.stop.is_set() and getattr(self.owner, "shutdown_requested", False) is not True
+                and self.runtime_problem() is None)
 
     async def admit_mm_session(self):
         if self.mm_session is None or self.mm_session.status not in ("preparing", "running"):
@@ -339,7 +340,7 @@ class ServiceHost:
         self.store = BotStateStore(self.engine, self.settings.bot_id)
         self.store.ensure()
         self.observations.reporting = ((self.store.read() or {}).get("status") or {}).get("reporting") or {}
-        self.owner = BotOwnership(self.engine, self.settings.bot_id)
+        self.owner = BotOwnership(self.engine, self.settings.bot_id, stopping=self.stop.is_set)
         self.catalogue = {kind: list_configs(kind) for kind in STRATEGY_TYPES}
         self.config_hashes = {kind: {name: hashlib.sha256(config_path(kind, name).read_bytes()).hexdigest()
                                      for name in files} for kind, files in self.catalogue.items()}
@@ -748,6 +749,8 @@ class ServiceHost:
     async def close(self):
         from hummingbot.core.order_submission_guard import install_guard
         self.running, self.phase = False, "stopping"
+        if self.owner is not None:
+            self.owner.begin_shutdown()
         await self.funding.close()
         if self.reconciliation_task is not None and not self.reconciliation_task.done():
             self.reconciliation_task.cancel()
