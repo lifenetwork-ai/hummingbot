@@ -73,3 +73,32 @@ def test_api_cannot_consume_engine_post_stop_collection_request(tmp_path, monkey
     assert load_process_metrics.collect_requested('engine', marker)
     assert not marker.exists() and calls == ['collect']
     assert not load_process_metrics.collect_requested('engine', marker)
+
+
+def test_long_lived_role_sampling_never_reads_cross_process_cmdline(tmp_path, monkeypatch):
+    from pathlib import Path
+    from test.e2e.offline.load_process_metrics import process_snapshot
+    for pid in ('1', '10', '11'):
+        path = tmp_path / pid
+        (path / 'fd').mkdir(parents=True)
+        (path / 'status').write_text('VmRSS: 1 kB\nVmHWM: 1 kB\nThreads: 1\n')
+    (tmp_path / '1/task/1').mkdir(parents=True)
+    (tmp_path / '1/task/1/children').write_text('10 11')
+    original = Path.read_bytes
+
+    def no_cmdline(path):
+        assert path.name != 'cmdline', 'Repeated cross-process cmdline reads leak auxv handles under emulation'
+        return original(path)
+
+    monkeypatch.setattr(Path, 'read_bytes', no_cmdline)
+    roles = process_snapshot(tmp_path, role='engine', identity=10)
+    assert roles['engine']['pid'] == 10 and roles['api']['pid'] == 11
+    (tmp_path / '1/task/1/children').write_text('10 11 12')
+    assert set(process_snapshot(tmp_path, role='engine', identity=10)) == {'supervisor'}
+
+
+def test_ambiguous_role_snapshot_cannot_certify_a_measured_window():
+    engine, api = metric('engine'), metric('api')
+    engine.update(container_memory=dict(current_bytes=160, peak_bytes=220),
+                  processes={'supervisor': {'pid': 1}})
+    assert merge_metrics(engine, api) is None

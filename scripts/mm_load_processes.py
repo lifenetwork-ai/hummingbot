@@ -10,6 +10,10 @@ def merge_metrics(engine, api, *, now=None):
         return None
     if now is not None and any(not 0 <= now - row['at'] <= 15 for row in (engine, api)):
         return None
+    if 'processes' in engine and set(engine['processes']) != {'supervisor', 'engine', 'api'}:
+        return None
+    if 'processes' in engine and engine['processes']['engine']['pid'] != engine.get('process_id'):
+        return None
     expected_api = engine.get('processes', {}).get('api', {}).get('pid')
     if expected_api is not None and api.get('process_id') != expected_api:
         return None

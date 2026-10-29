@@ -20,7 +20,7 @@
     "passed": 2012,
     "subtests": 11,
     "log": "build/service-supervision/native-idle-fix-regression.log",
-    "later_harness_focused_passed": 29
+    "later_harness_focused_passed": 31
   },
   "postgres": {
     "full_run_passed": 257,
@@ -206,18 +206,8 @@
     "shared_default_daily_ttl_seconds": 5
   },
   "load": {
-    "status": "running",
-    "log": "build/service-supervision/final-all-load.log",
-    "report": "build/mm-load/20261030-011239-d491a4/result.json",
-    "windows": {
-      "warmup": {
-        "duration_seconds": 300,
-        "read_p95_ms": 56.2630390340928,
-        "read_p99_ms": 408.8345590280369,
-        "unexpected_errors": 0,
-        "violations": []
-      }
-    }
+    "status": "sampler_fixed_short_probe_running_full_gate_pending",
+    "log": "build/service-supervision/fd-fixed-probe.log"
   },
   "production_control": {
     "status": "pending"
@@ -238,5 +228,61 @@
     "Cold million-fill SQL cost is unchanged and can exceed the 2s deadline.",
     "Local amd64 image verification does not certify Cloud Run or actual OKX connectivity.",
     "No historical p99 spike is assigned a unique cause."
-  ]
+  ],
+  "retained_load_runs": [
+    {
+      "report": "build/mm-load/20261030-011239-d491a4/result.json",
+      "passed": false,
+      "interrupted": true,
+      "finding": "Repeated cross-process proc cmdline inspection accumulates auxv descriptors under amd64 emulation; controlled sampler replay confirms old+20/new0 per20 samples. Mixed/hour incomplete."
+    }
+  ],
+  "sampler_fd_reproducer": {
+    "scope": "Isolated identical20x process sampler; two dummy child roles, no DB/exchange/trading",
+    "cases": {
+      "before": {
+        "source_sha256": "aedf20ecc6eb1628f14cecb614e4de0a919529c43994374aeb557f2e1f79c7c0",
+        "exit_code": 0,
+        "log": "[{\"role\": \"engine\", \"before\": 6, \"after\": 26, \"growth\": 20, \"auxv\": 20}, {\"role\": \"api\", \"before\": 6, \"after\": 26, \"growth\": 20, \"auxv\": 20}]\n",
+        "roles": [
+          {
+            "role": "engine",
+            "before": 6,
+            "after": 26,
+            "growth": 20,
+            "auxv": 20
+          },
+          {
+            "role": "api",
+            "before": 6,
+            "after": 26,
+            "growth": 20,
+            "auxv": 20
+          }
+        ]
+      },
+      "after": {
+        "source_sha256": "b42f11a771043e4251ec6b5e9d4e9afde70f7fe713a4396580cf80e544ef2d6a",
+        "exit_code": 0,
+        "log": "[{\"role\": \"engine\", \"before\": 6, \"after\": 6, \"growth\": 0, \"auxv\": 0}, {\"role\": \"api\", \"before\": 6, \"after\": 6, \"growth\": 0, \"auxv\": 0}]\n",
+        "roles": [
+          {
+            "role": "engine",
+            "before": 6,
+            "after": 6,
+            "growth": 0,
+            "auxv": 0
+          },
+          {
+            "role": "api",
+            "before": 6,
+            "after": 6,
+            "growth": 0,
+            "auxv": 0
+          }
+        ]
+      }
+    },
+    "passed": true
+  }
 }

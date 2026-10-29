@@ -188,3 +188,35 @@ matching selected image `f5e7…`. The earlier full E2E failures retain their
 original results. The R6 image/regression phase is complete; the unchanged
 all-feature load/hour gate starts with two CPUs, 2GiB, five total DB slots and
 explicit daily TTL15. No other benchmark/build/regression job runs alongside it.
+
+## Measurement finding: emulated cross-process proc inspection retains FDs
+
+The first full load at `build/mm-load/20261030-011239-d491a4/` passes its 300s
+warmup (p95 56.26ms, p99 408.83ms, zero errors), then is deliberately interrupted
+during mixed after minute samples show roughly twelve extra descriptors per
+minute in each instrumented child. Two read-only FD listings show that the
+added handles point to the other child's `/proc/<pid>/auxv`, not DB or exchange
+sockets. Those inspections are recorded; this run is not hour/load acceptance.
+
+A controlled identical two-child sampler with no DB, exchange or Hummingbot
+imports reproduces the effect inside the same amd64 image/emulation: twenty old
+samples add twenty auxv FDs per child; twenty corrected samples add zero.
+Raw proof: `build/service-supervision/fd-sampler-repro-evidence.json`. This
+attributes the observed growth to repeated cross-process cmdline inspection
+in the emulated measurement path; it does not establish a native Cloud Run or
+trading leak.
+
+Long-lived probes now use their already-known role/PID and the supervisor's
+exactly-two-direct-children contract, with physical reaping before replacement.
+Unexpected/missing children fail measurement admission instead of guessing.
+External one-shot diagnostics retain discovery and exit/release their inspection
+handles. Two Red / 31 focused Green checks cover no cmdline read and rejection
+of ambiguous role metrics. FD budgets remain unchanged. The runtime image and
+trading code are unchanged; a short full-wrapper probe precedes a fresh complete
+load/hour gate. The interrupted run retains `passed: false`.
+
+Corrected real-wrapper 180s probe
+`build/mm-load/20261030-013146-6a12e3/` passes p95 56.97ms / p99 295.37ms,
+zero errors, original rates and all budgets. Its minute samples retain fixed
+descriptors supervisor/engine/API = 5/31/21. This is a short diagnostic, not an
+hour acceptance substitute. A fresh complete all-profile gate is required.

@@ -281,7 +281,7 @@ async def probe(host):
             if cpu.is_file():
                 data["cgroup_cpu"] = {key: int(value) for key, value in (line.split() for line in cpu.read_text().splitlines())}
             if process_role in ('engine', 'api'):
-                data['processes'] = process_snapshot()
+                data['processes'] = process_snapshot(role=process_role, identity=os.getpid())
                 data['container_memory'] = dict(current_bytes=int(Path('/sys/fs/cgroup/memory.current').read_text()),
                                                 peak_bytes=int(Path('/sys/fs/cgroup/memory.peak').read_text()))
             core = host.hb.trading_core if getattr(host, 'hb', None) is not None else None

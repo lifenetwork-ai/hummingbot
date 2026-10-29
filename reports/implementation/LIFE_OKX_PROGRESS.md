@@ -1626,3 +1626,12 @@ orders, engine-only migrations and clean 3.28s parent shutdown/ownership release
   per-role memory/fault gates, then matched uninstrumented production control.
   Two CPUs/2GiB, total pool5 (API2/engine3), daily TTL15; no parallel performance
   jobs. No persistent Demo replacement or Cloud Run deployment.
+
+The first long load `20261030-011239-d491a4` is interrupted during mixed: its
+warmup passes (p99 408.83ms, zero errors) but the emulated process sampler retains
+cross-child auxv descriptors. A no-DB/no-trading two-child replay proves twenty
+old samples add twenty FDs per child; corrected samples add zero. Known role/PID
+mapping avoids recurring cmdline reads; ambiguous/missing roles still fail the
+unchanged FD gate. Two Red / 31 Green checks and a real-wrapper 180s probe pass
+(p99 295.37ms, zero errors; FDs fixed 5/31/21). Runtime/image remain `f5e7…`;
+the full hour/load/control gates restart from scratch, original run stays failed.

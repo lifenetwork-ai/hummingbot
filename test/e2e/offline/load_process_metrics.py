@@ -12,17 +12,30 @@ def collect_requested(role, marker):
     return True
 
 
-def process_snapshot(root=Path('/proc')):
+def process_snapshot(root=Path('/proc'), *, role=None, identity=None):
     roles = {'supervisor': 1}
-    for identity in (root / '1/task/1/children').read_text().split():
-        try:
-            args = (root / identity / 'cmdline').read_bytes().decode().split('\0')
-            if '--role' in args:
-                role = args[args.index('--role') + 1]
-                if role in ('engine', 'api'):
-                    roles[role] = int(identity)
-        except FileNotFoundError:
-            continue
+    children = (root / '1/task/1/children').read_text().split()
+    if role in ('engine', 'api'):
+        # The shipping supervisor has exactly these two direct children, and
+        # physically reaps before replacement. Each probe already knows its own
+        # role/PID. Avoid repeated cross-process cmdline reads: amd64 emulation
+        # can retain an auxv descriptor on every inspection. Reject ambiguity
+        # instead of guessing, so missing roles fail measurement admission.
+        identities = {int(value) for value in children}
+        if len(identities) == 2 and identity in identities:
+            roles.update({role: identity, 'api' if role == 'engine' else 'engine': (identities - {identity}).pop()})
+    else:
+        # One-shot external diagnostics discover roles, then exit/release their
+        # inspection descriptors. This path never runs in a long-lived probe.
+        for child in children:
+            try:
+                args = (root / child / 'cmdline').read_bytes().decode().split('\0')
+                if '--role' in args:
+                    found = args[args.index('--role') + 1]
+                    if found in ('engine', 'api'):
+                        roles[found] = int(child)
+            except FileNotFoundError:
+                continue
     result = {}
     for role, identity in roles.items():
         path = root / str(identity)
