@@ -96,3 +96,24 @@ def test_completed_fault_is_saved_when_a_later_window_fails(monkeypatch, tmp_pat
     assert persisted['windows']['soak']['violations'] == []
     case = json.loads((tmp_path / 'fault-feed.json').read_text())
     assert case['classification'] == 'injected_fault_excluded_from_healthy_latency'
+
+
+def test_fault_gate_requires_physical_engine_exit_before_stopping_supervisor(monkeypatch):
+    calls = []
+
+    def docker(*args, **kwargs):
+        calls.append(args)
+        if args[0] == 'inspect':
+            return SimpleNamespace(stdout=json.dumps([{'State': {'Status': 'running'}}]))
+        if args[:2] == ('exec', 'bot'):
+            return SimpleNamespace(returncode=0 if len(calls) == 1 else 1)
+        return SimpleNamespace(stdout='', returncode=0)
+    monkeypatch.setattr(test_e2e_offline, 'docker', docker)
+    harness = SimpleNamespace(metrics={}, terminate=lambda name, **kwargs: calls.append(('terminate', name)))
+    monkeypatch.setattr(test_e2e_offline, 'poll', poll_once)
+    with pytest.raises(AssertionError):
+        test_e2e_offline.Harness.wait_failed_engine(harness, 'bot', 42)
+    assert ('terminate', 'bot') not in calls
+    test_e2e_offline.Harness.wait_failed_engine(harness, 'bot', 42)
+    assert calls[-1] == ('terminate', 'bot')
+    assert harness.metrics['bot_failed_engine_reaped'] == 42

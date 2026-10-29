@@ -338,11 +338,16 @@ blind task/executor restart. File-mode controller restart behavior is preserved.
 
 Admin `/status.service` exposes bounded incident diagnostics and observation time.
 When PostgreSQL is unavailable it can return HTTP 503 with local process details;
-this is not a fresh database/owner observation. `/live` remains healthy while the
-observer progresses during a deliberate stop, feed wait or HALT. `/ready` reports
-trading readiness and must not be configured as liveness. Core exits emit a stable
-reason and exception class without raw driver/credential details; critical
-ownership/persistence uncertainty still uses the existing controlled-exit path.
+this is not a fresh database/owner observation. Public `/live` checks the API
+process and remains healthy through engine replacement. `/startup` requires API
+initialization and proxies engine startup; `/ready` proxies trading readiness
+and must not be configured as liveness. The supervisor independently probes
+engine startup, then engine liveness after initialization; normal stop, feed wait
+and HALT do not restart a healthy engine. Core exits emit a stable reason and
+exception class without raw driver/credential details. Ownership/persistence
+uncertainty retains the controlled exit and recovery gates. Replacing a process
+does not clear HALT or authorize trading. Definitive configuration/schema errors
+stop the entire service with exit 78; retryable failures use bounded backoff.
 
 Clean shutdown checkpoints known controller drawdown/PnL peaks, preserves existing
 V2 position holds, cancels working orders and confirms terminal status before

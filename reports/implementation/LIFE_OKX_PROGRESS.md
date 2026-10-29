@@ -1574,3 +1574,15 @@ remains stopped on its original image; no Cloud Run deployment.
   Cloud Run deployment has occurred.
 
 See [current runtime verification](../mm-service-supervision.md).
+
+## Supervised runtime verification follow-up (2026-10-29)
+
+- [x] Focused native 124 checks, actual-role overlay lifecycle and measurement
+  preflight verified. Retain failed 60s latency probe alongside passing traced
+  90s probe; neither certifies the final image/hour gate.
+- [x] Complete native regression: 2,009 tests plus 11 subtests pass; Swagger and
+  offline deployment-template review pass. Shared DB pool remains total five:
+  API two, engine three. A configured ten means API two, engine eight.
+- [ ] Final Dockerfile build, real PostgreSQL regression, full final-image E2E,
+  continuous-hour load/memory and ordinary-entrypoint control are in progress.
+  No persistent Demo replacement, real trading start or Cloud Run deployment.

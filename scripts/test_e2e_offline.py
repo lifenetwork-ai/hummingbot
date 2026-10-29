@@ -173,7 +173,7 @@ class Harness:
 
     def start(self, revision, *, auto_migrate=True, runtime_role=False, expect_failure=False, additive_fixture=False,
               storage_backend="postgres", instrumented=False, trace_directory=None, availability=False,
-              instrumented_entrypoint='load_entrypoint.py', cpus=1):
+              instrumented_entrypoint='load_entrypoint.py', cpus=1, network_alias=None):
         name = self.prefix + "-" + revision
         env = {**self.env, "K_REVISION": revision, "ENABLE_AUTO_MIGRATION": str(auto_migrate).lower(),
                "STORAGE_BACKEND": storage_backend}
@@ -196,7 +196,8 @@ class Harness:
             env["HBOT_LOAD_TRACE_DIRECTORY"] = "/trace-output"
             mounts += ["--mount", f"type=bind,source={trace_directory},target=/trace-output"]
         self.run_container(name, ["--platform", "linux/amd64", "--cpus", str(cpus), "--memory", "2g", "--read-only",
-                                  "--tmpfs", "/tmp:rw,nosuid,size=128m", *(["--network-alias", "bot"] if instrumented else []), *mounts],
+                                  "--tmpfs", "/tmp:rw,nosuid,size=128m",
+                                  *(['--network-alias', network_alias or 'bot'] if instrumented or network_alias else []), *mounts],
                            env=env, publish=True, command=(["python", "/test-assets/availability_service.py"] if availability else
                                                            ["python", "/test-assets/" + instrumented_entrypoint] if instrumented else ()))
         port = self.port(name)
@@ -235,13 +236,45 @@ class Harness:
             assert result.returncode != 0
         return result.stdout
 
-    def terminate(self, name):
+    def engine_identity(self, name):
+        # PID1 is the engine in the previous compatible image. New images keep
+        # the supervisor alive while physically replacing a failed engine.
+        program = """from pathlib import Path
+for pid in Path('/proc/1/task/1/children').read_text().split():
+    try:
+        args=(Path('/proc')/pid/'cmdline').read_bytes().decode().split(chr(0))
+        if '--role' in args and args[args.index('--role')+1]=='engine':
+            print(pid)
+            break
+    except FileNotFoundError:
+        pass
+else:
+    print(1)
+"""
+        return int(docker('exec', name, 'python', '-c', program).stdout)
+
+    def wait_failed_engine(self, name, identity, *, timeout=15):
+        if identity == 1:
+            poll(lambda: json.loads(docker('inspect', name).stdout)[0]['State']['Status'] == 'exited',
+                 timeout=timeout, description='failed legacy engine exits')
+            return
+        poll(lambda: docker('exec', name, 'test', '-d', f'/proc/{identity}', check=False).returncode != 0,
+             timeout=timeout, description='failed engine is physically reaped')
+        assert json.loads(docker('inspect', name).stdout)[0]['State']['Status'] == 'running'
+        self.metrics[name + '_failed_engine_reaped'] = identity
+        # The next assertion deliberately starts a distinct owner/container.
+        # Stop the surviving supervisor so its replacement cannot compete.
+        self.terminate(name, success=False)
+
+    def terminate(self, name, *, success=True):
         started = time.monotonic()
         docker("kill", "--signal", "TERM", name)
         poll(lambda: json.loads(docker("inspect", name).stdout)[0]["State"]["Status"] == "exited",
              timeout=9.5, description="PID 1 shutdown")
         state = json.loads(docker("inspect", name).stdout)[0]["State"]
-        assert state["ExitCode"] == 0 and not state["OOMKilled"], docker("logs", name, check=False).stdout[-2000:]
+        assert not state['OOMKilled']
+        if success:
+            assert state["ExitCode"] == 0, docker("logs", name, check=False).stdout[-2000:]
         self.metrics[name.rsplit("-", 1)[-1] + "_shutdown_s"] = round(time.monotonic() - started, 3)
 
     def wait_orders(self, count):
@@ -283,7 +316,7 @@ assert not list(Path('/home/hummingbot').rglob('*.sqlite'))
         assert http(port, "/ready")[0] == 503 and self.state()["desired_state"] == "stopped"
         generation = self.state()["owner_generation"]
         second, second_port = self.start("second", auto_migrate=False)
-        assert http(second_port, "/live")[1]["state"] == "standby"
+        assert http(second_port, "/startup")[1]["state"] == "standby"
         self.cli("start", "pmm.yml", "--timeout", "0", "--expected-version", "0", "--json")
         self.wait_running(port)
         orders = self.wait_orders(2)
@@ -372,6 +405,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.cli("start", "pmm.yml", "--expected-version", "5", "--timeout", "0", "--json")
         self.wait_orders(10)
         assert self.sql("SELECT count(*) FROM public.orders WHERE creation_pending") == "2"
+        failed_identity = self.engine_identity(fourth)
         docker("pause", fourth)
         self.sql("SELECT pg_terminate_backend(pid) FROM pg_locks WHERE locktype='advisory' AND granted "
                  "AND classid=1212305236 AND objid=1 AND objsubid=2")
@@ -383,8 +417,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
              description="accepted unknown-ACK orders reconciled without resubmission")
         self.control(hold_ack=False)
         docker("unpause", fourth)
-        poll(lambda: json.loads(docker("inspect", fourth).stdout)[0]["State"]["Status"] == "exited",
-             timeout=10, description="stale owner exits with send gate closed")
+        self.wait_failed_engine(fourth, failed_identity)
         assert len(self.ledger()["accepted"]) == 10 and not self.ledger()["unknown"]
         assert self.sql("SELECT count(*) FROM public.trade_fills") == "2"
         assert self.sql("SELECT count(*) FROM public.orders WHERE creation_pending") == "0"
@@ -394,9 +427,9 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.cli("start", "pmm.yml", "--replace", "--expected-version", "6", "--timeout", "0", "--json")
         self.wait_running(fifth_port)
         self.wait_orders(12)
+        failed_identity = self.engine_identity(fifth)
         docker("stop", "--time", "5", self.pg)
-        poll(lambda: json.loads(docker("inspect", fifth).stdout)[0]["State"]["Status"] == "exited",
-             timeout=10, description="DB outage closes the owned runtime")
+        self.wait_failed_engine(fifth, failed_identity)
         assert len(self.ledger()["accepted"]) == 12
         docker("start", self.pg)
         poll(lambda: docker("exec", self.pg, "pg_isready", "-U", "postgres", check=False).returncode == 0,
@@ -426,6 +459,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 
     def interrupt_recorder(self, process, order):
         print("Offline E2E: interrupt a recorder transaction behind a real row-lock barrier", flush=True)
+        failed_identity = self.engine_identity(process)
+        paused = False
         command = ["docker", "exec", self.pg, "psql", "-U", "postgres", "-d", "hbot_test_offline", "-At", "-v", "ON_ERROR_STOP=1",
                    "-c", "SET application_name='e2e_recorder_barrier'; BEGIN; SELECT id FROM public.market_states FOR UPDATE; SELECT pg_sleep(30)"]
         blocker = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
@@ -437,13 +472,16 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                                            "WHERE b.application_name='e2e_recorder_barrier' AND b.pid=ANY(pg_blocking_pids(a.pid))) LIMIT 1"),
                           timeout=5, description="actual recorder transaction waiting before commit")
             assert self.sql("SELECT count(*) FROM public.trade_fills") == "2", "Uncommitted fill must remain invisible."
+            docker('pause', process)
+            paused = True
             assert self.sql(f"SELECT pg_terminate_backend({int(victim)})") == "t"
+            assert self.sql("SELECT count(*) FROM public.trade_fills") == "2", "Interrupted transaction must roll back atomically."
         finally:
             self.sql("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name='e2e_recorder_barrier'")
             blocker.communicate(timeout=10)
-        poll(lambda: json.loads(docker("inspect", process).stdout)[0]["State"]["Status"] == "exited",
-             timeout=15, description="persistence failure closes trading process")
-        assert self.sql("SELECT count(*) FROM public.trade_fills") == "2", "Interrupted transaction must roll back atomically."
+            if paused:
+                docker('unpause', process)
+        self.wait_failed_engine(process, failed_identity)
 
     def cleanup(self):
         if hasattr(self, "exchange_port"):
@@ -782,9 +820,9 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
              and self.sql("SELECT count(*) FROM orders WHERE creation_pending") == "0",
              description="all initial maker acknowledgments committed before DB outage")
         accepted = len(self.ledger()["accepted"])
+        failed_identity = self.engine_identity(second)
         docker("stop", "--time", "5", self.pg)
-        poll(lambda: json.loads(docker("inspect", second).stdout)[0]["State"]["Status"] == "exited",
-             timeout=10, description="MM DB outage closes owned runtime")
+        self.wait_failed_engine(second, failed_identity)
         after_outage = len(self.ledger()["accepted"])
         docker("start", self.pg)
         poll(lambda: docker("exec", self.pg, "pg_isready", "-U", "postgres", check=False).returncode == 0,
@@ -1494,7 +1532,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
              timeout=30, description="funding read recovery")
         config_reads = sum(row["path"] == "/api/v5/account/config" for row in self.ledger()["requests"])
         third, third_port = self.start("funding-standby", auto_migrate=False)
-        assert http(third_port, "/live")[1]["state"] == "standby"
+        assert http(third_port, "/startup")[1]["state"] == "standby"
         time.sleep(2)
         assert sum(row["path"] == "/api/v5/account/config" for row in self.ledger()["requests"]) == config_reads
         self.terminate(second)
@@ -1503,9 +1541,9 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         poll(lambda: self.sql("SELECT count(*) FROM funding_bills") == "5", timeout=60, description="new owner continues bill cursor")
         # DB loss while idle must not cause any trading mutation; the next
         # owner resumes the last committed bill window after DB restoration.
+        failed_identity = self.engine_identity(third)
         docker("stop", "--time", "5", self.pg)
-        poll(lambda: json.loads(docker("inspect", third).stdout)[0]["State"]["Status"] == "exited",
-             timeout=15, description="idle owner exits after DB loss")
+        self.wait_failed_engine(third, failed_identity)
         bills.append(bill(6, "-0.004", int(time.time() * 1000) - 500))
         self.control(funding_bills=bills + unrelated)
         docker("start", self.pg)
@@ -1537,7 +1575,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.cli("stop", "--expected-version", "1", "--timeout", "9", "--json")
         self.image = current_image
         new, new_port = self.start("new", additive_fixture=True)
-        assert http(new_port, "/live")[1]["state"] == "standby"
+        assert http(new_port, "/startup")[1]["state"] == "standby"
         assert self.sql("SELECT count(*) FROM information_schema.columns WHERE table_name='orders' AND column_name='offline_upgrade_note'") == "1"
         self.sql("UPDATE public.orders SET offline_upgrade_note='retained' WHERE id='" + buy["clOrdId"] + "'")
         self.terminate(old)

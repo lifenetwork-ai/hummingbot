@@ -76,7 +76,7 @@ def check_service_logging():
                LOG_LEVEL="INFO", LOG_FORMAT="json")
     result = subprocess.run([sys.executable, "-m", "hummingbot.cli.service"], env=env,
                             capture_output=True, text=True, timeout=20)
-    assert result.returncode == 1 and not result.stderr
+    assert result.returncode == 78 and not result.stderr
     startup = [json.loads(line) for line in result.stdout.splitlines()]
     assert [value["severity"] for value in startup] == ["ERROR", "INFO"]
     assert startup[0]["event"] == "service_failed" and startup[-1]["event"] == "service_exit"
