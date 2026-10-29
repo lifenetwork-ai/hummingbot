@@ -71,9 +71,11 @@ def working_quotes_after_recovery(harness):
                 timeout=30, description='working quotes return after API recovery/normal refresh')
 
 
-def recovery_faults(harness, bot, port, case):
+def recovery_faults(harness, bot, port, case, *, pids_provider=None):
     """Real process faults: no HALT reset, no reconstructed trading authority."""
     def pids():
+        if pids_provider is not None:
+            return pids_provider()
         return json.loads(docker('exec', bot, 'cat', '/tmp/architecture-children.json').stdout)
 
     def signal_child(pid, signum):
@@ -184,7 +186,8 @@ def run_case(image, args, mode, directory, case):
             if trace_directory is not None:
                 trace_directory.mkdir()
                 trace_directory.chmod(0o777)
-            bot, port = harness.start('load-bot', instrumented=True, trace_directory=trace_directory)
+            bot, port = harness.start('load-bot', instrumented=True, trace_directory=trace_directory,
+                                      instrumented_entrypoint='load_service.py')
             docker('update', '--cpus', args.cpus, '--memory', '2g', '--memory-swap', '2g', bot)
             poll(lambda: bool(harness.state().get('status')), description='published owner observation')
             generation = harness.state()['owner_generation']
@@ -296,7 +299,7 @@ def run_case(image, args, mode, directory, case):
                 # Restart only after the test's acknowledged Stop. An API death
                 # must also terminate this prototype's peer without leaving an
                 # owner session or an orphan process behind.
-                restarted, restarted_port = harness.start('api-crash', instrumented=True)
+                restarted, restarted_port = harness.start('api-crash', instrumented=True, instrumented_entrypoint='load_service.py')
                 docker('update', '--cpus', args.cpus, '--memory', '2g', '--memory-swap', '2g', restarted)
                 assert harness.admin(restarted_port, '/status')[1]['desired_state'] == 'stopped'
                 command(harness, restarted_port, 'start', market_mode='both', selection='fixed',

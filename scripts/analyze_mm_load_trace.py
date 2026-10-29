@@ -23,7 +23,8 @@ def analyze(directory, window, *, limit=20, process_case=None):
     low, high = data['window_start_ns'], data['window_end_ns']
     trace = directory / process_case / 'trace' if process_case else directory / 'trace'
     client_path = trace / window / 'client.jsonl' if process_case else trace / 'client.jsonl'
-    server_paths = sorted([*trace.glob('api-requests-*.jsonl'), *trace.glob('api-loop-*.jsonl')]) if process_case else [trace / 'server.jsonl']
+    server_paths = (sorted([*trace.glob('api-requests-*.jsonl'), *trace.glob('api-loop-*.jsonl')]) if process_case else
+                    [path for path in (trace / 'server.jsonl', trace / 'server-api.jsonl') if path.exists()])
     counts = Counter()
     clients, failures = [], []
     for row in records(client_path):

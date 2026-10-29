@@ -58,3 +58,25 @@ def test_soak_cannot_accept_discontinuous_or_unverifiable_minute_samples(fault):
     else:
         rows[30]['at'] = {'nan': float('nan'), 'infinite': float('inf'), 'boolean': True}[fault]
     assert 'sampling_continuity' in soak_violations(rows)
+
+
+@pytest.mark.parametrize('fault', ['rss', 'threads', 'fds', 'pid', 'missing'])
+def test_soak_rejects_hidden_per_role_growth_or_restart(fault):
+    rows = [dict(at=60 * (i + 1), memory={'VmRSS': 300_000_000}, latest={'book_backlog': 1},
+                 distributions={'pool_checkout_ms': {'p95': 1}},
+                 processes={role: dict(pid=pid, VmRSS=100_000_000, Threads=3, fds=10)
+                            for role, pid in (('supervisor', 1), ('engine', 10), ('api', 11))}) for i in range(59)]
+    assert soak_violations(rows) == []
+    for row in rows[-5:]:
+        api = row['processes']['api']
+        if fault == 'rss':
+            api['VmRSS'] += 65 * 1024**2
+        elif fault == 'threads':
+            api['Threads'] += 5
+        elif fault == 'fds':
+            api['fds'] += 9
+        elif fault == 'pid':
+            api['pid'] += 1
+        else:
+            row['processes'].pop('api')
+    assert 'process_' + fault in soak_violations(rows)

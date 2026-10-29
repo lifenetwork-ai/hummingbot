@@ -1,4 +1,5 @@
 """Fault injection around the normal service, only on the offline dummy network."""
+import importlib.util
 import json
 import os
 import sys
@@ -9,7 +10,7 @@ sys.path.insert(0, "/home/hummingbot")
 import hummingbot.cli.admin_observations as observations  # noqa: E402
 import hummingbot.model.admin_reporting as reporting  # noqa: E402
 from controllers.market_making.life_mm import LifeMMController  # noqa: E402
-from hummingbot.cli.service import serve  # noqa: E402
+from hummingbot.cli.service import main  # noqa: E402
 from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange  # noqa: E402
 from hummingbot.model.admin_store import AdminStore  # noqa: E402
 
@@ -70,4 +71,7 @@ reporting.save_daily_balances = save_daily_balances
 AdminStore.claim_check = claim_check
 OkxExchange._update_trading_rules = update_rules
 LifeMMController.control_task = control_task
-serve()
+if importlib.util.find_spec('hummingbot.cli.service_processes'):
+    from hummingbot.cli import service_processes
+    service_processes.child_command = lambda role: [sys.executable, __file__, '--role', role]
+main()

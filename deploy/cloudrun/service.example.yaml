@@ -25,7 +25,7 @@ spec:
             - containerPort: 8080
           resources:
             limits:
-              cpu: '1'
+              cpu: '2'
               memory: 2Gi
           env:
             - name: ENV
@@ -48,11 +48,14 @@ spec:
               value: hummingbot
             - name: ENABLE_AUTO_MIGRATION
               value: 'true'
-            # Per-engine ceiling; includes the owner connection. No overflow.
+            # Per-instance total: API 2, engine the remainder (including owner).
+            # No overflow; the parent opens no database connections.
             - name: DB_POOL_SIZE
               value: '5'
             - name: ADMIN_API_ENABLED
               value: 'true'
+            - name: ADMIN_STATISTICS_CACHE_TTL_SECONDS
+              value: '15'
             - name: ADMIN_API_USERNAME
               valueFrom:
                 secretKeyRef:

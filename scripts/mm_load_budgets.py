@@ -54,4 +54,16 @@ def soak_violations(samples):
         "book_queue_growth": median(row["latest"].get("book_backlog", 0) for row in last) <= max(10, median(row["latest"].get("book_backlog", 0) for row in first) + 4),
         "pool_wait_growth": median(row["distributions"]["pool_checkout_ms"]["p95"] for row in last) <= max(20, median(row["distributions"]["pool_checkout_ms"]["p95"] for row in first) + 5),
     }
+    if any('processes' in row for row in samples):
+        roles = ('supervisor', 'engine', 'api')
+        complete = all(all(role in row.get('processes', {}) and
+                           all(isinstance(row['processes'][role].get(key), int) for key in ('pid', 'VmRSS', 'Threads', 'fds'))
+                           for role in roles) for row in samples)
+        checks['process_missing'] = complete
+        if complete:
+            checks['process_pid'] = all(len({row['processes'][role]['pid'] for row in samples}) == 1 for role in roles)
+            for key, limit, label in (('VmRSS', 64 * 1024**2, 'rss'), ('Threads', 4, 'threads'), ('fds', 8, 'fds')):
+                checks['process_' + label] = all(
+                    median(row['processes'][role][key] for row in last) <=
+                    median(row['processes'][role][key] for row in first) + limit for role in roles)
     return [name for name, passed in checks.items() if not passed]

@@ -82,11 +82,11 @@ def http(container, path, data=None, headers=None):
     # Docker internal networks intentionally have no published host ports. Keep
     # the HTTP probe/control client inside the target's network namespace too.
     program = """
-import json, sys
+import json, os, sys
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 data = None if sys.argv[2] == 'null' else sys.argv[2].encode()
-request = Request('http://127.0.0.1:8080' + sys.argv[1], data=data, headers={'Content-Type':'application/json', **json.loads(sys.argv[3])})
+request = Request('http://127.0.0.1:' + os.environ.get('PORT', '8080') + sys.argv[1], data=data, headers={'Content-Type':'application/json', **json.loads(sys.argv[3])})
 try:
     with urlopen(request, timeout=2) as response:
         body = json.load(response) if response.headers.get_content_type() == 'application/json' else response.read().decode()
@@ -172,7 +172,8 @@ class Harness:
         assert json.loads(docker("network", "inspect", self.network).stdout)[0]["Internal"]
 
     def start(self, revision, *, auto_migrate=True, runtime_role=False, expect_failure=False, additive_fixture=False,
-              storage_backend="postgres", instrumented=False, trace_directory=None, availability=False):
+              storage_backend="postgres", instrumented=False, trace_directory=None, availability=False,
+              instrumented_entrypoint='load_entrypoint.py', cpus=1):
         name = self.prefix + "-" + revision
         env = {**self.env, "K_REVISION": revision, "ENABLE_AUTO_MIGRATION": str(auto_migrate).lower(),
                "STORAGE_BACKEND": storage_backend}
@@ -194,10 +195,10 @@ class Harness:
             assert instrumented
             env["HBOT_LOAD_TRACE_DIRECTORY"] = "/trace-output"
             mounts += ["--mount", f"type=bind,source={trace_directory},target=/trace-output"]
-        self.run_container(name, ["--platform", "linux/amd64", "--cpus", "1", "--memory", "2g", "--read-only",
+        self.run_container(name, ["--platform", "linux/amd64", "--cpus", str(cpus), "--memory", "2g", "--read-only",
                                   "--tmpfs", "/tmp:rw,nosuid,size=128m", *(["--network-alias", "bot"] if instrumented else []), *mounts],
                            env=env, publish=True, command=(["python", "/test-assets/availability_service.py"] if availability else
-                                                           ["python", "/test-assets/load_service.py"] if instrumented else ()))
+                                                           ["python", "/test-assets/" + instrumented_entrypoint] if instrumented else ()))
         port = self.port(name)
         started = time.monotonic()
         if expect_failure:
@@ -218,7 +219,7 @@ class Harness:
         self.metrics[revision + "_startup_s"] = round(time.monotonic() - started, 3)
         assert http(port, "/live")[0] == 200
         expected = ("b'python\\x00/test-assets/availability_service.py" if availability else
-                    "b'python\\x00/test-assets/load_service.py" if instrumented else "b'python\\x00-m\\x00hummingbot.cli.service")
+                    f"b'python\\x00/test-assets/{instrumented_entrypoint}" if instrumented else "b'python\\x00-m\\x00hummingbot.cli.service")
         assert docker("exec", name, "python", "-c", "from pathlib import Path; print(Path('/proc/1/cmdline').read_bytes())").stdout.startswith(expected)
         return name, port
 

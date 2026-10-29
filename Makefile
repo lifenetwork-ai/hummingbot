@@ -18,6 +18,8 @@ MM_LOAD_TRACE ?= false
 MM_LOAD_ENHANCEMENTS ?= false
 MM_PROCESS_CPUS ?= 1
 MM_PROCESS_SECONDS ?= 90
+MM_LOAD_CPUS ?= 2
+MM_LOAD_DAILY_CACHE_TTL_SECONDS ?= 15
 ifeq ($(DYDX),1)
   ENV_FILE := setup/environment_dydx.yml
 endif
@@ -101,7 +103,7 @@ test-cloudrun-regression:
 build-cloudrun:
 	mkdir -p build
 	docker buildx build --platform linux/amd64 --target cloudrun --load \
-		--build-arg BUILD_JOBS=$(BUILD_JOBS) --metadata-file build/cloudrun-image.json \
+		--build-arg BUILD_JOBS=$(BUILD_JOBS) --build-arg COMMIT="$$(git rev-parse HEAD)" --metadata-file build/cloudrun-image.json \
 		-t $(CLOUDRUN_IMAGE) -f Dockerfile .
 
 .PHONY: build-cloudrun-demo
@@ -125,7 +127,7 @@ test-mm-economics-probe:
 	$(PYTHON) scripts/test_mm_economics.py --probe
 
 test-mm-load:
-	$(PYTHON) scripts/test_mm_load.py --image $(CLOUDRUN_IMAGE) --profile $(MM_LOAD_PROFILE) $(if $(filter true,$(MM_LOAD_TRACE)),--trace,) $(if $(filter true,$(MM_LOAD_ENHANCEMENTS)),--enhancements,) $(if $(filter true,$(MM_LOAD_VOLATILITY_DEFENSE)),--volatility-defense,)
+	$(PYTHON) scripts/test_mm_load.py --image $(CLOUDRUN_IMAGE) --profile $(MM_LOAD_PROFILE) --cpus $(MM_LOAD_CPUS) --daily-cache-ttl-seconds $(MM_LOAD_DAILY_CACHE_TTL_SECONDS) $(if $(filter true,$(MM_LOAD_TRACE)),--trace,) $(if $(filter true,$(MM_LOAD_ENHANCEMENTS)),--enhancements,) $(if $(filter true,$(MM_LOAD_VOLATILITY_DEFENSE)),--volatility-defense,)
 
 test-mm-load-enhancements:
 	$(MAKE) test-mm-load MM_LOAD_ENHANCEMENTS=true

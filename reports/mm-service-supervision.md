@@ -51,3 +51,40 @@ permission to trade.
 Raw logs are retained under ignored `build/service-supervision/`. Runtime-image,
 PostgreSQL/E2E, instrumentation and continuous-hour/load verification remain open
 in [R6](../docs/plans/MM_REPORTING_LATENCY_TDD_PLAN.md).
+
+## Instrumentation and actual-role probe
+
+Focused native regression now passes **124 tests**. Additional Red/Green fixes
+preserve the legacy OKX public-site setting when removing API connector secrets
+and propagate failed/forced child shutdown to the parent's exit code.
+
+The temporary overlay `f0d6d98e…` passes actual production-entrypoint lifecycle
+checks: nondefault ingress 8090, loopback-only engine 8091, no API connector keys
+or dotenv path, two recorder fills and nonempty positions, independent API
+crash/hang recovery, engine crash/hang recovery with HALT retained, physical
+reaping, no unexpected orders and clean parent shutdown. Three engine starts
+apply 17 scripts each; API restarts apply none. Raw case:
+`build/service-supervision/20261029-220641-128082/`.
+
+Both instrumentation probes are retained: the 60s window at
+`build/mm-load/20261029-221859-37d704/` fails p95/p99 at **1383.51/2152.84ms**
+with zero errors; the subsequent traced 90s window at
+`build/mm-load/20261029-223021-9a4898/` passes at **66.46/422.42ms**, zero errors.
+The latter includes an extra PG sampling connection and proves instrumentation,
+not a unique cause or final-image acceptance. An earlier preflight fails before
+measured load because its PID1 assertion expected the old wrapper; that harness
+assertion is corrected without relaxing the shipping entrypoint requirement.
+
+Each real role supplies metrics; missing, stale or mismatched samples fail the
+measurement preflight. Container memory uses cgroup current/peak, including page
+cache; per-role RSS is separate. Distribution aggregation reports the maximum
+per-role quantile, explicitly not an exact pooled percentile. Continuous-hour
+checks additionally reject role PID changes, RSS growth over 64MiB, thread growth
+over four or descriptor growth over eight. HTTP/error/latency gates are unchanged.
+
+The selected local/template policy is two CPUs, 2GiB and explicit existing daily
+cache TTL15; the shared code default remains five seconds. One container still
+fits one service. Cloud Run's [container contract](https://docs.cloud.google.com/run/docs/container-contract)
+requires amd64 support and ingress on `0.0.0.0:$PORT`, allows four minutes for
+startup and ten seconds after SIGTERM; the current template keeps continuous CPU.
+Local probes do not certify Cloud Run deployment.

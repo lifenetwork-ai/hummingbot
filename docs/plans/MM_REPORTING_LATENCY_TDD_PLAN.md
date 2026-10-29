@@ -91,10 +91,12 @@ recovery still requires technical review; no reset/resume API is implemented.
   in the API environment. Reuse the current handlers, engine and PostgreSQL queue.
   Native integration: 95 selected tests pass. Runtime image and actual role
   lifecycle verification below remain required before adoption.
-- [ ] Cover API/engine health, initialization interruption, API-only restart,
+- [x] Cover API/engine health, initialization interruption, API-only restart,
   engine reconciliation/HALT and parent shutdown using production entrypoints.
   Update offline instrumentation to measure both real roles without replacing
   the shipping supervisor or masking missing metrics.
+  Overlay probe passes actual-role faults at nondefault ingress 8090; final-image
+  rerun remains required below. Native focused regression: 124 tests pass.
 - [ ] Commit verified runtime phases; build and fingerprint the final image.
   Run native/real-PG regression, runtime smoke, Swagger and full offline E2E.
 - [ ] Run unchanged workload/error/latency gates and continuous-hour per-role

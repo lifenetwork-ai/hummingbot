@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import math
 import platform
 import sys
 import tempfile
@@ -17,6 +18,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.mm_load_budgets import soak_violations, violations  # noqa: E402
 from scripts.mm_load_faults import fault_windows  # noqa: E402
 from scripts.mm_load_ledger import funding_ledger_violations, ledger_violations  # noqa: E402
+from scripts.mm_load_processes import merge_metrics  # noqa: E402
 from scripts.test_e2e_offline import Harness, docker, pin_manifest, poll  # noqa: E402
 
 
@@ -58,7 +60,7 @@ def assets_for(path):
 
     import yaml
     path.chmod(0o755)
-    for name in ("exchange.py", "load_service.py", "load_trace.py", "load_health.py", "load_client.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
+    for name in ("exchange.py", "load_service.py", "load_entrypoint.py", "load_process_metrics.py", "load_trace.py", "load_health.py", "load_client.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
         (path / name).write_bytes((ROOT / "test/e2e/offline" / name).read_bytes())
     (path / "pmm-revised.yml").write_bytes((path / "pmm.yml").read_bytes())
     write_fixtures(path / "fixtures.json")
@@ -74,7 +76,13 @@ def command(harness, port, action, **values):
 
 def read_metrics(harness, bot):
     raw = docker("exec", bot, "cat", "/tmp/load-metrics.json", check=False)
-    return json.loads(raw.stdout) if raw.returncode == 0 else None
+    if raw.returncode:
+        return None
+    engine = json.loads(raw.stdout)
+    if engine.get('process_role') != 'engine':
+        return engine
+    raw = docker('exec', bot, 'cat', '/tmp/load-metrics-api.json', check=False)
+    return merge_metrics(engine, json.loads(raw.stdout) if raw.returncode == 0 else None, now=time.time())
 
 
 def verify_ledger(harness, port, *, require_running=True):
@@ -109,7 +117,10 @@ def verify_ledger(harness, port, *, require_running=True):
         nonlocal daily
         daily = harness.admin(port, "/statistics/daily")[1]
         return sum(day["fill_count"] for market in daily["markets"] for day in market["days"]) == len(rows) + int(harness.sql("SELECT count(*) FROM trade_fills WHERE config_file_path='load-history.yaml'"))
-    poll(totals_match, timeout=15, description="large-history statistics retain all unique load fills")
+    # Post-window ledger convergence respects the declared reporting TTL. This
+    # does not alter request/command deadlines or measured load budgets.
+    cache_ttl = float(harness.env.get('ADMIN_STATISTICS_CACHE_TTL_SECONDS', '5'))
+    poll(totals_match, timeout=max(15, cache_ttl + 5), description="large-history statistics retain all unique load fills")
     assert harness.sql("SELECT count(*) FROM daily_balance_snapshots") != "0"
     return dict(unique_exchange_fills=len(ledger["fills"]), unique_recorder_fills=len(rows), positions_matched=True,
                 identified_funding_bills=len(funding_rows),
@@ -145,7 +156,7 @@ def run_window(harness, bot, client, name, duration, report, *, options=(), burs
         data = json.loads(docker("exec", client, "cat", "/tmp/load-result.json").stdout)
         metrics = read_metrics(harness, bot)
         destination.write_text(json.dumps(data, indent=2))
-        assert metrics is not None, "Bot exited during load; client evidence and runtime logs retained"
+        assert metrics is not None, "Runtime role metrics missing/stale or process exited; inspect retained evidence"
         data["runtime"] = metrics
         trace_summary = report / "trace" / "client-summary.json"
         if trace_summary.exists():
@@ -170,6 +181,8 @@ def main():
     parser.add_argument("--profile", choices=("probe", "mixed", "bursts", "soak", "faults", "all"), default="probe")
     parser.add_argument("--probe-seconds", type=int, default=60)
     parser.add_argument("--history-rows", type=int, default=100000)
+    parser.add_argument('--cpus', type=int, choices=(1, 2), default=2, help='Total application container CPUs')
+    parser.add_argument('--daily-cache-ttl-seconds', type=float, default=15, help='Explicit existing daily reporting policy')
     parser.add_argument("--diagnostic", action="store_true", help="Use local image ID for iteration; cannot serve as final artifact acceptance")
     parser.add_argument("--refresh-seconds", type=int, help="Diagnostic-only accelerated quote refresh")
     parser.add_argument("--trace", action="store_true", help="Bounded request/SQL/commit/loop-stack/PG-wait traces; no parameters or credentials")
@@ -184,6 +197,8 @@ def main():
     parser.add_argument("--keep-going", action="store_true", help="Continue healthy windows after budget violations; final result still fails")
     parser.add_argument("--operations", action="store_true", help="Add three operator-history/configuration reads/s to the existing read mix")
     args = parser.parse_args()
+    if not math.isfinite(args.daily_cache_ttl_seconds) or not 0 <= args.daily_cache_ttl_seconds <= 60:
+        parser.error('daily-cache-ttl-seconds must be finite and within 0..60')
     if args.volatility_defense:
         args.strict_guards = True
     if args.enhancements:
@@ -200,7 +215,7 @@ def main():
     report.mkdir(parents=True)
     evidence = dict(profile=args.profile, diagnostic=diagnostic, image_id=metadata["Id"], manifest=image.split("@", 1)[1] if "@" in image else None,
                     host_architecture=platform.machine(), image_architecture="amd64", emulation=platform.machine() != "x86_64",
-                    bot_limits=dict(cpus=1, memory_bytes=2 * 1024**3), postgres_limits=dict(cpus=2, memory_bytes=512 * 1024**2),
+                    bot_limits=dict(cpus=args.cpus, memory_bytes=2 * 1024**3), postgres_limits=dict(cpus=2, memory_bytes=512 * 1024**2),
                     simulator_limits=dict(cpus=1, memory_bytes=512 * 1024**2), client_limits=dict(cpus=1, memory_bytes=512 * 1024**2),
                     history_orders=args.history_rows, history_fills=args.history_rows, funding_sync_interval_seconds=5,
                     enhancements=args.enhancements, active_outflow_history=args.enhancements, history_read_mix="original eleven routes/rates/latency population unchanged; add 1 event + 1 liquidity read/s with the same separate latency/error gates",
@@ -208,10 +223,13 @@ def main():
                     operations_reads_per_second=3 if args.operations else 0,
                     tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap, inventory_skew=args.inventory_skew,
                     gc_diagnostics=args.gc_diagnostics,
+                    daily_cache_ttl_seconds=args.daily_cache_ttl_seconds,
                     continue_after_budget_failure=args.keep_going, windows={})
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
         ROOT / "scripts/test_mm_load.py", ROOT / "scripts/test_e2e_offline.py", ROOT / "scripts/analyze_mm_load_trace.py",
-        ROOT / "scripts/mm_load_budgets.py", ROOT / "scripts/mm_load_faults.py", ROOT / "scripts/mm_load_ledger.py")}
+        ROOT / "scripts/mm_load_budgets.py", ROOT / "scripts/mm_load_faults.py", ROOT / "scripts/mm_load_ledger.py",
+        ROOT / "scripts/mm_load_processes.py", ROOT / "test/e2e/offline/load_entrypoint.py",
+        ROOT / "test/e2e/offline/load_service.py", ROOT / "test/e2e/offline/load_process_metrics.py")}
     try:
         with tempfile.TemporaryDirectory(prefix="hbot-mm-load-") as directory:
             assets = Path(directory)
@@ -282,7 +300,8 @@ def main():
             (report / "effective-life-mm-profiles.yaml").write_bytes((assets / "life_mm_profiles.yaml").read_bytes())
             evidence["fixture_sha256"] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in assets.iterdir()}
             harness = Harness(image, assets, report, "demo")
-            harness.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+            harness.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin",
+                               ADMIN_STATISTICS_CACHE_TTL_SECONDS=str(args.daily_cache_ttl_seconds))
             try:
                 harness.setup()
                 if args.strict_guards:
@@ -305,8 +324,9 @@ def main():
                                                     slow_trace_ms=100, loop_stall_ms=200, database_sample_ms=250,
                                                     max_bytes_per_stream=128 * 1024**2, diagnostic_database_connections=1,
                                                     span_cpu_scope="inclusive thread CPU; async spans include interleaved work")
-                bot, port = harness.start("load-bot", instrumented=True, trace_directory=trace_directory)
-                docker("update", "--memory", "2g", "--memory-swap", "2g", bot)
+                bot, port = harness.start("load-bot", instrumented=True, trace_directory=trace_directory, cpus=args.cpus)
+                docker("update", "--cpus", args.cpus, "--memory", "2g", "--memory-swap", "2g", bot)
+                poll(lambda: read_metrics(harness, bot), timeout=30, description='complete fresh runtime role metrics')
                 poll(lambda: bool(harness.state().get("status")), description="load owner status")
                 print(f"Local load evidence: {report}", flush=True)
                 if args.spot_outflow:

@@ -81,9 +81,12 @@ API commands control sessions. Maintainers change strategy/profile settings in
 YAML and service settings in the process environment. No API edits or overrides
 either file, including an override equal to YAML or set to null.
 
-`DB_POOL_SIZE` is an environment-only PostgreSQL pool ceiling (default 5, range
-5–50), applied after restart. It is not exposed as an editable FE setting or API
-override. Admin database concurrency remains capped at two workers.
+`DB_POOL_SIZE` is an environment-only total PostgreSQL pool ceiling per service
+instance (default 5, range 5–50): API two slots, engine the remainder. Restart the
+whole service to apply environment changes; child restarts do not reload dotenv.
+It is not an editable FE setting or API override. Admin DB concurrency remains
+capped at two workers. Existing durable sessions keep their pinned catalogue;
+restarting a child does not apply new YAML settings to a running session.
 
 ### What can change, and when
 

@@ -18,6 +18,7 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 from aiohttp import web
+from load_process_metrics import process_snapshot
 from load_trace import (
     FullGCProbe,
     TraceRecorder,
@@ -81,7 +82,8 @@ samples = defaultdict(lambda: deque(maxlen=12000))
 totals = defaultdict(int)
 route_queries = defaultdict(lambda: {"calls": 0, "queries": 0, "min": None, "max": 0})
 trace_directory = os.environ.get("HBOT_LOAD_TRACE_DIRECTORY")
-trace_sink = TraceSink(Path(trace_directory) / "server.jsonl") if trace_directory else None
+process_role = sys.argv[sys.argv.index('--role') + 1] if '--role' in sys.argv else 'combined'
+trace_sink = TraceSink(Path(trace_directory) / ('server-api.jsonl' if process_role == 'api' else 'server.jsonl')) if trace_directory else None
 tracer = TraceRecorder(trace_sink.emit) if trace_sink else None
 loop_beat_ns = time.monotonic_ns()
 watchdog_stop = threading.Event()
@@ -262,9 +264,10 @@ async def probe(host):
                 if line.startswith(("VmRSS:", "VmHWM:")):
                     name, amount, _ = line.split()
                     fields[name.rstrip(":")] = int(amount) * 1024
-            data = dict(at=time.time(), memory=fields, distributions={key: distribution(values) for key, values in list(samples.items())},
-                        runtime_phase=host.phase, runtime_running=host.running,
-                        spot_outflow_fill_count=(host.observations.outflow or {}).get("fill_count"),
+            data = dict(at=time.time(), memory=fields, process_role=process_role, process_id=os.getpid(),
+                        distributions={key: distribution(values) for key, values in list(samples.items())},
+                        runtime_phase=host.phase, runtime_running=getattr(host, 'running', False),
+                        spot_outflow_fill_count=(getattr(getattr(host, 'observations', None), 'outflow', None) or {}).get("fill_count"),
                         latest={key: values[-1] for key, values in list(samples.items()) if values},
                         totals=dict(totals), route_queries=dict(route_queries),
                         checked_out=host.engine.pool.checkedout() if host.engine else None,
@@ -277,7 +280,11 @@ async def probe(host):
             cpu = Path("/sys/fs/cgroup/cpu.stat")
             if cpu.is_file():
                 data["cgroup_cpu"] = {key: int(value) for key, value in (line.split() for line in cpu.read_text().splitlines())}
-            core = host.hb.trading_core if host.hb is not None else None
+            if process_role in ('engine', 'api'):
+                data['processes'] = process_snapshot()
+                data['container_memory'] = dict(current_bytes=int(Path('/sys/fs/cgroup/memory.current').read_text()),
+                                                peak_bytes=int(Path('/sys/fs/cgroup/memory.peak').read_text()))
+            core = host.hb.trading_core if getattr(host, 'hb', None) is not None else None
             strategy = core.strategy if core else None
             orchestrator = getattr(strategy, "executor_orchestrator", None)
             if orchestrator:
@@ -299,9 +306,10 @@ async def probe(host):
                     gc.collect()  # Requested only after the measured window/Stop.
                     memory_gc_runs += 1
                 data["retention"] = retention_counts(core, orchestrator)
-            temporary = Path("/tmp/load-metrics.new")
+            destination = Path('/tmp/load-metrics-api.json' if process_role == 'api' else '/tmp/load-metrics.json')
+            temporary = destination.with_suffix('.new')
             temporary.write_text(json.dumps(data, default=str))
-            temporary.replace("/tmp/load-metrics.json")
+            temporary.replace(destination)
 
 
 def watchdog(loop_thread_id):
@@ -315,13 +323,15 @@ def watchdog(loop_thread_id):
             trace_sink.emit(dict(kind="cpu_sample", at=time.time(), at_ns=now,
                                  cgroup_cpu={key: int(value) for key, value in
                                              (line.split() for line in cpu.read_text().splitlines())}))
-        lag_ms = (now - loop_beat_ns) / 1e6 - 50
+        last_beat = loop_beat_ns
+        lag_ms = (now - last_beat) / 1e6 - 50
         if lag_ms < 200 or now - previous < 100000000:
             continue
         previous = now
         frames = sys._current_frames()
         active = tracer.active_snapshot()
-        record = dict(kind="loop_stall", at=time.time(), at_ns=now, last_beat_ns=loop_beat_ns,
+        record = dict(kind="loop_stall", at=time.time(), at_ns=now, last_beat_ns=last_beat,
+                      process_role=process_role,
                       loop_thread_id=loop_thread_id, lag_ms=lag_ms, active_spans=active,
                       stacks={str(tid): stack_snapshot(frames.get(tid)) for tid in
                               {loop_thread_id, *(span["thread_id"] for span in active)}})
@@ -367,30 +377,33 @@ if tracer:
         setattr(target, method, wrap_async(original, name))
 
 
-original_run = service.ServiceHost.run
-
-
-async def run(host):
-    task = asyncio.create_task(probe(host))
-    if full_gc_probe is not None:
-        gc.callbacks.append(full_gc_probe)
-    if tracer:
-        gc.callbacks.append(gc_trace)
-        threading.Thread(target=watchdog, args=(threading.get_ident(),), name="load-loop-watchdog", daemon=True).start()
-    try:
-        return await original_run(host)
-    finally:
-        task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
+def instrument_run(original):
+    async def run(host):
+        task = asyncio.create_task(probe(host))
         if full_gc_probe is not None:
-            gc.callbacks.remove(full_gc_probe)
+            gc.callbacks.append(full_gc_probe)
         if tracer:
-            watchdog_stop.set()
-            gc.callbacks.remove(gc_trace)
-            trace_sink.close()
-            (Path(trace_directory) / "server-summary.json").write_text(json.dumps(
-                {**trace_sink.summary(), "dropped_spans": tracer.dropped_spans}, indent=2))
+            gc.callbacks.append(gc_trace)
+            threading.Thread(target=watchdog, args=(threading.get_ident(),), name="load-loop-watchdog", daemon=True).start()
+        try:
+            return await original(host)
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            if full_gc_probe is not None:
+                gc.callbacks.remove(full_gc_probe)
+            if tracer:
+                watchdog_stop.set()
+                gc.callbacks.remove(gc_trace)
+                trace_sink.close()
+                name = 'server-api-summary.json' if process_role == 'api' else 'server-summary.json'
+                (Path(trace_directory) / name).write_text(json.dumps(
+                    {**trace_sink.summary(), "dropped_spans": tracer.dropped_spans}, indent=2))
+    return run
 
 
-service.ServiceHost.run = run
+service.ServiceHost.run = instrument_run(service.ServiceHost.run)
+if process_role == 'api':
+    from hummingbot.cli.admin_service import AdminService
+    AdminService.run = instrument_run(AdminService.run)
 service.main()

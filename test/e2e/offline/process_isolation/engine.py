@@ -36,4 +36,9 @@ def create_app(host, admin_settings=None):
 
 
 service.create_service_app = create_app
-service.main()
+# This historical comparison intentionally runs one engine host, bypassing the
+# new shipping supervisor while reusing the exact same runtime engine method.
+from hummingbot.logger.service_logging import configure_service_logging  # noqa: E402
+
+configure_service_logging(environ={}, reset=True)
+raise SystemExit(asyncio.run(service.run_service()))

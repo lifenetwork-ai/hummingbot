@@ -63,13 +63,15 @@ of the selected trading backend or automatic-migration flag.
 special characters in URL credentials; SSL query settings such as `sslmode=require`
 are passed to the driver. Only the synchronous psycopg2 driver is supported.
 Connections use `public`, connect timeout 5s, runtime statement timeout 2s, lock timeout 1s,
-pool checkout timeout 2s and no overflow. `DB_POOL_SIZE` sets the per-engine
-connection ceiling (integer 5–50, default 5); changes require a process restart.
-Invalid values fail configuration validation without echoing the supplied value.
-The owner retains one connection; warm readers use the remaining slots. Admin API
-DB calls share this engine and have a separate fixed two-worker concurrency cap,
-including after request cancellation. This limits API contention but is not an
-exclusive connection reservation for every background task.
+pool checkout timeout 2s and no overflow. `DB_POOL_SIZE` sets the total ceiling
+per service instance (integer 5–50, default 5). The API has a separate two-slot
+pool; the trading engine uses the remainder, including its retained ownership
+connection. The supervisor has no DB pool. Restart the whole service after an
+environment change; child restarts inherit the original environment and do not
+reload dotenv. Invalid values fail without echoing the supplied value. Admin
+DB work remains capped at two workers, including after request cancellation.
+Only the engine runs configured startup migrations. API initialization waits for
+engine startup, then validates the schema without DDL or trading ownership.
 At most 32 API DB jobs are admitted, including running work; reporting can occupy
 at most 12. Commands and individual command receipts take priority over pending
 reports. Running queries are not preempted. Excess requests receive the existing
