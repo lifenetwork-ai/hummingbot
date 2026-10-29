@@ -217,3 +217,10 @@ latency failure remains unexplained; no runtime performance fix is claimed.
 The 29 runtime-source hashes and all recorded load-harness hashes were checked
 again after completion. Test containers were cleaned up; the persistent Demo DB
 was kept and its bot remains stopped.
+
+Subsequent investigation: the [p99 follow-up](mm-p99-investigation.md) reproduces
+mixed-window latency failures on the rebuilt image with tracing on and off, plus
+one daily-statistics SQL timeout. A matched production-entrypoint control passes.
+That investigation retains the remaining uncertainty; it does not revoke or
+relabel this historical image's completed gate, nor claim a runtime fix or fresh
+release acceptance for the rebuilt image.

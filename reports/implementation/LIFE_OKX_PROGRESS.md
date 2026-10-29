@@ -1381,3 +1381,24 @@ See [local startup report](../local-demo-startup.md) and
 [evidence](../local-demo-startup-evidence.json). Rebuilt image `143ddfe2…` has only
 this local startup/smoke scope; the earlier release-hour result remains attached
 to `be3efe46…`. FE browser acceptance and listing/cloud checks remain pending.
+
+## Post-acceptance p99 investigation (2026-10-29)
+
+- [x] Run matched 300s/900s traced and untraced diagnostics on rebuilt image
+  `143ddfe2…`; reproduce mixed p99 failures at 1,817.24 / 2,044.06 ms.
+- [x] Confirm one untraced warmup daily-statistics 503 is a real 2s PostgreSQL
+  fee-aggregate statement timeout; retain the service's continued running state.
+- [x] Correlate stalls, request/client backlog, transient quota pressure and GC;
+  measure missing synchronous stages in a separate 600s test-wrapper probe.
+- [x] Run isolated CPU replays and the existing real-PG 100k-fill benchmark
+  (one selected test passes, 256 deselected); no full regression claim.
+- [x] Pass the matched production-entrypoint 300s/900s control without the load
+  wrapper: mixed p99 659.99 ms, zero errors, 1,200 matching fills/positions.
+- [ ] Uniquely attribute the original historical spike or establish repeatable
+  final-image healthy SLOs; one control cannot isolate instrumentation/GIL/host
+  scheduling/emulation. No runtime fix or new release gate is claimed.
+
+See [investigation](../mm-p99-investigation.md) and
+[evidence](../mm-p99-investigation-evidence.json). The prior accepted gate keeps
+its image scope. The real Demo remains stopped; all stress trading used the
+isolated dummy exchange. No cache, pool, deadline or trading policy was changed.
