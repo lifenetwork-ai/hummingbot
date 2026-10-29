@@ -61,3 +61,21 @@ def test_traced_warmup_and_healthy_keep_separate_evidence(tmp_path, monkeypatch)
 
     monkeypatch.setattr(experiment, 'run_case', case)
     assert experiment.main() == 0
+
+
+def test_daily_cache_comparison_records_explicit_policy(tmp_path, monkeypatch):
+    monkeypatch.setattr(experiment, 'ROOT', tmp_path)
+    monkeypatch.setattr(sys, 'argv', ['test_mm_process_isolation.py', '--mode', 'split',
+                                      '--duration', '300', '--daily-cache-ttl-seconds', '15'])
+    monkeypatch.setattr(experiment, 'docker', lambda *args, **kwargs: SimpleNamespace(
+        stdout=json.dumps([dict(Architecture='amd64', Id='sha256:diagnostic')])))
+
+    def case(image, args, mode, directory, result):
+        assert args.daily_cache_ttl_seconds == 15
+        result.update(completed=True, healthy=dict(violations=[], read_p99_ms=20),
+                      stall=dict(errors=0, p99_ms=20))
+
+    monkeypatch.setattr(experiment, 'run_case', case)
+    assert experiment.main() == 0
+    result = json.loads(next((tmp_path / 'build/mm-process-isolation').glob('*/result.json')).read_text())
+    assert result['daily_cache_ttl_seconds'] == 15

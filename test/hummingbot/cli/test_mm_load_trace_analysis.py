@@ -47,3 +47,34 @@ def test_failed_request_keeps_its_server_trace_even_when_outside_slowest_limit(t
     result = analyze(tmp_path, 'mixed', limit=1)
     assert result['slowest_requests'][0]['client']['request_id'] == 'slow-success'
     assert result['failed_requests'][0]['server']['request_id'] == 'timeout'
+
+
+def test_supervised_analysis_separates_windows_workers_and_gc(tmp_path):
+    trace = tmp_path / 'split/trace'
+    (trace / 'healthy').mkdir(parents=True)
+    (trace / 'warmup').mkdir()
+    data = dict(window_start_ns=1000000, window_end_ns=3000000, duration_seconds=2)
+    (tmp_path / 'result.json').write_text(json.dumps(dict(image_id='pinned', cases={'split': {'healthy': data}})))
+    worker = dict(span_id='worker', operation='api_database_worker_start', queue_wait_ms=.2,
+                  start_ns=1300000, end_ns=1400000, duration_ms=.1, thread_cpu_ms=.01)
+    sql = dict(span_id='sql', operation='sql', backend_pid=9, start_ns=1500000,
+               end_ns=1800000, duration_ms=.3, thread_cpu_ms=.02)
+    root = dict(kind='trace', request_id='healthy', start_ns=1200000, end_ns=2000000,
+                duration_ms=.8, spans=[worker, sql], dropped_spans=0)
+    gc = dict(kind='gc', start_ns=1600000, duration_ms=.3, generation=2)
+    stall = dict(kind='api_loop_stall', last_beat_ns=1400000, at_ns=1700000,
+                 lag_ms=250, active_spans=[], stacks={})
+    (trace / 'api-requests-14.jsonl').write_text(json.dumps(root) + '\n')
+    (trace / 'api-loop-14.jsonl').write_text('\n'.join(map(json.dumps, [gc, stall])))
+    client = dict(kind='client_request', request_id='healthy', scheduled_ns=1000000,
+                  dispatch_ns=1100000, end_ns=2200000, total_ms=1.2)
+    (trace / 'healthy/client.jsonl').write_text(json.dumps(client))
+    (trace / 'warmup/client.jsonl').write_text('invalid and must not be read')
+    result = analyze(tmp_path, 'healthy', process_case='split')
+    request = result['slowest_requests'][0]
+    assert request['stages'] == dict(client_queue_ms=.1, dispatch_to_handler_ms=.1,
+                                     handler_ms=.8, handler_end_to_client_ms=.2,
+                                     worker_waits_ms=[.2], sql_ms=[.3])
+    assert request['overlapping_gc'] == [gc]
+    assert request['overlapping_stalls'] == [stall]
+    assert set(result['trace_sha256']) == {'healthy/client.jsonl', 'api-loop-14.jsonl', 'api-requests-14.jsonl'}

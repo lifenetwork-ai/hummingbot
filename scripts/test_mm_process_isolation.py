@@ -6,6 +6,7 @@ harness. Nothing in process_isolation/ is a production entrypoint or endpoint.
 import argparse
 import hashlib
 import json
+import math
 import platform
 import sys
 import tempfile
@@ -148,7 +149,8 @@ def run_case(image, args, mode, directory, case):
         (directory / 'effective-profiles.yaml').write_bytes((assets / 'life_mm_profiles.yaml').read_bytes())
         harness = Harness(image, assets, directory, 'demo')
         harness.env.update(ADMIN_API_ENABLED='true', ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin',
-                           FUNDING_SYNC_INTERVAL_SECONDS='5')
+                           FUNDING_SYNC_INTERVAL_SECONDS='5',
+                           ADMIN_STATISTICS_CACHE_TTL_SECONDS=str(args.daily_cache_ttl_seconds))
         if args.supervision == 'restart':
             harness.env['ARCH_EXPERIMENT_SUPERVISION'] = 'restart'
         monitor_stop, monitor, monitor_errors = threading.Event(), None, []
@@ -342,9 +344,13 @@ def main():
     parser.add_argument('--history-rows', type=int, default=100000)
     parser.add_argument('--warmup-seconds', type=int, choices=(0, 300), default=0)
     parser.add_argument('--trace', action='store_true', help='Existing client/DB sampler plus bounded API loop/GC probe')
+    parser.add_argument('--daily-cache-ttl-seconds', type=float, default=5,
+                        help='Diagnostic comparison using the existing reporting cache; production default unchanged')
     parser.add_argument('--supervision', choices=('fail-fast', 'restart'), default='fail-fast',
                         help='Test-only independent API/engine restart and sustained-stall recovery')
     args = parser.parse_args()
+    if not math.isfinite(args.daily_cache_ttl_seconds) or not 0 <= args.daily_cache_ttl_seconds <= 60:
+        parser.error('daily-cache-ttl-seconds must be finite and between 0 and 60')
     if not 30 <= args.duration <= 900 or not 0 <= args.history_rows <= 1000000:
         parser.error('duration must be 30..900 seconds and history-rows 0..1000000')
     if args.supervision == 'restart' and args.mode != 'split':
@@ -360,7 +366,8 @@ def main():
                     diagnostic=True, release_scope_complete=False, cases={},
                     bot_total_cpus=args.cpus, bot_total_memory_mib=2048, total_db_pool_slots=5,
                     postgres_cpus=2, postgres_memory_mib=512, history_fills=args.history_rows, duration_seconds=args.duration)
-    evidence.update(supervision=args.supervision, warmup_seconds=args.warmup_seconds, tracing=args.trace)
+    evidence.update(supervision=args.supervision, warmup_seconds=args.warmup_seconds, tracing=args.trace,
+                    daily_cache_ttl_seconds=args.daily_cache_ttl_seconds)
     try:
         for mode in (('single', 'split') if args.mode == 'both' else (args.mode,)):
             case = evidence['cases'][mode] = {}
