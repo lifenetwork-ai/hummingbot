@@ -1,0 +1,511 @@
+{
+  "baseline_revision": "dc15ce8ce",
+  "postgres_version": "14-alpine",
+  "postgres_image": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+  "exploratory_limits": {
+    "cpus": null,
+    "memory": null
+  },
+  "limits": "Exploratory SQL comparison only; no service load or release acceptance. Production statement/I/O deadlines are unchanged. Test connections deliberately permit 120s for EXPLAIN and million-row setup.",
+  "workload": {
+    "rows": [
+      100000,
+      1000000
+    ],
+    "repetitions": 3,
+    "randomized_order": true,
+    "jit": "off",
+    "fee_entries": 2,
+    "empty_every": 11,
+    "currencies": [
+      "USDT",
+      "ETH"
+    ],
+    "negative_rebates": true,
+    "amounts": "exact NUMERIC strings, diverse case has unique per-fill amounts"
+  },
+  "result_equality": "All compared SQL rows exactly Decimal-equal for each case.",
+  "cases": {
+    "100000_repeated": {
+      "timings": {
+        "baseline": {
+          "samples_ms": [
+            304.7091669868678,
+            368.94845799542964,
+            336.44625009037554
+          ],
+          "median_ms": 336.44625009037554
+        },
+        "grouped": {
+          "samples_ms": [
+            97.90787496604025,
+            161.92504204809666,
+            114.1515001654625
+          ],
+          "median_ms": 114.1515001654625
+        },
+        "filtered": {
+          "samples_ms": [
+            735.2328340057284,
+            334.59720807150006,
+            256.77337497472763
+          ],
+          "median_ms": 334.59720807150006
+        }
+      },
+      "plans": {
+        "baseline": {
+          "execution_ms": 270.071,
+          "planning_ms": 0.431,
+          "temp_read_blocks": 0,
+          "temp_written_blocks": 0,
+          "workers_planned": 2,
+          "workers_launched": 2,
+          "fee_decodes": [
+            {
+              "Actual Rows": 2,
+              "Actual Loops": 100000,
+              "Function Name": "json_to_recordset"
+            }
+          ]
+        },
+        "grouped": {
+          "execution_ms": 100.201,
+          "planning_ms": 0.443,
+          "temp_read_blocks": 0,
+          "temp_written_blocks": 0,
+          "workers_planned": 2,
+          "workers_launched": 2,
+          "fee_decodes": [
+            {
+              "Actual Rows": 2,
+              "Actual Loops": 30,
+              "Function Name": "json_to_recordset"
+            }
+          ]
+        },
+        "filtered": {
+          "execution_ms": 280.772,
+          "planning_ms": 0.416,
+          "temp_read_blocks": 0,
+          "temp_written_blocks": 0,
+          "workers_planned": 2,
+          "workers_launched": 2,
+          "fee_decodes": [
+            {
+              "Actual Rows": 2,
+              "Actual Loops": 100000,
+              "Function Name": "json_to_recordset"
+            }
+          ]
+        }
+      }
+    },
+    "100000_unique": {
+      "timings": {
+        "baseline": {
+          "samples_ms": [
+            195.6661669537425,
+            199.81304090470076,
+            202.69450009800494
+          ],
+          "median_ms": 199.81304090470076
+        },
+        "grouped": {
+          "samples_ms": [
+            1249.7697498183697,
+            905.9042080771178,
+            1064.7192921023816
+          ],
+          "median_ms": 1064.7192921023816
+        },
+        "filtered": {
+          "samples_ms": [
+            213.58491689898074,
+            203.2303330488503,
+            199.59929096512496
+          ],
+          "median_ms": 203.2303330488503
+        }
+      },
+      "plans": {
+        "baseline": {
+          "execution_ms": 235.206,
+          "planning_ms": 0.326,
+          "temp_read_blocks": 0,
+          "temp_written_blocks": 0,
+          "workers_planned": 2,
+          "workers_launched": 2,
+          "fee_decodes": [
+            {
+              "Actual Rows": 2,
+              "Actual Loops": 100000,
+              "Function Name": "json_to_recordset"
+            }
+          ]
+        },
+        "grouped": {
+          "execution_ms": 1065.801,
+          "planning_ms": 0.484,
+          "temp_read_blocks": 4477,
+          "temp_written_blocks": 5542,
+          "workers_planned": 2,
+          "workers_launched": 2,
+          "fee_decodes": [
+            {
+              "Actual Rows": 2,
+              "Actual Loops": 90912,
+              "Function Name": "json_to_recordset"
+            }
+          ]
+        },
+        "filtered": {
+          "execution_ms": 216.305,
+          "planning_ms": 0.344,
+          "temp_read_blocks": 0,
+          "temp_written_blocks": 0,
+          "workers_planned": 2,
+          "workers_launched": 2,
+          "fee_decodes": [
+            {
+              "Actual Rows": 2,
+              "Actual Loops": 100000,
+              "Function Name": "json_to_recordset"
+            }
+          ]
+        }
+      }
+    },
+    "1000000_repeated": {
+      "timings": {
+        "baseline": {
+          "samples_ms": [
+            3795.29995797202,
+            3623.796750092879,
+            3388.2662078831345
+          ],
+          "median_ms": 3623.796750092879
+        },
+        "grouped": {
+          "samples_ms": [
+            5180.73808401823,
+            2128.5604590084404,
+            1832.1057921275496
+          ],
+          "median_ms": 2128.5604590084404
+        },
+        "filtered": {
+          "samples_ms": [
+            4451.6450830269605,
+            2995.2064170502126,
+            3119.2516670562327
+          ],
+          "median_ms": 3119.2516670562327
+        }
+      },
+      "plans": {
+        "baseline": {
+          "execution_ms": 4260.774,
+          "planning_ms": 1.463,
+          "temp_read_blocks": 9399,
+          "temp_written_blocks": 9444,
+          "workers_planned": 2,
+          "workers_launched": 2,
+          "fee_decodes": [
+            {
+              "Actual Rows": 2,
+              "Actual Loops": 1000000,
+              "Function Name": "json_to_recordset"
+            }
+          ]
+        },
+        "grouped": {
+          "execution_ms": 2025.479,
+          "planning_ms": 0.643,
+          "temp_read_blocks": 26723,
+          "temp_written_blocks": 26795,
+          "workers_planned": 2,
+          "workers_launched": 2,
+          "fee_decodes": [
+            {
+              "Actual Rows": 2,
+              "Actual Loops": 30,
+              "Function Name": "json_to_recordset"
+            }
+          ]
+        },
+        "filtered": {
+          "execution_ms": 3208.367,
+          "planning_ms": 0.567,
+          "temp_read_blocks": 9397,
+          "temp_written_blocks": 9442,
+          "workers_planned": 2,
+          "workers_launched": 2,
+          "fee_decodes": [
+            {
+              "Actual Rows": 2,
+              "Actual Loops": 1000000,
+              "Function Name": "json_to_recordset"
+            }
+          ]
+        }
+      }
+    },
+    "1000000_unique": {
+      "timings": {
+        "baseline": {
+          "samples_ms": [
+            3512.6807920169085,
+            2735.222333110869,
+            4777.046917006373
+          ],
+          "median_ms": 3512.6807920169085
+        },
+        "grouped": {
+          "samples_ms": [
+            11398.523416137323,
+            9844.954250147566,
+            10575.641333125532
+          ],
+          "median_ms": 10575.641333125532
+        },
+        "filtered": {
+          "samples_ms": [
+            2997.7352919522673,
+            3040.3570840135217,
+            2809.97583293356
+          ],
+          "median_ms": 2997.7352919522673
+        }
+      },
+      "plans": {
+        "baseline": {
+          "execution_ms": 3270.485,
+          "planning_ms": 0.349,
+          "temp_read_blocks": 9669,
+          "temp_written_blocks": 9714,
+          "workers_planned": 2,
+          "workers_launched": 2,
+          "fee_decodes": [
+            {
+              "Actual Rows": 2,
+              "Actual Loops": 1000000,
+              "Function Name": "json_to_recordset"
+            }
+          ]
+        },
+        "grouped": {
+          "execution_ms": 10846.353,
+          "planning_ms": 0.436,
+          "temp_read_blocks": 44154,
+          "temp_written_blocks": 44267,
+          "workers_planned": 2,
+          "workers_launched": 2,
+          "fee_decodes": [
+            {
+              "Actual Rows": 2,
+              "Actual Loops": 909093,
+              "Function Name": "json_to_recordset"
+            }
+          ]
+        },
+        "filtered": {
+          "execution_ms": 3990.195,
+          "planning_ms": 0.358,
+          "temp_read_blocks": 9669,
+          "temp_written_blocks": 9714,
+          "workers_planned": 2,
+          "workers_launched": 2,
+          "fee_decodes": [
+            {
+              "Actual Rows": 2,
+              "Actual Loops": 1000000,
+              "Function Name": "json_to_recordset"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "controlled_comparison": {
+    "postgres_cpus": 2,
+    "postgres_memory_mib": 512,
+    "repetitions": 5,
+    "jit": "off",
+    "cases": {
+      "100000_repeated": {
+        "timings": {
+          "baseline": {
+            "samples_ms": [
+              288.4222089778632,
+              281.50495886802673,
+              283.16091606393456,
+              278.61420810222626,
+              284.89358304068446
+            ],
+            "median_ms": 283.16091606393456
+          },
+          "derived": {
+            "samples_ms": [
+              439.52704197727144,
+              250.4454581066966,
+              245.24700012989342,
+              277.62979199178517,
+              242.21125012263656
+            ],
+            "median_ms": 250.4454581066966
+          }
+        },
+        "plans": {
+          "baseline": {
+            "Planning Time": 0.32,
+            "Execution Time": 296.45,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Shared Hit Blocks": 7480,
+            "Shared Read Blocks": 0
+          },
+          "derived": {
+            "Planning Time": 0.343,
+            "Execution Time": 301.325,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Shared Hit Blocks": 7480,
+            "Shared Read Blocks": 0
+          }
+        }
+      },
+      "100000_unique": {
+        "timings": {
+          "baseline": {
+            "samples_ms": [
+              370.4245830886066,
+              256.0681249015033,
+              289.8807500023395,
+              288.7387089431286,
+              256.01412495598197
+            ],
+            "median_ms": 288.7387089431286
+          },
+          "derived": {
+            "samples_ms": [
+              407.46337501332164,
+              306.35058390907943,
+              277.6302080601454,
+              286.81499999947846,
+              283.6109581403434
+            ],
+            "median_ms": 286.81499999947846
+          }
+        },
+        "plans": {
+          "baseline": {
+            "Planning Time": 0.321,
+            "Execution Time": 305.874,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Shared Hit Blocks": 11877,
+            "Shared Read Blocks": 0
+          },
+          "derived": {
+            "Planning Time": 0.383,
+            "Execution Time": 301.67,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Shared Hit Blocks": 11877,
+            "Shared Read Blocks": 0
+          }
+        }
+      },
+      "1000000_repeated": {
+        "timings": {
+          "baseline": {
+            "samples_ms": [
+              4978.209084132686,
+              4406.844374956563,
+              4010.6957079842687,
+              4260.360167128965,
+              4247.272208100185
+            ],
+            "median_ms": 4260.360167128965
+          },
+          "derived": {
+            "samples_ms": [
+              8194.504166021943,
+              4083.6819580290467,
+              3695.907917106524,
+              4878.295209025964,
+              4661.005875095725
+            ],
+            "median_ms": 4661.005875095725
+          }
+        },
+        "plans": {
+          "baseline": {
+            "Planning Time": 1.221,
+            "Execution Time": 5409.655,
+            "Temp Read Blocks": 9398,
+            "Temp Written Blocks": 9443,
+            "Shared Hit Blocks": 16288,
+            "Shared Read Blocks": 58516
+          },
+          "derived": {
+            "Planning Time": 0.593,
+            "Execution Time": 4544.034,
+            "Temp Read Blocks": 9397,
+            "Temp Written Blocks": 9442,
+            "Shared Hit Blocks": 16261,
+            "Shared Read Blocks": 58583
+          }
+        }
+      },
+      "1000000_unique": {
+        "timings": {
+          "baseline": {
+            "samples_ms": [
+              4469.626415986568,
+              3628.3805831335485,
+              4951.768749859184,
+              4824.499124893919,
+              4136.739542009309
+            ],
+            "median_ms": 4469.626415986568
+          },
+          "derived": {
+            "samples_ms": [
+              10514.376041013747,
+              4628.023291938007,
+              5604.640124831349,
+              4800.603667041287,
+              5272.56929106079
+            ],
+            "median_ms": 5272.56929106079
+          }
+        },
+        "plans": {
+          "baseline": {
+            "Planning Time": 0.859,
+            "Execution Time": 4264.107,
+            "Temp Read Blocks": 9667,
+            "Temp Written Blocks": 9712,
+            "Shared Hit Blocks": 16229,
+            "Shared Read Blocks": 78181
+          },
+          "derived": {
+            "Planning Time": 1.296,
+            "Execution Time": 7536.89,
+            "Temp Read Blocks": 9666,
+            "Temp Written Blocks": 9711,
+            "Shared Hit Blocks": 16225,
+            "Shared Read Blocks": 78225
+          }
+        }
+      }
+    },
+    "result_equality": "All candidate rows exactly equal baseline Decimal results in every case.",
+    "test_result": "1 passed, 257 deselected, 6 warnings, 397.70 seconds",
+    "decision": "Reject derived aggregate candidate: million-row repeated +9.40%, unique +17.96%. No SQL runtime change retained."
+  },
+  "exploratory_test_result": "1 passed, 257 deselected, 6 warnings, 315.32 seconds",
+  "prior_experiment": "Initial unrestricted 100k memoization variant took 581.94ms vs 188.85ms repeated, and 592.06ms vs 245.71ms unique. Its first million-row attempt was interrupted by the pytest 120s test timeout; those incomplete results are not acceptance."
+}

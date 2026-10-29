@@ -22,6 +22,7 @@ under the ignored `build/` directory.
 - [PostgreSQL / Cloud Run port plan](plans/POSTGRES_CLOUD_RUN_PORT_PLAN.md)
 - [LIFE / OKX implementation plan](plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md)
 - [LIFE / OKX incremental enhancements — TDD plan](plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md)
+- [Reporting latency and bounded fallback](plans/MM_REPORTING_LATENCY_TDD_PLAN.md)
 - [MM volatility defense — TDD plan](plans/MM_VOLATILITY_DEFENSE_TDD_PLAN.md) — V0–V5 complete, including final-image hour/fault gates and bounded OKX Demo compatibility
 - [Pre-listing economic stress plan](plans/LIFE_MM_ECONOMIC_STRESS_PLAN.md)
 - [Operations API and configuration ownership plan](plans/ADMIN_OPERATIONS_API_TDD_PLAN.md)

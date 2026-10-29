@@ -1402,3 +1402,16 @@ See [investigation](../mm-p99-investigation.md) and
 [evidence](../mm-p99-investigation-evidence.json). The prior accepted gate keeps
 its image scope. The real Demo remains stopped; all stress trading used the
 isolated dummy exchange. No cache, pool, deadline or trading policy was changed.
+
+## Reporting latency remediation (2026-10-29; R1)
+
+- [x] Compare exact-fee SQL on 100k/1M repeated/diverse payloads, including a
+  2 CPU / 512 MiB paired comparison; all result rows Decimal-equal.
+- [x] Reject grouped payloads, text-rescan and filtered/derived-net changes after
+  inconsistent gains or regressions. No runtime SQL change retained.
+- [ ] R2 bounded, explicitly stale daily-only fallback and Red/Green tests.
+- [ ] R3 submit-to-worker-start diagnostics, final-image regression/load controls.
+
+See [report](../mm-reporting-latency.md), [evidence](../mm-reporting-latency-evidence.json)
+and [plan](../../docs/plans/MM_REPORTING_LATENCY_TDD_PLAN.md). The confirmed 2s
+reporting timeout and original historical p99 attribution are not declared fixed.
