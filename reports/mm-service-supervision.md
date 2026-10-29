@@ -135,3 +135,17 @@ parent events remain immediate; the independent hard deadline is unchanged.
 All 95 focused service/supervision/logging/availability tests pass with this
 fix. A new Dockerfile build and final-image gates are required; the previous
 partial E2E success is not a substitute.
+
+The replacement Dockerfile image is
+`sha256:f5e7ab3282688787876623d176f774370df3dba8ecbf8eb8ae9ca714ad2a3d25`
+from `6de4001cd`, 1,367,426,271 image bytes. All five changed shipping-module
+fingerprints match the working runtime source. Full native regression passes
+**2,012 tests plus 11 subtests**; three real-PG lifecycle/API/schema checks pass
+again, and Swagger/runtime smoke pass.
+
+The identical isolated idle-signal probe is also replayed on both actual Linux
+shipping images: old `4da2…` waits for its 3s hard deadline and exits 1
+(3.12s observed); new `f5e7…` exits 0 in 0.72s, including Docker command overhead.
+No health traffic or periodic polling is added. Raw causal evidence:
+`build/service-supervision/linux-idle-signal-evidence.json`.
+Full E2E and load/hour/control verification of this replacement remain required.
