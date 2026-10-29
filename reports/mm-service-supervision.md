@@ -149,3 +149,19 @@ shipping images: old `4da2…` waits for its 3s hard deadline and exits 1
 No health traffic or periodic polling is added. Raw causal evidence:
 `build/service-supervision/linux-idle-signal-evidence.json`.
 Full E2E and load/hour/control verification of this replacement remain required.
+
+The replacement's first full E2E passes funding (all relevant normal exits 0),
+availability, quote guards, drawdown and outflow, then fails in the bootstrap
+test's orchestration. It retains a 30s listing episode across a cold restart,
+but waits for the new Start receipt to succeed before supplying the external
+depth needed to leave `bootstrap_expired`. That is a circular test dependency;
+the service correctly remains available and blocks quotes. Evidence
+`build/e2e-offline/20261030-000203-0744c6/` stays failed.
+
+Red/Green adds an explicit test-harness accepted-only command option, preserving
+the same API payload/idempotency checks. The bootstrap test submits the intent,
+asserts the original episode/deadline and blocked quotes, supplies single-leg
+then joint external qualification, and finally requires the **same receipt** to
+succeed. Production deadlines, guard policy, receipt semantics and image are
+unchanged. Twenty-nine focused harness checks pass; actual-case replay and full
+E2E/load gates remain required.

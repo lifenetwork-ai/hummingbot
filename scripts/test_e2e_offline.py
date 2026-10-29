@@ -578,7 +578,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             headers["Idempotency-Key"] = key
         return http(port, "/api/v1/admin" + path, data, headers)
 
-    def mm_command(self, port, action, **fields):
+    def mm_command(self, port, action, *, wait=True, **fields):
         state = self.state()
         payload = dict(action=action, expected_version=state["control_version"], **fields)
         if action in ("stop", "switch"):
@@ -588,6 +588,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert status == 202, receipt
         status, retried = self.admin(port, "/commands", payload, key)
         assert status == 202 and retried["id"] == receipt["id"]
+        if not wait:
+            return receipt
         latest = {"id": receipt["id"]}
 
         def completed():
@@ -1118,7 +1120,10 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.mm_command(port, "stop")
         self.terminate(first)
         _, port = self.start("bootstrap-restart", auto_migrate=False)
-        self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="follow_token", duration_seconds=600)
+        # The original clock can already have expired during a cold start.
+        # Accepted intent waits for the independent qualification input below;
+        # do not demand trading readiness before supplying that input.
+        pending = self.mm_command(port, "start", wait=False, market_mode="both", selection="fixed", profile_id="follow_token", duration_seconds=600)
         poll(lambda: len(live()) == 8 or any(g.get("reason_code") == "bootstrap_expired" for g in guards()),
              description="new session/revision reuses original listing clocks")
         assert episode() == armed
@@ -1134,6 +1139,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.control(book_overrides={instrument: qualified for instrument in empty})
         poll(lambda: len(guards()) == 2 and all(g["bootstrap"]["state"] == "market_guarded" for g in guards())
              and len(live()) == 8, description="both independent books qualify and resume original model anchors")
+        poll(lambda: self.admin(port, '/commands/' + pending['id'])[1]['status'] == 'succeeded',
+             description='same accepted Start completes only after joint qualification')
         final = episode()
         assert all(value["market_qualified"] for value in final["episodes"].values())
         for key in armed["episodes"]:

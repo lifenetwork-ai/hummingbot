@@ -1600,3 +1600,12 @@ that failed run. A real OS-signal Red/Green test confirms direct asyncio Event
 setting does not wake an idle selector; use the loop's thread-safe wakeup path.
 95 focused tests pass; a replacement image/full gates are required. No HALT reset,
 trading start, persistent Demo replacement or deployment occurs.
+
+Replacement image `f5e7ab32…` is built from `6de4001cd`. Full native regression
+now passes 2,012 tests plus eleven subtests; the three real-PG lifecycle/API/schema
+checks, Swagger and image smoke pass. Identical Linux idle-signal probes confirm
+old-image exit 1 after 3.12s versus fixed-image exit 0 after 0.72s. New full E2E
+`20261030-000203-0744c6` has passed the funding shutdown/recovery case that failed
+before and is continuing through protection/upgrade scenarios. Final full E2E,
+actual-role fault replay, continuous-hour load/memory and production control are
+still pending; no partial result closes their checklist.

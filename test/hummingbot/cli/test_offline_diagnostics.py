@@ -117,3 +117,20 @@ def test_fault_gate_requires_physical_engine_exit_before_stopping_supervisor(mon
     test_e2e_offline.Harness.wait_failed_engine(harness, 'bot', 42)
     assert calls[-1] == ('terminate', 'bot')
     assert harness.metrics['bot_failed_engine_reaped'] == 42
+
+
+def test_expected_guard_wait_submits_idempotent_intent_without_waiting_for_running(monkeypatch):
+    calls = []
+
+    def admin(port, path, data=None, key=None):
+        calls.append(data)
+        return 202, dict(id='pending-start', status='accepted')
+
+    poll = MagicMock(side_effect=AssertionError('Cannot complete before the test supplies qualified depth'))
+    monkeypatch.setattr(test_e2e_offline, 'poll', poll)
+    harness = SimpleNamespace(state=lambda: dict(control_version=2), admin=admin)
+    receipt = test_e2e_offline.Harness.mm_command(harness, 'bot', 'start', wait=False,
+                                                  market_mode='both', selection='fixed', profile_id='follow_token', duration_seconds=600)
+    assert receipt['id'] == 'pending-start'
+    assert len(calls) == 2 and calls[0] == calls[1] and 'wait' not in calls[0]
+    poll.assert_not_called()
