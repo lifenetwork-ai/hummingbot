@@ -1703,3 +1703,9 @@ untraced burst A/B passes old p95/p99 224.63/539.08ms and overlay76.17/455.47ms,
 zero errors. Both traced cases remain failed (including one timeout in candidate)
 and do not prove global latency improvement. Keep candidate provisional; require
 real build/full native/PG/E2E/lifecycle then unchanged all-load/hour/control.
+
+R7 native first Make attempt retains five logging/connector assertion failures:
+its new host-ordering unit called real global logging configuration in pytest.
+Mock that unrelated side effect; combined GC/logging/OKX spot/perpetual replay
+passes260 tests plus9 subtests. Full native reruns from scratch. Shipping runtime
+is unchanged by this test-isolation correction; candidate image build/PG continue.

@@ -1110,6 +1110,16 @@
       "Trace results worsen despite smaller API GC; worker/SQL/client delays remain.",
       "The first traced baseline overlaps brief native functional checks; no calibrated paired latency claim.",
       "No unique historical p99 attribution."
-    ]
+    ],
+    "native_logging_isolation": {
+      "retained_full_group_failed": 5,
+      "retained_full_group_passed": 1297,
+      "failed_log": "build/service-supervision/api-gc-native-regression.log",
+      "cause": "New unit called real logging configuration without isolating pytest-global logger/warning state; no runtime defect established.",
+      "corrected_combined_passed": 260,
+      "corrected_subtests": 9,
+      "corrected_log": "build/service-supervision/api-gc-logging-isolation-green.log",
+      "full_repeat": "build/service-supervision/api-gc-native-logging-fixed-regression.log"
+    }
   }
 }

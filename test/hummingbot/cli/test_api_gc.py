@@ -60,8 +60,12 @@ def test_failed_import_does_not_freeze_partial_startup(monkeypatch):
 @pytest.mark.asyncio
 async def test_api_prepares_once_before_constructing_host_or_database(monkeypatch):
     from hummingbot.cli import admin_service, api_gc, service
+    from hummingbot.logger import service_logging
 
     order = []
+    # Logging is covered separately; this unit must not reconfigure pytest's
+    # global logger/warning state when checking only the GC/host boundary.
+    monkeypatch.setattr(service_logging, 'configure_service_logging', lambda: None)
     monkeypatch.setattr(api_gc, 'prepare_api_gc', lambda: order.append('prepare'))
     deadline = SimpleNamespace(install=lambda: None, request=lambda: None, close=lambda: None)
     monkeypatch.setattr(service, 'ShutdownDeadline', lambda stop: deadline)
