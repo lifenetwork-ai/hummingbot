@@ -9,6 +9,7 @@ does not certify a later image. Operational guides and plans live in [docs/](../
 |---|---|
 | [LIFE / OKX progress](implementation/LIFE_OKX_PROGRESS.md) | Phase history and Red/Green verification |
 | [Cloud Run launch preparation](cloudrun-readiness-review.md) | Template/review/project-selection TDD, stopped-startup checklist and pending cloud inputs |
+| [Local Demo startup](local-demo-startup.md), [evidence](local-demo-startup-evidence.json) | Rebuilt runtime smoke, preserved Demo DB/config and authenticated stopped-service API |
 | [Service availability audit](life-mm-availability-audit.md), [evidence](life-mm-availability-audit-evidence.json), [TDD remediation](life-mm-availability-remediation.md) | Five TDD fixes complete; 16 image E2E groups, continuous hour and six post-hour faults pass; original failures retained |
 | [MM volatility defense](mm-volatility-defense.md), [evidence](mm-volatility-defense-evidence.json) | Weighted levels, reduced sizing, durable pause/recovery and current acceptance status |
 | [Admin API / dashboard UX review](admin-api-dashboard-ux-review.md) | Current contract, browser access, operator workflow gaps and proposed FE follow-up; no runtime changes |

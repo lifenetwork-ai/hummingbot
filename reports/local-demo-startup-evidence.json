@@ -1,0 +1,62 @@
+{
+  "passed": true,
+  "scope": "Local stopped-service/API smoke only; no Start/Stop/trading POST sent",
+  "image_id": "sha256:143ddfe27ceb1c18863735a99f58ce8beef214bc87b4c99e909d9d9613732124",
+  "image_size_bytes": 1367392175,
+  "runtime_source_hashes_matched": 29,
+  "private_environment_modified": false,
+  "private_catalogue_modified": false,
+  "database_reused": true,
+  "container": "hummingbot-local-demo",
+  "cpu": 1,
+  "memory_bytes": 2147483648,
+  "http_binding": "127.0.0.1:8080",
+  "checks": {
+    "/startup": 200,
+    "/live": 200,
+    "/ready": 503,
+    "/api/v1/admin/status": 401,
+    "/api/v1/admin/profiles [auth]": 200,
+    "/api/v1/admin/docs [auth]": 200,
+    "/api/v1/admin/openapi.json [auth]": 200
+  },
+  "status": {
+    "bot_id": "okx-demo-btc",
+    "desired_state": "stopped",
+    "running": false,
+    "phase": "stopped",
+    "owner_available": true,
+    "control_version": 2,
+    "acknowledged_version": 2
+  },
+  "startup_log_severities": {
+    "INFO": 19
+  },
+  "runtime_smoke": {
+    "passed": true,
+    "numba_jit": true,
+    "ta_lib": true,
+    "tls_trust": true,
+    "connector_count": 63,
+    "sql_scripts": 17,
+    "build_tools_absent": true,
+    "cli_version": "hbot 2.17.0",
+    "environment_bytes": 1266556462,
+    "service_logging": {
+      "passed": true,
+      "all_severities": true,
+      "network_warning": true,
+      "utc_context": true,
+      "redaction": true,
+      "startup_failure_json": true,
+      "python_warning_json": true,
+      "sql_parameters_suppressed": true
+    }
+  },
+  "checked_at_utc": "2026-10-29T03:15:37.189549+00:00",
+  "limitations": [
+    "No trading command or fresh full release/E2E/load gate on this rebuilt image.",
+    "Browser/FE integration remains unverified.",
+    "Original private Demo environment/catalogue and existing positions/policy history were preserved."
+  ]
+}

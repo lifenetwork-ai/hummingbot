@@ -1366,3 +1366,18 @@ retain both earlier failed/interrupted attempts and the final accepted run.
 
 See [readiness review](../cloudrun-readiness-review.md). No cloud provisioning,
 push/deployment, new image/load claim or trading occurred in this step.
+
+## Local Demo API preparation (2026-10-29; stopped startup verified)
+
+- [x] Reuse matching private Demo catalogue/environment and persistent DB after
+  checking stopped/acknowledged intent and no HALT; no private config was changed.
+- [x] Rebuild the runtime after operator Docker cleanup removed the accepted
+  image; match 29 runtime hashes and pass the existing isolated ABI/logging smoke.
+- [x] Run one local bot service at 1 CPU / 2 GiB, pool five, dev Swagger and
+  localhost-only HTTP alongside the existing PostgreSQL container.
+- [x] Verify stopped owner, health, auth and docs/profiles/schema; no trading POST.
+
+See [local startup report](../local-demo-startup.md) and
+[evidence](../local-demo-startup-evidence.json). Rebuilt image `143ddfe2…` has only
+this local startup/smoke scope; the earlier release-hour result remains attached
+to `be3efe46…`. FE browser acceptance and listing/cloud checks remain pending.

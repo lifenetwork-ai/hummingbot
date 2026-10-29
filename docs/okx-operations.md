@@ -201,6 +201,25 @@ empty/own-only LIFE books. Perpetual has no spot-cash inventory skew.
 
 ### Build and run locally
 
+For local API/FE integration, use one service container (one CPU / 2 GiB) plus
+the existing persistent PostgreSQL container. Keep `ENV=dev` for Swagger,
+`OKX_TRADING_ENV=demo`, `DB_POOL_SIZE=5`, admin API enabled and JSON/INFO logging.
+Bind HTTP only to `127.0.0.1:8080`; the browser URL and authenticated Swagger path
+are listed below. `ADMIN_CORS_ORIGINS=*` is the current local default. The FE still
+uses Basic Auth; no application token/login session is issued.
+
+Start the service stopped, verify API/status first and use an explicit short
+timed session only when testing trading. Merely enabling until-stopped permission
+in YAML does not require a continuous session. Existing DB desired state must be
+checked before starting a replacement service: saved running intent can resume.
+Use the current tested runtime rather than an old stopped container's image.
+
+Reuse the matching private environment, catalogue and DB from an existing Demo
+account when they already hold positions/policy bindings. Do not overwrite those
+files with the public example or reduce/reset their bound limits to simplify FE
+testing. Preserve the original `BOT_ID`, controller IDs and policy values. The
+public example is for a separately reviewed new setup, not an upgrade command.
+
 Use a dedicated Demo account and PostgreSQL database with known exposure/history.
 The service reconciles existing exchange positions and orders before trading.
 An empty DB does not establish provenance for an account's existing positions.
