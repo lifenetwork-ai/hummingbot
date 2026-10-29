@@ -10,6 +10,15 @@ per-route summaries, fixture hashes, resource limits and verification scope.
 The [implementation plan](../docs/plans/MM_REPORTING_LATENCY_TDD_PLAN.md) separates
 this R1A diagnostic from R2/R3 and final-image release verification.
 
+The next controlled repeat retains the same 300s warmup / 900s healthy workload.
+Its test-only API probe correlates request IDs with physical worker admission,
+pool checkout, SQL and response-model timing using the existing bounded tracing
+helpers. Both client windows keep their own trace summaries, and executed
+prototype sources are retained automatically. Two Red cases first fail for the
+unsupported traced warmup and missing probe; 31 selected regression tests pass
+after implementation, including real HTTP/SQL success/error and hook cleanup.
+No runtime fix or latency improvement is inferred from this instrumentation.
+
 ## Tested shape
 
 ```mermaid

@@ -84,6 +84,19 @@ Real local Demo remains stopped. Load tests use isolated fake exchanges/DBs.
 The [investigation](../../reports/mm-p99-investigation.md) retains its original
 image scope; no single historical p99 trigger is assumed.
 
+## R5: attribute the longer healthy latency failure
+
+- [x] Red/Green: allow the same 300s warmup / 900s healthy workload with tracing,
+  retaining each client's summary separately. Add request-ID correlation through
+  the existing physical-worker, pool, SQL and response-model timing helpers;
+  verify real HTTP/SQL success and failure, parameter redaction and hook cleanup.
+- [ ] Repeat that longer diagnostic with corrected heartbeat measurements and
+  retained executed prototype sources. Attribute outliers to measured stages;
+  preserve failures and trace overhead/scope limitations.
+- [ ] Apply Red/Green to any confirmed runtime defect and select the next
+  architecture/artifact from the evidence. Unproven causes do not justify a
+  production change. Final unchanged load/hour-memory acceptance remains open.
+
 Daily fallback contract: keep the database observation timestamp unchanged;
 return explicit English freshness/retry metadata. Retention is bounded to 32
 filter/timezone/date-range keys. Both elapsed monotonic time and wall-clock

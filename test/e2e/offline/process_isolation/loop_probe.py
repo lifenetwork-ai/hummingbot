@@ -11,7 +11,7 @@ from pathlib import Path
 from load_trace import FullGCProbe, TraceSink, stack_snapshot
 
 
-def attach(app):
+def attach(app, *, tracer=None):
     directory = Path(os.environ['HBOT_LOAD_TRACE_DIRECTORY'])
     sink = TraceSink(directory / f'api-loop-{os.getpid()}.jsonl')
     full_gc = FullGCProbe()
@@ -46,6 +46,7 @@ def attach(app):
             sink.emit(dict(kind='api_loop_stall', at=time.time(), at_ns=now,
                            last_beat_ns=last_beat, loop_thread_id=loop_thread,
                            lag_ms=(now - last_beat) / 1e6,
+                           active_spans=tracer.active_snapshot() if tracer else [],
                            stacks=stacks,
                            cgroup_cpu=cpu.read_text() if cpu.is_file() else None))
 

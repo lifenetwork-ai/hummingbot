@@ -47,6 +47,17 @@ def prepare(assets, mode):
     path.write_text(yaml.safe_dump(profiles))
 
 
+def client_trace_options(directory, phase):
+    """Each client process owns its trace/summary; retain both load windows."""
+    if directory is None:
+        return []
+    assert phase in ('warmup', 'healthy')
+    path = directory / phase
+    path.mkdir()
+    path.chmod(0o777)
+    return ['--env', f'HBOT_LOAD_TRACE_DIRECTORY=/trace-output/{phase}']
+
+
 def recovery_faults(harness, bot, port, case):
     """Real process faults: no HALT reset, no reconstructed trading authority."""
     def pids():
@@ -130,6 +141,10 @@ def run_case(image, args, mode, directory, case):
         assets = Path(temporary)
         prepare(assets, mode)
         case['fixture_sha256'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in assets.iterdir()}
+        executed = directory / 'executed-prototype'
+        executed.mkdir()
+        for path in (ROOT / 'test/e2e/offline/process_isolation').glob('*.py'):
+            (executed / path.name).write_bytes((assets / path.name).read_bytes())
         (directory / 'effective-profiles.yaml').write_bytes((assets / 'life_mm_profiles.yaml').read_bytes())
         harness = Harness(image, assets, directory, 'demo')
         harness.env.update(ADMIN_API_ENABLED='true', ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin',
@@ -188,7 +203,8 @@ def run_case(image, args, mode, directory, case):
                 monitor = threading.Thread(target=sample_memory, daemon=True)
                 monitor.start()
                 print(f'{mode}: {args.warmup_seconds}s warmup diagnostic', flush=True)
-                warmup = docker('exec', client, 'python', '/test-assets/load_client.py', '--duration', args.warmup_seconds,
+                warmup = docker('exec', *client_trace_options(trace_directory, 'warmup'), client,
+                                'python', '/test-assets/load_client.py', '--duration', args.warmup_seconds,
                                 '--output', '/tmp/warmup.json', '--operations', timeout=args.warmup_seconds + 60, check=False)
                 (directory / 'warmup-client.log').write_text(warmup.stdout + warmup.stderr)
                 assert warmup.returncode == 0, 'Inspect retained warmup log'
@@ -205,7 +221,8 @@ def run_case(image, args, mode, directory, case):
             print(f'{mode}: {args.duration}s healthy diagnostic', flush=True)
             before = cpu_counters(bot)
             started = time.monotonic()
-            call = docker('exec', client, 'python', '/test-assets/load_client.py', '--duration', args.duration,
+            call = docker('exec', *client_trace_options(trace_directory, 'healthy'), client,
+                          'python', '/test-assets/load_client.py', '--duration', args.duration,
                           '--output', '/tmp/healthy.json', '--operations', timeout=args.duration + 60, check=False)
             (directory / 'client.log').write_text(call.stdout + call.stderr)
             assert call.returncode == 0, 'Inspect retained client log'
@@ -332,8 +349,8 @@ def main():
         parser.error('duration must be 30..900 seconds and history-rows 0..1000000')
     if args.supervision == 'restart' and args.mode != 'split':
         parser.error('restart supervision requires --mode split')
-    if args.trace and (args.mode != 'split' or args.warmup_seconds):
-        parser.error('trace uses a single split diagnostic window, without overwriting a preceding warmup trace')
+    if args.trace and args.mode != 'split':
+        parser.error('trace requires --mode split')
     metadata = json.loads(docker('image', 'inspect', args.image).stdout)[0]
     assert metadata['Architecture'] == 'amd64'
     directory = ROOT / 'build/mm-process-isolation' / (time.strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:6])

@@ -28,9 +28,6 @@ async def main():
     host = SimpleNamespace(store=None, revision=os.environ.get('K_REVISION', 'architecture-experiment'))
     admin = AdminSettings.from_environment()
     app = web.Application(middlewares=[admin_middleware(admin)])
-    if os.environ.get('HBOT_LOAD_TRACE_DIRECTORY'):
-        from loop_probe import attach
-        attach(app)
     ready = False
     engine = None
     async with ClientSession(timeout=ClientTimeout(total=.3)) as client:
@@ -50,6 +47,11 @@ async def main():
         for path in ('/startup', '/live', '/ready'):
             app.router.add_get(path, health)
         AdminAPI(host, admin).register(app)
+        if os.environ.get('HBOT_LOAD_TRACE_DIRECTORY'):
+            from loop_probe import attach as attach_loop
+            from request_probe import attach as attach_requests
+            tracer = attach_requests(app)
+            attach_loop(app, tracer=tracer)
         runner = web.AppRunner(app, access_log=None, shutdown_timeout=.1)
         await runner.setup()
         try:

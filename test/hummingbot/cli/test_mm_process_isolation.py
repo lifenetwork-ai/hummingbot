@@ -36,3 +36,28 @@ def test_diagnostic_does_not_discard_warmup_failure(tmp_path, monkeypatch):
 
     monkeypatch.setattr(experiment, 'run_case', case)
     assert experiment.main() == 1
+
+
+def test_traced_warmup_and_healthy_keep_separate_evidence(tmp_path, monkeypatch):
+    monkeypatch.setattr(experiment, 'ROOT', tmp_path)
+    monkeypatch.setattr(sys, 'argv', ['test_mm_process_isolation.py', '--mode', 'split',
+                                      '--supervision', 'restart', '--duration', '900',
+                                      '--warmup-seconds', '300', '--trace'])
+    monkeypatch.setattr(experiment, 'docker', lambda *args, **kwargs: SimpleNamespace(
+        stdout=json.dumps([dict(Architecture='amd64', Id='sha256:diagnostic')])))
+
+    def case(image, args, mode, directory, result):
+        trace = directory / 'trace'
+        trace.mkdir()
+        options = [experiment.client_trace_options(trace, phase) for phase in ('warmup', 'healthy')]
+        assert options == [['--env', 'HBOT_LOAD_TRACE_DIRECTORY=/trace-output/warmup'],
+                           ['--env', 'HBOT_LOAD_TRACE_DIRECTORY=/trace-output/healthy']]
+        for phase in ('warmup', 'healthy'):
+            (trace / phase / 'client-summary.json').write_text(phase)
+        assert (trace / 'warmup/client-summary.json').read_text() == 'warmup'
+        assert experiment.client_trace_options(None, 'healthy') == []
+        result.update(completed=True, healthy=dict(violations=[], read_p99_ms=20),
+                      stall=dict(errors=0, p99_ms=20))
+
+    monkeypatch.setattr(experiment, 'run_case', case)
+    assert experiment.main() == 0
