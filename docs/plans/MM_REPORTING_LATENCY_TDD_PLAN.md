@@ -97,8 +97,13 @@ recovery still requires technical review; no reset/resume API is implemented.
   the shipping supervisor or masking missing metrics.
   Overlay probe passes actual-role faults at nondefault ingress 8090; final-image
   rerun remains required below. Native focused regression: 124 tests pass.
-- [ ] Commit verified runtime phases; build and fingerprint the final image.
+- [x] Commit verified runtime phases; build and fingerprint the final image.
   Run native/real-PG regression, runtime smoke, Swagger and full offline E2E.
+  Selected image `f5e7ab32…` / manifest `cee15b5a…`: 2,012 native tests plus
+  eleven subtests; real-PG coverage completed across retained full/targeted runs;
+  all sixteen E2E groups including compatible upgrade/rollback pass. Actual
+  shipping-role crash/hang replay passes with nondefault ingress and clean
+  3.28s parent shutdown. Both preceding full E2E failures remain recorded.
 - [ ] Run unchanged workload/error/latency gates and continuous-hour per-role
   memory checks on the selected final image, followed by recovery faults and an
   ordinary-entrypoint control. Preserve failures, report scope, update checklist

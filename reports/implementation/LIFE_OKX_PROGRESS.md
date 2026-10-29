@@ -1618,3 +1618,11 @@ pass. Full16 E2E repeats at `20261030-003620-4745f4` on unchanged image `f5e7…
 Actual shipping-role crash/hang replay now passes at
 `20261030-003706-4b55b3`, including preserved identity/positions/HALT, no extra
 orders, engine-only migrations and clean 3.28s parent shutdown/ownership release.
+
+- [x] Corrected full16 E2E `20261030-003620-4745f4` passes on `f5e7…` / manifest
+  `cee15b5a…`, including compatible image rollback. R6 image/regression phase is
+  checked complete; both earlier full failures are retained.
+- [ ] Start unchanged all-feature all-profile load, burst and continuous-hour
+  per-role memory/fault gates, then matched uninstrumented production control.
+  Two CPUs/2GiB, total pool5 (API2/engine3), daily TTL15; no parallel performance
+  jobs. No persistent Demo replacement or Cloud Run deployment.

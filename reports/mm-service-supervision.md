@@ -1,7 +1,9 @@
 # Single-service runtime supervision verification
 
-Status: runtime integration is in progress. Native checks do not certify the
-shipping image or Cloud Run deployment. The real local Demo remains stopped on
+Status: runtime/image/regression and final-image lifecycle checks pass. The
+unchanged load/hour-memory and ordinary-entrypoint control gates are running or
+pending; adoption is not yet accepted. Local checks do not certify Cloud Run
+deployment. The real local Demo remains stopped on
 its existing image/database. The earlier [prototype measurements](mm-process-isolation-experiment.md)
 retain their original source/image scope; they are not acceptance of this change.
 
@@ -176,3 +178,11 @@ orders. Normal quote-refresh boundaries remain included. Three engine starts
 apply 51 scripts; API restarts apply none. Parent shutdown releases ownership in
 3.28s. This functional run overlaps another isolated functional E2E environment;
 it is not a calibrated performance result. Load/hour/control gates remain open.
+
+The corrected full E2E at `build/e2e-offline/20261030-003620-4745f4/` now passes
+**all sixteen groups**, including compatible image upgrade/rollback. Its manifest
+is `sha256:cee15b5a2644cb0ff27366ba27a784b7ee775f5987afe679a10163fb17f4c578`,
+matching selected image `f5e7…`. The earlier full E2E failures retain their
+original results. The R6 image/regression phase is complete; the unchanged
+all-feature load/hour gate starts with two CPUs, 2GiB, five total DB slots and
+explicit daily TTL15. No other benchmark/build/regression job runs alongside it.
