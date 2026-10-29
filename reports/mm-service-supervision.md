@@ -88,3 +88,27 @@ fits one service. Cloud Run's [container contract](https://docs.cloud.google.com
 requires amd64 support and ingress on `0.0.0.0:$PORT`, allows four minutes for
 startup and ten seconds after SIGTERM; the current template keeps continuous CPU.
 Local probes do not certify Cloud Run deployment.
+
+## Final Dockerfile artifact
+
+Built from clean commit `78901e673` with the ordinary Dockerfile `cloudrun`
+target, not the temporary overlay:
+`sha256:4da2f008f111603e92bc74d6e5b64ec9da29a8669af384abb33b32aa6ba571d9`.
+It is amd64, UID/GID 10001, 1,367,425,805 image bytes; CMD remains
+`python -m hummingbot.cli.service`. Five changed shipping modules match current
+source SHA-256 exactly; subsequent commits affect isolated harness/docs only.
+
+The full native selection passes 2,009 tests plus 11 subtests; Swagger and
+deployment-template review pass. Final-image runtime smoke passes Numba JIT,
+TA-Lib, TLS trust, 63 connector registrations, 17 packaged SQL scripts, removal
+of build/test tools, JSON severity/context/redaction and fatal startup logging.
+The PostgreSQL/E2E/load/hour/control gates remain open until their own retained
+results pass; this artifact metadata does not imply acceptance.
+
+PostgreSQL regression initially reports **257 passed / two failed**: the native
+subprocess test helper passed a config directory to the new CLI parser. Captured
+logs confirm the argument rejection. Reexecute the same isolated config/network
+bootstrap in both actual children and parse only role arguments. The three
+service/API/schema lifecycle checks then pass; no production code changes. Raw
+logs retain both original failure and focused recovery under
+`build/service-supervision/postgres-{regression,lifecycle-retest}.log`.

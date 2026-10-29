@@ -1586,3 +1586,10 @@ See [current runtime verification](../mm-service-supervision.md).
 - [ ] Final Dockerfile build, real PostgreSQL regression, full final-image E2E,
   continuous-hour load/memory and ordinary-entrypoint control are in progress.
   No persistent Demo replacement, real trading start or Cloud Run deployment.
+
+Final Dockerfile image `4da2f008…` is built and fingerprinted; packaged ABI,
+connector/SQL assets and logging smoke pass. PostgreSQL initially has 257 passes
+and two helper/CLI argument failures; corrected real-process helper reruns all
+three API/service/schema lifecycle checks successfully. Full image E2E is now
+running with distinct previous image `58356746…` for compatible rollback. The
+combined final-image/hour/control acceptance item above remains open.
