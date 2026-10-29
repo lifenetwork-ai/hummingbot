@@ -165,3 +165,14 @@ then joint external qualification, and finally requires the **same receipt** to
 succeed. Production deadlines, guard policy, receipt semantics and image are
 unchanged. Twenty-nine focused harness checks pass; actual-case replay and full
 E2E/load gates remain required.
+
+Final-image ordinary-entrypoint lifecycle replay passes at
+`build/service-supervision/20261030-003706-4b55b3/`: nondefault public 8090/private
+loopback 8091, filtered API environment, real retained positions, API crash,
+repeated crash and hang, active engine crash and HALTed-engine hang. API faults
+preserve the engine/owner/session; engine replacement physically reaps the old
+process, advances owner generation, preserves HALT/positions and submits no new
+orders. Normal quote-refresh boundaries remain included. Three engine starts
+apply 51 scripts; API restarts apply none. Parent shutdown releases ownership in
+3.28s. This functional run overlaps another isolated functional E2E environment;
+it is not a calibrated performance result. Load/hour/control gates remain open.

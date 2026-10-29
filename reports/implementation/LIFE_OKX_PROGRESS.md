@@ -1609,3 +1609,12 @@ old-image exit 1 after 3.12s versus fixed-image exit 0 after 0.72s. New full E2E
 before and is continuing through protection/upgrade scenarios. Final full E2E,
 actual-role fault replay, continuous-hour load/memory and production control are
 still pending; no partial result closes their checklist.
+
+Bootstrap replay confirms a test orchestration issue: the fixed 30s episode can
+expire during cold restart. Harness `wait=False` submits accepted intent before
+supplying qualification depth, then requires the same receipt to complete; no
+runtime deadline/policy changes. 29 focused checks and real bootstrap-case E2E
+pass. Full16 E2E repeats at `20261030-003620-4745f4` on unchanged image `f5e7…`.
+Actual shipping-role crash/hang replay now passes at
+`20261030-003706-4b55b3`, including preserved identity/positions/HALT, no extra
+orders, engine-only migrations and clean 3.28s parent shutdown/ownership release.
