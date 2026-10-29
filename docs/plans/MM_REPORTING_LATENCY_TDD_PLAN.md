@@ -104,6 +104,12 @@ recovery still requires technical review; no reset/resume API is implemented.
   all sixteen E2E groups including compatible upgrade/rollback pass. Actual
   shipping-role crash/hang replay passes with nondefault ingress and clean
   3.28s parent shutdown. Both preceding full E2E failures remain recorded.
+- [ ] Resolve the late-fill checkpoint race found by long run
+  `20261030-013705-7a6a10`: terminal-read-before-position-store with Red/Green,
+  exact amount/fees recovery, continued HALT for unknown/post-checkpoint changes,
+  and a deterministic cancellation-fill replay on the replacement shipping image.
+  The preceding `f5e7…` image validation remains scoped to that image; its load
+  acceptance failed and the new runtime needs full image/regression/E2E checks.
 - [ ] Run unchanged workload/error/latency gates and continuous-hour per-role
   memory checks on the selected final image, followed by recovery faults and an
   ordinary-entrypoint control. Preserve failures, report scope, update checklist

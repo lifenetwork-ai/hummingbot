@@ -511,6 +511,127 @@ def test_fill_during_v2_shutdown_requires_position_reconciliation(owned):
     assert not successor.try_acquire()
 
 
+@pytest.mark.parametrize("race", ["covered", "uncovered", "after_checkpoint"])
+def test_terminal_checkpoint_only_accepts_fills_covered_by_the_new_snapshot(owned, race):
+    core = reconciliation_core(owned)
+    core.strategy.executor_orchestrator = object()
+    order = intent(owned)
+    order.current_state = OrderState.OPEN
+    with owned.manager.get_new_session() as session, session.begin():
+        session.get(Order, order.client_order_id).creation_pending = False
+    core.cancel_outstanding_orders = AsyncMock(return_value=True)
+
+    async def refresh(connector, orders):
+        order.executed_amount_base = Decimal("0.1")
+        order.current_state = OrderState.CANCELED
+        if race == "after_checkpoint" and owned.owner._refresh_orders.await_count > 1:
+            order.executed_amount_base += Decimal("0.001")
+
+    owned.owner._refresh_orders = AsyncMock(side_effect=refresh)
+
+    async def shutdown(**kwargs):
+        try:
+            proof = await core.before_position_checkpoint(
+                {order.client_order_id: ("okx", order)} if race != "uncovered" else {})
+            assert proof[order.client_order_id]["executed_amount_base"] == "0.1"
+            await core.after_order_cancellation()
+        except SubmissionBlocked:
+            return False
+        return True
+
+    core.shutdown = AsyncMock(side_effect=shutdown)
+    assert owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1)) is (race == "covered")
+    recovery = owned.store.read()["recovery_state"]
+    assert bool(recovery.get("halt")) is (race != "covered")
+    assert bool(recovery.get("shutdown_incomplete")) is (race != "covered")
+    assert not owned.owner.allow_new_orders
+
+
+@pytest.mark.parametrize("pruned", [False, True])
+@pytest.mark.parametrize("initial", ["0", "0.011"])
+def test_late_cancel_fill_round_trips_through_real_position_checkpoint(owned, monkeypatch, initial, pruned):
+    from hummingbot.core.data_type.in_flight_order import TradeUpdate
+    from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
+    from hummingbot.core.rate_oracle.rate_oracle import RateOracle
+    from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
+    from hummingbot.strategy_v2.executors.position_executor.data_types import (
+        PositionExecutorConfig,
+        TripleBarrierConfig,
+    )
+    from hummingbot.strategy_v2.executors.position_executor.position_executor import PositionExecutor
+    from hummingbot.strategy_v2.models.base import RunnableStatus
+    from hummingbot.strategy_v2.models.executors import TrackedOrder
+
+    monkeypatch.setattr(RateOracle, "get_instance", lambda: SimpleNamespace(
+        get_pair_rate=lambda pair: Decimal("0.01") if pair == "USDT-BTC" else Decimal("100")))
+    core = reconciliation_core(owned)
+    order = intent(owned)
+    order.current_state = OrderState.OPEN
+    with owned.manager.get_new_session() as session, session.begin():
+        session.get(Order, order.client_order_id).creation_pending = False
+    owned.market.quantize_order_amount.side_effect = lambda trading_pair, amount, **kwargs: amount
+    owned.market.quantize_order_price.side_effect = lambda trading_pair, price, **kwargs: price
+    strategy = MagicMock()
+    strategy.connectors = {"okx": owned.market}
+    strategy.controllers = {"maker": MagicMock()}
+    strategy.markets = {"okx": {"BTC-USDT"}}
+    strategy.config = SimpleNamespace(mm_drawdown_scope=None)
+    strategy.current_timestamp = 1700000000
+    strategy.market_data_provider.get_price_by_type.return_value = Decimal("100")
+    strategy.get_price.return_value = Decimal("100")
+    config = PositionExecutorConfig(timestamp=1, controller_id="maker", connector_name="okx",
+                                    trading_pair="BTC-USDT", side=TradeType.BUY, entry_price=Decimal("100"),
+                                    amount=Decimal("0.1"), use_configured_entry_price=True,
+                                    triple_barrier_config=TripleBarrierConfig(open_order_type=OrderType.LIMIT_MAKER))
+    executor = PositionExecutor(strategy, config)
+    executor._open_order = TrackedOrder(order_id=order.client_order_id)
+    executor._open_order.order = order
+    executor._status = RunnableStatus.RUNNING
+    orchestrator = ExecutorOrchestrator(strategy)
+    orchestrator.active_executors = {"maker": [executor]}
+    orchestrator.positions_held = {"maker": []}
+    core.strategy.executor_orchestrator = orchestrator
+
+    def fill(identity, amount):
+        order.update_with_trade_update(TradeUpdate(
+            trade_id=identity, client_order_id=order.client_order_id, exchange_order_id="1",
+            trading_pair="BTC-USDT", fill_timestamp=1700000001, fill_price=Decimal("100"),
+            fill_base_amount=Decimal(amount), fill_quote_amount=Decimal(amount) * 100,
+            fee=AddedToCostTradeFee(flat_fees=[TokenAmount("USDT", Decimal("0.000001"))])))
+
+    if Decimal(initial):
+        fill("first", initial)
+    if pruned:
+        # The executor still owns the reference when the connector has already
+        # retired it from active orders during controller cleanup.
+        owned.market.in_flight_orders.pop(order.client_order_id)
+
+    async def refresh(connector, orders):
+        assert executor.terminated.is_set()
+        fill("late", "0.001")  # Repeated readback of the same fill remains idempotent.
+        order.current_state = OrderState.CANCELED
+
+    core.cancel_outstanding_orders = AsyncMock(return_value=True)
+    owned.owner._refresh_orders = AsyncMock(side_effect=refresh)
+
+    async def shutdown(**kwargs):
+        await orchestrator.stop(keep_position=True, before_position_checkpoint=core.before_position_checkpoint)
+        await core.after_order_cancellation()
+        return True
+
+    core.shutdown = AsyncMock(side_effect=shutdown)
+    assert owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=2))
+    saved = owned.recorder.get_positions_by_controller("maker")
+    assert len(saved) == 1
+    assert saved[0].amount == Decimal(initial) + Decimal("0.001")
+    assert saved[0].cum_fees_quote == Decimal("0.000001") * (2 if Decimal(initial) else 1)
+    restored = ExecutorOrchestrator(strategy)
+    assert restored.positions_held["maker"][0].net_amount_base == saved[0].amount
+    assert restored.positions_held["maker"][0].cum_fees_quote == saved[0].cum_fees_quote
+    recovery = owned.store.read()["recovery_state"]
+    assert not recovery.get("halt") and not recovery.get("shutdown_incomplete")
+
+
 def test_release_refuses_live_transport_task(owned):
     async def scenario():
         task = asyncio.create_task(asyncio.Event().wait())

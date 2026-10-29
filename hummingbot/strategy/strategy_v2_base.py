@@ -337,7 +337,8 @@ class StrategyV2Base(StrategyPyBase):
                 for action in executor_actions:
                     self.executor_orchestrator.execute_action(action)
 
-    async def on_stop(self, *, shutdown_timeout: Optional[float] = None, keep_position: bool = False):
+    async def on_stop(self, *, shutdown_timeout: Optional[float] = None, keep_position: bool = False,
+                      before_position_checkpoint: Optional[Callable] = None):
         """
         Called when the strategy is stopped. Shuts down controllers, executors, and market data provider.
         """
@@ -367,8 +368,11 @@ class StrategyV2Base(StrategyPyBase):
             self.add_markets(missing_markets)
 
         if shutdown_timeout is not None or keep_position:
+            options = dict(shutdown_timeout=shutdown_timeout, keep_position=keep_position)
+            if before_position_checkpoint is not None:
+                options['before_position_checkpoint'] = before_position_checkpoint
             await self.executor_orchestrator.stop(
-                self.max_executors_close_attempts, shutdown_timeout=shutdown_timeout, keep_position=keep_position)
+                self.max_executors_close_attempts, **options)
         else:
             await self.executor_orchestrator.stop(self.max_executors_close_attempts)
         self.market_data_provider.stop()

@@ -108,6 +108,7 @@ class TradingCore:
         self.trade_fill_db: Optional[SQLConnectionManager] = None
         self.before_strategy_start = None
         self.after_order_cancellation = None
+        self.before_position_checkpoint = None
 
         # Metrics collectors mapping (connector_name -> MetricsCollector)
         self._metrics_collectors: Dict[str, MetricsCollector] = {}
@@ -805,7 +806,10 @@ class TradingCore:
             # Handle V2 strategy specific cleanup first
             if self.strategy and isinstance(self.strategy, StrategyV2Base):
                 if keep_positions:
-                    await self.strategy.on_stop(keep_position=True, shutdown_timeout=shutdown_timeout)
+                    options = dict(keep_position=True, shutdown_timeout=shutdown_timeout)
+                    if self.before_position_checkpoint is not None:
+                        options['before_position_checkpoint'] = self.before_position_checkpoint
+                    await self.strategy.on_stop(**options)
                 else:
                     await self.strategy.on_stop()
 

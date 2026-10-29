@@ -634,12 +634,31 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.mm_command(port, 'start', market_mode='both', selection='random', duration_mode='until_stopped')
         continuous = self.state()['mm_session']
         assert continuous['expires_at'] is None and continuous['step_expires_at'] is not None
+        poll(lambda: sum(order['state'] == 'live' for order in self.ledger()['orders']) == 8,
+             description='continuous quotes before terminal-fill checkpoint race')
+        targeted = [next(order for order in self.ledger()['orders'] if order['state'] == 'live'
+                         and order['side'] == 'buy' and order['instId'].endswith('-SWAP') == perpetual)
+                    for perpetual in (False, True)]
+        for order in targeted:
+            self.control(fill=dict(clOrdId=order['clOrdId'], amount='.1', fee='.000001'))
+        self.control(fill_on_cancel=[dict(clOrdId=order['clOrdId'], amount='.1', fee='.000001') for order in targeted])
         poll(lambda: self.state()['mm_session']['generation'] > continuous['generation'], timeout=35,
              description='until-stopped random rollover')
         self.wait_running(port)
         poll(lambda: sum(order['state'] == 'live' for order in self.ledger()['orders']) == 8
              and self.sql('SELECT count(*) FROM orders WHERE creation_pending') == '0',
              description='continuous random step is established before clean restart')
+        assert not self.state()['recovery_state'].get('halt')
+        assert self.sql('SELECT count(*) FROM trade_fills') == '4'
+        positions = json.loads(self.sql("SELECT json_agg(json_build_object('connector', connector_name, "
+                                        "'amount', amount::text, 'fees', cum_fees_quote::text)) "
+                                        "FROM positions WHERE amount <> 0"))
+        by_connector = {row['connector']: row for row in positions}
+        assert Decimal(by_connector['okx']['amount']) == Decimal('.2')
+        assert Decimal(by_connector['okx_perpetual']['amount']) == Decimal('.002')
+        assert all(Decimal(row['fees']) == Decimal('.000002') for row in positions)
+        self.metrics['terminal_fill_checkpoint'] = dict(spot_base='.2', perpetual_base='.002', fills=4,
+                                                        duplicate_trade_events=True, positions=positions)
 
         def recovery_summary():
             row = self.state()

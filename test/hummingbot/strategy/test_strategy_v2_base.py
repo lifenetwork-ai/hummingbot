@@ -234,6 +234,32 @@ class TestStrategyV2Base(IsolatedAsyncioWrapperTestCase):
             listener.cancel()
             await asyncio.gather(listener, return_exceptions=True)
 
+    async def test_terminal_checkpoint_callback_follows_controller_and_listener_cleanup(self):
+        closed = []
+        callback = AsyncMock()
+        listener = asyncio.create_task(asyncio.Event().wait())
+        self.strategy.listen_to_executor_actions_task = listener
+
+        async def controller_closed():
+            closed.append(True)
+
+        async def stop_executors(*args, **kwargs):
+            self.assertTrue(self.strategy._is_stop_triggered)
+            self.assertEqual(len(closed), len(self.strategy.controllers))
+            self.assertTrue(listener.done())
+            self.assertIs(kwargs['before_position_checkpoint'], callback)
+            self.assertTrue(kwargs['keep_position'])
+
+        for controller in self.strategy.controllers.values():
+            controller.wait_closed.side_effect = controller_closed
+        self.strategy.executor_orchestrator.stop = AsyncMock(side_effect=stop_executors)
+        try:
+            await self.strategy.on_stop(keep_position=True, shutdown_timeout=2, before_position_checkpoint=callback)
+            self.strategy.executor_orchestrator.stop.assert_awaited_once()
+        finally:
+            listener.cancel()
+            await asyncio.gather(listener, return_exceptions=True)
+
     async def test_shutdown_retires_action_listener_before_waiting_for_slow_cleanup(self):
         entered, release = asyncio.Event(), asyncio.Event()
 

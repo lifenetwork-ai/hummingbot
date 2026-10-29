@@ -1,5 +1,5 @@
 {
-  "status": "load_and_control_pending",
+  "status": "terminal_checkpoint_fix_in_progress",
   "cloud_run_deployed": false,
   "persistent_demo_replaced": false,
   "image": {
@@ -206,8 +206,32 @@
     "shared_default_daily_ttl_seconds": 5
   },
   "load": {
-    "status": "sampler_fixed_short_probe_running_full_gate_pending",
-    "log": "build/service-supervision/fd-fixed-probe.log"
+    "status": "interrupted_checkpoint_race",
+    "report": "build/mm-load/20261030-013705-7a6a10/result.json",
+    "log": "build/service-supervision/final-fd-fixed-all-load.log",
+    "passed": false,
+    "interrupted": true,
+    "reason": "Healthy random profile transition hit position-checkpoint cleanup guard after concurrent fill; engine restarted and retained HALT. Stopped instead of consuming remaining hour or resetting HALT.",
+    "completed_windows": {
+      "warmup": {
+        "read_p95_ms": 81.80975401774049,
+        "read_p99_ms": 336.3558480050415,
+        "unexpected_errors": 0,
+        "violations": []
+      },
+      "mixed": {
+        "read_p95_ms": 132.34479998936877,
+        "read_p99_ms": 656.9157979974989,
+        "unexpected_errors": 0,
+        "violations": []
+      },
+      "bursts": {
+        "read_p95_ms": 56.91086099250242,
+        "read_p99_ms": 155.2649420045782,
+        "unexpected_errors": 0,
+        "violations": []
+      }
+    }
   },
   "production_control": {
     "status": "pending"
@@ -284,5 +308,69 @@
       }
     },
     "passed": true
+  },
+  "sampler_fd_probe": {
+    "report": "build/mm-load/20261030-013146-6a12e3/result.json",
+    "diagnostic": true,
+    "passed": true,
+    "read_p95_ms": 56.97126800077967,
+    "read_p99_ms": 295.3738020150922,
+    "unexpected_errors": 0,
+    "minute_fd_counts": {
+      "supervisor": [
+        5,
+        5
+      ],
+      "engine": [
+        31,
+        31
+      ],
+      "api": [
+        21,
+        21
+      ]
+    }
+  },
+  "terminal_checkpoint_race": {
+    "runtime_image_id": "sha256:f5e7ab3282688787876623d176f774370df3dba8ecbf8eb8ae9ca714ad2a3d25",
+    "status": "Native fix verified; replacement image and shipping E2E/load gates pending",
+    "finding": "Active perpetual entry filled from 0.011 to 0.012 base during normal random step cancellation, after the old position snapshot. Existing guard correctly retained HALT.",
+    "affected_order": "93027a12dac34fBCSLEUT0323fdfd6e5",
+    "executor": "HyanaSNrngEZaXXKzsYFQEBU1uzm3c5QXnyAzfjfkBUY",
+    "raw_state": "build/service-supervision/unexpected-soak-full-state.json",
+    "raw_executors": "build/service-supervision/unexpected-soak-executors.json",
+    "raw_runtime_log": "build/service-supervision/unexpected-soak-full-runtime.log",
+    "design": "Quiesce supported PositionExecutor loops and listeners; cancel and read terminal orders/fills using existing connector/ownership; validate exact base/quote/trade IDs; only then store existing position holds. Unknown, unsupported or post-checkpoint changes still HALT.",
+    "guards_relaxed": false,
+    "demo_halt_reset": false,
+    "native_regression": {
+      "passed": 2026,
+      "subtests": 11,
+      "log": "build/service-supervision/terminal-checkpoint-native-regression.log"
+    },
+    "focused": {
+      "passed": 91,
+      "log": "build/service-supervision/terminal-checkpoint-final-focused.log",
+      "includes_new_short_side_case": true
+    },
+    "real_postgres": {
+      "passed": 8,
+      "log": "build/service-supervision/terminal-checkpoint-postgres.log",
+      "covers_pruned_connector_order_references": true
+    },
+    "behavior_red": {
+      "failed": 3,
+      "log": "build/service-supervision/terminal-checkpoint-behavior-red.log"
+    },
+    "proof_validation_red": {
+      "failed": 5,
+      "log": "build/service-supervision/terminal-checkpoint-validation-red.log"
+    },
+    "old_image_e2e": {
+      "passed": false,
+      "report": "build/e2e-offline/20261030-024209-940a65/result.json",
+      "reason": "Deterministic cancellation fills reproduce position-checkpoint HALT and recovery mismatch on f5e7 image"
+    },
+    "full_postgres_status": "running"
   }
 }

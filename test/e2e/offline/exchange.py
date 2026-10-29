@@ -44,6 +44,7 @@ class Exchange:
         self.hold_ack = False
         self.cancel_before_ack = False
         self.cancel_delay_seconds = 0
+        self.fill_on_cancel = {}
         self.release = asyncio.Event()
         self.release.set()
         self.socket_args = {}
@@ -319,6 +320,9 @@ class Exchange:
                 if order is None:
                     result.append({"clOrdId": item["clOrdId"], "ordId": "", "sCode": "51400", "sMsg": "Order does not exist"})
                     continue
+                spec = self.fill_on_cancel.pop(order['clOrdId'], None)
+                if spec and order['state'] in ('live', 'partially_filled'):
+                    await self.control({'fill': spec, 'duplicate': True})
                 if order["state"] != "filled":
                     order.setdefault('cancel_terminal_ms', millis())
                     order.update(state="canceled", uTime=millis())
@@ -337,6 +341,10 @@ class Exchange:
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
 
     async def control(self, data):
+        if 'fill_on_cancel' in data:
+            # One-shot deterministic cancellation race, using the normal fill
+            # ledger/balance/WS implementation rather than inventing exposure.
+            self.fill_on_cancel = {spec['clOrdId']: spec for spec in data['fill_on_cancel']}
         if 'cancel_delay_seconds' in data:
             delay = float(data['cancel_delay_seconds'])
             assert 0 <= delay <= 10

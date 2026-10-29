@@ -691,13 +691,13 @@ class BotOwnership:
         # A cancel acknowledgment alone is not terminal. Read back known orders
         # while connectors/recorder still run, before returning ownership.
         tracked = [(connector, list(connector.in_flight_orders.values())) for connector in self.connectors.values()]
-        # V2 snapshots held positions during on_stop, before final cancellation
-        # readback. A concurrent fill makes that snapshot unsafe to resume.
+        # V2's terminal-first checkpoint covers live PositionExecutors. Retain
+        # the final change guard for older holds and unsupported executors.
         held_snapshot = hasattr(strategy, "executor_orchestrator")
         execution_before_stop = {order.client_order_id: order.executed_amount_base
                                  for _, orders in tracked for order in orders}
 
-        async def confirm_cancellations():
+        async def read_terminal_orders():
             for connector, orders in tracked:
                 for order in orders:
                     # A create can be rejected by our final send gate while
@@ -716,11 +716,48 @@ class BotOwnership:
             core.trade_fill_db.assert_persistence_healthy()
             if self.spot_outflow is not None:
                 await self.spot_outflow.reconcile_terminal(all_orders=True)
-            if held_snapshot and any(order.executed_amount_base != execution_before_stop[order.client_order_id]
-                                     for _, orders in tracked for order in orders):
-                self.require_recovery("A fill arrived during position checkpoint cleanup; operator reconciliation is required.")
-                raise SubmissionBlocked("Position checkpoint changed during shutdown.")
 
+        def changed_orders():
+            return {order.client_order_id for _, orders in tracked for order in orders
+                    if order.executed_amount_base != execution_before_stop[order.client_order_id]}
+
+        def reject_checkpoint_change():
+            self.require_recovery("A fill arrived during position checkpoint cleanup; operator reconciliation is required.")
+            raise SubmissionBlocked("Position checkpoint changed during shutdown.")
+
+        async def before_position_checkpoint(checkpoint_orders):
+            # The orchestrator has stopped its PositionExecutor control loops,
+            # retaining live order objects but taking no held-position snapshot.
+            # An order may have left connector.in_flight_orders while controllers
+            # were draining; its retained reference still needs terminal readback.
+            by_connector = {id(connector): orders for connector, orders in tracked}
+            for order_id, (name, order) in checkpoint_orders.items():
+                orders = by_connector.get(id(self.connectors.get(name)))
+                if orders is None or order.client_order_id != order_id:
+                    raise SubmissionBlocked('Position checkpoint order identity is unavailable.')
+                if any(existing.client_order_id == order_id and existing is not order for existing in orders):
+                    raise SubmissionBlocked('Position checkpoint order reference does not match the connector.')
+                if all(existing is not order for existing in orders):
+                    orders.append(order)
+                    execution_before_stop.setdefault(order_id, order.executed_amount_base)
+            await core.cancel_outstanding_orders()
+            await read_terminal_orders()
+            if not changed_orders() <= checkpoint_orders.keys():
+                reject_checkpoint_change()  # An older/already-processed hold is not repairable here.
+            proof = {order.client_order_id: order.to_json() for _, orders in tracked for order in orders
+                     if order.client_order_id in checkpoint_orders}
+            execution_before_stop.update({order.client_order_id: order.executed_amount_base
+                                          for _, orders in tracked for order in orders})
+            return proof
+
+        async def confirm_cancellations():
+            await read_terminal_orders()
+            if held_snapshot and changed_orders():
+                # A change after terminal proof/snapshot is still uncertainty.
+                # Unsupported executor types also retain their original guard.
+                reject_checkpoint_change()
+
+        core.before_position_checkpoint = before_position_checkpoint if held_snapshot else None
         core.after_order_cancellation = confirm_cancellations
         core.KILL_TIMEOUT = min(core.KILL_TIMEOUT, max(0.1, timeout / 3))
         shutdown = asyncio.create_task(core.shutdown(keep_positions=True, shutdown_timeout=timeout / 3))

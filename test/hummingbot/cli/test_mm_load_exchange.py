@@ -39,6 +39,34 @@ async def test_fill_candidate_canceled_after_ledger_read_cannot_reopen_terminal_
 
 
 @pytest.mark.asyncio
+async def test_cancel_can_reproducibly_fill_once_before_its_terminal_ack():
+    import base64
+    import hashlib
+    import hmac
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    fixtures = dict(order_event={"arg": {"channel": "orders"}, "data": [{}]}, balances={"data": [{"details": []}]})
+    exchange = Exchange(fixtures=fixtures)
+    order = dict(instId="LIFE-USDT", clOrdId="one", ordId="1", state="live",
+                 accFillSz="0", sz="1", side="buy", px="0.1", uTime="1")
+    exchange.orders['one'] = order
+    await exchange.control({'fill_on_cancel': [dict(clOrdId='one', amount='.001', fee='.000001')]})
+    path, raw = '/api/v5/trade/cancel-order', json.dumps(dict(clOrdId='one'))
+    signature = base64.b64encode(hmac.new(b'offline-secret', ('1POST' + path + raw).encode(), hashlib.sha256).digest()).decode()
+    request = SimpleNamespace(path=path, path_qs=path, method='POST', query={},
+                              headers={'OK-ACCESS-KEY': 'offline-key', 'OK-ACCESS-TIMESTAMP': '1',
+                                       'OK-ACCESS-SIGN': signature, 'OK-ACCESS-PASSPHRASE': 'offline-pass'},
+                              text=AsyncMock(return_value=raw))
+    await exchange.handle(request)
+    await exchange.handle(request)
+    assert order['state'] == 'canceled'
+    assert order['accFillSz'] == '0.001'
+    assert len(exchange.fills) == 1
+    assert int(exchange.fills[0]['ts']) <= int(order['cancel_terminal_ms'])
+
+
+@pytest.mark.asyncio
 async def test_perpetual_fill_snapshot_is_not_changed_by_a_later_cancel_during_publication():
     fixtures = dict(order_event={"arg": {"channel": "orders"}, "data": [{}]}, balances={"data": [{"details": []}]})
     with patch("test.e2e.offline.exchange.Path.read_text", return_value=json.dumps(fixtures)):

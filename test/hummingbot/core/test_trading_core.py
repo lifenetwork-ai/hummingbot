@@ -435,6 +435,28 @@ class TradingCoreTest(IsolatedAsyncioWrapperTestCase):
         mock_remove.assert_called_once_with("binance")
         self.assertIsNone(self.trading_core.markets_recorder)
 
+    async def test_keep_positions_forwards_terminal_checkpoint_before_final_cancel_read(self):
+        events = []
+        strategy = Mock(spec=StrategyV2Base)
+        callback = AsyncMock()
+        self.trading_core.before_position_checkpoint = callback
+        self.trading_core.strategy = strategy
+
+        async def stop(**kwargs):
+            self.assertIs(kwargs['before_position_checkpoint'], callback)
+            self.assertTrue(kwargs['keep_position'])
+            events.append('checkpoint')
+
+        async def confirm():
+            self.assertEqual(events, ['checkpoint'])
+            events.append('confirmed')
+
+        strategy.on_stop = AsyncMock(side_effect=stop)
+        self.trading_core.cancel_outstanding_orders = AsyncMock(return_value=True)
+        self.trading_core.after_order_cancellation = confirm
+        self.assertTrue(await self.trading_core.shutdown(keep_positions=True, shutdown_timeout=2))
+        self.assertEqual(events, ['checkpoint', 'confirmed'])
+
     async def test_create_connector(self):
         """Test creating a connector through trading core"""
         # Mock connector manager's create_connector

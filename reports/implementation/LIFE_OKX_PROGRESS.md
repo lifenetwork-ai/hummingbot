@@ -1635,3 +1635,20 @@ mapping avoids recurring cmdline reads; ambiguous/missing roles still fail the
 unchanged FD gate. Two Red / 31 Green checks and a real-wrapper 180s probe pass
 (p99 295.37ms, zero errors; FDs fixed 5/31/21). Runtime/image remain `f5e7…`;
 the full hour/load/control gates restart from scratch, original run stays failed.
+
+
+Long run `20261030-013705-7a6a10` passes warm300/mixed900/burst90 with zero API
+errors (p99 336.36/656.92/155.26ms), then its first random rollover exposes an
+actual late-fill checkpoint race. Old shutdown snapshots 0.011 LIFE before a
+valid cancellation-time fill changes it to 0.012. Existing guard correctly
+HALTs; interrupted run remains failed, and no HALT is reset. TDD work changes
+supported live PositionExecutors to cancel/read terminal fills before persisting
+holds. Unknown/unsupported/post-checkpoint changes remain guarded. A replacement
+image, full regression/E2E and unchanged hour/control gate are required.
+
+Checkpoint fix native phase: 2,026 full Make regression tests plus eleven
+subtests, 91 focused cases (including the added SHORT case), and eight targeted
+real-PG cases pass. Deterministic ordinary-entrypoint Red on old image `f5e7…`
+at `20261030-024209-940a65` reproduces HALT and recovery position mismatch. Full
+PG regression continues; build a replacement image and require image-level
+Green/full E2E before the unchanged load/hour/control gates.

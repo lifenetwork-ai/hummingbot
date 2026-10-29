@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.core.data_type.common import PositionAction, PositionMode, PriceType, TradeType
+from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.logger import HummingbotLogger
 from hummingbot.model.executors import Executors
 from hummingbot.model.position import Position
@@ -241,6 +242,7 @@ class ExecutorOrchestrator:
         self.cached_performance = {}
         self.initial_positions_by_controller = initial_positions_by_controller or {}
         self._initial_positions_initialized = False
+        self._checkpoint_candidates = []
         self._initialize_cached_performance()
 
     def _mm_scope(self):
@@ -452,7 +454,7 @@ class ExecutorOrchestrator:
         return tuple(signature)
 
     async def stop(self, max_executors_close_attempts: int = 3, *, shutdown_timeout: Optional[float] = None,
-                   keep_position: bool = False):
+                   keep_position: bool = False, before_position_checkpoint=None):
         """
         Stop the orchestrator task and all active executors.
 
@@ -462,6 +464,58 @@ class ExecutorOrchestrator:
         is force-stopped synchronously, converting whatever it executed into a
         position hold so no exposure goes untracked.
         """
+        if keep_position and before_position_checkpoint is not None:
+            candidates = {executor.config.id: executor for executor in self._checkpoint_candidates}
+            candidates.update({executor.config.id: executor for rows in self.active_executors.values()
+                               for executor in rows if not executor.is_closed})
+            # Only PositionExecutor's live InFlightOrder references support this
+            # terminal-first path. Other executor types retain the old guarded
+            # shutdown, including HALT when their saved snapshot changes.
+            supported = all(isinstance(executor, PositionExecutor) and not executor._held_position_orders
+                            for executor in candidates.values())
+            if self._checkpoint_candidates and not supported:
+                raise ValueError('Pending position checkpoint cannot be finalized safely')
+            if supported:
+                self._checkpoint_candidates = list(candidates.values())
+                orders = {}
+                for executor in self._checkpoint_candidates:
+                    for tracked in (*executor._failed_orders, executor._open_order,
+                                    executor._close_order, executor._take_profit_limit_order):
+                        if tracked is None or not tracked.order_id:
+                            continue
+                        if tracked.order is None:
+                            tracked.order = executor.get_in_flight_order(executor.config.connector_name, tracked.order_id)
+                        if tracked.order is None:
+                            raise ValueError('Terminal position checkpoint order is unavailable')
+                        orders[tracked.order_id] = (executor.config.connector_name, tracked.order)
+                    # Freeze control loops/listeners, but retain order objects.
+                    # None prevents report ticks from committing an unfinished
+                    # POSITION_HOLD before terminal trade proof arrives.
+                    executor.stop()
+                    executor.close_type = None
+                proof = await before_position_checkpoint(orders)
+                if not isinstance(proof, dict) or not orders.keys() <= proof.keys():
+                    raise ValueError('Terminal position checkpoint proof is unavailable')
+                if any(not order.is_done for _, order in orders.values()):
+                    raise ValueError('Terminal position checkpoint still has live orders')
+                terminal_states = {str(state.value) for state in (OrderState.CANCELED, OrderState.FILLED, OrderState.FAILED)}
+                # Validate every candidate before making any POSITION_HOLD visible
+                # to report ticks. No await separates proof, snapshots and storage.
+                held = {order['client_order_id']: order for executor in self._checkpoint_candidates
+                        for order in executor._collect_held_position_orders()}
+                for order_id, expected in proof.items():
+                    if order_id not in orders:
+                        continue
+                    saved = held.get(order_id, {})
+                    if (expected.get('last_state') not in terminal_states
+                            or Decimal(str(saved.get('executed_amount_base', 0))) != Decimal(expected['executed_amount_base'])
+                            or Decimal(str(saved.get('executed_amount_quote', 0))) != Decimal(expected['executed_amount_quote'])
+                            or saved.get('order_fills', {}) != expected.get('order_fills', {})):
+                        raise ValueError('Position hold does not match terminal order proof')
+                for executor in self._checkpoint_candidates:
+                    executor.force_stop_with_position_hold()
+                self._checkpoint_candidates = []
+
         for controller_id, executors_list in self.active_executors.items():
             for executor in executors_list:
                 if keep_position and not executor.is_closed:

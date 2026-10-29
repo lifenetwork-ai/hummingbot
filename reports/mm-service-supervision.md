@@ -1,8 +1,10 @@
 # Single-service runtime supervision verification
 
-Status: runtime/image/regression and final-image lifecycle checks pass. The
-unchanged load/hour-memory and ordinary-entrypoint control gates are running or
-pending; adoption is not yet accepted. Local checks do not certify Cloud Run
+Status: prior runtime/image/regression and lifecycle checks pass, but the long
+load has exposed a real position-checkpoint race during random profile rollover.
+A terminal-first checkpoint fix is in TDD verification. A replacement image and
+unchanged load/hour-memory/control gates are required; adoption is not accepted.
+Local checks do not certify Cloud Run
 deployment. The real local Demo remains stopped on
 its existing image/database. The earlier [prototype measurements](mm-process-isolation-experiment.md)
 retain their original source/image scope; they are not acceptance of this change.
@@ -220,3 +222,52 @@ Corrected real-wrapper 180s probe
 zero errors, original rates and all budgets. Its minute samples retain fixed
 descriptors supervisor/engine/API = 5/31/21. This is a short diagnostic, not an
 hour acceptance substitute. A fresh complete all-profile gate is required.
+
+## Long-load finding: fill during position checkpoint
+
+Run `build/mm-load/20261030-013705-7a6a10/` retains passed warmup300s
+(p95/p99 81.81/336.36ms), mixed900s (132.34/656.92ms) and burst90s
+(56.91/155.26ms), all with zero unexpected API errors. These are three windows,
+not completed hour/adoption acceptance. During the soak's first 600s random-step
+rollover, an active perpetual entry fills from 0.011 to 0.012 LIFE while the old
+shutdown path has already captured the held-position snapshot. The existing
+post-cancel readback guard correctly detects this and retains HALT on replacement.
+
+The healthy soak is interrupted instead of clearing HALT or counting stopped
+trading as healthy operation. Before HALT, cgroup memory is about 675MiB and
+role descriptors are stable at 5/32/21; the later memory drop follows stopped
+trading and is not evidence of successful garbage collection. The original
+result remains `passed: false`. Raw order/position/engine state and logs are
+retained under `build/service-supervision/unexpected-soak-*`.
+
+The fix reuses the existing PositionExecutor order references, cancel/readback,
+trade-ID deduplication, position model/recorder and recovery guard. Controllers,
+action listener and supported executor loops stop before cancellation. Terminal
+readback must complete before projecting/persisting the position hold; exact
+base, quote and fill/fee data are checked before making any hold visible to
+report ticks. Unavailable/mismatched proof never commits a partial checkpoint.
+Older/unsupported holds and any fill after the verified checkpoint keep the
+original HALT restriction. No new ledger/schema or HALT reset is introduced.
+
+Behavioral replay of the old persistence-before-read order fails all three
+positive/retry assertions. The terminal proof validation tests additionally
+reject missing proof, nonterminal state, base/quote mismatch and missing fills.
+Real PostgreSQL tests cover late fills from zero/partial exposure, idempotent
+readback, persisted amount/fees and recovery roundtrip, plus continued HALT for
+uncovered and post-checkpoint fills. Shipping-image replay and the complete
+unchanged gate remain required.
+
+The deterministic cancellation-fill case runs on the original `f5e7…` shipping
+image at `build/e2e-offline/20261030-024209-940a65/` and fails as expected:
+`Position checkpoint changed during shutdown`, then restored-position mismatch.
+Both spot and perpetual receive a real simulator fill immediately before cancel
+ACK, using the ordinary fill/balance/WS implementation and duplicate trade IDs.
+This retained failed case is the image-level Red, not an accepted E2E run.
+
+The native checkpoint fix passes the complete Make selection of **2,026 tests
+plus eleven subtests**, plus a **91-test focused run** including the additional
+short-side case. **Eight real-PostgreSQL checkpoint tests pass**, including an
+order retired from the connector active map, exact position/fees reload and
+continued HALT on uncovered/post-barrier changes. Full PostgreSQL regression is
+still running. These results authorize a replacement build; they do not certify
+its image/E2E/load acceptance.
