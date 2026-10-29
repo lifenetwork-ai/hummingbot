@@ -41,6 +41,18 @@ def test_api_child_has_no_connector_credentials_or_dotenv_reload_path():
         child_environment('unknown', source)
 
 
+@pytest.mark.parametrize('explicit,expected', [(None, 'app'), ('', 'app'), ('my', 'my')])
+def test_removing_legacy_credentials_preserves_public_okx_site(explicit, expected):
+    from hummingbot.cli.service_processes import child_environment
+    from hummingbot.connector.okx_environment import OKXEnvironment
+    source = dict(HBOT_OKX_REGISTRATION_SUB_DOMAIN='app', OKX_TRADING_ENV='demo')
+    if explicit is not None:
+        source['OKX_SITE'] = explicit
+    api = child_environment('api', source)
+    assert 'HBOT_OKX_REGISTRATION_SUB_DOMAIN' not in api
+    assert OKXEnvironment.load(environ=api).site == expected
+
+
 def test_default_entrypoint_supervises_and_child_roles_do_not_reload_dotenv(monkeypatch):
     from hummingbot.cli import service
     calls = []
@@ -105,7 +117,8 @@ def test_fatal_bootstrap_and_transient_database_failure_are_distinct():
     assert failure_exit_code(OperationalError('hidden', {}, ConnectionError())) == 1
 
 
-def test_parent_stop_during_popen_never_launches_api(monkeypatch):
+@pytest.mark.parametrize('cleanup_failed', [False, True])
+def test_parent_stop_during_popen_never_launches_api(monkeypatch, cleanup_failed):
     import signal
     from test.hummingbot.cli.test_process_supervision import Child
 
@@ -124,7 +137,15 @@ def test_parent_stop_during_popen_never_launches_api(monkeypatch):
         return child
 
     monkeypatch.setattr(service_processes.subprocess, 'Popen', launch)
-    assert service_processes.run_supervisor() == 0
+    if cleanup_failed:
+        original = service_processes.ChildSupervisor.shutdown
+
+        def shutdown(owner, **kwargs):
+            original(owner, **kwargs)
+            owner.exit_code = 1
+
+        monkeypatch.setattr(service_processes.ChildSupervisor, 'shutdown', shutdown)
+    assert service_processes.run_supervisor() == int(cleanup_failed)
     assert [child.role for child in launched] == ['engine']
     assert launched[0].waited
 

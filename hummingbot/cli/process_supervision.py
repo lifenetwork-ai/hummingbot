@@ -82,14 +82,17 @@ class ChildSupervisor:
         for child in self.children.values():
             if child is not None and child.poll() is None:
                 self.signal_child(child)
-        for child in self.children.values():
+        for role, child in self.children.items():
             if child is None:
                 continue
             try:
-                child.wait(timeout=max(.01, deadline - self.clock()))
+                code = child.wait(timeout=max(.01, deadline - self.clock()))
             except subprocess.TimeoutExpired:
                 self.signal_child(child, kill=True)
-                child.wait(timeout=.2)
+                code = child.wait(timeout=.2)
+            if code not in (0, -15, -2):
+                self.exit_code = self.exit_code or 1
+                self.emit(dict(severity='ERROR', event='child_shutdown_failed', role=role, exit_code=code))
 
 
 class HealthWatchdog:

@@ -34,6 +34,10 @@ def child_environment(role, source):
         raise ValueError('Unknown service process role')
     result = {key: value for key, value in source.items() if key not in ('ENV_FILE', 'HBOT_ENV_FILE')}
     if role == 'api':
+        # Normalize the supported public legacy routing setting before removing
+        # HBOT_* credentials, so reference discovery uses the engine's site.
+        if not result.get('OKX_SITE') and source.get('HBOT_OKX_REGISTRATION_SUB_DOMAIN'):
+            result['OKX_SITE'] = source['HBOT_OKX_REGISTRATION_SUB_DOMAIN']
         # All connector credentials use HBOT_*; retain only diagnostic transport
         # controls used on the isolated offline network. Children never reload .env.
         result = {key: value for key, value in result.items()
@@ -95,6 +99,7 @@ def run_supervisor():
     from hummingbot.logger.service_logging import configure_service_logging
     deadline = ShutdownDeadline(threading.Event(), seconds=9)
     owner = None
+    code = 0
     deadline.install()
     try:
         configure_service_logging()
@@ -126,15 +131,17 @@ def run_supervisor():
                     watchdog.observe(role, responding(port, probe_path(watchdog, role)))
                 next_probe = time.monotonic() + 1
             deadline.stop.wait(.05)
-        return owner.exit_code
+        code = owner.exit_code
     except Exception as error:
         LOGGER.error('Service supervisor stopped reason=%s type=%s', failure_reason(error), type(error).__name__,
                      extra={'event': 'service_failed', 'scope': 'supervisor', 'reason_code': failure_reason(error),
                             'error_type': type(error).__name__})
-        return failure_exit_code(error)
+        code = failure_exit_code(error)
     finally:
         deadline.request()
         if owner is not None:
             owner.shutdown(budget=7.5)
-        LOGGER.info('Service supervisor exited', extra={'event': 'service_exit', 'scope': 'supervisor'})
+            code = max(code, owner.exit_code)
+        LOGGER.info('Service supervisor exited code=%s', code, extra={'event': 'service_exit', 'scope': 'supervisor'})
         deadline.close()
+    return code

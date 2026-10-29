@@ -1,4 +1,4 @@
-"""Read-only API host over the existing durable engine control plane."""
+"""API host for durable commands and observations, without trading ownership."""
 import asyncio
 import logging
 import os

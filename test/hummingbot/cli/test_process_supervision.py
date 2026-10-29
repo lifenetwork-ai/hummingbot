@@ -266,3 +266,12 @@ def test_child_exiting_during_termination_still_reaps_and_stops_peer():
     children[0].terminate = disappear
     owner.shutdown()
     assert children[0].waited and children[1].terminated and children[1].waited
+
+
+def test_forced_shutdown_is_not_reported_as_clean():
+    owner, _, children, events = supervisor()
+    owner.tick()
+    children[0].ignores_term = True
+    owner.shutdown()
+    assert owner.exit_code == 1
+    assert any(row['event'] == 'child_shutdown_failed' for row in events)
