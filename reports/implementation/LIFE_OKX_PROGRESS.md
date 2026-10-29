@@ -1593,3 +1593,10 @@ and two helper/CLI argument failures; corrected real-process helper reruns all
 three API/service/schema lifecycle checks successfully. Full image E2E is now
 running with distinct previous image `58356746…` for compatible rollback. The
 combined final-image/hour/control acceptance item above remains open.
+
+The first image E2E finds an idle API shutdown bug during funding: engine exits
+cleanly, API needs forced termination, parent correctly reports failure. Preserve
+that failed run. A real OS-signal Red/Green test confirms direct asyncio Event
+setting does not wake an idle selector; use the loop's thread-safe wakeup path.
+95 focused tests pass; a replacement image/full gates are required. No HALT reset,
+trading start, persistent Demo replacement or deployment occurs.

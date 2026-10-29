@@ -1,7 +1,9 @@
 import asyncio
 import os
+import select
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -50,6 +52,36 @@ time.sleep(30)
     result = subprocess.run([sys.executable, "-c", program], env=env, cwd=tmp_path, capture_output=True, timeout=5)
     assert result.returncode == 1
     assert not list(tmp_path.iterdir())
+
+
+def test_sigterm_wakes_an_idle_async_service_without_waiting_for_health_traffic(tmp_path):
+    program = """
+import asyncio
+from hummingbot.cli.service import ShutdownDeadline
+async def run():
+    stop = asyncio.Event()
+    deadline = ShutdownDeadline(stop, seconds=3)
+    deadline.install()
+    try:
+        print('ready', flush=True)
+        await stop.wait()
+    finally:
+        deadline.close()
+asyncio.run(run())
+"""
+    env = {**os.environ, 'PYTHONPATH': str(Path(__file__).resolve().parents[3]), 'PYTHONDONTWRITEBYTECODE': '1'}
+    process = subprocess.Popen([sys.executable, '-c', program], cwd=tmp_path, env=env,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        assert select.select([process.stdout], [], [], 10)[0], 'Idle child did not start'
+        assert process.stdout.readline().strip() == 'ready'
+        time.sleep(.1)  # Let the real selector become idle, with no timers/IO.
+        process.terminate()
+        assert process.wait(timeout=1) == 0
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.communicate(timeout=3)
 
 
 def test_offline_transport_preserves_paths_and_refuses_real_keys_and_cloud(monkeypatch):

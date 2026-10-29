@@ -29,15 +29,25 @@ class ShutdownDeadline:
         self.seconds = seconds
         self.timer = None
         self.previous = {}
+        self.loop = None
 
     def request(self, *_):
         if self.timer is None:
             self.timer = threading.Timer(self.seconds, os._exit, args=(1,))
             self.timer.daemon = True
             self.timer.start()
-        self.stop.set()
+        if self.loop is None:
+            self.stop.set()
+        else:
+            # A Python signal handler may run while the loop is inside select.
+            # Event.set() alone queues callbacks without waking that selector.
+            # Use the loop's self-pipe so an idle API stops without another HTTP
+            # request/timer; the independent hard deadline still covers stalls.
+            self.loop.call_soon_threadsafe(self.stop.set)
 
     def install(self):
+        if isinstance(self.stop, asyncio.Event):
+            self.loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             self.previous[sig] = signal.signal(sig, self.request)
 

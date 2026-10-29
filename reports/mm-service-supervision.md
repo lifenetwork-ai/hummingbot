@@ -112,3 +112,26 @@ bootstrap in both actual children and parse only role arguments. The three
 service/API/schema lifecycle checks then pass; no production code changes. Raw
 logs retain both original failure and focused recovery under
 `build/service-supervision/postgres-{regression,lifecycle-retest}.log`.
+
+## E2E finding: idle API SIGTERM does not wake its selector
+
+The first rebuilt image's full E2E reaches funding after passing schema, Spot,
+V2 Spot/Perpetual, the nine LIFE mode/profile combinations and continuous Random.
+It then **fails**: engine cleanup is clean, but an idle API is forcibly killed
+after the parent's 7.5s budget. The parent correctly returns exit 1. Original
+evidence `build/e2e-offline/20261029-232141-ef1252/` remains failed; image `4da2…`
+is not accepted as the final runtime.
+
+A minimal real OS-process test reproduces SIGTERM while an asyncio loop has no
+timers or pending I/O. The Python signal handler's direct `Event.set()` schedules
+a callback but does not wake the blocked selector. The old engine normally has
+periodic work; the new idle API exposes this shared shutdown assumption. During
+parent shutdown, its normal health probes also stop, removing that incidental
+wakeup. Red: the child exceeds its one-second clean-exit assertion. Green:
+capture the running asyncio loop at signal installation and schedule the stop
+through `call_soon_threadsafe`, which writes the selector's self-pipe. Synchronous
+parent events remain immediate; the independent hard deadline is unchanged.
+
+All 95 focused service/supervision/logging/availability tests pass with this
+fix. A new Dockerfile build and final-image gates are required; the previous
+partial E2E success is not a substitute.
