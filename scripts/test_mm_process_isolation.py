@@ -59,6 +59,15 @@ def client_trace_options(directory, phase):
     return ['--env', f'HBOT_LOAD_TRACE_DIRECTORY=/trace-output/{phase}']
 
 
+def working_quotes_after_recovery(harness):
+    # The fixture refreshes at 60s; cancellation and replacement are separate
+    # controller ticks. API recovery can finish between them. Permanent loss
+    # still fails; partially filled orders remain executable working quotes.
+    return poll(lambda: [order for order in harness.ledger()['orders']
+                         if order['state'] in ('live', 'partially_filled')],
+                timeout=30, description='working quotes return after API recovery/normal refresh')
+
+
 def recovery_faults(harness, bot, port, case):
     """Real process faults: no HALT reset, no reconstructed trading authority."""
     def pids():
@@ -86,17 +95,24 @@ def recovery_faults(harness, bot, port, case):
         signal_child(old, signum)
         new_pids = poll(lambda: replaced(1, old), timeout=90, description='API child replaced independently')
         poll(lambda: http(port, '/startup')[0] == 200, timeout=180, description='restarted API schema/engine ready')
+        if name == 'unresponsive_loop':
+            # Deterministically exercise the boundary that made the former
+            # instantaneous assertion flaky, using the actual controller cycle.
+            poll(lambda: not any(o['state'] in ('live', 'partially_filled') for o in harness.ledger()['orders']),
+                 timeout=90, description='ordinary quote refresh cancellation boundary')
+            case['api_refresh_boundary_exercised'] = True
+        working = working_quotes_after_recovery(harness)
         status = harness.admin(port, '/status')[1]
         state = harness.state()
-        assert new_pids[0] == engine_pid
+        assert new_pids[0] == engine_pid and pids()[0] == engine_pid
         assert state['owner_generation'] == baseline['owner_generation'] and state['owner_uuid'] == baseline['owner_uuid']
         assert state['mm_session']['id'] == baseline['mm_session']['id']
         assert status['running'] and status['owner_available']
         assert harness.ledger()['positions'] == positions
-        assert any(o['state'] == 'live' for o in harness.ledger()['orders'])
         case['api_restarts'].append(dict(fault=name, recovery_seconds=time.monotonic() - started,
                                          engine_identity_preserved=True, owner_and_session_preserved=True,
-                                         positions_preserved=True, working_quotes_remain=True))
+                                         positions_preserved=True, working_quotes_recovered=True,
+                                         working_quote_count=len(working), quote_check='bounded_after_normal_refresh'))
 
     poll(lambda: harness.sql('SELECT count(*) FROM orders WHERE creation_pending') == '0',
          description='committed order acknowledgments before engine crash')

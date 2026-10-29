@@ -3,6 +3,8 @@ import json
 import sys
 from types import SimpleNamespace
 
+import pytest
+
 from scripts import test_mm_process_isolation as experiment
 
 
@@ -79,3 +81,29 @@ def test_daily_cache_comparison_records_explicit_policy(tmp_path, monkeypatch):
     assert experiment.main() == 0
     result = json.loads(next((tmp_path / 'build/mm-process-isolation').glob('*/result.json')).read_text())
     assert result['daily_cache_ttl_seconds'] == 15
+
+
+def test_recovery_waits_through_quote_refresh_and_accepts_partial_working_orders(monkeypatch):
+    snapshots = iter([{'orders': [{'state': 'canceled'}]},
+                      {'orders': [{'state': 'canceled'}, {'state': 'partially_filled'}]}])
+    harness = SimpleNamespace(ledger=lambda: next(snapshots))
+
+    def poll(predicate, *, timeout, description):
+        assert timeout == 30
+        assert not predicate()  # Normal refresh cancellation is not permanent loss.
+        return predicate()
+
+    monkeypatch.setattr(experiment, 'poll', poll)
+    assert experiment.working_quotes_after_recovery(harness) == [{'state': 'partially_filled'}]
+
+
+def test_recovery_still_fails_if_quotes_never_return(monkeypatch):
+    harness = SimpleNamespace(ledger=lambda: {'orders': [{'state': 'canceled'}]})
+
+    def poll(predicate, *, timeout, description):
+        assert not predicate() and timeout == 30
+        raise AssertionError('No working quotes within the recovery deadline')
+
+    monkeypatch.setattr(experiment, 'poll', poll)
+    with pytest.raises(AssertionError, match='No working quotes'):
+        experiment.working_quotes_after_recovery(harness)
