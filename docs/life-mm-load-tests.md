@@ -321,3 +321,14 @@ They avoid transferring an ever-growing request/fill ledger during generation.
 Full independent `/ledger` snapshots remain the accounting source before/after
 windows and during verification. These internal test endpoints are not deployed
 application APIs and do not replace any scheduled admin read or lower a load gate.
+
+## API worker admission diagnostic
+
+The mounted load wrapper exports `api_worker_queue_ms`: time from API executor
+submission to physical thread start. Compare it with `pool_queue_ms` and
+`pool_checkout_ms`; a small connection-pool wait does not establish a small API
+work queue. Trace mode emits `api_database_worker_start` with `queue_wait_ms`,
+request identity, pending count and control/report role. The brief event's own
+span duration is not the preceding queue wait. No SQL parameters or function
+arguments/results are recorded. Samples use the existing bounded 12k retention.
+Instrumentation does not alter production capacity, priority or scheduling.

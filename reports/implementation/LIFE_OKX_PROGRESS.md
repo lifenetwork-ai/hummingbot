@@ -1454,3 +1454,14 @@ stopped. R2 daily fallback / R3 queue diagnostics remain open in the reporting p
 See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-evidence.json).
 SQL cost and historical p99 attribution remain open. No new production process
 architecture adopted; real Demo remains stopped on its existing image.
+
+## API worker timing (2026-10-29; R3a)
+
+- [x] Red: three missing worker-start instrumentation failures.
+- [x] Green: eighteen timing/trace/executor tests, covering copied context,
+  physical queue wait, bounded samples, cancellation, errors and control dispatch.
+- [x] Add one fixed test-only metric/trace event; production capacities and
+  scheduler unchanged. SQL pool wait remains separately measured.
+- [ ] R3b live profiling; candidate image and unchanged final-image gates.
+
+See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-evidence.json).

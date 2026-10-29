@@ -60,6 +60,40 @@ def instrument_sync(owner, name, key, samples, totals, tracer, attributes=None):
     setattr(owner, name, classmethod(measured) if isinstance(descriptor, classmethod) else measured)
 
 
+def instrument_admin_queue(owner, samples, totals, tracer):
+    """Test-only submit-to-physical-start wait, distinct from SQL pool checkout.
+
+    Keep the original executor's priority, capacity and cancellation semantics.
+    Only scalar timings enter bounded samples; call arguments/results never do.
+    """
+    original = owner.submit
+    metrics_lock = threading.Lock()
+    values = samples['api_worker_queue_ms']
+    totals['api_worker_queue_count'] += 0
+
+    def submit(self, call, *, control=False):
+        started = time.perf_counter_ns()
+        context = contextvars.copy_context()
+        pending = self.pending
+        parent = tracer.current.get() if tracer else None
+        request_id = parent['_root']['request_id'] if parent else None
+
+        def admitted():
+            waited = (time.perf_counter_ns() - started) / 1e6
+            with metrics_lock:
+                values.append(waited)
+                totals['api_worker_queue_count'] += 1
+            if tracer:
+                span = tracer.begin('api_database_worker_start', queue_wait_ms=waited,
+                                    request_id=request_id, pending_at_submit=pending, control=control)
+                tracer.end(span)
+            return call()
+
+        return original(self, lambda: context.run(admitted), control=control)
+
+    owner.submit = submit
+
+
 @lru_cache(maxsize=256)
 def sql_metadata(statement):
     statement = re.sub(r'(\$[\w]*\$).*?\1', '?', statement, flags=re.S)

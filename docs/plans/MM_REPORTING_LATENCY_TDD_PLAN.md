@@ -31,8 +31,9 @@ pool expansion, relaxed deadlines or API edits to YAML.
   original-observation age; label stale data/retry hints in English. Live
   balances/positions and trading gates never consume the fallback. Update
   Swagger/FE docs, and make healthy load detect degraded daily responses; commit.
-- [ ] R3: instrument submit-to-worker-start waiting with context-safe bounded
-  test diagnostics; profile reproduced bursts before any runtime scheduling
+- [x] R3a: instrument submit-to-worker-start waiting with context-safe bounded
+  test diagnostics; three Red / eighteen Green timing/trace/executor tests.
+- [ ] R3b: measure/profile reproduced live bursts before any runtime scheduling
   change. Confirmed fixes require Red/Green; otherwise retain uncertainty.
 - [ ] Verify regression, real PostgreSQL, schema and final image. Repeat the
   unchanged load gates and production-entrypoint control. Preserve failed runs;

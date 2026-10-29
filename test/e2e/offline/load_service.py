@@ -18,7 +18,16 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 from aiohttp import web
-from load_trace import FullGCProbe, TraceRecorder, TraceSink, backend_pid, instrument_sync, sql_metadata, stack_snapshot
+from load_trace import (
+    FullGCProbe,
+    TraceRecorder,
+    TraceSink,
+    backend_pid,
+    instrument_admin_queue,
+    instrument_sync,
+    sql_metadata,
+    stack_snapshot,
+)
 from sqlalchemy import event
 from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 from sqlalchemy.engine import Engine
@@ -28,6 +37,7 @@ from sqlalchemy.util.queue import Queue as PoolQueue
 sys.path.insert(0, str(Path.cwd()))
 from hummingbot.cli import service  # noqa: E402
 from hummingbot.cli.admin_api import AdminAPI  # noqa: E402
+from hummingbot.cli.admin_database import AdminDatabaseExecutor  # noqa: E402
 from hummingbot.cli.admin_models import APIModel  # noqa: E402
 from hummingbot.connector.markets_recorder import MarketsRecorder  # noqa: E402
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base  # noqa: E402
@@ -102,6 +112,7 @@ timed_sync(StrategyV2Base, "update_executors_info", "executor_update_ms")
 timed_sync(ExecutorOrchestrator, "get_all_reports", "executor_reports_ms")
 timed_sync(APIModel, "model_validate", "response_validation_ms")
 timed_sync(APIModel, "model_dump", "response_serialization_ms")
+instrument_admin_queue(AdminDatabaseExecutor, samples, totals, tracer)
 
 
 from hummingbot.core.mm_liquidity import LiquidityObserver  # noqa: E402

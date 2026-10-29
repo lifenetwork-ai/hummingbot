@@ -533,5 +533,19 @@
       "test/e2e/offline/load_client.py": "13f2b5379953068b18fa785481c2f73ddf11f785f37f2eb4663431121ad5129e",
       "test/e2e/offline/load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e"
     }
+  },
+  "r3_instrumentation": {
+    "status": "Test-wrapper instrumentation implemented; live profiling and final-image gates pending",
+    "red": "3 failures: worker-start instrumentation missing",
+    "green": "18 passed, 6 warnings, 3.95 seconds: physical admission wait, request context, bounded retention, control dispatch, cancellation, exceptions, trace/timing regression",
+    "metric": "api_worker_queue_ms: AdminDatabaseExecutor.submit to physical thread start, before call()",
+    "trace": "api_database_worker_start scalar queue_wait_ms/pending_at_submit/control/request_id; never function arguments/results",
+    "memory_bound": "One additional fixed metric family, existing 12000-sample limit; native tests use maxlen=2 to prove retention",
+    "runtime_changes": "None: production executor capacity/priority, pool, deadlines and trading scheduler unchanged",
+    "source_sha256": {
+      "test/e2e/offline/load_trace.py": "333d3e3d55af42e7ea4540420d9dbb1717d1cfd7c0d500d8ab7e1a0cb2135fda",
+      "test/e2e/offline/load_service.py": "176987a50beef2f40a9517bb308a19bacc3608ed44b23c67a5ef05e475c26e97",
+      "test/hummingbot/cli/test_admin_worker_queue_timing.py": "c22c0a2d4aaefdaddf98213433e86f89b212f549afe563cb7370d8816b6dd78c"
+    }
   }
 }

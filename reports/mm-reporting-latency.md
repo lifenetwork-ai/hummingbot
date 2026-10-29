@@ -102,3 +102,24 @@ an unexpected error. This preserves the zero-error healthy gate; qualified
 operator data does not make an expensive or unavailable query healthy. Final
 image/E2E/load verification and R3 worker-queue timing remain open. The SQL cost
 and uniquely attributing the historical p99 spike are not declared fixed.
+
+## R3a: separate API admission from connection-pool wait
+
+The mounted test wrapper now measures `api_worker_queue_ms` from submission to
+physical worker start. It includes waiting in the priority dispatcher and
+thread startup; it excludes the subsequent DB call. This differs from existing
+`pool_queue_ms` / `pool_checkout_ms`, measured only after a worker begins DB work.
+An optional `api_database_worker_start` trace event carries scalar wait, pending
+count, control/report role and request identity. Trace span duration is the
+brief observation event; the preceding wait is its `queue_wait_ms` attribute.
+
+The wrapper preserves copied request context and the original executor's
+capacity/priority/cancellation rules. Cancelled queued calls are not counted as
+physical starts; running calls remain admitted until physically complete.
+Samples remain bounded (one extra fixed family at the existing 12k ceiling).
+No call arguments/results or new production metrics endpoint are recorded.
+
+Red: three missing-hook failures. Green: **18 selected timing/trace/executor
+tests pass**. The production scheduler, worker counts, DB pool and timeouts are
+unchanged. Measurement of a reproduced live burst is still required before
+attributing queue pressure or proposing any further runtime fix.
