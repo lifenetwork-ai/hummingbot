@@ -8,6 +8,7 @@ CLOUDRUN_IMAGE ?= hummingbot-cloudrun:local
 CLOUDRUN_DEMO_IMAGE ?= hummingbot-cloudrun:demo
 BUILD_JOBS ?= 2
 CLOUDRUN_CONFIG ?= deploy/cloudrun/service.example.yaml
+CLOUDRUN_PROJECT ?=
 CLOUDRUN_REGION ?= asia-southeast1
 CLOUDRUN_EVIDENCE ?= build/e2e-offline/result.json
 OFFLINE_OKX_TRADING_ENV ?= demo
@@ -134,8 +135,9 @@ review-cloudrun-config:
 
 deploy-cloudrun:
 	set -eu
-	$(PYTHON) scripts/review_cloudrun.py $(CLOUDRUN_CONFIG) --evidence $(CLOUDRUN_EVIDENCE)
-	gcloud run services replace $(CLOUDRUN_CONFIG) --region $(CLOUDRUN_REGION)
+	[ -n "$(CLOUDRUN_PROJECT)" ] || { echo "Set CLOUDRUN_PROJECT explicitly before deployment." >&2; exit 1; }
+	$(PYTHON) scripts/review_cloudrun.py "$(CLOUDRUN_CONFIG)" --evidence "$(CLOUDRUN_EVIDENCE)"
+	gcloud run services replace "$(CLOUDRUN_CONFIG)" --project "$(CLOUDRUN_PROJECT)" --region "$(CLOUDRUN_REGION)"
 
 .PHONY: migrate test-postgres
 migrate:

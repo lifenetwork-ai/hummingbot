@@ -30,6 +30,12 @@ spec:
           env:
             - name: ENV
               value: production
+            # Explicit exchange routing, independent of ENV/Swagger.
+            # For Demo, use demo and the matching *_DEMO_* secret variable names.
+            - name: OKX_TRADING_ENV
+              value: live
+            - name: OKX_SITE
+              value: www
             - name: LOG_FORMAT
               value: json
             - name: LOG_LEVEL
@@ -45,6 +51,22 @@ spec:
             # Per-engine ceiling; includes the owner connection. No overflow.
             - name: DB_POOL_SIZE
               value: '5'
+            - name: ADMIN_API_ENABLED
+              value: 'true'
+            - name: ADMIN_API_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: REPLACE_ADMIN_USERNAME_SECRET
+                  key: '1'
+            - name: ADMIN_API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: REPLACE_ADMIN_PASSWORD_SECRET
+                  key: '1'
+            # Server-to-server FE gateway is proposed for this internal service.
+            # For direct browser access, review ingress/IAM and exact FE origins.
+            - name: ADMIN_CORS_ORIGINS
+              value: '*'
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -64,6 +86,22 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: REPLACE_OKX_PASSPHRASE_SECRET
+                  key: '1'
+            # Remove this trio for a spot-only deployment with no perpetual use.
+            - name: HBOT_OKX_PERPETUAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: REPLACE_OKX_PERPETUAL_KEY_SECRET
+                  key: '1'
+            - name: HBOT_OKX_PERPETUAL_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: REPLACE_OKX_PERPETUAL_SECRET_SECRET
+                  key: '1'
+            - name: HBOT_OKX_PERPETUAL_PASSPHRASE
+              valueFrom:
+                secretKeyRef:
+                  name: REPLACE_OKX_PERPETUAL_PASSPHRASE_SECRET
                   key: '1'
           startupProbe:
             httpGet:

@@ -45,15 +45,31 @@ def review(path, *, template=False, evidence=None):
     require(live['timeoutSeconds'] >= 5)
     require('readinessProbe' not in container, 'Standby must pass deployment startup independently of trading readiness.')
     env = {item["name"]: item for item in container["env"]}
-    require(env.get("STORAGE_BACKEND", {}).get("value", "postgres") == "postgres",
-            "Cloud Run requires STORAGE_BACKEND=postgres.")
+    require(len(env) == len(container['env']), 'Duplicate environment variable names are not allowed.')
+    require(env.get("STORAGE_BACKEND", {}).get("value") == "postgres",
+            "Cloud Run requires explicit STORAGE_BACKEND=postgres.")
+    require(env.get('ENV', {}).get('value') == 'production', 'The production review requires ENV=production.')
+    mode = env.get('OKX_TRADING_ENV', {}).get('value')
+    require(mode in ('live', 'demo'), 'Set explicit OKX_TRADING_ENV=live or demo.')
+    require(env.get('ADMIN_API_ENABLED', {}).get('value') == 'true', 'Enable the operations admin API explicitly.')
+    require({'ADMIN_API_USERNAME', 'ADMIN_API_PASSWORD'} <= env.keys(), 'Configure admin credentials with pinned secrets.')
+    configured = False
+    for connector in ('', 'PERPETUAL_'):
+        prefix = 'HBOT_OKX_' + connector + ('DEMO_' if mode == 'demo' else '')
+        trio = {prefix + suffix for suffix in ('API_KEY', 'SECRET_KEY', 'PASSPHRASE')}
+        if trio & env.keys():
+            require(trio <= env.keys(), 'Configure the complete ' + ('perpetual' if connector else 'spot') + ' credential trio when enabled.')
+            configured = True
+    require(configured, 'Configure credentials for at least one connector in the selected OKX environment.')
     require(env['ENABLE_AUTO_MIGRATION']['value'] in ('true', 'false'))
     require('PORT' not in env and 'ENV_FILE' not in env and 'HBOT_ENV_FILE' not in env and ('HBOT_OFFLINE_HTTP_ORIGIN' not in env))
     require('DATABASE_URL' in env)
     for name, item in env.items():
-        if name == "DATABASE_URL" or re.match(r"HBOT_OKX_(PERPETUAL_)?(API_KEY|SECRET_KEY|PASSPHRASE)$", name):
-            secret = item["valueFrom"]["secretKeyRef"]
-            require(re.fullmatch('[1-9][0-9]*', secret['key']), 'Pin a numeric Secret Manager version.')
+        if name in ('DATABASE_URL', 'ADMIN_API_USERNAME', 'ADMIN_API_PASSWORD') or re.fullmatch(
+                r'HBOT_OKX_(PERPETUAL_)?(DEMO_)?(API_KEY|SECRET_KEY|PASSPHRASE)', name):
+            secret = item.get('valueFrom', {}).get('secretKeyRef', {})
+            require('value' not in item and bool(secret.get('name')), 'Use Secret Manager references for credentials.')
+            require(re.fullmatch('[1-9][0-9]*', str(secret.get('key', ''))), 'Pin a numeric Secret Manager version.')
     require(revision['spec']['serviceAccountName'])
     return container["image"]
 

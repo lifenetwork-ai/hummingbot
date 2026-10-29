@@ -40,6 +40,19 @@ and persistent browser storage. Direct browser requests send an explicit Basic
 browser authentication and forwarding behavior; that deployment decision is not
 implemented by the bot API.
 
+For the internal Cloud Run service, the proposed integration is browser → FE
+backend/gateway → bot. The gateway authenticates its users, keeps Basic Auth
+credentials server-side and uses an ingress path permitted by the deployment.
+When Cloud Run IAM invocation is also required, send the platform ID token in
+`X-Serverless-Authorization: Bearer …` and retain `Authorization: Basic …` for the
+bot. Using the same Authorization header for both would lose application auth.
+Google documents this [two-header invocation](https://docs.cloud.google.com/run/docs/authenticating/service-to-service).
+This is a deployment integration contract, not a gateway shipped by this repo.
+Do not add the platform token/header to direct browser calls: the existing bot
+CORS contract does not allow that header. CORS or valid Basic Auth alone cannot
+make an internal/IAM-protected service reachable. Agree on this path before FE
+browser acceptance; use the [deployment worksheet](cloudrun.md#deployment-worksheet).
+
 `ADMIN_CORS_ORIGINS=*` supports any FE origin without
 `Access-Control-Allow-Credentials`; an explicit comma-separated origin allowlist
 is also supported. The preflight allowlist is Authorization, Content-Type and

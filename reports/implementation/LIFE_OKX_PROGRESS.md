@@ -1350,3 +1350,19 @@ or multi-day uptime claim.
 See the canonical [remediation checklist](../life-mm-availability-remediation.md)
 and [portable evidence](../life-mm-availability-remediation-evidence.json), which
 retain both earlier failed/interrupted attempts and the final accepted run.
+
+## Cloud Run launch preparation (2026-10-29; local review complete)
+
+- [x] Review deployment/template/runtime ownership and distinguish clean stopped
+  startup from restoration of existing running intent.
+- [x] Add explicit exchange/admin settings and pinned admin/perpetual secrets to
+  the operator-filled service template; strengthen offline review with TDD.
+- [x] Require an explicit cloud project in Make; prove missing project blocks and
+  selected project forwards using a local gcloud argument-capture fixture.
+- [x] Publish the first-deployment worksheet/checklist and FE gateway IAM/Basic
+  Auth contract in existing guides; pass 55 focused tests and Swagger check.
+- [ ] Fill actual operator project/region/DB/registry/secrets/access-route values;
+  verify cloud stopped startup and FE browser access after reviewed deployment.
+
+See [readiness review](../cloudrun-readiness-review.md). No cloud provisioning,
+push/deployment, new image/load claim or trading occurred in this step.

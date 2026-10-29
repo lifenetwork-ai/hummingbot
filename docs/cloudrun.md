@@ -5,6 +5,8 @@ foreground PostgreSQL service. Start with [service configuration](#service-and-c
 then [runtime images](#runtime-image), [offline release verification](#image-and-offline-verification)
 and [cloud configuration](#cloud-configuration). Operational diagnostics are in
 [logs/severity](#logs-and-severity) and [memory verification](#long-running-memory).
+Use the [first deployment checklist](#first-deployment-checklist) for the project
+worksheet, stopped-service verification and FE handoff.
 
 Use [PostgreSQL operations](postgres-runtime.md) for DB/ownership/recovery and
 [FE integration](fe-integration.md) for control/reporting/authentication. Local
@@ -321,3 +323,143 @@ gate. It does not call cloud APIs. After the required release gates pass,
 an operator may explicitly run `make deploy-cloudrun` with the same configuration,
 evidence and selected region. This implementation has not run that target, pushed
 an image to an external registry, or performed a Cloud Run staging deployment.
+
+## First deployment checklist
+
+Use this on the selected service; a separate staging service is not required.
+Cloud-only items stay open until someone checks the actual deployment. The latest
+local release evidence is in the [availability remediation report](../reports/life-mm-availability-remediation.md).
+A passed local gate does not validate IAM, regional exchange access or Cloud SQL.
+
+### Deployment worksheet
+
+Fill these non-secret values before producing a concrete service YAML. Secret
+**names and numeric versions** belong here; secret values remain in Secret Manager.
+
+| Input | Decision needed |
+|---|---|
+| GCP project / region / service | Explicit project; region with verified OKX access |
+| Runtime service account | Dedicated account; Cloud SQL Client and access to only the referenced secrets |
+| Artifact Registry image | Accessible registry, immutable tested manifest digest, compatible predecessor |
+| PostgreSQL | Instance connection name, database/user, tested major, backup/recovery policy and available connections |
+| Bot identity | Stable `BOT_ID`, dedicated DB; never reuse the local Demo DB for first production launch |
+| Exchange | Explicit `OKX_TRADING_ENV=live` or `demo`, `OKX_SITE`, matching credential secret trio per used connector |
+| Admin API | Username/password secret references, FE access route, callers' IAM and CORS origins |
+| Egress | Exchange registration region, DNS/TLS/REST/WS destinations; reserved NAT IP if keys use an IP allowlist |
+| Trading catalogue | Spot/perpetual/both availability, target pair, balances, budgets, limits and enabled policies |
+| Release record | Source, image manifest, offline E2E/load evidence, YAML catalogue hash and secret versions |
+
+The existing template explicitly enables admin API, selects Live exchange routing
+and closes development docs with `ENV=production`. **Review that Live choice**;
+it is not permission to trade. Demo uses `OKX_TRADING_ENV=demo` and
+`HBOT_OKX_DEMO_*` / `HBOT_OKX_PERPETUAL_DEMO_*` names. Do not copy live credentials
+into Demo names. Spot-only operation can omit the perpetual secret trio; select
+`market_mode=spot` and ensure maintainers/FE do not offer an unprovisioned market.
+Keeping a perpetual template in YAML alone does not provision its credentials or
+make an unlisted perpetual instrument available. The bundled LIFE catalogue is
+an example with disabled optional policies, not approved listing parameters.
+
+### Before deployment
+
+- [ ] Fill the worksheet and `REPLACE_*` values in a private, reviewed service YAML.
+- [ ] Select the packaged YAML. Changing `deploy/cloudrun/conf/` requires a new
+  image and matching verification; API cannot override it. Verify that its
+  deployed hash and policies are the ones the operator expects.
+- [ ] Publish/mirror the tested image to the chosen registry and verify its
+  manifest digest against the E2E evidence. Tags and Docker config/image IDs are
+  not manifest digests. If copying changes the manifest, verify that exact new
+  manifest again; do not edit a result JSON to manufacture a match.
+- [ ] Check Cloud SQL connection path, secret access, DDL/DML permissions and
+  `ENABLE_AUTO_MIGRATION`. Budget for overlapping revisions, each with its own
+  pool; five is per engine, not a database-wide connection ceiling.
+- [ ] Keep continuous CPU, min/max one, tested startup `/startup` and liveness
+  `/live`. Do not replace startup with `/ready`. Verify ingress/IAM separately
+  from application Basic Auth; service YAML does not grant invoker permissions.
+- [ ] Keep the initial desired state stopped. A fresh DB initializes stopped;
+  **an existing DB can resume its saved running session**, even with no new API
+  Start. For a reused DB, persist Stop through the current API/CLI and confirm its
+  acknowledgment and absence of working orders before rollout. SIGTERM, changing
+  traffic or rebuilding YAML does not erase desired state, positions or HALT.
+- [ ] Review rollout/rollback compatibility and DB backups. Stop removes quotes
+  while retaining positions; do not advertise Stop as closing exposure.
+- [ ] Run template/concrete checks below; retain the reviewed config/evidence pair.
+
+```sh
+# Local check only; placeholders are intentionally allowed here.
+python scripts/review_cloudrun.py deploy/cloudrun/service.example.yaml --template
+
+# Concrete check: placeholders forbidden, complete E2E scope and digest required.
+make review-cloudrun-config \
+  CLOUDRUN_CONFIG=/path/to/filled-service.yaml \
+  CLOUDRUN_EVIDENCE=build/e2e-offline/RUN_ID/result.json
+```
+
+The review now requires explicit PostgreSQL, production docs mode, exchange
+routing and enabled admin API; checks pinned admin/Live/Demo secret references;
+rejects duplicate environment names and incomplete supplied credential trios.
+It checks references, not secret contents, account permissions, packaged market
+availability or cloud resources. Keep the default project out of deployment
+selection: after the concrete result is reviewed, the existing deployment target
+requires `CLOUDRUN_PROJECT` explicitly.
+
+```sh
+# Applies an actual revision; run only for the selected reviewed deployment.
+make deploy-cloudrun \
+  CLOUDRUN_PROJECT=YOUR_PROJECT \
+  CLOUDRUN_REGION=YOUR_REGION \
+  CLOUDRUN_CONFIG=/path/to/filled-service.yaml \
+  CLOUDRUN_EVIDENCE=build/e2e-offline/RUN_ID/result.json
+```
+
+### Verify the stopped service
+
+- [ ] Confirm project, region, runtime service account, image digest, CPU/memory,
+  ingress, secret versions and effective revision environment in Cloud Run.
+- [ ] Verify `/startup` and `/live` succeed through an authorized operations path.
+  Stopped/standby can be healthy while `/ready` is unavailable; no trades or fills
+  are expected. Startup success does not prove exchange credentials can trade.
+- [ ] From the real FE gateway/network, verify `/api/v1/admin/status` and `/profiles`
+  with Basic Auth. Compare process/owner revision, fresh heartbeat, `BOT_ID`,
+  desired state, acknowledged version and catalogue hash. Wait for ownership
+  handoff if needed; traffic reaching a revision does not itself grant ownership.
+- [ ] Confirm one effective owner, `desired_state=stopped`, no active session and
+  no bot working orders. Investigate stale/unknown observations; do not mark them
+  as a confirmed zero balance/zero order count.
+- [ ] Verify authenticated production docs/schema/assets return 404; build FE
+  types from checked `docs/api/openapi.json`. Verify missing/wrong Basic Auth is
+  rejected at the application after passing platform/network access.
+- [ ] Check structured JSON severity/context, startup/migration events, unexpected
+  ERRORs and restarts. Configure alerts for repeated incidents, stale owner/API,
+  restart loops, memory pressure and DB connection pressure. A deliberate stopped
+  session is not an incident; no fills alone does not mean no working quotes.
+- [ ] Observe that the stopped service stays available without dashboard polling.
+  This is a cloud check, not something a Docker test establishes.
+
+Cloud Run minimum instances can still restart, and maximum limits can briefly be
+exceeded. Ownership/recovery remains authoritative rather than instance count.
+See [minimum instances](https://docs.cloud.google.com/run/docs/configuring/min-instances),
+[maximum instances](https://docs.cloud.google.com/run/docs/configuring/max-instances)
+and [CPU/billing behavior](https://docs.cloud.google.com/run/docs/configuring/billing-settings).
+
+### FE and first session
+
+- [ ] Complete the [FE browser acceptance](fe-integration.md#browser-acceptance-checklist)
+  on the actual access path: freshness, pending receipts, conflict handling,
+  blocked reasons, read-only YAML settings and Stop confirmation.
+- [ ] Verify instrument rules, account identity, available LIFE/USDT and approved
+  budgets before Live Start. Demo compatibility uses an existing listed pair;
+  it cannot prove LIFE liquidity before listing. Do not Start the LIFE example
+  merely to make `/ready` green before its instrument exists.
+- [ ] For the separately approved first trading session, select provisioned markets,
+  a deployed profile and bounded duration/budget through the existing command
+  workflow. Verify real working orders, final tick/min-size behavior, fee/balance
+  reporting and position-preserving Stop. Record actual scope under `reports/`.
+- [ ] During a controlled rollout, verify the new owner/configuration and retained
+  stopped intent. An old revision can remain standby/owner during overlap; review
+  old traffic, tags and revision minimums if handoff does not finish. Do not bypass
+  the DB ownership lock or clear recovery state to force progress.
+
+For an incident, use [OKX blocked-quote handling](okx-operations.md) and
+[PostgreSQL recovery](postgres-runtime.md). Retrying a command uses the original
+idempotency key/body; a restart or automatic Start must not become a way to clear
+HALT. Keep failed cloud checks and actual recovery evidence alongside successes.
