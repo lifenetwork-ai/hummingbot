@@ -119,3 +119,19 @@ def test_successful_refresh_restores_freshness_and_resets_only_to_new_observatio
 ])
 def test_only_identifiable_transient_failures_allow_fallback(error, transient):
     assert transient_reporting_error(error) is transient
+
+
+@pytest.mark.parametrize('operation', ['get', 'fallback'])
+def test_expiry_between_lookup_and_eviction_is_a_miss_not_an_api_error(monkeypatch, operation):
+    cache, clock, key, _ = cache_and_snapshot(age=.1, filters=dict(start_day='2026-10-29', end_day='2026-10-30'))
+    clock.advance(59.999)
+    lookup = cache.entries.get
+
+    def paused_lookup(key):
+        entry = lookup(key)
+        # A scheduler/GC pause may cross cachetools' TTL after successful lookup.
+        clock.advance(.002)
+        return entry
+
+    monkeypatch.setattr(cache.entries, 'get', paused_lookup)
+    assert getattr(cache, operation)(key) is None

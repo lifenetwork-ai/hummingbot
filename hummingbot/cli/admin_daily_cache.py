@@ -68,6 +68,7 @@ class DailyStatisticsCache:
         self.entries[key] = Observation(body, observed, wall, monotonic)
 
     def eligible(self, key):
+        # A successful lookup can expire before eviction; use safe pop below.
         if key is None or self.ttl == 0:
             return None
         entry = self.entries.get(key)
@@ -76,14 +77,14 @@ class DailyStatisticsCache:
         wall, monotonic = self.wall_clock(), self.monotonic_clock()
         if (not all(math.isfinite(value) for value in (wall, monotonic))
                 or wall < entry.saved_wall or monotonic < entry.saved_monotonic):
-            del self.entries[key]
+            self.entries.pop(key, None)
             return None
         # Wall-clock rollback cannot rejuvenate an observation, and forward
         # jumps cannot keep it alive simply because monotonic time barely moved.
         age = max(wall - entry.observed_at,
                   entry.saved_wall - entry.observed_at + monotonic - entry.saved_monotonic)
         if not 0 <= age < MAX_OBSERVATION_AGE_SECONDS:
-            del self.entries[key]
+            self.entries.pop(key, None)
             return None
         return entry, age, monotonic
 

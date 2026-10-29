@@ -172,3 +172,36 @@ Raw result: `build/e2e-offline/20261029-162008-7ac426/result.json`. The runtime
 package manifest matches the predecessor exactly, and packaged API/cache/model/
 Swagger source hashes match the reviewed files. The unchanged long load gates
 and production-entrypoint control remain pending.
+
+## Production-entrypoint control
+
+The same immutable candidate and matched catalogue/client/exchange fixtures pass
+300s warmup and 900s mixed through the ordinary production entrypoint, without
+load-service timing wrappers, trace/sampler or GC callbacks. Warmup p95/p99
+152.50/574.80ms; mixed **123.24/465.60ms**, zero unexpected errors in both.
+Independent fill/position/fee checks pass. Raw evidence:
+`build/reporting-latency-fix/production-control/result.json`. This single
+controlled run is not a statistical speedup claim versus historical images.
+It does not measure internal N+1, worker/pool waits or held-adapter counters,
+and does not replace the running complete load/soak/fault gate.
+
+## Follow-up: TTL eviction race caught before release
+
+Final review found a defect introduced in the new R2 cache: `TTLCache.get()` may
+succeed immediately before the TTL boundary, then a scheduler/GC pause crosses
+expiry before direct deletion. `TTLCache.__delitem__` raises `KeyError` for that
+expired entry, turning an ordinary cache miss into API 500. This is not an
+upstream-engine defect or an explanation for the historical p99 spike.
+
+Two deterministic Red tests pause between the real cachetools lookup and
+eviction (`get` and `fallback`); both reproduce `KeyError`. Green replaces
+direct deletion with `pop(key, None)`, preserving expiry/filter/clock rules.
+All **55 focused tests pass**. No financial calculations, deadlines or capacity
+changed. A fresh image and final verification are required for this source.
+
+The first all-profile attempt on image `90490bab…` was intentionally interrupted
+before soak to apply the fix. Its warmup passed p99 450.93ms with zero errors;
+mixed was incomplete. Raw result and the explicit supersession annotation are
+in `build/mm-load/20261029-171514-6a8ec8/`. Do not treat that interrupted run as
+either a latency failure or completed release acceptance. Earlier native/image/
+control results retain their exact source/image scope.

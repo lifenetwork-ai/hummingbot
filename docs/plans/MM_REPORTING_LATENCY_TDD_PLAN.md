@@ -31,6 +31,9 @@ pool expansion, relaxed deadlines or API edits to YAML.
   original-observation age; label stale data/retry hints in English. Live
   balances/positions and trading gates never consume the fallback. Update
   Swagger/FE docs, and make healthy load detect degraded daily responses; commit.
+- [x] R2 follow-up: reproduce TTL expiry between lookup and eviction in two
+  Red tests; use safe eviction, 55 focused Green tests. Rebuild candidate before
+  final gates; the interrupted earlier load is explicitly superseded.
 - [x] R3a: instrument submit-to-worker-start waiting with context-safe bounded
   test diagnostics; three Red / eighteen Green timing/trace/executor tests.
 - [x] R3b: collect a traced 180s all-feature candidate probe with physical worker,

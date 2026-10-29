@@ -1483,3 +1483,17 @@ See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-
 - [x] Candidate image full E2E: sixteen groups, including upgrade/rollback from
   `143ddfe2…`. Manifest `11dfdc61…`; packaged critical source hashes and runtime
   package manifest verified. Long performance gates remain pending.
+
+- [x] Matched candidate production-entrypoint control: 300s warmup p99 574.80ms,
+  900s mixed p99 465.60ms, zero errors and matching ledger/positions. No
+  instrumentation or statistical speedup claim. Full all-profile gate running.
+
+## Cache expiry race follow-up (2026-10-29)
+
+- [x] Confirm an R2-introduced race, not the historical p99 cause: real cachetools
+  lookup succeeds, TTL expires, direct deletion raises KeyError/API 500.
+- [x] Two Red tests / 55 focused Green tests; safe pop treats expiry as a miss.
+- [x] Stop pre-fix all-profile gate before soak; retain warmup pass and an
+  explicit superseded annotation. No incomplete window is counted as acceptance.
+- [ ] Rebuild/reverify the corrected final artifact; previous 90490bab results
+  remain image-specific. Real Demo stays stopped and unchanged.
