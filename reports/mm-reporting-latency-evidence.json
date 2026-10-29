@@ -908,7 +908,7 @@
       ],
       "previous_image_id": "sha256:143ddfe27ceb1c18863735a99f58ce8beef214bc87b4c99e909d9d9613732124"
     },
-    "load": "180s traced probe and 300s/900s production-entrypoint control pass; final all-profile gate running",
+    "load": "180s traced probe and 300s/900s production-entrypoint control pass; all-profile gate intentionally interrupted before soak for confirmed R2 expiry fix.",
     "production_demo_replaced": false,
     "source_sha256": {
       "hummingbot/cli/admin_api.py": "fd5a75f37cec3ce45104935aba55b116f73a18d5f2edd6b78d524263955fffdb",
@@ -928,9 +928,91 @@
     "interrupted_gate": {
       "raw_result": "build/mm-load/20261029-171514-6a8ec8/result.json",
       "annotation": "build/mm-load/20261029-171514-6a8ec8/superseded-by-expiry-fix.json",
-      "completed_warmup": [],
+      "completed_warmup": {
+        "read_p95_ms": 115.474127989728,
+        "read_p99_ms": 450.93419699696824,
+        "unexpected_errors": 0,
+        "violations": []
+      },
       "remaining_scope": "Mixed interrupted intentionally; no burst/hour/fault acceptance."
     },
-    "new_final_candidate": "pending rebuild; all earlier image checks retain their 90490bab image scope"
+    "new_final_candidate": "58356746f389; full native/PostgreSQL/smoke/source checks and sixteen-group E2E pass; corrected-image full performance scope remains open."
+  },
+  "final_candidate": {
+    "image_id": "sha256:58356746f389cab61db94d7a39114ae1853eb001ff75cdca3d50fc79ae6f6cd1",
+    "source_sha256": {
+      "hummingbot/cli/admin_api.py": "fd5a75f37cec3ce45104935aba55b116f73a18d5f2edd6b78d524263955fffdb",
+      "hummingbot/cli/admin_models.py": "dbf431b868e32d966d6a8749b0441a45af8a32a1bc430124a98b1dc2ea350c2e",
+      "hummingbot/cli/admin_daily_cache.py": "58ec6e43c6b8599b3a2639271ed7e342f9df28d6962f00abe1a1622709f13739",
+      "docs/api/openapi.json": "e9d2b506a4831528c9d9ad101dbacaeaf8fc965f130cfb244e5e0974ba88f6d6"
+    },
+    "runtime_package_manifest_sha256": "a78b58c5212dff831a7de753ce1af75bcd3878984af6375599b4aad183020437",
+    "runtime_package_manifest_matches_previous_image": true,
+    "tag": "hummingbot-cloudrun:reporting-final",
+    "size_bytes": 1367400340,
+    "architecture": "amd64",
+    "source_commit": "acad3f9edb6423bc921b5e42ec999481a2602279",
+    "native_regression": {
+      "phase_counts": [
+        178,
+        11,
+        1212,
+        539
+      ],
+      "total_passed": 1940,
+      "subtests_passed": 11,
+      "command": "make test-cloudrun-regression swagger-check",
+      "raw_log": "build/reporting-latency-fix/corrected-native.log"
+    },
+    "postgres_full_regression": "259 passed, 36 warnings, 469.47s",
+    "runtime_smoke": {
+      "passed": true,
+      "numba_jit": true,
+      "ta_lib": true,
+      "tls_trust": true,
+      "connector_count": 63,
+      "sql_scripts": 17,
+      "build_tools_absent": true,
+      "cli_version": "hbot 2.17.0",
+      "environment_bytes": 1266556462,
+      "service_logging": {
+        "passed": true,
+        "all_severities": true,
+        "network_warning": true,
+        "utc_context": true,
+        "redaction": true,
+        "startup_failure_json": true,
+        "python_warning_json": true,
+        "sql_parameters_suppressed": true
+      }
+    },
+    "e2e": {
+      "raw_result": "build/e2e-offline/20261029-175226-2ef8dd/result.json",
+      "passed": true,
+      "release_scope_complete": true,
+      "scenarios": [
+        "schema",
+        "spot",
+        "v2-spot",
+        "v2-perpetual",
+        "life-mm",
+        "until-stopped",
+        "funding",
+        "availability",
+        "quote-guards",
+        "drawdown",
+        "spot-outflow",
+        "listing-bootstrap",
+        "inventory-skew",
+        "spread-policy",
+        "volatility-defense",
+        "upgrade"
+      ],
+      "previous_image_id": "sha256:90490bab6c272f0fdae1d56ebfc0ed784cf316a8a3f003398978a0933d7d6690"
+    },
+    "production_control": "pending corrected image run",
+    "load": "Deferred until the architecture candidate is settled; user prioritized automatic process recovery and healthy latency over additional RAM.",
+    "production_demo_replaced": false,
+    "registry_manifest_digest": "sha256:19b3b94818e253c84fedb4f5830f29264d146dcb35e30c67d34aaa060353caef"
   }
 }

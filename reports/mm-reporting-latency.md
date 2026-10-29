@@ -205,3 +205,21 @@ mixed was incomplete. Raw result and the explicit supersession annotation are
 in `build/mm-load/20261029-171514-6a8ec8/`. Do not treat that interrupted run as
 either a latency failure or completed release acceptance. Earlier native/image/
 control results retain their exact source/image scope.
+
+## Corrected candidate verification
+
+The corrected image `58356746…` is built from commit `acad3f9ed…` and is
+1,367,400,340 bytes. Full native regression passes **1,940 tests and eleven
+subtests**, including both expiry regressions; Swagger check passes. Full
+PostgreSQL regression passes **259 tests** in 469.47s. Credential-free runtime
+smoke passes. Packaged API/cache/model/Swagger hashes match the source; the
+runtime package manifest still matches both predecessors exactly.
+
+All **sixteen E2E scenario groups pass** for this corrected artifact, including
+upgrade/rollback from `90490bab…`. Raw result:
+`build/e2e-offline/20261029-175226-2ef8dd/result.json`. Production-entrypoint
+control and the unchanged all-profile load remain open. They are deferred while
+the requested single-service supervision candidate is evaluated. Earlier image-specific results are not
+substituted for those gates. The persistent local Demo remains stopped on its
+existing image. No Cloud Run deployment or live trading is authorized by these
+local tests.
