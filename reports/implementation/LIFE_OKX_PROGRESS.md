@@ -1709,3 +1709,19 @@ its new host-ordering unit called real global logging configuration in pytest.
 Mock that unrelated side effect; combined GC/logging/OKX spot/perpetual replay
 passes260 tests plus9 subtests. Full native reruns from scratch. Shipping runtime
 is unchanged by this test-isolation correction; candidate image build/PG continue.
+
+R7 source `ddcade369` builds ordinary Dockerfile image `715a11f3…`,
+1,367,434,554 bytes, amd64/UID10001. Ten packaged module fingerprints match;
+5,000 post-startup cycles are reclaimed inside the shipping runtime without
+re-freezing. Corrected full native passes2,030 tests plus11 subtests. Full PG,
+full16 E2E and actual-role crash/hang replay continue. Long/hour/control are not
+accepted; all retained burst/trace failures remain visible.
+
+R7 final-image functional verification is complete: image `715a11f3…` /
+manifest `7e104887…`, native2,030+11 subtests, full PG266/266, Swagger/runtime
+smoke and full16 E2E `20261030-050536-45e61f` pass. Exact cancellation fills,
+same-session cold restart and compatible rollback are included. Actual-role
+faults `20261030-050256-89339d` pass, with engine-only DDL and clean2.69s parent
+cleanup. Functional jobs are not calibrated performance comparisons. Preserve
+the preceding image/results and failed burst; start the unchanged all-load/hour
+alone, followed by matched ordinary-entrypoint control only after a real pass.

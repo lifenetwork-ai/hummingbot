@@ -151,10 +151,14 @@ image scope; no single historical p99 trigger is assumed.
   Both untraced short bursts pass: old p95/p99224.63/539.08ms, candidate
   76.17/455.47ms, zero errors. Both traced diagnostics fail and remain recorded;
   lower API GC does not eliminate their other SQL/worker/client delays.
-- [ ] Build/fingerprint the selected replacement, complete native/real-PG,
-  runtime smoke, Swagger/full16 E2E and shipping-role lifecycle checks. Then
-  require the unchanged all-feature all-load/hour/fault gate and matched
-  ordinary-entrypoint control before closing R4/R6 adoption.
+- [x] Build/fingerprint the selected replacement, complete native/real-PG,
+  runtime smoke, Swagger/full16 E2E and shipping-role lifecycle checks.
+  Image `715a11f3…` / manifest `7e104887…`: ten runtime hashes match; native
+  2,030 plus eleven subtests, PostgreSQL266/266, full16 E2E
+  `20261030-050536-45e61f` and actual-role recovery
+  `20261030-050256-89339d` pass. Packaged post-startup GC reclaims 5,000 cycles.
+- [ ] Require the unchanged all-feature all-load/hour/fault gate and matched
+  ordinary-entrypoint control on this image before closing R4/R6 adoption.
 
 ## R5: attribute the longer healthy latency failure
 

@@ -1,9 +1,10 @@
 # Single-service runtime supervision verification
 
 Status: `80a34c69…` passes full regression/E2E/lifecycle but its retained
-all-load run fails burst p99 before soak. A small API-only startup-GC candidate
-passes focused safety tests and short untraced diagnostics; full build/regression
-and unchanged load/hour/control remain required. Adoption is not accepted.
+all-load run fails burst p99 before soak. Replacement `715a11f3…` includes the
+API-only startup-GC boundary and passes full native/PostgreSQL regression,
+packaged GC safety, all sixteen E2E groups and actual-role recovery checks;
+unchanged load/hour/control remain required. Adoption is not accepted.
 Persistent Demo remains stopped on its existing image/database; no deployment
 or actual OKX connectivity is certified by these local tests.
 
@@ -368,3 +369,26 @@ remain; tracing does not establish an overall latency fix. The first traced run
 also overlaps a brief native functional test, so it is not a calibrated paired
 comparison. The candidate remains provisional until a real Dockerfile build,
 full regression/E2E and unchanged untraced load/hour/control verification pass.
+
+The ordinary Dockerfile replacement `715a11f3…` (source `ddcade369`, manifest
+`7e104887…`) is amd64, UID10001 and 1,367,434,554 image bytes. All ten changed
+runtime-module fingerprints match source. The packaged GC boundary reclaims
+5,000 later cyclic objects without re-freezing. Full native regression passes
+**2,030 tests plus eleven subtests**; full PostgreSQL passes **266/266** in
+880.93s. Swagger passes. An earlier native run's five logging/connector assertion
+failures are retained: the new startup-ordering unit changed pytest-global logging
+state. Isolating that unrelated configuration call fixes the unit; the fresh full
+native repeat passes without another shipping-runtime change.
+
+Actual shipping lifecycle `20261030-050256-89339d` passes three API crash/hang
+and two engine crash/hang cases. API faults preserve engine/owner/session and
+positions; engine faults physically reap, advance ownership, retain HALT/positions
+and submit no additional orders. Three engine starts apply 51 scripts; API
+restarts apply none. Parent cleanup releases ownership in 2.69s. This functional
+run overlaps isolated functional verification and is not a calibrated recovery
+latency comparison. Full sixteen-group E2E `20261030-050536-45e61f` also passes,
+including the nine LIFE combinations, exact concurrent cancellation fills,
+same-session cold restart and compatible image rollback. Its injected create-ACK
+hold lasts 1,584ms and the ordinary recovery assertions pass. Runtime smoke
+passes ABI/JIT/TLS, 63 connector registrations, 17 SQL scripts and JSON logging.
+The new all-load/hour and matched ordinary-entrypoint control remain open.
