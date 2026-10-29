@@ -1652,3 +1652,23 @@ real-PG cases pass. Deterministic ordinary-entrypoint Red on old image `f5e7…`
 at `20261030-024209-940a65` reproduces HALT and recovery position mismatch. Full
 PG regression continues; build a replacement image and require image-level
 Green/full E2E before the unchanged load/hour/control gates.
+
+Replacement `80a34c69…` from `c2a22c0ae` passes nine packaged module hashes,
+full PG266/266, Swagger/runtime smoke, and exact shipping-image cancellation-fill
+Green `20261030-025503-780bad`. Spot/perpetual retain exact base/fees across
+random rollover, duplicate trade events, same-session cold restart and Stop;
+normal shutdown 2.986s. Mark the checkpoint-race checklist done. Full16 E2E and
+actual-role faults are running on the same manifest; long/hour/control stay open.
+
+First replacement full E2E `20261030-025650-d4ba2b` is retained failed: the
+cancel-before-create ordering fixture holds ACK while reading FE history, crossing
+the unchanged five-second REST timeout and HALTing. No new checkpoint mismatch.
+Release the injected ACK hold after durable cancellation proof, before FE page
+validation, and record its duration; no runtime guard relaxation. Controlled
+replay/full E2E are required before starting the long gate.
+
+ACK-hold harness replay `20261030-031749-6c613e` passes on unchanged `80a34c69…`,
+including restored quotes/random expiry/funding/DB-fault HALT. Native harness24
+pass. The focused recovery variant omits the nine-profile matrix; repeat full16
+with compatible rollback before long load. Runtime timeout and safety guards
+remain unchanged; retain the failed full run.

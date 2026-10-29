@@ -104,12 +104,19 @@ recovery still requires technical review; no reset/resume API is implemented.
   all sixteen E2E groups including compatible upgrade/rollback pass. Actual
   shipping-role crash/hang replay passes with nondefault ingress and clean
   3.28s parent shutdown. Both preceding full E2E failures remain recorded.
-- [ ] Resolve the late-fill checkpoint race found by long run
+- [x] Resolve the late-fill checkpoint race found by long run
   `20261030-013705-7a6a10`: terminal-read-before-position-store with Red/Green,
   exact amount/fees recovery, continued HALT for unknown/post-checkpoint changes,
   and a deterministic cancellation-fill replay on the replacement shipping image.
   The preceding `f5e7…` image validation remains scoped to that image; its load
   acceptance failed and the new runtime needs full image/regression/E2E checks.
+  Fixed candidate `80a34c69…` / source `c2a22c0ae` passes deterministic shipping
+  replay at `20261030-025503-780bad`: exact spot/perpetual amount/fees, duplicate
+  trade events, random rollover, clean cold restart and Stop. Full PostgreSQL:
+  266 pass. Nine packaged runtime-module hashes match the committed source.
+- [ ] Complete all sixteen E2E groups, compatible upgrade/rollback and actual-role
+  crash/hang replay on replacement image `80a34c69…`; prior `f5e7…` functional
+  results are retained but do not certify the replacement.
 - [ ] Run unchanged workload/error/latency gates and continuous-hour per-role
   memory checks on the selected final image, followed by recovery faults and an
   ordinary-entrypoint control. Preserve failures, report scope, update checklist

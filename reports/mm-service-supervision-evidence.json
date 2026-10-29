@@ -1,5 +1,5 @@
 {
-  "status": "terminal_checkpoint_fix_in_progress",
+  "status": "replacement_full_e2e_repeat_pending",
   "cloud_run_deployed": false,
   "persistent_demo_replaced": false,
   "image": {
@@ -333,7 +333,7 @@
   },
   "terminal_checkpoint_race": {
     "runtime_image_id": "sha256:f5e7ab3282688787876623d176f774370df3dba8ecbf8eb8ae9ca714ad2a3d25",
-    "status": "Native fix verified; replacement image and shipping E2E/load gates pending",
+    "status": "Shipping-image Red/Green passed; full E2E/lifecycle/load/control verification pending",
     "finding": "Active perpetual entry filled from 0.011 to 0.012 base during normal random step cancellation, after the old position snapshot. Existing guard correctly retained HALT.",
     "affected_order": "93027a12dac34fBCSLEUT0323fdfd6e5",
     "executor": "HyanaSNrngEZaXXKzsYFQEBU1uzm3c5QXnyAzfjfkBUY",
@@ -371,6 +371,172 @@
       "report": "build/e2e-offline/20261030-024209-940a65/result.json",
       "reason": "Deterministic cancellation fills reproduce position-checkpoint HALT and recovery mismatch on f5e7 image"
     },
-    "full_postgres_status": "running"
+    "full_postgres_status": "passed",
+    "full_postgres": {
+      "passed": 266,
+      "failed": 0,
+      "seconds": 563.83,
+      "log": "build/service-supervision/terminal-checkpoint-full-postgres.log"
+    },
+    "candidate_image": {
+      "id": "sha256:80a34c69a87251236cccf005f7a78502ecbbc0a5d7252cb16487f723760af99f",
+      "source_commit": "c2a22c0ae2a3dbf5782565c95cf848b91cd896ea",
+      "size_bytes": 1367433365,
+      "architecture": "amd64",
+      "user": "10001:10001",
+      "cmd": [
+        "python",
+        "-m",
+        "hummingbot.cli.service"
+      ],
+      "runtime_modules_match": 9,
+      "runtime_sha256": {
+        "hummingbot/cli/service.py": "f856c5c14489148f5de08070f83cedb7050605065c1dc575e36bfabd703b2c72",
+        "hummingbot/cli/service_processes.py": "d5df25b2c18cbff5b023e50d86f516ea4f1ba6f2d6be652da58e17a3e06a1115",
+        "hummingbot/cli/process_supervision.py": "545385dc8a012e99e2a8097375c399ee55b737b8c306fb46c655e17497ea23b7",
+        "hummingbot/cli/admin_service.py": "7c146e2e6dfb7d3eef681509d3a23d2a2009fc98b10deb14a529efa9047d04a1",
+        "hummingbot/model/db_migration/postgres/runner.py": "92ed0371a96a5e321763288aa4d458d5f8196b42a6856ced6553cd8fd4593962",
+        "hummingbot/core/bot_ownership.py": "7adabf5f0d21a2248cfd9653041ea982bedc9711985ea6b70a9cf90cf96648db",
+        "hummingbot/core/trading_core.py": "2cbe9be347d21f3e9d6b057ba7dfc8fdac11f7b8ad3aeaf1f7723e7371f0dfea",
+        "hummingbot/strategy/strategy_v2_base.py": "717eec06a133e584333b6357663d73910dec7eab390223f29d607741048f6fec",
+        "hummingbot/strategy_v2/executors/executor_orchestrator.py": "7a782e414eca8e6f5636f7546e24c7c7b2530a51b0769b57ce16c67e33f4b203"
+      },
+      "manifest": "sha256:469e598270e5cb3cd7478e0ffa7a0f282f68ebd4510349d9fc087f1e738a35d2"
+    },
+    "shipping_green": {
+      "passed": true,
+      "report": "build/e2e-offline/20261030-025503-780bad/result.json",
+      "runtime_smoke": {
+        "passed": true,
+        "numba_jit": true,
+        "ta_lib": true,
+        "tls_trust": true,
+        "connector_count": 63,
+        "sql_scripts": 17,
+        "build_tools_absent": true,
+        "cli_version": "hbot 2.17.0",
+        "environment_bytes": 1266556462,
+        "service_logging": {
+          "passed": true,
+          "all_severities": true,
+          "network_warning": true,
+          "utc_context": true,
+          "redaction": true,
+          "startup_failure_json": true,
+          "python_warning_json": true,
+          "sql_parameters_suppressed": true
+        }
+      },
+      "metrics": {
+        "mm-until-first_startup_s": 21.707,
+        "terminal_fill_checkpoint": {
+          "spot_base": ".2",
+          "perpetual_base": ".002",
+          "fills": 4,
+          "duplicate_trade_events": true,
+          "positions": [
+            {
+              "connector": "okx",
+              "amount": "0.2",
+              "fees": "0.000002"
+            },
+            {
+              "connector": "okx_perpetual",
+              "amount": "0.002",
+              "fees": "0.000002"
+            }
+          ]
+        },
+        "first_shutdown_s": 2.986,
+        "mm-until-restart_startup_s": 21.12,
+        "until_stopped_random_restart_and_stop": true
+      }
+    },
+    "shipping_lifecycle": {
+      "passed": true,
+      "report": "build/service-supervision/20261030-025652-fcd9de/result.json",
+      "case": {
+        "api_restarts": [
+          {
+            "fault": "crash",
+            "recovery_seconds": 11.951764542143792,
+            "engine_identity_preserved": true,
+            "owner_and_session_preserved": true,
+            "positions_preserved": true,
+            "working_quotes_recovered": true,
+            "working_quote_count": 12,
+            "quote_check": "bounded_after_normal_refresh"
+          },
+          {
+            "fault": "repeated_crash",
+            "recovery_seconds": 11.707657208899036,
+            "engine_identity_preserved": true,
+            "owner_and_session_preserved": true,
+            "positions_preserved": true,
+            "working_quotes_recovered": true,
+            "working_quote_count": 12,
+            "quote_check": "bounded_after_normal_refresh"
+          },
+          {
+            "fault": "unresponsive_loop",
+            "recovery_seconds": 43.06112387496978,
+            "engine_identity_preserved": true,
+            "owner_and_session_preserved": true,
+            "positions_preserved": true,
+            "working_quotes_recovered": true,
+            "working_quote_count": 10,
+            "quote_check": "bounded_after_normal_refresh"
+          }
+        ],
+        "api_refresh_boundary_exercised": true,
+        "engine_restarts": [
+          {
+            "fault": "active_engine_crash",
+            "recovery_seconds": 9.599968417081982,
+            "old_process_absent": true,
+            "api_identity_preserved": true,
+            "owner_generation_advanced": true,
+            "halt_preserved": true,
+            "no_additional_orders": true,
+            "positions_preserved": true
+          },
+          {
+            "fault": "halted_engine_unresponsive_loop",
+            "recovery_seconds": 30.78296820796095,
+            "old_process_absent": true,
+            "api_identity_preserved": true,
+            "owner_generation_advanced": true,
+            "halt_preserved": true,
+            "no_additional_orders": true,
+            "positions_preserved": true
+          }
+        ],
+        "parent_restarts": 0,
+        "parent_shutdown_seconds": 1.648429041961208,
+        "parent_shutdown_owner_released": true
+      },
+      "migration_batches": 3,
+      "applied_script_count": 51,
+      "api_restarts_do_not_migrate": true,
+      "engine_health_loopback_only": true
+    },
+    "full_e2e_attempt": {
+      "passed": false,
+      "report": "build/e2e-offline/20261030-025650-d4ba2b/result.json",
+      "completed_groups": [
+        "schema",
+        "spot",
+        "v2-spot",
+        "v2-perpetual"
+      ],
+      "failure": "LIFE canceled-before-create-ACK case did not restore eight quotes. Logs show held create transports exceed unchanged five-second timeout; guard HALTs. Controlled harness replay in progress; no new runtime root cause assumed."
+    },
+    "ack_harness_replay": {
+      "passed": true,
+      "report": "build/e2e-offline/20261030-031749-6c613e/result.json",
+      "scope": "Focused recovery variant; full matrix/16 groups still required",
+      "focused_native_passed": 24,
+      "runtime_changed": false
+    }
   }
 }

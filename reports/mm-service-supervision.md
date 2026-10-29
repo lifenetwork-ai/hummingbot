@@ -1,9 +1,11 @@
 # Single-service runtime supervision verification
 
-Status: prior runtime/image/regression and lifecycle checks pass, but the long
-load has exposed a real position-checkpoint race during random profile rollover.
-A terminal-first checkpoint fix is in TDD verification. A replacement image and
-unchanged load/hour-memory/control gates are required; adoption is not accepted.
+Status: the long load exposed a position-checkpoint race during random profile
+rollover. Its terminal-first fix passes native regression, full PostgreSQL and
+shipping-image Red/Green replay. Replacement image `80a34c69…` also passes role
+crash/hang checks. Full E2E failed in the held-ACK ordering case; its fault
+isolation is being replayed. Unchanged load/hour-memory/control gates
+remain required; adoption is not accepted.
 Local checks do not certify Cloud Run
 deployment. The real local Demo remains stopped on
 its existing image/database. The earlier [prototype measurements](mm-process-isolation-experiment.md)
@@ -271,3 +273,40 @@ order retired from the connector active map, exact position/fees reload and
 continued HALT on uncovered/post-barrier changes. Full PostgreSQL regression is
 still running. These results authorize a replacement build; they do not certify
 its image/E2E/load acceptance.
+
+Replacement shipping artifact `sha256:80a34c69a87251236cccf005f7a78502ecbbc0a5d7252cb16487f723760af99f`
+(source `c2a22c0ae`, manifest `469e5982…`, 1,367,433,365 image bytes, amd64,
+UID/GID 10001) passes all nine changed shipping-module fingerprints. The full
+real-PG run now passes **266/266** tests; Swagger passes.
+
+The identical image-level cancellation-fill replay at
+`build/e2e-offline/20261030-025503-780bad/` is **Green**: two fills per market
+(including repeated trade events) persist spot 0.2 LIFE / perpetual 0.002 LIFE,
+fees 0.000002 USDT per market, without HALT. Normal random rollover, clean cold
+restart preserving the same session/position and Stop pass. Shutdown is 2.986s.
+ABI/JIT/TLS/63-connector/17-SQL/logging runtime smoke also passes. Full sixteen
+E2E groups and role crash/hang replay start on this immutable manifest; no load
+benchmark runs alongside these functional jobs.
+
+The replacement's first full E2E `20261030-025650-d4ba2b` passes schema, legacy
+spot and both V2 groups, reaches the nine LIFE mode/profile combinations, then
+fails the terminal-cancel-before-create-ACK recovery assertion. The fixture keeps
+create ACKs blocked while issuing a potentially large FE order-page read. Engine
+logs show the earliest creates crossing the unchanged five-second transport
+limit, followed by conservative HALT and clean core shutdown. There is no new
+position-checkpoint mismatch in this run. Its failed result is retained.
+
+The harness now releases ACK immediately after proving durable private
+cancellation (including `creation_pending = false`), captures the affected IDs
+before release, and then validates the same FE page/contracts. `finally` releases
+the injected fault on assertion failure too. The release interval is recorded.
+Runtime timeout, HALT policy, image and load budgets stay unchanged. This causal
+ordering adjustment needs replay/full E2E; it is not evidence that all runtime
+transport failures are safe to ignore.
+
+Focused unchanged-image replay `20261030-031749-6c613e` passes the LIFE recovery
+case after stopping the injected ACK hold before FE rendering. It also completes
+ordinary quote recovery, random steps/expiry, funding and DB-fault HALT. Twenty-four
+harness/native checks pass. This focused variant omits the initial nine-profile
+matrix; a full sixteen-group repeat is still required and the preceding full
+failure remains recorded. No shipping module, timeout or HALT policy changed.

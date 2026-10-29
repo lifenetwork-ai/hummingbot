@@ -800,20 +800,27 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         # that durable intent without reopening the order or halting the bot.
         self.control(cancel_before_ack=True, hold_ack=True)
         before_cancel_race = len(self.ledger()["accepted"])
-        self.mm_command(port, "switch", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
-        poll(lambda: len(self.ledger()["accepted"]) >= before_cancel_race + 8,
-             description="both markets observe canceled orders before REST create ACK")
-        poll(lambda: self.sql("SELECT count(*) FROM orders WHERE creation_pending") == "0",
-             description="positive private cancellation durably resolves create intents")
+        try:
+            self.mm_command(port, "switch", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
+            poll(lambda: len(self.ledger()["accepted"]) >= before_cancel_race + 8,
+                 description="both markets observe canceled orders before REST create ACK")
+            poll(lambda: self.sql("SELECT count(*) FROM orders WHERE creation_pending") == "0",
+                 description="positive private cancellation durably resolves create intents")
+            canceled_batch = self.ledger()["accepted"][before_cancel_race:]
+            canceled_ids = {row["clOrdId"] for row in canceled_batch}
+            self.metrics['terminal_create_ack_hold_ms'] = time.time() * 1000 - min(int(row['cTime']) for row in canceled_batch)
+        finally:
+            # Prove durable cancellation before ACK, then stop the injected fault.
+            # Rendering/polling a large FE page while holding ACK can otherwise
+            # add a second, unintended five-second transport-timeout/HALT fault.
+            self.control(cancel_before_ack=False, hold_ack=False)
         assert not self.state()["recovery_state"].get("halt") and http(port, "/live")[0] == 200
-        canceled_ids = {row["clOrdId"] for row in self.ledger()["accepted"][before_cancel_race:]}
         canceled_views = [row for row in self.admin(port, "/orders?limit=500")[1]["items"] if row["id"] in canceled_ids]
         assert len(canceled_views) >= 8 and all(row["side"] in ("BUY", "SELL") and row["exchange_order_id"]
                                                 for row in canceled_views)
         assert all(row["progress_basis"] == "recorded_fills_only" and Decimal(row["recorded_filled_amount"]) == 0
                    for row in canceled_views)
         self.metrics["admin_operations_contract"] = True
-        self.control(cancel_before_ack=False, hold_ack=False)
         poll(lambda: sum(order["state"] == "live" for order in self.ledger()["orders"]) == 8,
              description="normal maker quotes recover after terminal-before-create race")
         self.metrics["terminal_cancel_ack_before_create"] = True
