@@ -1602,5 +1602,233 @@
     "completed": true,
     "production_adopted": false,
     "controls": "Small native smoke ran during the final warmup minute; none during the 900s healthy window. Warmup minute-1..3 latency cluster predates that native run. No cause is assigned from timing alone."
+  },
+  "supervised_trace_first": {
+    "raw_result": "build/mm-process-isolation/20261029-190101-6f0c99/result.json",
+    "image_id": "sha256:58356746f389cab61db94d7a39114ae1853eb001ff75cdca3d50fc79ae6f6cd1",
+    "scope": "300s traced diagnostic. HTTP/load/fault timings valid; API loop-lag fields invalidated by a probe heartbeat race. No causal attribution or release acceptance.",
+    "healthy": {
+      "read_p95_ms": 98.32683499553241,
+      "read_p99_ms": 433.69771899597254,
+      "unexpected_errors": 0,
+      "violations": [],
+      "auxiliary": {
+        "requested_reads": 1500,
+        "completed_reads": 1500,
+        "statuses": {
+          "200": 1500
+        },
+        "read_p95_ms": 101.1749289900763,
+        "read_p99_ms": 299.52172200137284
+      },
+      "schedule_lag_p95_ms": 6.355533987516537
+    },
+    "api_full_gc_duration_ms": [
+      469.143292,
+      524.382375,
+      409.076833,
+      500.402875,
+      360.183834,
+      449.901959,
+      447.822834,
+      294.637917,
+      347.759334,
+      529.338375,
+      286.053292
+    ],
+    "selected_requests": [
+      {
+        "path": "/statistics/daily",
+        "request_id": "1f39a4ee4004-877",
+        "total_ms": 1443.215267,
+        "queue_wait_ms": 4.691808,
+        "network_and_body_ms": 1438.523459,
+        "overlapping_API_GC_ms": 524.382375
+      },
+      {
+        "path": "/statistics/daily",
+        "request_id": "1f39a4ee4004-893",
+        "total_ms": 894.6656,
+        "queue_wait_ms": 2.613641,
+        "network_and_body_ms": 892.051959,
+        "overlapping_API_GC_ms": 524.382375
+      },
+      {
+        "path": "/statistics/daily",
+        "request_id": "1f39a4ee4004-7477",
+        "total_ms": 828.637387,
+        "queue_wait_ms": 2.808595,
+        "network_and_body_ms": 825.828792,
+        "overlapping_API_GC_ms": 0.0
+      },
+      {
+        "path": "/statistics/daily",
+        "request_id": "1f39a4ee4004-6075",
+        "total_ms": 733.717736,
+        "queue_wait_ms": 3.773485,
+        "network_and_body_ms": 729.944251,
+        "overlapping_API_GC_ms": 0.0
+      },
+      {
+        "path": "/orders?limit=500",
+        "request_id": "1f39a4ee4004-898",
+        "total_ms": 641.831642,
+        "queue_wait_ms": 1.87235,
+        "network_and_body_ms": 639.959292,
+        "overlapping_API_GC_ms": 524.382375
+      }
+    ],
+    "invalidated_loop_lag_samples": 9,
+    "loop_lag_defect": "Heartbeat could change between threshold check and event serialization. Red test deliberately delays stack sampling; freeze one beat timestamp per sample. 28 selected tests Green. This is test-only instrumentation, not a runtime/latency fix.",
+    "diagnostic_database_connections": 1,
+    "trace_limits": "Existing bounded 128 MiB stream/2048-record queue; initial API killed during the fault suite, so no complete initial API writer-loss summary survives. GC timestamps and independent client times do not depend on the faulty lag subtraction.",
+    "client_trace_summary": {
+      "sink": {
+        "written_records": 1555,
+        "written_bytes": 691721,
+        "dropped_records": 0,
+        "writer_cpu_ms": 179.05767900000012,
+        "queue_depth": 0,
+        "max_bytes": 134217728,
+        "writer_alive": false
+      },
+      "database_sampler": {
+        "samples": 1184,
+        "errors": 0,
+        "thread_cpu_ms": 1109.433349
+      }
+    },
+    "production_adopted": false
+  },
+  "supervised_trace_corrected": {
+    "raw_result": "build/mm-process-isolation/20261029-191235-e686fd/result.json",
+    "image_id": "sha256:58356746f389cab61db94d7a39114ae1853eb001ff75cdca3d50fc79ae6f6cd1",
+    "fixture_sha256": {
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "supervisor.py": "0e7488d17a052652e3dfb5dfeba8827b173dd771d9a30708c1e480a2252263f8",
+      "exchange.py": "f3ac806b7e5eab43581a40429d25f133d5e4573f1181d7da9a8ff523cf54a490",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "0e7488d17a052652e3dfb5dfeba8827b173dd771d9a30708c1e480a2252263f8",
+      "runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30",
+      "restarted.py": "d7a036f9e27bc98ec814cf31595f9a2cf46981fb17530d07c4467584a4901441",
+      "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+      "engine.py": "6621cd5fcc98184bd028a7f07794cd44bec5c8f5bef21d6e25794a2da36ce2d9",
+      "load_trace.py": "333d3e3d55af42e7ea4540420d9dbb1717d1cfd7c0d500d8ab7e1a0cb2135fda",
+      "admin.py": "919c0bdbb2d365e98334fad7c9da93746742a5165ef7dc1b208d9fa04ca4a46f",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "lifecycle.py": "b5d7d5635291967ecb8b9c2baa165187636c44ad953cdf93b40da29e2135330d",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "stall_client.py": "37f891a6f66bca21b812811ba17a6408ebf0e81c1b20ed3ad560159e74847a0e",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "loop_probe.py": "c7f822f1a800af755d036dfb9fb70b3e5512d4f88689373c497a2576c5730423",
+      "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_client.py": "13f2b5379953068b18fa785481c2f73ddf11f785f37f2eb4663431121ad5129e"
+    },
+    "scope": "Corrected-probe 300s diagnostic only. Pass does not erase failed preceding 300s/900s untraced windows or close release/continuous-hour acceptance.",
+    "healthy": {
+      "read_p95_ms": 54.10579199087806,
+      "read_p99_ms": 358.0890849989373,
+      "unexpected_errors": 0,
+      "violations": [],
+      "auxiliary": {
+        "requested_reads": 1500,
+        "completed_reads": 1500,
+        "statuses": {
+          "200": 1500
+        },
+        "read_p95_ms": 44.91334198974073,
+        "read_p99_ms": 133.4903840033803
+      },
+      "schedule_lag_p95_ms": 6.26110598386731
+    },
+    "initial_api_gc_duration_ms": [
+      331.390001,
+      123.468917,
+      279.148958,
+      206.526292,
+      107.894167,
+      293.084584,
+      421.114917,
+      256.039333,
+      259.007625,
+      173.869208,
+      181.327167
+    ],
+    "initial_api_loop_lag": {
+      "samples": 7,
+      "invalid": 0,
+      "minimum_ms": 202.231625,
+      "maximum_ms": 470.908625
+    },
+    "api_restarts": [
+      {
+        "fault": "crash",
+        "recovery_seconds": 8.91035508387722,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_remain": true
+      },
+      {
+        "fault": "repeated_crash",
+        "recovery_seconds": 7.565510999877006,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_remain": true
+      },
+      {
+        "fault": "unresponsive_loop",
+        "recovery_seconds": 28.66549754119478,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_remain": true
+      }
+    ],
+    "engine_restarts": [
+      {
+        "fault": "active_engine_crash",
+        "recovery_seconds": 8.318769667064771,
+        "old_process_absent": true,
+        "api_identity_preserved": true,
+        "owner_generation_advanced": true,
+        "halt_preserved": true,
+        "no_additional_orders": true,
+        "positions_preserved": true
+      },
+      {
+        "fault": "halted_engine_unresponsive_loop",
+        "recovery_seconds": 29.888547708047554,
+        "old_process_absent": true,
+        "api_identity_preserved": true,
+        "owner_generation_advanced": true,
+        "halt_preserved": true,
+        "no_additional_orders": true,
+        "positions_preserved": true
+      }
+    ],
+    "parent_shutdown_seconds": 1.8753661669325083,
+    "completed": true,
+    "diagnostic_database_connections": 1,
+    "client_trace_summary": {
+      "sink": {
+        "written_records": 1350,
+        "written_bytes": 569321,
+        "dropped_records": 0,
+        "writer_cpu_ms": 121.1353709999999,
+        "queue_depth": 0,
+        "max_bytes": 134217728,
+        "writer_alive": false
+      },
+      "database_sampler": {
+        "samples": 1183,
+        "errors": 0,
+        "thread_cpu_ms": 750.933665
+      }
+    },
+    "production_adopted": false,
+    "decision": "Independent recovery proven in these local faults. Do not promote until healthy latency is repeatably within budget and final architecture passes lifecycle/continuous-hour memory/image gates. No RAM rejection criterion, no GC-policy change, no unique original p99 attribution."
   }
 }

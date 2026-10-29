@@ -35,16 +35,17 @@ def attach(app):
     def watchdog(loop_thread):
         previous = 0
         while not stopping.wait(.1):
+            last_beat = beat
             now = time.monotonic_ns()
-            if now - beat < 200000000 or now - previous < 100000000:
+            if now - last_beat < 200000000 or now - previous < 100000000:
                 continue
             previous = now
             # Retain only frame summaries; raw frames can keep request objects alive.
             stacks = {str(tid): stack_snapshot(frame) for tid, frame in sys._current_frames().items()}
             cpu = Path('/sys/fs/cgroup/cpu.stat')
             sink.emit(dict(kind='api_loop_stall', at=time.time(), at_ns=now,
-                           last_beat_ns=beat, loop_thread_id=loop_thread,
-                           lag_ms=(now - beat) / 1e6,
+                           last_beat_ns=last_beat, loop_thread_id=loop_thread,
+                           lag_ms=(now - last_beat) / 1e6,
                            stacks=stacks,
                            cgroup_cpu=cpu.read_text() if cpu.is_file() else None))
 

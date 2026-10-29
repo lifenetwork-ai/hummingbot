@@ -219,3 +219,52 @@ python scripts/test_mm_process_isolation.py --image hummingbot-cloudrun:reportin
 python scripts/test_mm_process_isolation.py --image hummingbot-cloudrun:reporting-final --mode split --supervision restart --cpus 2 --warmup-seconds 300 --duration 900
 python scripts/test_mm_process_isolation.py --image hummingbot-cloudrun:reporting-final --mode split --supervision restart --cpus 2 --duration 300 --trace
 ```
+
+## First traced follow-up and measurement correction
+
+The next 300s traced window passes p95/p99 **98.33/433.70ms**, zero errors;
+all crash/hang checks also pass. This does not erase the preceding 300s/900s
+latency failures. The long cluster was not reproduced in this short window.
+The optional existing client/DB sampler uses one additional diagnostic DB
+connection; this is not an unchanged no-trace resource comparison.
+
+API generation-2 collections take roughly **286..529ms**. The slowest selected
+request, a 1443.22ms daily read, overlaps 524.38ms of API GC; other selected
+daily reads overlap none. Temporal overlap alone does not assign the remaining
+latency or establish GC as the cause of the original multi-second cluster.
+No GC threshold/freeze/disable policy is changed.
+
+The new probe itself had a heartbeat snapshot race: the loop could update its
+beat after the threshold check and before event serialization, producing a
+negative lag. Those loop-lag samples are invalidated. A deterministic Red test
+delays stack sampling to reproduce it; Green snapshots one beat timestamp for
+the whole sample. Twenty-eight selected tests pass. Independent client timing
+and GC duration records remain usable; the faulty loop-lag values are not used
+for attribution. Raw run:
+`build/mm-process-isolation/20261029-190101-6f0c99/result.json`.
+
+The corrected-probe 300s rerun passes **54.11/358.09ms p95/p99**, zero errors,
+and repeats all crash/hang checks successfully. Seven initial API loop-stall
+samples are valid (none below the 200ms threshold), maximum **470.91ms**. Raw:
+`build/mm-process-isolation/20261029-191235-e686fd/result.json`. Production
+adoption, stable healthy latency and a continuous-hour memory/final-image gate
+remain open. Recovery
+requires an operator for unresolved exchange effects; this phase does not add
+a HALT-reset endpoint or promise automatic trading resumption after a crash.
+
+## Decision after this phase
+
+Keep the production entrypoint unchanged for now. The supervised two-process
+prototype meets the tested failure-containment/restart invariants and shows no
+sustained retention growth in the twenty-sample diagnostic. Extra memory is
+acceptable. It is **healthy latency variability**, not RAM, that prevents
+promotion: the unchanged 300s/900s windows still fail, despite two passing
+shorter traced follow-ups. The historical p99 trigger and the million-fill SQL
+cost are not declared fixed.
+
+Before adoption, finish stable healthy latency and continuous-hour retention
+checks, production port/pool configuration and structured child-boundary errors,
+startup interruption and final-image lifecycle/E2E/load gates. Do not copy the
+test-only fixed-port wrappers into deployment as-is. The current operator flow
+still requires technical review for unresolved-effect HALT; restarting a child
+or issuing observational reconciliation does not grant trading authority.

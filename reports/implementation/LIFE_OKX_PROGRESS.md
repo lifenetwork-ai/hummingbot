@@ -1518,3 +1518,17 @@ See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-
   memory/final-image gates remain open. Persistent Demo remains stopped.
 
 See [process experiment](../mm-process-isolation-experiment.md).
+
+## Process-trace measurement follow-up (2026-10-29)
+
+- [x] 300s first trace p99 433.70ms, zero errors; preceding untraced warm/mixed
+  failures retained. Partial API-GC overlap does not prove the historical cause.
+- [x] Red/Green: heartbeat could advance between threshold and serialization,
+  causing invalid negative lag. Snapshot once; 28 selected tests pass.
+- [x] Corrected 300s trace p99 358.09ms, zero errors, seven valid initial API
+  loop samples; all recovery fault checks pass again. No GC/pool policy change.
+- [ ] Production promotion, stable healthy latency, continuous-hour memory and
+  final architecture/image gates remain open. RAM is not the rejection reason.
+
+No auto-reset HALT or operator Resume endpoint is implemented. Persistent Demo
+remains stopped on its original image; no Cloud Run deployment.

@@ -40,10 +40,15 @@ pool expansion, relaxed deadlines or API edits to YAML.
   SQL/pool, loop/GC and per-request timing. Probe passes; queue/pool expansion or
   a scheduler fix is not justified. Retain historical attribution uncertainty.
   Longer final-image gates below remain required; no short-probe substitution.
-- [ ] Verify regression, real PostgreSQL, schema and final image. Repeat the
-  unchanged load gates and production-entrypoint control. Preserve failed runs;
-  stale fallback must not turn a degraded healthy load into a false pass.
-- [ ] Publish measured results under reports/, update checklists and commit.
+- [x] Verify corrected cache image `58356746…`: 1,940 native tests plus eleven
+  subtests, 259 real PostgreSQL tests, Swagger/runtime/source checks and all
+  sixteen offline E2E scenario groups, including compatible upgrade/rollback.
+- [ ] Repeat unchanged load gates and production-entrypoint control on the
+  final selected architecture/artifact. Preserve failed runs; stale fallback
+  must not turn a degraded healthy load into a false pass. Deferred while the
+  requested supervision candidate is evaluated, not waived.
+- [x] Publish measured outcomes to date under reports/, update checklists and
+  commit verified phases. Remaining acceptance is explicitly left open.
 
 ## Availability follow-up: single-service supervision
 
@@ -62,10 +67,15 @@ whole-container failure policy still require work. Keep one Cloud Run service.
   API recovery preserves engine ownership, session identity and live orders;
   engine recovery never resets HALT, resends uncertain orders or creates a
   second owner. Preserve genuine failed cases.
-- [ ] Compare adequately warmed healthy latency and long-running memory on the
-  final architecture candidate. Extra memory is acceptable; unbounded growth,
-  hidden degradation and relaxed load budgets are not. Adopt only after these
-  results and final-image lifecycle/load checks support it.
+- [x] Compare 300s warmup / 900s supervised healthy load. Both fail latency;
+  retain failures. Twenty memory samples show bounded-window stability only.
+- [x] Trace follow-ups: 300s p99 433.70ms / corrected-probe 358.09ms, zero errors.
+  Red/Green fixes a test-only heartbeat measurement race; 28 selected tests pass.
+  GC/request overlap is partial and does not uniquely attribute the old spike.
+- [ ] Establish repeatable healthy latency and continuous-hour memory on the
+  final candidate; finish production port/pool/child-error/startup integration
+  and final-image lifecycle/load checks before adoption. Extra RAM acceptable;
+  unbounded growth, hidden degradation and relaxed budgets are not.
 
 Process recovery does not authorize trading recovery. Current operator HALT
 recovery still requires technical review; no reset/resume API is implemented.
