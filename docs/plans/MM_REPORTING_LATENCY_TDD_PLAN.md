@@ -45,6 +45,31 @@ pool expansion, relaxed deadlines or API edits to YAML.
   stale fallback must not turn a degraded healthy load into a false pass.
 - [ ] Publish measured results under reports/, update checklists and commit.
 
+## Availability follow-up: single-service supervision
+
+Operator clarification: extra RAM is acceptable. Prioritize responsiveness,
+bounded long-running retention and automatic process recovery. The earlier
+process experiment is not rejected for memory use; its healthy latency and
+whole-container failure policy still require work. Keep one Cloud Run service.
+
+- [x] R4 Red/Green: independently restart a failed API child without interrupting
+  the engine; physically reap a failed engine before restarting it through the
+  existing ownership/reconciliation path. Bound retry state and use capped
+  backoff. Shutdown must disable restarts and terminate/reap both children within
+  the platform budget. Detect sustained unresponsive loops without treating a
+  normal guard wait or HALT as a process failure.
+- [x] Exercise real child crashes/hangs with isolated PostgreSQL/fake OKX. Verify
+  API recovery preserves engine ownership, session identity and live orders;
+  engine recovery never resets HALT, resends uncertain orders or creates a
+  second owner. Preserve genuine failed cases.
+- [ ] Compare adequately warmed healthy latency and long-running memory on the
+  final architecture candidate. Extra memory is acceptable; unbounded growth,
+  hidden degradation and relaxed load budgets are not. Adopt only after these
+  results and final-image lifecycle/load checks support it.
+
+Process recovery does not authorize trading recovery. Current operator HALT
+recovery still requires technical review; no reset/resume API is implemented.
+
 Real local Demo remains stopped. Load tests use isolated fake exchanges/DBs.
 The [investigation](../../reports/mm-p99-investigation.md) retains its original
 image scope; no single historical p99 trigger is assumed.

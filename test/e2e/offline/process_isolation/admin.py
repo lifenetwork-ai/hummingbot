@@ -28,12 +28,20 @@ async def main():
     host = SimpleNamespace(store=None, revision=os.environ.get('K_REVISION', 'architecture-experiment'))
     admin = AdminSettings.from_environment()
     app = web.Application(middlewares=[admin_middleware(admin)])
+    if os.environ.get('HBOT_LOAD_TRACE_DIRECTORY'):
+        from loop_probe import attach
+        attach(app)
     ready = False
     engine = None
     async with ClientSession(timeout=ClientTimeout(total=.3)) as client:
         async def health(request):
             if not ready:
                 return web.json_response({'state': 'api_initializing'}, status=503)
+            if request.path == '/live' and os.environ.get('ARCH_EXPERIMENT_SUPERVISION') == 'restart':
+                # The supervisor probes/restarts the engine independently. A
+                # recovering engine must not force an otherwise healthy API
+                # (and therefore the whole Cloud Run container) to restart.
+                return web.json_response({'state': 'api_running'})
             try:
                 async with client.get('http://127.0.0.1:8081' + request.path) as response:
                     return web.json_response(await response.json(), status=response.status)

@@ -1497,3 +1497,24 @@ See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-
   explicit superseded annotation. No incomplete window is counted as acceptance.
 - [ ] Rebuild/reverify the corrected final artifact; previous 90490bab results
   remain image-specific. Real Demo stays stopped and unchanged.
+
+- [x] Corrected image `58356746…`: 1,940 native tests plus eleven subtests,
+  Swagger check, 259 PostgreSQL tests, runtime smoke and packaged-source checks
+  pass. Runtime package manifest unchanged.
+- [ ] Corrected artifact E2E/control/full all-profile load; no historical-image
+  result substitutes for this verification.
+
+## Single-service supervision follow-up (2026-10-29)
+
+- [x] Clarify priority: additional RAM acceptable; healthy latency, bounded
+  retention and process recovery drive the architecture decision.
+- [x] Red/Green for independent restart/reaping/backoff/watchdog/shutdown,
+  including stop arriving during launch; 28 selected tests pass.
+- [x] Real API/engine crash and hang faults pass twice, retaining owner/session
+  and positions, preserving HALT without extra orders after engine death.
+- [x] Record failed 300s/900s healthy windows rather than accept a 30s pass.
+  Healthy p99 1754.99ms; memory samples show no sustained growth in this window.
+- [ ] Trace the intermittent latency; production adoption and the hour-long
+  memory/final-image gates remain open. Persistent Demo remains stopped.
+
+See [process experiment](../mm-process-isolation-experiment.md).

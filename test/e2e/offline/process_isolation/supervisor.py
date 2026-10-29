@@ -7,6 +7,10 @@ import sys
 import time
 from pathlib import Path
 
+if os.environ.get('ARCH_EXPERIMENT_SUPERVISION') == 'restart':
+    from restarted import run
+    sys.exit(run())
+
 children = []
 stopping = False
 
