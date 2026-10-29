@@ -75,6 +75,7 @@ class AdminService:
 
 
 async def run_admin_service(settings, *, engine_port):
+    from hummingbot.cli.api_gc import prepare_api_gc
     from hummingbot.cli.service import ShutdownDeadline
     from hummingbot.cli.service_processes import failure_exit_code, failure_reason
     from hummingbot.logger.service_logging import configure_service_logging
@@ -84,6 +85,7 @@ async def run_admin_service(settings, *, engine_port):
     host = None
     try:
         configure_service_logging()
+        prepare_api_gc()
         host = AdminService(settings, engine_port=engine_port, stop=stop)
         await host.run()
         return 0

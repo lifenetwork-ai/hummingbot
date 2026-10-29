@@ -1680,3 +1680,26 @@ full replay; original timeout/HALT policy stays unchanged. Actual-role faults
 no extra orders, engine-only DDL, clean 1.65s parent shutdown). Mark replacement
 image/regression/E2E/lifecycle done, then start the unchanged all-feature load/hour
 and ordinary-entrypoint control alone. Those last acceptance boxes remain open.
+
+Verified replacement phase committed as `6b6372bea`. The unchanged all-feature
+all-profile run is `20261030-040040-b6f2b7`, image `80a34c69…`, two CPUs/2GiB,
+pool5 and daily TTL15. It runs alone without tracing/keep-going or diagnostic
+shortening. All-load/hour-memory/fault acceptance and the matched ordinary
+entrypoint control are still in progress/pending, not checked done.
+
+All-load `20261030-040040-b6f2b7` remains FAILED. Warm300 passes p95/p99
+118.34/571.79ms; mixed900 passes 126.18/766.19ms; both have zero API errors.
+Burst90 has zero errors and a verified 509.81/s ten-second feed, but primary p99
+1152.93ms / auxiliary1120.29ms exceed unchanged thresholds. Soak/fault/control do
+not start. Engine stays running; memory peak691.08MiB, no role restart. API full
+GC1032.59ms (973.09ms thread CPU) co-occurs with loop1079.86ms and worker queue
+1127.74ms. Investigate measurement imports/GC causally before changing runtime;
+do not attribute historical failures or relax gates from this observation.
+
+R7 candidate: API startup-GC boundary only, normal later GC/thresholds preserved,
+engine untouched; 62 focused pass including 5,000 reclaimed later cycles. Static
+ordinary API graph 269.6k versus wrapper 277.6k objects measured separately. Short
+untraced burst A/B passes old p95/p99 224.63/539.08ms and overlay76.17/455.47ms,
+zero errors. Both traced cases remain failed (including one timeout in candidate)
+and do not prove global latency improvement. Keep candidate provisional; require
+real build/full native/PG/E2E/lifecycle then unchanged all-load/hour/control.

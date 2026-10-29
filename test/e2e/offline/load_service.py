@@ -265,6 +265,8 @@ async def probe(host):
                     name, amount, _ = line.split()
                     fields[name.rstrip(":")] = int(amount) * 1024
             data = dict(at=time.time(), memory=fields, process_role=process_role, process_id=os.getpid(),
+                        gc_policy=dict(enabled=gc.isenabled(), thresholds=gc.get_threshold(),
+                                       permanent_objects=gc.get_freeze_count()),
                         distributions={key: distribution(values) for key, values in list(samples.items())},
                         runtime_phase=host.phase, runtime_running=getattr(host, 'running', False),
                         spot_outflow_fill_count=(getattr(getattr(host, 'observations', None), 'outflow', None) or {}).get("fill_count"),

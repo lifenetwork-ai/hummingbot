@@ -1,5 +1,5 @@
 {
-  "status": "final_replacement_load_and_control_pending",
+  "status": "api_startup_gc_candidate_full_verification_pending",
   "cloud_run_deployed": false,
   "persistent_demo_replaced": false,
   "image": {
@@ -214,8 +214,44 @@
     "shared_default_daily_ttl_seconds": 5
   },
   "load": {
-    "status": "pending",
-    "runtime_image_id": "sha256:80a34c69a87251236cccf005f7a78502ecbbc0a5d7252cb16487f723760af99f"
+    "status": "failed_burst_p99",
+    "runtime_image_id": "sha256:80a34c69a87251236cccf005f7a78502ecbbc0a5d7252cb16487f723760af99f",
+    "report": "build/mm-load/20261030-040040-b6f2b7/result.json",
+    "log": "build/service-supervision/terminal-checkpoint-all-load.log",
+    "passed": false,
+    "completed_windows": {
+      "warmup": {
+        "read_p95_ms": 118.34199697477743,
+        "read_p99_ms": 571.7920319875702,
+        "unexpected_errors": 0,
+        "violations": []
+      },
+      "mixed": {
+        "read_p95_ms": 126.1762919893954,
+        "read_p99_ms": 766.1899520026054,
+        "unexpected_errors": 0,
+        "violations": []
+      },
+      "bursts": {
+        "read_p95_ms": 459.1753279964905,
+        "read_p99_ms": 1152.92874496663,
+        "unexpected_errors": 0,
+        "violations": [
+          "auxiliary_read_p99",
+          "read_p99"
+        ]
+      }
+    },
+    "failure": "Declared load budgets failed: auxiliary_read_p99, read_p99",
+    "soak_started": false,
+    "gc_observation": {
+      "role": "api",
+      "full_gc_wall_ms": 1032.592709,
+      "full_gc_thread_cpu_ms": 973.09091,
+      "worker_queue_max_ms": 1127.739917,
+      "api_loop_lag_max_ms": 1079.8640531720594,
+      "scope": "Co-occurring signals in this run; causal import/GC experiment pending; not unique attribution of historical p99."
+    }
   },
   "production_control": {
     "status": "pending"
@@ -751,5 +787,329 @@
       "applied_script_count": 51,
       "api_restarts_do_not_migrate": true
     }
+  },
+  "api_startup_gc": {
+    "status": "Candidate only; release build/full gates required",
+    "shipping_runtime_changed": true,
+    "runtime_source_files": [
+      "hummingbot/cli/api_gc.py",
+      "hummingbot/cli/admin_service.py"
+    ],
+    "scope": "One preparation before API host/pools/workers; import garbage collected then startup graph frozen once. Automatic later GC/thresholds unchanged. Engine/parent not frozen.",
+    "tests": {
+      "focused_passed": 62,
+      "runtime_cycles_reclaimed": 5000,
+      "behavior_red": "build/service-supervision/api-gc-boundary-behavior-red.log"
+    },
+    "static_gc_probe": {
+      "ordinary_api": {
+        "scope": "Static import heap only; no DB, exchange, traffic or GC production-policy change",
+        "case": "ordinary_api",
+        "before": {
+          "tracked_objects": 269603,
+          "runs": [
+            {
+              "wall_ms": 93.43075001379475,
+              "cpu_ms": 93.32495800000018,
+              "collected": 0
+            },
+            {
+              "wall_ms": 112.64849998406135,
+              "cpu_ms": 112.74866699999997,
+              "collected": 0
+            },
+            {
+              "wall_ms": 91.72041699639522,
+              "cpu_ms": 91.72812500000038,
+              "collected": 0
+            },
+            {
+              "wall_ms": 90.4849169892259,
+              "cpu_ms": 90.46466499999983,
+              "collected": 0
+            },
+            {
+              "wall_ms": 91.1053330055438,
+              "cpu_ms": 91.09145799999929,
+              "collected": 0
+            }
+          ],
+          "median_ms": 91.72041699639522
+        },
+        "extra_modules": [],
+        "frozen_objects": 269607,
+        "after_diagnostic_freeze": {
+          "tracked_objects": 0,
+          "runs": [
+            {
+              "wall_ms": 0.009584007784724236,
+              "cpu_ms": 0.008625000000428429,
+              "collected": 0
+            },
+            {
+              "wall_ms": 0.0019170111045241356,
+              "cpu_ms": 0.0015839999996103415,
+              "collected": 0
+            },
+            {
+              "wall_ms": 0.0009580107871443033,
+              "cpu_ms": 0.001000000000139778,
+              "collected": 0
+            },
+            {
+              "wall_ms": 0.0009170034900307655,
+              "cpu_ms": 0.0009579999993292176,
+              "collected": 0
+            },
+            {
+              "wall_ms": 0.0009170034900307655,
+              "cpu_ms": 0.0009579999993292176,
+              "collected": 0
+            }
+          ],
+          "median_ms": 0.0009580107871443033
+        }
+      },
+      "instrumented_imports": {
+        "scope": "Static import heap only; no DB, exchange, traffic or GC production-policy change",
+        "case": "instrumented_imports",
+        "before": {
+          "tracked_objects": 277563,
+          "runs": [
+            {
+              "wall_ms": 97.55991701968014,
+              "cpu_ms": 96.34587399999984,
+              "collected": 0
+            },
+            {
+              "wall_ms": 227.14583299239166,
+              "cpu_ms": 227.64795800000036,
+              "collected": 0
+            },
+            {
+              "wall_ms": 195.2285830047913,
+              "cpu_ms": 195.13854000000032,
+              "collected": 0
+            },
+            {
+              "wall_ms": 114.6834579994902,
+              "cpu_ms": 114.65591600000025,
+              "collected": 0
+            },
+            {
+              "wall_ms": 115.4827089922037,
+              "cpu_ms": 115.45595800000008,
+              "collected": 0
+            }
+          ],
+          "median_ms": 115.4827089922037
+        },
+        "extra_modules": [
+          "aiomqtt",
+          "aiomqtt.client",
+          "aiomqtt.exceptions",
+          "aiomqtt.message",
+          "aiomqtt.topic",
+          "aiomqtt.types",
+          "hummingbot.connector.client_order_tracker",
+          "hummingbot.connector.derivative.okx_perpetual.okx_perpetual_api_order_book_data_source",
+          "hummingbot.connector.derivative.okx_perpetual.okx_perpetual_web_utils",
+          "hummingbot.connector.exchange.okx.okx_api_order_book_data_source",
+          "hummingbot.connector.exchange.okx.okx_web_utils",
+          "hummingbot.connector.gateway.gateway",
+          "hummingbot.connector.gateway.gateway_base",
+          "hummingbot.connector.markets_recorder",
+          "hummingbot.core.data_type.perpetual_api_order_book_data_source",
+          "hummingbot.core.spot_outflow_guard",
+          "hummingbot.exceptions",
+          "hummingbot.model.controllers",
+          "hummingbot.model.executors",
+          "hummingbot.model.funding_payment",
+          "hummingbot.model.market_data",
+          "hummingbot.model.market_state",
+          "hummingbot.model.position",
+          "hummingbot.model.range_position_update",
+          "hummingbot.notifier",
+          "hummingbot.notifier.notifier_base",
+          "hummingbot.remote_iface",
+          "hummingbot.remote_iface.messages",
+          "hummingbot.remote_iface.mqtt",
+          "hummingbot.strategy.strategy_v2_base",
+          "hummingbot.strategy_v2.executors.arbitrage_executor.arbitrage_executor",
+          "hummingbot.strategy_v2.executors.dca_executor.dca_executor",
+          "hummingbot.strategy_v2.executors.executor_base",
+          "hummingbot.strategy_v2.executors.executor_orchestrator",
+          "hummingbot.strategy_v2.executors.gateway_utils",
+          "hummingbot.strategy_v2.executors.grid_executor.grid_executor",
+          "hummingbot.strategy_v2.executors.lp_executor.lp_executor",
+          "hummingbot.strategy_v2.executors.order_executor.order_executor",
+          "hummingbot.strategy_v2.executors.position_executor.position_executor",
+          "hummingbot.strategy_v2.executors.twap_executor.twap_executor",
+          "hummingbot.strategy_v2.executors.xemm_executor.xemm_executor",
+          "hummingbot.strategy_v2.utils.distributions",
+          "paho",
+          "paho.mqtt",
+          "paho.mqtt.client",
+          "paho.mqtt.enums",
+          "paho.mqtt.matcher",
+          "paho.mqtt.packettypes",
+          "paho.mqtt.properties",
+          "paho.mqtt.reasoncodes",
+          "paho.mqtt.subscribeoptions"
+        ],
+        "frozen_objects": 277551,
+        "after_diagnostic_freeze": {
+          "tracked_objects": 0,
+          "runs": [
+            {
+              "wall_ms": 0.007916009053587914,
+              "cpu_ms": 0.006374999999891884,
+              "collected": 0
+            },
+            {
+              "wall_ms": 0.0017499842215329409,
+              "cpu_ms": 0.0015410000004933977,
+              "collected": 0
+            },
+            {
+              "wall_ms": 0.0009159848559647799,
+              "cpu_ms": 0.0009579999993292176,
+              "collected": 0
+            },
+            {
+              "wall_ms": 0.0008750066626816988,
+              "cpu_ms": 0.000958999999411958,
+              "collected": 0
+            },
+            {
+              "wall_ms": 0.0009170034900307655,
+              "cpu_ms": 0.0010829999999018014,
+              "collected": 0
+            }
+          ],
+          "median_ms": 0.0009170034900307655
+        }
+      }
+    },
+    "diagnostic_runs": {
+      "before_trace": {
+        "report": "build/mm-load/20261030-043228-f6b19a/result.json",
+        "diagnostic": true,
+        "image_id": "sha256:80a34c69a87251236cccf005f7a78502ecbbc0a5d7252cb16487f723760af99f",
+        "passed": false,
+        "read_p95_ms": 1572.3559689940885,
+        "read_p99_ms": 2030.7246329903137,
+        "errors": 0,
+        "violations": [
+          "auxiliary_read_p95",
+          "auxiliary_read_p99",
+          "read_p95",
+          "read_p99"
+        ],
+        "api_full_gc_max_ms": 634.83725,
+        "api_gc_policy": null,
+        "engine_gc_policy": null
+      },
+      "after_trace": {
+        "report": "build/mm-load/20261030-043648-09960c/result.json",
+        "diagnostic": true,
+        "image_id": "sha256:965b44a4e1242bf8b0fe25a58fb7fdfdd8c50d90085d2412f6b4c1de295967fb",
+        "passed": false,
+        "read_p95_ms": 4048.128677997738,
+        "read_p99_ms": 5645.062176976353,
+        "errors": 1,
+        "violations": [
+          "errors",
+          "auxiliary_read_p95",
+          "auxiliary_read_p99",
+          "read_p95",
+          "read_p99",
+          "command_accept_p99_ms"
+        ],
+        "api_full_gc_max_ms": 16.115667,
+        "api_gc_policy": {
+          "enabled": true,
+          "thresholds": [
+            2000,
+            10,
+            10
+          ],
+          "permanent_objects": 277866
+        },
+        "engine_gc_policy": {
+          "enabled": true,
+          "thresholds": [
+            2000,
+            10,
+            10
+          ],
+          "permanent_objects": 0
+        }
+      },
+      "before_untraced": {
+        "report": "build/mm-load/20261030-044151-f365cd/result.json",
+        "diagnostic": true,
+        "image_id": "sha256:80a34c69a87251236cccf005f7a78502ecbbc0a5d7252cb16487f723760af99f",
+        "passed": true,
+        "read_p95_ms": 224.63401398272254,
+        "read_p99_ms": 539.0772079699673,
+        "errors": 0,
+        "violations": [],
+        "api_full_gc_max_ms": 400.63975,
+        "api_gc_policy": {
+          "enabled": true,
+          "thresholds": [
+            2000,
+            10,
+            10
+          ],
+          "permanent_objects": 0
+        },
+        "engine_gc_policy": {
+          "enabled": true,
+          "thresholds": [
+            2000,
+            10,
+            10
+          ],
+          "permanent_objects": 0
+        }
+      },
+      "after_untraced": {
+        "report": "build/mm-load/20261030-044604-bbec8c/result.json",
+        "diagnostic": true,
+        "image_id": "sha256:965b44a4e1242bf8b0fe25a58fb7fdfdd8c50d90085d2412f6b4c1de295967fb",
+        "passed": true,
+        "read_p95_ms": 76.16680100909434,
+        "read_p99_ms": 455.47430697479285,
+        "errors": 0,
+        "violations": [],
+        "api_full_gc_max_ms": 12.281584,
+        "api_gc_policy": {
+          "enabled": true,
+          "thresholds": [
+            2000,
+            10,
+            10
+          ],
+          "permanent_objects": 277780
+        },
+        "engine_gc_policy": {
+          "enabled": true,
+          "thresholds": [
+            2000,
+            10,
+            10
+          ],
+          "permanent_objects": 0
+        }
+      }
+    },
+    "limitations": [
+      "Short diagnostics are not full latency/hour adoption.",
+      "Trace results worsen despite smaller API GC; worker/SQL/client delays remain.",
+      "The first traced baseline overlaps brief native functional checks; no calibrated paired latency claim.",
+      "No unique historical p99 attribution."
+    ]
   }
 }

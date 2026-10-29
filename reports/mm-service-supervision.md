@@ -1,15 +1,11 @@
 # Single-service runtime supervision verification
 
-Status: the long load exposed a position-checkpoint race during random profile
-rollover. Its terminal-first fix passes native regression, full PostgreSQL and
-shipping-image Red/Green replay. Replacement image `80a34c69…` also passes role
-crash/hang checks and all sixteen E2E groups after correcting held-ACK fault
-isolation. Earlier failed runs are retained. Unchanged load/hour-memory/control gates
-remain required; adoption is not accepted.
-Local checks do not certify Cloud Run
-deployment. The real local Demo remains stopped on
-its existing image/database. The earlier [prototype measurements](mm-process-isolation-experiment.md)
-retain their original source/image scope; they are not acceptance of this change.
+Status: `80a34c69…` passes full regression/E2E/lifecycle but its retained
+all-load run fails burst p99 before soak. A small API-only startup-GC candidate
+passes focused safety tests and short untraced diagnostics; full build/regression
+and unchanged load/hour/control remain required. Adoption is not accepted.
+Persistent Demo remains stopped on its existing image/database; no deployment
+or actual OKX connectivity is certified by these local tests.
 
 Portable scoped results: [verification evidence](mm-service-supervision-evidence.json).
 
@@ -327,3 +323,48 @@ apply 51 scripts; API restarts apply none. Parent shutdown releases ownership
 in 1.65s. This is a functional result, not a latency comparison: it overlaps
 an isolated functional E2E job. The final unchanged load/hour/control gates now
 start alone with the declared two-CPU/2GiB/pool5/TTL15 policy.
+
+## Retained burst failure and API startup-GC candidate
+
+Final all-load `20261030-040040-b6f2b7` passes warm300 (p95/p99
+118.34/571.79ms) and mixed900 (126.18/766.19ms), zero HTTP errors. Burst90 fails
+primary/auxiliary p99 at 1152.93/1120.29ms, also with zero HTTP errors. Its actual
+10s feed reaches 509.81 updates/s. Soak/fault/control do not start. The API records
+a full-GC pause of 1032.59ms (973.09ms CPU), worker admission max1127.74ms and
+loop lag max1079.86ms. This overlap identifies a contributor to investigate, not
+a unique historical p99 cause. Memory peaks at 691.08MiB, engine remains running.
+
+An isolated same-image import experiment counts 269,603 tracked objects for
+ordinary API startup (median repeated hot GC91.72ms); adding wrapper trading
+imports gives277,563 (115.48ms). The wrapper's extra imports cannot be blamed for
+all GC cost. Diagnostic freeze excludes that fixed graph from later scans, but
+that static microbenchmark is not HTTP acceptance.
+
+The candidate uses CPython's existing `gc.collect`/`gc.freeze` once after required
+API imports and before constructing the host, DB/network resources or request
+workers. It does not disable automatic GC or change thresholds; engine/parent
+GC is unchanged. A guarded second invocation cannot freeze a later request graph.
+An isolated-process test reclaims 5,000 later cyclic objects; failed import cannot
+freeze partial startup. Startup-order and existing service tests give62 focused
+passes. Replaying the old non-frozen boundary fails its tracked-object assertion.
+
+Short same-policy untraced burst diagnostics, each in a fresh isolated environment:
+
+| Runtime | p95 / p99 (ms) | HTTP errors | API full-GC max |
+| --- | --- | --- | --- |
+| Original 80a… | 224.63 / 539.08 | 0 | See scoped JSON |
+| Candidate overlay 965b… | 76.17 / 455.47 | 0 | 12.28ms at minute sample |
+
+Both pass original budgets; these sequential short diagnostics do not guarantee
+a universal speedup or close the longer gate. Runtime GC remains enabled with
+thresholds 2000/10/10 in both roles; candidate API freezes about 278k startup
+objects and engine freezes zero. Raw cases `20261030-044151-f365cd` and
+`20261030-044604-bbec8c` retain complete metadata.
+
+Both traced diagnostics remain failed: original `20261030-043228-f6b19a`
+p99 2030.72ms; candidate `20261030-043648-09960c` p99 5645.06ms with one client
+timeout. Candidate API full-GC is at most 16.12ms, but SQL/worker/client/loop delays
+remain; tracing does not establish an overall latency fix. The first traced run
+also overlaps a brief native functional test, so it is not a calibrated paired
+comparison. The candidate remains provisional until a real Dockerfile build,
+full regression/E2E and unchanged untraced load/hour/control verification pass.

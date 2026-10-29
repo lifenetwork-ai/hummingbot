@@ -130,6 +130,32 @@ Real local Demo remains stopped. Load tests use isolated fake exchanges/DBs.
 The [investigation](../../reports/mm-p99-investigation.md) retains its original
 image scope; no single historical p99 trigger is assumed.
 
+## R7: bound API full-GC startup scanning after a retained burst failure
+
+- [x] Retain full load `20261030-040040-b6f2b7` as failed: warm300/mixed900
+  pass, burst90 primary/auxiliary p99 1152.93/1120.29ms exceed unchanged limits,
+  zero HTTP errors. API full-GC 1032.59ms co-occurs with loop/worker delays;
+  this does not uniquely attribute the historical failures. Hour/control stay open.
+- [x] Measure startup imports separately: ordinary API about 270k tracked
+  objects; wrapper imports add about 8k. Do not blame all GC time on wrapper
+  imports or change trading GC from this observation.
+- [x] Red/Green candidate: collect import garbage and exclude the API's fixed
+  startup graph from later full scans exactly once, before constructing its
+  host/DB/pools/request workers. Preserve automatic runtime GC and thresholds;
+  repeated preparation cannot freeze later request graphs. Test failed startup,
+  startup ordering and reclamation of 5,000 later cyclic objects in an isolated
+  process. Engine/parent GC and all trading/storage safety gates stay unchanged.
+- [x] Compare retained old/new image diagnostics, including a traced burst and
+  per-role GC policy counts, then repeat the untraced burst without lowering
+  budgets or omitting reads. Isolated static-GC timing is not HTTP acceptance.
+  Both untraced short bursts pass: old p95/p99224.63/539.08ms, candidate
+  76.17/455.47ms, zero errors. Both traced diagnostics fail and remain recorded;
+  lower API GC does not eliminate their other SQL/worker/client delays.
+- [ ] Build/fingerprint the selected replacement, complete native/real-PG,
+  runtime smoke, Swagger/full16 E2E and shipping-role lifecycle checks. Then
+  require the unchanged all-feature all-load/hour/fault gate and matched
+  ordinary-entrypoint control before closing R4/R6 adoption.
+
 ## R5: attribute the longer healthy latency failure
 
 - [x] Red/Green: allow the same 300s warmup / 900s healthy workload with tracing,
