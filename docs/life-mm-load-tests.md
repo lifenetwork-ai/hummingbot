@@ -15,6 +15,11 @@ Raw artifacts go under `build/mm-process-isolation/`; the
 [experiment report](../reports/mm-process-isolation-experiment.md) records its
 scope and unresolved limits.
 
+The ordinary runtime now supervises API and engine independently inside one
+container. Current integration evidence and open final gates are in
+[supervision verification](../reports/mm-service-supervision.md); the prototype
+experiment above does not replace actual shipping-role verification.
+
 Healthy load also checks daily-statistics freshness. HTTP 200 with an explicit
 `freshness: "stale"` counts as an unexpected error and fails the unchanged
 zero-error gate. Bounded reporting fallback is useful for operator UX, but does
@@ -48,7 +53,9 @@ one-second candles and explicit defense thresholds; production YAML is untouched
 python scripts/test_e2e_offline.py --scenario volatility-defense --trading-env demo
 make test-mm-load-defense MM_LOAD_PROFILE=probe
 # Full mixed/burst/sixty-minute/fault gates with the existing enhancements enabled:
-python scripts/test_mm_load.py --profile all --enhancements --volatility-defense --operations
+python scripts/test_mm_load.py --image YOUR_TESTED_IMAGE --profile all \
+  --enhancements --volatility-defense --operations --gc-diagnostics \
+  --cpus 2 --daily-cache-ttl-seconds 15
 ```
 
 The dedicated scenario covers partial fills, deliberately delayed cancellation,
@@ -130,8 +137,14 @@ changes. Explicit `--spot-outflow` enables explicit spending limits and binds
 the empty test DB before seeding yesterday's historical rows. It can be combined
 with `--drawdown --strict-guards`; it never bypasses the legacy-origin wait.
 
-The bot has 1 CPU and 2 GiB; PostgreSQL has 2 CPUs / 512 MiB; simulator and load
-client each have 1 CPU / 512 MiB. Swap limits equal memory limits. Record the host
+The current default bot policy is 2 CPUs and 2 GiB (`--cpus 1` remains available
+for explicit comparison); PostgreSQL has 2 CPUs / 512 MiB; simulator and load
+client each have 1 CPU / 512 MiB. The existing daily reporting cache is explicitly
+set to 15s by this harness; the shared application default remains 5s. Make also
+exposes `MM_LOAD_CPUS` and `MM_LOAD_DAILY_CACHE_TTL_SECONDS`. Earlier reports keep
+their original one-CPU/cache policies; do not attribute a difference between
+different policies solely to process separation. Total DB slots remain five:
+API two, engine three. Swap limits equal memory limits. Record the host
 architecture, amd64 emulation, immutable image identity, source/fixture hashes
 and effective YAML. Seed 100,000 closed orders and 100,000 fills from yesterday,
 using natural PostgreSQL NUMERIC units. Older recorded runs used the prior
@@ -177,13 +190,21 @@ monotonic counter observation interval, with one four-book batch permitted at
 the measurement boundary. A short diagnostic never replaces the full durations.
 
 Burst book backlog must return to its steady queue within 10 seconds. Peak bot
-RSS ≤1.5 GiB. Minute samples preserve CPU, RSS, loop lag, event age/backlog,
+memory ≤1.5 GiB. For supervised roles the aggregate uses cgroup current/peak,
+including page cache; separate per-role RSS avoids double-counting shared pages.
+Missing/stale role metrics cannot certify a window. Timing distributions use
+the maximum per-role quantile, not an exact pooled percentile. Minute samples
+preserve CPU, memory, loop lag, event age/backlog,
 recorder latency, query counts, pool checkout latency and PG connections/locks.
 Soak requires at least 55 minute samples. Comparing the first/last five samples,
 median RSS growth must be ≤64 MiB, book backlog ≤max(10, initial+4), and pool
 checkout p95 ≤max(20 ms, initial+5 ms). Pool timing includes pre-ping/checkout;
 it is not a pure server execution measurement. Existing bounded query-count
 checks remain: order pages ≤3 SQL statements, fills and cached performance ≤1.
+The supervised hour gate also requires stable PID for each of supervisor,
+engine and API; per-role median RSS growth ≤64 MiB, thread growth ≤4 and file
+descriptor growth ≤8. A deliberate recovery fault belongs in its separate
+classified window, not in the healthy hour.
 
 ## Opt-in causal diagnostics
 

@@ -7,6 +7,8 @@ deployment. The real local Demo remains stopped on
 its existing image/database. The earlier [prototype measurements](mm-process-isolation-experiment.md)
 retain their original source/image scope; they are not acceptance of this change.
 
+Portable scoped results: [verification evidence](mm-service-supervision-evidence.json).
+
 ## Runtime integration
 
 The ordinary foreground service now supervises two processes inside one

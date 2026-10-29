@@ -1,0 +1,242 @@
+{
+  "status": "load_and_control_pending",
+  "cloud_run_deployed": false,
+  "persistent_demo_replaced": false,
+  "image": {
+    "id": "sha256:f5e7ab3282688787876623d176f774370df3dba8ecbf8eb8ae9ca714ad2a3d25",
+    "manifest": "sha256:cee15b5a2644cb0ff27366ba27a784b7ee775f5987afe679a10163fb17f4c578",
+    "source_commit": "6de4001cde981bdea9666e53a6ca687c8c2de5bb",
+    "size_bytes": 1367426271,
+    "architecture": "amd64"
+  },
+  "runtime_sha256": {
+    "hummingbot/cli/service.py": "f856c5c14489148f5de08070f83cedb7050605065c1dc575e36bfabd703b2c72",
+    "hummingbot/cli/service_processes.py": "d5df25b2c18cbff5b023e50d86f516ea4f1ba6f2d6be652da58e17a3e06a1115",
+    "hummingbot/cli/process_supervision.py": "545385dc8a012e99e2a8097375c399ee55b737b8c306fb46c655e17497ea23b7",
+    "hummingbot/cli/admin_service.py": "7c146e2e6dfb7d3eef681509d3a23d2a2009fc98b10deb14a529efa9047d04a1",
+    "hummingbot/model/db_migration/postgres/runner.py": "92ed0371a96a5e321763288aa4d458d5f8196b42a6856ced6553cd8fd4593962"
+  },
+  "native": {
+    "passed": 2012,
+    "subtests": 11,
+    "log": "build/service-supervision/native-idle-fix-regression.log",
+    "later_harness_focused_passed": 29
+  },
+  "postgres": {
+    "full_run_passed": 257,
+    "full_run_failed": 2,
+    "corrected_lifecycle_group_passed": 3,
+    "after_signal_fix_lifecycle_group_passed": 3,
+    "distinct_test_coverage": 259,
+    "note": "Full-run helper argument failures retained; targeted real API/service/schema groups pass after correction. No SQL schema change."
+  },
+  "runtime_smoke": {
+    "passed": true,
+    "numba_jit": true,
+    "ta_lib": true,
+    "tls_trust": true,
+    "connector_count": 63,
+    "sql_scripts": 17,
+    "build_tools_absent": true,
+    "cli_version": "hbot 2.17.0",
+    "environment_bytes": 1266556462,
+    "service_logging": {
+      "passed": true,
+      "all_severities": true,
+      "network_warning": true,
+      "utc_context": true,
+      "redaction": true,
+      "startup_failure_json": true,
+      "python_warning_json": true,
+      "sql_parameters_suppressed": true
+    }
+  },
+  "linux_idle_signal": {
+    "scope": "Identical real idle-selector OS signal probe on pre-fix and fixed shipping Linux images",
+    "program_sha256": "f864ea0792f6a9238194fae3ccfe048d372795164ae3ec289500be90dd026d92",
+    "cases": {
+      "before": {
+        "image_id": "sha256:4da2f008f111603e92bc74d6e5b64ec9da29a8669af384abb33b32aa6ba571d9",
+        "shutdown_seconds": 3.123603291809559,
+        "exit_code": 1,
+        "log": "ready\n"
+      },
+      "after": {
+        "image_id": "sha256:f5e7ab3282688787876623d176f774370df3dba8ecbf8eb8ae9ca714ad2a3d25",
+        "shutdown_seconds": 0.7203286660369486,
+        "exit_code": 0,
+        "log": "ready\n"
+      }
+    },
+    "passed": true
+  },
+  "offline_e2e": {
+    "passed": true,
+    "release_scope_complete": true,
+    "report": "build/e2e-offline/20261030-003620-4745f4/result.json",
+    "scenarios": [
+      "schema",
+      "spot",
+      "v2-spot",
+      "v2-perpetual",
+      "life-mm",
+      "until-stopped",
+      "funding",
+      "availability",
+      "quote-guards",
+      "drawdown",
+      "spot-outflow",
+      "listing-bootstrap",
+      "inventory-skew",
+      "spread-policy",
+      "volatility-defense",
+      "upgrade"
+    ]
+  },
+  "lifecycle": {
+    "image_id": "sha256:f5e7ab3282688787876623d176f774370df3dba8ecbf8eb8ae9ca714ad2a3d25",
+    "scope": "Ordinary production entrypoint lifecycle; isolated dummy exchange/DB",
+    "release_scope_complete": false,
+    "completed": true,
+    "ingress_port": 8090,
+    "case": {
+      "api_restarts": [
+        {
+          "fault": "crash",
+          "recovery_seconds": 14.655919749988243,
+          "engine_identity_preserved": true,
+          "owner_and_session_preserved": true,
+          "positions_preserved": true,
+          "working_quotes_recovered": true,
+          "working_quote_count": 12,
+          "quote_check": "bounded_after_normal_refresh"
+        },
+        {
+          "fault": "repeated_crash",
+          "recovery_seconds": 12.826894750120118,
+          "engine_identity_preserved": true,
+          "owner_and_session_preserved": true,
+          "positions_preserved": true,
+          "working_quotes_recovered": true,
+          "working_quote_count": 12,
+          "quote_check": "bounded_after_normal_refresh"
+        },
+        {
+          "fault": "unresponsive_loop",
+          "recovery_seconds": 49.17991179181263,
+          "engine_identity_preserved": true,
+          "owner_and_session_preserved": true,
+          "positions_preserved": true,
+          "working_quotes_recovered": true,
+          "working_quote_count": 6,
+          "quote_check": "bounded_after_normal_refresh"
+        }
+      ],
+      "api_refresh_boundary_exercised": true,
+      "engine_restarts": [
+        {
+          "fault": "active_engine_crash",
+          "recovery_seconds": 15.265305207809433,
+          "old_process_absent": true,
+          "api_identity_preserved": true,
+          "owner_generation_advanced": true,
+          "halt_preserved": true,
+          "no_additional_orders": true,
+          "positions_preserved": true
+        },
+        {
+          "fault": "halted_engine_unresponsive_loop",
+          "recovery_seconds": 37.16542249987833,
+          "old_process_absent": true,
+          "api_identity_preserved": true,
+          "owner_generation_advanced": true,
+          "halt_preserved": true,
+          "no_additional_orders": true,
+          "positions_preserved": true
+        }
+      ],
+      "parent_restarts": 0,
+      "parent_shutdown_seconds": 3.280815166886896,
+      "parent_shutdown_owner_released": true
+    },
+    "ordinary_entrypoint": [
+      "python",
+      "-m",
+      "hummingbot.cli.service"
+    ],
+    "initial_processes": {
+      "supervisor": {
+        "pid": 1,
+        "fds": 5,
+        "VmHWM": 133640192,
+        "VmRSS": 133640192,
+        "Threads": 8
+      },
+      "engine": {
+        "pid": 37,
+        "fds": 14,
+        "VmHWM": 312090624,
+        "VmRSS": 312090624,
+        "Threads": 10
+      },
+      "api": {
+        "pid": 38,
+        "fds": 11,
+        "VmHWM": 296071168,
+        "VmRSS": 296071168,
+        "Threads": 9
+      }
+    },
+    "engine_health_loopback_only": true,
+    "api_private_environment_keys": [
+      "HBOT_OFFLINE_HTTP_ORIGIN"
+    ],
+    "nonempty_positions_verified": true,
+    "migration_batches": 3,
+    "applied_script_count": 51,
+    "api_restarts_do_not_migrate": true
+  },
+  "policy": {
+    "application_cpus": 2,
+    "memory_bytes": 2147483648,
+    "total_database_pool_slots": 5,
+    "api_slots": 2,
+    "engine_slots": 3,
+    "daily_cache_ttl_seconds": 15,
+    "shared_default_daily_ttl_seconds": 5
+  },
+  "load": {
+    "status": "running",
+    "log": "build/service-supervision/final-all-load.log",
+    "report": "build/mm-load/20261030-011239-d491a4/result.json",
+    "windows": {
+      "warmup": {
+        "duration_seconds": 300,
+        "read_p95_ms": 56.2630390340928,
+        "read_p99_ms": 408.8345590280369,
+        "unexpected_errors": 0,
+        "violations": []
+      }
+    }
+  },
+  "production_control": {
+    "status": "pending"
+  },
+  "retained_failures": [
+    {
+      "report": "build/e2e-offline/20261029-232141-ef1252/result.json",
+      "image": "4da2f008",
+      "finding": "Idle API SIGTERM selector wakeup; runtime fixed with OS-signal Red/Green"
+    },
+    {
+      "report": "build/e2e-offline/20261030-000203-0744c6/result.json",
+      "image": "f5e7ab32",
+      "finding": "Bootstrap test waited for completion before supplying qualification; harness fixed, runtime unchanged"
+    }
+  ],
+  "limitations": [
+    "Cold million-fill SQL cost is unchanged and can exceed the 2s deadline.",
+    "Local amd64 image verification does not certify Cloud Run or actual OKX connectivity.",
+    "No historical p99 spike is assigned a unique cause."
+  ]
+}
