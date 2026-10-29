@@ -1465,3 +1465,21 @@ architecture adopted; real Demo remains stopped on its existing image.
 - [ ] R3b live profiling; candidate image and unchanged final-image gates.
 
 See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-evidence.json).
+
+## Candidate verification and queue diagnostic (2026-10-29; R3b)
+
+- [x] Native full regression: 1,938 tests plus eleven subtests and Swagger check.
+- [x] PostgreSQL full regression: 259 tests; no relaxed runtime deadlines.
+- [x] Build candidate `90490bab…` at 1,367,400,250 bytes; runtime ABI/JIT/TLS/SDK/
+  logging smoke passes. The persistent Demo remains stopped on its existing image.
+- [x] 180s all-feature traced probe: p99 541.95ms, zero errors, workload and
+  independent ledger invariants pass. Worker/pool/loop metrics now distinguish
+  different queues; individual >1s requests still exist and original attribution
+  remains unassigned. No pool expansion or scheduler change.
+- [ ] Full-image E2E, unchanged mixed/burst/hour/fault gates and production control.
+
+See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-evidence.json).
+
+- [x] Candidate image full E2E: sixteen groups, including upgrade/rollback from
+  `143ddfe2…`. Manifest `11dfdc61…`; packaged critical source hashes and runtime
+  package manifest verified. Long performance gates remain pending.

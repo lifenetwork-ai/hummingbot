@@ -33,8 +33,10 @@ pool expansion, relaxed deadlines or API edits to YAML.
   Swagger/FE docs, and make healthy load detect degraded daily responses; commit.
 - [x] R3a: instrument submit-to-worker-start waiting with context-safe bounded
   test diagnostics; three Red / eighteen Green timing/trace/executor tests.
-- [ ] R3b: measure/profile reproduced live bursts before any runtime scheduling
-  change. Confirmed fixes require Red/Green; otherwise retain uncertainty.
+- [x] R3b: collect a traced 180s all-feature candidate probe with physical worker,
+  SQL/pool, loop/GC and per-request timing. Probe passes; queue/pool expansion or
+  a scheduler fix is not justified. Retain historical attribution uncertainty.
+  Longer final-image gates below remain required; no short-probe substitution.
 - [ ] Verify regression, real PostgreSQL, schema and final image. Repeat the
   unchanged load gates and production-entrypoint control. Preserve failed runs;
   stale fallback must not turn a degraded healthy load into a false pass.

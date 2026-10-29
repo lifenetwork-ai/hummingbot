@@ -547,5 +547,292 @@
       "test/e2e/offline/load_service.py": "176987a50beef2f40a9517bb308a19bacc3608ed44b23c67a5ef05e475c26e97",
       "test/hummingbot/cli/test_admin_worker_queue_timing.py": "c22c0a2d4aaefdaddf98213433e86f89b212f549afe563cb7370d8816b6dd78c"
     }
+  },
+  "final_candidate": {
+    "image_id": "sha256:90490bab6c272f0fdae1d56ebfc0ed784cf316a8a3f003398978a0933d7d6690",
+    "tag": "hummingbot-cloudrun:reporting-candidate",
+    "size_bytes": 1367400250,
+    "previous_image_size_bytes": 1367392175,
+    "architecture": "amd64",
+    "source_commit": "bc109420db0b6ec3cf4875ec0962be8924cb8e1f",
+    "native_regression": {
+      "phase_counts": [
+        178,
+        11,
+        1210,
+        539
+      ],
+      "total_passed": 1938,
+      "subtests_passed": 11,
+      "command": "make test-cloudrun-regression swagger-check"
+    },
+    "postgres_full_regression": "259 passed, 36 warnings, 493.78s",
+    "runtime_smoke": {
+      "passed": true,
+      "numba_jit": true,
+      "ta_lib": true,
+      "tls_trust": true,
+      "connector_count": 63,
+      "sql_scripts": 17,
+      "build_tools_absent": true,
+      "cli_version": "hbot 2.17.0",
+      "environment_bytes": 1266556462,
+      "service_logging": {
+        "passed": true,
+        "all_severities": true,
+        "network_warning": true,
+        "utc_context": true,
+        "redaction": true,
+        "startup_failure_json": true,
+        "python_warning_json": true,
+        "sql_parameters_suppressed": true
+      }
+    },
+    "e2e": {
+      "raw_result": "build/e2e-offline/20261029-162008-7ac426/result.json",
+      "passed": true,
+      "release_scope_complete": true,
+      "scenarios": [
+        "schema",
+        "spot",
+        "v2-spot",
+        "v2-perpetual",
+        "life-mm",
+        "until-stopped",
+        "funding",
+        "availability",
+        "quote-guards",
+        "drawdown",
+        "spot-outflow",
+        "listing-bootstrap",
+        "inventory-skew",
+        "spread-policy",
+        "volatility-defense",
+        "upgrade"
+      ],
+      "previous_image_id": "sha256:143ddfe27ceb1c18863735a99f58ce8beef214bc87b4c99e909d9d9613732124"
+    },
+    "load": "180s traced diagnostic passes; unchanged mixed/burst/hour/fault and production control pending",
+    "production_demo_replaced": false,
+    "source_sha256": {
+      "hummingbot/cli/admin_api.py": "fd5a75f37cec3ce45104935aba55b116f73a18d5f2edd6b78d524263955fffdb",
+      "hummingbot/cli/admin_models.py": "dbf431b868e32d966d6a8749b0441a45af8a32a1bc430124a98b1dc2ea350c2e",
+      "hummingbot/cli/admin_daily_cache.py": "cc18a8c9514a2443f384541d61b0b67af78fc718294cb7a60acd51d5fc559311",
+      "docs/api/openapi.json": "e9d2b506a4831528c9d9ad101dbacaeaf8fc965f130cfb244e5e0974ba88f6d6"
+    },
+    "runtime_package_manifest_sha256": "a78b58c5212dff831a7de753ce1af75bcd3878984af6375599b4aad183020437",
+    "runtime_package_manifest_matches_previous_image": true,
+    "registry_manifest_digest": "sha256:11dfdc615cf6f865968f593e66e5496a02c9ce6948f15e65e82c8dfbcf6e97d5"
+  },
+  "r3_probe": {
+    "raw_result": "build/mm-load/20261029-160614-f1bb2f/result.json",
+    "scope": "180-second diagnostic, same workload/budgets, trace and bounded full-GC observation; not mixed/hour acceptance",
+    "image_id": "sha256:90490bab6c272f0fdae1d56ebfc0ed784cf316a8a3f003398978a0933d7d6690",
+    "healthy": {
+      "read_p95_ms": 200.99268500052858,
+      "read_p99_ms": 541.950781000196,
+      "unexpected_errors": 0,
+      "completed_reads": 3600,
+      "requested_reads": 3600,
+      "auxiliary": {
+        "requested_reads": 900,
+        "completed_reads": 900,
+        "statuses": {
+          "200": 900
+        },
+        "read_p95_ms": 170.56145700917114,
+        "read_p99_ms": 619.5306459994754
+      },
+      "violations": [],
+      "ledger": {
+        "unique_exchange_fills": 180,
+        "unique_recorder_fills": 180,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "client_trace": {
+        "sink": {
+          "written_records": 1082,
+          "written_bytes": 449528,
+          "dropped_records": 0,
+          "writer_cpu_ms": 117.747475,
+          "queue_depth": 0,
+          "max_bytes": 134217728,
+          "writer_alive": false
+        },
+        "database_sampler": {
+          "samples": 706,
+          "errors": 0,
+          "thread_cpu_ms": 888.120485
+        }
+      }
+    },
+    "metrics": {
+      "api_worker_queue_ms": {
+        "count": 4222,
+        "p50": 0.173709,
+        "p95": 48.837875,
+        "p99": 171.743875,
+        "max": 480.505958
+      },
+      "pool_queue_ms": {
+        "count": 5621,
+        "p50": 0.022083,
+        "p95": 0.120958,
+        "p99": 1.580083,
+        "max": 42.022667
+      },
+      "pool_checkout_ms": {
+        "count": 5620,
+        "p50": 0.692166,
+        "p95": 7.297291,
+        "p99": 21.67425,
+        "max": 385.644458
+      },
+      "event_loop_lag_ms": {
+        "count": 4653,
+        "p50": 2.2524815431097522,
+        "p95": 273.9180594217032,
+        "p99": 656.2189606775064,
+        "max": 1070.9345857176231
+      },
+      "sql_ms": {
+        "count": 12000,
+        "p50": 0.8711670088814571,
+        "p95": 7.326249993639067,
+        "p99": 26.830042013898492,
+        "max": 559.2128339922056
+      }
+    },
+    "trace_counts": {
+      "slow_or_failed_client_requests": 376,
+      "slow_server_roots": 260,
+      "dropped_spans_in_slow_roots": 0,
+      "loop_stall_samples": 9,
+      "postgres_samples": 705
+    },
+    "cpu_delta": {
+      "usage_usec": 68104941,
+      "user_usec": 63514163,
+      "system_usec": 4590778,
+      "nr_periods": 1795,
+      "nr_throttled": 35,
+      "throttled_usec": 832401,
+      "nr_bursts": 0,
+      "burst_usec": 0
+    },
+    "trace_loss": {
+      "server": {
+        "written_records": 602,
+        "written_bytes": 2732159,
+        "dropped_records": 0,
+        "writer_cpu_ms": 132.1897460000001,
+        "queue_depth": 0,
+        "max_bytes": 134217728,
+        "writer_alive": true,
+        "dropped_spans": 149760,
+        "slow_trace_threshold_ms": 100
+      },
+      "client": {
+        "sink": {
+          "written_records": 1082,
+          "written_bytes": 449528,
+          "dropped_records": 0,
+          "writer_cpu_ms": 117.747475,
+          "queue_depth": 0,
+          "max_bytes": 134217728,
+          "writer_alive": false
+        },
+        "database_sampler": {
+          "samples": 706,
+          "errors": 0,
+          "thread_cpu_ms": 888.120485
+        }
+      }
+    },
+    "slowest_requests": [
+      {
+        "client": {
+          "kind": "client_request",
+          "request_id": "6ba838aaf327-1038",
+          "path": "/fills?limit=100",
+          "status": 200,
+          "scheduled_ns": 119213842930147,
+          "dispatch_ns": 119214492734500,
+          "end_ns": 119215053910583,
+          "at": 1793264887.7419434,
+          "queue_wait_ms": 649.804353,
+          "network_and_body_ms": 561.176083,
+          "total_ms": 1210.980436,
+          "error": null
+        },
+        "server_ms": 102.124584,
+        "worker_wait_ms": [
+          2.536792
+        ]
+      },
+      {
+        "client": {
+          "kind": "client_request",
+          "request_id": "6ba838aaf327-1036",
+          "path": "/orders?limit=100",
+          "status": 200,
+          "scheduled_ns": 119213742930147,
+          "dispatch_ns": 119213780185166,
+          "end_ns": 119214938781917,
+          "at": 1793264887.627055,
+          "queue_wait_ms": 37.255019,
+          "network_and_body_ms": 1158.596751,
+          "total_ms": 1195.85177,
+          "error": null
+        },
+        "server_ms": 256.775292,
+        "worker_wait_ms": [
+          20.238916
+        ]
+      },
+      {
+        "client": {
+          "kind": "client_request",
+          "request_id": "6ba838aaf327-1039",
+          "path": "/fills?limit=500",
+          "status": 200,
+          "scheduled_ns": 119213892930146,
+          "dispatch_ns": 119214499868333,
+          "end_ns": 119215068149792,
+          "at": 1793264887.7561839,
+          "queue_wait_ms": 606.938187,
+          "network_and_body_ms": 568.281459,
+          "total_ms": 1175.219646,
+          "error": null
+        },
+        "server_ms": 113.196542,
+        "worker_wait_ms": [
+          4.569583
+        ]
+      },
+      {
+        "client": {
+          "kind": "client_request",
+          "request_id": "6ba838aaf327-1037",
+          "path": "/orders?limit=500",
+          "status": 200,
+          "scheduled_ns": 119213792930147,
+          "dispatch_ns": 119213813699416,
+          "end_ns": 119214950137292,
+          "at": 1793264887.6381695,
+          "queue_wait_ms": 20.769269,
+          "network_and_body_ms": 1136.437876,
+          "total_ms": 1157.207145,
+          "error": null
+        },
+        "server_ms": 260.433375,
+        "worker_wait_ms": [
+          25.966458
+        ]
+      }
+    ],
+    "finding": "Probe passes p99/zero-error gate, with individual >1s end-to-end requests. New worker wait does not justify pool expansion. Some worst tails predominantly precede handler admission and include client scheduling backlog; main-loop stalls include synchronous owner DB waits and GC/validation. Exact historical p99 trigger remains unassigned."
   }
 }

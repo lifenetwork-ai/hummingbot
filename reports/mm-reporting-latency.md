@@ -123,3 +123,52 @@ Red: three missing-hook failures. Green: **18 selected timing/trace/executor
 tests pass**. The production scheduler, worker counts, DB pool and timeouts are
 unchanged. Measurement of a reproduced live burst is still required before
 attributing queue pressure or proposing any further runtime fix.
+
+## R3b: traced 180s candidate diagnostic
+
+Image `90490bab…` passes credential-free ABI/JIT/TLS/SDK/logging smoke. The complete
+native regression passes **1,938 tests plus eleven subtests** and Swagger check;
+full PostgreSQL regression passes **259 tests**. The image is 1,367,400,250 bytes
+(8,075 bytes above the prior rebuilt image). It is a candidate, not deployed to
+the persistent Demo or Cloud Run.
+
+The 180s all-feature traced probe passes: p95 **200.99ms**, p99 **541.95ms**,
+3,600/3,600 main reads, 900/900 auxiliary reads, zero unexpected errors and no
+budget violations. It preserves the independent fill/fee/position checks. No
+stale fallback was needed to turn a failure into success; the new load policy
+would count any such response as an error. Raw artifacts and analysis are under
+`build/mm-load/20261029-160614-f1bb2f/`.
+
+Final rolling runtime distributions (from startup, capped per family, so not
+identical to the HTTP window population):
+
+| Measurement | p99 ms | Maximum ms |
+|---|---:|---:|
+| API submit to physical worker start | 171.74 | 480.51 |
+| SQL connection-pool queue | 1.58 | 42.02 |
+| Pool checkout including ping | 21.67 | 385.64 |
+| SQL execution | 26.83 | 559.21 |
+| Event-loop lag | 656.22 | 1070.93 |
+
+This does not justify pool expansion. The slowest individually recorded request
+took 1,210.98ms: 649.80ms before client dispatch, 457.73ms from dispatch to server
+middleware entry, 102.12ms in the handler and about 1.32ms afterward. Its API
+worker wait was only 2.54ms. Do not label all pre-handler delay as DB admission.
+The largest sampled main-loop stalls include synchronous ownership/recorder DB
+waits (`bounded_wait`) and validation/GC. Longest recorded gen2 GC was 363.67ms.
+These sampled overlaps do not uniquely attribute the original historical spike
+or prove one universal cause. No trading scheduler or fence was changed.
+
+The diagnostic retained zero dropped child spans in selected slow roots, nine
+loop-stall samples and 705 PostgreSQL samples; inspect the loss counters in the
+portable evidence for coverage. Full final-image E2E, unchanged mixed/burst/hour/
+fault gates and production-entrypoint control are still pending. Passing this
+short probe does not close that release scope.
+
+Full candidate image E2E now passes **16 scenario groups**, including compatible
+upgrade/rollback from image `143ddfe2…`; immutable manifest
+`sha256:11dfdc615cf6f865968f593e66e5496a02c9ce6948f15e65e82c8dfbcf6e97d5`.
+Raw result: `build/e2e-offline/20261029-162008-7ac426/result.json`. The runtime
+package manifest matches the predecessor exactly, and packaged API/cache/model/
+Swagger source hashes match the reviewed files. The unchanged long load gates
+and production-entrypoint control remain pending.
