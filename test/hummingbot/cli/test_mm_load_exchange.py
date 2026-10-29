@@ -63,9 +63,9 @@ async def test_perpetual_fill_snapshot_is_not_changed_by_a_later_cancel_during_p
 @pytest.mark.asyncio
 async def test_failed_burst_measurement_always_restores_the_steady_feed(monkeypatch):
     import sys
-    from test.e2e.offline import load_trace
+    from test.e2e.offline import load_health, load_trace
     from unittest.mock import AsyncMock
-    with patch.dict(sys.modules, {'load_trace': load_trace}):
+    with patch.dict(sys.modules, {'load_trace': load_trace, 'load_health': load_health}):
         from test.e2e.offline.load_client import measure_market_burst
     controls = []
     ledgers = iter([dict(market_update_count=0, observed_at_monotonic=0),

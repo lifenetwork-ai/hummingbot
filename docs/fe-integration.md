@@ -642,8 +642,25 @@ relabel old balance snapshots.
 Daily statistics use a bounded 32-entry in-memory cache to coalesce concurrent
 dashboard polls. `ADMIN_STATISTICS_CACHE_TTL_SECONDS` defaults to 5 (0 disables;
 maximum 60). Responses retain the aggregate's original `server_time` and balance
-observation timestamps. Cache expiry triggers a fresh consistent database read;
-failures are not cached. This cache is never used for trading or command state.
+observation timestamps. Cache expiry triggers a fresh consistent database read.
+On an identifiable transient reporting failure, the endpoint may return HTTP 200
+with `freshness: "stale"`, `observation_age_seconds`, an English `message` and
+`retry_after_seconds` (1–5). This requires a successful matching observation
+younger than 60 seconds; failed retries never extend that deadline. The short
+retry cooldown coalesces failed concurrent refreshes. Cache size remains 32,
+and timezone, resolved reporting dates, market and pair isolate observations.
+Relative date ranges roll over at reporting midnight, including during a refresh.
+Setting the cache TTL to zero disables both caching and fallback.
+
+Render stale daily charts as **"Statistics updating"** and show their original
+observation time; retry after the supplied delay. Keep the financial values
+qualified as last observed. Do not infer trading health, current balances or
+available funds from this response. Use `/status`, `/balances` and `/positions`
+for those separate panels. If no usable observation exists, the read still fails
+normally (for example HTTP 503); show **"Statistics temporarily unavailable"**
+and never replace missing values with zero. Validation, schema/authentication
+errors and cancellation do not trigger fallback. This cache is never used for
+trading, ownership, controls or risk admission.
 
 The response contains separate market day series and one account balance series.
 Only observed days appear; missing days are gaps. Fees include original-currency

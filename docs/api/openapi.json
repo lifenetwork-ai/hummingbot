@@ -920,6 +920,16 @@
             "title": "End Day",
             "type": "string"
           },
+          "freshness": {
+            "default": "fresh",
+            "description": "Fresh database/cached observation or explicitly degraded last-good fallback. server_time remains the original database observation time.",
+            "enum": [
+              "fresh",
+              "stale"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
           "funding_precision": {
             "const": "decimal_bills_with_legacy_float",
             "default": "decimal_bills_with_legacy_float",
@@ -944,9 +954,51 @@
             "title": "Markets",
             "type": "array"
           },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Message"
+          },
+          "observation_age_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 60,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Age of a stale fallback; never more than 60 seconds from the original observation.",
+            "title": "Observation Age Seconds"
+          },
           "reporting_timezone": {
             "title": "Reporting Timezone",
             "type": "string"
+          },
+          "retry_after_seconds": {
+            "anyOf": [
+              {
+                "maximum": 5,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Suggested refresh delay for a stale fallback.",
+            "title": "Retry After Seconds"
           },
           "server_time": {
             "format": "date-time",
@@ -12644,7 +12696,7 @@
             "basicAuth": []
           }
         ],
-        "summary": "Read separate market event-day fees/volume/funding and shared last-observed account balances",
+        "summary": "Read market-day statistics with explicitly stale last-good fallback on transient refresh failure",
         "tags": [
           "Reporting"
         ]

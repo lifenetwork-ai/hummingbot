@@ -58,7 +58,7 @@ def assets_for(path):
 
     import yaml
     path.chmod(0o755)
-    for name in ("exchange.py", "load_service.py", "load_trace.py", "load_client.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
+    for name in ("exchange.py", "load_service.py", "load_trace.py", "load_health.py", "load_client.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
         (path / name).write_bytes((ROOT / "test/e2e/offline" / name).read_bytes())
     (path / "pmm-revised.yml").write_bytes((path / "pmm.yml").read_bytes())
     write_fixtures(path / "fixtures.json")

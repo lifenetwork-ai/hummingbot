@@ -13,10 +13,10 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from aiohttp import BasicAuth, web
-from cachetools import TTLCache
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
+from hummingbot.cli.admin_daily_cache import DailyStatisticsCache, transient_reporting_error
 from hummingbot.cli.admin_database import AdminDatabaseExecutor, DatabaseBusy
 from hummingbot.cli.admin_errors import error_response, request_id, validation_fields
 from hummingbot.cli.admin_models import (
@@ -126,7 +126,7 @@ class AdminAPI:
         self._reference_retry_at = 0
         self._reference_lock = asyncio.Lock()
         self._reference_provider = None
-        self._daily_cache = TTLCache(maxsize=32, ttl=settings.statistics_cache_ttl_seconds)
+        self._daily_cache = DailyStatisticsCache(settings.statistics_cache_ttl_seconds)
         self._daily_lock = asyncio.Lock()
         # Bound API database concurrency independently of the default executor.
         # The shared pool has five slots; reporting must not consume all five.
@@ -398,22 +398,39 @@ class AdminAPI:
         model = PerformanceResponse(markets=markets, server_time=row["server_time"], owner_available=row["owner_available"])
         return web.json_response(model.model_dump(mode="json"))
 
-    @api_operation(operation_id="getDailyStatistics", summary="Read separate market event-day fees/volume/funding and shared last-observed account balances",
+    @api_operation(operation_id="getDailyStatistics", summary="Read market-day statistics with explicitly stale last-good fallback on transient refresh failure",
                    tag="Reporting", response_model=DailyResponse, query_model=DailyQuery)
     async def daily(self, request):
         query = self.query(request, DailyQuery)
-        key = query.model_dump_json(), self.settings.reporting_timezone
+        filters = query.model_dump()
+        key = self._daily_cache.key(filters, self.settings.reporting_timezone)
         # This loop owns the cache: hits need no lock and must not queue behind
         # an unrelated slow aggregate. Serialize misses to bound database work,
         # rechecking after admission so identical polls share the first result.
         body = self._daily_cache.get(key)
         if body is None:
             async with self._daily_lock:
+                key = self._daily_cache.key(filters, self.settings.reporting_timezone)
                 body = self._daily_cache.get(key)
                 if body is None:
-                    row = await self.run_database(self.storage().daily, **query.model_dump(), reporting_timezone=self.settings.reporting_timezone)
-                    body = DailyResponse.model_validate(row).model_dump(mode="json")
-                    self._daily_cache[key] = body
+                    try:
+                        row = await self.run_database(self.storage().daily, **filters, reporting_timezone=self.settings.reporting_timezone)
+                    except (APIUnavailable, SQLAlchemyError, TimeoutError) as error:
+                        if not isinstance(error, APIUnavailable) and not transient_reporting_error(error):
+                            raise
+                        # A refresh may cross a reporting-day boundary while
+                        # awaiting DB work. Re-resolve before borrowing a result.
+                        key = self._daily_cache.key(filters, self.settings.reporting_timezone)
+                        body = self._daily_cache.fallback(key)
+                        if body is None:
+                            raise
+                        logging.getLogger(__name__).warning(
+                            'Daily statistics refresh unavailable; returning a bounded stale observation type=%s',
+                            type(error).__name__, extra={'event': 'admin_daily_stale', 'error_type': type(error).__name__})
+                    else:
+                        body = DailyResponse.model_validate(row).model_dump(mode="json")
+                        key = self._daily_cache.key(filters, self.settings.reporting_timezone)
+                        self._daily_cache.remember(key, body)
         return web.json_response(body)
 
     @staticmethod

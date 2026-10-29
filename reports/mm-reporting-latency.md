@@ -67,3 +67,38 @@ bound polling pressure and preserve explicitly qualified operator information.
 If long-history queries still exceed their budget after R2/R3, narrower requested
 ranges, resource sizing or a separately designed incremental aggregate require
 fresh evidence; this phase adds no ledger, migration, index, Redis or service.
+
+## R2: qualified last-good daily fallback
+
+Implemented after the architecture experiment, retaining the existing production
+entrypoint. A successful daily observation may be reused on an identifiable
+transient read failure, bounded to **less than 60s from its original database
+observation**, across both wall and monotonic clocks. The existing in-memory
+cache retains at most 32 canonical timezone/date/market/pair keys. Fresh TTL
+remains configured by `ADMIN_STATISTICS_CACHE_TTL_SECONDS` (default five); zero
+disables both reuse and fallback. No Redis, new migration or reporting ledger.
+
+Responses explicitly label `freshness: "stale"`, observation age, an English
+message and a 1–5s retry hint. A five-second retry cooldown coalesces failed polls
+without changing source time or extending snapshot life. Relative reporting-day
+rollover, clock reversal/invalidity, future observations and different filters
+prevent reuse. Successful refresh replaces the observation. Cancellation and
+permanent schema/authentication/validation errors never trigger fallback.
+Trading, ownership, controls, risk admission, current balances and positions do
+not read this cache. A daily balance series still means last observed that day,
+not current available funds. See the updated [FE contract](../docs/fe-integration.md).
+
+Red: two new API behavior tests failed, ten pre-existing failure/isolation cases
+passed. Focused Green expanded to 53 tests. Broad CLI/admin settings: **700 pass**.
+Real PostgreSQL daily/reporting/funding selection: **22 pass**, including an
+actual 2s statement timeout, bounded fallback, unchanged timeout setting,
+recovery and connection return; a real undefined-table error does not fall back.
+Schema generation/check pass. One native fixture initially lacked the new
+load-health sibling import; that test bootstrap was corrected before the broad
+green rerun. No production failure is attributed to that fixture.
+
+The load generator now counts HTTP 200 with explicit stale daily statistics as
+an unexpected error. This preserves the zero-error healthy gate; qualified
+operator data does not make an expensive or unavailable query healthy. Final
+image/E2E/load verification and R3 worker-queue timing remain open. The SQL cost
+and uniquely attributing the historical p99 spike are not declared fixed.

@@ -760,6 +760,10 @@ class DailyResponse(APIModel):
     end_day: date
     reporting_timezone: str
     server_time: UTCDateTime
+    freshness: Literal['fresh', 'stale'] = Field(default='fresh', description='Fresh database/cached observation or explicitly degraded last-good fallback. server_time remains the original database observation time.')
+    observation_age_seconds: Optional[float] = Field(default=None, ge=0, lt=60, description='Age of a stale fallback; never more than 60 seconds from the original observation.')
+    retry_after_seconds: Optional[int] = Field(default=None, ge=1, le=5, description='Suggested refresh delay for a stale fallback.')
+    message: Optional[str] = None
     coverage: Literal["observed_recorder_events"]
     balance_scope: Literal["account_last_observed"]
     trade_storage_scale: Optional[int] = Field(default=None, description="PostgreSQL NUMERIC has no fixed storage scale.")

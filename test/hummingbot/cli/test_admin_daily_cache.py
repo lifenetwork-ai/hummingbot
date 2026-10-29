@@ -1,7 +1,7 @@
 import asyncio
 import threading
 import time
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -10,6 +10,7 @@ from multidict import MultiDict
 
 from hummingbot.cli.admin_api import AdminAPI
 from hummingbot.client.config.admin_config import AdminSettings
+from hummingbot.model.admin_reporting import day_range
 
 
 @pytest.mark.asyncio
@@ -21,12 +22,13 @@ async def test_cached_market_does_not_wait_for_another_markets_aggregate():
         if filters["market"] == "perpetual":
             started.set()
             assert release.wait(5)
-        return dict(start_day=date(2026, 1, 1), end_day=date(2026, 1, 2), reporting_timezone="UTC",
+        start, end, *_ = day_range(None, None, "UTC")
+        return dict(start_day=start, end_day=end, reporting_timezone="UTC",
                     server_time=datetime.now(timezone.utc), coverage="observed_recorder_events",
                     balance_scope="account_last_observed", balances=[], markets=[])
 
     storage.daily.side_effect = aggregate
-    api = AdminAPI(None, AdminSettings(statistics_cache_ttl_seconds=60), store=storage)
+    api = AdminAPI(None, AdminSettings(reporting_timezone="UTC", statistics_cache_ttl_seconds=60), store=storage)
     spot = SimpleNamespace(query=MultiDict(market="spot"))
     warm = await api.daily(spot)
     miss = asyncio.create_task(api.daily(SimpleNamespace(query=MultiDict(market="perpetual"))))
@@ -48,7 +50,8 @@ async def test_daily_polling_coalesces_misses_preserves_observation_time_and_exp
 
     def aggregate(**filters):
         time.sleep(.02)
-        return dict(start_day=date(2026, 1, 1), end_day=date(2026, 1, 2), reporting_timezone="UTC", server_time=observation,
+        start, end, *_ = day_range(None, None, "UTC")
+        return dict(start_day=start, end_day=end, reporting_timezone="UTC", server_time=observation,
                     coverage="observed_recorder_events", balance_scope="account_last_observed", balances=[], markets=[])
     storage.daily.side_effect = aggregate
     settings = AdminSettings(reporting_timezone="UTC", statistics_cache_ttl_seconds=.1)
@@ -79,7 +82,8 @@ async def test_failed_aggregate_is_not_cached():
 @pytest.mark.asyncio
 async def test_zero_ttl_disables_daily_cache():
     storage = MagicMock()
-    storage.daily.return_value = dict(start_day=date(2026, 1, 1), end_day=date(2026, 1, 2), reporting_timezone="UTC",
+    start, end, *_ = day_range(None, None, "UTC")
+    storage.daily.return_value = dict(start_day=start, end_day=end, reporting_timezone="UTC",
                                       server_time=datetime.now(timezone.utc), coverage="observed_recorder_events",
                                       balance_scope="account_last_observed", balances=[], markets=[])
     api = AdminAPI(None, AdminSettings(statistics_cache_ttl_seconds=0), store=storage)

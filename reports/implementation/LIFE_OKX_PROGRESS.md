@@ -1438,3 +1438,19 @@ See [experiment](../mm-process-isolation-experiment.md) and
 [evidence](../mm-process-isolation-evidence.json). Existing priority-test scheduling
 assumption corrected; no production executor behavior changed. Real Demo remains
 stopped. R2 daily fallback / R3 queue diagnostics remain open in the reporting plan.
+
+## Bounded daily fallback (2026-10-29; R2)
+
+- [x] Red: missing last-good/coalescing behavior, two failures / ten passes.
+- [x] Green: bounded 32-key daily cache, original observation age under 60s,
+  canonical filters/day rollover, clock invalidity, cancellation and recovery.
+- [x] Preserve explicit stale/retry/English metadata; permanent errors and all
+  trading/current-account/control paths are excluded. TTL zero disables reuse.
+- [x] Preserve healthy load strictness: HTTP 200 stale counts as an error.
+- [x] 53 focused tests; 700 CLI/admin-config tests; 22 real-PG reporting/funding
+  tests including actual timeout/recovery/schema errors; Swagger generation/check.
+- [ ] R3 worker-start queue diagnostics and final-image E2E/load verification.
+
+See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-evidence.json).
+SQL cost and historical p99 attribution remain open. No new production process
+architecture adopted; real Demo remains stopped on its existing image.

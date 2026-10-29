@@ -14,6 +14,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import aiohttp
+from load_health import response_problem
 from load_trace import TraceSink, sql_metadata
 
 trace_directory = os.environ.get("HBOT_LOAD_TRACE_DIRECTORY")
@@ -276,8 +277,10 @@ async def main(args):
                     (auxiliary_statuses if auxiliary else statuses)[str(status)] += 1
                     if path == "/status" and status == 200:
                         last_status = body
-                    if status != 200:
+                    problem = response_problem(path, status, body)
+                    if problem:
                         errors.append(dict(path=path, status=status, at=time.time(),
+                                           reason=problem,
                                            server_request_id=body.get("request_id") if isinstance(body, dict) else None))
                 except Exception as error:
                     errors.append(dict(path=path, error=type(error).__name__, at=time.time()))

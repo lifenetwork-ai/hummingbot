@@ -24,10 +24,10 @@ pool expansion, relaxed deadlines or API edits to YAML.
   Decision: stall isolation verified (about 2.6s -> 0.1s), but both longer paired
   healthy diagnostics miss p99; keep production unchanged. See the
   [experiment](../../reports/mm-process-isolation-experiment.md).
-- [ ] R2 Red: cover last-good fallback, no fallback without a matching successful
+- [x] R2 Red: cover last-good fallback, no fallback without a matching successful
   snapshot, stale age/clock/day rollover, transient versus permanent failures,
   concurrency, filter isolation, cancellation and recovery.
-- [ ] R2 Green: extend the bounded existing daily cache with a maximum 60s
+- [x] R2 Green: extend the bounded existing daily cache with a maximum 60s
   original-observation age; label stale data/retry hints in English. Live
   balances/positions and trading gates never consume the fallback. Update
   Swagger/FE docs, and make healthy load detect degraded daily responses; commit.

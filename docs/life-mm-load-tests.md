@@ -15,6 +15,11 @@ Raw artifacts go under `build/mm-process-isolation/`; the
 [experiment report](../reports/mm-process-isolation-experiment.md) records its
 scope and unresolved limits.
 
+Healthy load also checks daily-statistics freshness. HTTP 200 with an explicit
+`freshness: "stale"` counts as an unexpected error and fails the unchanged
+zero-error gate. Bounded reporting fallback is useful for operator UX, but does
+not count as healthy reporting availability or close the SQL timeout limitation.
+
 Run with the compiled environment and Docker available:
 
 Keep the host awake for continuous acceptance (on a Mac, leave the lid open and

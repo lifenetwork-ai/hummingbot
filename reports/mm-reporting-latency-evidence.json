@@ -507,5 +507,31 @@
     "decision": "Reject derived aggregate candidate: million-row repeated +9.40%, unique +17.96%. No SQL runtime change retained."
   },
   "exploratory_test_result": "1 passed, 257 deselected, 6 warnings, 315.32 seconds",
-  "prior_experiment": "Initial unrestricted 100k memoization variant took 581.94ms vs 188.85ms repeated, and 592.06ms vs 245.71ms unique. Its first million-row attempt was interrupted by the pytest 120s test timeout; those incomplete results are not acceptance."
+  "prior_experiment": "Initial unrestricted 100k memoization variant took 581.94ms vs 188.85ms repeated, and 592.06ms vs 245.71ms unique. Its first million-row attempt was interrupted by the pytest 120s test timeout; those incomplete results are not acceptance.",
+  "r2": {
+    "status": "Implemented; native/real-PG/schema verification only, final-image E2E/load pending",
+    "red": "2 failed, 10 passed: no last-good response or failed-refresh coalescing in baseline",
+    "focused_green": "53 passed, 6 warnings, 5.15 seconds: API fallback, cache bounds/clocks/filters/recovery/cancellation and load health",
+    "native_green": "700 passed, 7 warnings, 22.35 seconds: CLI and admin configuration",
+    "postgres_green": "22 passed, 237 deselected, 29 warnings, 45.77 seconds: daily/reporting/funding bills plus two real failure/recovery integrations",
+    "real_failure_proof": "Fee aggregate replaced by SELECT pg_sleep(3); unchanged 2s statement timeout produces qualified last-good snapshot, then real DB refresh recovers. Missing table 42P01 propagates. Pool checkedout returns zero.",
+    "contract": {
+      "max_observation_age_seconds": 60,
+      "max_keys": 32,
+      "retry_cooldown_seconds": 5,
+      "default_cache_ttl_seconds": 5,
+      "zero_ttl_disables_fallback": true,
+      "trading_consumes_fallback": false,
+      "http200_stale_fails_healthy_load": true
+    },
+    "swagger": "make swagger and make swagger-check pass",
+    "initial_native_failure": "699 passed, one test-only load_client import failure after introducing load_health; updated its existing sibling-module fixture, rerun 700 pass",
+    "source_sha256": {
+      "hummingbot/cli/admin_api.py": "fd5a75f37cec3ce45104935aba55b116f73a18d5f2edd6b78d524263955fffdb",
+      "hummingbot/cli/admin_models.py": "dbf431b868e32d966d6a8749b0441a45af8a32a1bc430124a98b1dc2ea350c2e",
+      "hummingbot/cli/admin_daily_cache.py": "cc18a8c9514a2443f384541d61b0b67af78fc718294cb7a60acd51d5fc559311",
+      "test/e2e/offline/load_client.py": "13f2b5379953068b18fa785481c2f73ddf11f785f37f2eb4663431121ad5129e",
+      "test/e2e/offline/load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e"
+    }
+  }
 }
