@@ -2,9 +2,10 @@
 import subprocess
 import sys
 import time
-from test.e2e.offline.process_isolation.lifecycle import ChildSupervisor, HealthWatchdog
 
 import pytest
+
+from hummingbot.cli.process_supervision import ChildSupervisor, HealthWatchdog
 
 
 class Clock:
@@ -206,10 +207,10 @@ def test_watchdog_tolerates_startup_but_restarts_a_sustained_stall():
     owner.tick()
     watchdog = HealthWatchdog(owner)
     watchdog.observe('engine', False)
-    clock.now = 179
+    clock.now = 239
     watchdog.observe('engine', False)
     assert not owner.children['engine'].terminated
-    clock.now = 180
+    clock.now = 240
     watchdog.observe('engine', False)
     assert owner.children['engine'].terminated
 
@@ -239,3 +240,29 @@ def test_watchdog_recovery_resets_failure_window_and_replacement_gets_startup_gr
     watchdog.observe('api', False)
     assert not replacement.terminated
     assert len(watchdog.observations) <= 2
+
+
+def test_fatal_configuration_exit_stops_parent_without_relaunch():
+    owner, clock, children, events = supervisor()
+    owner.tick()
+    owner.children['engine'].returncode = 78
+    owner.tick()
+    assert owner.stopping and owner.exit_code == 78
+    owner.shutdown()
+    clock.now += 100
+    owner.tick()
+    assert len(children) == 2 and children[1].terminated
+    assert any(row['event'] == 'child_configuration_failed' for row in events)
+
+
+def test_child_exiting_during_termination_still_reaps_and_stops_peer():
+    owner, _, children, _ = supervisor()
+    owner.tick()
+
+    def disappear():
+        children[0].returncode = -15
+        raise ProcessLookupError()
+
+    children[0].terminate = disappear
+    owner.shutdown()
+    assert children[0].waited and children[1].terminated and children[1].waited

@@ -218,7 +218,7 @@ def test_startup_configuration_failure_emits_json_without_secret_inputs(level):
                LOG_LEVEL=level, LOG_FORMAT="json")
     result = subprocess.run([sys.executable, "-m", "hummingbot.cli.service"], env=env,
                             capture_output=True, text=True, timeout=15)
-    assert result.returncode == 1 and not result.stderr
+    assert result.returncode == 78 and not result.stderr
     values = [json.loads(line) for line in result.stdout.splitlines()]
     assert [value["severity"] for value in values] == ["ERROR", "INFO"]
     assert values[0]["event"] == "service_failed" and values[-1]["event"] == "service_exit"

@@ -7,6 +7,7 @@ does not certify a later image. Operational guides and plans live in [docs/](../
 
 | Report | Associated artifact or scope |
 |---|---|
+| [Runtime supervision](mm-service-supervision.md) | Single-service API/engine integration; native phase verified, final image/lifecycle/hour gates pending |
 | [LIFE / OKX progress](implementation/LIFE_OKX_PROGRESS.md) | Phase history and Red/Green verification |
 | [Cloud Run launch preparation](cloudrun-readiness-review.md) | Template/review/project-selection TDD, stopped-startup checklist and pending cloud inputs |
 | [Local Demo startup](local-demo-startup.md), [evidence](local-demo-startup-evidence.json) | Rebuilt runtime smoke, preserved Demo DB/config and authenticated stopped-service API |

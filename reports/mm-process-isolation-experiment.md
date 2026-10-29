@@ -1,5 +1,9 @@
 # Single-service API/engine process isolation experiment
 
+Historical diagnostic results below keep their original scope. Native runtime
+integration has now begun; follow [current verification](mm-service-supervision.md)
+for image/lifecycle/load acceptance. Earlier passing probes do not certify it.
+
 The experiment retains one Cloud Run service, one container and one image.
 Separate Python API/engine processes demonstrably isolate a blocked engine loop,
 but do **not** establish final architecture/load acceptance. Keep the production entrypoint

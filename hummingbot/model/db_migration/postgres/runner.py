@@ -24,6 +24,10 @@ LEGACY_TABLES = (
 class PostgreSQLBootstrapError(RuntimeError):
     """Safe diagnostics: never include driver messages, SQL parameters or the URL."""
 
+    def __init__(self, message, *, retryable=False):
+        super().__init__(message)
+        self.retryable = retryable
+
 
 def reject_legacy_schema(connection: Connection) -> None:
     names = set(inspect(connection).get_table_names(schema="public"))
@@ -183,7 +187,7 @@ def bootstrap_postgres(
                             if locked:
                                 break
                             if time.monotonic() >= lock_deadline:
-                                raise PostgreSQLBootstrapError("PostgreSQL migration lock deadline exceeded.")
+                                raise PostgreSQLBootstrapError("PostgreSQL migration lock deadline exceeded.", retryable=True)
                             time.sleep(min(0.1, max(0, lock_deadline - time.monotonic())))
                     # Another process may have completed a cutover while this one waited.
                     if not legacy_cutover:
@@ -193,7 +197,7 @@ def bootstrap_postgres(
                         current_script = path.name
                         remaining = deadline - time.monotonic()
                         if remaining <= 0:
-                            raise PostgreSQLBootstrapError("PostgreSQL bootstrap deadline exceeded.")
+                            raise PostgreSQLBootstrapError("PostgreSQL bootstrap deadline exceeded.", retryable=True)
                         content = path.read_text(encoding="utf-8")
                         with raw.cursor() as cursor:
                             cursor.execute("SET LOCAL search_path = public")
@@ -207,7 +211,7 @@ def bootstrap_postgres(
                                     hashlib.sha256(content.encode()).hexdigest())
                 validate_schema(connection)
                 if time.monotonic() >= deadline:
-                    raise PostgreSQLBootstrapError("PostgreSQL bootstrap deadline exceeded.")
+                    raise PostgreSQLBootstrapError("PostgreSQL bootstrap deadline exceeded.", retryable=True)
                 if legacy_cutover:
                     raw.commit()
             finally:
@@ -226,8 +230,11 @@ def bootstrap_postgres(
     except PostgreSQLBootstrapError:
         raise
     except Exception as error:
+        from sqlalchemy.exc import OperationalError, TimeoutError as PoolTimeout
         code = getattr(error, "pgcode", None) or getattr(getattr(error, "orig", None), "pgcode", None)
+        retryable = ((code is not None and (code.startswith(('08', '53')) or code in ('57014', '57P01', '57P02', '57P03', '55P03', '40001', '40P01')))
+                     or (code is None and isinstance(error, (OSError, TimeoutError, OperationalError, PoolTimeout))))
         location = f" in {current_script}" if current_script else ""
         raise PostgreSQLBootstrapError(
-            f"PostgreSQL bootstrap failed{location} (SQLSTATE {code or 'unavailable'})."
+            f"PostgreSQL bootstrap failed{location} (SQLSTATE {code or 'unavailable'}).", retryable=retryable
         ) from None

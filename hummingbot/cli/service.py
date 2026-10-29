@@ -791,7 +791,7 @@ def create_service_app(host, admin_settings=None):
     return app
 
 
-async def run_service():
+async def run_service(*, settings=None, bind_host='0.0.0.0', admin_settings=None):
     from hummingbot.client.config.runtime_config import RuntimeConfigurationError, RuntimeSettings, postgres_requested
     stop = asyncio.Event()
     deadline = ShutdownDeadline(stop)
@@ -804,14 +804,14 @@ async def run_service():
         configure_service_logging()
         if not postgres_requested():
             raise RuntimeConfigurationError("The foreground service requires STORAGE_BACKEND=postgres; use hbot start for file mode.")
-        settings = RuntimeSettings.from_environment()
+        settings = settings or RuntimeSettings.from_environment()
         host = ServiceHost(settings, stop, deadline)
         host.configure_logging()
         host.log.info("Service starting", extra={"event": "service_starting"})
-        app = create_service_app(host)
+        app = create_service_app(host, admin_settings)
         runner = web.AppRunner(app, access_log=None, shutdown_timeout=0.1)
         await runner.setup()
-        await web.TCPSite(runner, "0.0.0.0", settings.port).start()
+        await web.TCPSite(runner, bind_host, settings.port).start()
         await host.run()
         code = 0
     except Exception as error:
@@ -825,7 +825,8 @@ async def run_service():
         logging.getLogger(__name__).error("Service stopped reason=%s type=%s", reason, type(error).__name__,
                                           extra={"event": "service_failed", "reason_code": reason,
                                                  "error_type": type(error).__name__})
-        code = 1
+        from hummingbot.cli.service_processes import failure_exit_code
+        code = failure_exit_code(error)
     finally:
         deadline.request()
         if host is not None:
@@ -851,13 +852,40 @@ def serve():
 
     # Safe defaults also cover rejected configuration before host construction.
     configure_service_logging(environ={}, reset=True)
-    raise SystemExit(asyncio.run(run_service()))
+    from hummingbot.cli.service_processes import run_supervisor
+    raise SystemExit(run_supervisor())
 
 
-def main():
+def serve_role(role):
+    from dataclasses import replace
+
+    from hummingbot.cli.admin_service import run_admin_service
+    from hummingbot.cli.service_processes import ProcessLayout
+    from hummingbot.client.config.admin_config import AdminSettings
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+    from hummingbot.logger.service_logging import configure_service_logging
+    configure_service_logging(environ={}, reset=True)
+    layout = ProcessLayout(RuntimeSettings.from_environment())
+    if role == 'engine':
+        code = asyncio.run(run_service(settings=layout.engine, bind_host='127.0.0.1',
+                                       admin_settings=replace(AdminSettings.from_environment(), enabled=False)))
+    else:
+        code = asyncio.run(run_admin_service(layout.api, engine_port=layout.engine.port))
+    raise SystemExit(code)
+
+
+def main(argv=None):
+    import argparse
+
     from hummingbot.client.config.runtime_config import load_environment
-    load_environment()
-    serve()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--role', choices=('engine', 'api'), help=argparse.SUPPRESS)
+    args = parser.parse_args(argv)
+    if args.role:
+        serve_role(args.role)
+    else:
+        load_environment()
+        serve()
 
 
 if __name__ == "__main__":

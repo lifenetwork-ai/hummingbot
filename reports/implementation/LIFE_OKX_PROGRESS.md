@@ -1559,3 +1559,18 @@ remains stopped on its original image; no Cloud Run deployment.
 - [ ] Cold million-fill query cost, production supervision integration,
   ordinary-entrypoint/full final-image load and continuous-hour memory gates
   remain open. Current passing latency windows are not final release acceptance.
+
+## Production supervision integration — native phase (2026-10-29)
+
+- [x] Share the tested child policy with runtime; add fatal-startup, termination
+  race and signal-during-launch Red/Green coverage.
+- [x] Ordinary entrypoint launches API/engine roles with public/loopback health,
+  total pool partitioning, one migration owner and child dotenv/credential
+  isolation. Existing engine/recovery/control handlers remain reused.
+- [x] 95 selected native checks pass, including initialization interruption,
+  read-only API schema validation, retryable bootstrap, readiness and safe logs.
+- [ ] Update actual-role offline instrumentation, build/reverify the final image
+  and complete the unchanged load/hour/recovery gates. No Demo replacement or
+  Cloud Run deployment has occurred.
+
+See [current runtime verification](../mm-service-supervision.md).

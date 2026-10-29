@@ -80,6 +80,28 @@ whole-container failure policy still require work. Keep one Cloud Run service.
 Process recovery does not authorize trading recovery. Current operator HALT
 recovery still requires technical review; no reset/resume API is implemented.
 
+## R6: production single-service supervision integration
+
+- [x] Move the tested bounded child policy into runtime code; Red/Green for
+  physical reaping, exit/termination races, fatal startup versus retryable
+  failures, startup grace and shutdown without relaunching children.
+- [x] Integrate the ordinary service entrypoint: public API / loopback engine
+  health, configurable ingress port, shared total DB ceiling partitioned between
+  roles, one migration owner, child dotenv isolation and no exchange credentials
+  in the API environment. Reuse the current handlers, engine and PostgreSQL queue.
+  Native integration: 95 selected tests pass. Runtime image and actual role
+  lifecycle verification below remain required before adoption.
+- [ ] Cover API/engine health, initialization interruption, API-only restart,
+  engine reconciliation/HALT and parent shutdown using production entrypoints.
+  Update offline instrumentation to measure both real roles without replacing
+  the shipping supervisor or masking missing metrics.
+- [ ] Commit verified runtime phases; build and fingerprint the final image.
+  Run native/real-PG regression, runtime smoke, Swagger and full offline E2E.
+- [ ] Run unchanged workload/error/latency gates and continuous-hour per-role
+  memory checks on the selected final image, followed by recovery faults and an
+  ordinary-entrypoint control. Preserve failures, report scope, update checklist
+  and commit. No real Demo replacement, trading start or Cloud Run deployment.
+
 Real local Demo remains stopped. Load tests use isolated fake exchanges/DBs.
 The [investigation](../../reports/mm-p99-investigation.md) retains its original
 image scope; no single historical p99 trigger is assumed.

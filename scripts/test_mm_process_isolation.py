@@ -32,6 +32,9 @@ def prepare(assets, mode):
     prototypes = ROOT / 'test/e2e/offline/process_isolation'
     for path in prototypes.glob('*.py'):
         (assets / path.name).write_bytes(path.read_bytes())
+    # Earlier immutable images lack the promoted module. Mount its exact pure
+    # policy rather than maintaining a second implementation for diagnostics.
+    (assets / 'lifecycle.py').write_bytes((ROOT / 'hummingbot/cli/process_supervision.py').read_bytes())
     (assets / 'load_service.py').write_bytes((prototypes / ('supervisor.py' if mode == 'split' else 'engine.py')).read_bytes())
     path = assets / 'life_mm_profiles.yaml'
     profiles = yaml.safe_load(path.read_text())
