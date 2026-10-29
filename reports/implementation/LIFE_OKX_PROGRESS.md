@@ -1672,3 +1672,11 @@ including restored quotes/random expiry/funding/DB-fault HALT. Native harness24
 pass. The focused recovery variant omits the nine-profile matrix; repeat full16
 with compatible rollback before long load. Runtime timeout and safety guards
 remain unchanged; retain the failed full run.
+
+Replacement full16 E2E `20261030-032310-8526be` passes on `80a34c69…`, including
+full nine-mode/profile matrix and compatible rollback. ACK hold is 976ms in this
+full replay; original timeout/HALT policy stays unchanged. Actual-role faults
+`20261030-025652-fcd9de` also pass (preserved identity/positions, physical reaping,
+no extra orders, engine-only DDL, clean 1.65s parent shutdown). Mark replacement
+image/regression/E2E/lifecycle done, then start the unchanged all-feature load/hour
+and ordinary-entrypoint control alone. Those last acceptance boxes remain open.

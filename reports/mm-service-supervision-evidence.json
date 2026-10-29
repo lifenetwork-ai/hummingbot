@@ -1,12 +1,12 @@
 {
-  "status": "replacement_full_e2e_repeat_pending",
+  "status": "final_replacement_load_and_control_pending",
   "cloud_run_deployed": false,
   "persistent_demo_replaced": false,
   "image": {
-    "id": "sha256:f5e7ab3282688787876623d176f774370df3dba8ecbf8eb8ae9ca714ad2a3d25",
-    "manifest": "sha256:cee15b5a2644cb0ff27366ba27a784b7ee775f5987afe679a10163fb17f4c578",
-    "source_commit": "6de4001cde981bdea9666e53a6ca687c8c2de5bb",
-    "size_bytes": 1367426271,
+    "id": "sha256:80a34c69a87251236cccf005f7a78502ecbbc0a5d7252cb16487f723760af99f",
+    "manifest": "sha256:469e598270e5cb3cd7478e0ffa7a0f282f68ebd4510349d9fc087f1e738a35d2",
+    "source_commit": "c2a22c0ae2a3dbf5782565c95cf848b91cd896ea",
+    "size_bytes": 1367433365,
     "architecture": "amd64"
   },
   "runtime_sha256": {
@@ -14,21 +14,28 @@
     "hummingbot/cli/service_processes.py": "d5df25b2c18cbff5b023e50d86f516ea4f1ba6f2d6be652da58e17a3e06a1115",
     "hummingbot/cli/process_supervision.py": "545385dc8a012e99e2a8097375c399ee55b737b8c306fb46c655e17497ea23b7",
     "hummingbot/cli/admin_service.py": "7c146e2e6dfb7d3eef681509d3a23d2a2009fc98b10deb14a529efa9047d04a1",
-    "hummingbot/model/db_migration/postgres/runner.py": "92ed0371a96a5e321763288aa4d458d5f8196b42a6856ced6553cd8fd4593962"
+    "hummingbot/model/db_migration/postgres/runner.py": "92ed0371a96a5e321763288aa4d458d5f8196b42a6856ced6553cd8fd4593962",
+    "hummingbot/core/bot_ownership.py": "7adabf5f0d21a2248cfd9653041ea982bedc9711985ea6b70a9cf90cf96648db",
+    "hummingbot/core/trading_core.py": "2cbe9be347d21f3e9d6b057ba7dfc8fdac11f7b8ad3aeaf1f7723e7371f0dfea",
+    "hummingbot/strategy/strategy_v2_base.py": "717eec06a133e584333b6357663d73910dec7eab390223f29d607741048f6fec",
+    "hummingbot/strategy_v2/executors/executor_orchestrator.py": "7a782e414eca8e6f5636f7546e24c7c7b2530a51b0769b57ce16c67e33f4b203"
   },
   "native": {
-    "passed": 2012,
+    "passed": 2026,
     "subtests": 11,
-    "log": "build/service-supervision/native-idle-fix-regression.log",
-    "later_harness_focused_passed": 31
+    "log": "build/service-supervision/terminal-checkpoint-native-regression.log",
+    "later_focused": {
+      "passed": 91,
+      "log": "build/service-supervision/terminal-checkpoint-final-focused.log",
+      "includes_new_short_side_case": true
+    },
+    "harness_focused_passed": 24
   },
   "postgres": {
-    "full_run_passed": 257,
-    "full_run_failed": 2,
-    "corrected_lifecycle_group_passed": 3,
-    "after_signal_fix_lifecycle_group_passed": 3,
-    "distinct_test_coverage": 259,
-    "note": "Full-run helper argument failures retained; targeted real API/service/schema groups pass after correction. No SQL schema change."
+    "passed": 266,
+    "failed": 0,
+    "seconds": 563.83,
+    "log": "build/service-supervision/terminal-checkpoint-full-postgres.log"
   },
   "runtime_smoke": {
     "passed": true,
@@ -73,7 +80,7 @@
   "offline_e2e": {
     "passed": true,
     "release_scope_complete": true,
-    "report": "build/e2e-offline/20261030-003620-4745f4/result.json",
+    "report": "build/e2e-offline/20261030-032310-8526be/result.json",
     "scenarios": [
       "schema",
       "spot",
@@ -91,10 +98,11 @@
       "spread-policy",
       "volatility-defense",
       "upgrade"
-    ]
+    ],
+    "terminal_create_ack_hold_ms": 976.282958984375
   },
   "lifecycle": {
-    "image_id": "sha256:f5e7ab3282688787876623d176f774370df3dba8ecbf8eb8ae9ca714ad2a3d25",
+    "image_id": "sha256:80a34c69a87251236cccf005f7a78502ecbbc0a5d7252cb16487f723760af99f",
     "scope": "Ordinary production entrypoint lifecycle; isolated dummy exchange/DB",
     "release_scope_complete": false,
     "completed": true,
@@ -103,7 +111,7 @@
       "api_restarts": [
         {
           "fault": "crash",
-          "recovery_seconds": 14.655919749988243,
+          "recovery_seconds": 11.951764542143792,
           "engine_identity_preserved": true,
           "owner_and_session_preserved": true,
           "positions_preserved": true,
@@ -113,7 +121,7 @@
         },
         {
           "fault": "repeated_crash",
-          "recovery_seconds": 12.826894750120118,
+          "recovery_seconds": 11.707657208899036,
           "engine_identity_preserved": true,
           "owner_and_session_preserved": true,
           "positions_preserved": true,
@@ -123,12 +131,12 @@
         },
         {
           "fault": "unresponsive_loop",
-          "recovery_seconds": 49.17991179181263,
+          "recovery_seconds": 43.06112387496978,
           "engine_identity_preserved": true,
           "owner_and_session_preserved": true,
           "positions_preserved": true,
           "working_quotes_recovered": true,
-          "working_quote_count": 6,
+          "working_quote_count": 10,
           "quote_check": "bounded_after_normal_refresh"
         }
       ],
@@ -136,7 +144,7 @@
       "engine_restarts": [
         {
           "fault": "active_engine_crash",
-          "recovery_seconds": 15.265305207809433,
+          "recovery_seconds": 9.599968417081982,
           "old_process_absent": true,
           "api_identity_preserved": true,
           "owner_generation_advanced": true,
@@ -146,7 +154,7 @@
         },
         {
           "fault": "halted_engine_unresponsive_loop",
-          "recovery_seconds": 37.16542249987833,
+          "recovery_seconds": 30.78296820796095,
           "old_process_absent": true,
           "api_identity_preserved": true,
           "owner_generation_advanced": true,
@@ -156,7 +164,7 @@
         }
       ],
       "parent_restarts": 0,
-      "parent_shutdown_seconds": 3.280815166886896,
+      "parent_shutdown_seconds": 1.648429041961208,
       "parent_shutdown_owner_released": true
     },
     "ordinary_entrypoint": [
@@ -168,22 +176,22 @@
       "supervisor": {
         "pid": 1,
         "fds": 5,
-        "VmHWM": 133640192,
-        "VmRSS": 133640192,
+        "VmHWM": 133824512,
+        "VmRSS": 133824512,
         "Threads": 8
       },
       "engine": {
-        "pid": 37,
+        "pid": 32,
         "fds": 14,
-        "VmHWM": 312090624,
-        "VmRSS": 312090624,
+        "VmHWM": 312324096,
+        "VmRSS": 312324096,
         "Threads": 10
       },
       "api": {
-        "pid": 38,
+        "pid": 33,
         "fds": 11,
-        "VmHWM": 296071168,
-        "VmRSS": 296071168,
+        "VmHWM": 296513536,
+        "VmRSS": 296513536,
         "Threads": 9
       }
     },
@@ -206,32 +214,8 @@
     "shared_default_daily_ttl_seconds": 5
   },
   "load": {
-    "status": "interrupted_checkpoint_race",
-    "report": "build/mm-load/20261030-013705-7a6a10/result.json",
-    "log": "build/service-supervision/final-fd-fixed-all-load.log",
-    "passed": false,
-    "interrupted": true,
-    "reason": "Healthy random profile transition hit position-checkpoint cleanup guard after concurrent fill; engine restarted and retained HALT. Stopped instead of consuming remaining hour or resetting HALT.",
-    "completed_windows": {
-      "warmup": {
-        "read_p95_ms": 81.80975401774049,
-        "read_p99_ms": 336.3558480050415,
-        "unexpected_errors": 0,
-        "violations": []
-      },
-      "mixed": {
-        "read_p95_ms": 132.34479998936877,
-        "read_p99_ms": 656.9157979974989,
-        "unexpected_errors": 0,
-        "violations": []
-      },
-      "bursts": {
-        "read_p95_ms": 56.91086099250242,
-        "read_p99_ms": 155.2649420045782,
-        "unexpected_errors": 0,
-        "violations": []
-      }
-    }
+    "status": "pending",
+    "runtime_image_id": "sha256:80a34c69a87251236cccf005f7a78502ecbbc0a5d7252cb16487f723760af99f"
   },
   "production_control": {
     "status": "pending"
@@ -259,6 +243,34 @@
       "passed": false,
       "interrupted": true,
       "finding": "Repeated cross-process proc cmdline inspection accumulates auxv descriptors under amd64 emulation; controlled sampler replay confirms old+20/new0 per20 samples. Mixed/hour incomplete."
+    },
+    {
+      "status": "interrupted_checkpoint_race",
+      "report": "build/mm-load/20261030-013705-7a6a10/result.json",
+      "log": "build/service-supervision/final-fd-fixed-all-load.log",
+      "passed": false,
+      "interrupted": true,
+      "reason": "Healthy random profile transition hit position-checkpoint cleanup guard after concurrent fill; engine restarted and retained HALT. Stopped instead of consuming remaining hour or resetting HALT.",
+      "completed_windows": {
+        "warmup": {
+          "read_p95_ms": 81.80975401774049,
+          "read_p99_ms": 336.3558480050415,
+          "unexpected_errors": 0,
+          "violations": []
+        },
+        "mixed": {
+          "read_p95_ms": 132.34479998936877,
+          "read_p99_ms": 656.9157979974989,
+          "unexpected_errors": 0,
+          "violations": []
+        },
+        "bursts": {
+          "read_p95_ms": 56.91086099250242,
+          "read_p99_ms": 155.2649420045782,
+          "unexpected_errors": 0,
+          "violations": []
+        }
+      }
     }
   ],
   "sampler_fd_reproducer": {
@@ -333,7 +345,7 @@
   },
   "terminal_checkpoint_race": {
     "runtime_image_id": "sha256:f5e7ab3282688787876623d176f774370df3dba8ecbf8eb8ae9ca714ad2a3d25",
-    "status": "Shipping-image Red/Green passed; full E2E/lifecycle/load/control verification pending",
+    "status": "Replacement native/PG/image/full16 E2E/lifecycle verified; unchanged load/hour/control pending",
     "finding": "Active perpetual entry filled from 0.011 to 0.012 base during normal random step cancellation, after the old position snapshot. Existing guard correctly retained HALT.",
     "affected_order": "93027a12dac34fBCSLEUT0323fdfd6e5",
     "executor": "HyanaSNrngEZaXXKzsYFQEBU1uzm3c5QXnyAzfjfkBUY",
@@ -537,6 +549,207 @@
       "scope": "Focused recovery variant; full matrix/16 groups still required",
       "focused_native_passed": 24,
       "runtime_changed": false
+    },
+    "full_e2e_repeat": {
+      "passed": true,
+      "release_scope_complete": true,
+      "report": "build/e2e-offline/20261030-032310-8526be/result.json",
+      "scenarios": [
+        "schema",
+        "spot",
+        "v2-spot",
+        "v2-perpetual",
+        "life-mm",
+        "until-stopped",
+        "funding",
+        "availability",
+        "quote-guards",
+        "drawdown",
+        "spot-outflow",
+        "listing-bootstrap",
+        "inventory-skew",
+        "spread-policy",
+        "volatility-defense",
+        "upgrade"
+      ],
+      "terminal_create_ack_hold_ms": 976.282958984375
+    }
+  },
+  "prior_artifact_checks": {
+    "image": {
+      "id": "sha256:f5e7ab3282688787876623d176f774370df3dba8ecbf8eb8ae9ca714ad2a3d25",
+      "manifest": "sha256:cee15b5a2644cb0ff27366ba27a784b7ee775f5987afe679a10163fb17f4c578",
+      "source_commit": "6de4001cde981bdea9666e53a6ca687c8c2de5bb",
+      "size_bytes": 1367426271,
+      "architecture": "amd64"
+    },
+    "runtime_sha256": {
+      "hummingbot/cli/service.py": "f856c5c14489148f5de08070f83cedb7050605065c1dc575e36bfabd703b2c72",
+      "hummingbot/cli/service_processes.py": "d5df25b2c18cbff5b023e50d86f516ea4f1ba6f2d6be652da58e17a3e06a1115",
+      "hummingbot/cli/process_supervision.py": "545385dc8a012e99e2a8097375c399ee55b737b8c306fb46c655e17497ea23b7",
+      "hummingbot/cli/admin_service.py": "7c146e2e6dfb7d3eef681509d3a23d2a2009fc98b10deb14a529efa9047d04a1",
+      "hummingbot/model/db_migration/postgres/runner.py": "92ed0371a96a5e321763288aa4d458d5f8196b42a6856ced6553cd8fd4593962"
+    },
+    "native": {
+      "passed": 2012,
+      "subtests": 11,
+      "log": "build/service-supervision/native-idle-fix-regression.log",
+      "later_harness_focused_passed": 31
+    },
+    "postgres": {
+      "full_run_passed": 257,
+      "full_run_failed": 2,
+      "corrected_lifecycle_group_passed": 3,
+      "after_signal_fix_lifecycle_group_passed": 3,
+      "distinct_test_coverage": 259,
+      "note": "Full-run helper argument failures retained; targeted real API/service/schema groups pass after correction. No SQL schema change."
+    },
+    "runtime_smoke": {
+      "passed": true,
+      "numba_jit": true,
+      "ta_lib": true,
+      "tls_trust": true,
+      "connector_count": 63,
+      "sql_scripts": 17,
+      "build_tools_absent": true,
+      "cli_version": "hbot 2.17.0",
+      "environment_bytes": 1266556462,
+      "service_logging": {
+        "passed": true,
+        "all_severities": true,
+        "network_warning": true,
+        "utc_context": true,
+        "redaction": true,
+        "startup_failure_json": true,
+        "python_warning_json": true,
+        "sql_parameters_suppressed": true
+      }
+    },
+    "offline_e2e": {
+      "passed": true,
+      "release_scope_complete": true,
+      "report": "build/e2e-offline/20261030-003620-4745f4/result.json",
+      "scenarios": [
+        "schema",
+        "spot",
+        "v2-spot",
+        "v2-perpetual",
+        "life-mm",
+        "until-stopped",
+        "funding",
+        "availability",
+        "quote-guards",
+        "drawdown",
+        "spot-outflow",
+        "listing-bootstrap",
+        "inventory-skew",
+        "spread-policy",
+        "volatility-defense",
+        "upgrade"
+      ]
+    },
+    "lifecycle": {
+      "image_id": "sha256:f5e7ab3282688787876623d176f774370df3dba8ecbf8eb8ae9ca714ad2a3d25",
+      "scope": "Ordinary production entrypoint lifecycle; isolated dummy exchange/DB",
+      "release_scope_complete": false,
+      "completed": true,
+      "ingress_port": 8090,
+      "case": {
+        "api_restarts": [
+          {
+            "fault": "crash",
+            "recovery_seconds": 14.655919749988243,
+            "engine_identity_preserved": true,
+            "owner_and_session_preserved": true,
+            "positions_preserved": true,
+            "working_quotes_recovered": true,
+            "working_quote_count": 12,
+            "quote_check": "bounded_after_normal_refresh"
+          },
+          {
+            "fault": "repeated_crash",
+            "recovery_seconds": 12.826894750120118,
+            "engine_identity_preserved": true,
+            "owner_and_session_preserved": true,
+            "positions_preserved": true,
+            "working_quotes_recovered": true,
+            "working_quote_count": 12,
+            "quote_check": "bounded_after_normal_refresh"
+          },
+          {
+            "fault": "unresponsive_loop",
+            "recovery_seconds": 49.17991179181263,
+            "engine_identity_preserved": true,
+            "owner_and_session_preserved": true,
+            "positions_preserved": true,
+            "working_quotes_recovered": true,
+            "working_quote_count": 6,
+            "quote_check": "bounded_after_normal_refresh"
+          }
+        ],
+        "api_refresh_boundary_exercised": true,
+        "engine_restarts": [
+          {
+            "fault": "active_engine_crash",
+            "recovery_seconds": 15.265305207809433,
+            "old_process_absent": true,
+            "api_identity_preserved": true,
+            "owner_generation_advanced": true,
+            "halt_preserved": true,
+            "no_additional_orders": true,
+            "positions_preserved": true
+          },
+          {
+            "fault": "halted_engine_unresponsive_loop",
+            "recovery_seconds": 37.16542249987833,
+            "old_process_absent": true,
+            "api_identity_preserved": true,
+            "owner_generation_advanced": true,
+            "halt_preserved": true,
+            "no_additional_orders": true,
+            "positions_preserved": true
+          }
+        ],
+        "parent_restarts": 0,
+        "parent_shutdown_seconds": 3.280815166886896,
+        "parent_shutdown_owner_released": true
+      },
+      "ordinary_entrypoint": [
+        "python",
+        "-m",
+        "hummingbot.cli.service"
+      ],
+      "initial_processes": {
+        "supervisor": {
+          "pid": 1,
+          "fds": 5,
+          "VmHWM": 133640192,
+          "VmRSS": 133640192,
+          "Threads": 8
+        },
+        "engine": {
+          "pid": 37,
+          "fds": 14,
+          "VmHWM": 312090624,
+          "VmRSS": 312090624,
+          "Threads": 10
+        },
+        "api": {
+          "pid": 38,
+          "fds": 11,
+          "VmHWM": 296071168,
+          "VmRSS": 296071168,
+          "Threads": 9
+        }
+      },
+      "engine_health_loopback_only": true,
+      "api_private_environment_keys": [
+        "HBOT_OFFLINE_HTTP_ORIGIN"
+      ],
+      "nonempty_positions_verified": true,
+      "migration_batches": 3,
+      "applied_script_count": 51,
+      "api_restarts_do_not_migrate": true
     }
   }
 }

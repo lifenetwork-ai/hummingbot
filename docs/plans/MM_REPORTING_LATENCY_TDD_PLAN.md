@@ -114,9 +114,13 @@ recovery still requires technical review; no reset/resume API is implemented.
   replay at `20261030-025503-780bad`: exact spot/perpetual amount/fees, duplicate
   trade events, random rollover, clean cold restart and Stop. Full PostgreSQL:
   266 pass. Nine packaged runtime-module hashes match the committed source.
-- [ ] Complete all sixteen E2E groups, compatible upgrade/rollback and actual-role
+- [x] Complete all sixteen E2E groups, compatible upgrade/rollback and actual-role
   crash/hang replay on replacement image `80a34c69…`; prior `f5e7…` functional
   results are retained but do not certify the replacement.
+  Replacement full16 `20261030-032310-8526be` passes, including exact cancellation
+  fills and compatible rollback. Shipping roles pass at `20261030-025652-fcd9de`.
+  The earlier held-ACK full failure stays recorded; its corrected fault-isolation
+  replay holds ACK 976ms and keeps the same runtime timeout/HALT policy.
 - [ ] Run unchanged workload/error/latency gates and continuous-hour per-role
   memory checks on the selected final image, followed by recovery faults and an
   ordinary-entrypoint control. Preserve failures, report scope, update checklist

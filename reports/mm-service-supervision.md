@@ -3,8 +3,8 @@
 Status: the long load exposed a position-checkpoint race during random profile
 rollover. Its terminal-first fix passes native regression, full PostgreSQL and
 shipping-image Red/Green replay. Replacement image `80a34c69…` also passes role
-crash/hang checks. Full E2E failed in the held-ACK ordering case; its fault
-isolation is being replayed. Unchanged load/hour-memory/control gates
+crash/hang checks and all sixteen E2E groups after correcting held-ACK fault
+isolation. Earlier failed runs are retained. Unchanged load/hour-memory/control gates
 remain required; adoption is not accepted.
 Local checks do not certify Cloud Run
 deployment. The real local Demo remains stopped on
@@ -310,3 +310,20 @@ ordinary quote recovery, random steps/expiry, funding and DB-fault HALT. Twenty-
 harness/native checks pass. This focused variant omits the initial nine-profile
 matrix; a full sixteen-group repeat is still required and the preceding full
 failure remains recorded. No shipping module, timeout or HALT policy changed.
+
+Full replacement E2E `build/e2e-offline/20261030-032310-8526be/` now passes
+**all sixteen groups**, including the nine LIFE combinations, exact concurrent
+cancellation fills/cold restart, funding/availability/guards, volatility defense
+and compatible image upgrade/rollback. This full matrix holds create ACK for
+976ms, proves private cancellation was durably stored before releasing it, then
+passes the unchanged FE contracts and quote recovery. The preceding held-ACK
+failure remains failed; only its fault-isolation order changed, not the image.
+
+Actual shipping-role replay `build/service-supervision/20261030-025652-fcd9de/`
+also passes on `80a34c69…`: three API crash/hang cases preserve engine/owner/session
+and positions; engine crash/hang physically reaps the old process, advances
+ownership, retains HALT/positions and sends no new orders. Three engine starts
+apply 51 scripts; API restarts apply none. Parent shutdown releases ownership
+in 1.65s. This is a functional result, not a latency comparison: it overlaps
+an isolated functional E2E job. The final unchanged load/hour/control gates now
+start alone with the declared two-CPU/2GiB/pool5/TTL15 policy.
