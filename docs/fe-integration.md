@@ -643,6 +643,11 @@ Daily statistics use a bounded 32-entry in-memory cache to coalesce concurrent
 dashboard polls. `ADMIN_STATISTICS_CACHE_TTL_SECONDS` defaults to 5 (0 disables;
 maximum 60). Responses retain the aggregate's original `server_time` and balance
 observation timestamps. Cache expiry triggers a fresh consistent database read.
+The public Demo environment preset explicitly uses 15 seconds to reduce daily
+aggregation pressure. Display the original observation time; repeated polls may
+return the same observation during that interval. This setting belongs to the
+environment configuration and cannot be changed through the admin API. Current
+balances, positions, controls and trading decisions use their separate paths.
 On an identifiable transient reporting failure, the endpoint may return HTTP 200
 with `freshness: "stale"`, `observation_age_seconds`, an English `message` and
 `retry_after_seconds` (1–5). This requires a successful matching observation

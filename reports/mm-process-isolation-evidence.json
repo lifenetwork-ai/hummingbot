@@ -1830,5 +1830,2009 @@
     },
     "production_adopted": false,
     "decision": "Independent recovery proven in these local faults. Do not promote until healthy latency is repeatably within budget and final architecture passes lifecycle/continuous-hour memory/image gates. No RAM rejection criterion, no GC-policy change, no unique original p99 attribution."
-  }
+  },
+  "supervised_warmed_request_trace": {
+    "raw_result": "build/mm-process-isolation/20261029-200153-f4e2f7/result.json",
+    "image_id": "sha256:58356746f389cab61db94d7a39114ae1853eb001ff75cdca3d50fc79ae6f6cd1",
+    "source_commit": "989c640e2",
+    "scope": "300s warmup / 900s traced supervised diagnostic; both latency gates FAIL; no release acceptance",
+    "daily_cache_ttl_seconds": 5,
+    "windows": {
+      "warmup": {
+        "read_p95_ms": 898.3652250026353,
+        "read_p99_ms": 1861.6238360118587,
+        "unexpected_errors": 0,
+        "requested_reads": 6000,
+        "completed_reads": 6000,
+        "auxiliary": {
+          "requested_reads": 1500,
+          "completed_reads": 1500,
+          "statuses": {
+            "200": 1500
+          },
+          "read_p95_ms": 942.1397560217883,
+          "read_p99_ms": 1825.2610990020912
+        },
+        "violations": [
+          "auxiliary_read_p95",
+          "auxiliary_read_p99",
+          "read_p95",
+          "read_p99"
+        ],
+        "schedule_lag_p95_ms": 505.8106170326937
+      },
+      "healthy": {
+        "read_p95_ms": 695.1423049904406,
+        "read_p99_ms": 2266.5675260068383,
+        "unexpected_errors": 0,
+        "requested_reads": 18000,
+        "completed_reads": 18000,
+        "auxiliary": {
+          "requested_reads": 4500,
+          "completed_reads": 4500,
+          "statuses": {
+            "200": 4500
+          },
+          "read_p95_ms": 695.160550007131,
+          "read_p99_ms": 2219.0109840012155
+        },
+        "violations": [
+          "auxiliary_read_p95",
+          "auxiliary_read_p99",
+          "read_p95",
+          "read_p99"
+        ],
+        "cgroup_cpu_delta": {
+          "usage_usec": 474551626,
+          "user_usec": 443156751,
+          "system_usec": 31394874,
+          "nr_periods": 9015,
+          "nr_throttled": 121,
+          "throttled_usec": 6172652,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        },
+        "cgroup_sample_span_seconds": 901.5049646671396,
+        "schedule_lag_p95_ms": 290.0184949976392
+      }
+    },
+    "fixture_sha256": {
+      "request_probe.py": "8fc047145f21c89f7b94763a10bca10cd0a62e37897e6a494b49bb133b50906a",
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "supervisor.py": "0e7488d17a052652e3dfb5dfeba8827b173dd771d9a30708c1e480a2252263f8",
+      "exchange.py": "f3ac806b7e5eab43581a40429d25f133d5e4573f1181d7da9a8ff523cf54a490",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "0e7488d17a052652e3dfb5dfeba8827b173dd771d9a30708c1e480a2252263f8",
+      "runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30",
+      "restarted.py": "d7a036f9e27bc98ec814cf31595f9a2cf46981fb17530d07c4467584a4901441",
+      "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+      "engine.py": "6621cd5fcc98184bd028a7f07794cd44bec5c8f5bef21d6e25794a2da36ce2d9",
+      "load_trace.py": "333d3e3d55af42e7ea4540420d9dbb1717d1cfd7c0d500d8ab7e1a0cb2135fda",
+      "admin.py": "dcf8d22ca6c60a8d380c0594ef5eed220d47954c1eba2304aab1cc95aabd0525",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "lifecycle.py": "b5d7d5635291967ecb8b9c2baa165187636c44ad953cdf93b40da29e2135330d",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "stall_client.py": "37f891a6f66bca21b812811ba17a6408ebf0e81c1b20ed3ad560159e74847a0e",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "loop_probe.py": "58fe9d9ecfabf512c7830df8ae5ce1d912095129be6219c54b6478d93990bff2",
+      "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_client.py": "13f2b5379953068b18fa785481c2f73ddf11f785f37f2eb4663431121ad5129e"
+    },
+    "memory": {
+      "sample_count": 20,
+      "span_seconds": 1152.0815968513489,
+      "roles": {
+        "supervisor": {
+          "steady_rss_delta_mib": 0.0,
+          "thread_counts": [
+            1
+          ],
+          "steady_fds": [
+            5,
+            6
+          ]
+        },
+        "engine": {
+          "steady_rss_delta_mib": 2.375,
+          "thread_counts": [
+            10
+          ],
+          "steady_fds": [
+            31
+          ]
+        },
+        "api": {
+          "steady_rss_delta_mib": 6.875,
+          "thread_counts": [
+            14
+          ],
+          "steady_fds": [
+            23
+          ]
+        }
+      },
+      "scope": "Twenty samples, not a continuous-hour memory gate"
+    },
+    "healthy_trace_counts": {
+      "slow_or_failed_client_requests": 2904,
+      "loop_stall_samples": 40,
+      "slow_server_roots": 2316,
+      "dropped_spans_in_slow_roots": 0,
+      "postgres_samples": 3497,
+      "postgres_sampler_errors_all_windows": 5
+    },
+    "healthy_trace_operations": {
+      "response_validation_ms": {
+        "count": 3729,
+        "max_ms": 881.436167,
+        "thread_cpu_at_max_ms": 243.263501
+      },
+      "api_database_worker_start": {
+        "count": 2273,
+        "max_ms": 22.385667,
+        "thread_cpu_at_max_ms": 0.536999,
+        "max_queue_wait_ms": 1854.439918
+      },
+      "pool_queue_ms": {
+        "count": 2273,
+        "max_ms": 6.639708,
+        "thread_cpu_at_max_ms": 6.314583
+      },
+      "db_ping_ms": {
+        "count": 2273,
+        "max_ms": 254.630709,
+        "thread_cpu_at_max_ms": 9.007333
+      },
+      "pool_checkout_ms": {
+        "count": 2273,
+        "max_ms": 283.08,
+        "thread_cpu_at_max_ms": 234.032456
+      },
+      "sql": {
+        "count": 4401,
+        "max_ms": 1129.777876,
+        "thread_cpu_at_max_ms": 0.846126
+      },
+      "rollback_ms": {
+        "count": 3159,
+        "max_ms": 378.884667,
+        "thread_cpu_at_max_ms": 17.479165
+      },
+      "http.request": {
+        "count": 2316,
+        "max_ms": 2498.921084,
+        "thread_cpu_at_max_ms": 582.210674
+      },
+      "response_serialization_ms": {
+        "count": 1953,
+        "max_ms": 245.764626,
+        "thread_cpu_at_max_ms": 141.535
+      },
+      "commit_ms": {
+        "count": 155,
+        "max_ms": 19.267667,
+        "thread_cpu_at_max_ms": 1.559958
+      }
+    },
+    "selected_slow_requests": [
+      {
+        "client": {
+          "kind": "client_request",
+          "request_id": "bcb66ba6370b-4430",
+          "path": "/statistics/daily",
+          "status": 200,
+          "scheduled_ns": 133805821476282,
+          "dispatch_ns": 133808942802281,
+          "end_ns": 133811454126032,
+          "at": 1793279483.8369677,
+          "queue_wait_ms": 3121.325999,
+          "network_and_body_ms": 2511.323751,
+          "total_ms": 5632.64975,
+          "error": null
+        },
+        "stages": {
+          "client_queue_ms": 3121.325999,
+          "dispatch_to_handler_ms": 9.734625,
+          "handler_ms": 2498.921084,
+          "handler_end_to_client_ms": 2.668042,
+          "worker_waits_ms": [
+            516.495501
+          ],
+          "sql_ms": [
+            19.036041,
+            5.116625,
+            1067.908417,
+            786.279083,
+            27.3635,
+            14.734583
+          ]
+        },
+        "overlapping_gc": [
+          {
+            "kind": "gc",
+            "at": 1793279480.5359356,
+            "start_ns": 133808114699739,
+            "duration_ms": 38.386,
+            "thread_id": 140737476621504,
+            "generation": 0,
+            "collected": 10
+          },
+          {
+            "kind": "gc",
+            "at": 1793279479.475035,
+            "start_ns": 133807062992530,
+            "duration_ms": 29.200916,
+            "thread_id": 140737476621504,
+            "generation": 0,
+            "collected": 0
+          },
+          {
+            "kind": "gc",
+            "at": 1793279480.3115084,
+            "start_ns": 133807908674863,
+            "duration_ms": 19.906625,
+            "thread_id": 140737476621504,
+            "generation": 1,
+            "collected": 355
+          }
+        ],
+        "matched_pg_observations": [
+          {
+            "operation": "sql",
+            "duration_ms": 1067.908417,
+            "backend_pid": 127,
+            "observations": [
+              {
+                "sample_ns": 133809617107656,
+                "backend_pid": 127,
+                "backend_type": "client backend",
+                "state": "active",
+                "wait_type": null,
+                "wait_event": null,
+                "blocking_pids": [],
+                "query_start": 1793279481.906302,
+                "transaction_start": 1793279481.880372,
+                "sql_kind": "WITH",
+                "sql_template": "WITH scoped AS ( SELECT *, (to_timestamp(timestamp::double precision / ?) AT TIME ZONE ?)::date AS day, (COALESCE((trade_fee->>?)::numeric, ?) <> ? OR EXISTS ( SELECT ? FROM json_array_elements(COALESCE(trade_fee->?, ?::json)) fee WHERE (fee->>?)::numeric <> ?)) AS has_original_fee FROM trade_fills WHERE market = ANY(ARRAY[?,?]) AND timestamp >= ? AND timestamp < ? AND (NULL IS NULL OR symbol = NULL) ), converted AS ( SELECT *, (trade_fee_in_quote IS NOT NULL AND quote_asset = ? AND NOT (trade_fee_in_quote = ? AND has_original_fee)) AS valid_conversion FROM scoped) SELECT market, day, COUNT(*) AS fill_count, MAX(timestamp) AS last_event_ms, SUM(CASE WHEN trade_type=? THEN amount ELSE ? END) AS buy_volume_base, SUM(CASE WHEN trade_type=? THEN amount ELSE ? END) AS sell_volume_base,",
+                "sql_fingerprint": "e0426f593258d84291c4"
+              },
+              {
+                "sample_ns": 133809876370906,
+                "backend_pid": 127,
+                "backend_type": "client backend",
+                "state": "active",
+                "wait_type": null,
+                "wait_event": null,
+                "blocking_pids": [],
+                "query_start": 1793279481.906302,
+                "transaction_start": 1793279481.880372,
+                "sql_kind": "WITH",
+                "sql_template": "WITH scoped AS ( SELECT *, (to_timestamp(timestamp::double precision / ?) AT TIME ZONE ?)::date AS day, (COALESCE((trade_fee->>?)::numeric, ?) <> ? OR EXISTS ( SELECT ? FROM json_array_elements(COALESCE(trade_fee->?, ?::json)) fee WHERE (fee->>?)::numeric <> ?)) AS has_original_fee FROM trade_fills WHERE market = ANY(ARRAY[?,?]) AND timestamp >= ? AND timestamp < ? AND (NULL IS NULL OR symbol = NULL) ), converted AS ( SELECT *, (trade_fee_in_quote IS NOT NULL AND quote_asset = ? AND NOT (trade_fee_in_quote = ? AND has_original_fee)) AS valid_conversion FROM scoped) SELECT market, day, COUNT(*) AS fill_count, MAX(timestamp) AS last_event_ms, SUM(CASE WHEN trade_type=? THEN amount ELSE ? END) AS buy_volume_base, SUM(CASE WHEN trade_type=? THEN amount ELSE ? END) AS sell_volume_base,",
+                "sql_fingerprint": "e0426f593258d84291c4"
+              },
+              {
+                "sample_ns": 133810144852698,
+                "backend_pid": 127,
+                "backend_type": "client backend",
+                "state": "active",
+                "wait_type": null,
+                "wait_event": null,
+                "blocking_pids": [],
+                "query_start": 1793279481.906302,
+                "transaction_start": 1793279481.880372,
+                "sql_kind": "WITH",
+                "sql_template": "WITH scoped AS ( SELECT *, (to_timestamp(timestamp::double precision / ?) AT TIME ZONE ?)::date AS day, (COALESCE((trade_fee->>?)::numeric, ?) <> ? OR EXISTS ( SELECT ? FROM json_array_elements(COALESCE(trade_fee->?, ?::json)) fee WHERE (fee->>?)::numeric <> ?)) AS has_original_fee FROM trade_fills WHERE market = ANY(ARRAY[?,?]) AND timestamp >= ? AND timestamp < ? AND (NULL IS NULL OR symbol = NULL) ), converted AS ( SELECT *, (trade_fee_in_quote IS NOT NULL AND quote_asset = ? AND NOT (trade_fee_in_quote = ? AND has_original_fee)) AS valid_conversion FROM scoped) SELECT market, day, COUNT(*) AS fill_count, MAX(timestamp) AS last_event_ms, SUM(CASE WHEN trade_type=? THEN amount ELSE ? END) AS buy_volume_base, SUM(CASE WHEN trade_type=? THEN amount ELSE ? END) AS sell_volume_base,",
+                "sql_fingerprint": "e0426f593258d84291c4"
+              },
+              {
+                "sample_ns": 133810404183781,
+                "backend_pid": 127,
+                "backend_type": "client backend",
+                "state": "active",
+                "wait_type": null,
+                "wait_event": null,
+                "blocking_pids": [],
+                "query_start": 1793279481.906302,
+                "transaction_start": 1793279481.880372,
+                "sql_kind": "WITH",
+                "sql_template": "WITH scoped AS ( SELECT *, (to_timestamp(timestamp::double precision / ?) AT TIME ZONE ?)::date AS day, (COALESCE((trade_fee->>?)::numeric, ?) <> ? OR EXISTS ( SELECT ? FROM json_array_elements(COALESCE(trade_fee->?, ?::json)) fee WHERE (fee->>?)::numeric <> ?)) AS has_original_fee FROM trade_fills WHERE market = ANY(ARRAY[?,?]) AND timestamp >= ? AND timestamp < ? AND (NULL IS NULL OR symbol = NULL) ), converted AS ( SELECT *, (trade_fee_in_quote IS NOT NULL AND quote_asset = ? AND NOT (trade_fee_in_quote = ? AND has_original_fee)) AS valid_conversion FROM scoped) SELECT market, day, COUNT(*) AS fill_count, MAX(timestamp) AS last_event_ms, SUM(CASE WHEN trade_type=? THEN amount ELSE ? END) AS buy_volume_base, SUM(CASE WHEN trade_type=? THEN amount ELSE ? END) AS sell_volume_base,",
+                "sql_fingerprint": "e0426f593258d84291c4"
+              }
+            ]
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 786.279083,
+            "backend_pid": 127,
+            "observations": [
+              {
+                "sample_ns": 133810668849656,
+                "backend_pid": 127,
+                "backend_type": "client backend",
+                "state": "active",
+                "wait_type": null,
+                "wait_event": null,
+                "blocking_pids": [],
+                "query_start": 1793279482.97794,
+                "transaction_start": 1793279481.880372,
+                "sql_kind": "WITH",
+                "sql_template": "WITH scoped AS ( SELECT *, (to_timestamp(timestamp::double precision / ?) AT TIME ZONE ?)::date AS day, (COALESCE((trade_fee->>?)::numeric, ?) <> ? OR EXISTS ( SELECT ? FROM json_array_elements(COALESCE(trade_fee->?, ?::json)) fee WHERE (fee->>?)::numeric <> ?)) AS has_original_fee FROM trade_fills WHERE market = ANY(ARRAY[?,?]) AND timestamp >= ? AND timestamp < ? AND (NULL IS NULL OR symbol = NULL) ) SELECT market, day, fee.token AS currency, SUM(GREATEST(fee.amount,?)) AS paid, SUM(GREATEST(-fee.amount,?)) AS rebates, SUM(fee.amount) AS net FROM scoped CROSS JOIN LATERAL json_to_recordset(COALESCE(trade_fee->?,?::json)) AS fee(token TEXT, amount NUMERIC) GROUP BY market, day, fee.token ORDER BY market, day, currency",
+                "sql_fingerprint": "7854c167ec43530cbc54"
+              },
+              {
+                "sample_ns": 133810936337865,
+                "backend_pid": 127,
+                "backend_type": "client backend",
+                "state": "active",
+                "wait_type": null,
+                "wait_event": null,
+                "blocking_pids": [],
+                "query_start": 1793279482.97794,
+                "transaction_start": 1793279481.880372,
+                "sql_kind": "WITH",
+                "sql_template": "WITH scoped AS ( SELECT *, (to_timestamp(timestamp::double precision / ?) AT TIME ZONE ?)::date AS day, (COALESCE((trade_fee->>?)::numeric, ?) <> ? OR EXISTS ( SELECT ? FROM json_array_elements(COALESCE(trade_fee->?, ?::json)) fee WHERE (fee->>?)::numeric <> ?)) AS has_original_fee FROM trade_fills WHERE market = ANY(ARRAY[?,?]) AND timestamp >= ? AND timestamp < ? AND (NULL IS NULL OR symbol = NULL) ) SELECT market, day, fee.token AS currency, SUM(GREATEST(fee.amount,?)) AS paid, SUM(GREATEST(-fee.amount,?)) AS rebates, SUM(fee.amount) AS net FROM scoped CROSS JOIN LATERAL json_to_recordset(COALESCE(trade_fee->?,?::json)) AS fee(token TEXT, amount NUMERIC) GROUP BY market, day, fee.token ORDER BY market, day, currency",
+                "sql_fingerprint": "7854c167ec43530cbc54"
+              },
+              {
+                "sample_ns": 133811201254323,
+                "backend_pid": 127,
+                "backend_type": "client backend",
+                "state": "active",
+                "wait_type": null,
+                "wait_event": null,
+                "blocking_pids": [],
+                "query_start": 1793279482.97794,
+                "transaction_start": 1793279481.880372,
+                "sql_kind": "WITH",
+                "sql_template": "WITH scoped AS ( SELECT *, (to_timestamp(timestamp::double precision / ?) AT TIME ZONE ?)::date AS day, (COALESCE((trade_fee->>?)::numeric, ?) <> ? OR EXISTS ( SELECT ? FROM json_array_elements(COALESCE(trade_fee->?, ?::json)) fee WHERE (fee->>?)::numeric <> ?)) AS has_original_fee FROM trade_fills WHERE market = ANY(ARRAY[?,?]) AND timestamp >= ? AND timestamp < ? AND (NULL IS NULL OR symbol = NULL) ) SELECT market, day, fee.token AS currency, SUM(GREATEST(fee.amount,?)) AS paid, SUM(GREATEST(-fee.amount,?)) AS rebates, SUM(fee.amount) AS net FROM scoped CROSS JOIN LATERAL json_to_recordset(COALESCE(trade_fee->?,?::json)) AS fee(token TEXT, amount NUMERIC) GROUP BY market, day, fee.token ORDER BY market, day, currency",
+                "sql_fingerprint": "7854c167ec43530cbc54"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "client": {
+          "kind": "client_request",
+          "request_id": "bcb66ba6370b-4445",
+          "path": "/statistics/daily",
+          "status": 200,
+          "scheduled_ns": 133806371476283,
+          "dispatch_ns": 133809838087281,
+          "end_ns": 133811474914740,
+          "at": 1793279483.8577557,
+          "queue_wait_ms": 3466.610998,
+          "network_and_body_ms": 1636.827459,
+          "total_ms": 5103.438457,
+          "error": null
+        },
+        "stages": {
+          "client_queue_ms": 3466.610998,
+          "dispatch_to_handler_ms": 2.814792,
+          "handler_ms": 1631.776167,
+          "handler_end_to_client_ms": 2.2365,
+          "worker_waits_ms": [],
+          "sql_ms": []
+        },
+        "overlapping_gc": [
+          {
+            "kind": "gc",
+            "at": 1793279480.5359356,
+            "start_ns": 133808114699739,
+            "duration_ms": 38.386,
+            "thread_id": 140737476621504,
+            "generation": 0,
+            "collected": 10
+          },
+          {
+            "kind": "gc",
+            "at": 1793279479.475035,
+            "start_ns": 133807062992530,
+            "duration_ms": 29.200916,
+            "thread_id": 140737476621504,
+            "generation": 0,
+            "collected": 0
+          },
+          {
+            "kind": "gc",
+            "at": 1793279480.3115084,
+            "start_ns": 133807908674863,
+            "duration_ms": 19.906625,
+            "thread_id": 140737476621504,
+            "generation": 1,
+            "collected": 355
+          }
+        ],
+        "matched_pg_observations": []
+      },
+      {
+        "client": {
+          "kind": "client_request",
+          "request_id": "bcb66ba6370b-4453",
+          "path": "/fills?limit=500",
+          "status": 200,
+          "scheduled_ns": 133806721476283,
+          "dispatch_ns": 133810414285031,
+          "end_ns": 133811444472698,
+          "at": 1793279483.8273318,
+          "queue_wait_ms": 3692.808748,
+          "network_and_body_ms": 1030.187667,
+          "total_ms": 4722.996415,
+          "error": null
+        },
+        "stages": {
+          "client_queue_ms": 3692.808748,
+          "dispatch_to_handler_ms": 2.790375,
+          "handler_ms": 1010.793917,
+          "handler_end_to_client_ms": 16.603375,
+          "worker_waits_ms": [
+            844.516959
+          ],
+          "sql_ms": [
+            5.536
+          ]
+        },
+        "overlapping_gc": [
+          {
+            "kind": "gc",
+            "at": 1793279480.5359356,
+            "start_ns": 133808114699739,
+            "duration_ms": 38.386,
+            "thread_id": 140737476621504,
+            "generation": 0,
+            "collected": 10
+          },
+          {
+            "kind": "gc",
+            "at": 1793279479.475035,
+            "start_ns": 133807062992530,
+            "duration_ms": 29.200916,
+            "thread_id": 140737476621504,
+            "generation": 0,
+            "collected": 0
+          },
+          {
+            "kind": "gc",
+            "at": 1793279480.3115084,
+            "start_ns": 133807908674863,
+            "duration_ms": 19.906625,
+            "thread_id": 140737476621504,
+            "generation": 1,
+            "collected": 355
+          }
+        ],
+        "matched_pg_observations": []
+      },
+      {
+        "client": {
+          "kind": "client_request",
+          "request_id": "bcb66ba6370b-4454",
+          "path": "/balances",
+          "status": 200,
+          "scheduled_ns": 133806771476283,
+          "dispatch_ns": 133810461565115,
+          "end_ns": 133811460788073,
+          "at": 1793279483.8436446,
+          "queue_wait_ms": 3690.088832,
+          "network_and_body_ms": 999.222958,
+          "total_ms": 4689.31179,
+          "error": null
+        },
+        "stages": {
+          "client_queue_ms": 3690.088832,
+          "dispatch_to_handler_ms": 10.262458,
+          "handler_ms": 986.709667,
+          "handler_end_to_client_ms": 2.250833,
+          "worker_waits_ms": [
+            898.822209
+          ],
+          "sql_ms": [
+            4.153541
+          ]
+        },
+        "overlapping_gc": [
+          {
+            "kind": "gc",
+            "at": 1793279480.5359356,
+            "start_ns": 133808114699739,
+            "duration_ms": 38.386,
+            "thread_id": 140737476621504,
+            "generation": 0,
+            "collected": 10
+          },
+          {
+            "kind": "gc",
+            "at": 1793279479.475035,
+            "start_ns": 133807062992530,
+            "duration_ms": 29.200916,
+            "thread_id": 140737476621504,
+            "generation": 0,
+            "collected": 0
+          },
+          {
+            "kind": "gc",
+            "at": 1793279480.3115084,
+            "start_ns": 133807908674863,
+            "duration_ms": 19.906625,
+            "thread_id": 140737476621504,
+            "generation": 1,
+            "collected": 355
+          }
+        ],
+        "matched_pg_observations": []
+      },
+      {
+        "client": {
+          "kind": "client_request",
+          "request_id": "bcb66ba6370b-4455",
+          "path": "/positions",
+          "status": 200,
+          "scheduled_ns": 133806821476282,
+          "dispatch_ns": 133810546774281,
+          "end_ns": 133811504738865,
+          "at": 1793279483.8875794,
+          "queue_wait_ms": 3725.297999,
+          "network_and_body_ms": 957.964584,
+          "total_ms": 4683.262583,
+          "error": null
+        },
+        "stages": {
+          "client_queue_ms": 3725.297999,
+          "dispatch_to_handler_ms": 5.618417,
+          "handler_ms": 951.180417,
+          "handler_end_to_client_ms": 1.16575,
+          "worker_waits_ms": [
+            902.389125
+          ],
+          "sql_ms": [
+            20.875542
+          ]
+        },
+        "overlapping_gc": [
+          {
+            "kind": "gc",
+            "at": 1793279480.5359356,
+            "start_ns": 133808114699739,
+            "duration_ms": 38.386,
+            "thread_id": 140737476621504,
+            "generation": 0,
+            "collected": 10
+          },
+          {
+            "kind": "gc",
+            "at": 1793279479.475035,
+            "start_ns": 133807062992530,
+            "duration_ms": 29.200916,
+            "thread_id": 140737476621504,
+            "generation": 0,
+            "collected": 0
+          },
+          {
+            "kind": "gc",
+            "at": 1793279480.3115084,
+            "start_ns": 133807908674863,
+            "duration_ms": 19.906625,
+            "thread_id": 140737476621504,
+            "generation": 1,
+            "collected": 355
+          }
+        ],
+        "matched_pg_observations": [
+          {
+            "operation": "sql",
+            "duration_ms": 20.875542,
+            "backend_pid": 200,
+            "observations": [
+              {
+                "sample_ns": 133811487350615,
+                "backend_pid": 200,
+                "backend_type": "client backend",
+                "state": "idle in transaction",
+                "wait_type": "Client",
+                "wait_event": "ClientRead",
+                "blocking_pids": [],
+                "query_start": 1793279483.869361,
+                "transaction_start": 1793279483.854383,
+                "sql_kind": "SELECT",
+                "sql_template": "SELECT bot_id, desired_state, control_version, acknowledged_version, owner_uuid, owner_generation, heartbeat, status, revision, jsonb_build_object(?, recovery_state->? = ?::jsonb, ?, COALESCE(recovery_state->?, ?::jsonb) NOT IN (?::jsonb, ?::jsonb, ?::jsonb)) AS recovery_summary, CASE WHEN jsonb_typeof(mm_session)=? THEN mm_session - ? ELSE mm_session END AS mm_session, EXTRACT(EPOCH FROM (clock_timestamp() - heartbeat)) AS heartbeat_age_s, EXTRACT(EPOCH FROM clock_timestamp()) AS database_now FROM public.bot_state WHERE bot_id=?",
+                "sql_fingerprint": "76096df9458f6eee8616"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "longest_healthy_gc": [
+      {
+        "kind": "gc",
+        "at": 1793279477.878688,
+        "start_ns": 133804162421570,
+        "duration_ms": 1333.410334,
+        "thread_id": 140736037021376,
+        "generation": 2,
+        "collected": 333
+      },
+      {
+        "kind": "gc",
+        "at": 1793279829.4797535,
+        "start_ns": 134156089547440,
+        "duration_ms": 1012.50775,
+        "thread_id": 140736025466560,
+        "generation": 2,
+        "collected": 409
+      },
+      {
+        "kind": "gc",
+        "at": 1793279360.344055,
+        "start_ns": 133687256842434,
+        "duration_ms": 703.273542,
+        "thread_id": 140736025466560,
+        "generation": 2,
+        "collected": 172
+      },
+      {
+        "kind": "gc",
+        "at": 1793279699.9018612,
+        "start_ns": 134026882287296,
+        "duration_ms": 640.379667,
+        "thread_id": 140736037021376,
+        "generation": 2,
+        "collected": 334
+      },
+      {
+        "kind": "gc",
+        "at": 1793279649.6123788,
+        "start_ns": 133976621235315,
+        "duration_ms": 610.762001,
+        "thread_id": 140736025466560,
+        "generation": 2,
+        "collected": 415
+      }
+    ],
+    "trace_sha256": {
+      "api-loop-14.jsonl": "56780a0ea26a1791065a66fc7f8445b19d9674b2471966f0deb6c65fee1e96b0",
+      "api-loop-1528.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-loop-720.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-loop-839.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-requests-14.jsonl": "1f8875dc53f5ee6d80b96469c4be17b58467df4c65b485acec7e5ec498417ddf",
+      "api-requests-1528.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-requests-720.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-requests-839.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "healthy/client.jsonl": "9b4476525aa3a26d9e5f5ff1712bc51b622ca4b46ac5c86b65dfecce5be55871"
+    },
+    "client_trace_summaries": {
+      "warmup": {
+        "sink": {
+          "written_records": 2434,
+          "written_bytes": 1073095,
+          "dropped_records": 0,
+          "writer_cpu_ms": 416.3756090000002,
+          "queue_depth": 0,
+          "max_bytes": 134217728,
+          "writer_alive": false
+        },
+        "database_sampler": {
+          "samples": 1163,
+          "errors": 1,
+          "thread_cpu_ms": 1894.737526
+        }
+      },
+      "healthy": {
+        "sink": {
+          "written_records": 6408,
+          "written_bytes": 2884053,
+          "dropped_records": 0,
+          "writer_cpu_ms": 1004.0895389999971,
+          "queue_depth": 0,
+          "max_bytes": 134217728,
+          "writer_alive": false
+        },
+        "database_sampler": {
+          "samples": 3499,
+          "errors": 5,
+          "thread_cpu_ms": 3399.835789
+        }
+      }
+    },
+    "api_restarts": [
+      {
+        "fault": "crash",
+        "recovery_seconds": 8.231300292070955,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_remain": true
+      },
+      {
+        "fault": "repeated_crash",
+        "recovery_seconds": 7.975714124972001,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_remain": true
+      },
+      {
+        "fault": "unresponsive_loop",
+        "recovery_seconds": 29.448698458028957,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_remain": true
+      }
+    ],
+    "engine_restarts": [
+      {
+        "fault": "active_engine_crash",
+        "recovery_seconds": 18.563259582966566,
+        "old_process_absent": true,
+        "api_identity_preserved": true,
+        "owner_generation_advanced": true,
+        "halt_preserved": true,
+        "no_additional_orders": true,
+        "positions_preserved": true
+      },
+      {
+        "fault": "halted_engine_unresponsive_loop",
+        "recovery_seconds": 29.68866258300841,
+        "old_process_absent": true,
+        "api_identity_preserved": true,
+        "owner_generation_advanced": true,
+        "halt_preserved": true,
+        "no_additional_orders": true,
+        "positions_preserved": true
+      }
+    ],
+    "stall": {
+      "injected_loop_stall_seconds": 2.5,
+      "requests": 100,
+      "errors": 0,
+      "p50_ms": 10.401875479146838,
+      "p99_ms": 38.96583299501799,
+      "max_ms": 40.60750099597499,
+      "samples": [
+        {
+          "index": 0,
+          "elapsed_ms": 13.919582997914404,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 1,
+          "elapsed_ms": 7.777624996379018,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 2,
+          "elapsed_ms": 7.848665991332382,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 3,
+          "elapsed_ms": 7.04274998861365,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 4,
+          "elapsed_ms": 8.107249974273145,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 5,
+          "elapsed_ms": 7.8917909995652735,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 6,
+          "elapsed_ms": 9.254166012397036,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 7,
+          "elapsed_ms": 12.84320798004046,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 8,
+          "elapsed_ms": 13.209291006205603,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 9,
+          "elapsed_ms": 13.688207982340828,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 10,
+          "elapsed_ms": 9.462540998356417,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 11,
+          "elapsed_ms": 8.017957996344194,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 12,
+          "elapsed_ms": 8.222498989198357,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 13,
+          "elapsed_ms": 9.017623990075663,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 14,
+          "elapsed_ms": 15.422415977809578,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 15,
+          "elapsed_ms": 9.229916002368554,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 16,
+          "elapsed_ms": 8.270624006399885,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 17,
+          "elapsed_ms": 14.112290984485298,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 18,
+          "elapsed_ms": 11.465540999779478,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 19,
+          "elapsed_ms": 15.582332969643176,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 20,
+          "elapsed_ms": 11.49737398372963,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 21,
+          "elapsed_ms": 14.105748996371403,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 22,
+          "elapsed_ms": 11.178790999110788,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 23,
+          "elapsed_ms": 9.658749011578038,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 24,
+          "elapsed_ms": 9.539499995298684,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 25,
+          "elapsed_ms": 11.972832988249138,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 26,
+          "elapsed_ms": 9.983708005165681,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 27,
+          "elapsed_ms": 10.63725000130944,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 28,
+          "elapsed_ms": 11.285207991022617,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 29,
+          "elapsed_ms": 9.218915976816788,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 30,
+          "elapsed_ms": 11.209999996935949,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 31,
+          "elapsed_ms": 17.584916000487283,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 32,
+          "elapsed_ms": 13.409707986284047,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 33,
+          "elapsed_ms": 16.18512498680502,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 34,
+          "elapsed_ms": 38.96583299501799,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 35,
+          "elapsed_ms": 8.644957997603342,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 36,
+          "elapsed_ms": 11.30716601619497,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 37,
+          "elapsed_ms": 15.045415988424793,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 38,
+          "elapsed_ms": 12.339625012828037,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 39,
+          "elapsed_ms": 17.596624995348975,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 40,
+          "elapsed_ms": 9.923167002853006,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 41,
+          "elapsed_ms": 11.367541999788955,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 42,
+          "elapsed_ms": 13.792291982099414,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 43,
+          "elapsed_ms": 10.574707994237542,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 44,
+          "elapsed_ms": 12.206374987727031,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 45,
+          "elapsed_ms": 14.133041986497119,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 46,
+          "elapsed_ms": 16.255624999757856,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 47,
+          "elapsed_ms": 16.595583001617342,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 48,
+          "elapsed_ms": 11.067957995692268,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 49,
+          "elapsed_ms": 10.427124972920865,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 50,
+          "elapsed_ms": 11.42829199670814,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 51,
+          "elapsed_ms": 13.637333002407104,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 52,
+          "elapsed_ms": 13.698541995836422,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 53,
+          "elapsed_ms": 13.107750011840835,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 54,
+          "elapsed_ms": 7.196374994236976,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 55,
+          "elapsed_ms": 7.902666984591633,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 56,
+          "elapsed_ms": 9.545709006488323,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 57,
+          "elapsed_ms": 8.128999994369224,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 58,
+          "elapsed_ms": 6.62183400709182,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 59,
+          "elapsed_ms": 15.865291992668062,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 60,
+          "elapsed_ms": 10.04937500692904,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 61,
+          "elapsed_ms": 9.06000001123175,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 62,
+          "elapsed_ms": 10.277499997755513,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 63,
+          "elapsed_ms": 16.5647919930052,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 64,
+          "elapsed_ms": 11.669999978039414,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 65,
+          "elapsed_ms": 12.874874984845519,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 66,
+          "elapsed_ms": 10.82529200357385,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 67,
+          "elapsed_ms": 40.60750099597499,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 68,
+          "elapsed_ms": 15.155208995565772,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 69,
+          "elapsed_ms": 8.50091697066091,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 70,
+          "elapsed_ms": 9.661666990723461,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 71,
+          "elapsed_ms": 8.404666994465515,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 72,
+          "elapsed_ms": 9.366250975290313,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 73,
+          "elapsed_ms": 8.926084003178403,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 74,
+          "elapsed_ms": 8.581416972447187,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 75,
+          "elapsed_ms": 10.376625985372812,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 76,
+          "elapsed_ms": 9.88587600295432,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 77,
+          "elapsed_ms": 9.239209000952542,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 78,
+          "elapsed_ms": 7.925916987005621,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 79,
+          "elapsed_ms": 9.627750987419859,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 80,
+          "elapsed_ms": 8.091000985587016,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 81,
+          "elapsed_ms": 6.633626006077975,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 82,
+          "elapsed_ms": 12.778917996911332,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 83,
+          "elapsed_ms": 13.72366800205782,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 84,
+          "elapsed_ms": 8.3766259776894,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 85,
+          "elapsed_ms": 8.232417982071638,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 86,
+          "elapsed_ms": 11.053043010178953,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 87,
+          "elapsed_ms": 7.368292979663238,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 88,
+          "elapsed_ms": 8.651084004668519,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 89,
+          "elapsed_ms": 8.916667982703075,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 90,
+          "elapsed_ms": 8.821458992315456,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 91,
+          "elapsed_ms": 13.724584016017616,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 92,
+          "elapsed_ms": 11.225792986806482,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 93,
+          "elapsed_ms": 8.960959006799385,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 94,
+          "elapsed_ms": 11.282250983640552,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 95,
+          "elapsed_ms": 11.286250984994695,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 96,
+          "elapsed_ms": 8.092085015960038,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 97,
+          "elapsed_ms": 9.906625986332074,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 98,
+          "elapsed_ms": 8.910042990464717,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        },
+        {
+          "index": 99,
+          "elapsed_ms": 8.524042990757152,
+          "status": 200,
+          "owner_available": true,
+          "phase": "running"
+        }
+      ]
+    },
+    "parent_shutdown_seconds": 1.8179145830217749,
+    "completed": true,
+    "production_adopted": false,
+    "release_scope_complete": false,
+    "limitations": [
+      "One extra diagnostic PostgreSQL connection; API worker/pool/SQL instrumentation differs from preceding untraced run.",
+      "PG sampler errors are retained; 250ms samples may miss waits. Active samples without wait events do not prove CPU-only execution.",
+      "Initial API killed by mandatory fault test has no final sink summary. Zero dropped child spans in retained slow roots does not certify zero sink loss.",
+      "GC overlap is partial and does not uniquely attribute the historical p99 spike."
+    ]
+  },
+  "daily_cache_15_short_comparison": {
+    "raw_result": "build/mm-process-isolation/20261029-202759-30b43d/result.json",
+    "image_id": "sha256:58356746f389cab61db94d7a39114ae1853eb001ff75cdca3d50fc79ae6f6cd1",
+    "source_commit": "8d29cf951",
+    "daily_cache_ttl_seconds": 15.0,
+    "scope": "Single 300s diagnostic; no preceding warmup or minute memory sampler; not longer healthy or release acceptance",
+    "healthy": {
+      "read_p95_ms": 54.8166650114581,
+      "read_p99_ms": 220.62902303878218,
+      "requested_reads": 6000,
+      "completed_reads": 6000,
+      "unexpected_errors": 0,
+      "violations": [],
+      "auxiliary": {
+        "requested_reads": 1500,
+        "completed_reads": 1500,
+        "statuses": {
+          "200": 1500
+        },
+        "read_p95_ms": 51.90262402174994,
+        "read_p99_ms": 247.80483401264064
+      },
+      "schedule_lag_p95_ms": 6.769787025405094
+    },
+    "observed_aggregate_refreshes": 19,
+    "reference_300s_ttl5_observed_refreshes": 51,
+    "refresh_count_scope": "WITH scoped AS SQL in retained slow request roots; not a complete loss-certified SQL counter",
+    "healthy_trace_counts": {
+      "slow_or_failed_client_requests": 157,
+      "loop_stall_samples": 9,
+      "slow_server_roots": 85,
+      "dropped_spans_in_slow_roots": 0,
+      "postgres_samples": 1180
+    },
+    "healthy_trace_operations": {
+      "response_validation_ms": {
+        "count": 157,
+        "max_ms": 380.852292,
+        "thread_cpu_at_max_ms": 380.046749
+      },
+      "response_serialization_ms": {
+        "count": 85,
+        "max_ms": 2.21625,
+        "thread_cpu_at_max_ms": 0.769542
+      },
+      "api_database_worker_start": {
+        "count": 83,
+        "max_ms": 0.135708,
+        "thread_cpu_at_max_ms": 1.54875,
+        "max_queue_wait_ms": 270.055001
+      },
+      "pool_queue_ms": {
+        "count": 83,
+        "max_ms": 1.077791,
+        "thread_cpu_at_max_ms": 1.081417
+      },
+      "db_ping_ms": {
+        "count": 83,
+        "max_ms": 61.664083,
+        "thread_cpu_at_max_ms": 1.449041
+      },
+      "pool_checkout_ms": {
+        "count": 83,
+        "max_ms": 62.336459,
+        "thread_cpu_at_max_ms": 2.076208
+      },
+      "sql": {
+        "count": 217,
+        "max_ms": 670.786667,
+        "thread_cpu_at_max_ms": 0.517375
+      },
+      "commit_ms": {
+        "count": 19,
+        "max_ms": 4.142792,
+        "thread_cpu_at_max_ms": 0.244916
+      },
+      "rollback_ms": {
+        "count": 115,
+        "max_ms": 384.320917,
+        "thread_cpu_at_max_ms": 1.545207
+      },
+      "http.request": {
+        "count": 85,
+        "max_ms": 1179.90125,
+        "thread_cpu_at_max_ms": 291.658913
+      }
+    },
+    "trace_sha256": {
+      "api-loop-13.jsonl": "5b1808263e8435a648ac3806f7022693337bacabc9cc6168076da4ef0774b2da",
+      "api-loop-1381.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-loop-564.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-loop-685.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-requests-13.jsonl": "78f5b547b62300d3fb2a40e4500fa02d26791dcf3649fbd7b6c310b390177b0a",
+      "api-requests-1381.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-requests-564.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-requests-685.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "healthy/client.jsonl": "c0c37cd55493a18305695fc02be85a367d5f90606e2d7a37fdaa9d5cd3cbd6cc"
+    },
+    "client_trace_summary": {
+      "sink": {
+        "written_records": 1338,
+        "written_bytes": 457700,
+        "dropped_records": 0,
+        "writer_cpu_ms": 105.55335299999992,
+        "queue_depth": 0,
+        "max_bytes": 134217728,
+        "writer_alive": false
+      },
+      "database_sampler": {
+        "samples": 1181,
+        "errors": 0,
+        "thread_cpu_ms": 745.005868
+      }
+    },
+    "api_restarts": [
+      {
+        "fault": "crash",
+        "recovery_seconds": 8.126888332888484,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_remain": true
+      },
+      {
+        "fault": "repeated_crash",
+        "recovery_seconds": 7.463298874907196,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_remain": true
+      },
+      {
+        "fault": "unresponsive_loop",
+        "recovery_seconds": 28.912903415970504,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_remain": true
+      }
+    ],
+    "engine_restarts": [
+      {
+        "fault": "active_engine_crash",
+        "recovery_seconds": 8.351195124909282,
+        "old_process_absent": true,
+        "api_identity_preserved": true,
+        "owner_generation_advanced": true,
+        "halt_preserved": true,
+        "no_additional_orders": true,
+        "positions_preserved": true
+      },
+      {
+        "fault": "halted_engine_unresponsive_loop",
+        "recovery_seconds": 29.002173624932766,
+        "old_process_absent": true,
+        "api_identity_preserved": true,
+        "owner_generation_advanced": true,
+        "halt_preserved": true,
+        "no_additional_orders": true,
+        "positions_preserved": true
+      }
+    ],
+    "parent_shutdown_seconds": 1.6689039170742035,
+    "diagnostic_db_connections": 1,
+    "production_adopted": false,
+    "release_scope_complete": false,
+    "limitations": [
+      "Sequential single trials do not establish a statistical speedup or unique cause.",
+      "The original TTL5 300s window had a minute memory sampler; this short trial did not. A matched warm/healthy repeat is required.",
+      "Initial API has no final sink summary after SIGKILL. Sink loss cannot be assumed zero."
+    ]
+  },
+  "daily_cache_15_warmed_comparison": {
+    "raw_result": "build/mm-process-isolation/20261029-203657-985599/result.json",
+    "image_id": "sha256:58356746f389cab61db94d7a39114ae1853eb001ff75cdca3d50fc79ae6f6cd1",
+    "source_commit": "8d29cf951",
+    "daily_cache_ttl_seconds": 15.0,
+    "scope": "300s and 900s latency windows PASS; overall run FAILED during third API fault; not release acceptance",
+    "completed": false,
+    "failure_type": "AssertionError",
+    "failed_assertion": "Any live order immediately after API hang recovery; coincides with the normal 60s executor refresh",
+    "windows": {
+      "warmup": {
+        "read_p95_ms": 58.45394998323172,
+        "read_p99_ms": 631.4724189869594,
+        "unexpected_errors": 0,
+        "requested_reads": 6000,
+        "completed_reads": 6000,
+        "auxiliary": {
+          "requested_reads": 1500,
+          "completed_reads": 1500,
+          "statuses": {
+            "200": 1500
+          },
+          "read_p95_ms": 60.99720599013381,
+          "read_p99_ms": 650.3592939989176
+        },
+        "violations": [],
+        "schedule_lag_p95_ms": 6.405942986020818
+      },
+      "healthy": {
+        "read_p95_ms": 57.355201977770776,
+        "read_p99_ms": 206.92374400096014,
+        "unexpected_errors": 0,
+        "requested_reads": 18000,
+        "completed_reads": 18000,
+        "auxiliary": {
+          "requested_reads": 4500,
+          "completed_reads": 4500,
+          "statuses": {
+            "200": 4500
+          },
+          "read_p95_ms": 52.70065300283022,
+          "read_p99_ms": 103.09384198626503
+        },
+        "violations": [],
+        "schedule_lag_p95_ms": 10.585987998638302
+      }
+    },
+    "fixture_sha256": {
+      "request_probe.py": "8fc047145f21c89f7b94763a10bca10cd0a62e37897e6a494b49bb133b50906a",
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "supervisor.py": "0e7488d17a052652e3dfb5dfeba8827b173dd771d9a30708c1e480a2252263f8",
+      "exchange.py": "f3ac806b7e5eab43581a40429d25f133d5e4573f1181d7da9a8ff523cf54a490",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "0e7488d17a052652e3dfb5dfeba8827b173dd771d9a30708c1e480a2252263f8",
+      "runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30",
+      "restarted.py": "d7a036f9e27bc98ec814cf31595f9a2cf46981fb17530d07c4467584a4901441",
+      "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+      "engine.py": "6621cd5fcc98184bd028a7f07794cd44bec5c8f5bef21d6e25794a2da36ce2d9",
+      "load_trace.py": "333d3e3d55af42e7ea4540420d9dbb1717d1cfd7c0d500d8ab7e1a0cb2135fda",
+      "admin.py": "dcf8d22ca6c60a8d380c0594ef5eed220d47954c1eba2304aab1cc95aabd0525",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "lifecycle.py": "b5d7d5635291967ecb8b9c2baa165187636c44ad953cdf93b40da29e2135330d",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "stall_client.py": "37f891a6f66bca21b812811ba17a6408ebf0e81c1b20ed3ad560159e74847a0e",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "loop_probe.py": "58fe9d9ecfabf512c7830df8ae5ce1d912095129be6219c54b6478d93990bff2",
+      "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_client.py": "13f2b5379953068b18fa785481c2f73ddf11f785f37f2eb4663431121ad5129e"
+    },
+    "healthy_trace_counts": {
+      "slow_or_failed_client_requests": 341,
+      "loop_stall_samples": 15,
+      "slow_server_roots": 187,
+      "dropped_spans_in_slow_roots": 0,
+      "postgres_samples": 3533,
+      "postgres_sampler_errors_all_windows": 1
+    },
+    "healthy_trace_operations": {
+      "response_validation_ms": {
+        "count": 345,
+        "max_ms": 499.374666,
+        "thread_cpu_at_max_ms": 240.780541
+      },
+      "response_serialization_ms": {
+        "count": 175,
+        "max_ms": 2.589583,
+        "thread_cpu_at_max_ms": 2.609333
+      },
+      "api_database_worker_start": {
+        "count": 186,
+        "max_ms": 8.039875,
+        "thread_cpu_at_max_ms": 6.026875,
+        "max_queue_wait_ms": 982.181167
+      },
+      "pool_queue_ms": {
+        "count": 186,
+        "max_ms": 0.537333,
+        "thread_cpu_at_max_ms": 0.546083
+      },
+      "db_ping_ms": {
+        "count": 186,
+        "max_ms": 782.121167,
+        "thread_cpu_at_max_ms": 93.061583
+      },
+      "pool_checkout_ms": {
+        "count": 186,
+        "max_ms": 782.948458,
+        "thread_cpu_at_max_ms": 93.874792
+      },
+      "sql": {
+        "count": 574,
+        "max_ms": 418.096708,
+        "thread_cpu_at_max_ms": 0.334
+      },
+      "commit_ms": {
+        "count": 56,
+        "max_ms": 3.169708,
+        "thread_cpu_at_max_ms": 0.191834
+      },
+      "rollback_ms": {
+        "count": 269,
+        "max_ms": 13.161791,
+        "thread_cpu_at_max_ms": 0.615833
+      },
+      "http.request": {
+        "count": 187,
+        "max_ms": 1174.221376,
+        "thread_cpu_at_max_ms": 360.057331
+      }
+    },
+    "trace_sha256": {
+      "api-loop-14.jsonl": "86a7b9772178e5147ecdf4c64b1d3cd31b9e5c2578a62366587fdc87848ed7ea",
+      "api-loop-1532.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-loop-719.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-loop-826.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-requests-14.jsonl": "5c0d5030dd85500479ebe84fd6e975ddb18582cf757c94f72d0116892d083555",
+      "api-requests-1532.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-requests-719.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "api-requests-826.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "healthy/client.jsonl": "39c5015a65554b0378c129e2ef9b8339ebdd57a56db14095dcf896c333d6036b"
+    },
+    "memory": {
+      "sample_count": 21,
+      "span_seconds": 1206.6181526184082,
+      "roles": {
+        "supervisor": {
+          "steady_rss_delta_mib": 0.375,
+          "thread_counts": [
+            1
+          ],
+          "steady_fds": [
+            5
+          ]
+        },
+        "engine": {
+          "steady_rss_delta_mib": 2.875,
+          "thread_counts": [
+            10
+          ],
+          "steady_fds": [
+            30
+          ]
+        },
+        "api": {
+          "steady_rss_delta_mib": 1.75,
+          "thread_counts": [
+            14
+          ],
+          "steady_fds": [
+            13,
+            21,
+            23
+          ]
+        }
+      },
+      "scope": "Twenty minutes with bounded trace buffers; not an hour leak gate"
+    },
+    "client_trace_summaries": {
+      "warmup": {
+        "sink": {
+          "written_records": 1399,
+          "written_bytes": 469820,
+          "dropped_records": 0,
+          "writer_cpu_ms": 127.33596999999989,
+          "queue_depth": 0,
+          "max_bytes": 134217728,
+          "writer_alive": false
+        },
+        "database_sampler": {
+          "samples": 1177,
+          "errors": 1,
+          "thread_cpu_ms": 1150.203386
+        }
+      },
+      "healthy": {
+        "sink": {
+          "written_records": 3889,
+          "written_bytes": 1335020,
+          "dropped_records": 0,
+          "writer_cpu_ms": 324.47019199999994,
+          "queue_depth": 0,
+          "max_bytes": 134217728,
+          "writer_alive": false
+        },
+        "database_sampler": {
+          "samples": 3547,
+          "errors": 1,
+          "thread_cpu_ms": 1745.01926
+        }
+      }
+    },
+    "api_restarts_before_failure": [
+      {
+        "fault": "crash",
+        "recovery_seconds": 9.096975916065276,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_remain": true
+      },
+      {
+        "fault": "repeated_crash",
+        "recovery_seconds": 14.251893291948363,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_remain": true
+      }
+    ],
+    "engine_faults_completed": false,
+    "production_adopted": false,
+    "release_scope_complete": false,
+    "limitations": [
+      "The full sequence is a failed run; passing latency windows do not certify the later lifecycle checks.",
+      "Sequential single trials do not prove a unique cause or statistical speedup; one additional PG sampler connection is present.",
+      "The initial API is killed without final sink counters; zero loss is not assumed."
+    ]
+  },
+  "quote_refresh_recovery_followup": {
+    "raw_result": "build/mm-process-isolation/20261029-210516-4f66fe/result.json",
+    "image_id": "sha256:58356746f389cab61db94d7a39114ae1853eb001ff75cdca3d50fc79ae6f6cd1",
+    "source_commit": "59324cea7",
+    "scope": "Separate 30s healthy + full recovery-fault retest with forced ordinary refresh boundary; not a replacement for the failed long sequence",
+    "healthy": {
+      "read_p95_ms": 53.64012700738385,
+      "read_p99_ms": 247.31645901920274,
+      "unexpected_errors": 0,
+      "violations": []
+    },
+    "api_refresh_boundary_exercised": true,
+    "api_restarts": [
+      {
+        "fault": "crash",
+        "recovery_seconds": 7.618897791951895,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_recovered": true,
+        "working_quote_count": 12,
+        "quote_check": "bounded_after_normal_refresh"
+      },
+      {
+        "fault": "repeated_crash",
+        "recovery_seconds": 7.3770878340583295,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_recovered": true,
+        "working_quote_count": 12,
+        "quote_check": "bounded_after_normal_refresh"
+      },
+      {
+        "fault": "unresponsive_loop",
+        "recovery_seconds": 53.35105991596356,
+        "engine_identity_preserved": true,
+        "owner_and_session_preserved": true,
+        "positions_preserved": true,
+        "working_quotes_recovered": true,
+        "working_quote_count": 6,
+        "quote_check": "bounded_after_normal_refresh"
+      }
+    ],
+    "engine_restarts": [
+      {
+        "fault": "active_engine_crash",
+        "recovery_seconds": 8.76843662490137,
+        "old_process_absent": true,
+        "api_identity_preserved": true,
+        "owner_generation_advanced": true,
+        "halt_preserved": true,
+        "no_additional_orders": true,
+        "positions_preserved": true
+      },
+      {
+        "fault": "halted_engine_unresponsive_loop",
+        "recovery_seconds": 28.58781187515706,
+        "old_process_absent": true,
+        "api_identity_preserved": true,
+        "owner_generation_advanced": true,
+        "halt_preserved": true,
+        "no_additional_orders": true,
+        "positions_preserved": true
+      }
+    ],
+    "parent_shutdown_seconds": 1.749593083979562,
+    "completed": true,
+    "fixture_sha256": {
+      "request_probe.py": "8fc047145f21c89f7b94763a10bca10cd0a62e37897e6a494b49bb133b50906a",
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "supervisor.py": "0e7488d17a052652e3dfb5dfeba8827b173dd771d9a30708c1e480a2252263f8",
+      "exchange.py": "f3ac806b7e5eab43581a40429d25f133d5e4573f1181d7da9a8ff523cf54a490",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "0e7488d17a052652e3dfb5dfeba8827b173dd771d9a30708c1e480a2252263f8",
+      "runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30",
+      "restarted.py": "d7a036f9e27bc98ec814cf31595f9a2cf46981fb17530d07c4467584a4901441",
+      "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+      "engine.py": "6621cd5fcc98184bd028a7f07794cd44bec5c8f5bef21d6e25794a2da36ce2d9",
+      "load_trace.py": "333d3e3d55af42e7ea4540420d9dbb1717d1cfd7c0d500d8ab7e1a0cb2135fda",
+      "admin.py": "dcf8d22ca6c60a8d380c0594ef5eed220d47954c1eba2304aab1cc95aabd0525",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "lifecycle.py": "b5d7d5635291967ecb8b9c2baa165187636c44ad953cdf93b40da29e2135330d",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "stall_client.py": "37f891a6f66bca21b812811ba17a6408ebf0e81c1b20ed3ad560159e74847a0e",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "loop_probe.py": "58fe9d9ecfabf512c7830df8ae5ce1d912095129be6219c54b6478d93990bff2",
+      "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_client.py": "13f2b5379953068b18fa785481c2f73ddf11f785f37f2eb4663431121ad5129e"
+    },
+    "red_green": {
+      "red": "Two native failures plus retained real long-run immediate-quote assertion failure",
+      "green": "59 selected native tests; actual container recovery suite passes through ordinary refresh"
+    },
+    "production_adopted": false,
+    "release_scope_complete": false,
+    "limitations": [
+      "Recovery durations include explicit waiting for the normal quote-refresh boundary and verification; not an API-readiness SLA.",
+      "Only working-quote recovery is bounded at 30s; no continuous uninterrupted quote-coverage guarantee is claimed.",
+      "The earlier failed long run is retained as failed; its unexecuted engine faults are not retroactively marked passed."
+    ]
+  },
+  "latest_decision": {
+    "date": "2026-10-29",
+    "production_topology_adopted": false,
+    "release_scope_complete": false,
+    "demo_example_daily_cache_ttl_seconds": 15,
+    "application_default_daily_cache_ttl_seconds": 5,
+    "selected_native_regression": "59 passed",
+    "result": "TTL15 300s/900s latency windows pass; overall long run fails immediate quote assertion; separate corrected forced-refresh fault retest passes",
+    "remaining": [
+      "Cold million-fill aggregate cost",
+      "Production supervision lifecycle/ports/pool integration",
+      "Ordinary-entrypoint verification and final unchanged artifact load",
+      "Continuous-hour memory gate on selected architecture"
+    ],
+    "real_demo": "Existing service, database, credentials and stopped trading state preserved"
+  },
+  "prototype_sources_scope": "Original source hashes describe the earlier paired experiment; later rows retain their own commit and executed fixture hashes."
 }

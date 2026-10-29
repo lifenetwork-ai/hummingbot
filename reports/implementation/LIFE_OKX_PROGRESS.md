@@ -1532,3 +1532,30 @@ See [process experiment](../mm-process-isolation-experiment.md).
 
 No auto-reset HALT or operator Resume endpoint is implemented. Persistent Demo
 remains stopped on its original image; no Cloud Run deployment.
+
+## Longer request-correlated diagnostic (2026-10-29)
+
+- [x] Red/Green for separate traced warmup/healthy evidence, real HTTP/worker/SQL
+  correlation, safe parameter metadata and callback/worker cleanup. Commit
+  `989c640e2`; subsequent analyzer/policy comparison at `8d29cf951`.
+- [x] 35 selected regression tests pass. Reporting cache and production runtime
+  behavior are unchanged by these test-only probes.
+- [x] Complete matched 300s/900s repeat: p99 1861.62/2266.57ms, zero errors;
+  preserve both latency failures. Selected requests distinguish client backlog,
+  expensive active aggregates and worker waiting from small pool queues.
+- [x] Repeat all independent crash/hang faults: identity/session preserved for
+  API replacement; engine reaped before replacement, HALT/positions preserved
+  and no additional orders. Parent shutdown 1.82s, ownership released.
+- [x] Existing daily-cache TTL15: separate 300s p99 220.63ms; matched 300s/900s
+  p99 631.47/206.92ms, zero errors and passing latency budgets. Public Demo env
+  example uses 15s explicitly; shared default stays 5s, private/running Demo unchanged.
+- [x] Retain the longer TTL15 run as failed overall: the third API fault's
+  immediate live-order assertion coincides with normal sixty-second refresh.
+  Subsequent engine faults were not reached in that run.
+- [x] Two Red / 59 selected Green native tests for bounded quote recovery;
+  focused real-container forced-refresh/full-fault retest passes at
+  `20261029-210516-4f66fe`. Engine/session identity, HALT, positions and absence
+  of additional orders remain checked. Original long failure is not reclassified.
+- [ ] Cold million-fill query cost, production supervision integration,
+  ordinary-entrypoint/full final-image load and continuous-hour memory gates
+  remain open. Current passing latency windows are not final release acceptance.

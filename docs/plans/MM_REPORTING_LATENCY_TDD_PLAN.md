@@ -90,12 +90,31 @@ image scope; no single historical p99 trigger is assumed.
   retaining each client's summary separately. Add request-ID correlation through
   the existing physical-worker, pool, SQL and response-model timing helpers;
   verify real HTTP/SQL success and failure, parameter redaction and hook cleanup.
-- [ ] Repeat that longer diagnostic with corrected heartbeat measurements and
+- [x] Repeat that longer diagnostic with corrected heartbeat measurements and
   retained executed prototype sources. Attribute outliers to measured stages;
   preserve failures and trace overhead/scope limitations.
-- [ ] Apply Red/Green to any confirmed runtime defect and select the next
+  Outcome: warmup p99 1861.62ms / healthy 2266.57ms, zero HTTP errors; both
+  latency gates fail. Request stages identify SQL, worker and client backlog
+  contributions; pool queue maximum is only 6.64ms in retained slow roots.
+- [x] Compare the existing daily cache at 15s versus the current 5s, explicitly
+  recording the policy and unchanged workload/budgets. A short diagnostic does
+  not close the longer healthy/hour gate or the cold million-fill SQL limit.
+  Outcome: 300s TTL15 p99 220.63ms; matched 300s/900s TTL15 p99
+  631.47/206.92ms, zero errors. Demo environment example explicitly uses 15s;
+  application default remains 5s. Sequential measurements are not a universal
+  speedup guarantee. The longer run fails a later instantaneous quote assertion;
+  its passing latency windows do not certify that incomplete fault sequence.
+- [x] Red/Green for the recovery probe crossing normal sixty-second quote
+  refresh: bounded wait, partial working orders and permanent-loss rejection;
+  recheck identity/session after the wait. 59 native tests and a separate actual
+  container fault suite with the forced refresh boundary pass. Retain the
+  preceding long-run failure; final architecture/hour gates remain open.
+- [x] Apply Red/Green to any confirmed runtime defect and select the next
   architecture/artifact from the evidence. Unproven causes do not justify a
   production change. Final unchanged load/hour-memory acceptance remains open.
+  Decision: no new runtime defect is established by the latency pattern; retain
+  production topology, evaluate the explicit 15s reporting policy, and keep
+  independent supervision test-only until the R4 integration gates pass.
 
 Daily fallback contract: keep the database observation timestamp unchanged;
 return explicit English freshness/retry metadata. Retention is bounded to 32

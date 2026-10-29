@@ -241,6 +241,14 @@ The example DB host `host.docker.internal` assumes Docker Desktop and an existin
 host PostgreSQL instance. Set a reachable host for the actual Docker network.
 Provision the database/role using the existing [PostgreSQL guide](postgres-runtime.md).
 
+The Demo preset uses `ADMIN_STATISTICS_CACHE_TTL_SECONDS=15` for daily history
+charts. The shared application default remains five seconds. A longer interval
+reduces repeated history aggregation and retains the original observation time;
+current balances, positions, trading guards and admin controls use separate
+paths. Set this through the environment file when preparing a new setup. The
+local [measurement report](../reports/mm-process-isolation-experiment.md) records
+the tested resource shape and remaining acceptance limits.
+
 Build the normal runtime first if it is unavailable or its runtime source changed.
 Then add only the public Demo configuration layer:
 

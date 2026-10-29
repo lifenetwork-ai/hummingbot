@@ -2,7 +2,7 @@
 
 The experiment retains one Cloud Run service, one container and one image.
 Separate Python API/engine processes demonstrably isolate a blocked engine loop,
-but do **not** establish healthy p99 acceptance. Keep the production entrypoint
+but do **not** establish final architecture/load acceptance. Keep the production entrypoint
 unchanged. The daily fee SQL timeout and historical p99 attribution remain open.
 
 [Portable evidence](mm-process-isolation-evidence.json) includes samples,
@@ -10,7 +10,7 @@ per-route summaries, fixture hashes, resource limits and verification scope.
 The [implementation plan](../docs/plans/MM_REPORTING_LATENCY_TDD_PLAN.md) separates
 this R1A diagnostic from R2/R3 and final-image release verification.
 
-The next controlled repeat retains the same 300s warmup / 900s healthy workload.
+The R5 controlled repeat retains the same 300s warmup / 900s healthy workload.
 Its test-only API probe correlates request IDs with physical worker admission,
 pool checkout, SQL and response-model timing using the existing bounded tracing
 helpers. Both client windows keep their own trace summaries, and executed
@@ -18,6 +18,119 @@ prototype sources are retained automatically. Two Red cases first fail for the
 unsupported traced warmup and missing probe; 31 selected regression tests pass
 after implementation, including real HTTP/SQL success/error and hook cleanup.
 No runtime fix or latency improvement is inferred from this instrumentation.
+
+## R5: longer request-correlated diagnostic
+
+The matched **300s warmup / 900s healthy** traced repeat completes on image
+`58356746…`, prototype commit `989c640e2`, two application CPUs / 2 GiB and
+five pool slots, with the existing five-second daily cache. Raw evidence:
+`build/mm-process-isolation/20261029-200153-f4e2f7/result.json`. Both latency
+gates fail, and the runner exits one after successful recovery faults:
+
+| Window | p95 ms | p99 ms | Main / auxiliary completed | HTTP/semantic errors |
+|---|---:|---:|---:|---:|
+| 300s warmup | 898.37 | 1861.62 | 6000 / 1500 | 0 |
+| 900s healthy | 695.14 | 2266.57 | 18000 / 4500 | 0 |
+
+This reproduces a longer latency failure with valid measurements. It does not
+uniquely explain the older 7.4s p99 run. The slowest selected healthy request is
+a 5632.65ms daily read: **3121.33ms client queue**, 9.73ms from dispatch to
+handler, **2498.92ms handler**, 2.67ms after handler. Inside that handler, worker
+admission waits 516.50ms and the two aggregates take 1067.91ms / 786.28ms.
+Same-backend PostgreSQL samples during both aggregates show active execution
+without a recorded wait event. Sampling every 250ms cannot exclude intervening
+waits or establish CPU-only execution. Another daily request spends 1631.78ms
+inside its handler without SQL, consistent with awaiting the existing shared
+refresh/loop; that timing alone does not identify which await dominates.
+
+Retained slow-root maxima distinguish worker admission **1854.44ms** from pool
+queue **6.64ms**. Largest SQL span is 1129.78ms; response validation reaches
+881.44ms, and recorded generation-two GC reaches 1333.41ms. GC overlap is partial;
+the slowest selected request has only short GC overlaps. These maxima come from
+slow retained traces, not unbiased whole-window percentiles. SQL, application
+scheduling and client backlog all contribute; an across-the-board pool increase
+is not supported. The app uses about 0.53 cores on average and accumulates
+6.17s quota-throttled time over 901.50s, without assigning individual outliers.
+
+The warmup/healthy client sinks report zero dropped records and one/five PG
+sampler errors, respectively. Errors are preserved as diagnostic coverage gaps.
+The initial API is killed by the mandatory fault suite, so it has no final sink
+summary; zero dropped child spans in retained roots does not certify zero API
+sink loss. API traces/heartbeat/GC instrumentation and one extra diagnostic DB
+connection distinguish this repeat from the preceding untraced experiment.
+
+Twenty memory samples show final-five versus samples 6..10 median RSS changes:
+supervisor 0, engine +2.38 MiB, API +6.88 MiB. API RSS levels off in the last five
+samples. Threads remain 1/10/14, and later descriptors remain 5..6/31/23. This is
+a twenty-minute diagnostic with trace overhead, not a continuous-hour leak gate.
+API crashes recover in 8.23/7.98s, its hang in 29.45s; active engine crash recovers
+in 18.56s and HALTed hang in 29.69s. The same identity, session, order, position
+and retained-HALT checks pass. Parent shutdown takes 1.82s and releases ownership.
+
+Two further Red cases cover the supervised analyzer layout and explicit cache
+comparison policy; **35 selected tests pass** after implementation. The analyzer
+separates client delay, server work, physical worker waiting, SQL and GC overlap.
+The existing cache was then compared at fifteen seconds, preserving the
+application default of five seconds:
+
+| Policy / window | p95 ms | p99 ms | Errors | Latency result |
+|---|---:|---:|---:|---|
+| 15s / separate 300s probe | 54.82 | 220.63 | 0 | PASS |
+| 15s / matched 300s warmup | 58.45 | 631.47 | 0 | PASS |
+| 15s / matched 900s healthy | 57.36 | 206.92 | 0 | PASS |
+
+The short probe is `build/mm-process-isolation/20261029-202759-30b43d`; its full
+fault suite passes, but it lacks the minute memory sampler used by the original
+five-second warmup. The matched longer repeat restores that sampler and retains
+all other workload/resource settings:
+`build/mm-process-isolation/20261029-203657-985599`. Its 900s window completes
+18000 main / 4500 auxiliary reads, zero HTTP/semantic errors, and all latency
+budgets pass. Selected slow-root maxima: worker wait 982.18ms, pool queue 0.54ms,
+SQL 418.10ms. These are observed sequential trials, not a statistical speedup
+guarantee or unique attribution of the historical p99. Observed aggregate refreshes
+in retained slow traces fall from 51 to 19 across the respective first 300s
+windows; this is not a complete loss-certified SQL counter.
+
+Twenty-one memory samples span about twenty minutes. Median last-five versus
+samples 6..10 RSS changes are +0.38/+2.88/+1.75 MiB for supervisor/engine/API;
+thread counts remain 1/10/14, and late API RSS largely plateaus. The healthy
+client sink reports zero dropped records and one PG sampler error. This remains
+bounded-window evidence with diagnostic overhead, not an hour-long leak gate.
+
+### Fault-check failure and bounded refresh retest
+
+**The longer TTL15 run still exits one overall.** Its third API fault hits the
+normal sixty-second executor refresh: orders created at 13:58:28 UTC are cancelled
+at 13:59:28..31 UTC, exactly when the probe immediately asserts a live order.
+That assertion cannot distinguish the ordinary cancellation/replacement gap from
+permanent order loss. Cleanup ends the observation, so the failed run is retained;
+its later engine faults were not executed and are not certified by its passing
+latency windows.
+
+Two Red tests cover a refresh gap followed by partially filled working orders,
+and permanent loss that must still fail. The corrected test waits at most thirty
+seconds for working quotes, then rechecks the original engine PID, owner,
+generation, session and positions. It explicitly exercises the ordinary refresh
+cancellation boundary after the API-hang fault. Controller decisions, refresh
+times and load latency budgets are unchanged. **59 selected native tests pass.**
+
+A separate real-container retest at
+`build/mm-process-isolation/20261029-210516-4f66fe` passes the forced boundary,
+both API crashes/hang, both engine faults and parent shutdown. Its 30s healthy
+p99 is 247.32ms; it is a focused lifecycle retest, not a substitute for a complete
+long final-artifact sequence. Engine identity/session survive API replacement;
+engine restart preserves HALT/positions and produces no additional orders.
+Reported recovery durations include the deliberately awaited refresh and
+verification; they are not an API-readiness SLA. Continuous uninterrupted
+quote coverage is not claimed.
+
+The public Demo environment example now explicitly uses fifteen seconds for
+daily charts; current balances, positions, controls and trading use separate
+paths. The shared default stays five seconds, and the private/running Demo is
+unchanged. Keep independent supervision test-only. Cold million-fill SQL cost,
+production lifecycle/ports/pool integration, ordinary-entrypoint verification
+and the final continuous-hour/load gates remain open. No new runtime defect is
+claimed from this latency investigation; the refresh assertion was a test defect.
 
 ## Tested shape
 
