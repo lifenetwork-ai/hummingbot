@@ -77,8 +77,12 @@ def offline(self, address):
         raise RuntimeError('External network is disabled')
     return original(self, address)
 socket.socket.connect = offline
+from hummingbot.cli import service_processes
 from hummingbot.cli.service import main
-main()
+# Repeat the test's isolated config paths and network prohibition in both real
+# children. Keep the shipping supervisor; no test wrapper owns recovery policy.
+service_processes.child_command = lambda role: [sys.executable, '-c', sys.orig_argv[2], str(conf), '--role', role]
+main(sys.argv[2:])
 """
     log = (tmp_path / "captured-test.log").open("w+")
     process = subprocess.Popen([sys.executable, "-c", program, str(conf)], cwd=tmp_path, env=env,
@@ -110,7 +114,7 @@ def test_stopped_service_bootstrap_standby_handover_and_durable_control(pg_engin
         second, second_port, second_log = start_service(tmp_path / "revision-two", auto_migrate=False)
         processes.append((second, second_log))
         eventually(lambda: health(second_port, "/startup")[0] == 200)
-        eventually(lambda: health(second_port, "/live")[1] == {"state": "standby"})
+        eventually(lambda: health(second_port, "/startup")[1] == {"state": "standby"})
         assert store.read()["owner_uuid"] == owner["owner_uuid"]
         started = time.monotonic()
         terminate(first)

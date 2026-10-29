@@ -198,8 +198,9 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
     def delayed_database():
         # A real catalog lock blocks runtime SELECTs; runtime lock/statement
         # timeouts must fail closed rather than keeping trading on cached state.
+        identity = harness.engine_identity(bot)
         harness.sql("BEGIN; LOCK TABLE bot_state IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(4); COMMIT")
-        poll(lambda: json.loads(docker("inspect", bot).stdout)[0]["State"]["Status"] == "exited", timeout=12, description="delayed DB closes owner")
+        harness.wait_failed_engine(bot, identity, timeout=12)
         sent = len(harness.ledger()["accepted"])
         docker("start", bot)
         poll(lambda: harness.state()["status"].get("phase") == "halted", timeout=30, description="delayed DB restart retains HALT")
@@ -212,9 +213,10 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
     start()
 
     def failed_database():
+        identity = harness.engine_identity(bot)
         docker("stop", "--time", "5", harness.pg)
         try:
-            poll(lambda: json.loads(docker("inspect", bot).stdout)[0]["State"]["Status"] == "exited", timeout=12, description="failed DB closes loaded owner")
+            harness.wait_failed_engine(bot, identity, timeout=12)
         finally:
             docker("start", harness.pg)
         poll(lambda: docker("exec", harness.pg, "pg_isready", "-U", "postgres", check=False).returncode == 0, timeout=30, description="fault PG restored")

@@ -24,6 +24,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline', type=Path, required=True, help='Completed load evidence directory')
     args = parser.parse_args()
+    args.baseline = args.baseline.resolve()
     baseline = json.loads((args.baseline / 'result.json').read_text())
     assert baseline.get('passed') and baseline['enhancements'] and baseline['volatility_defense']
     image = baseline['image_id']
@@ -93,6 +94,9 @@ def main():
                 evidence['passed'] = True
             finally:
                 harness.cleanup()
+    except Exception as error:
+        evidence['failure_type'] = type(error).__name__
+        raise
     finally:
         (report / 'result.json').write_text(json.dumps(evidence, indent=2) + '\n')
 
