@@ -10,6 +10,7 @@ does not certify a later image. Operational guides and plans live in [docs/](../
 | [LIFE / OKX progress](implementation/LIFE_OKX_PROGRESS.md) | Phase history and Red/Green verification |
 | [Cloud Run launch preparation](cloudrun-readiness-review.md) | Template/review/project-selection TDD, stopped-startup checklist and pending cloud inputs |
 | [Local Demo startup](local-demo-startup.md), [evidence](local-demo-startup-evidence.json) | Rebuilt runtime smoke, preserved Demo DB/config and authenticated stopped-service API |
+| [Single-service process isolation](mm-process-isolation-experiment.md), [evidence](mm-process-isolation-evidence.json) | Test-only one-container API/engine split; controlled stalls isolated, longer healthy p99 still fails; production unchanged |
 | [Daily reporting latency](mm-reporting-latency.md), [evidence](mm-reporting-latency-evidence.json) | R1 SQL alternatives rejected on measured regressions; bounded fallback and worker diagnostics pending |
 | [P99 investigation](mm-p99-investigation.md), [evidence](mm-p99-investigation-evidence.json) | Reproduced traced/untraced tails, confirmed daily SQL timeout, production-entrypoint control and remaining attribution limits |
 | [Service availability audit](life-mm-availability-audit.md), [evidence](life-mm-availability-audit-evidence.json), [TDD remediation](life-mm-availability-remediation.md) | Five TDD fixes complete; 16 image E2E groups, continuous hour and six post-hour faults pass; original failures retained |

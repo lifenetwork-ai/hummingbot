@@ -11,36 +11,46 @@ from hummingbot.cli.admin_api import APIUnavailable
 @pytest.mark.asyncio
 async def test_control_overtakes_reports_without_extra_workers():
     instance = api()
-    release = threading.Event()
+    releases = [threading.Event(), threading.Event()]
     ready = threading.Event()
+    control_started = threading.Event()
     lock = threading.Lock()
     started = 0
     order = []
 
-    def blocking_read():
+    def blocking_read(index):
         nonlocal started
         with lock:
             started += 1
             if started == 2:
                 ready.set()
-        assert release.wait(5)
+        assert releases[index].wait(5)
+
+    def apply_control():
+        order.append('control')
+        control_started.set()
 
     tasks = []
     try:
-        tasks = [asyncio.create_task(instance.run_database(blocking_read)) for _ in range(2)]
+        tasks = [asyncio.create_task(instance.run_database(blocking_read, index)) for index in range(2)]
         assert await asyncio.to_thread(ready.wait, 2)
         queued = [asyncio.create_task(instance.run_database(lambda: order.append('report'))) for _ in range(7)]
         tasks.extend(queued)
         await asyncio.sleep(.01)
-        control = asyncio.create_task(instance.run_control_database(lambda: order.append('control')))
+        control = asyncio.create_task(instance.run_control_database(apply_control))
         tasks.append(control)
         await asyncio.sleep(.01)
-        release.set()
+        # Release exactly one worker. With both released, OS scheduling could
+        # finish several short reports while the dispatched control is waiting
+        # for CPU; completion order across threads is not dispatch priority.
+        releases[0].set()
+        assert await asyncio.to_thread(control_started.wait, 2)
+        assert order[0] == 'control'
+        releases[1].set()
         await asyncio.gather(*tasks)
-        # Either running thread may finish first, but the next dispatched job is control.
-        assert order.index('control') <= 1
     finally:
-        release.set()
+        for release in releases:
+            release.set()
         await asyncio.gather(*tasks, return_exceptions=True)
         await instance.close(None)
 

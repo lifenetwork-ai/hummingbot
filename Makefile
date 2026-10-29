@@ -16,6 +16,8 @@ MM_LOAD_PROFILE ?= all
 MM_LOAD_VOLATILITY_DEFENSE ?= false
 MM_LOAD_TRACE ?= false
 MM_LOAD_ENHANCEMENTS ?= false
+MM_PROCESS_CPUS ?= 1
+MM_PROCESS_SECONDS ?= 90
 ifeq ($(DYDX),1)
   ENV_FILE := setup/environment_dydx.yml
 endif
@@ -114,6 +116,7 @@ test-e2e-offline:
 	$(PYTHON) scripts/test_e2e_offline.py --image $(CLOUDRUN_IMAGE) --trading-env $(OFFLINE_OKX_TRADING_ENV) $(if $(CLOUDRUN_PREVIOUS_IMAGE),--previous-image $(CLOUDRUN_PREVIOUS_IMAGE),)
 
 .PHONY: test-mm-load test-mm-load-enhancements test-mm-load-defense
+.PHONY: test-mm-process-isolation
 .PHONY: test-mm-economics test-mm-economics-probe
 test-mm-economics:
 	$(PYTHON) scripts/test_mm_economics.py
@@ -129,6 +132,10 @@ test-mm-load-enhancements:
 
 test-mm-load-defense:
 	$(MAKE) test-mm-load MM_LOAD_VOLATILITY_DEFENSE=true
+
+# Diagnostic wrappers only; healthy budget violations still return nonzero.
+test-mm-process-isolation:
+	$(PYTHON) scripts/test_mm_process_isolation.py --image $(CLOUDRUN_IMAGE) --cpus $(MM_PROCESS_CPUS) --duration $(MM_PROCESS_SECONDS)
 
 review-cloudrun-config:
 	$(PYTHON) scripts/review_cloudrun.py $(CLOUDRUN_CONFIG) --evidence $(CLOUDRUN_EVIDENCE)

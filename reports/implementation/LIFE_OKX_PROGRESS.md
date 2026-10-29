@@ -1415,3 +1415,26 @@ isolated dummy exchange. No cache, pool, deadline or trading policy was changed.
 See [report](../mm-reporting-latency.md), [evidence](../mm-reporting-latency-evidence.json)
 and [plan](../../docs/plans/MM_REPORTING_LATENCY_TDD_PLAN.md). The confirmed 2s
 reporting timeout and original historical p99 attribution are not declared fixed.
+
+## Single-service architecture experiment (2026-10-29; R1A)
+
+- [x] Keep one service/container/image and compare combined versus API/engine
+  subprocesses at equal 1 CPU/2 GiB and 2 CPU/2 GiB, total pool slots five.
+- [x] Reuse the existing API/store/command queue/engine; API child receives no
+  exchange keys or ownership. Keep profiles and risk/recorder behavior unchanged.
+- [x] Controlled 2.5s engine-loop stall: API p99 about 2.6s combined versus
+  97–102ms split, 39+ admission failures versus zero in the paired cases.
+- [x] Verify critical engine death exits the container; restart from acknowledged
+  Stop, kill API during a new active session, cancel quotes, preserve positions
+  and release ownership. Final fault exits 1.55s / 1.75s.
+- [x] Retain longer healthy failures: 1 CPU p99 1875/1171ms; 2 CPU 2243/2555ms.
+  Short 30s runs pass but do not replace mixed/hour acceptance.
+- [x] Promote a reproducible diagnostic runner/Make target with nonzero healthy
+  failure exit, excluding prototypes and runner from the deployment artifact.
+- [ ] Adopt production process isolation: not justified as a blanket p99 fix;
+  lifecycle, API-restart policy, supported pool/port handling and full gates remain.
+
+See [experiment](../mm-process-isolation-experiment.md) and
+[evidence](../mm-process-isolation-evidence.json). Existing priority-test scheduling
+assumption corrected; no production executor behavior changed. Real Demo remains
+stopped. R2 daily fallback / R3 queue diagnostics remain open in the reporting plan.

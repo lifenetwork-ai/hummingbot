@@ -3,6 +3,18 @@
 Workload, commands and acceptance budgets for offline verification. Historical
 results and measured fixes are in [the load report](../reports/life-mm-load-tests.md).
 
+For the separate **single-service process-isolation experiment**, run
+`make test-mm-process-isolation MM_PROCESS_CPUS=1 MM_PROCESS_SECONDS=90`
+and repeat with `MM_PROCESS_CPUS=2 MM_PROCESS_SECONDS=180`. The script uses
+test-only wrappers for one combined process versus an API/engine process pair
+inside the same container; it retains the existing engine, API and SQL. It adds
+a controlled 2.5s engine-loop stall and critical-child death tests on the isolated
+exchange. This is an architectural diagnostic, not a deployment entrypoint or
+the final hour gate. Healthy latency/error violations remain nonzero failures.
+Raw artifacts go under `build/mm-process-isolation/`; the
+[experiment report](../reports/mm-process-isolation-experiment.md) records its
+scope and unresolved limits.
+
 Run with the compiled environment and Docker available:
 
 Keep the host awake for continuous acceptance (on a Mac, leave the lid open and

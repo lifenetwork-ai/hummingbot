@@ -13,6 +13,17 @@ pool expansion, relaxed deadlines or API edits to YAML.
   Decision: reject all candidates after workload-dependent regressions; existing
   SQL retained. The confirmed timeout is not declared fixed. See the
   [report](../../reports/mm-reporting-latency.md).
+- [x] R1A (requested architecture experiment): retain **one Cloud Run service**;
+  compare one process with two isolated API/engine processes in one container.
+  Reuse existing handlers, durable command queue, ownership/fencing and engine.
+  Keep the same total CPU/RAM and five database pool slots. First run isolated
+  fake-exchange diagnostics and a controlled engine-loop stall. Verify that
+  critical child exit cannot leave a healthy API container masking a dead bot.
+  Prototype wrappers are test-only until measurements and lifecycle tests justify
+  production adoption. Process isolation alone does not reduce the SQL cost.
+  Decision: stall isolation verified (about 2.6s -> 0.1s), but both longer paired
+  healthy diagnostics miss p99; keep production unchanged. See the
+  [experiment](../../reports/mm-process-isolation-experiment.md).
 - [ ] R2 Red: cover last-good fallback, no fallback without a matching successful
   snapshot, stale age/clock/day rollover, transient versus permanent failures,
   concurrency, filter isolation, cancellation and recovery.

@@ -1,0 +1,1318 @@
+{
+  "scope": "Local diagnostic process-isolation experiment; production runtime and deployed architecture unchanged",
+  "date": "2026-10-29",
+  "image_id": "sha256:143ddfe27ceb1c18863735a99f58ce8beef214bc87b4c99e909d9d9613732124",
+  "host_architecture": "arm64",
+  "image_architecture": "amd64",
+  "emulation": true,
+  "cloud_constraint": "One Cloud Run service, one container, same image; experimental API/engine subprocesses only",
+  "resource_limits": {
+    "container_memory_mib": 2048,
+    "total_pool_connections": 5,
+    "split_engine_pool_connections": 3,
+    "split_api_pool_connections": 2,
+    "postgres_cpus": 2,
+    "postgres_memory_mib": 512,
+    "client_cpus": 1,
+    "client_memory_mib": 512
+  },
+  "workload": {
+    "history_fills": 100000,
+    "main_read_rate": 20,
+    "auxiliary_read_rate": 5,
+    "book_updates_per_second": 100,
+    "fills_per_second": 1,
+    "features": "three levels, fees/NATR, volatility defense, bootstrap/quote guards, drawdown, outflow, inventory skew, operations reads",
+    "controlled_loop_stall_seconds": 2.5,
+    "stall_reads": 100,
+    "stall_read_rate": 20
+  },
+  "limitations": [
+    "One matched pair per CPU setting; not randomized or repeated statistical comparisons",
+    "90s and 180s tests have no separate 300s warmup; they cannot replace mixed/hour gates",
+    "No per-request server/SQL/GC traces; original historical p99 trigger remains unassigned",
+    "Process isolation leaves PostgreSQL aggregates and the shared container CPU quota unchanged",
+    "Memory is cgroup memory.peak, a conservative whole-container upper bound including non-RSS pages",
+    "Prototype has fixed 8080 ingress/8081 engine ports and test-only pool partitioning; not a production entrypoint",
+    "Prototype stops the entire container on either child death; a production API restart policy remains undecided"
+  ],
+  "experiments": {
+    "one_cpu_90s": {
+      "raw_result": "build/mm-architecture-experiment/result.json",
+      "cases": {
+        "single": {
+          "completed": true,
+          "fixture_sha256": {
+            "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+            "supervisor.py": "5e3dbc5db0386d769a8daee0593f1b473085aa46ff1c8f7c45e98705c030f8e3",
+            "exchange.py": "f3ac806b7e5eab43581a40429d25f133d5e4573f1181d7da9a8ff523cf54a490",
+            "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "load_service.py": "f93773b2a1d38328278050351c6fc7d1df4cb6be32768d51838d4d1037ba5fe0",
+            "runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30",
+            "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+            "engine.py": "f93773b2a1d38328278050351c6fc7d1df4cb6be32768d51838d4d1037ba5fe0",
+            "load_trace.py": "32cf74ea6c65fb74b7db17d69b05be95c9975f63e92159a68069cda4b900704f",
+            "admin.py": "6b1cd9ddda26a69e3288768b3cc3097096a4c1e2a1f9e563c926ed2b76b08f8c",
+            "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+            "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "stall_client.py": "37f891a6f66bca21b812811ba17a6408ebf0e81c1b20ed3ad560159e74847a0e",
+            "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+            "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+            "load_client.py": "213a8faec655d3785809cd0e70800d174d5ac5653462a0eb790187115e91cbee"
+          },
+          "healthy": {
+            "requested_reads": 1800,
+            "completed_reads": 1800,
+            "read_p95_ms": 1181.6581989987753,
+            "read_p99_ms": 1875.1231979986187,
+            "unexpected_errors": 0,
+            "statuses": {
+              "200": 1800
+            },
+            "auxiliary": {
+              "requested_reads": 450,
+              "completed_reads": 450,
+              "statuses": {
+                "200": 450
+              },
+              "read_p95_ms": 1150.4146579973167,
+              "read_p99_ms": 2036.1129899974912
+            },
+            "peak_rss_bytes": 378871808,
+            "memory_measurement": "cgroup memory.peak: conservative RSS upper bound including page cache; diagnostic only",
+            "violations": [
+              "auxiliary_read_p95",
+              "auxiliary_read_p99",
+              "read_p95",
+              "read_p99"
+            ],
+            "per_route": {
+              "/status": {
+                "count": 164,
+                "p50": 12.48883998778183,
+                "p95": 1121.380782002234,
+                "p99": 1915.702615006012
+              },
+              "/sessions/{session_id}/events?limit=100": {
+                "count": 90,
+                "p50": 34.76892599428538,
+                "p95": 1121.8340329942293,
+                "p99": 2036.1129899974912
+              },
+              "/commands?limit=100": {
+                "count": 90,
+                "p50": 43.439925997518,
+                "p95": 1123.05870000273,
+                "p99": 2370.5321559973527
+              },
+              "/sessions/{session_id}/configuration": {
+                "count": 90,
+                "p50": 55.83227099850774,
+                "p95": 1139.391157994396,
+                "p99": 2436.0786150064087
+              },
+              "/sessions?limit=100": {
+                "count": 90,
+                "p50": 50.344035000307485,
+                "p95": 1156.0868240048876,
+                "p99": 2371.2304899963783
+              },
+              "/orders?limit=1": {
+                "count": 164,
+                "p50": 15.03576799586881,
+                "p95": 1105.087782998453,
+                "p99": 1875.1231979986187
+              },
+              "/orders?limit=100": {
+                "count": 164,
+                "p50": 23.377250996418297,
+                "p95": 1080.6341569987126,
+                "p99": 1847.4872819933807
+              },
+              "/orders?limit=500": {
+                "count": 164,
+                "p50": 66.02693699824158,
+                "p95": 1284.0951160033,
+                "p99": 1914.6844070055522
+              },
+              "/fills?limit=100": {
+                "count": 164,
+                "p50": 23.79695899435319,
+                "p95": 1118.6791519867256,
+                "p99": 1756.1144899955252
+              },
+              "/fills?limit=500": {
+                "count": 164,
+                "p50": 45.41446499933954,
+                "p95": 1338.314991997322,
+                "p99": 1735.8696150040487
+              },
+              "/balances": {
+                "count": 164,
+                "p50": 16.20793300389778,
+                "p95": 1335.590657996363,
+                "p99": 2149.6384070051135
+              },
+              "/positions": {
+                "count": 163,
+                "p50": 11.606396990828216,
+                "p95": 1285.9099909983343,
+                "p99": 2099.227865008288
+              },
+              "/performance": {
+                "count": 163,
+                "p50": 11.294742987956852,
+                "p95": 1263.7109479983337,
+                "p99": 2054.32819800626
+              },
+              "/reconciliation": {
+                "count": 163,
+                "p50": 10.721508995629847,
+                "p95": 1173.3146979968296,
+                "p99": 1963.8893649971578
+              },
+              "/statistics/liquidity": {
+                "count": 90,
+                "p50": 16.638828994473442,
+                "p95": 1195.6453239981784,
+                "p99": 2053.898322992609
+              },
+              "/statistics/daily": {
+                "count": 163,
+                "p50": 5.366262004827149,
+                "p95": 1001.95624200569,
+                "p99": 1898.6969480029074
+              }
+            },
+            "ledger": {
+              "unique_exchange_fills": 90,
+              "unique_recorder_fills": 90,
+              "positions_matched": true,
+              "identified_funding_bills": 0,
+              "daily_snapshots": 3
+            }
+          },
+          "stall": {
+            "injected_loop_stall_seconds": 2.5,
+            "requests": 100,
+            "errors": 39,
+            "p50_ms": 194.27883400931023,
+            "p99_ms": 2610.2466260053916,
+            "max_ms": 2617.7796680130996
+          },
+          "stall_statuses": {
+            "200": 61,
+            "503": 39
+          },
+          "engine_death": null,
+          "api_death": null,
+          "api_exchange_credential_keys": null
+        },
+        "split": {
+          "completed": true,
+          "fixture_sha256": {
+            "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+            "supervisor.py": "5e3dbc5db0386d769a8daee0593f1b473085aa46ff1c8f7c45e98705c030f8e3",
+            "exchange.py": "f3ac806b7e5eab43581a40429d25f133d5e4573f1181d7da9a8ff523cf54a490",
+            "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "load_service.py": "5e3dbc5db0386d769a8daee0593f1b473085aa46ff1c8f7c45e98705c030f8e3",
+            "runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30",
+            "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+            "engine.py": "f93773b2a1d38328278050351c6fc7d1df4cb6be32768d51838d4d1037ba5fe0",
+            "load_trace.py": "32cf74ea6c65fb74b7db17d69b05be95c9975f63e92159a68069cda4b900704f",
+            "admin.py": "6b1cd9ddda26a69e3288768b3cc3097096a4c1e2a1f9e563c926ed2b76b08f8c",
+            "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+            "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "stall_client.py": "37f891a6f66bca21b812811ba17a6408ebf0e81c1b20ed3ad560159e74847a0e",
+            "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+            "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+            "load_client.py": "213a8faec655d3785809cd0e70800d174d5ac5653462a0eb790187115e91cbee"
+          },
+          "healthy": {
+            "requested_reads": 1800,
+            "completed_reads": 1800,
+            "read_p95_ms": 342.9445729998406,
+            "read_p99_ms": 1170.8847370027797,
+            "unexpected_errors": 0,
+            "statuses": {
+              "200": 1800
+            },
+            "auxiliary": {
+              "requested_reads": 450,
+              "completed_reads": 450,
+              "statuses": {
+                "200": 450
+              },
+              "read_p95_ms": 269.33276299678255,
+              "read_p99_ms": 1326.009904005332
+            },
+            "peak_rss_bytes": 631369728,
+            "memory_measurement": "cgroup memory.peak: conservative RSS upper bound including page cache; diagnostic only",
+            "violations": [
+              "auxiliary_read_p99",
+              "read_p99"
+            ],
+            "per_route": {
+              "/status": {
+                "count": 164,
+                "p50": 9.259700003894977,
+                "p95": 186.91011899500154,
+                "p99": 1139.166737004416
+              },
+              "/sessions/{session_id}/events?limit=100": {
+                "count": 90,
+                "p50": 16.14643700304441,
+                "p95": 265.04059600119945,
+                "p99": 1326.009904005332
+              },
+              "/commands?limit=100": {
+                "count": 90,
+                "p50": 20.023103992571123,
+                "p95": 261.0341800027527,
+                "p99": 1335.4059449920896
+              },
+              "/sessions?limit=100": {
+                "count": 90,
+                "p50": 26.347341990913264,
+                "p95": 269.33276299678255,
+                "p99": 1347.378028993262
+              },
+              "/sessions/{session_id}/configuration": {
+                "count": 90,
+                "p50": 33.36400199623313,
+                "p95": 273.81709599285387,
+                "p99": 1362.0274040004006
+              },
+              "/orders?limit=1": {
+                "count": 164,
+                "p50": 10.20549399254378,
+                "p95": 142.68928598903585,
+                "p99": 1101.7146119993413
+              },
+              "/orders?limit=100": {
+                "count": 164,
+                "p50": 20.56687699223403,
+                "p95": 109.65511899848934,
+                "p99": 1086.939528991934
+              },
+              "/orders?limit=500": {
+                "count": 164,
+                "p50": 54.904794000322,
+                "p95": 377.99774199083913,
+                "p99": 1403.181528992718
+              },
+              "/fills?limit=100": {
+                "count": 164,
+                "p50": 11.802349996287376,
+                "p95": 245.65053400874604,
+                "p99": 1116.0215700074332
+              },
+              "/fills?limit=500": {
+                "count": 164,
+                "p50": 27.968146008788608,
+                "p95": 400.8145129919285,
+                "p99": 1361.5765290014679
+              },
+              "/balances": {
+                "count": 164,
+                "p50": 7.245150991366245,
+                "p95": 351.95930500049144,
+                "p99": 1312.7010290045291
+              },
+              "/positions": {
+                "count": 163,
+                "p50": 7.059616007609293,
+                "p95": 378.7467439979082,
+                "p99": 1320.5984870000975
+              },
+              "/performance": {
+                "count": 163,
+                "p50": 7.286509993718937,
+                "p95": 331.2313689966686,
+                "p99": 1275.7496539852582
+              },
+              "/reconciliation": {
+                "count": 163,
+                "p50": 6.958708996535279,
+                "p95": 233.01261899177916,
+                "p99": 1180.7488619961077
+              },
+              "/statistics/liquidity": {
+                "count": 90,
+                "p50": 10.456830001203343,
+                "p95": 360.5607009958476,
+                "p99": 1465.684152994072
+              },
+              "/statistics/daily": {
+                "count": 163,
+                "p50": 4.14759099658113,
+                "p95": 523.7554659979651,
+                "p99": 1720.2378210058669
+              }
+            },
+            "ledger": {
+              "unique_exchange_fills": 90,
+              "unique_recorder_fills": 90,
+              "positions_matched": true,
+              "identified_funding_bills": 0,
+              "daily_snapshots": 3
+            }
+          },
+          "stall": {
+            "injected_loop_stall_seconds": 2.5,
+            "requests": 100,
+            "errors": 0,
+            "p50_ms": 10.891042998991907,
+            "p99_ms": 96.61850100383162,
+            "max_ms": 121.7290009954013
+          },
+          "stall_statuses": {
+            "200": 100,
+            "503": 0
+          },
+          "engine_death": {
+            "whole_container_exit_seconds": 1.7040679999627173,
+            "exit_code": 247,
+            "oom_killed": false
+          },
+          "api_death": null,
+          "api_exchange_credential_keys": []
+        }
+      }
+    },
+    "two_cpu_180s": {
+      "raw_result": "build/mm-architecture-experiment/two_cpu/result.json",
+      "cases": {
+        "single": {
+          "completed": true,
+          "fixture_sha256": {
+            "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+            "supervisor.py": "5e3dbc5db0386d769a8daee0593f1b473085aa46ff1c8f7c45e98705c030f8e3",
+            "exchange.py": "f3ac806b7e5eab43581a40429d25f133d5e4573f1181d7da9a8ff523cf54a490",
+            "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "load_service.py": "f93773b2a1d38328278050351c6fc7d1df4cb6be32768d51838d4d1037ba5fe0",
+            "runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30",
+            "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+            "engine.py": "f93773b2a1d38328278050351c6fc7d1df4cb6be32768d51838d4d1037ba5fe0",
+            "load_trace.py": "32cf74ea6c65fb74b7db17d69b05be95c9975f63e92159a68069cda4b900704f",
+            "admin.py": "6b1cd9ddda26a69e3288768b3cc3097096a4c1e2a1f9e563c926ed2b76b08f8c",
+            "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+            "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "stall_client.py": "37f891a6f66bca21b812811ba17a6408ebf0e81c1b20ed3ad560159e74847a0e",
+            "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+            "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+            "load_client.py": "213a8faec655d3785809cd0e70800d174d5ac5653462a0eb790187115e91cbee"
+          },
+          "healthy": {
+            "requested_reads": 3600,
+            "completed_reads": 3600,
+            "read_p95_ms": 1216.1637689860072,
+            "read_p99_ms": 2242.7348969940795,
+            "unexpected_errors": 0,
+            "statuses": {
+              "200": 3600
+            },
+            "auxiliary": {
+              "requested_reads": 900,
+              "completed_reads": 900,
+              "statuses": {
+                "200": 900
+              },
+              "read_p95_ms": 1285.365435993299,
+              "read_p99_ms": 2251.7312720010523
+            },
+            "peak_rss_bytes": 369688576,
+            "memory_measurement": "cgroup memory.peak: conservative RSS upper bound including page cache; diagnostic only",
+            "violations": [
+              "auxiliary_read_p95",
+              "auxiliary_read_p99",
+              "read_p95",
+              "read_p99"
+            ],
+            "per_route": {
+              "/status": {
+                "count": 328,
+                "p50": 12.578391993883997,
+                "p95": 1149.6212279889733,
+                "p99": 2107.942314003594
+              },
+              "/sessions/{session_id}/events?limit=100": {
+                "count": 180,
+                "p50": 35.18622199771926,
+                "p95": 1070.3309779928531,
+                "p99": 2251.7312720010523
+              },
+              "/commands?limit=100": {
+                "count": 180,
+                "p50": 40.88657000102103,
+                "p95": 1101.7549980024341,
+                "p99": 2254.126229992835
+              },
+              "/sessions/{session_id}/configuration": {
+                "count": 180,
+                "p50": 57.541886999388225,
+                "p95": 1331.097130998387,
+                "p99": 2278.53227200103
+              },
+              "/sessions?limit=100": {
+                "count": 180,
+                "p50": 51.06884699489456,
+                "p95": 1321.7482559994096,
+                "p99": 2280.7358549907804
+              },
+              "/orders?limit=1": {
+                "count": 328,
+                "p50": 14.887095996527933,
+                "p95": 1150.6624819885474,
+                "p99": 2123.525063987472
+              },
+              "/orders?limit=100": {
+                "count": 328,
+                "p50": 24.026574988965876,
+                "p95": 1125.8781899960013,
+                "p99": 2104.1638139868155
+              },
+              "/orders?limit=500": {
+                "count": 327,
+                "p50": 69.06788299966138,
+                "p95": 1301.8177280027885,
+                "p99": 2441.864854990854
+              },
+              "/fills?limit=100": {
+                "count": 327,
+                "p50": 27.042432004236616,
+                "p95": 1245.0535479874816,
+                "p99": 2046.7453970049974
+              },
+              "/fills?limit=500": {
+                "count": 327,
+                "p50": 35.596998990513384,
+                "p95": 1258.5837689985055,
+                "p99": 2330.036689003464
+              },
+              "/balances": {
+                "count": 327,
+                "p50": 12.658529987675138,
+                "p95": 1227.0229360001395,
+                "p99": 2293.018522002967
+              },
+              "/positions": {
+                "count": 327,
+                "p50": 10.643718997016549,
+                "p95": 1227.3968099907506,
+                "p99": 2246.0305639979197
+              },
+              "/performance": {
+                "count": 327,
+                "p50": 10.544594988459721,
+                "p95": 1210.89427699917,
+                "p99": 2242.7348969940795
+              },
+              "/reconciliation": {
+                "count": 327,
+                "p50": 10.798183997394517,
+                "p95": 1186.5411859907908,
+                "p99": 2141.3960640056757
+              },
+              "/statistics/liquidity": {
+                "count": 180,
+                "p50": 16.115851001814008,
+                "p95": 1181.019102994469,
+                "p99": 2378.6206060030963
+              },
+              "/statistics/daily": {
+                "count": 327,
+                "p50": 6.703077000565827,
+                "p95": 1147.898940005689,
+                "p99": 2258.0031899997266
+              }
+            },
+            "ledger": {
+              "unique_exchange_fills": 180,
+              "unique_recorder_fills": 180,
+              "positions_matched": true,
+              "identified_funding_bills": 0,
+              "daily_snapshots": 3
+            },
+            "cgroup_cpu_delta": {
+              "usage_usec": 91071061,
+              "user_usec": 84980532,
+              "system_usec": 6090530,
+              "nr_periods": 1829,
+              "nr_throttled": 5,
+              "throttled_usec": 303576,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "cgroup_sample_span_seconds": 182.96621116716415
+          },
+          "stall": {
+            "injected_loop_stall_seconds": 2.5,
+            "requests": 100,
+            "errors": 40,
+            "p50_ms": 289.2239389984752,
+            "p99_ms": 2656.494417999056,
+            "max_ms": 2684.8487929964904
+          },
+          "stall_statuses": {
+            "200": 60,
+            "503": 40
+          },
+          "engine_death": null,
+          "api_death": null,
+          "api_exchange_credential_keys": null
+        },
+        "split": {
+          "completed": true,
+          "fixture_sha256": {
+            "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+            "supervisor.py": "5e3dbc5db0386d769a8daee0593f1b473085aa46ff1c8f7c45e98705c030f8e3",
+            "exchange.py": "f3ac806b7e5eab43581a40429d25f133d5e4573f1181d7da9a8ff523cf54a490",
+            "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "load_service.py": "5e3dbc5db0386d769a8daee0593f1b473085aa46ff1c8f7c45e98705c030f8e3",
+            "runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30",
+            "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+            "engine.py": "f93773b2a1d38328278050351c6fc7d1df4cb6be32768d51838d4d1037ba5fe0",
+            "load_trace.py": "32cf74ea6c65fb74b7db17d69b05be95c9975f63e92159a68069cda4b900704f",
+            "admin.py": "6b1cd9ddda26a69e3288768b3cc3097096a4c1e2a1f9e563c926ed2b76b08f8c",
+            "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+            "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "stall_client.py": "37f891a6f66bca21b812811ba17a6408ebf0e81c1b20ed3ad560159e74847a0e",
+            "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+            "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+            "load_client.py": "213a8faec655d3785809cd0e70800d174d5ac5653462a0eb790187115e91cbee"
+          },
+          "healthy": {
+            "requested_reads": 3600,
+            "completed_reads": 3600,
+            "read_p95_ms": 1472.4508290091762,
+            "read_p99_ms": 2554.7738059976837,
+            "unexpected_errors": 0,
+            "statuses": {
+              "200": 3600
+            },
+            "auxiliary": {
+              "requested_reads": 900,
+              "completed_reads": 900,
+              "statuses": {
+                "200": 900
+              },
+              "read_p95_ms": 1484.0327830024762,
+              "read_p99_ms": 2637.890223006252
+            },
+            "peak_rss_bytes": 625967104,
+            "memory_measurement": "cgroup memory.peak: conservative RSS upper bound including page cache; diagnostic only",
+            "violations": [
+              "auxiliary_read_p95",
+              "auxiliary_read_p99",
+              "read_p95",
+              "read_p99"
+            ],
+            "per_route": {
+              "/status": {
+                "count": 328,
+                "p50": 11.661363008897752,
+                "p95": 1329.3097819987452,
+                "p99": 2447.886723006377
+              },
+              "/sessions/{session_id}/events?limit=100": {
+                "count": 180,
+                "p50": 23.139336000895128,
+                "p95": 1433.6581160023343,
+                "p99": 2720.7739320001565
+              },
+              "/commands?limit=100": {
+                "count": 180,
+                "p50": 29.733019007835537,
+                "p95": 1445.0602410070132,
+                "p99": 2731.926057007513
+              },
+              "/sessions/{session_id}/configuration": {
+                "count": 180,
+                "p50": 48.323898008675314,
+                "p95": 1484.0327830024762,
+                "p99": 2791.131307007163
+              },
+              "/sessions?limit=100": {
+                "count": 180,
+                "p50": 40.179100004024804,
+                "p95": 1489.938323997194,
+                "p99": 2762.2115569974994
+              },
+              "/orders?limit=1": {
+                "count": 328,
+                "p50": 13.137778005329892,
+                "p95": 1400.931573996786,
+                "p99": 2432.027848000871
+              },
+              "/orders?limit=100": {
+                "count": 328,
+                "p50": 25.762270000996068,
+                "p95": 1384.4410580059048,
+                "p99": 2482.7417229971616
+              },
+              "/fills?limit=100": {
+                "count": 327,
+                "p50": 25.12857600231655,
+                "p95": 1293.8825159944827,
+                "p99": 2455.169182008831
+              },
+              "/fills?limit=500": {
+                "count": 327,
+                "p50": 36.60168299393263,
+                "p95": 1474.8850329924608,
+                "p99": 2524.7438900114503
+              },
+              "/balances": {
+                "count": 327,
+                "p50": 10.424316002172418,
+                "p95": 1449.7013240033993,
+                "p99": 2548.136555997189
+              },
+              "/positions": {
+                "count": 327,
+                "p50": 10.319298002286814,
+                "p95": 1409.3302830005996,
+                "p99": 2606.2679729948286
+              },
+              "/orders?limit=500": {
+                "count": 327,
+                "p50": 69.91815200308338,
+                "p95": 1597.9303240019362,
+                "p99": 2696.4160979987355
+              },
+              "/performance": {
+                "count": 327,
+                "p50": 10.51290999748744,
+                "p95": 1427.3024130088743,
+                "p99": 2554.7738059976837
+              },
+              "/reconciliation": {
+                "count": 327,
+                "p50": 10.005331991123967,
+                "p95": 1410.6851989927236,
+                "p99": 2475.46497300209
+              },
+              "/statistics/liquidity": {
+                "count": 180,
+                "p50": 15.886118009802885,
+                "p95": 1383.7691210064804,
+                "p99": 2548.1266410060925
+              },
+              "/statistics/daily": {
+                "count": 327,
+                "p50": 6.94411201402545,
+                "p95": 1641.1991990025854,
+                "p99": 2739.8331989970757
+              }
+            },
+            "ledger": {
+              "unique_exchange_fills": 180,
+              "unique_recorder_fills": 180,
+              "positions_matched": true,
+              "identified_funding_bills": 0,
+              "daily_snapshots": 3
+            },
+            "cgroup_cpu_delta": {
+              "usage_usec": 133725011,
+              "user_usec": 125129673,
+              "system_usec": 8595339,
+              "nr_periods": 1831,
+              "nr_throttled": 42,
+              "throttled_usec": 1989910,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "cgroup_sample_span_seconds": 183.13500608387403
+          },
+          "stall": {
+            "injected_loop_stall_seconds": 2.5,
+            "requests": 100,
+            "errors": 0,
+            "p50_ms": 10.168563996558078,
+            "p99_ms": 101.69095898163505,
+            "max_ms": 137.8610419924371
+          },
+          "stall_statuses": {
+            "200": 100,
+            "503": 0
+          },
+          "engine_death": {
+            "whole_container_exit_seconds": 1.8431482498999685,
+            "exit_code": 247,
+            "oom_killed": false
+          },
+          "api_death": null,
+          "api_exchange_credential_keys": []
+        }
+      }
+    },
+    "promoted_runner_30s": {
+      "raw_result": "build/mm-process-isolation/20261029-151604-6f0e40/result.json",
+      "cases": {
+        "single": {
+          "completed": true,
+          "fixture_sha256": {
+            "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+            "supervisor.py": "5e3dbc5db0386d769a8daee0593f1b473085aa46ff1c8f7c45e98705c030f8e3",
+            "exchange.py": "f3ac806b7e5eab43581a40429d25f133d5e4573f1181d7da9a8ff523cf54a490",
+            "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "load_service.py": "6621cd5fcc98184bd028a7f07794cd44bec5c8f5bef21d6e25794a2da36ce2d9",
+            "runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30",
+            "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+            "engine.py": "6621cd5fcc98184bd028a7f07794cd44bec5c8f5bef21d6e25794a2da36ce2d9",
+            "load_trace.py": "32cf74ea6c65fb74b7db17d69b05be95c9975f63e92159a68069cda4b900704f",
+            "admin.py": "e0645c5f30de711a125e4f5e3e322804f1e69a53696408b8462663fe747d670d",
+            "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+            "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "stall_client.py": "37f891a6f66bca21b812811ba17a6408ebf0e81c1b20ed3ad560159e74847a0e",
+            "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+            "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+            "load_client.py": "213a8faec655d3785809cd0e70800d174d5ac5653462a0eb790187115e91cbee"
+          },
+          "healthy": {
+            "requested_reads": 600,
+            "completed_reads": 600,
+            "read_p95_ms": 71.14625899703242,
+            "read_p99_ms": 281.04612800234463,
+            "unexpected_errors": 0,
+            "statuses": {
+              "200": 600
+            },
+            "auxiliary": {
+              "requested_reads": 150,
+              "completed_reads": 150,
+              "statuses": {
+                "200": 150
+              },
+              "read_p95_ms": 63.5144260013476,
+              "read_p99_ms": 90.50975700665731
+            },
+            "peak_rss_bytes": 374128640,
+            "memory_measurement": "cgroup memory.peak: conservative RSS upper bound including page cache; diagnostic only",
+            "violations": [],
+            "per_route": {
+              "/status": {
+                "count": 55,
+                "p50": 9.909088999847881,
+                "p95": 42.2491799981799,
+                "p99": 53.96505500539206
+              },
+              "/commands?limit=100": {
+                "count": 30,
+                "p50": 34.886085995822214,
+                "p95": 59.63246799365152,
+                "p99": 90.40796500630677
+              },
+              "/sessions/{session_id}/events?limit=100": {
+                "count": 30,
+                "p50": 24.802846004604362,
+                "p95": 51.70700700546149,
+                "p99": 55.68471799779218
+              },
+              "/sessions/{session_id}/configuration": {
+                "count": 30,
+                "p50": 44.69567199703306,
+                "p95": 74.14284300466534,
+                "p99": 96.22646500065457
+              },
+              "/sessions?limit=100": {
+                "count": 30,
+                "p50": 39.74305299925618,
+                "p95": 87.0281800016528,
+                "p99": 90.50975700665731
+              },
+              "/orders?limit=1": {
+                "count": 55,
+                "p50": 12.594384999829344,
+                "p95": 44.89196999929845,
+                "p99": 51.704169003642164
+              },
+              "/orders?limit=100": {
+                "count": 55,
+                "p50": 22.189295996213332,
+                "p95": 43.661885007168166,
+                "p99": 155.65292300016154
+              },
+              "/orders?limit=500": {
+                "count": 55,
+                "p50": 58.991678000893444,
+                "p95": 92.58004699950106,
+                "p99": 281.04612800234463
+              },
+              "/fills?limit=100": {
+                "count": 55,
+                "p50": 19.44020899827592,
+                "p95": 77.70846399944276,
+                "p99": 250.7231280033011
+              },
+              "/fills?limit=500": {
+                "count": 55,
+                "p50": 27.37930500006769,
+                "p95": 74.47962601145264,
+                "p99": 228.77479500311892
+              },
+              "/balances": {
+                "count": 54,
+                "p50": 7.127174991182983,
+                "p95": 32.20000599685591,
+                "p99": 181.18329498975072
+              },
+              "/positions": {
+                "count": 54,
+                "p50": 6.723799000610597,
+                "p95": 28.249171999050304,
+                "p99": 129.1608780011302
+              },
+              "/performance": {
+                "count": 54,
+                "p50": 6.814053005655296,
+                "p95": 26.594132999889553,
+                "p99": 84.88204500463326
+              },
+              "/reconciliation": {
+                "count": 54,
+                "p50": 7.767635004711337,
+                "p95": 13.412219006568193,
+                "p99": 76.69050400727428
+              },
+              "/statistics/liquidity": {
+                "count": 30,
+                "p50": 12.667089002206922,
+                "p95": 37.331257000914775,
+                "p99": 52.47443000553176
+              },
+              "/statistics/daily": {
+                "count": 54,
+                "p50": 4.798467998625711,
+                "p95": 444.6259170072153,
+                "p99": 531.5199610049604
+              }
+            },
+            "ledger": {
+              "unique_exchange_fills": 30,
+              "unique_recorder_fills": 30,
+              "positions_matched": true,
+              "identified_funding_bills": 0,
+              "daily_snapshots": 3
+            },
+            "cgroup_cpu_delta": {
+              "usage_usec": 9555741,
+              "user_usec": 8939902,
+              "system_usec": 615838,
+              "nr_periods": 310,
+              "nr_throttled": 0,
+              "throttled_usec": 0,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "cgroup_sample_span_seconds": 30.96453758282587
+          },
+          "stall": {
+            "injected_loop_stall_seconds": 2.5,
+            "requests": 100,
+            "errors": 38,
+            "p50_ms": 289.06366849696497,
+            "p99_ms": 2600.050793000264,
+            "max_ms": 2617.1214600035455
+          },
+          "stall_statuses": {
+            "200": 62,
+            "503": 38
+          },
+          "engine_death": null,
+          "api_death": null,
+          "api_exchange_credential_keys": null
+        },
+        "split": {
+          "completed": true,
+          "fixture_sha256": {
+            "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+            "supervisor.py": "5e3dbc5db0386d769a8daee0593f1b473085aa46ff1c8f7c45e98705c030f8e3",
+            "exchange.py": "f3ac806b7e5eab43581a40429d25f133d5e4573f1181d7da9a8ff523cf54a490",
+            "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "load_service.py": "5e3dbc5db0386d769a8daee0593f1b473085aa46ff1c8f7c45e98705c030f8e3",
+            "runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30",
+            "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+            "engine.py": "6621cd5fcc98184bd028a7f07794cd44bec5c8f5bef21d6e25794a2da36ce2d9",
+            "load_trace.py": "32cf74ea6c65fb74b7db17d69b05be95c9975f63e92159a68069cda4b900704f",
+            "admin.py": "e0645c5f30de711a125e4f5e3e322804f1e69a53696408b8462663fe747d670d",
+            "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+            "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "stall_client.py": "37f891a6f66bca21b812811ba17a6408ebf0e81c1b20ed3ad560159e74847a0e",
+            "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+            "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+            "load_client.py": "213a8faec655d3785809cd0e70800d174d5ac5653462a0eb790187115e91cbee"
+          },
+          "healthy": {
+            "requested_reads": 600,
+            "completed_reads": 600,
+            "read_p95_ms": 118.97300599957816,
+            "read_p99_ms": 411.1056260007899,
+            "unexpected_errors": 0,
+            "statuses": {
+              "200": 600
+            },
+            "auxiliary": {
+              "requested_reads": 150,
+              "completed_reads": 150,
+              "statuses": {
+                "200": 150
+              },
+              "read_p95_ms": 268.131838995032,
+              "read_p99_ms": 343.538417990203
+            },
+            "peak_rss_bytes": 624943104,
+            "memory_measurement": "cgroup memory.peak: conservative RSS upper bound including page cache; diagnostic only",
+            "violations": [],
+            "per_route": {
+              "/status": {
+                "count": 55,
+                "p50": 10.19905299472157,
+                "p95": 18.778258992824703,
+                "p99": 152.2809219895862
+              },
+              "/sessions/{session_id}/events?limit=100": {
+                "count": 30,
+                "p50": 13.755501990090124,
+                "p95": 268.131838995032,
+                "p99": 333.65941800002474
+              },
+              "/sessions?limit=100": {
+                "count": 30,
+                "p50": 24.076803994830698,
+                "p95": 307.5865479913773,
+                "p99": 345.14879299968015
+              },
+              "/commands?limit=100": {
+                "count": 30,
+                "p50": 20.132042991463095,
+                "p95": 278.1787559943041,
+                "p99": 331.76720899064094
+              },
+              "/sessions/{session_id}/configuration": {
+                "count": 30,
+                "p50": 29.603795002913103,
+                "p95": 306.30900600226596,
+                "p99": 343.538417990203
+              },
+              "/orders?limit=1": {
+                "count": 55,
+                "p50": 11.934929003473371,
+                "p95": 25.27105099579785,
+                "p99": 112.49950500496197
+              },
+              "/orders?limit=100": {
+                "count": 55,
+                "p50": 20.15517199470196,
+                "p95": 43.570841997279786,
+                "p99": 307.83271399559453
+              },
+              "/orders?limit=500": {
+                "count": 55,
+                "p50": 51.215045008575544,
+                "p95": 146.41417599341366,
+                "p99": 411.1056260007899
+              },
+              "/fills?limit=100": {
+                "count": 55,
+                "p50": 10.886042000493035,
+                "p95": 43.403095987741835,
+                "p99": 365.1223339984426
+              },
+              "/fills?limit=500": {
+                "count": 55,
+                "p50": 27.274253996438347,
+                "p95": 255.32388099236414,
+                "p99": 396.7056719993707
+              },
+              "/balances": {
+                "count": 54,
+                "p50": 7.012303001829423,
+                "p95": 206.37146499939263,
+                "p99": 348.30762998899445
+              },
+              "/positions": {
+                "count": 54,
+                "p50": 7.020543998805806,
+                "p95": 169.5024229993578,
+                "p99": 313.6871300084749
+              },
+              "/performance": {
+                "count": 54,
+                "p50": 7.5214229873381555,
+                "p95": 118.97300599957816,
+                "p99": 264.00458900025114
+              },
+              "/reconciliation": {
+                "count": 54,
+                "p50": 8.623963993159123,
+                "p95": 27.24388099159114,
+                "p99": 196.89233899407554
+              },
+              "/statistics/liquidity": {
+                "count": 30,
+                "p50": 10.797959999763407,
+                "p95": 17.631052993237972,
+                "p99": 23.534591993666254
+              },
+              "/statistics/daily": {
+                "count": 54,
+                "p50": 4.757215006975457,
+                "p95": 453.10080399212893,
+                "p99": 754.7988389997045
+              }
+            },
+            "ledger": {
+              "unique_exchange_fills": 30,
+              "unique_recorder_fills": 30,
+              "positions_matched": true,
+              "identified_funding_bills": 0,
+              "daily_snapshots": 3
+            },
+            "cgroup_cpu_delta": {
+              "usage_usec": 11395134,
+              "user_usec": 10773884,
+              "system_usec": 621250,
+              "nr_periods": 310,
+              "nr_throttled": 1,
+              "throttled_usec": 122230,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "cgroup_sample_span_seconds": 31.07900766702369
+          },
+          "stall": {
+            "injected_loop_stall_seconds": 2.5,
+            "requests": 100,
+            "errors": 0,
+            "p50_ms": 11.283250998531003,
+            "p99_ms": 18.03970900073182,
+            "max_ms": 20.225667001795955
+          },
+          "stall_statuses": {
+            "200": 100,
+            "503": 0
+          },
+          "engine_death": {
+            "whole_container_exit_seconds": 1.6125817080028355,
+            "exit_code": 247,
+            "oom_killed": false
+          },
+          "api_death": {
+            "whole_container_exit_seconds": 1.7960530419368297,
+            "exit_code": 247,
+            "owner_released": true,
+            "positions_preserved": true,
+            "working_orders_cancelled": true
+          },
+          "api_exchange_credential_keys": []
+        }
+      }
+    },
+    "final_split_active_api_failure": {
+      "raw_result": "build/mm-process-isolation/20261029-152011-bc70bd/result.json",
+      "cases": {
+        "split": {
+          "completed": true,
+          "fixture_sha256": {
+            "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+            "supervisor.py": "5e3dbc5db0386d769a8daee0593f1b473085aa46ff1c8f7c45e98705c030f8e3",
+            "exchange.py": "f3ac806b7e5eab43581a40429d25f133d5e4573f1181d7da9a8ff523cf54a490",
+            "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "load_service.py": "5e3dbc5db0386d769a8daee0593f1b473085aa46ff1c8f7c45e98705c030f8e3",
+            "runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30",
+            "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+            "engine.py": "6621cd5fcc98184bd028a7f07794cd44bec5c8f5bef21d6e25794a2da36ce2d9",
+            "load_trace.py": "32cf74ea6c65fb74b7db17d69b05be95c9975f63e92159a68069cda4b900704f",
+            "admin.py": "e0645c5f30de711a125e4f5e3e322804f1e69a53696408b8462663fe747d670d",
+            "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+            "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+            "stall_client.py": "37f891a6f66bca21b812811ba17a6408ebf0e81c1b20ed3ad560159e74847a0e",
+            "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+            "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+            "load_client.py": "213a8faec655d3785809cd0e70800d174d5ac5653462a0eb790187115e91cbee"
+          },
+          "healthy": {
+            "requested_reads": 600,
+            "completed_reads": 600,
+            "read_p95_ms": 54.05358500138391,
+            "read_p99_ms": 392.00259001518134,
+            "unexpected_errors": 0,
+            "statuses": {
+              "200": 600
+            },
+            "auxiliary": {
+              "requested_reads": 150,
+              "completed_reads": 150,
+              "statuses": {
+                "200": 150
+              },
+              "read_p95_ms": 47.66108900366817,
+              "read_p99_ms": 365.75512601120863
+            },
+            "peak_rss_bytes": 621105152,
+            "memory_measurement": "cgroup memory.peak: conservative RSS upper bound including page cache; diagnostic only",
+            "violations": [],
+            "per_route": {
+              "/status": {
+                "count": 55,
+                "p50": 10.9495900105685,
+                "p95": 18.567467006505467,
+                "p99": 82.41875100065954
+              },
+              "/sessions/{session_id}/events?limit=100": {
+                "count": 30,
+                "p50": 15.234339007292874,
+                "p95": 40.86620800080709,
+                "p99": 355.3942510043271
+              },
+              "/commands?limit=100": {
+                "count": 30,
+                "p50": 19.495631000609137,
+                "p95": 52.92587500298396,
+                "p99": 356.5430010057753
+              },
+              "/sessions?limit=100": {
+                "count": 30,
+                "p50": 24.918715003877878,
+                "p95": 53.40645799878985,
+                "p99": 365.75512601120863
+              },
+              "/sessions/{session_id}/configuration": {
+                "count": 30,
+                "p50": 26.850296009797603,
+                "p95": 67.00783300038893,
+                "p99": 367.84391800756566
+              },
+              "/orders?limit=1": {
+                "count": 55,
+                "p50": 12.312378006754443,
+                "p95": 26.944220007862896,
+                "p99": 34.025625995127484
+              },
+              "/orders?limit=100": {
+                "count": 55,
+                "p50": 20.79279799363576,
+                "p95": 29.462762002367526,
+                "p99": 31.793337999260984
+              },
+              "/orders?limit=500": {
+                "count": 55,
+                "p50": 51.706130005186424,
+                "p95": 72.25000600737985,
+                "p99": 427.84858401864767
+              },
+              "/fills?limit=100": {
+                "count": 55,
+                "p50": 10.693006013752893,
+                "p95": 36.524718001601286,
+                "p99": 379.8765010142233
+              },
+              "/fills?limit=500": {
+                "count": 55,
+                "p50": 26.858762008487247,
+                "p95": 35.79325600003358,
+                "p99": 354.1412510094233
+              },
+              "/balances": {
+                "count": 54,
+                "p50": 6.731045010383241,
+                "p95": 24.463335998007096,
+                "p99": 323.28620900807437
+              },
+              "/positions": {
+                "count": 54,
+                "p50": 7.42042000638321,
+                "p95": 15.112214008695446,
+                "p99": 272.1753340010764
+              },
+              "/performance": {
+                "count": 54,
+                "p50": 7.501710002543405,
+                "p95": 14.94617501157336,
+                "p99": 227.69587600487284
+              },
+              "/reconciliation": {
+                "count": 54,
+                "p50": 8.101008002995513,
+                "p95": 14.435219010920264,
+                "p99": 125.3945839998778
+              },
+              "/statistics/liquidity": {
+                "count": 30,
+                "p50": 11.674008012050763,
+                "p95": 18.047129007754847,
+                "p99": 18.688295007450506
+              },
+              "/statistics/daily": {
+                "count": 54,
+                "p50": 4.7655929956818,
+                "p95": 441.0990930045955,
+                "p99": 477.8799610066926
+              }
+            },
+            "ledger": {
+              "unique_exchange_fills": 30,
+              "unique_recorder_fills": 30,
+              "positions_matched": true,
+              "identified_funding_bills": 0,
+              "daily_snapshots": 3
+            },
+            "cgroup_cpu_delta": {
+              "usage_usec": 10118513,
+              "user_usec": 9568895,
+              "system_usec": 549618,
+              "nr_periods": 310,
+              "nr_throttled": 0,
+              "throttled_usec": 0,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "cgroup_sample_span_seconds": 31.04957433301024
+          },
+          "stall": {
+            "injected_loop_stall_seconds": 2.5,
+            "requests": 100,
+            "errors": 0,
+            "p50_ms": 12.084022011549678,
+            "p99_ms": 20.83304201369174,
+            "max_ms": 21.464626013766974
+          },
+          "engine_death": {
+            "whole_container_exit_seconds": 1.5499761251267046,
+            "exit_code": 247,
+            "oom_killed": false
+          },
+          "api_death": {
+            "whole_container_exit_seconds": 1.7540635829791427,
+            "exit_code": 247,
+            "owner_released": true,
+            "positions_preserved": true,
+            "working_orders_cancelled": true
+          },
+          "api_exchange_credential_keys": []
+        }
+      }
+    }
+  },
+  "production_adopted": false,
+  "release_scope_complete": false,
+  "native_tests": {
+    "result": "11 passed, 6 warnings, 3.82s",
+    "scope": "diagnostic failure exit code, bounded DB admission/cancellation/context and deterministic control priority; Cloud Run packaging"
+  },
+  "test_assumption_fix": "Control priority is dispatch order, not completion order across independently scheduled threads. Priority test now frees exactly one worker; no executor/runtime behavior changed.",
+  "initial_setup_failures": [
+    "Existing harness rejected the custom PID1 command before load; corrected by explicitly selecting its test-wrapper entrypoint.",
+    "Second preparation duplicated the /test-assets mount; removed the duplicate before load. Both failed setups cleaned their disposable containers."
+  ],
+  "prototype_sources": {
+    "test/e2e/offline/process_isolation/supervisor.py": "5e3dbc5db0386d769a8daee0593f1b473085aa46ff1c8f7c45e98705c030f8e3",
+    "test/e2e/offline/process_isolation/engine.py": "6621cd5fcc98184bd028a7f07794cd44bec5c8f5bef21d6e25794a2da36ce2d9",
+    "test/e2e/offline/process_isolation/admin.py": "e0645c5f30de711a125e4f5e3e322804f1e69a53696408b8462663fe747d670d",
+    "test/e2e/offline/process_isolation/stall_client.py": "37f891a6f66bca21b812811ba17a6408ebf0e81c1b20ed3ad560159e74847a0e"
+  },
+  "final_prototype_source_hashes_match_executed_fixtures": true,
+  "exploratory_exit_policy": "Initial ad hoc scripts returned completion status rather than latency success. Their recorded budget violations remain failures; the promoted runner returns nonzero on healthy violations and has a native regression check."
+}

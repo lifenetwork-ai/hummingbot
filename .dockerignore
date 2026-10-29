@@ -21,4 +21,5 @@
 **/*.so
 /scripts/test_postgres.py
 /scripts/test_e2e_offline.py
+/scripts/test_mm_process_isolation.py
 /scripts/review_cloudrun.py
