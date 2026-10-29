@@ -27,6 +27,14 @@ uses the shared dotenv loader; Cloud Run uses injected environment values and
 ignores `.env` and rejects `ENV_FILE`/`HBOT_ENV_FILE`. Supply exchange credentials through the environment field names
 documented in [runtime operations](postgres-runtime.md).
 
+The ordinary entrypoint is one supervisor with independent API and engine
+children inside the same container/service. API ingress binds `0.0.0.0:$PORT`;
+engine health binds only to loopback at the adjacent port. Child processes do
+not reload dotenv. API replacement preserves the engine/owner; engine replacement
+retains the existing recovery/HALT gates. Permanent configuration/schema errors
+exit the service; retryable child failures use bounded backoff. Current adoption
+evidence and open gates are in [supervision verification](../reports/mm-service-supervision.md).
+
 The initial database desired state is stopped. In another process, select a
 packaged configuration with `hbot start CONFIG.yml`; `hbot stop` persists user
 intent. A platform SIGTERM preserves desired state. The same service remains
@@ -39,7 +47,9 @@ The service exposes GET `/startup`, `/live`, and `/ready`. With
 `ADMIN_API_ENABLED=true`, it also exposes Basic Auth control/reporting endpoints
 and development-only Swagger; see the [FE/API guide](fe-integration.md). Startup becomes
 successful after migrations/schema/configuration/credential bootstrap, including
-valid stopped or standby states. Liveness does not query the DB/exchange.
+valid stopped or standby states. Public liveness checks the API loop; startup
+and readiness proxy the engine after API initialization. The supervisor checks
+engine liveness independently. Liveness does not query the DB/exchange.
 Readiness describes active trading; do not use it as a deployment startup probe,
 because the previous revision may still own the bot.
 
@@ -119,6 +129,10 @@ python scripts/test_mm_memory.py --image hummingbot-cloudrun:local --seconds 600
 
 See [retention review](../reports/mm-memory-retention-review.md) for measured
 scope and limitations. A bounded probe is not proof of unlimited uptime.
+The supervised load harness records cgroup memory including page cache and
+separate RSS/thread/descriptor/PID samples for all three processes; its hour gate
+rejects missing/stale role metrics, unexpected restarts and sustained growth.
+Maximum per-role timing quantiles are conservative bounds, not pooled percentiles.
 
 `--check-position-startup` also checks the entire runtime log for the resolved
 private-position contract-size startup error. It does not change service logging
@@ -144,7 +158,8 @@ LOG_LEVEL=INFO
 
 Local `.env` uses the existing environment loader. On Cloud Run inject these
 settings into the revision environment. A settings change requires a process
-restart/new revision; there is no runtime log-level admin endpoint.
+whole-service restart/new revision; child replacement inherits the original
+environment. There is no runtime log-level admin endpoint.
 
 | Level | Meaning / use |
 |---|---|
@@ -222,8 +237,10 @@ make test-e2e-offline PYTHON=/path/to/hummingbot/python \
 The cloud target compiles Linux amd64 extensions using the existing build,
 contains packaged SQL, runs as UID 10001, and executes Python as PID 1. It sets
 `PYTHONDONTWRITEBYTECODE` and sends logs to stdout/stderr with bot/config/owner/
-generation/revision context. Cleanup has an 8s coroutine budget and a separate
-9s process watchdog. Google documents a normal 10s SIGTERM grace period.
+generation/revision context. Engine cleanup retains its existing coroutine
+deadline. The parent allows a shared 7.5s child shutdown budget with a separate
+9s process watchdog; forced/failed child cleanup propagates a nonzero exit.
+Google documents a normal 10s SIGTERM grace period.
 [Container contract](https://docs.cloud.google.com/run/docs/container-contract)
 
 Offline verification enforces a **1.5 GiB** current-image budget and first checks
@@ -287,7 +304,7 @@ different selected major before claiming support for it.
 [Cloud SQL connection](https://docs.cloud.google.com/sql/docs/postgres/connect-run)
 
 The template enables continuous CPU, min/max instances 1 and a 240s HTTP startup
-budget, including the migration runner's 180s maximum. It starts at 1 CPU/2Gi;
+budget, including the migration runner's 180s maximum. It starts at 2 CPU/2Gi;
 local measurements do not establish Cloud Run scheduling or Cloud SQL latency.
 The advisory owner still controls overlap. Internal ingress is intentional; use
 an appropriate authenticated operations path for health access.
@@ -371,7 +388,9 @@ an example with disabled optional policies, not approved listing parameters.
   manifest again; do not edit a result JSON to manufacture a match.
 - [ ] Check Cloud SQL connection path, secret access, DDL/DML permissions and
   `ENABLE_AUTO_MIGRATION`. Budget for overlapping revisions, each with its own
-  pool; five is per engine, not a database-wide connection ceiling.
+  ceiling. `DB_POOL_SIZE` is the per-instance total: API two, engine the remainder
+  (default total five). It is not a database-wide connection ceiling. Only the
+  engine applies startup DDL; API startup validates without migrations/ownership.
 - [ ] Keep continuous CPU, min/max one, tested startup `/startup` and liveness
   `/live`. Do not replace startup with `/ready`. Verify ingress/IAM separately
   from application Basic Auth; service YAML does not grant invoker permissions.

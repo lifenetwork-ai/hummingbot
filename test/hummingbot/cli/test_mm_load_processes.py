@@ -60,3 +60,16 @@ def test_process_snapshot_uses_only_managed_roles_and_converts_rss_bytes(tmp_pat
     result = process_snapshot(tmp_path)
     assert set(result) == {'supervisor', 'engine', 'api'}
     assert result['api'] == dict(pid=11, VmRSS=12 * 1024, VmHWM=20 * 1024, Threads=3, fds=1)
+
+
+def test_api_cannot_consume_engine_post_stop_collection_request(tmp_path, monkeypatch):
+    from test.e2e.offline import load_process_metrics
+    marker = tmp_path / 'collect'
+    marker.touch()
+    calls = []
+    monkeypatch.setattr(load_process_metrics.gc, 'collect', lambda: calls.append('collect'))
+    assert not load_process_metrics.collect_requested('api', marker)
+    assert marker.exists() and not calls
+    assert load_process_metrics.collect_requested('engine', marker)
+    assert not marker.exists() and calls == ['collect']
+    assert not load_process_metrics.collect_requested('engine', marker)

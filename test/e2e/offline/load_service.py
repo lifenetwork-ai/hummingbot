@@ -18,7 +18,7 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 from aiohttp import web
-from load_process_metrics import process_snapshot
+from load_process_metrics import collect_requested, process_snapshot
 from load_trace import (
     FullGCProbe,
     TraceRecorder,
@@ -301,9 +301,7 @@ async def probe(host):
                                            for rows in orchestrator.active_executors.values() for executor in rows if executor.is_closed][-20:]
             if MEMORY_DIAGNOSTICS:
                 marker = Path("/tmp/memory-review-collect")
-                if marker.exists():
-                    marker.unlink()
-                    gc.collect()  # Requested only after the measured window/Stop.
+                if collect_requested(process_role, marker):
                     memory_gc_runs += 1
                 data["retention"] = retention_counts(core, orchestrator)
             destination = Path('/tmp/load-metrics-api.json' if process_role == 'api' else '/tmp/load-metrics.json')

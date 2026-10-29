@@ -1,5 +1,15 @@
 """Read Linux process diagnostics without spawning a Python process per sample."""
+import gc
 from pathlib import Path
+
+
+def collect_requested(role, marker):
+    """Only engine/legacy probes consume the post-Stop engine GC request."""
+    if role == 'api' or not marker.exists():
+        return False
+    marker.unlink()
+    gc.collect()
+    return True
 
 
 def process_snapshot(root=Path('/proc')):
