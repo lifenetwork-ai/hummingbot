@@ -645,6 +645,82 @@
           "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.079 max_probe_gap_seconds=1.346 probe_status=None probe_elapsed_ms=304.134 max_probe_elapsed_ms=304.134"
         }
       ]
+    },
+    {
+      "passed": true,
+      "fault_mode": "cpu",
+      "duration_seconds": 120,
+      "supervision_source_overlay_sha256": {
+        "hummingbot/cli/process_supervision.py": "e690399b3e8a848e6425d36b89d44c83eea5ec89f81916d7f0c5f9e850528536",
+        "hummingbot/cli/service_processes.py": "c8539e67587142b7481184f9e188a0ec0e1b1171969bf72efb46d487b8d1bd38"
+      },
+      "unmodified_runtime_image": false,
+      "engine_pid_unchanged": true,
+      "ownership_and_session_unchanged": true,
+      "no_halt": true,
+      "later_daily_fresh": true,
+      "clean_stop": true,
+      "observed_market_updates_per_second": 99.983184170689,
+      "stale_read_count": 14,
+      "durable_fill_witness": {
+        "observed_at": 1793368872.014323,
+        "fills": 1
+      },
+      "exchange_fills_during_timeout": 2,
+      "ledger": {
+        "unique_exchange_fills": 120,
+        "unique_recorder_fills": 120,
+        "positions_matched": true,
+        "identified_funding_bills": 0,
+        "daily_snapshots": 3
+      },
+      "artifact": "build/mm-reporting-isolation/20261030-210016-db909f/result.json",
+      "result_sha256": "19442413ed5c71d66682f98f706063223b56390b5fd300cb92871e5d5032a2e2",
+      "minimum_market_updates_per_second": 99.96666666666667,
+      "read_p95_ms": 48.311010003089905,
+      "read_p99_ms": 89.7049660270568,
+      "backlog_drain_seconds": 0.006861832982394844,
+      "expected_injected_stale_responses": 14,
+      "probe_events": [
+        {
+          "timestamp": "2026-10-30T14:00:38.711Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.373 probe_status=None probe_elapsed_ms=303.13 max_probe_elapsed_ms=303.13"
+        },
+        {
+          "timestamp": "2026-10-30T14:00:39.767Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.061 max_probe_gap_seconds=1.373 probe_status=None probe_elapsed_ms=303.13 max_probe_elapsed_ms=303.13"
+        },
+        {
+          "timestamp": "2026-10-30T14:00:53.456Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.344 probe_status=None probe_elapsed_ms=301.157 max_probe_elapsed_ms=301.157"
+        },
+        {
+          "timestamp": "2026-10-30T14:00:54.503Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.048 max_probe_gap_seconds=1.344 probe_status=None probe_elapsed_ms=301.157 max_probe_elapsed_ms=301.157"
+        }
+      ],
+      "host_context": {
+        "lid_open": true,
+        "power_source": "battery",
+        "concurrent_test_suites": false,
+        "sleep_before": "2026-10-30T19:36:50+07:00",
+        "wake_before": "2026-10-30T20:55:44+07:00",
+        "interpretation": "Recorded sleep follows earlier tests and does not explain earlier failures.",
+        "captured_power_events_unchanged_through_run": true,
+        "power_events_sha256": "6fa33bcae620519ad57002858fbc89897afb5acee8de4d8ab14da8c9d25c3fe0"
+      }
     }
   ],
   "demo_preservation": {

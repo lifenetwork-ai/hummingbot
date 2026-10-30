@@ -184,6 +184,11 @@ fresh or claiming an absolute independence guarantee for shared CPU/PostgreSQL.
 - [x] Exercise real loopback HTTP503/timeout and isolated source-overlay wait
   diagnostics; retain every failed attempt separately. Overlay runs are not
   acceptance of the original e526 image or a newly packaged release.
+- [x] Repeat the CPU-fault diagnostic after the operator reopened the Mac,
+  preserving thresholds and all prior failures. Run `20261030-210016-db909f`
+  passes: 120 matching fills, 99.98318 simulator updates/s, p99 API 89.70ms, no HALT
+  or engine replacement. Two transient probe timeouts recover. The recorded
+  clamshell sleep began after the prior tests, so it does not explain their failures.
 - [ ] Identify or reproduce the original sustained-failure/long-lag cause with
   sufficient evidence. Short transient timeout recovery does not close this item
   or either full release gate above. See

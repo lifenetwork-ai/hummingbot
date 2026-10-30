@@ -1933,3 +1933,13 @@ successful ledger/Stop checks, with four transient timeout episodes and no child
 restart. An initial CPU setup assertion and one prior native initialization
 timeout are also retained. Original cause and full release gates remain open;
 Demo ledger/control unchanged. See [investigation](../mm-engine-liveness-investigation.md).
+
+Operator-requested CPU-fault repeat after reopening the Mac passes at
+`build/mm-reporting-isolation/20261030-210016-db909f/result.json`: unchanged
+supervision source overlays/budgets, 99.98318 simulated updates/s, API p99 89.70ms,
+120 matching fills and positions, durable fill witnessed during the injected
+timeout, no HALT or engine replacement, clean Stop. Two brief engine probe
+timeouts recover. Fourteen deliberately stale responses are expected in this
+fault diagnostic, not a healthy full-release pass. Power log clamshell sleep
+19:36:50 +07:00 follows the earlier tests, so cannot explain them. Original cause
+and full gates remain open; prior failed attempts retained; Demo unchanged.

@@ -101,6 +101,35 @@ test's five-second initialization wait (106 passed, one failed). The unchanged
 sequential repeat passes; the failure remains retained and is not attributed to
 host contention as a proven cause. No startup or load budget was increased.
 
+## Operator-requested repeat after opening the Mac
+
+The power log records clamshell sleep at **19:36:50 +07:00**, after the earlier
+tests had finished, and full wake at **20:55:44 +07:00**. That sleep interval
+does not explain the earlier failures. The repeat ran with the lid open on
+battery, with an idle-sleep assertion and no concurrent test suite. Captured
+sleep/wake events before and after the repeat are unchanged; this does not
+exclude other host scheduling effects.
+
+The unchanged 120s CPU-fault diagnostic **passes** at
+`build/mm-reporting-isolation/20261030-210016-db909f/result.json`:
+
+- Simulator send rate **99.98318/s**, above the unchanged 99.96667/s minimum.
+- API p95/p99 **48.31/89.70ms**; backlog drain **0.00686s**.
+- **120** exchange/recorder fills match, positions match, same engine PID and
+  ownership/session, no HALT, and clean Stop.
+- Two exchange fills occur during the injected CPU-heavy query timeout; an
+  independent PostgreSQL observer witnesses one durable fill during that block.
+- Fourteen explicitly stale responses are expected for this deliberate fault;
+  metadata is bounded and daily statistics later become fresh. They are not
+  presented as healthy responses under the strict full-release gate.
+- Two transient engine probe timeouts recover after 1.061s and 1.048s, with no
+  `child_unresponsive` or engine replacement.
+
+This uses the same supervision source overlay hashes as the prior CPU attempt,
+not a new packaged image. It neither erases that failed attempt nor identifies
+the original sustained-failure/long-lag cause. Demo ledger/control fingerprints
+still match the original baseline; the persistent Demo session remains stopped.
+
 ## What remains open
 
 - The cause of the original long-lag episode and sustained probe failure is still
