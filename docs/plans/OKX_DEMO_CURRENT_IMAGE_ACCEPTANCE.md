@@ -209,10 +209,17 @@ the operator's tolerance of slow/explicitly stale aggregate reporting.
   `build/e2e-offline/20261030-212044-749aa2/result.json`.
 - [x] Exercise shipping supervisor/API/engine crash/hang recovery on that image.
   Passes at `build/service-supervision/20261030-215710-5520a1/result.json`.
-- [ ] Run warm300/mixed900/burst90/soak3600 and all six fault cases with unchanged
+- [x] Run warm300/mixed900/burst90/soak3600 and all six fault cases with unchanged
   rates, resource caps, pool5, TTL15 and error/latency/retention budgets. The
   existing `--keep-going` option may retain later windows after budget failures;
-  it must still return a failed overall result when any window fails.
+  it must still return a failed overall result when any window fails. Run
+  `20261030-215951-3d41e4` completed: first three windows and all six faults pass;
+  soak latency passes but synthetic fill-generator drain fails (10.153s, two
+  fills short). All 4,888 emitted fills and positions reconcile. Keep this
+  failed result, including the scheduled Random handover/quote-gap evidence.
+- [ ] Close the strict zero-error/backlog soak acceptance on the packaged image.
+  Diagnose the end-of-window handover/quote gap before any repeat; do not shorten
+  the window, waive errors or increase the drain deadline to manufacture a pass.
 - [ ] Run matched ordinary-entrypoint warm300/mixed900 control. If the baseline
   fails, any additional control run is explicitly diagnostic and cannot close
   strict acceptance.

@@ -61,9 +61,1060 @@
         "--gc-diagnostics",
         "--keep-going"
       ],
-      "log": "build/probe-release-20261030/all-load.log"
+      "log": "build/probe-release-20261030/all-load.log",
+      "finished_at": "2026-10-30T16:29:29.572543+00:00",
+      "exit_code": 1,
+      "artifacts": [
+        "build/mm-load/20261030-215951-3d41e4/result.json"
+      ]
+    },
+    "ordinary-control": {
+      "started_at": "2026-10-30T16:29:29.585536+00:00",
+      "command": [
+        "build/probe-release-20261030/production_control_diagnostic.py",
+        "--baseline",
+        "build/mm-load/20261030-215951-3d41e4"
+      ],
+      "log": "build/probe-release-20261030/ordinary-control.log"
     }
   },
+  "diagnostic_control_sha256": "b79094a15bddf745a9fc8aea8c01ca69dbb1783e00a333f4a50060771e5b534c",
   "registry_manifest_digest": "sha256:d3874a219b7116fe613e64d4f107f6109597a8185edf0ef42fae1e7a53831d4f",
-  "e2e_passed_groups": 17
+  "e2e_passed_groups": 17,
+  "all_load": {
+    "passed": false,
+    "error": "Declared load budgets failed: {\"soak\": [\"errors\", \"backlog\"]}",
+    "image_id": "sha256:dd602fb2238df0237f2c0aaa532407f31e47cdfbbd25575452b55a021765874c",
+    "manifest": "sha256:d3874a219b7116fe613e64d4f107f6109597a8185edf0ef42fae1e7a53831d4f",
+    "fixture_sha256": {
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "exchange.py": "ee880405ea2a500ecb1c24158f3c0a266955259510c3b3188fab89ba5394b309",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "d32f0318e03813b29ef056eff86296ea8d06881632d905abb68044048cb101c3",
+      "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+      "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+      "load_trace.py": "333d3e3d55af42e7ea4540420d9dbb1717d1cfd7c0d500d8ab7e1a0cb2135fda",
+      "load_entrypoint.py": "bc0cc27f56830c8ea63430a01c0590e763c2b503ff1685d67df32a74cc23185c",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_process_metrics.py": "b42f11a771043e4251ec6b5e9d4e9afde70f7fe713a4396580cf80e544ef2d6a",
+      "load_client.py": "13f2b5379953068b18fa785481c2f73ddf11f785f37f2eb4663431121ad5129e"
+    },
+    "source_sha256": {
+      "scripts/test_mm_load.py": "3b9ba9126c4e1ebfc35720648f6f9d64766e65f0cdb7d6696cfdb62484a07a63",
+      "scripts/test_e2e_offline.py": "bbea12dbec72568551445668bf4b914ca6f85f284607b5145fa04eb6c4aa68c5",
+      "scripts/analyze_mm_load_trace.py": "2471e1ab1f45e4d53cfefda260a26cc25bfc4f2067b93a3f94e8fc282728e7dd",
+      "scripts/mm_load_budgets.py": "b037ad1734012aaf0a36619f78f812336d9b00696a1b2b90bc8d45bb3e0a7061",
+      "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
+      "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458",
+      "scripts/mm_load_processes.py": "1b939e85a11b7d374cc17dc2111729b72f0775aad2f5161487110f1f516820fa",
+      "test/e2e/offline/load_entrypoint.py": "bc0cc27f56830c8ea63430a01c0590e763c2b503ff1685d67df32a74cc23185c",
+      "test/e2e/offline/load_service.py": "d32f0318e03813b29ef056eff86296ea8d06881632d905abb68044048cb101c3",
+      "test/e2e/offline/load_process_metrics.py": "b42f11a771043e4251ec6b5e9d4e9afde70f7fe713a4396580cf80e544ef2d6a"
+    },
+    "bot_limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648
+    },
+    "postgres_limits": {
+      "cpus": 2,
+      "memory_bytes": 536870912
+    },
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "daily_cache_ttl_seconds": 15.0,
+    "windows": {
+      "warmup": {
+        "duration_seconds": 300,
+        "read_p95_ms": 53.923683968605474,
+        "read_p99_ms": 252.13954597711563,
+        "statuses": {
+          "200": 6000
+        },
+        "unexpected_errors": 0,
+        "errors": [],
+        "valid_fills": 300,
+        "fill_attempts": 300,
+        "expected_fill_candidate_conflicts": 0,
+        "backlog_drain_seconds": 0.05220070798532106,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "requested_reads": 1500,
+          "completed_reads": 1500,
+          "statuses": {
+            "200": 1500
+          },
+          "read_p95_ms": 54.484088002936915,
+          "read_p99_ms": 173.975629004417
+        }
+      },
+      "mixed": {
+        "duration_seconds": 900,
+        "read_p95_ms": 63.96426598075777,
+        "read_p99_ms": 408.57590598170646,
+        "statuses": {
+          "200": 18000
+        },
+        "unexpected_errors": 0,
+        "errors": [],
+        "valid_fills": 900,
+        "fill_attempts": 900,
+        "expected_fill_candidate_conflicts": 0,
+        "backlog_drain_seconds": 0.07585945798200555,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "requested_reads": 4500,
+          "completed_reads": 4500,
+          "statuses": {
+            "200": 4500
+          },
+          "read_p95_ms": 76.5982540033292,
+          "read_p99_ms": 270.7613430102356
+        }
+      },
+      "bursts": {
+        "duration_seconds": 90,
+        "read_p95_ms": 72.2321089997422,
+        "read_p99_ms": 195.81609099986963,
+        "statuses": {
+          "200": 1800
+        },
+        "unexpected_errors": 0,
+        "errors": [],
+        "valid_fills": 90,
+        "fill_attempts": 91,
+        "expected_fill_candidate_conflicts": 1,
+        "backlog_drain_seconds": 0.08028416702290997,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1290,
+          "unique_recorder_fills": 1290,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "requested_reads": 450,
+          "completed_reads": 450,
+          "statuses": {
+            "200": 450
+          },
+          "read_p95_ms": 59.1633029980585,
+          "read_p99_ms": 184.48505000560544
+        }
+      },
+      "soak": {
+        "duration_seconds": 3600,
+        "read_p95_ms": 82.90470999781974,
+        "read_p99_ms": 685.3319709771313,
+        "statuses": {
+          "200": 72000
+        },
+        "unexpected_errors": 1,
+        "errors": [
+          {
+            "path": "fill_generator",
+            "error": "backlog_not_drained"
+          }
+        ],
+        "valid_fills": 3598,
+        "fill_attempts": 3599,
+        "expected_fill_candidate_conflicts": 1,
+        "backlog_drain_seconds": 10.153187879011966,
+        "violations": [
+          "errors",
+          "backlog"
+        ],
+        "ledger": {
+          "unique_exchange_fills": 4888,
+          "unique_recorder_fills": 4888,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "requested_reads": 18000,
+          "completed_reads": 18000,
+          "statuses": {
+            "200": 18000
+          },
+          "read_p95_ms": 93.85423400090076,
+          "read_p99_ms": 718.5646519938018
+        }
+      }
+    },
+    "faults": {
+      "feed": {
+        "unexpected_errors": 0
+      },
+      "volatility-defense": {
+        "unexpected_errors": 0
+      },
+      "owner-restart": {
+        "unexpected_errors": 371
+      },
+      "queued-expiry": {
+        "unexpected_errors": 0
+      },
+      "database-delay": {
+        "unexpected_errors": 346
+      },
+      "database-failure": {
+        "unexpected_errors": 407
+      }
+    }
+  },
+  "soak_continuity": {
+    "samples": 58,
+    "max_sample_gap_seconds": 65.60329675674438,
+    "phases": {
+      "running": 58
+    },
+    "roles": {
+      "supervisor": {
+        "pids": [
+          1
+        ],
+        "rss_first_5_median": 132333568,
+        "rss_last_5_median": 132464640,
+        "fds_range": [
+          5,
+          6
+        ],
+        "threads_range": [
+          8,
+          8
+        ],
+        "max_observed_loop_lag_ms": 0
+      },
+      "engine": {
+        "pids": [
+          37
+        ],
+        "rss_first_5_median": 436391936,
+        "rss_last_5_median": 448647168,
+        "fds_range": [
+          28,
+          32
+        ],
+        "threads_range": [
+          11,
+          11
+        ],
+        "max_observed_loop_lag_ms": 4003.094185871305
+      },
+      "api": {
+        "pids": [
+          38
+        ],
+        "rss_first_5_median": 317505536,
+        "rss_last_5_median": 317767680,
+        "fds_range": [
+          21,
+          21
+        ],
+        "threads_range": [
+          11,
+          11
+        ],
+        "max_observed_loop_lag_ms": 2960.2063541242387
+      }
+    },
+    "ledger": {
+      "unique_exchange_fills": 4888,
+      "unique_recorder_fills": 4888,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "peak_rss_bytes": 732012544
+  },
+  "healthy_window_probe_events": [
+    {
+      "timestamp": "2026-10-30T15:06:02.269Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.418 probe_status=None probe_elapsed_ms=371.596 max_probe_elapsed_ms=371.596"
+    },
+    {
+      "timestamp": "2026-10-30T15:06:03.384Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.126 max_probe_gap_seconds=1.418 probe_status=None probe_elapsed_ms=371.596 max_probe_elapsed_ms=371.596"
+    },
+    {
+      "timestamp": "2026-10-30T15:06:28.663Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.341 probe_status=None probe_elapsed_ms=301.915 max_probe_elapsed_ms=301.915"
+    },
+    {
+      "timestamp": "2026-10-30T15:06:29.698Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.035 max_probe_gap_seconds=1.341 probe_status=None probe_elapsed_ms=301.915 max_probe_elapsed_ms=301.915"
+    },
+    {
+      "timestamp": "2026-10-30T15:08:55.753Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.333 probe_status=None probe_elapsed_ms=303.134 max_probe_elapsed_ms=303.134"
+    },
+    {
+      "timestamp": "2026-10-30T15:08:56.788Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.036 max_probe_gap_seconds=1.333 probe_status=None probe_elapsed_ms=303.134 max_probe_elapsed_ms=303.134"
+    },
+    {
+      "timestamp": "2026-10-30T15:12:20.469Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.494 probe_status=None probe_elapsed_ms=390.72 max_probe_elapsed_ms=390.72"
+    },
+    {
+      "timestamp": "2026-10-30T15:12:21.634Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.169 max_probe_gap_seconds=1.494 probe_status=None probe_elapsed_ms=390.72 max_probe_elapsed_ms=390.72"
+    },
+    {
+      "timestamp": "2026-10-30T15:17:17.584Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.32 probe_status=None probe_elapsed_ms=304.884 max_probe_elapsed_ms=304.884"
+    },
+    {
+      "timestamp": "2026-10-30T15:17:18.645Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.13 max_probe_gap_seconds=1.32 probe_status=None probe_elapsed_ms=304.884 max_probe_elapsed_ms=304.884"
+    },
+    {
+      "timestamp": "2026-10-30T15:17:56.486Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.355 probe_status=None probe_elapsed_ms=305.317 max_probe_elapsed_ms=305.317"
+    },
+    {
+      "timestamp": "2026-10-30T15:17:57.664Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.179 max_probe_gap_seconds=1.355 probe_status=None probe_elapsed_ms=305.317 max_probe_elapsed_ms=305.317"
+    },
+    {
+      "timestamp": "2026-10-30T15:18:06.526Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.361 probe_status=None probe_elapsed_ms=306.306 max_probe_elapsed_ms=306.306"
+    },
+    {
+      "timestamp": "2026-10-30T15:18:07.601Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.076 max_probe_gap_seconds=1.361 probe_status=None probe_elapsed_ms=306.306 max_probe_elapsed_ms=306.306"
+    },
+    {
+      "timestamp": "2026-10-30T15:20:31.491Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.331 probe_status=None probe_elapsed_ms=305.045 max_probe_elapsed_ms=305.045"
+    },
+    {
+      "timestamp": "2026-10-30T15:20:32.801Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.327 max_probe_gap_seconds=1.331 probe_status=None probe_elapsed_ms=305.045 max_probe_elapsed_ms=305.045"
+    },
+    {
+      "timestamp": "2026-10-30T15:21:20.538Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.342 probe_status=None probe_elapsed_ms=310.282 max_probe_elapsed_ms=310.282"
+    },
+    {
+      "timestamp": "2026-10-30T15:21:21.602Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.069 max_probe_gap_seconds=1.342 probe_status=None probe_elapsed_ms=310.282 max_probe_elapsed_ms=310.282"
+    },
+    {
+      "timestamp": "2026-10-30T15:21:47.008Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.34 probe_status=None probe_elapsed_ms=301.716 max_probe_elapsed_ms=301.716"
+    },
+    {
+      "timestamp": "2026-10-30T15:21:48.038Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.03 max_probe_gap_seconds=1.34 probe_status=None probe_elapsed_ms=301.716 max_probe_elapsed_ms=301.716"
+    },
+    {
+      "timestamp": "2026-10-30T15:21:55.559Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.338 probe_status=None probe_elapsed_ms=303.463 max_probe_elapsed_ms=303.463"
+    },
+    {
+      "timestamp": "2026-10-30T15:21:56.585Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.026 max_probe_gap_seconds=1.338 probe_status=None probe_elapsed_ms=303.463 max_probe_elapsed_ms=303.463"
+    },
+    {
+      "timestamp": "2026-10-30T15:23:53.257Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.334 probe_status=None probe_elapsed_ms=301.692 max_probe_elapsed_ms=301.692"
+    },
+    {
+      "timestamp": "2026-10-30T15:23:54.295Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.038 max_probe_gap_seconds=1.334 probe_status=None probe_elapsed_ms=301.692 max_probe_elapsed_ms=301.692"
+    },
+    {
+      "timestamp": "2026-10-30T15:24:10.424Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.381 probe_status=None probe_elapsed_ms=318.435 max_probe_elapsed_ms=318.435"
+    },
+    {
+      "timestamp": "2026-10-30T15:24:11.520Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.098 max_probe_gap_seconds=1.381 probe_status=None probe_elapsed_ms=318.435 max_probe_elapsed_ms=318.435"
+    },
+    {
+      "timestamp": "2026-10-30T15:24:40.786Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.365 probe_status=None probe_elapsed_ms=305.636 max_probe_elapsed_ms=305.636"
+    },
+    {
+      "timestamp": "2026-10-30T15:24:41.818Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.035 max_probe_gap_seconds=1.365 probe_status=None probe_elapsed_ms=305.636 max_probe_elapsed_ms=305.636"
+    },
+    {
+      "timestamp": "2026-10-30T15:25:13.003Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.382 probe_status=None probe_elapsed_ms=310.08 max_probe_elapsed_ms=310.08"
+    },
+    {
+      "timestamp": "2026-10-30T15:25:14.335Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.349 max_probe_gap_seconds=1.382 probe_status=None probe_elapsed_ms=310.08 max_probe_elapsed_ms=310.08"
+    },
+    {
+      "timestamp": "2026-10-30T15:25:44.125Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.571 probe_status=None probe_elapsed_ms=523.655 max_probe_elapsed_ms=523.655"
+    },
+    {
+      "timestamp": "2026-10-30T15:25:45.178Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.054 max_probe_gap_seconds=1.571 probe_status=None probe_elapsed_ms=523.655 max_probe_elapsed_ms=523.655"
+    },
+    {
+      "timestamp": "2026-10-30T15:25:55.366Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.823 probe_status=None probe_elapsed_ms=815.408 max_probe_elapsed_ms=815.408"
+    },
+    {
+      "timestamp": "2026-10-30T15:25:56.622Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.31 max_probe_gap_seconds=1.823 probe_status=None probe_elapsed_ms=815.408 max_probe_elapsed_ms=815.408"
+    },
+    {
+      "timestamp": "2026-10-30T15:27:20.841Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.342 probe_status=None probe_elapsed_ms=315.378 max_probe_elapsed_ms=315.378"
+    },
+    {
+      "timestamp": "2026-10-30T15:27:21.984Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.144 max_probe_gap_seconds=1.342 probe_status=None probe_elapsed_ms=315.378 max_probe_elapsed_ms=315.378"
+    },
+    {
+      "timestamp": "2026-10-30T15:29:32.529Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.355 probe_status=None probe_elapsed_ms=302.636 max_probe_elapsed_ms=302.636"
+    },
+    {
+      "timestamp": "2026-10-30T15:29:33.585Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.06 max_probe_gap_seconds=1.355 probe_status=None probe_elapsed_ms=302.636 max_probe_elapsed_ms=302.636"
+    },
+    {
+      "timestamp": "2026-10-30T15:30:28.044Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.36 probe_status=None probe_elapsed_ms=303.45 max_probe_elapsed_ms=303.45"
+    },
+    {
+      "timestamp": "2026-10-30T15:30:29.083Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.04 max_probe_gap_seconds=1.36 probe_status=None probe_elapsed_ms=303.45 max_probe_elapsed_ms=303.45"
+    },
+    {
+      "timestamp": "2026-10-30T15:32:12.675Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.353 probe_status=None probe_elapsed_ms=304.664 max_probe_elapsed_ms=304.664"
+    },
+    {
+      "timestamp": "2026-10-30T15:32:13.801Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.127 max_probe_gap_seconds=1.353 probe_status=None probe_elapsed_ms=304.664 max_probe_elapsed_ms=304.664"
+    },
+    {
+      "timestamp": "2026-10-30T15:32:50.815Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.345 probe_status=None probe_elapsed_ms=302.733 max_probe_elapsed_ms=302.733"
+    },
+    {
+      "timestamp": "2026-10-30T15:32:51.866Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.051 max_probe_gap_seconds=1.345 probe_status=None probe_elapsed_ms=302.733 max_probe_elapsed_ms=302.733"
+    },
+    {
+      "timestamp": "2026-10-30T15:39:10.479Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.359 probe_status=None probe_elapsed_ms=335.737 max_probe_elapsed_ms=335.737"
+    },
+    {
+      "timestamp": "2026-10-30T15:39:13.311Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=2 failure_seconds=2.833 max_probe_gap_seconds=1.567 probe_status=None probe_elapsed_ms=304.839 max_probe_elapsed_ms=335.737"
+    },
+    {
+      "timestamp": "2026-10-30T15:39:17.225Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.341 probe_status=None probe_elapsed_ms=302.28 max_probe_elapsed_ms=302.28"
+    },
+    {
+      "timestamp": "2026-10-30T15:39:18.268Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.042 max_probe_gap_seconds=1.341 probe_status=None probe_elapsed_ms=302.28 max_probe_elapsed_ms=302.28"
+    },
+    {
+      "timestamp": "2026-10-30T15:39:55.580Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.336 probe_status=None probe_elapsed_ms=331.783 max_probe_elapsed_ms=331.783"
+    },
+    {
+      "timestamp": "2026-10-30T15:39:58.440Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=2 failure_seconds=3.105 max_probe_gap_seconds=1.953 probe_status=None probe_elapsed_ms=315.602 max_probe_elapsed_ms=331.783"
+    },
+    {
+      "timestamp": "2026-10-30T15:42:01.452Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.601 probe_status=None probe_elapsed_ms=357.885 max_probe_elapsed_ms=357.885"
+    },
+    {
+      "timestamp": "2026-10-30T15:42:05.435Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=3 failure_seconds=3.984 max_probe_gap_seconds=1.601 probe_status=None probe_elapsed_ms=303.127 max_probe_elapsed_ms=357.885"
+    },
+    {
+      "timestamp": "2026-10-30T15:44:05.934Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.353 probe_status=None probe_elapsed_ms=302.968 max_probe_elapsed_ms=302.968"
+    },
+    {
+      "timestamp": "2026-10-30T15:44:06.972Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.039 max_probe_gap_seconds=1.353 probe_status=None probe_elapsed_ms=302.968 max_probe_elapsed_ms=302.968"
+    },
+    {
+      "timestamp": "2026-10-30T15:49:03.777Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.322 probe_status=None probe_elapsed_ms=314.715 max_probe_elapsed_ms=314.715"
+    },
+    {
+      "timestamp": "2026-10-30T15:49:05.198Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.466 max_probe_gap_seconds=1.466 probe_status=None probe_elapsed_ms=314.715 max_probe_elapsed_ms=314.715"
+    },
+    {
+      "timestamp": "2026-10-30T15:52:04.812Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.354 probe_status=None probe_elapsed_ms=301.804 max_probe_elapsed_ms=301.804"
+    },
+    {
+      "timestamp": "2026-10-30T15:52:05.864Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.052 max_probe_gap_seconds=1.354 probe_status=None probe_elapsed_ms=301.804 max_probe_elapsed_ms=301.804"
+    },
+    {
+      "timestamp": "2026-10-30T15:52:57.196Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.389 probe_status=None probe_elapsed_ms=303.696 max_probe_elapsed_ms=303.696"
+    },
+    {
+      "timestamp": "2026-10-30T15:52:58.266Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.072 max_probe_gap_seconds=1.389 probe_status=None probe_elapsed_ms=303.696 max_probe_elapsed_ms=303.696"
+    },
+    {
+      "timestamp": "2026-10-30T15:55:07.706Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.344 probe_status=None probe_elapsed_ms=301.661 max_probe_elapsed_ms=301.661"
+    },
+    {
+      "timestamp": "2026-10-30T15:55:08.718Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.012 max_probe_gap_seconds=1.344 probe_status=None probe_elapsed_ms=301.661 max_probe_elapsed_ms=301.661"
+    },
+    {
+      "timestamp": "2026-10-30T15:59:49.911Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.309 probe_status=None probe_elapsed_ms=304.836 max_probe_elapsed_ms=304.836"
+    },
+    {
+      "timestamp": "2026-10-30T15:59:50.947Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.038 max_probe_gap_seconds=1.309 probe_status=None probe_elapsed_ms=304.836 max_probe_elapsed_ms=304.836"
+    },
+    {
+      "timestamp": "2026-10-30T16:00:55.282Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.351 probe_status=None probe_elapsed_ms=302.467 max_probe_elapsed_ms=302.467"
+    },
+    {
+      "timestamp": "2026-10-30T16:00:56.328Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.047 max_probe_gap_seconds=1.351 probe_status=None probe_elapsed_ms=302.467 max_probe_elapsed_ms=302.467"
+    },
+    {
+      "timestamp": "2026-10-30T16:02:11.233Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.352 probe_status=None probe_elapsed_ms=301.328 max_probe_elapsed_ms=301.328"
+    },
+    {
+      "timestamp": "2026-10-30T16:02:12.276Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.045 max_probe_gap_seconds=1.352 probe_status=None probe_elapsed_ms=301.328 max_probe_elapsed_ms=301.328"
+    },
+    {
+      "timestamp": "2026-10-30T16:02:51.376Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.546 probe_status=None probe_elapsed_ms=507.647 max_probe_elapsed_ms=507.647"
+    },
+    {
+      "timestamp": "2026-10-30T16:02:52.517Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.243 max_probe_gap_seconds=1.546 probe_status=None probe_elapsed_ms=507.647 max_probe_elapsed_ms=507.647"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:06.243Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.434 probe_status=None probe_elapsed_ms=345.59 max_probe_elapsed_ms=345.59"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:07.089Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=3.006 probe_status=None probe_elapsed_ms=488.66 max_probe_elapsed_ms=488.66"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:08.507Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.418 max_probe_gap_seconds=3.006 probe_status=None probe_elapsed_ms=488.66 max_probe_elapsed_ms=488.66"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:09.950Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=2 failure_seconds=4.435 max_probe_gap_seconds=2.928 probe_status=None probe_elapsed_ms=310.942 max_probe_elapsed_ms=345.59"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:22.657Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=2.054 probe_status=None probe_elapsed_ms=959.711 max_probe_elapsed_ms=959.711"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:23.086Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=2.486 probe_status=None probe_elapsed_ms=303.3 max_probe_elapsed_ms=303.3"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:24.127Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.475 max_probe_gap_seconds=2.054 probe_status=None probe_elapsed_ms=959.711 max_probe_elapsed_ms=959.711"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:24.128Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.043 max_probe_gap_seconds=2.486 probe_status=None probe_elapsed_ms=303.3 max_probe_elapsed_ms=303.3"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:26.615Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.451 probe_status=None probe_elapsed_ms=304.965 max_probe_elapsed_ms=304.965"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:27.649Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.034 max_probe_gap_seconds=1.451 probe_status=None probe_elapsed_ms=304.965 max_probe_elapsed_ms=304.965"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:38.754Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.473 probe_status=None probe_elapsed_ms=325.058 max_probe_elapsed_ms=325.058"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:39.808Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.057 max_probe_gap_seconds=1.473 probe_status=None probe_elapsed_ms=325.058 max_probe_elapsed_ms=325.058"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:59.137Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.564 probe_status=None probe_elapsed_ms=477.529 max_probe_elapsed_ms=477.529"
+    },
+    {
+      "timestamp": "2026-10-30T16:03:59.587Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=2.0 probe_status=None probe_elapsed_ms=431.777 max_probe_elapsed_ms=431.777"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:00.635Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.501 max_probe_gap_seconds=1.564 probe_status=None probe_elapsed_ms=477.529 max_probe_elapsed_ms=477.529"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:00.639Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.063 max_probe_gap_seconds=2.0 probe_status=None probe_elapsed_ms=431.777 max_probe_elapsed_ms=431.777"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:08.467Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.354 probe_status=None probe_elapsed_ms=304.371 max_probe_elapsed_ms=304.371"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:09.507Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.04 max_probe_gap_seconds=1.354 probe_status=None probe_elapsed_ms=304.371 max_probe_elapsed_ms=304.371"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:20.477Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.353 probe_status=None probe_elapsed_ms=308.987 max_probe_elapsed_ms=308.987"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:22.291Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.674 probe_status=None probe_elapsed_ms=325.113 max_probe_elapsed_ms=325.113"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:23.546Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=2 failure_seconds=3.07 max_probe_gap_seconds=1.663 probe_status=None probe_elapsed_ms=313.276 max_probe_elapsed_ms=313.276"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:23.570Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.361 max_probe_gap_seconds=1.674 probe_status=None probe_elapsed_ms=325.113 max_probe_elapsed_ms=325.113"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:24.905Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.36 probe_status=None probe_elapsed_ms=302.701 max_probe_elapsed_ms=302.701"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:27.268Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=2 failure_seconds=2.362 max_probe_gap_seconds=1.36 probe_status=None probe_elapsed_ms=301.805 max_probe_elapsed_ms=302.701"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:38.326Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.663 probe_status=None probe_elapsed_ms=351.716 max_probe_elapsed_ms=351.716"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:39.423Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.098 max_probe_gap_seconds=1.663 probe_status=None probe_elapsed_ms=351.716 max_probe_elapsed_ms=351.716"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:41.935Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.402 probe_status=None probe_elapsed_ms=308.144 max_probe_elapsed_ms=308.144"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:42.974Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.039 max_probe_gap_seconds=1.402 probe_status=None probe_elapsed_ms=308.144 max_probe_elapsed_ms=308.144"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:44.323Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.364 probe_status=None probe_elapsed_ms=329.322 max_probe_elapsed_ms=329.322"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:45.373Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.061 max_probe_gap_seconds=1.364 probe_status=None probe_elapsed_ms=329.322 max_probe_elapsed_ms=329.322"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:48.088Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.646 probe_status=None probe_elapsed_ms=335.007 max_probe_elapsed_ms=335.007"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:49.110Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.02 max_probe_gap_seconds=1.646 probe_status=None probe_elapsed_ms=335.007 max_probe_elapsed_ms=335.007"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:58.439Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.815 probe_status=None probe_elapsed_ms=395.687 max_probe_elapsed_ms=395.687"
+    },
+    {
+      "timestamp": "2026-10-30T16:04:59.659Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.231 max_probe_gap_seconds=1.815 probe_status=None probe_elapsed_ms=395.687 max_probe_elapsed_ms=395.687"
+    },
+    {
+      "timestamp": "2026-10-30T16:05:45.163Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.46 probe_status=None probe_elapsed_ms=309.909 max_probe_elapsed_ms=309.909"
+    },
+    {
+      "timestamp": "2026-10-30T16:05:46.235Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.073 max_probe_gap_seconds=1.46 probe_status=None probe_elapsed_ms=309.909 max_probe_elapsed_ms=309.909"
+    },
+    {
+      "timestamp": "2026-10-30T16:06:25.413Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.342 probe_status=None probe_elapsed_ms=302.782 max_probe_elapsed_ms=302.782"
+    },
+    {
+      "timestamp": "2026-10-30T16:06:26.546Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.134 max_probe_gap_seconds=1.342 probe_status=None probe_elapsed_ms=302.782 max_probe_elapsed_ms=302.782"
+    },
+    {
+      "timestamp": "2026-10-30T16:06:40.614Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.35 probe_status=None probe_elapsed_ms=315.447 max_probe_elapsed_ms=315.447"
+    },
+    {
+      "timestamp": "2026-10-30T16:06:41.716Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.102 max_probe_gap_seconds=1.35 probe_status=None probe_elapsed_ms=315.447 max_probe_elapsed_ms=315.447"
+    },
+    {
+      "timestamp": "2026-10-30T16:07:42.497Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.367 probe_status=None probe_elapsed_ms=301.451 max_probe_elapsed_ms=301.451"
+    },
+    {
+      "timestamp": "2026-10-30T16:07:43.541Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.045 max_probe_gap_seconds=1.367 probe_status=None probe_elapsed_ms=301.451 max_probe_elapsed_ms=301.451"
+    },
+    {
+      "timestamp": "2026-10-30T16:09:01.011Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.351 probe_status=None probe_elapsed_ms=302.612 max_probe_elapsed_ms=302.612"
+    },
+    {
+      "timestamp": "2026-10-30T16:09:02.044Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.034 max_probe_gap_seconds=1.351 probe_status=None probe_elapsed_ms=302.612 max_probe_elapsed_ms=302.612"
+    },
+    {
+      "timestamp": "2026-10-30T16:10:46.571Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.317 probe_status=None probe_elapsed_ms=302.219 max_probe_elapsed_ms=302.219"
+    },
+    {
+      "timestamp": "2026-10-30T16:10:47.595Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.029 max_probe_gap_seconds=1.317 probe_status=None probe_elapsed_ms=302.219 max_probe_elapsed_ms=302.219"
+    },
+    {
+      "timestamp": "2026-10-30T16:10:58.378Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.306 probe_status=None probe_elapsed_ms=300.864 max_probe_elapsed_ms=300.864"
+    },
+    {
+      "timestamp": "2026-10-30T16:10:59.394Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.016 max_probe_gap_seconds=1.306 probe_status=None probe_elapsed_ms=300.864 max_probe_elapsed_ms=300.864"
+    },
+    {
+      "timestamp": "2026-10-30T16:11:57.833Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.428 probe_status=None probe_elapsed_ms=304.566 max_probe_elapsed_ms=304.566"
+    },
+    {
+      "timestamp": "2026-10-30T16:12:00.431Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=2 failure_seconds=2.599 max_probe_gap_seconds=1.428 probe_status=None probe_elapsed_ms=312.253 max_probe_elapsed_ms=312.253"
+    },
+    {
+      "timestamp": "2026-10-30T16:12:46.526Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.316 probe_status=None probe_elapsed_ms=302.159 max_probe_elapsed_ms=302.159"
+    },
+    {
+      "timestamp": "2026-10-30T16:12:47.581Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.055 max_probe_gap_seconds=1.316 probe_status=None probe_elapsed_ms=302.159 max_probe_elapsed_ms=302.159"
+    },
+    {
+      "timestamp": "2026-10-30T16:13:59.197Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.346 probe_status=None probe_elapsed_ms=301.754 max_probe_elapsed_ms=301.754"
+    },
+    {
+      "timestamp": "2026-10-30T16:14:00.248Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.051 max_probe_gap_seconds=1.346 probe_status=None probe_elapsed_ms=301.754 max_probe_elapsed_ms=301.754"
+    },
+    {
+      "timestamp": "2026-10-30T16:17:25.246Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.343 probe_status=None probe_elapsed_ms=302.172 max_probe_elapsed_ms=302.172"
+    },
+    {
+      "timestamp": "2026-10-30T16:17:26.274Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.029 max_probe_gap_seconds=1.343 probe_status=None probe_elapsed_ms=302.172 max_probe_elapsed_ms=302.172"
+    },
+    {
+      "timestamp": "2026-10-30T16:19:42.010Z",
+      "severity": "WARNING",
+      "event": "child_probe_failed",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.352 probe_status=None probe_elapsed_ms=301.152 max_probe_elapsed_ms=301.152"
+    },
+    {
+      "timestamp": "2026-10-30T16:19:43.051Z",
+      "severity": "INFO",
+      "event": "child_probe_recovered",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.042 max_probe_gap_seconds=1.352 probe_status=None probe_elapsed_ms=301.152 max_probe_elapsed_ms=301.152"
+    }
+  ],
+  "status": "ordinary_control_in_progress_full_load_failed"
 }
