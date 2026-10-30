@@ -193,3 +193,28 @@ fresh or claiming an absolute independence guarantee for shared CPU/PostgreSQL.
   sufficient evidence. Short transient timeout recovery does not close this item
   or either full release gate above. See
   [investigation](../../reports/mm-engine-liveness-investigation.md).
+
+### Packaged supervisor-diagnostics release — operator request 2026-10-30
+
+Build source commit `e9a1645b7` into a new immutable image. No source overlays,
+no real-exchange actions and no replacement of the stopped persistent Demo.
+Preserve historical failures. Report strict release acceptance separately from
+the operator's tolerance of slow/explicitly stale aggregate reporting.
+
+- [x] Build the immutable image; verify packaged supervision source hashes and
+  capture host power/lid state and Demo preservation baseline. Image `dd602fb2`
+  is built; registry manifest pinning is part of E2E preparation.
+- [ ] Complete packaged runtime smoke and offline E2E, including prior-image
+  upgrade/rollback, on the newly built artifact.
+- [ ] Exercise shipping supervisor/API/engine crash/hang recovery on that image.
+- [ ] Run warm300/mixed900/burst90/soak3600 and all six fault cases with unchanged
+  rates, resource caps, pool5, TTL15 and error/latency/retention budgets. The
+  existing `--keep-going` option may retain later windows after budget failures;
+  it must still return a failed overall result when any window fails.
+- [ ] Run matched ordinary-entrypoint warm300/mixed900 control. If the baseline
+  fails, any additional control run is explicitly diagnostic and cannot close
+  strict acceptance.
+- [ ] Reconcile ledgers, review probe episodes and continuity, retain every
+  result, verify Demo preservation, clean temporary resources and commit report.
+
+Progress: [packaged release report](../../reports/probe-release-20261030.md).

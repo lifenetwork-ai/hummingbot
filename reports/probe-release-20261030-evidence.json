@@ -1,0 +1,26 @@
+{
+  "image_id": "sha256:dd602fb2238df0237f2c0aaa532407f31e47cdfbbd25575452b55a021765874c",
+  "source_commit": "e9a1645b753904738b467850cb9e5b4ab9b10da6",
+  "image_size_bytes": 1367454040,
+  "packaged_supervision_sha256": {
+    "hummingbot/cli/process_supervision.py": "e690399b3e8a848e6425d36b89d44c83eea5ec89f81916d7f0c5f9e850528536",
+    "hummingbot/cli/service_processes.py": "c8539e67587142b7481184f9e188a0ec0e1b1171969bf72efb46d487b8d1bd38"
+  },
+  "started_at": "2026-10-30T14:18:26.872517+00:00",
+  "passed": false,
+  "stages": {
+    "e2e": {
+      "started_at": "2026-10-30T14:18:26.884557+00:00",
+      "command": [
+        "scripts/test_e2e_offline.py",
+        "--image",
+        "sha256:dd602fb2238df0237f2c0aaa532407f31e47cdfbbd25575452b55a021765874c",
+        "--trading-env",
+        "demo",
+        "--previous-image",
+        "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454"
+      ],
+      "log": "build/probe-release-20261030/e2e.log"
+    }
+  }
+}
