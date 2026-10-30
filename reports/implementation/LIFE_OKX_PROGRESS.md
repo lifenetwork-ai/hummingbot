@@ -1815,3 +1815,28 @@ up but trading stopped with zero pending exchange orders. Private files unchange
 See [report](../okx-demo-current-image.md), [evidence](../okx-demo-current-image-evidence.json)
 and [completed checklist](../../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
 No production source change, live trading, push or Cloud Run deployment.
+
+## Positive natural-fill follow-up (2026-10-30; recovery acceptance open)
+
+Six real Demo maker executions occurred within four minutes under a bounded
+40-USDT-per-market private observation preset with all guards retained. Independent
+OKX readbacks match one spot and five perpetual fills, exact price/base quantity,
+original BTC/USDT fee and fee-net spot cash; three repeated reads retain six rows.
+The new active restart exposes an existing stale YAML initial-position override:
+reconciliation HALTs, then cleanup overwrites two aggregate holds, while raw fills
+and executor details survive. Canonical service/profile restored, API up, trading
+stopped, no pending quotes, HALT retained. No automatic reset or history deletion.
+
+A minimal managed-MM bootstrap-only fix passes eight targeted tests and 42 legacy
+orchestrator tests after six expected Red failures. It retains generic upstream
+manual override semantics and uses one batched startup lookup. Exact aggregate
+repair derived from pre-test durable holds plus matched fills passes on a disposable
+post-failure clone. Replacement-image verification and explicit operator review
+of actual Demo recovery remain open; previous zero-fill acceptance stays scoped.
+See [follow-up report](../okx-demo-natural-fill.md), [evidence](../okx-demo-natural-fill-evidence.json)
+and [live checklist](../../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
+
+Follow-up local verification: native2,047 + 11subtests and PG268 pass. Shipping-image
+seeded-exposure E2E reproduces the original filled-restart HALT (run20261030-130900-37e116).
+Runtime fix committed783d35c69; deterministic E2E fixture1ee10e01b. Full replacement
+image build is running. Actual Demo repair/reset remains pending operator review.

@@ -1,0 +1,212 @@
+{
+  "scope": "Natural maker fill readback passed; filled-exposure restart failed on original image; remediation in progress",
+  "original_image": "sha256:715a11f33c59a7575b7f69db9d46d06c0edc81187d8dc8ca88ab4f42c3a1b75b",
+  "source_environment": "OKX Demo only",
+  "passed": false,
+  "fills_and_fees": {
+    "passed": true,
+    "fill_comparisons": [
+      {
+        "market": "okx",
+        "order_id": "93027a12dac34fBCBBCUTc019ee86f30",
+        "trade_id": "1418060924",
+        "amount": "0.00025419",
+        "price": "78678.4",
+        "fee_currency": "BTC",
+        "original_signed_fee": "-0.000000203352",
+        "recorded_fee": "2.03352E-7",
+        "maker": true,
+        "matched": true
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUTd63b60e03f1",
+        "trade_id": "4560033930",
+        "amount": "0.0002",
+        "price": "78682.7",
+        "fee_currency": "USDT",
+        "original_signed_fee": "-0.003147308",
+        "recorded_fee": "0.003147308",
+        "maker": true,
+        "matched": true
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUTfa56e59e148",
+        "trade_id": "4560031676",
+        "amount": "0.0002",
+        "price": "78635.49",
+        "fee_currency": "USDT",
+        "original_signed_fee": "-0.0031454196",
+        "recorded_fee": "0.0031454196",
+        "maker": true,
+        "matched": true
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUT6d002b4e783",
+        "trade_id": "4560031588",
+        "amount": "0.0002",
+        "price": "78682.7",
+        "fee_currency": "USDT",
+        "original_signed_fee": "-0.003147308",
+        "recorded_fee": "0.003147308",
+        "maker": true,
+        "matched": true
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUT13d667d877d",
+        "trade_id": "4560030834",
+        "amount": "0.0001",
+        "price": "78635.49",
+        "fee_currency": "USDT",
+        "original_signed_fee": "-0.0015727098",
+        "recorded_fee": "0.0015727098",
+        "maker": true,
+        "matched": true
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUT0061ac74bbb",
+        "trade_id": "4560029725",
+        "amount": "0.0001",
+        "price": "78682.7",
+        "fee_currency": "USDT",
+        "original_signed_fee": "-0.001573654",
+        "recorded_fee": "0.001573654",
+        "maker": true,
+        "matched": true
+      }
+    ],
+    "spot_cash_btc": "1.00000598628",
+    "spot_fee_net_cash_matched": true,
+    "perpetual_expected_base": {
+      "BUY": "0.0084",
+      "SELL": "0.0027"
+    },
+    "perpetual_exchange_base": {
+      "BUY": "0.0084",
+      "SELL": "0.0027"
+    },
+    "repeated_readbacks": [
+      {
+        "unique_rows": 6,
+        "unchanged": true
+      },
+      {
+        "unique_rows": 6,
+        "unchanged": true
+      },
+      {
+        "unique_rows": 6,
+        "unchanged": true
+      }
+    ],
+    "pending_orders": 0,
+    "halt_reset": false
+  },
+  "repair_proposal": {
+    "derived_from": "pre-test durable holds plus five independently matched OPEN maker fills using existing PositionHold arithmetic",
+    "rows": [
+      {
+        "id": "8ac07b03-50cd-417e-b434-38b44e744360",
+        "side": "BUY",
+        "before": {
+          "amount": "0.0081",
+          "breakeven_price": "78686.50",
+          "volume_traded_quote": "0",
+          "cum_fees_quote": "0",
+          "realized_pnl_quote": "0",
+          "unrealized_pnl_quote": "0.000000"
+        },
+        "after": {
+          "amount": "0.0084",
+          "breakeven_price": "78549.67821428571428571428571",
+          "volume_traded_quote": "23.590647",
+          "cum_fees_quote": "0.0047181294",
+          "realized_pnl_quote": "0",
+          "unrealized_pnl_quote": "1.149303000000000000000000036"
+        }
+      },
+      {
+        "id": "aa59755f-a56e-46f5-9083-9a7fef9ebab0",
+        "side": "SELL",
+        "before": {
+          "amount": "0.0022",
+          "breakeven_price": "78686.50",
+          "volume_traded_quote": "0",
+          "cum_fees_quote": "0",
+          "realized_pnl_quote": "0",
+          "unrealized_pnl_quote": "0.000000"
+        },
+        "after": {
+          "amount": "0.0027",
+          "breakeven_price": "78571.72222222222222222222222",
+          "volume_traded_quote": "39.34135",
+          "cum_fees_quote": "0.007868270",
+          "realized_pnl_quote": "0",
+          "unrealized_pnl_quote": "-0.309900000000000000000000006"
+        }
+      }
+    ],
+    "trade_rows_unchanged": true,
+    "spot_row_unchanged": true,
+    "no_exchange_mutation": true,
+    "halt_reset": false
+  },
+  "clone_validation": {
+    "passed": true,
+    "post_failure_backup_restored": true,
+    "rows_repaired": 2,
+    "exact_expected_base": {
+      "BUY": "0.0084",
+      "SELL": "0.0027"
+    },
+    "trade_ledger_hash_unchanged": true,
+    "halt_unchanged": true,
+    "stale_repair_rejected": true,
+    "real_demo_modified": false
+  },
+  "restoration": {
+    "canonical_service_up": true,
+    "original_catalogue_restored": true,
+    "trading_stopped": true,
+    "halt_preserved": true,
+    "owner_available": true,
+    "no_halt_reset": true
+  },
+  "tdd_red": {
+    "failed": 6,
+    "passed": 2
+  },
+  "affected_unit_green": {
+    "passed": 50
+  },
+  "actual_demo_repaired": false,
+  "halt_cleared": false,
+  "native_regression": {
+    "passed": 2047,
+    "subtests_passed": 11
+  },
+  "postgres_regression": {
+    "passed": 268
+  },
+  "commits": {
+    "runtime_fix": "783d35c69",
+    "offline_regression": "1ee10e01b"
+  },
+  "offline_red": {
+    "image": "sha256:715a11f33c59a7575b7f69db9d46d06c0edc81187d8dc8ca88ab4f42c3a1b75b",
+    "run": "build/e2e-offline/20261030-130900-37e116",
+    "failure": "Filled restart HALT: exchange positions do not match restored YAML seed",
+    "expected_failure": true
+  },
+  "log_sha256": {
+    "bootstrap-red.log": "144e28721825570dbf5a4c672932b3edcfed6795e2db4799df47dec0075cf8f9",
+    "bootstrap-green.log": "9c5ed5b6d49356bdafe19ecaf88a72809170e79bef0012cb8cbeef3b10467bf3",
+    "native.log": "1467ca404655a8393f29803276e7d25330c06b9aaf6e40f3e8668ebc91e4b167",
+    "postgres.log": "6bbc8d94f098ec127a3ed118ce95d6421522612a059a4c720317b9104117a17b",
+    "seed-e2e-red.log": "dc3b726a912435c1299454a19c5fc260d60085fdf7c00d0e87ffa5080bb3a93d"
+  }
+}
