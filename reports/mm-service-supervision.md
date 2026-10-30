@@ -1,11 +1,10 @@
 # Single-service runtime supervision verification
 
-Status: `80a34c69…` passes full regression/E2E/lifecycle but its retained
-all-load run fails burst p99 before soak. Replacement `715a11f3…` includes the
-API-only startup-GC boundary and passes full native/PostgreSQL regression,
-packaged GC safety, all sixteen E2E groups, actual-role recovery and the unchanged
-all-load/hour/fault gate. Matched ordinary-entrypoint control remains required;
-adoption is not accepted until that final control passes.
+Status: local acceptance is complete for replacement `715a11f3…` on 2026-10-30.
+Full native/PostgreSQL regression, packaged GC safety, all sixteen E2E groups,
+actual-role recovery, unchanged all-load/hour/faults and matched ordinary-entrypoint
+control pass. The sections below retain chronological findings and failed runs,
+including preceding `80a34c69…` burst failure; later passes do not erase them.
 Persistent Demo remains stopped on its existing image/database; no deployment
 or actual OKX connectivity is certified by these local tests.
 
@@ -418,11 +417,11 @@ unique fills and positions; two identified funding bills remain deduplicated.
 
 The hour retains 58 minute samples, maximum gap66s, running engine throughout
 and unchanged supervisor/engine/API PIDs. All three profiles run across six
-random steps, each with over592s actual running overlap. Container current memory
+random steps, each with over 592 s actual running overlap. Container current memory
 is 674.50MiB initially and 686.46MiB finally. Per-role maximum RSS growth is
-0 / 13.27 / 0.50MiB; threads stay8/11/11 and descriptor ranges are5–6/28–33/22.
+0 / 13.27 / 0.50MiB; threads stay at 8/11/11 and descriptor ranges are 5–6/28–33/22.
 These pass unchanged retention budgets, not a proof against every possible
-multi-day leak. Orders remain three queries at page sizes1/100/500; fills and
+multi-day leak. Orders remain three queries at page sizes 1/100/500; fills and
 performance remain one query. Ordinary-entrypoint control and final checklist
 closure remain pending.
 
@@ -441,3 +440,39 @@ budgets. The harness now records setup times and persists raw client JSON before
 summarizing. No bot image, client/exchange/catalogue fixture, load budget or
 previous passing baseline changes. The incomplete control is not accepted;
 repeat full warm300/mixed900 using the corrected harness.
+
+## Matched ordinary-entrypoint control and local acceptance
+
+Corrected replay `production-control-20261030-072728-027167` passes on the same
+immutable image715a, two CPUs/2GiB, pool5 and explicit daily TTL15. Effective
+catalogue, client, health probe, exchange and exchange fixture hashes match the
+passing all-load baseline exactly. This control uses the ordinary shipping CMD
+with no timing wrapper; it is diagnostic on its own because query/worker/pool,
+loop/GC and held-adapter counters are unavailable. Combined with the full
+instrumented gate and shipping-role lifecycle checks, it closes local adoption.
+
+| Ordinary control | Duration | p95 / p99 (ms) | Unexpected errors |
+| --- | --- | --- | --- |
+| Warmup | 300s | 62.65 / 421.53 | 0 |
+| Mixed | 900s | 93.12 / 499.00 | 0 |
+
+All unchanged budgets pass, including measured setup Start/Switch/Stop
+7.36/5.46/1.33s. These are setup application times, not a claim that those commands
+were repeated during the measured read windows. The burst all-load separately
+checks commands under load. Final control matches 1,200 unique exchange/recorder
+fills and positions, two funding bills and three daily snapshots. Both its raw
+client windows are retained before summary. The preceding control remains failed.
+
+Full native 2,030 plus eleven subtests, real-PG 266, full16 E2E, actual shipping-role
+faults, all-load/hour/six fault cases and ordinary control now pass on the selected
+runtime; thirty additional focused tests validate the control-harness fix.
+All ten runtime source fingerprints still match the built image. Sampled API
+full-GC events across the new all-load reach 67.75 ms, versus the prior retained
+1032.59 ms event; this scoped observation does not uniquely explain every historical
+p99 spike. No latency/error/memory budget or safety guard was relaxed.
+
+The local gate does not establish Cloud Run deployment behavior, actual OKX
+connectivity or LIFE listing performance. Cold million-fill SQL can still exceed
+its two-second deadline. One hour within the retention budgets is not a guarantee
+against every multi-day memory leak. Persistent Demo image/database and its
+stopped trading state remain unchanged; no push or deployment is performed.

@@ -1654,7 +1654,7 @@ PG regression continues; build a replacement image and require image-level
 Green/full E2E before the unchanged load/hour/control gates.
 
 Replacement `80a34c69…` from `c2a22c0ae` passes nine packaged module hashes,
-full PG266/266, Swagger/runtime smoke, and exact shipping-image cancellation-fill
+full PG 266/266, Swagger/runtime smoke, and exact shipping-image cancellation-fill
 Green `20261030-025503-780bad`. Spot/perpetual retain exact base/fees across
 random rollover, duplicate trade events, same-session cold restart and Stop;
 normal shutdown 2.986s. Mark the checkpoint-race checklist done. Full16 E2E and
@@ -1718,7 +1718,7 @@ full16 E2E and actual-role crash/hang replay continue. Long/hour/control are not
 accepted; all retained burst/trace failures remain visible.
 
 R7 final-image functional verification is complete: image `715a11f3…` /
-manifest `7e104887…`, native2,030+11 subtests, full PG266/266, Swagger/runtime
+manifest `7e104887…`, native 2,030+11 subtests, full PG 266/266, Swagger/runtime
 smoke and full16 E2E `20261030-050536-45e61f` pass. Exact cancellation fills,
 same-session cold restart and compatible rollback are included. Actual-role
 faults `20261030-050256-89339d` pass, with engine-only DDL and clean2.69s parent
@@ -1742,10 +1742,19 @@ Full-load phase committed as `9fe9f18c1`. Matched ordinary-entrypoint control
 `production-control-20261030-071800-602ad9` runs alone on715a, using the passing
 all-load baseline unchanged. Warm300/mixed900 and final adoption remain pending.
 
-First ordinary control remains failed: warmup client0errors/p99510.54ms, then
+First ordinary control remains failed: warmup client 0 errors / p99 510.54 ms, then
 harness KeyError requiring burst-only command_seconds in nonburst output.
 Eight behavioral Red failures / thirty focused Green tests fix this by recording
 actual setup command times (same provenance as baseline) and retaining all
 missing/slow-command gates. Raw client JSON is persisted before summary. Runtime
 image and client/exchange/catalogue fixtures are unchanged. Full ordinary control
 must repeat; no acceptance box closes from its partial warmup.
+
+Corrected ordinary control `production-control-20261030-072728-027167` PASSES:
+warm300 p95/p99 62.65/421.53 ms, mixed900 p95/p99 93.12/499.00 ms, zero errors/violations,
+1,200 unique fills and positions matched. Real setup commands 7.36/5.46/1.33 s
+retain unchanged budgets; image/caps/TTL and five required fixture hashes match
+the passing all-load. Final ten runtime fingerprints still match image715a.
+Close top repeat/R4/R6-final/R7-control checklist items: local acceptance complete.
+Preserve all failed attempts, cold1M SQL limitation and historical attribution
+uncertainty. No real Demo change, new real trading, push or Cloud Run deployment.

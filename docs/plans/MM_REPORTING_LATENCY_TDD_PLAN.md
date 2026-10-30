@@ -6,6 +6,12 @@ API worker admission before changing runtime scheduling. Reuse the current
 PostgreSQL/API/cache/executor/test harness. No new trading engine, ledger, Redis,
 pool expansion, relaxed deadlines or API edits to YAML.
 
+Local acceptance completed on 2026-10-30 for image `715a11f3…` / manifest
+`7e104887…`. Final image/regression/E2E/lifecycle, unchanged all-load/hour/faults
+and matched ordinary-entrypoint control pass. Earlier decisions/failures below
+retain their original artifact scope. No Cloud Run deployment or real Demo
+replacement is included; cold million-fill SQL cost remains unchanged.
+
 - [x] R1: Compare existing/candidate SQL on 100k/1M fills, repeated and diverse
   original-currency fees; preserve exact paid/rebate/net amounts, volume, missing
   conversion, pair/market/day/timezone and late-fill semantics. Retain candidates
@@ -43,10 +49,11 @@ pool expansion, relaxed deadlines or API edits to YAML.
 - [x] Verify corrected cache image `58356746…`: 1,940 native tests plus eleven
   subtests, 259 real PostgreSQL tests, Swagger/runtime/source checks and all
   sixteen offline E2E scenario groups, including compatible upgrade/rollback.
-- [ ] Repeat unchanged load gates and production-entrypoint control on the
+- [x] Repeat unchanged load gates and production-entrypoint control on the
   final selected architecture/artifact. Preserve failed runs; stale fallback
-  must not turn a degraded healthy load into a false pass. Deferred while the
-  requested supervision candidate is evaluated, not waived.
+  must not turn a degraded healthy load into a false pass.
+  All-load `20261030-054619-495f64` and matched ordinary control
+  `production-control-20261030-072728-027167` pass on selected image715a.
 - [x] Publish measured outcomes to date under reports/, update checklists and
   commit verified phases. Remaining acceptance is explicitly left open.
 
@@ -72,10 +79,13 @@ whole-container failure policy still require work. Keep one Cloud Run service.
 - [x] Trace follow-ups: 300s p99 433.70ms / corrected-probe 358.09ms, zero errors.
   Red/Green fixes a test-only heartbeat measurement race; 28 selected tests pass.
   GC/request overlap is partial and does not uniquely attribute the old spike.
-- [ ] Establish repeatable healthy latency and continuous-hour memory on the
+- [x] Establish repeatable healthy latency and continuous-hour memory on the
   final candidate; finish production port/pool/child-error/startup integration
   and final-image lifecycle/load checks before adoption. Extra RAM acceptable;
   unbounded growth, hidden degradation and relaxed budgets are not.
+  Local final-image gates pass: hour p99 657.95 ms / zero errors and stable role
+  PIDs; ordinary-entrypoint mixed900 p99 499.00 ms / zero errors. See R6/R7 and
+  [retained evidence](../../reports/mm-service-supervision-evidence.json).
 
 Process recovery does not authorize trading recovery. Current operator HALT
 recovery still requires technical review; no reset/resume API is implemented.
@@ -121,10 +131,12 @@ recovery still requires technical review; no reset/resume API is implemented.
   fills and compatible rollback. Shipping roles pass at `20261030-025652-fcd9de`.
   The earlier held-ACK full failure stays recorded; its corrected fault-isolation
   replay holds ACK 976ms and keeps the same runtime timeout/HALT policy.
-- [ ] Run unchanged workload/error/latency gates and continuous-hour per-role
+- [x] Run unchanged workload/error/latency gates and continuous-hour per-role
   memory checks on the selected final image, followed by recovery faults and an
   ordinary-entrypoint control. Preserve failures, report scope, update checklist
   and commit. No real Demo replacement, trading start or Cloud Run deployment.
+  Selected image715a passes all-load/hour/six faults at `20261030-054619-495f64`
+  and matched ordinary control `production-control-20261030-072728-027167`.
 
 Real local Demo remains stopped. Load tests use isolated fake exchanges/DBs.
 The [investigation](../../reports/mm-p99-investigation.md) retains its original
@@ -154,21 +166,25 @@ image scope; no single historical p99 trigger is assumed.
 - [x] Build/fingerprint the selected replacement, complete native/real-PG,
   runtime smoke, Swagger/full16 E2E and shipping-role lifecycle checks.
   Image `715a11f3…` / manifest `7e104887…`: ten runtime hashes match; native
-  2,030 plus eleven subtests, PostgreSQL266/266, full16 E2E
+  2,030 plus eleven subtests, PostgreSQL 266/266, full16 E2E
   `20261030-050536-45e61f` and actual-role recovery
   `20261030-050256-89339d` pass. Packaged post-startup GC reclaims 5,000 cycles.
 - [x] Require the unchanged all-feature all-load/hour/fault gate on this image.
   `20261030-054619-495f64` passes warm300/mixed900/burst90/soak3600 and all six
-  fault cases. Healthy windows have zero errors; soak p95/p99144.46/657.95ms,
+  fault cases. Healthy windows have zero errors; soak p95/p99 144.46/657.95 ms,
   58 samples, stable role PIDs, maximum gap66s and bounded retention. Each of the
   three profiles runs; 4,884 unique fills and positions match the recorder.
-- [ ] Complete matched ordinary-entrypoint control on this image before closing
+- [x] Complete matched ordinary-entrypoint control on this image before closing
   R4/R6 adoption; the instrumented all-load alone does not waive this control.
   First attempt `production-control-20261030-071800-602ad9` remains failed:
   harness assumed burst-only command timings existed in a nonburst window.
   Eight behavioral Red failures / thirty focused Green tests preserve actual
   setup-command measurements and unchanged missing/slow-command gates. Runtime,
   workload fixtures and passing baseline are unchanged; full control replay required.
+  Corrected full replay `production-control-20261030-072728-027167` passes
+  warm300 p95/p99 62.65/421.53 ms and mixed900 p95/p99 93.12/499.00 ms, zero errors and no
+  budget violations. Image/caps/TTL and five client/exchange/catalogue fixture
+  hashes match the passing all-load baseline; 1,200 unique fills/positions match.
 
 ## R5: attribute the longer healthy latency failure
 
