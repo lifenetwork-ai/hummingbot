@@ -213,7 +213,11 @@
     "packaged-gc.log": "b38bad05647d05c7db5ee24ca16e5e1a1353c5cf718be2402bb36298d580a8ce",
     "all-load.log": "d3e3c55276352dcdf944aa4c84c7744c3e0f3f27d1801fca4c2823959a603497",
     "faults-separate.log": "f07ba8516ad3d5f4710122b44cc033e539820b143ee7245315a72c7c8a67b2f4",
-    "all-load-repeat.log": "f3f420731f1138fb4064ccf70bbc8bc7835d36c8e189776be27d0ccb9699207e"
+    "all-load-repeat.log": "f3f420731f1138fb4064ccf70bbc8bc7835d36c8e189776be27d0ccb9699207e",
+    "pg-daily-diagnostic.log": "48405976b09ba0423521ef7e8ed54b2fded636773232bd561a0f001ea5fc51da",
+    "fee-parallel-lab.log": "0ef8f0cdc614bf9a3bdad3d9ace7593c87d82d7f8eeee7f9c4801d12791c91dd",
+    "fee-grouped-lab.log": "922cc38a2b15e22e5862e0462f4dad47355ef51e403d7a10afc00529f1adf77f",
+    "fee-parallel-lab-initial-infrastructure-failure.log": "4542118d25cee2724c537d3bd5bf0ecd8118aa2b488e67ee04d14147a4548131"
   },
   "all_load_attempts": [
     {
@@ -660,5 +664,152 @@
       "database-failure"
     ]
   },
-  "operator_environment_choice": "continue current environment"
+  "operator_environment_choice": "continue current environment",
+  "daily_diagnostics": {
+    "status": "completed_isolated_not_causal",
+    "daily_100k": {
+      "samples": 11,
+      "p50_ms": 511.8001669179648,
+      "p95_ms": 1828.0351671855897,
+      "python_peak_mib": 0.03798961639404297,
+      "queries": 6
+    },
+    "fee_parallel_lab": {
+      "scope": "diagnostic isolated PostgreSQL 14, 104890 synthetic fills, 2CPU/512MiB, warm sequential SQL; not release acceptance",
+      "identical_results": true,
+      "samples": 11,
+      "latency_ms": {
+        "default": {
+          "p50": 268.7856669072062,
+          "p95": 371.0847911424935,
+          "max": 371.0847911424935,
+          "samples": [
+            226.37383290566504,
+            268.7856669072062,
+            188.35287494584918,
+            277.9280408285558,
+            311.3569999113679,
+            186.45037501119077,
+            297.1914161462337,
+            201.05545897968113,
+            216.4386250078678,
+            333.8776670861989,
+            371.0847911424935
+          ]
+        },
+        "0": {
+          "p50": 435.99966703914106,
+          "p95": 1933.283125050366,
+          "max": 1933.283125050366,
+          "samples": [
+            402.9032080434263,
+            520.0217498932034,
+            585.3849588893354,
+            725.9072079323232,
+            415.60862492769957,
+            1933.283125050366,
+            403.2744998112321,
+            435.99966703914106,
+            393.5730420053005,
+            421.7087922152132,
+            471.16483305580914
+          ]
+        },
+        "1": {
+          "p50": 285.31637508422136,
+          "p95": 653.9889159612358,
+          "max": 653.9889159612358,
+          "samples": [
+            232.46679198928177,
+            210.067167179659,
+            302.3831669706851,
+            653.9889159612358,
+            385.38829213939607,
+            285.31637508422136,
+            235.2144590113312,
+            337.35354198142886,
+            219.0644999500364,
+            229.56800018437207,
+            579.3933330569416
+          ]
+        }
+      }
+    },
+    "fee_grouped_lab": {
+      "scope": "diagnostic PostgreSQL 14, 104890 synthetic fills, 2CPU/512MiB; 8 alternating sequential reads each; not release acceptance",
+      "identical_results_on_both_datasets": true,
+      "latency_ms": {
+        "repeated_fees": {
+          "original": {
+            "p50": 345.7323960028589,
+            "p95": 436.87083409167826,
+            "max": 436.87083409167826,
+            "samples": [
+              279.27587484009564,
+              353.5517919808626,
+              290.899874875322,
+              363.94354118965566,
+              436.87083409167826,
+              332.8838332090527,
+              392.89470785297453,
+              337.91300002485514
+            ]
+          },
+          "grouped": {
+            "p50": 154.02531251311302,
+            "p95": 200.1658328808844,
+            "max": 200.1658328808844,
+            "samples": [
+              121.64158304221928,
+              126.05670792981982,
+              116.84241681359708,
+              138.1028750911355,
+              200.1658328808844,
+              180.0524580758065,
+              175.2202908974141,
+              169.94774993509054
+            ]
+          }
+        },
+        "distinct_fees": {
+          "original": {
+            "p50": 242.74770799092948,
+            "p95": 522.078082896769,
+            "max": 522.078082896769,
+            "samples": [
+              193.8987912144512,
+              259.69129195436835,
+              239.44654106162488,
+              424.6327499859035,
+              215.55433399043977,
+              212.0432921219617,
+              522.078082896769,
+              246.04887492023408
+            ]
+          },
+          "grouped": {
+            "p50": 1092.308187042363,
+            "p95": 1365.000250050798,
+            "max": 1365.000250050798,
+            "samples": [
+              1087.5798331107944,
+              1365.000250050798,
+              1097.0365409739316,
+              1288.3978749159724,
+              1041.359124938026,
+              987.8635411150753,
+              1245.5786250066012,
+              987.5179999507964
+            ]
+          }
+        }
+      }
+    },
+    "decisions": [
+      "retain_default_parallelism",
+      "reject_grouped_fee_query_regresses_distinct_fees"
+    ],
+    "timeouts_or_gates_changed": false,
+    "postgres_initial_lab_infrastructure_failure_retained": true
+  }
 }

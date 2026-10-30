@@ -85,6 +85,26 @@ its own faults and is not accepted. Diagnose the slow aggregate on isolated
 representative data and preserve both failed attempts; do not waive errors,
 raise budgets or call an uninstrumented guess a cause.
 
+## Isolated daily-fee measurements
+
+PostgreSQL logs identify the timed-out statement as the original-fee currency
+aggregation, with two parallel workers. On a disposable PostgreSQL14 container
+limited to the same 2 CPUs/512MiB, the existing 100,000-fill daily report test
+passes: 11 sequential reads have p50 **512ms**, observed p95 **1,828ms**. The
+sample is small and does not reproduce the exact full-load contention.
+
+At 104,890 synthetic fills, 11 alternating measurements of the fee query show
+default parallel execution p50/p95 **269/371ms**; disabling parallel workers
+gives **436/1,933ms**, and limiting to one gives **285/654ms**. Do not change
+parallel settings based on the unverified hypothesis that they caused the timeout.
+
+A separate eight-sample comparison groups identical fee JSON before decoding:
+on repeated fees, original/grouped p95 is **437/200ms**; on distinct fee amounts,
+original/grouped p95 is **522/1,365ms**. Both synthetic cases returned identical
+fee totals, but the regression with distinct fees is material, so this proposal is
+rejected. These isolated samples are diagnostic, not full-load acceptance and not
+a production forecast. No SQL/runtime change or relaxed deadline was made.
+
 ## Remaining gates
 
 After investigation, the full warm/mixed/burst/hour/fault gate remains open. Matched ordinary-entrypoint control,

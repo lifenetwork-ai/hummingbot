@@ -1902,3 +1902,11 @@ cancels a daily aggregate at its 2s statement timeout. Fill/position/funding
 ledger and per-role retention checks pass. The failure is not waived; isolate
 and investigate the slow SQL before another full gate. Both failed runs and the
 separate passing six-fault run remain preserved. See [report](../e526-release.md).
+
+Isolated PG14/2CPU/512MiB investigation confirms the failed SQL is original-fee
+currency aggregation. 100k daily report succeeds in 11 reads (p50 512ms,
+observed p95 1828ms). At104890 synthetic fills, default parallel fee query p50/p95
+269/371ms; parallel0 gives436/1933ms and parallel1 285/654ms, so retain default.
+Grouped fee decoding p95 improves repeated-fee data437→200ms but regresses
+unique-fee data522→1365ms; reject it. Diagnostic samples are small and do not
+identify the cause of either load failure; no runtime or budgets changed.
