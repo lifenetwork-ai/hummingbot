@@ -23,11 +23,21 @@ from scripts.test_e2e_offline import Harness, docker, poll  # noqa: E402
 from scripts.test_mm_load import assets_for, command, read_metrics, seed_history, verify_ledger  # noqa: E402
 
 
+def wait_running_metrics(harness, bot):
+    def running():
+        row = read_metrics(harness, bot)
+        return row if row and row.get('runtime_running') else None
+
+    return poll(running, description='running process metrics')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline", type=Path, required=True, help="Retained e526 full-load attempt")
     parser.add_argument("--fault-mode", choices=("wait", "cpu"), default="wait",
                         help="Inject a server wait or CPU-heavy expansion into one daily query")
+    parser.add_argument("--supervision-source-overlay", action="store_true",
+                        help="Diagnostic only: mount the two local supervision modules over the base image")
     args = parser.parse_args()
     baseline = json.loads((args.baseline / "result.json").read_text())
     assert baseline["enhancements"] and baseline["volatility_defense"]
@@ -36,6 +46,10 @@ def main():
     report.mkdir(parents=True)
     evidence = {"image_id": image, "scope": __doc__, "fault_mode": args.fault_mode, "passed": False, "release_scope_complete": False,
                 "baseline_passed": baseline.get("passed"), "duration_seconds": 120}
+    overlays = [ROOT / "hummingbot/cli" / name for name in ("process_supervision.py", "service_processes.py")] if args.supervision_source_overlay else []
+    evidence["supervision_source_overlay_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+                                                     for path in overlays}
+    evidence["unmodified_runtime_image"] = not bool(overlays)
     try:
         with tempfile.TemporaryDirectory(prefix="hbot-slow-report-") as temporary:
             assets = Path(temporary)
@@ -61,6 +75,16 @@ def main():
             service.write_text(source.replace("service.main()", injection + "\nservice.main()"))
             evidence["injection_sha256"] = hashlib.sha256(injection.encode()).hexdigest()
             harness = Harness(image, assets, report, "demo")
+            if overlays:
+                original_run_container = harness.run_container
+
+                def run_container(name, options, **kwargs):
+                    if name.endswith('-slow-report'):
+                        for path in overlays:
+                            options = [*options, '--mount', f'type=bind,source={path},target=/home/hummingbot/{path.relative_to(ROOT)},readonly']
+                    return original_run_container(name, options, **kwargs)
+
+                harness.run_container = run_container
             harness.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin",
                                ADMIN_STATISTICS_CACHE_TTL_SECONDS="15", FUNDING_SYNC_INTERVAL_SECONDS="5")
             bot = None
@@ -79,7 +103,7 @@ def main():
                 command(harness, port, "start", market_mode="both", selection="fixed", profile_id="follow_market", duration_seconds=600)
                 poll(lambda: len([row for row in harness.ledger()["orders"] if row["state"] == "live"]) == 12,
                      description="both markets have working quotes")
-                metrics = poll(lambda: read_metrics(harness, bot), description="initial process metrics")
+                metrics = wait_running_metrics(harness, bot)
                 before = harness.state()
                 assert metrics["runtime_running"] and not before["recovery_state"].get("halt")
                 status, daily = harness.admin(port, "/statistics/daily")
