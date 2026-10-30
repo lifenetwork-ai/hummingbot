@@ -1,5 +1,5 @@
 {
-  "status": "Selected GC image full regression/E2E/lifecycle verified; load/hour/control not accepted",
+  "status": "Selected runtime full image/load/hour/fault verification pass; matched ordinary control pending",
   "cloud_run_deployed": false,
   "persistent_demo_replaced": false,
   "image": {
@@ -227,9 +227,271 @@
     "shared_default_daily_ttl_seconds": 5
   },
   "load": {
-    "status": "pending unchanged all-profile run on selected GC image",
+    "status": "passed unchanged all-profile load/hour/fault gate; matched ordinary-entrypoint control pending",
     "runtime_image_id": "sha256:715a11f33c59a7575b7f69db9d46d06c0edc81187d8dc8ca88ab4f42c3a1b75b",
-    "preceding_failed_load": "before_api_gc_checks.load"
+    "preceding_failed_load": "before_api_gc_checks.load",
+    "report": "build/mm-load/20261030-054619-495f64/result.json",
+    "log": "build/service-supervision/api-gc-final-all-load.log",
+    "session": 61429,
+    "completed_windows": {
+      "warmup": {
+        "read_p95_ms": 130.6662210263312,
+        "read_p99_ms": 520.581144024618,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "requested_reads": 1500,
+          "completed_reads": 1500,
+          "statuses": {
+            "200": 1500
+          },
+          "read_p95_ms": 138.01331099239178,
+          "read_p99_ms": 445.85794999147765
+        }
+      },
+      "mixed": {
+        "read_p95_ms": 119.58684399724007,
+        "read_p99_ms": 492.138701985823,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "requested_reads": 4500,
+          "completed_reads": 4500,
+          "statuses": {
+            "200": 4500
+          },
+          "read_p95_ms": 123.69408999802545,
+          "read_p99_ms": 484.5873790036421
+        }
+      },
+      "bursts": {
+        "read_p95_ms": 150.9619849966839,
+        "read_p99_ms": 431.90307696931995,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1290,
+          "unique_recorder_fills": 1290,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "requested_reads": 450,
+          "completed_reads": 450,
+          "statuses": {
+            "200": 450
+          },
+          "read_p95_ms": 202.43302299058996,
+          "read_p99_ms": 464.74611799931154
+        }
+      },
+      "soak": {
+        "read_p95_ms": 144.46280398988165,
+        "read_p99_ms": 657.9537860234268,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 4884,
+          "unique_recorder_fills": 4884,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "requested_reads": 18000,
+          "completed_reads": 18000,
+          "statuses": {
+            "200": 18000
+          },
+          "read_p95_ms": 153.0412890133448,
+          "read_p99_ms": 673.9911799959373
+        }
+      }
+    },
+    "soak": {
+      "duration_seconds": 3600,
+      "sample_count": 58,
+      "max_sample_gap_seconds": 65.99628043174744,
+      "all_samples_running": true,
+      "container_memory_mib": {
+        "start": 674.49609375,
+        "end": 686.45703125,
+        "max": 686.47265625
+      },
+      "roles": {
+        "supervisor": {
+          "pids": [
+            1
+          ],
+          "rss_start_mib": 126.4296875,
+          "rss_end_mib": 126.4296875,
+          "rss_max_growth_mib": 0.0,
+          "threads_start": 8,
+          "threads_max": 8,
+          "fds_start": 5,
+          "fds_min": 5,
+          "fds_max": 6
+        },
+        "engine": {
+          "pids": [
+            37
+          ],
+          "rss_start_mib": 411.66015625,
+          "rss_end_mib": 424.9296875,
+          "rss_max_growth_mib": 13.26953125,
+          "threads_start": 11,
+          "threads_max": 11,
+          "fds_start": 32,
+          "fds_min": 28,
+          "fds_max": 33
+        },
+        "api": {
+          "pids": [
+            38
+          ],
+          "rss_start_mib": 303.6328125,
+          "rss_end_mib": 304.1328125,
+          "rss_max_growth_mib": 0.5,
+          "threads_start": 11,
+          "threads_max": 11,
+          "fds_start": 22,
+          "fds_min": 22,
+          "fds_max": 22
+        }
+      },
+      "profile_running_coverage": [
+        {
+          "profile": "follow_token",
+          "step": 0,
+          "running_overlap_seconds": 598.8700301647186
+        },
+        {
+          "profile": "follow_market",
+          "step": 1,
+          "running_overlap_seconds": 595.7920880317688
+        },
+        {
+          "profile": "sideways",
+          "step": 2,
+          "running_overlap_seconds": 594.8167741298676
+        },
+        {
+          "profile": "sideways",
+          "step": 3,
+          "running_overlap_seconds": 592.2356321811676
+        },
+        {
+          "profile": "follow_market",
+          "step": 4,
+          "running_overlap_seconds": 593.4835331439972
+        },
+        {
+          "profile": "follow_token",
+          "step": 5,
+          "running_overlap_seconds": 594.5893759727478
+        }
+      ],
+      "query_counts": {
+        "/api/v1/admin/orders?limit=1": 3,
+        "/api/v1/admin/orders?limit=100": 3,
+        "/api/v1/admin/orders?limit=500": 3,
+        "/api/v1/admin/fills?limit=100": 1,
+        "/api/v1/admin/fills?limit=500": 1,
+        "/api/v1/admin/performance": 1
+      }
+    },
+    "passed": true,
+    "diagnostic": false,
+    "manifest": "sha256:7e1048870898471a4c54b31460d7891c2029767f59a2ee60e0955cbacd4276fa",
+    "source_sha256": {
+      "scripts/test_mm_load.py": "3b9ba9126c4e1ebfc35720648f6f9d64766e65f0cdb7d6696cfdb62484a07a63",
+      "scripts/test_e2e_offline.py": "e3b5f9ec6c217ee6795d891401d9fb0726ac2a66d1352ee7e68c467d657a6d96",
+      "scripts/analyze_mm_load_trace.py": "2471e1ab1f45e4d53cfefda260a26cc25bfc4f2067b93a3f94e8fc282728e7dd",
+      "scripts/mm_load_budgets.py": "b037ad1734012aaf0a36619f78f812336d9b00696a1b2b90bc8d45bb3e0a7061",
+      "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
+      "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458",
+      "scripts/mm_load_processes.py": "1b939e85a11b7d374cc17dc2111729b72f0775aad2f5161487110f1f516820fa",
+      "test/e2e/offline/load_entrypoint.py": "bc0cc27f56830c8ea63430a01c0590e763c2b503ff1685d67df32a74cc23185c",
+      "test/e2e/offline/load_service.py": "d32f0318e03813b29ef056eff86296ea8d06881632d905abb68044048cb101c3",
+      "test/e2e/offline/load_process_metrics.py": "b42f11a771043e4251ec6b5e9d4e9afde70f7fe713a4396580cf80e544ef2d6a"
+    },
+    "fixture_sha256": {
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "exchange.py": "6ea55086ab9efe282d5908c39fe0b2970e368d366fbad24ab42ba089c6e5519e",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "d32f0318e03813b29ef056eff86296ea8d06881632d905abb68044048cb101c3",
+      "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+      "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+      "load_trace.py": "333d3e3d55af42e7ea4540420d9dbb1717d1cfd7c0d500d8ab7e1a0cb2135fda",
+      "load_entrypoint.py": "bc0cc27f56830c8ea63430a01c0590e763c2b503ff1685d67df32a74cc23185c",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_process_metrics.py": "b42f11a771043e4251ec6b5e9d4e9afde70f7fe713a4396580cf80e544ef2d6a",
+      "load_client.py": "13f2b5379953068b18fa785481c2f73ddf11f785f37f2eb4663431121ad5129e"
+    },
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "tracing": false,
+    "continue_after_budget_failure": false,
+    "command_receipt_transport_retries": 0,
+    "faults": {
+      "feed": {
+        "classification": "injected_fault_excluded_from_healthy_latency",
+        "unexpected_errors": 0,
+        "read_p95_ms": 78.06434298981912,
+        "read_p99_ms": 401.27864098758437
+      },
+      "volatility-defense": {
+        "classification": "injected_fault_excluded_from_healthy_latency",
+        "unexpected_errors": 0,
+        "read_p95_ms": 257.2195919929072,
+        "read_p99_ms": 717.2539669845719
+      },
+      "owner-restart": {
+        "classification": "injected_fault_excluded_from_healthy_latency",
+        "unexpected_errors": 371,
+        "read_p95_ms": 1152.8306280088145,
+        "read_p99_ms": 1791.7533779982477
+      },
+      "queued-expiry": {
+        "classification": "injected_fault_excluded_from_healthy_latency",
+        "unexpected_errors": 0,
+        "read_p95_ms": 467.0559320074972,
+        "read_p99_ms": 1609.4884439953603
+      },
+      "database-delay": {
+        "classification": "injected_fault_excluded_from_healthy_latency",
+        "unexpected_errors": 317,
+        "read_p95_ms": 1534.9114229902625,
+        "read_p99_ms": 2700.7078809838276
+      },
+      "database-failure": {
+        "classification": "injected_fault_excluded_from_healthy_latency",
+        "unexpected_errors": 455,
+        "read_p95_ms": 352.9902579903137,
+        "read_p99_ms": 1759.7440889803693
+      }
+    },
+    "burst_updates_per_second": 509.8487955702822,
+    "sampled_api_full_gc_max_ms": 67.746958
   },
   "production_control": {
     "status": "pending"
@@ -767,7 +1029,7 @@
     }
   },
   "api_startup_gc": {
-    "status": "Full image/native2030/PG266/E2E16/lifecycle pass; unchanged all-load/hour/control pending",
+    "status": "Full regression/E2E/lifecycle and unchanged all-load/hour/faults pass; matched ordinary control pending",
     "shipping_runtime_changed": true,
     "runtime_source_files": [
       "hummingbot/cli/api_gc.py",

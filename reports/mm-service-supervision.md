@@ -3,8 +3,9 @@
 Status: `80a34c69…` passes full regression/E2E/lifecycle but its retained
 all-load run fails burst p99 before soak. Replacement `715a11f3…` includes the
 API-only startup-GC boundary and passes full native/PostgreSQL regression,
-packaged GC safety, all sixteen E2E groups and actual-role recovery checks;
-unchanged load/hour/control remain required. Adoption is not accepted.
+packaged GC safety, all sixteen E2E groups, actual-role recovery and the unchanged
+all-load/hour/fault gate. Matched ordinary-entrypoint control remains required;
+adoption is not accepted until that final control passes.
 Persistent Demo remains stopped on its existing image/database; no deployment
 or actual OKX connectivity is certified by these local tests.
 
@@ -392,3 +393,35 @@ same-session cold restart and compatible image rollback. Its injected create-ACK
 hold lasts 1,584ms and the ordinary recovery assertions pass. Runtime smoke
 passes ABI/JIT/TLS, 63 connector registrations, 17 SQL scripts and JSON logging.
 The new all-load/hour and matched ordinary-entrypoint control remain open.
+
+## Replacement all-load and continuous-hour result
+
+Immutable image `715a11f3…` passes the unchanged untraced all-profile run
+`build/mm-load/20261030-054619-495f64/`. It runs alone with 100k orders/100k
+fills, two application CPUs, 2GiB, five total DB slots and explicit daily TTL15.
+No trace, shortened windows, keep-going or guard reset is used. Minimal bounded
+GC timing remains in the test wrapper; a matched ordinary-entrypoint control is
+therefore still required.
+
+| Window | Duration | p95 / p99 (ms) | Unexpected errors |
+| --- | --- | --- | --- |
+| Warmup | 300s | 130.67 / 520.58 | 0 |
+| Mixed | 900s | 119.59 / 492.14 | 0 |
+| Burst | 90s | 150.96 / 431.90 | 0 |
+| Random soak | 3600s | 144.46 / 657.95 | 0 |
+
+The actual ten-second burst reaches 509.85 updates/s. All six injected fault
+cases pass: feed, volatility defense, owner restart, queued expiry, database
+delay and database failure. Expected fault responses are classified separately
+from the zero-error healthy gates. Final healthy ledger checks match 4,884
+unique fills and positions; two identified funding bills remain deduplicated.
+
+The hour retains 58 minute samples, maximum gap66s, running engine throughout
+and unchanged supervisor/engine/API PIDs. All three profiles run across six
+random steps, each with over592s actual running overlap. Container current memory
+is 674.50MiB initially and 686.46MiB finally. Per-role maximum RSS growth is
+0 / 13.27 / 0.50MiB; threads stay8/11/11 and descriptor ranges are5–6/28–33/22.
+These pass unchanged retention budgets, not a proof against every possible
+multi-day leak. Orders remain three queries at page sizes1/100/500; fills and
+performance remain one query. Ordinary-entrypoint control and final checklist
+closure remain pending.

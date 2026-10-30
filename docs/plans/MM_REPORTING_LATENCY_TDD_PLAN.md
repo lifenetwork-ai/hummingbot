@@ -157,8 +157,13 @@ image scope; no single historical p99 trigger is assumed.
   2,030 plus eleven subtests, PostgreSQL266/266, full16 E2E
   `20261030-050536-45e61f` and actual-role recovery
   `20261030-050256-89339d` pass. Packaged post-startup GC reclaims 5,000 cycles.
-- [ ] Require the unchanged all-feature all-load/hour/fault gate and matched
-  ordinary-entrypoint control on this image before closing R4/R6 adoption.
+- [x] Require the unchanged all-feature all-load/hour/fault gate on this image.
+  `20261030-054619-495f64` passes warm300/mixed900/burst90/soak3600 and all six
+  fault cases. Healthy windows have zero errors; soak p95/p99144.46/657.95ms,
+  58 samples, stable role PIDs, maximum gap66s and bounded retention. Each of the
+  three profiles runs; 4,884 unique fills and positions match the recorder.
+- [ ] Complete matched ordinary-entrypoint control on this image before closing
+  R4/R6 adoption; the instrumented all-load alone does not waive this control.
 
 ## R5: attribute the longer healthy latency failure
 

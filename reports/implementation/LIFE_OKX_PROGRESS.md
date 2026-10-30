@@ -1725,3 +1725,15 @@ faults `20261030-050256-89339d` pass, with engine-only DDL and clean2.69s parent
 cleanup. Functional jobs are not calibrated performance comparisons. Preserve
 the preceding image/results and failed burst; start the unchanged all-load/hour
 alone, followed by matched ordinary-entrypoint control only after a real pass.
+
+Verified R7 phase committed as `bb1a79543`. New unchanged all-load
+`20261030-054619-495f64` runs alone on image715a (2CPU/2GiB/pool5/TTL15),
+without trace/keep-going/diagnostic shortening. Hour/fault/control remain open.
+
+All-load `20261030-054619-495f64` PASSES on715a: warm300 p99 520.58ms,
+mixed900492.14ms, burst90431.90ms, soak3600657.95ms, all zero errors and no
+violations. Actual ten-second burst509.85/s; all six fault cases pass. Hour has
+58 samples/max gap66s/stable PIDs, each profile runs, and 4,884 unique fills and
+positions match. Maximum RSS growth supervisor/engine/API0/13.27/0.50MiB;
+threads unchanged, descriptors bounded. Mark R7 all-load/hour/fault done;
+matched ordinary-entrypoint control and overall adoption remain open.
