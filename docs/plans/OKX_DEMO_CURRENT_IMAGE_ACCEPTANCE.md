@@ -6,7 +6,9 @@ retain their original image scope.
 
 Use the existing dedicated Demo account, PostgreSQL history, controller IDs,
 private environment/catalogue and bound policies. Preserve existing long/short
-positions. No HALT reset, forced fills, live routing or Cloud Run deployment.
+positions. The original zero-fill protocol performed no HALT reset, forced fills,
+live routing or Cloud Run deployment. The later operator-approved two-row repair
+and explicit resolved-HALT clear are documented in the follow-up below.
 Keep Start/Switch/Stop on the admin API; YAML remains the policy authority.
 
 - [x] Read-only preflight: dedicated credential validation, same account, Demo
@@ -59,24 +61,28 @@ and original catalogue. Maximum observation1200s; fills are never forced.
   exchange trade IDs, exact base quantity/price and original fee currency/amount.
   Six natural maker fills match independent OKX reads: one spot and five perpetual.
   Spot fee-net BTC cash and perpetual baseline plus OPEN fills match exactly.
-- [ ] Verify unique recorder identities through repeated independent readback
+- [x] Verify unique recorder identities through repeated independent readback
   and filled-exposure restart; preserve session/anchors/deadline and reconcile
   held position quantities after Stop.
+  Fixed imagee526 passes real active restart and resumes both markets. All six
+  original fill rows remain byte-equivalent and unique; no additional fills occur
+  during this retry. Exact quantity/cost/fees and venue exposure match after Stop.
 - [x] Stop/cancel all observation quotes, restore the canonical service/profile
   stopped, preserve fill/executor history, venue positions and private files,
   and publish sanitized evidence.
-  Canonical API is up with HALT retained. The failed restart's two stale aggregate
-  rows are documented; immutable fill/executor history is preserved. No reset.
+  Canonical API now uses fixed imagee526, original catalogue restored, stopped
+  without HALT or pending mutations/orders. Private files and all four ledger/
+  position hashes are unchanged across the final startup after reviewed repair.
 
-No-fill or partial coverage remains explicitly open; the zero-fill result above
-does not close this follow-up.
+Positive fill and real filled-restart acceptance are complete across the scoped
+original observation and fixed-image retry. Neither run forces exchange fills.
 
 ### Filled-restart defect remediation
 
 Original image715a fails this new restart case: managed YAML `initial_positions`
 overrides post-fill durable holds, then failed initialization stores stale seed
-aggregates. Fill history survives; no pending quotes remain. Canonical API is up
-with trading stopped and HALT retained. See [follow-up report](../../reports/okx-demo-natural-fill.md)
+aggregates. Fill history survives. After the approved repair and passing fixed
+retry, canonical API is up with trading stopped and no HALT. See [follow-up report](../../reports/okx-demo-natural-fill.md)
 and [scoped evidence](../../reports/okx-demo-natural-fill-evidence.json).
 
 - [x] Reproduce stale seed overwrite and failed cleanup using Red tests; verify
@@ -85,13 +91,18 @@ and [scoped evidence](../../reports/okx-demo-natural-fill-evidence.json).
   maker status, spot cash, perpetual exposure and three unique-ledger readbacks.
 - [x] Reconstruct two aggregate rows from the pre-test snapshot and matched fills;
   validate conditional repair on a disposable post-failure clone, preserving
-  fills and HALT and rejecting stale repair replay. Actual Demo remains untouched.
+  fills and HALT and rejecting stale repair replay before actual maintenance.
 - [x] Complete broader native/PostgreSQL and replacement-image E2E verification,
   including seeded positions followed by fills and active restart.
   Native2,047 + 11subtests, PostgreSQL268 and targeted image E2E pass. Original
   image fails the same seeded test. Fixed imagee526118b…/manifest566788f2… is built
   from runtime commit783d35c69. This does not claim a new full release/hour gate.
-- [ ] Obtain explicit operator review before actual Demo aggregate maintenance
+- [x] Obtain explicit operator review before actual Demo aggregate maintenance
   and clearing only this resolved HALT; no automatic reset or history deletion.
-- [ ] Repeat real filled-exposure recovery with the fixed image, independently
+  Operator approved both preset and reviewed repair/retry. Fresh backup/readback,
+  stopped writers and conditional two-row update preserve all original history.
+- [x] Repeat real filled-exposure recovery with the fixed image, independently
   reconcile final quantities/fees/dedup and restore stopped canonical service.
+  Real restart resumes four post-only quotes with pinned session state; exact
+  held quantity/cost/fees/volume and three unique-fill reads pass. Final API is up,
+  original catalogue restored, stopped/no HALT/no pending quotes or mutations.

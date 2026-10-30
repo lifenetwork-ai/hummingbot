@@ -1847,3 +1847,29 @@ fees, session deadlines and two unique fixture fills survive. Packaged strategy
 hash matches the native-tested source. This targeted run does not repeat or claim
 the previous full release/hour-load gate. Six real Demo fills remain verified,
 but real repaired-exposure restart is still pending explicit operator review.
+
+## Positive natural-fill recovery complete (2026-10-30; operator-approved)
+
+The operator approved the temporary Demo preset and concrete two-row aggregate
+repair/HALT-clear/retry. A fresh independent OKX readback still matched all six
+natural maker fills and actual long0.0084/short0.0027 BTC. After stopping all
+writers and taking a private backup, the conditional repair updated only the two
+reviewed perpetual aggregate rows; order/fill/executor hashes and spot row stayed
+unchanged. Only the resolved HALT was explicitly cleared; no automatic reset.
+
+Fixed imagee526118b… admits both filled markets, restarts an active session and
+resumes four post-only quotes. Session ID/generation/anchors/deadline remain pinned;
+all six original fill rows stay byte-equivalent and unique across three independent
+reads. No additional fills occur during this retry. Post-Stop exact-decimal checks
+match quantities, prior reviewed cost basis, accumulated fees and volume on both
+perpetual legs and the spot aggregate. Venue positions and fee-net BTC cash match.
+Fixed-retry service log: INFO120/WARNING12/ERROR0/CRITICAL0.
+
+Canonical hummingbot-local-demo now uses fixed imagee526 with the original private
+catalogue and effective settings, API live, trading stopped, no HALT or pending
+mutation/order. Four ledger/position hashes remain unchanged across final startup;
+original private environment/catalogue hashes match. Previous715a remains stopped
+for forensics, no history deletion/wipe/live trading/push/Cloud Run deployment.
+All positive-follow-up and remediation checklist items are checked. Earlier
+partial/failing evidence above remains historical. See the completed
+[report](../okx-demo-natural-fill.md) and [evidence](../okx-demo-natural-fill-evidence.json).

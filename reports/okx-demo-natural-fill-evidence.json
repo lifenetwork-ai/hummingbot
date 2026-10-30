@@ -1,8 +1,8 @@
 {
-  "scope": "Six real natural maker fills/fees/cash/dedup passed; original-image filled restart failed; native/PostgreSQL/fixed-image seeded restart passed; real Demo recovery remains pending operator review",
+  "scope": "COMPLETE: six natural Demo maker fills observed on715a; exact fills/fees/cash verified; reviewed two-row aggregate repair; real active filled-exposure restart on fixed imagee526; canonical fixed service stopped with zero pending quotes and no HALT. No full replacement-image release/hour gate claimed.",
   "original_image": "sha256:715a11f33c59a7575b7f69db9d46d06c0edc81187d8dc8ca88ab4f42c3a1b75b",
   "source_environment": "OKX Demo only",
-  "passed": false,
+  "passed": true,
   "fills_and_fees": {
     "passed": true,
     "fill_comparisons": [
@@ -168,14 +168,6 @@
     "stale_repair_rejected": true,
     "real_demo_modified": false
   },
-  "restoration": {
-    "canonical_service_up": true,
-    "original_catalogue_restored": true,
-    "trading_stopped": true,
-    "halt_preserved": true,
-    "owner_available": true,
-    "no_halt_reset": true
-  },
   "tdd_red": {
     "failed": 6,
     "passed": 2
@@ -207,7 +199,11 @@
     "bootstrap-green.log": "9c5ed5b6d49356bdafe19ecaf88a72809170e79bef0012cb8cbeef3b10467bf3",
     "native.log": "1467ca404655a8393f29803276e7d25330c06b9aaf6e40f3e8668ebc91e4b167",
     "postgres.log": "6bbc8d94f098ec127a3ed118ce95d6421522612a059a4c720317b9104117a17b",
-    "seed-e2e-red.log": "dc3b726a912435c1299454a19c5fc260d60085fdf7c00d0e87ffa5080bb3a93d"
+    "seed-e2e-red.log": "dc3b726a912435c1299454a19c5fc260d60085fdf7c00d0e87ffa5080bb3a93d",
+    "approved-recovery.log": "5311a5433b3cc89d86067046098b4056142ab7fe75831022fb261cf282f376a4",
+    "fixed-restart.log": "b35a2c8760cc136ef334b81e7586965c3ed455d65d1f89af4b4e5680be9c7d09",
+    "fixed-restart-service.log": "9dfd5347ad8b2445a4f483c9beb87c39bcac2b0bf3fe3b05b11043ca38bc4b3d",
+    "fixed-canonical-restoration.log": "9fd5aac896236f701dfdd5bce1965d683e981b3d6ddd010ac01bbd3298be6129"
   },
   "replacement_image": {
     "id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
@@ -281,11 +277,284 @@
   },
   "final_status": {
     "api_live": true,
+    "phase": "stopped",
+    "trading_stopped": true,
+    "halted": false,
+    "pending_mutations": false,
+    "original_private_files_unchanged": true,
+    "real_demo_repair_applied": true,
+    "actual_active_image": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+    "canonical_catalogue": "original private catalogue",
+    "pending_exchange_orders": 0
+  },
+  "operator_approval": {
+    "temporary_demo_preset": true,
+    "two_row_aggregate_repair": true,
+    "reviewed_halt_clear": true,
+    "retest_fixed_image": true
+  },
+  "approved_recovery": {
+    "applied_at": "2026-10-30T06:52:17.852900+00:00",
+    "backup_sha256": "613385a275d6f3eb26ad62d266453285e5331566033ace9184d1825f6964deed",
+    "rows_repaired": 2,
+    "history_fingerprints_unchanged": true,
+    "spot_aggregate_unchanged": true,
+    "reviewed_halt_cleared": true,
+    "automatic_halt_reset_introduced": false,
+    "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+    "runtime_resources_preserved": true
+  },
+  "real_fixed_restart": {
+    "started_at": "2026-10-30T06:54:17.381582+00:00",
+    "environment": "demo",
+    "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+    "passed": true,
+    "stage": "fixed_test_stopped",
+    "natural_matching_only": true,
+    "forced_fills": false,
+    "operator_approved_halt_clear": true,
+    "automatic_halt_reset": false,
+    "observations": [],
+    "commands": [
+      {
+        "action": "start",
+        "elapsed_seconds": 9.258019666187465,
+        "status": "succeeded"
+      },
+      {
+        "action": "stop",
+        "elapsed_seconds": 3.1107479580678046,
+        "status": "succeeded"
+      }
+    ],
+    "before_restart": {
+      "session": {
+        "id": "7e4b10f7-25fd-4050-af07-4b19ee7b95e3",
+        "request": {
+          "market_mode": "both",
+          "selection": "fixed",
+          "duration_mode": "timed",
+          "duration_seconds": 600,
+          "profile_id": "sideways",
+          "references": null,
+          "profile_ids": null,
+          "step_duration_seconds": null
+        },
+        "config_hash": "739a4b8d3463e721826c1e8c54fa295c2f4b6e50bfedfbab00b9fcc6936a8274",
+        "profile_id": "sideways",
+        "generation": 0,
+        "step_index": 0,
+        "status": "running",
+        "started_at": "2026-10-30T06:54:26.937757Z",
+        "expires_at": "2026-10-30T07:04:26.937757Z",
+        "step_expires_at": "2026-10-30T07:04:26.937757Z",
+        "anchors": {
+          "demo_btc_spot": {
+            "life": "78553.35",
+            "sources": {}
+          },
+          "demo_btc_perpetual": {
+            "life": "78517.55",
+            "sources": {}
+          }
+        }
+      },
+      "positions_base": {
+        "BUY": "0.0084",
+        "SELL": "0.0027"
+      },
+      "original_fill_rows": 6,
+      "working_post_only_orders": 4
+    },
+    "active_restart": {
+      "passed": true,
+      "session_anchor_deadline_generation_pinned": true,
+      "both_markets_admitted": true,
+      "original_six_fills_byte_equivalent": true,
+      "working_post_only_orders": 4
+    },
+    "fill_comparisons": [
+      {
+        "market": "okx",
+        "order_id": "93027a12dac34fBCBBCUTc019ee86f30",
+        "trade_id": "1418060924",
+        "quantity_base": "0.00025419",
+        "price": "78678.4",
+        "fee_currency": "BTC",
+        "original_signed_fee": "-0.000000203352",
+        "recorded_fee": "2.03352E-7",
+        "maker": true,
+        "matched": true
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUTd63b60e03f1",
+        "trade_id": "4560033930",
+        "quantity_base": "0.0002",
+        "price": "78682.7",
+        "fee_currency": "USDT",
+        "original_signed_fee": "-0.003147308",
+        "recorded_fee": "0.003147308",
+        "maker": true,
+        "matched": true
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUTfa56e59e148",
+        "trade_id": "4560031676",
+        "quantity_base": "0.0002",
+        "price": "78635.49",
+        "fee_currency": "USDT",
+        "original_signed_fee": "-0.0031454196",
+        "recorded_fee": "0.0031454196",
+        "maker": true,
+        "matched": true
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUT6d002b4e783",
+        "trade_id": "4560031588",
+        "quantity_base": "0.0002",
+        "price": "78682.7",
+        "fee_currency": "USDT",
+        "original_signed_fee": "-0.003147308",
+        "recorded_fee": "0.003147308",
+        "maker": true,
+        "matched": true
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUT13d667d877d",
+        "trade_id": "4560030834",
+        "quantity_base": "0.0001",
+        "price": "78635.49",
+        "fee_currency": "USDT",
+        "original_signed_fee": "-0.0015727098",
+        "recorded_fee": "0.0015727098",
+        "maker": true,
+        "matched": true
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUT0061ac74bbb",
+        "trade_id": "4560029725",
+        "quantity_base": "0.0001",
+        "price": "78682.7",
+        "fee_currency": "USDT",
+        "original_signed_fee": "-0.001573654",
+        "recorded_fee": "0.001573654",
+        "maker": true,
+        "matched": true
+      }
+    ],
+    "positive_spot_fill": true,
+    "positive_perpetual_fill": true,
+    "repeated_readbacks": [
+      {
+        "unique_local_rows": 6,
+        "exchange_rows": 6,
+        "unchanged": true
+      },
+      {
+        "unique_local_rows": 6,
+        "exchange_rows": 6,
+        "unchanged": true
+      },
+      {
+        "unique_local_rows": 6,
+        "exchange_rows": 6,
+        "unchanged": true
+      }
+    ],
+    "perpetual_held_rows": [
+      {
+        "side": "BUY",
+        "amount": "0.0084",
+        "breakeven_price": "78549.67821428571428571428571",
+        "cum_fees_quote": "0.0047181294"
+      },
+      {
+        "side": "SELL",
+        "amount": "0.0027",
+        "breakeven_price": "78571.72222222222222222222222",
+        "cum_fees_quote": "0.007868270"
+      }
+    ],
+    "perpetual_exchange_base": {
+      "BUY": "0.0084",
+      "SELL": "0.0027"
+    },
+    "spot_cash_btc": "1.00000598628",
+    "spot_fee_net_cash_matched": true,
+    "pending_orders": 0,
+    "original_six_fills_retained": true,
+    "new_natural_fills": 0,
+    "final_trade_rows": 6,
+    "finished_at": "2026-10-30T06:55:01.167631+00:00"
+  },
+  "exact_restored_cost_fee_review": {
+    "passed": true,
+    "perpetual": [
+      {
+        "side": "BUY",
+        "quantity": "0.0084",
+        "cost_basis": "78549.67821428571428571428571",
+        "cum_fees_quote": "0.0047181294",
+        "volume_quote": "23.590647",
+        "matched": true
+      },
+      {
+        "side": "SELL",
+        "quantity": "0.0027",
+        "cost_basis": "78571.72222222222222222222222",
+        "cum_fees_quote": "0.007868270",
+        "volume_quote": "39.34135",
+        "matched": true
+      }
+    ],
+    "spot_held_gross_base": "0.00025419",
+    "spot_cost_basis": "78678.4",
+    "spot_cum_fees_quote": "0.0159994099968",
+    "spot_matched": true,
+    "exact_decimal_equality": true
+  },
+  "final_restoration": {
+    "passed": true,
+    "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+    "canonical_service_up": true,
+    "trading_stopped": true,
+    "halted": false,
+    "pending_mutations": false,
+    "original_catalogue_restored": true,
+    "original_private_files_unchanged": true,
+    "all_four_ledger_fingerprints_unchanged": true,
+    "previous_container_preserved_stopped": "hummingbot-local-demo-before-filled-fix-20261030T065632Z",
+    "temporary_container": "hummingbot-demo-filled-recovery-20261030T065212Z",
+    "temporary_container_removed": true
+  },
+  "historical_halted_status": {
+    "api_live": true,
     "trading_stopped": true,
     "halt_preserved": true,
     "pending_mutations": false,
     "original_private_files_unchanged": true,
     "real_demo_repair_applied": false,
     "actual_active_image": "sha256:715a11f33c59a7575b7f69db9d46d06c0edc81187d8dc8ca88ab4f42c3a1b75b"
-  }
+  },
+  "fixed_retry_logging": {
+    "INFO": 120,
+    "WARNING": 12,
+    "ERROR": 0,
+    "CRITICAL": 0
+  },
+  "completed_at": "2026-10-30T06:57:58.085673+00:00",
+  "restoration_before_operator_review": {
+    "canonical_service_up": true,
+    "original_catalogue_restored": true,
+    "trading_stopped": true,
+    "halt_preserved": true,
+    "owner_available": true,
+    "no_halt_reset": true
+  },
+  "final_readonly_recheck_passed": true
 }

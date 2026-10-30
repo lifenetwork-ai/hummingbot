@@ -4,7 +4,13 @@ Date: 2026-10-30 (Asia/Saigon). Status: **the scoped current-image Demo protocol
 passes**, including read-only preflight, all nine profile/mode cases, Random
 rollover, active restart and exact terminal order/position reconciliation.
 **No natural new fill occurred**, so positive new-fill/original-fee processing
-was not observed on this image. [Sanitized evidence](okx-demo-current-image-evidence.json).
+was not observed during this protocol. [Sanitized evidence](okx-demo-current-image-evidence.json).
+
+This document preserves that zero-fill run. The subsequent
+[natural-fill follow-up](okx-demo-natural-fill.md) observed six real maker fills,
+found a filled-restart defect on715a, then verified the repaired exposure on
+fixed imagee526 after operator-reviewed maintenance. The canonical local service
+now uses e526 with trading stopped; the results below retain their original scope.
 
 Selected immutable runtime `715a11f3…` has completed its own local
 image/E2E/load/hour/control gates. These new Demo observations apply to that
