@@ -90,7 +90,111 @@
     "release_scope_complete": true
   },
   "shipping_roles": {
-    "status": "pending"
+    "status": "passed",
+    "report": "build/service-supervision/20261030-145208-f3d592/result.json",
+    "result": {
+      "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+      "scope": "Ordinary production entrypoint lifecycle; isolated dummy exchange/DB",
+      "release_scope_complete": false,
+      "completed": true,
+      "ingress_port": 8090,
+      "case": {
+        "api_restarts": [
+          {
+            "fault": "crash",
+            "recovery_seconds": 8.084720541955903,
+            "engine_identity_preserved": true,
+            "owner_and_session_preserved": true,
+            "positions_preserved": true,
+            "working_quotes_recovered": true,
+            "working_quote_count": 12,
+            "quote_check": "bounded_after_normal_refresh"
+          },
+          {
+            "fault": "repeated_crash",
+            "recovery_seconds": 8.635568874888122,
+            "engine_identity_preserved": true,
+            "owner_and_session_preserved": true,
+            "positions_preserved": true,
+            "working_quotes_recovered": true,
+            "working_quote_count": 12,
+            "quote_check": "bounded_after_normal_refresh"
+          },
+          {
+            "fault": "unresponsive_loop",
+            "recovery_seconds": 50.59788929205388,
+            "engine_identity_preserved": true,
+            "owner_and_session_preserved": true,
+            "positions_preserved": true,
+            "working_quotes_recovered": true,
+            "working_quote_count": 1,
+            "quote_check": "bounded_after_normal_refresh"
+          }
+        ],
+        "api_refresh_boundary_exercised": true,
+        "engine_restarts": [
+          {
+            "fault": "active_engine_crash",
+            "recovery_seconds": 8.572656499920413,
+            "old_process_absent": true,
+            "api_identity_preserved": true,
+            "owner_generation_advanced": true,
+            "halt_preserved": true,
+            "no_additional_orders": true,
+            "positions_preserved": true
+          },
+          {
+            "fault": "halted_engine_unresponsive_loop",
+            "recovery_seconds": 29.10448749992065,
+            "old_process_absent": true,
+            "api_identity_preserved": true,
+            "owner_generation_advanced": true,
+            "halt_preserved": true,
+            "no_additional_orders": true,
+            "positions_preserved": true
+          }
+        ],
+        "parent_restarts": 0,
+        "parent_shutdown_seconds": 1.356717374874279,
+        "parent_shutdown_owner_released": true
+      },
+      "ordinary_entrypoint": [
+        "python",
+        "-m",
+        "hummingbot.cli.service"
+      ],
+      "initial_processes": {
+        "supervisor": {
+          "pid": 1,
+          "fds": 5,
+          "VmHWM": 134156288,
+          "VmRSS": 134156288,
+          "Threads": 8
+        },
+        "engine": {
+          "pid": 31,
+          "fds": 14,
+          "VmHWM": 311828480,
+          "VmRSS": 311828480,
+          "Threads": 10
+        },
+        "api": {
+          "pid": 32,
+          "fds": 11,
+          "VmHWM": 295211008,
+          "VmRSS": 295211008,
+          "Threads": 9
+        }
+      },
+      "engine_health_loopback_only": true,
+      "api_private_environment_keys": [
+        "HBOT_OFFLINE_HTTP_ORIGIN"
+      ],
+      "nonempty_positions_verified": true,
+      "migration_batches": 3,
+      "applied_script_count": 51,
+      "api_restarts_do_not_migrate": true
+    }
   },
   "all_load": {
     "status": "pending"

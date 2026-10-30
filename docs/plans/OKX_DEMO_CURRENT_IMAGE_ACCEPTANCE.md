@@ -125,7 +125,10 @@ budgets. No live trading, registry publication outside loopback, or cloud deploy
   including seeded filled restart and compatible image upgrade/rollback.
   All17 pass at `build/e2e-offline/20261030-141530-9aeb28/result.json`, including
   distinct previous-image upgrade/rollback and retained economics.
-- [ ] Verify ordinary shipping supervisor/API/engine crash/hang recovery and reaping.
+- [x] Verify ordinary shipping supervisor/API/engine crash/hang recovery and reaping.
+  The actual entrypoint passes API repeated crash/hang, engine crash/hang,
+  retained HALT, process reaping and ownership release at
+  `build/service-supervision/20261030-145208-f3d592/result.json`.
 - [ ] Run the unchanged all-feature load gate: warm300, mixed900, burst90,
   continuous soak3600 and all six recovery faults; 2 CPUs/2GiB, pool5 and TTL15.
 - [ ] Validate complete per-role minute samples, stable PIDs and bounded

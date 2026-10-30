@@ -28,9 +28,16 @@ seeded filled restart, nine MM mode/profile cases, guarded availability and
 compatible previous-image upgrade/rollback preserving economics. Results:
 `build/e2e-offline/20261030-141530-9aeb28/result.json`.
 
+## Shipping process recovery
+
+The ordinary shipping entrypoint passes API crash/repeated-crash/hang and engine
+crash/hang recovery, retaining HALT where appropriate, reaping old processes and
+releasing ownership at shutdown. Evidence:
+`build/service-supervision/20261030-145208-f3d592/result.json`.
+
 ## Remaining gates
 
-Shipping-role crash/hang recovery is running. Unchanged warm/mixed/burst/hour/fault tests,
+The unchanged warm/mixed/burst/hour/fault gate is running. Matched ordinary-entrypoint control,
 the matched ordinary-entrypoint control and final Demo preservation checks remain
 open. No latency, memory, retry, rate, error or continuous-sampling budget has
 been relaxed. Exact progress is tracked in the
