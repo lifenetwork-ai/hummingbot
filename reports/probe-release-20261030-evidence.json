@@ -34,7 +34,34 @@
         "--image",
         "sha256:dd602fb2238df0237f2c0aaa532407f31e47cdfbbd25575452b55a021765874c"
       ],
-      "log": "build/probe-release-20261030/supervision.log"
+      "log": "build/probe-release-20261030/supervision.log",
+      "finished_at": "2026-10-30T14:59:51.011341+00:00",
+      "exit_code": 0,
+      "artifacts": [
+        "build/service-supervision/20261030-215710-5520a1/result.json"
+      ]
+    },
+    "all-load": {
+      "started_at": "2026-10-30T14:59:51.034681+00:00",
+      "command": [
+        "scripts/test_mm_load.py",
+        "--image",
+        "sha256:dd602fb2238df0237f2c0aaa532407f31e47cdfbbd25575452b55a021765874c",
+        "--profile",
+        "all",
+        "--history-rows",
+        "100000",
+        "--cpus",
+        "2",
+        "--daily-cache-ttl-seconds",
+        "15",
+        "--enhancements",
+        "--volatility-defense",
+        "--operations",
+        "--gc-diagnostics",
+        "--keep-going"
+      ],
+      "log": "build/probe-release-20261030/all-load.log"
     }
   },
   "registry_manifest_digest": "sha256:d3874a219b7116fe613e64d4f107f6109597a8185edf0ef42fae1e7a53831d4f",

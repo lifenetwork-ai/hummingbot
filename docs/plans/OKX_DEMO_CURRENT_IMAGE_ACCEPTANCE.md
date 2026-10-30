@@ -207,7 +207,8 @@ the operator's tolerance of slow/explicitly stale aggregate reporting.
 - [x] Complete packaged runtime smoke and offline E2E, including prior-image
   upgrade/rollback, on the newly built artifact. All 17 groups pass at
   `build/e2e-offline/20261030-212044-749aa2/result.json`.
-- [ ] Exercise shipping supervisor/API/engine crash/hang recovery on that image.
+- [x] Exercise shipping supervisor/API/engine crash/hang recovery on that image.
+  Passes at `build/service-supervision/20261030-215710-5520a1/result.json`.
 - [ ] Run warm300/mixed900/burst90/soak3600 and all six fault cases with unchanged
   rates, resource caps, pool5, TTL15 and error/latency/retention budgets. The
   existing `--keep-going` option may retain later windows after budget failures;

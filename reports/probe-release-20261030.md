@@ -5,7 +5,9 @@ Status: in progress. Source commit `e9a1645b7`; packaged image
 is built (1,367,454,040 bytes). Both supervisor module hashes match the reviewed
 source. All 17 offline E2E groups pass, including previous-image e526 upgrade/rollback.
 Evidence: `build/e2e-offline/20261030-212044-749aa2/result.json`. Shipping
-supervisor crash/hang recovery is running; all-load and ordinary control remain pending.
+supervisor/API/engine crash/hang recovery also passes at
+`build/service-supervision/20261030-215710-5520a1/result.json`. The complete load
+run is active at `build/mm-load/20261030-215951-3d41e4`; ordinary control is pending.
 
 The operator requested a newly packaged image, full load including a continuous
 60-minute soak, and ordinary-entrypoint comparison. This scope preserves strict
