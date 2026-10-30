@@ -105,10 +105,58 @@ fee totals, but the regression with distinct fees is material, so this proposal 
 rejected. These isolated samples are diagnostic, not full-load acceptance and not
 a production forecast. No SQL/runtime change or relaxed deadline was made.
 
-## Remaining gates
+## Operator-priority reporting isolation diagnostics
 
-After investigation, the full warm/mixed/burst/hour/fault gate remains open. Matched ordinary-entrypoint control,
-the matched ordinary-entrypoint control and final Demo preservation checks remain
-open. No latency, memory, retry, rate, error or continuous-sampling budget has
-been relaxed. Exact progress is tracked in the
-[acceptance checklist](../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
+The operator accepts slow reporting when trading continues. Two 120-second
+controlled tests on the shipping image and separate simulated exchange/PG use a
+test-only API hook to trigger a real PostgreSQL 2s statement timeout: one uses a
+server-side wait, the other a synthetic CPU-heavy expansion of the fee query.
+In each, two exchange fills occurred during the blocked statement and an
+independent PostgreSQL observer saw at least one fill already committed while it
+was still running. Both complete with 120 matched fills, matching positions,
+unchanged engine PID/owner/session, no HALT and clean Stop. Market-update rates
+were 99.976/s and 100.007/s respectively, with one fill/s. Fourteen stale daily
+responses per run retained the original observation time, had bounded age/retry
+metadata, and later became fresh. The observer itself adds some workload.
+
+These experiments show progress in those scenarios; they do not prove zero
+latency impact, isolation from arbitrary SQL or Cloud Run production capacity.
+Engine event-loop instrumentation showed delays elsewhere in the measurement
+buffer, without establishing their cause or timing relative to the query. The
+first wait-only attempt `build/mm-reporting-isolation/20261030-182447-b02fbe/`
+failed its unchanged update-rate threshold (99.610/s). A supervisor
+`child_unresponsive` warning appeared after the measured window near cleanup;
+causation is not established. The observer was subsequently changed from frequent
+Docker polling to log streaming without relaxing thresholds. Passing wait and CPU
+results: `build/mm-reporting-isolation/20261030-183110-050c8f/result.json` and
+`build/mm-reporting-isolation/20261030-183711-3cf10b/result.json`. In the wait
+run, six guard rejection ERROR logs during bootstrap Stop preceded the measured
+workload; rejected orders did not reach the exchange.
+
+## Additional diagnostics, not release acceptance
+
+An ordinary-entrypoint diagnostic using the failed second baseline also fails:
+warm primary p99 952.50ms; mixed primary/auxiliary p99 1,708.64/1,730.24ms and
+backlog drain 10.036s against the 10s limit. It has no unexpected errors and
+1,200 matching fills and positions. It lacks engine event-loop measurements and
+cannot certify a passing baseline. Its slow responses include multiple endpoints,
+not just the aggregate. Result:
+`build/service-supervision/production-control-20261030-180227-f1b35f/result.json`.
+
+A separate 180s instrumented trace probe also fails its p99 budget at 1,221.80ms
+(primary). It records up to 1,412ms API DB-worker queue wait, 780ms SQL and
+4.14ms pool checkout wait in selected spans, but these maxima are not additive.
+The tracer dropped 149,654 spans and the PostgreSQL sampler had one error;
+instrumentation also adds overhead. These measurements cannot establish a unique
+cause for either prior soak failure. Result and trace analysis:
+`build/mm-load/20261030-184306-f9aa3c/`.
+
+## Remaining gates and Demo preservation
+
+Both unchanged full release attempts failed; the full warm/mixed/burst/hour/fault
+gate and matched ordinary-entrypoint control remain open. The separate six-fault
+run and the bounded isolation diagnostics do not close those gates. No latency,
+memory, retry, rate, error or sampling budget was relaxed, and no unproven runtime
+tuning was applied. The four persistent Demo ledger fingerprints and stopped,
+no-HALT control state match their starting baseline. Exact progress is tracked in
+the [acceptance checklist](../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).

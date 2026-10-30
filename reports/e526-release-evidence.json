@@ -16,7 +16,7 @@
     "test/e2e/offline/load_client.py": "13f2b5379953068b18fa785481c2f73ddf11f785f37f2eb4663431121ad5129e"
   },
   "passed": false,
-  "status": "in_progress",
+  "status": "strict release not passed; bounded operator-priority diagnostics passed",
   "native": {
     "passed": 2047,
     "subtests_passed": 11
@@ -200,11 +200,22 @@
     "status": "two_failed_attempts_under_investigation"
   },
   "production_control": {
-    "status": "pending"
+    "diagnostic_only": true,
+    "baseline_passed": false,
+    "passed": false,
+    "artifact": "build/service-supervision/production-control-20261030-180227-f1b35f/result.json",
+    "mixed_primary_p99_ms": 1708.64,
+    "mixed_auxiliary_p99_ms": 1730.24,
+    "mixed_backlog_drain_seconds": 10.036,
+    "unexpected_errors": 0,
+    "matching_fills": 1200
   },
   "demo_preservation": {
-    "baseline_recorded": true,
-    "final_check": "pending"
+    "passed": true,
+    "ledger_fingerprints_match_baseline": true,
+    "control_match_baseline": true,
+    "desired_state": "stopped",
+    "halt": false
   },
   "log_sha256": {
     "native.log": "2d0b40ff4ce22953b06ab0f833cd9dfd14812a3acb8260048cd303065ba43b2a",
@@ -811,5 +822,42 @@
     ],
     "timeouts_or_gates_changed": false,
     "postgres_initial_lab_infrastructure_failure_retained": true
+  },
+  "reporting_isolation": {
+    "limitations": "Two 120-second simulations with observer overhead, shared CPU/DB; not proof of universal isolation or release acceptance.",
+    "first_attempt": {
+      "passed": false,
+      "artifact": "build/mm-reporting-isolation/20261030-182447-b02fbe/result.json",
+      "market_updates_per_second": 99.61025,
+      "supervisor_unresponsive_after_window": true,
+      "cause": "unknown"
+    },
+    "wait": {
+      "passed": true,
+      "artifact": "build/mm-reporting-isolation/20261030-183110-050c8f/result.json",
+      "exchange_fills_during_timeout": 2,
+      "durable_fills_witnessed_during_timeout_at_least": 1,
+      "matched_fills": 120,
+      "market_updates_per_second": 99.9757,
+      "stale_responses": 14
+    },
+    "cpu": {
+      "passed": true,
+      "artifact": "build/mm-reporting-isolation/20261030-183711-3cf10b/result.json",
+      "exchange_fills_during_timeout": 2,
+      "durable_fills_witnessed_during_timeout_at_least": 1,
+      "matched_fills": 120,
+      "market_updates_per_second": 100.007,
+      "stale_responses": 14
+    }
+  },
+  "trace_probe": {
+    "diagnostic_only": true,
+    "passed": false,
+    "artifact": "build/mm-load/20261030-184306-f9aa3c/result.json",
+    "primary_p99_ms": 1221.8,
+    "server_dropped_spans": 149654,
+    "postgres_sampler_errors": 1,
+    "conclusion": "No unique cause established; instrumentation adds overhead."
   }
 }

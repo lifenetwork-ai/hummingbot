@@ -145,7 +145,30 @@ budgets. No live trading, registry publication outside loopback, or cloud deploy
   checks: 57 samples, max gap66.35s, stable role PIDs, 4,890 matching fills,
   all three profiles and no retention violation. Its p99 violations remain open.
 - [ ] Complete matched ordinary-entrypoint warm300/mixed900 control using the
-  passing load run's unchanged fixtures, image and resource limits.
-- [ ] Recheck persistent Demo preservation, clean temporary resources, publish
+  passing load run's unchanged fixtures, image and resource limits. A diagnostic
+  from the failed baseline also fails mixed p99/backlog; it does not close this item.
+- [x] Recheck persistent Demo preservation, clean temporary resources, publish
   scoped portable results, check only achieved items and commit. A failed gate
   remains open until a justified fix and an unchanged repeat pass.
+
+### Operator priority: slow reporting and trading availability
+
+On 2026-10-30 the operator clarified that a slow aggregate is acceptable if the
+MM engine is unaffected. Preserve the historical strict zero-degradation failure;
+evaluate this operational priority separately, without presenting stale data as
+fresh or claiming an absolute independence guarantee for shared CPU/PostgreSQL.
+
+- [x] Inject one actual 2s PostgreSQL statement timeout into the API's daily fee
+  read on the isolated shipping image; verify stale observations are clearly
+  labelled, retain the original observation time, remain under60s old, suggest a
+  bounded retry and later become fresh. No unrelated HTTP/semantic errors.
+- [x] Independently observe at least one new fill durably committed to PostgreSQL
+  while the reporting query is still blocked; verify exchange/recorder/position
+  agreement, continuing market updates/fills, same owner/session/engine PID,
+  no HALT and clean Stop. Record the observer's overhead and test limitations.
+- [x] Repeat the controlled timeout with a CPU-heavy fee-query expansion on the
+  same constrained DB; measure engine progress and report separately from the
+  wait-only case. A single synthetic test cannot establish universal isolation.
+- [x] Report both the strict release result and the operator-priority evidence,
+  including that a server-side wait does not establish isolation from CPU-heavy
+  SQL or all future Cloud Run workloads.

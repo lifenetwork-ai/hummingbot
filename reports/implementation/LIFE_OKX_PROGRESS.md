@@ -1910,3 +1910,14 @@ observed p95 1828ms). At104890 synthetic fills, default parallel fee query p50/p
 Grouped fee decoding p95 improves repeated-fee data437→200ms but regresses
 unique-fee data522→1365ms; reject it. Diagnostic samples are small and do not
 identify the cause of either load failure; no runtime or budgets changed.
+
+Operator accepts slower aggregates if trading continues. Controlled 120s wait and
+synthetic CPU-heavy 2s PostgreSQL timeouts on e526 each observed two exchange
+fills and at least one durable PG fill during the block; both ended with 120
+matching fills, same engine/owner/session and no HALT. Stale daily data were
+labelled and became fresh. An earlier wait attempt failed update rate and showed
+an unresponsive warning after its window, cause unknown. Tests do not prove
+absolute isolation. Ordinary-entrypoint diagnostic also failed mixed p99/backlog;
+trace probe is lossy and diagnostic only. Both full release failures remain open;
+Demo baseline ledger fingerprints and stopped/no-HALT state match. See
+[release report](../e526-release.md).

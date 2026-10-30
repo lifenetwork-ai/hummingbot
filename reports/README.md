@@ -53,7 +53,7 @@ external scope. Known evidence/performance limitations are not marked as done.
 | [Pre-listing economic stress](life-mm-economic-stress.md) | [Portable evidence](life-mm-economic-stress-evidence.json); paired 648-case native/Linux replay, synthetic costs/liquidity/PnL, rolling-credit and margin caveats; no profit forecast |
 | [OKX Demo acceptance](okx-demo-acceptance.md) | [Protocol JSON](okx-demo-acceptance.json), [natural-fill JSON](okx-demo-fill-acceptance.json) |
 | [Current natural-fill follow-up](okx-demo-natural-fill.md) | [Evidence](okx-demo-natural-fill-evidence.json); six real maker fills, reviewed aggregate repair and passing real fixed-image filled restart |
-| [Fixed-image full release](e526-release.md) | [Evidence](e526-release-evidence.json); full offline release and continuous-hour revalidation, in progress |
+| [Fixed-image full release](e526-release.md) | [Evidence](e526-release-evidence.json); strict full release gates failed; bounded reporting-isolation diagnostics passed |
 | [Explicit Demo preset validation](okx-demo-preset-validation.json) | Nine static-metadata selections and runtime/package smoke; no connected or full release gate |
 | [Decimal precision evidence](postgres-decimal-precision.json) | Exact decimal storage migration and verification |
 | [Funding backfill evidence](funding-backfill-evidence.json) | Implementation, image E2E/load probe and Demo acceptance scope |
