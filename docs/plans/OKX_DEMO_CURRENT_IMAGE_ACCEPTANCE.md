@@ -172,3 +172,19 @@ fresh or claiming an absolute independence guarantee for shared CPU/PostgreSQL.
 - [x] Report both the strict release result and the operator-priority evidence,
   including that a server-side wait does not establish isolation from CPU-heavy
   SQL or all future Cloud Run workloads.
+
+### Engine liveness follow-up — 2026-10-30
+
+- [x] Reconstruct the retained restart/lag timeline without treating sampled stacks
+  or correlated host activity as a proven root cause. The original restart was
+  126.698s after the daily fallback and 9.877s after an engine cancellation callback.
+- [x] Add bounded supervisor failure/recovery diagnostics with Red/Green tests:
+  distinguish timeout/HTTP status/connection failure, failed-probe count, elapsed
+  failure time and sampling gaps. Preserve the 300ms timeout and existing grace.
+- [x] Exercise real loopback HTTP503/timeout and isolated source-overlay wait
+  diagnostics; retain every failed attempt separately. Overlay runs are not
+  acceptance of the original e526 image or a newly packaged release.
+- [ ] Identify or reproduce the original sustained-failure/long-lag cause with
+  sufficient evidence. Short transient timeout recovery does not close this item
+  or either full release gate above. See
+  [investigation](../../reports/mm-engine-liveness-investigation.md).

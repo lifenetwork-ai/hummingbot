@@ -1,0 +1,677 @@
+{
+  "scope": "Retained local evidence only; observational, not a causal reproduction or release pass.",
+  "inputs_sha256": {
+    "soak_samples": {
+      "path": "build/mm-load/20261030-145524-a2b39f/soak-runtime-minutes.json",
+      "sha256": "caf150736e4df9b268132a9a627e17f34acbba7a73954a6d6c72db7a54dcb921"
+    },
+    "soak_result": {
+      "path": "build/mm-load/20261030-145524-a2b39f/soak.json",
+      "sha256": "9e50450e393432c2519ae1893a8362c8044f2556cc247e81dcca7e61d3fd1a37"
+    },
+    "short_window": {
+      "path": "build/mm-reporting-isolation/20261030-182447-b02fbe/slow-report.json",
+      "sha256": "f643d52fafce83d9513389a04c766164563c85b6e124a968e273aa4ebdfe17d3"
+    },
+    "short_log": {
+      "path": "build/mm-reporting-isolation/20261030-182447-b02fbe/hbot-e2e-3d1a6895ee-slow-report.log",
+      "sha256": "e3eee7e718a43e6700ad8a7b73496a5133f7a22c5b6a3e4f0fc58f8928895ac2"
+    },
+    "trace_analysis": {
+      "path": "build/mm-load/20261030-184306-f9aa3c/probe-trace-analysis.json",
+      "sha256": "af0d1374a54d590da6b8c73df38a57243c9e3abb647ee4f814287a7c7467bce8"
+    }
+  },
+  "soak_large_lag": {
+    "sample_index": 47,
+    "roles": {
+      "engine": {
+        "previous_sample_utc": "2026-10-30T09:06:54.314386+00:00",
+        "first_sample_with_large_max_utc": "2026-10-30T09:07:57.161215+00:00",
+        "previous_lag_max_ms": 993.7190796481445,
+        "new_lag_max_ms": 8210.783180926228,
+        "generation_2_gc_events_in_sample_interval": [],
+        "selected_window_maxima_ms": {
+          "sql_ms": 174.119041999802,
+          "db_ping_ms": 81.185709,
+          "recorder_ms": 629.879667,
+          "executor_update_ms": 815.193542
+        }
+      },
+      "api": {
+        "previous_sample_utc": "2026-10-30T09:06:55.518754+00:00",
+        "first_sample_with_large_max_utc": "2026-10-30T09:08:01.204806+00:00",
+        "previous_lag_max_ms": 221.99716995237395,
+        "new_lag_max_ms": 2907.6901364314836,
+        "generation_2_gc_events_in_sample_interval": [
+          {
+            "start_ns": 202748003834526,
+            "at": 1793351226.0497186,
+            "thread_id": 140737476621504,
+            "duration_ms": 16.415833,
+            "thread_cpu_ms": 16.4275,
+            "collected": 91
+          },
+          {
+            "start_ns": 202762897048866,
+            "at": 1793351240.953644,
+            "thread_id": 140737476621504,
+            "duration_ms": 26.191584,
+            "thread_cpu_ms": 26.201292,
+            "collected": 143
+          },
+          {
+            "start_ns": 202781613893334,
+            "at": 1793351259.6621203,
+            "thread_id": 140736059107008,
+            "duration_ms": 17.822125,
+            "thread_cpu_ms": 17.570875,
+            "collected": 183
+          },
+          {
+            "start_ns": 202796156579714,
+            "at": 1793351274.2407534,
+            "thread_id": 140737476621504,
+            "duration_ms": 62.846,
+            "thread_cpu_ms": 62.190249,
+            "collected": 232
+          }
+        ],
+        "selected_window_maxima_ms": {
+          "sql_ms": 1256.1883339949418,
+          "db_ping_ms": 485.353625
+        }
+      }
+    },
+    "interpretation": "Rolling scheduled-sample lateness; no exact per-lag timestamp. Cannot infer a single uninterrupted 8.21s block or attribute the cause."
+  },
+  "short_incident": {
+    "window_start_utc": "2026-10-30T11:25:42.404903+00:00",
+    "window_end_utc": "2026-10-30T11:27:42.404903+00:00",
+    "daily_fallback_utc": "2026-10-30T11:25:57.832Z",
+    "last_cancel_completed_utc": "2026-10-30T11:27:54.653Z",
+    "child_unresponsive_utc": "2026-10-30T11:28:04.530Z",
+    "seconds_after_window_end": 22.125096559524536,
+    "seconds_after_daily_fallback": 126.69799995422363,
+    "seconds_after_last_engine_cancel": 9.876999855041504,
+    "probe_result_retained": false,
+    "interpretation": "Engine ran cancellation callbacks within ten seconds of supervisor termination. Prior logs discard probe timeout vs HTTP503 vs connection-error details; neither complete engine deadlock nor reporting causation is established."
+  },
+  "trace_examples": [
+    {
+      "process_role": "engine",
+      "utc": "2026-10-30T11:45:40.811280+00:00",
+      "heartbeat_lag_ms": 1150.477459,
+      "active_operations": [
+        {
+          "operation": "pool_checkout_ms",
+          "started_ago_ms": 0.268917
+        },
+        {
+          "operation": "db_ping_ms",
+          "started_ago_ms": 0.171292
+        }
+      ],
+      "main_thread_stack_tail": [
+        {
+          "file": "base.py",
+          "function": "_checkout"
+        },
+        {
+          "file": "default.py",
+          "function": "_do_ping_w_event"
+        },
+        {
+          "file": "load_trace.py",
+          "function": "measured"
+        },
+        {
+          "file": "_psycopg_common.py",
+          "function": "do_ping"
+        },
+        {
+          "file": "io_deadline.py",
+          "function": "bounded_wait"
+        }
+      ]
+    },
+    {
+      "process_role": "engine",
+      "utc": "2026-10-30T11:45:19.805127+00:00",
+      "heartbeat_lag_ms": 1126.522584,
+      "active_operations": [
+        {
+          "operation": "service.observe_once",
+          "started_ago_ms": 1141.527042
+        },
+        {
+          "operation": "sql",
+          "started_ago_ms": -4.380708
+        }
+      ],
+      "main_thread_stack_tail": [
+        {
+          "file": "base.py",
+          "function": "_execute_clauseelement"
+        },
+        {
+          "file": "base.py",
+          "function": "_execute_context"
+        },
+        {
+          "file": "base.py",
+          "function": "_exec_single_context"
+        },
+        {
+          "file": "default.py",
+          "function": "do_execute"
+        },
+        {
+          "file": "io_deadline.py",
+          "function": "bounded_wait"
+        }
+      ]
+    },
+    {
+      "process_role": "engine",
+      "utc": "2026-10-30T11:45:40.705229+00:00",
+      "heartbeat_lag_ms": 1044.424542,
+      "active_operations": [
+        {
+          "operation": "sql",
+          "started_ago_ms": 0.160125
+        }
+      ],
+      "main_thread_stack_tail": [
+        {
+          "file": "base.py",
+          "function": "_execute_clauseelement"
+        },
+        {
+          "file": "base.py",
+          "function": "_execute_context"
+        },
+        {
+          "file": "base.py",
+          "function": "_exec_single_context"
+        },
+        {
+          "file": "default.py",
+          "function": "do_execute"
+        },
+        {
+          "file": "io_deadline.py",
+          "function": "bounded_wait"
+        }
+      ]
+    },
+    {
+      "process_role": "engine",
+      "utc": "2026-10-30T11:45:40.599961+00:00",
+      "heartbeat_lag_ms": 939.066625,
+      "active_operations": [
+        {
+          "operation": "pool_checkout_ms",
+          "started_ago_ms": 0.250333
+        },
+        {
+          "operation": "db_ping_ms",
+          "started_ago_ms": 0.148916
+        }
+      ],
+      "main_thread_stack_tail": [
+        {
+          "file": "base.py",
+          "function": "_checkout"
+        },
+        {
+          "file": "default.py",
+          "function": "_do_ping_w_event"
+        },
+        {
+          "file": "load_trace.py",
+          "function": "measured"
+        },
+        {
+          "file": "_psycopg_common.py",
+          "function": "do_ping"
+        },
+        {
+          "file": "io_deadline.py",
+          "function": "bounded_wait"
+        }
+      ]
+    },
+    {
+      "process_role": "engine",
+      "utc": "2026-10-30T11:45:19.549671+00:00",
+      "heartbeat_lag_ms": 875.77325,
+      "active_operations": [
+        {
+          "operation": "service.observe_once",
+          "started_ago_ms": 890.777708
+        },
+        {
+          "operation": "sql",
+          "started_ago_ms": 285.077542
+        }
+      ],
+      "main_thread_stack_tail": [
+        {
+          "file": "base.py",
+          "function": "_execute_clauseelement"
+        },
+        {
+          "file": "base.py",
+          "function": "_execute_context"
+        },
+        {
+          "file": "base.py",
+          "function": "_exec_single_context"
+        },
+        {
+          "file": "default.py",
+          "function": "do_execute"
+        },
+        {
+          "file": "io_deadline.py",
+          "function": "bounded_wait"
+        }
+      ]
+    },
+    {
+      "process_role": "engine",
+      "utc": "2026-10-30T11:45:40.490881+00:00",
+      "heartbeat_lag_ms": 830.044917,
+      "active_operations": [
+        {
+          "operation": "sql",
+          "started_ago_ms": 0.501
+        }
+      ],
+      "main_thread_stack_tail": [
+        {
+          "file": "base.py",
+          "function": "_execute_clauseelement"
+        },
+        {
+          "file": "base.py",
+          "function": "_execute_context"
+        },
+        {
+          "file": "base.py",
+          "function": "_exec_single_context"
+        },
+        {
+          "file": "default.py",
+          "function": "do_execute"
+        },
+        {
+          "file": "io_deadline.py",
+          "function": "bounded_wait"
+        }
+      ]
+    },
+    {
+      "process_role": "engine",
+      "utc": "2026-10-30T11:45:40.370753+00:00",
+      "heartbeat_lag_ms": 709.269625,
+      "active_operations": [],
+      "main_thread_stack_tail": [
+        {
+          "file": "session.py",
+          "function": "_flush"
+        },
+        {
+          "file": "unitofwork.py",
+          "function": "execute"
+        },
+        {
+          "file": "unitofwork.py",
+          "function": "_generate_actions"
+        },
+        {
+          "file": "unitofwork.py",
+          "function": "execute"
+        },
+        {
+          "file": "_weakrefset.py",
+          "function": "_remove"
+        }
+      ]
+    },
+    {
+      "process_role": "engine",
+      "utc": "2026-10-30T11:46:15.720908+00:00",
+      "heartbeat_lag_ms": 708.142167,
+      "active_operations": [
+        {
+          "operation": "executor_update_ms",
+          "started_ago_ms": 12.847209
+        },
+        {
+          "operation": "executor_reports_ms",
+          "started_ago_ms": 12.691084
+        }
+      ],
+      "main_thread_stack_tail": [
+        {
+          "file": "executor_base.py",
+          "function": "cum_fees_quote"
+        },
+        {
+          "file": "position_executor.py",
+          "function": "get_cum_fees_quote"
+        },
+        {
+          "file": "executors.py",
+          "function": "cum_fees_quote"
+        },
+        {
+          "file": "in_flight_order.py",
+          "function": "cumulative_fee_paid"
+        },
+        {
+          "file": "trade_fee.py",
+          "function": "fee_amount_in_token"
+        }
+      ]
+    }
+  ],
+  "trace_loss": {
+    "written_records": 420,
+    "written_bytes": 1567304,
+    "dropped_records": 0,
+    "writer_cpu_ms": 163.52661400000025,
+    "queue_depth": 0,
+    "max_bytes": 134217728,
+    "writer_alive": true,
+    "dropped_spans": 149654,
+    "slow_trace_threshold_ms": 100
+  },
+  "postgres_sampler_errors": 1,
+  "limitations": [
+    "Post-sampling gaps prevent identifying the original stall cause.",
+    "A sampled stack indicates activity at sampling time, not ownership of the entire prior lag.",
+    "AMD64 image runs under emulation on ARM64 Mac, with shared container CPU and PostgreSQL; no causal host attribution.",
+    "No production latency budget or trading recovery policy changed."
+  ],
+  "native_pre_repeat": {
+    "initial_regression": "106 passed before adding the diagnostic-startup regression case; captured in execution output",
+    "subsequent_run": {
+      "passed": false,
+      "passed_tests": 106,
+      "failed_tests": 1,
+      "artifact": "build/engine-liveness-investigation/native-concurrent-failed.log",
+      "failure": "Existing API initialization stop test exceeded its 5s wait for first engine_health call while Docker diagnostic was running; causal attribution unproven."
+    }
+  },
+  "overlay_attempts": [
+    {
+      "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+      "fault_mode": "wait",
+      "passed": true,
+      "duration_seconds": 120,
+      "supervision_source_overlay_sha256": {
+        "hummingbot/cli/process_supervision.py": "0574d4617d6ccb1aa2cc096b5573967ba0c337a33ce645772df8f68c47f8f77f",
+        "hummingbot/cli/service_processes.py": "d27b80ea5c94450cc174fad5cc62254ef1ca93b6c92376b1018b1c23a9c47152"
+      },
+      "unmodified_runtime_image": false,
+      "engine_pid_unchanged": true,
+      "no_halt": true,
+      "observed_market_updates_per_second": 99.97639045591933,
+      "stale_read_count": 14,
+      "durable_fill_witness": {
+        "observed_at": 1793362925.766235,
+        "fills": 1
+      },
+      "artifact": "build/mm-reporting-isolation/20261030-192047-893218/result.json",
+      "result_sha256": "a16abd8bb1f966a53a5d5ac9292545912f1c428b5b1df5393dfb893d365d819a",
+      "probe_events": [
+        {
+          "timestamp": "2026-10-30T12:21:40.422Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.655 probe_status=None probe_elapsed_ms=325.696 max_probe_elapsed_ms=325.696"
+        },
+        {
+          "timestamp": "2026-10-30T12:21:41.563Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.157 max_probe_gap_seconds=1.655 probe_status=None probe_elapsed_ms=325.696 max_probe_elapsed_ms=325.696"
+        },
+        {
+          "timestamp": "2026-10-30T12:21:47.127Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.342 probe_status=None probe_elapsed_ms=301.717 max_probe_elapsed_ms=301.717"
+        },
+        {
+          "timestamp": "2026-10-30T12:21:48.171Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.045 max_probe_gap_seconds=1.342 probe_status=None probe_elapsed_ms=301.717 max_probe_elapsed_ms=301.717"
+        },
+        {
+          "timestamp": "2026-10-30T12:22:21.151Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=2.799 probe_status=None probe_elapsed_ms=402.739 max_probe_elapsed_ms=402.739"
+        },
+        {
+          "timestamp": "2026-10-30T12:22:22.333Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.195 max_probe_gap_seconds=2.799 probe_status=None probe_elapsed_ms=402.739 max_probe_elapsed_ms=402.739"
+        },
+        {
+          "timestamp": "2026-10-30T12:22:47.772Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.36 probe_status=None probe_elapsed_ms=302.971 max_probe_elapsed_ms=302.971"
+        },
+        {
+          "timestamp": "2026-10-30T12:22:48.834Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.063 max_probe_gap_seconds=1.36 probe_status=None probe_elapsed_ms=302.971 max_probe_elapsed_ms=302.971"
+        },
+        {
+          "timestamp": "2026-10-30T12:22:55.379Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.357 probe_status=None probe_elapsed_ms=306.669 max_probe_elapsed_ms=306.669"
+        },
+        {
+          "timestamp": "2026-10-30T12:22:57.912Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=2 failure_seconds=2.535 max_probe_gap_seconds=1.437 probe_status=None probe_elapsed_ms=302.066 max_probe_elapsed_ms=306.669"
+        },
+        {
+          "timestamp": "2026-10-30T12:23:27.607Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.358 probe_status=None probe_elapsed_ms=304.068 max_probe_elapsed_ms=304.068"
+        },
+        {
+          "timestamp": "2026-10-30T12:23:28.654Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.047 max_probe_gap_seconds=1.358 probe_status=None probe_elapsed_ms=304.068 max_probe_elapsed_ms=304.068"
+        }
+      ]
+    },
+    {
+      "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+      "fault_mode": "cpu",
+      "passed": false,
+      "duration_seconds": 120,
+      "supervision_source_overlay_sha256": {
+        "hummingbot/cli/process_supervision.py": "e690399b3e8a848e6425d36b89d44c83eea5ec89f81916d7f0c5f9e850528536",
+        "hummingbot/cli/service_processes.py": "c8539e67587142b7481184f9e188a0ec0e1b1171969bf72efb46d487b8d1bd38"
+      },
+      "unmodified_runtime_image": false,
+      "engine_pid_unchanged": null,
+      "no_halt": null,
+      "observed_market_updates_per_second": null,
+      "stale_read_count": null,
+      "durable_fill_witness": null,
+      "artifact": "build/mm-reporting-isolation/20261030-192545-d84896/result.json",
+      "result_sha256": "d2488bc6193cd0621a9f1778b9dc3f8b96907229dfa11a852cb9e4d5ab07d9d8",
+      "probe_events": [
+        {
+          "timestamp": "2026-10-30T12:26:08.963Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.306 probe_status=None probe_elapsed_ms=302.163 max_probe_elapsed_ms=302.163"
+        },
+        {
+          "timestamp": "2026-10-30T12:26:10.008Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.05 max_probe_gap_seconds=1.306 probe_status=None probe_elapsed_ms=302.163 max_probe_elapsed_ms=302.163"
+        },
+        {
+          "timestamp": "2026-10-30T12:26:16.433Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.317 probe_status=None probe_elapsed_ms=306.435 max_probe_elapsed_ms=306.435"
+        },
+        {
+          "timestamp": "2026-10-30T12:26:17.463Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.032 max_probe_gap_seconds=1.317 probe_status=None probe_elapsed_ms=306.435 max_probe_elapsed_ms=306.435"
+        }
+      ],
+      "failure_scope": "Initial readiness assertion before fault injection; retained metrics file was not captured. The setup only waited for any metrics file; a deterministic regression now verifies waiting for runtime_running."
+    },
+    {
+      "artifact": "build/mm-reporting-isolation/20261030-192822-eadbc2/result.json",
+      "passed": false,
+      "result_sha256": "7a8c236afcaddb21657f5f9cc814724e3928e53643e318e66fc510c791da9c4c",
+      "supervision_source_overlay_sha256": {
+        "hummingbot/cli/process_supervision.py": "e690399b3e8a848e6425d36b89d44c83eea5ec89f81916d7f0c5f9e850528536",
+        "hummingbot/cli/service_processes.py": "c8539e67587142b7481184f9e188a0ec0e1b1171969bf72efb46d487b8d1bd38"
+      },
+      "unmodified_runtime_image": false,
+      "fault_mode": "cpu",
+      "failure_scope": "Final simulator send-rate assertion after ledger and Stop checks",
+      "market_updates_per_second": 99.93658145673723,
+      "minimum_market_updates_per_second": 99.96666666666667,
+      "read_p99_ms": 585.3663399757352,
+      "valid_fills": 120,
+      "fault": {
+        "started_at": 1793363365.0755486,
+        "finished_at": 1793363367.08796,
+        "sqlstate": "57014"
+      },
+      "durable_fill_witness": {
+        "observed_at": 1793363366.82889,
+        "fills": 1
+      },
+      "probe_events": [
+        {
+          "timestamp": "2026-10-30T12:28:45.092Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.332 probe_status=None probe_elapsed_ms=302.967 max_probe_elapsed_ms=302.967"
+        },
+        {
+          "timestamp": "2026-10-30T12:28:46.125Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.037 max_probe_gap_seconds=1.332 probe_status=None probe_elapsed_ms=302.967 max_probe_elapsed_ms=302.967"
+        },
+        {
+          "timestamp": "2026-10-30T12:29:06.571Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.621 probe_status=None probe_elapsed_ms=591.8 max_probe_elapsed_ms=591.8"
+        },
+        {
+          "timestamp": "2026-10-30T12:29:07.701Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.151 max_probe_gap_seconds=1.621 probe_status=None probe_elapsed_ms=591.8 max_probe_elapsed_ms=591.8"
+        },
+        {
+          "timestamp": "2026-10-30T12:29:36.876Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.373 probe_status=None probe_elapsed_ms=323.888 max_probe_elapsed_ms=323.888"
+        },
+        {
+          "timestamp": "2026-10-30T12:29:37.927Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.052 max_probe_gap_seconds=1.373 probe_status=None probe_elapsed_ms=323.888 max_probe_elapsed_ms=323.888"
+        },
+        {
+          "timestamp": "2026-10-30T12:30:48.025Z",
+          "event": "child_probe_failed",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.346 probe_status=None probe_elapsed_ms=304.134 max_probe_elapsed_ms=304.134"
+        },
+        {
+          "timestamp": "2026-10-30T12:30:49.103Z",
+          "event": "child_probe_recovered",
+          "scope": "engine",
+          "reason_code": "timeout",
+          "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.079 max_probe_gap_seconds=1.346 probe_status=None probe_elapsed_ms=304.134 max_probe_elapsed_ms=304.134"
+        }
+      ]
+    }
+  ],
+  "demo_preservation": {
+    "ledger_and_control_match_baseline": true,
+    "desired_state": "stopped",
+    "halt": false
+  },
+  "original_cause_identified": false,
+  "release_scope_complete": false,
+  "native_final": {
+    "passed": true,
+    "passed_tests": 107,
+    "artifact": "build/engine-liveness-investigation/native-green.log",
+    "sha256": "67fd99e0458d938e5d58c0e570a4b95dd84655f34369fb5705d52673750d1878"
+  },
+  "red_evidence": {
+    "native-red.log": "966131e65870360d5b53090150f7629b2687dde50b7041dd50441e5ae7cd1ace",
+    "close-error-red.log": "362bbe9baaf5b1396ce3156a2ad55107e035f7a9998a20ebb10139a3d54b5ca2",
+    "startup-metrics-red.log": "7e41fbc2b54e687613e3b8348993d806168de1a429d338fd50d8ba7a5243f94f"
+  },
+  "final_source_sha256": {
+    "hummingbot/cli/process_supervision.py": "e690399b3e8a848e6425d36b89d44c83eea5ec89f81916d7f0c5f9e850528536",
+    "hummingbot/cli/service_processes.py": "c8539e67587142b7481184f9e188a0ec0e1b1171969bf72efb46d487b8d1bd38",
+    "scripts/test_mm_reporting_isolation.py": "c6b52d132dfc596e685fde55d7a523b2900c92d972126b82e5c0207af2a68a8f"
+  },
+  "commits": {
+    "supervisor_diagnostics": "2c118073d",
+    "diagnostic_runner": "415fd477a"
+  }
+}

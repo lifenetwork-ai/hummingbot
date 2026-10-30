@@ -160,3 +160,9 @@ memory, retry, rate, error or sampling budget was relaxed, and no unproven runti
 tuning was applied. The four persistent Demo ledger fingerprints and stopped,
 no-HALT control state match their starting baseline. Exact progress is tracked in
 the [acceptance checklist](../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
+
+The subsequent [engine liveness investigation](mm-engine-liveness-investigation.md)
+narrows the retained timeline and adds source-level supervisor diagnostics. Those
+short tests use explicit source overlays on e526; they do not change either
+historical result or certify a new packaged image. The original sustained-failure
+and long-lag causes remain unproven.

@@ -1921,3 +1921,15 @@ absolute isolation. Ordinary-entrypoint diagnostic also failed mixed p99/backlog
 trace probe is lossy and diagnostic only. Both full release failures remain open;
 Demo baseline ledger fingerprints and stopped/no-HALT state match. See
 [release report](../e526-release.md).
+
+2026-10-30 engine-liveness follow-up: the earlier supervisor event occurred
+126.698s after the reporting fallback and 9.877s after an engine cancellation
+callback. Old logs cannot distinguish HTTP503 from transport timeout; the 8.21s
+metric is scheduled-sample lateness, not proof of one blocking function. Added
+bounded failure/recovery probe diagnostics with unchanged timeout/grace and
+Red/Green tests (final targeted regression107 passes). Source-overlay wait test
+passes; CPU test retains a feed-rate failure99.93658/s versus99.96667/s after
+successful ledger/Stop checks, with four transient timeout episodes and no child
+restart. An initial CPU setup assertion and one prior native initialization
+timeout are also retained. Original cause and full release gates remain open;
+Demo ledger/control unchanged. See [investigation](../mm-engine-liveness-investigation.md).
