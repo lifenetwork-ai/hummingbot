@@ -275,3 +275,65 @@ def test_forced_shutdown_is_not_reported_as_clean():
     owner.shutdown()
     assert owner.exit_code == 1
     assert any(row['event'] == 'child_shutdown_failed' for row in events)
+
+
+def test_watchdog_reports_bounded_failure_episode_and_recovery_without_restarting():
+    owner, clock, _, events = supervisor()
+    owner.tick()
+    watchdog = HealthWatchdog(owner)
+    watchdog.observe('engine', True)
+    clock.now = 1
+    watchdog.observe('engine', False, reason='http_status', status=503, elapsed_ms=12)
+    clock.now = 2
+    watchdog.observe('engine', False, reason='timeout', elapsed_ms=301)
+    clock.now = 3
+    watchdog.observe('engine', True)
+    assert not owner.children['engine'].terminated
+    failures = [e for e in events if e['event'] == 'child_probe_failed']
+    recovered = [e for e in events if e['event'] == 'child_probe_recovered']
+    assert len(failures) == len(recovered) == 1
+    assert failures[0]['reason_code'] == 'http_status' and failures[0]['probe_status'] == 503
+    assert recovered[0]['failed_probes'] == 2 and recovered[0]['failure_seconds'] == 2
+    assert recovered[0]['first_reason'] == 'http_status' and recovered[0]['reason_code'] == 'timeout'
+
+
+def test_watchdog_retains_probe_reason_and_sampling_gap_on_same_restart_deadline():
+    owner, clock, _, events = supervisor()
+    owner.tick()
+    watchdog = HealthWatchdog(owner)
+    watchdog.observe('engine', True)
+    clock.now = 1
+    watchdog.observe('engine', False, reason='timeout', elapsed_ms=301)
+    clock.now = 16  # A long supervisor scheduling gap is evidence, not fifteen probes.
+    watchdog.observe('engine', False, reason='http_status', status=503, elapsed_ms=10)
+    assert owner.children['engine'].terminated
+    row = next(e for e in events if e['event'] == 'child_unresponsive')
+    assert row['failed_probes'] == 2 and row['failure_seconds'] == 15
+    assert row['max_probe_gap_seconds'] == 15
+    assert row['first_reason'] == 'timeout' and row['reason_code'] == 'http_status'
+    assert row['probe_status'] == 503 and row['probe_elapsed_ms'] == 10
+    assert row['max_probe_elapsed_ms'] == 301
+    # A terminating child must not repeat incident logs or retain unbounded history.
+    watchdog.observe('engine', False, reason='timeout', elapsed_ms=300)
+    assert sum(e['event'] == 'child_unresponsive' for e in events) == 1
+    assert len(watchdog.observations) == 1
+
+
+def test_watchdog_startup_failures_are_silent_until_deadline_and_replacement_resets_diagnostics():
+    owner, clock, _, events = supervisor()
+    owner.tick()
+    watchdog = HealthWatchdog(owner)
+    watchdog.observe('engine', False, reason='connection_error', elapsed_ms=1)
+    assert not any(e['event'] == 'child_probe_failed' for e in events)
+    clock.now = 240
+    watchdog.observe('engine', False, reason='connection_error', elapsed_ms=2)
+    assert owner.children['engine'].terminated
+    owner.tick()
+    clock.now += 1
+    owner.tick()
+    watchdog.observe('engine', True)
+    assert not any(e['event'] == 'child_probe_recovered' for e in events)
+    clock.now += 1
+    watchdog.observe('engine', False, reason='timeout', elapsed_ms=300)
+    assert events[-1]['event'] == 'child_probe_failed'
+    assert events[-1]['failed_probes'] == 1

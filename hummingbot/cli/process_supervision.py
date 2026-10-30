@@ -68,11 +68,11 @@ class ChildSupervisor:
                 self.started_at[role] = now
                 self.emit(dict(severity='INFO', event='child_started', role=role))
 
-    def unresponsive(self, role):
+    def unresponsive(self, role, **diagnostics):
         child = self.children[role]
         if self.stopping or child is None or child.poll() is not None or role in self.terminating:
             return
-        self.emit(dict(severity='ERROR', event='child_unresponsive', role=role))
+        self.emit(dict(severity='ERROR', event='child_unresponsive', role=role, **diagnostics))
         self.terminating[role] = self.clock() + 3
         self.signal_child(child)
 
@@ -103,22 +103,47 @@ class HealthWatchdog:
         self.observations = {}
         self.startup_grace, self.failure_grace = startup_grace, failure_grace
 
-    def observe(self, role, healthy):
+    @staticmethod
+    def diagnostics(previous, now):
+        return dict(reason_code=previous['reason'], first_reason=previous['first_reason'],
+                    probe_status=previous['status'], probe_elapsed_ms=previous['elapsed_ms'],
+                    max_probe_elapsed_ms=previous['max_elapsed_ms'], failed_probes=previous['failed_probes'],
+                    failure_seconds=round(now - previous['failed_since'], 3),
+                    max_probe_gap_seconds=round(previous['max_gap'], 3))
+
+    def observe(self, role, healthy, *, reason='unknown', status=None, elapsed_ms=0):
         child = self.supervisor.children[role]
         if child is None:
             self.observations.pop(role, None)
             return
+        if self.supervisor.stopping or role in self.supervisor.terminating:
+            return
         now = self.supervisor.clock()
         previous = self.observations.get(role)
         if previous is None or previous['child'] is not child:
-            previous = self.observations[role] = dict(child=child, first_seen=now, healthy_once=False, failed_since=None)
+            previous = self.observations[role] = dict(child=child, first_seen=now, healthy_once=False, failed_since=None,
+                                                      last_at=now, max_gap=0, failed_probes=0, max_elapsed_ms=0)
+        gap = now - previous['last_at']
+        previous['last_at'] = now
+        if previous['failed_since'] is not None:
+            previous['max_gap'] = max(previous['max_gap'], gap)
         if healthy:
+            if previous['healthy_once'] and previous['failed_since'] is not None:
+                self.supervisor.emit(dict(severity='INFO', event='child_probe_recovered', role=role,
+                                          **self.diagnostics(previous, now)))
             previous.update(healthy_once=True, failed_since=None)
             return
-        if previous['failed_since'] is None:
-            previous['failed_since'] = now
+        first_failure = previous['failed_since'] is None
+        if first_failure:
+            previous.update(failed_since=now, first_reason=reason, failed_probes=0, max_gap=gap, max_elapsed_ms=0)
+        previous.update(reason=reason, status=status, elapsed_ms=elapsed_ms,
+                        failed_probes=previous['failed_probes'] + 1, max_elapsed_ms=max(previous['max_elapsed_ms'], elapsed_ms))
+        # One transition log, not one log for every poll. Startup misses are expected.
+        if first_failure and previous['healthy_once']:
+            self.supervisor.emit(dict(severity='WARNING', event='child_probe_failed', role=role,
+                                      **self.diagnostics(previous, now)))
         deadline = previous['failed_since'] + self.failure_grace
         if not previous['healthy_once']:
             deadline = max(deadline, previous['first_seen'] + self.startup_grace)
         if now >= deadline:
-            self.supervisor.unresponsive(role)
+            self.supervisor.unresponsive(role, **self.diagnostics(previous, now))

@@ -57,15 +57,22 @@ def probe_path(watchdog, role):
     return '/live' if row and row['child'] is child and row['healthy_once'] else '/startup'
 
 
-def responding(port, path):
+def probe_health(port, path):
+    started = time.monotonic()
+    status, reason = None, 'connection_error'
     try:
         with urlopen(f'http://127.0.0.1:{port}{path}', timeout=.3) as response:
-            return response.status == 200
+            status = response.status
+            reason = 'healthy' if status == 200 else 'http_status'
     except HTTPError as error:
+        status, reason = error.code, 'http_status'
         error.close()
-        return False
-    except (OSError, URLError, TimeoutError):
-        return False
+    except (OSError, URLError) as error:
+        status, reason = None, 'connection_error'
+        if isinstance(error, TimeoutError) or isinstance(getattr(error, 'reason', None), TimeoutError):
+            reason = 'timeout'
+    # Never read/log the response body, URL, headers or exception text.
+    return status == 200, dict(reason=reason, status=status, elapsed_ms=round((time.monotonic() - started) * 1000, 3))
 
 
 def failure_exit_code(error):
@@ -87,10 +94,14 @@ def failure_reason(error):
 
 
 def log_child(event):
+    diagnostics = ' '.join(f'{key}={event[key]}' for key in (
+        'first_reason', 'failed_probes', 'failure_seconds', 'max_probe_gap_seconds',
+        'probe_status', 'probe_elapsed_ms', 'max_probe_elapsed_ms') if key in event)
     LOGGER.log(getattr(logging, event['severity']),
-               'Service child event=%s role=%s exit_code=%s retry_after_s=%s',
-               event['event'], event['role'], event.get('exit_code'), event.get('retry_after_seconds'),
-               extra=dict(event=event['event'], scope=event['role'], error_type=event.get('error_type')))
+               'Service child event=%s role=%s exit_code=%s retry_after_s=%s %s',
+               event['event'], event['role'], event.get('exit_code'), event.get('retry_after_seconds'), diagnostics,
+               extra=dict(event=event['event'], scope=event['role'], error_type=event.get('error_type'),
+                          reason_code=event.get('reason_code')))
 
 
 def run_supervisor():
@@ -128,7 +139,8 @@ def run_supervisor():
                     if deadline.stop.is_set():
                         break
                     port = layout.engine.port if role == 'engine' else layout.api.port
-                    watchdog.observe(role, responding(port, probe_path(watchdog, role)))
+                    healthy, details = probe_health(port, probe_path(watchdog, role))
+                    watchdog.observe(role, healthy, **details)
                 next_probe = time.monotonic() + 1
             deadline.stop.wait(.05)
         code = owner.exit_code

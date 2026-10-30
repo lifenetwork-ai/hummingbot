@@ -7,6 +7,98 @@ import pytest
 from hummingbot.client.config.runtime_config import RuntimeSettings
 
 
+@pytest.mark.parametrize('case,reason,status', [('healthy', 'healthy', 200), ('http', 'http_status', 503),
+                                                ('timeout', 'timeout', None), ('wrapped_timeout', 'timeout', None),
+                                                ('connection', 'connection_error', None)])
+def test_health_probe_distinguishes_status_and_transport_failure_without_body_or_exception_text(monkeypatch, case, reason, status):
+    from unittest.mock import MagicMock
+    from urllib.error import HTTPError, URLError
+
+    from hummingbot.cli import service_processes
+    response = MagicMock()
+    response.__enter__.return_value = response
+    response.status = 200
+    error = {'http': HTTPError('http://hidden', 503, 'private body', {}, None),
+             'timeout': TimeoutError('secret text'), 'wrapped_timeout': URLError(TimeoutError('secret text')),
+             'connection': URLError(ConnectionRefusedError('secret text'))}.get(case)
+    call = MagicMock(return_value=response, side_effect=error)
+    monkeypatch.setattr(service_processes, 'urlopen', call)
+    times = iter([10., 10.125])
+    monkeypatch.setattr(service_processes.time, 'monotonic', lambda: next(times))
+    healthy, details = service_processes.probe_health(8081, '/live')
+    assert healthy is (case == 'healthy')
+    assert details == dict(reason=reason, status=status, elapsed_ms=125)
+    call.assert_called_once_with('http://127.0.0.1:8081/live', timeout=.3)
+    response.read.assert_not_called()
+
+
+def test_probe_log_survives_json_formatter_without_response_body(caplog):
+    import json
+    import logging
+
+    from hummingbot.cli.service_processes import log_child
+    from hummingbot.logger.service_logging import ServiceFormatter
+    with caplog.at_level(logging.WARNING):
+        log_child(dict(severity='WARNING', event='child_probe_failed', role='engine', reason_code='http_status',
+                       first_reason='http_status', failed_probes=2, failure_seconds=1.5, max_probe_gap_seconds=1.5,
+                       probe_elapsed_ms=12.5, max_probe_elapsed_ms=300.5, probe_status=503))
+    row = json.loads(ServiceFormatter('json', {}).format(caplog.records[-1]))
+    assert row['reason_code'] == 'http_status' and row['scope'] == 'engine'
+    for text in ('failed_probes=2', 'failure_seconds=1.5', 'max_probe_gap_seconds=1.5', 'probe_status=503',
+                 'probe_elapsed_ms=12.5', 'max_probe_elapsed_ms=300.5'):
+        assert text in row['message']
+
+
+def test_health_probe_real_http_status_and_timeout_are_distinct():
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from hummingbot.cli.service_processes import probe_health
+    release = threading.Event()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == '/slow':
+                release.wait(2)
+                return
+            self.send_response(503 if self.path == '/unhealthy' else 200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_address[1]
+        assert probe_health(port, '/live')[0]
+        healthy, details = probe_health(port, '/unhealthy')
+        assert not healthy and details['reason'] == 'http_status' and details['status'] == 503
+        healthy, details = probe_health(port, '/slow')
+        assert not healthy and details['reason'] == 'timeout' and details['status'] is None
+        assert details['elapsed_ms'] >= 250
+    finally:
+        release.set()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
+    assert not thread.is_alive()
+
+
+def test_health_probe_close_error_cannot_be_reported_as_healthy(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from hummingbot.cli import service_processes
+    response = MagicMock()
+    response.__enter__.return_value = response
+    response.status = 200
+    response.__exit__.side_effect = OSError('private transport detail')
+    monkeypatch.setattr(service_processes, 'urlopen', lambda *a, **k: response)
+    healthy, details = service_processes.probe_health(8081, '/live')
+    assert not healthy and details['status'] is None and details['reason'] == 'connection_error'
+
+
 @pytest.mark.parametrize('port,private', [(8080, 8081), (8090, 8091), (65535, 65534)])
 @pytest.mark.parametrize('total', [5, 12, 50])
 @pytest.mark.parametrize('migrate', [False, True])
