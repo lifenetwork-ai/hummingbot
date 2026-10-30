@@ -3,7 +3,9 @@
 Status: in progress. Source commit `e9a1645b7`; packaged image
 `sha256:dd602fb2238df0237f2c0aaa532407f31e47cdfbbd25575452b55a021765874c`
 is built (1,367,454,040 bytes). Both supervisor module hashes match the reviewed
-source. Full offline E2E with previous-image e526 upgrade/rollback is running.
+source. All 17 offline E2E groups pass, including previous-image e526 upgrade/rollback.
+Evidence: `build/e2e-offline/20261030-212044-749aa2/result.json`. Shipping
+supervisor crash/hang recovery is running; all-load and ordinary control remain pending.
 
 The operator requested a newly packaged image, full load including a continuous
 60-minute soak, and ordinary-entrypoint comparison. This scope preserves strict

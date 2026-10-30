@@ -204,8 +204,9 @@ the operator's tolerance of slow/explicitly stale aggregate reporting.
 - [x] Build the immutable image; verify packaged supervision source hashes and
   capture host power/lid state and Demo preservation baseline. Image `dd602fb2`
   is built; registry manifest pinning is part of E2E preparation.
-- [ ] Complete packaged runtime smoke and offline E2E, including prior-image
-  upgrade/rollback, on the newly built artifact.
+- [x] Complete packaged runtime smoke and offline E2E, including prior-image
+  upgrade/rollback, on the newly built artifact. All 17 groups pass at
+  `build/e2e-offline/20261030-212044-749aa2/result.json`.
 - [ ] Exercise shipping supervisor/API/engine crash/hang recovery on that image.
 - [ ] Run warm300/mixed900/burst90/soak3600 and all six fault cases with unchanged
   rates, resource caps, pool5, TTL15 and error/latency/retention budgets. The

@@ -20,7 +20,23 @@
         "--previous-image",
         "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454"
       ],
-      "log": "build/probe-release-20261030/e2e.log"
+      "log": "build/probe-release-20261030/e2e.log",
+      "finished_at": "2026-10-30T14:57:08.409140+00:00",
+      "exit_code": 0,
+      "artifacts": [
+        "build/e2e-offline/20261030-212044-749aa2/result.json"
+      ]
+    },
+    "supervision": {
+      "started_at": "2026-10-30T14:57:08.414821+00:00",
+      "command": [
+        "scripts/test_service_supervision.py",
+        "--image",
+        "sha256:dd602fb2238df0237f2c0aaa532407f31e47cdfbbd25575452b55a021765874c"
+      ],
+      "log": "build/probe-release-20261030/supervision.log"
     }
-  }
+  },
+  "registry_manifest_digest": "sha256:d3874a219b7116fe613e64d4f107f6109597a8185edf0ef42fae1e7a53831d4f",
+  "e2e_passed_groups": 17
 }
