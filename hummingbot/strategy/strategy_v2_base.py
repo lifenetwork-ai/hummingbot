@@ -678,20 +678,33 @@ class StrategyV2Base(StrategyPyBase):
 
     def _collect_initial_positions(self) -> Dict[str, List]:
         """
-        Collect initial positions from all controller configurations.
+        Collect initial positions, using managed MM seeds only before durable holds exist.
         Returns a dictionary mapping controller_id -> list of InitialPositionConfig.
         """
         if not self.config:
             return {}
 
         initial_positions_by_controller = {}
+        managed_controller_ids = []
         try:
             controllers_configs = self.config.load_controller_configs()
             for controller_config in controllers_configs:
                 if hasattr(controller_config, 'initial_positions') and controller_config.initial_positions:
                     initial_positions_by_controller[controller_config.id] = controller_config.initial_positions
+                    session_id = getattr(controller_config, "mm_session_id", None)
+                    if isinstance(session_id, str) and session_id.strip():
+                        managed_controller_ids.append(controller_config.id)
         except Exception as e:
             self.logger().error(f"Error collecting initial positions: {e}", exc_info=True)
+
+        # Legacy strategies retain explicit override semantics. Admin-managed MM
+        # must restore post-fill holds, including zero/partial snapshots, instead
+        # of reviving the deployment's initial exposure on every restart.
+        # A failed read must propagate; it is not evidence of an empty database.
+        if managed_controller_ids:
+            positions = MarketsRecorder.get_instance().get_all_positions(controller_ids=managed_controller_ids)
+            for position in positions:
+                initial_positions_by_controller.pop(position.controller_id, None)
 
         return initial_positions_by_controller
 

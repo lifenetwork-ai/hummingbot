@@ -10,6 +10,17 @@ ownership and HALT recovery use [PostgreSQL operations](postgres-runtime.md).
 Deployment is documented in [Cloud Run operations](cloudrun.md), and FE session
 controls in [FE integration](fe-integration.md).
 
+### Initial exposure and managed MM restart
+
+For an admin-managed MM session, YAML `initial_positions` is a bootstrap seed
+for a controller with no durable position rows. Once PostgreSQL holds exist,
+restart restores their quantity, cost basis and accumulated fees. A zero or
+partial durable snapshot still suppresses the old YAML seed; unknown exposure
+continues to require reconciliation. A database read failure cannot authorize
+an empty bootstrap. Unmanaged upstream strategies retain explicit YAML position
+override behavior. Changing the YAML seed does not repair existing MM exposure;
+use the reviewed recovery procedure in [PostgreSQL operations](postgres-runtime.md).
+
 ## Environment and credentials
 
 `OKX_TRADING_ENV=live|demo` selects one environment for the entire process,

@@ -67,6 +67,7 @@ test-cloudrun-regression:
 		test/hummingbot/connector/exchange/okx test/hummingbot/connector/derivative/okx_perpetual \
 		test/hummingbot/core/test_trading_core.py test/hummingbot/core/web_assistant \
 		test/hummingbot/strategy/test_strategy_v2_base.py \
+		test/hummingbot/strategy/test_mm_initial_position_bootstrap.py \
 		test/hummingbot/strategy_v2/executors/test_executor_orchestrator.py \
 		test/hummingbot/strategy_v2/executors/test_mm_drawdown_reports.py \
 		test/hummingbot/strategy_v2/executors/test_executor_retention.py \
