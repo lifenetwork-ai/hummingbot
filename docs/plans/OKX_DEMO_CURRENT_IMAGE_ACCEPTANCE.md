@@ -131,9 +131,16 @@ budgets. No live trading, registry publication outside loopback, or cloud deploy
   `build/service-supervision/20261030-145208-f3d592/result.json`.
 - [ ] Run the unchanged all-feature load gate: warm300, mixed900, burst90,
   continuous soak3600 and all six recovery faults; 2 CPUs/2GiB, pool5 and TTL15.
-- [ ] Validate complete per-role minute samples, stable PIDs and bounded
+  First attempt `20261030-145524-a2b39f` fails soak p99: primary1086.76ms,
+  auxiliary1137.27ms; zero HTTP errors. Warm/mixed/burst pass. Independent six
+  fault cases pass at `20261030-161919-6d9c57`; these do not turn the failed full
+  attempt into a pass. Preserve both results and repeat the unchanged full gate.
+- [x] Validate complete per-role minute samples, stable PIDs and bounded
   RSS/thread/descriptor/queue growth, three-profile coverage and exact fill/fee/
   position/funding ledgers. Keep the existing zero-error and p95/p99 budgets.
+  The failed first attempt nonetheless passes these specific retention/ledger
+  checks: 57 samples, max gap66.35s, stable role PIDs, 4,890 matching fills,
+  all three profiles and no retention violation. Its p99 violations remain open.
 - [ ] Complete matched ordinary-entrypoint warm300/mixed900 control using the
   passing load run's unchanged fixtures, image and resource limits.
 - [ ] Recheck persistent Demo preservation, clean temporary resources, publish

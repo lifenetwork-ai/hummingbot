@@ -35,9 +35,39 @@ crash/hang recovery, retaining HALT where appropriate, reaping old processes and
 releasing ownership at shutdown. Evidence:
 `build/service-supervision/20261030-145208-f3d592/result.json`.
 
+## First full load attempt — failed and retained
+
+Run `build/mm-load/20261030-145524-a2b39f/` passes warm300, mixed900 and
+burst90, with zero unexpected errors and exact ledgers. The continuous-hour
+soak fails the unchanged 1,000ms p99 budget: primary **1,086.76ms**, auxiliary
+**1,137.27ms**; p95 is 106.86/113.37ms and unexpected HTTP errors are zero.
+All 4,890 exchange/recorder fills and positions match, and both funding bills
+match. Random coverage includes all three profiles.
+
+The 57 minute samples pass the original retention checks: max gap66.35s, stable
+supervisor/engine/API PIDs, and no RSS/thread/descriptor/backlog violations.
+Engine first/last-five median RSS is 415.73/427.37MiB; API is 303.00/303.54MiB.
+This does not prove that future workloads cannot leak memory.
+
+The slowdown clusters in the final ten minutes and affects many endpoints,
+including lightweight reads. Engine and API event-loop delay maxima first
+observed near minute49.7 are 8.21s and 2.91s respectively. Therefore this run
+does not prove that API load cannot delay the engine, even though no fills were
+lost and no HALT occurred. Instantaneous minute-level DB samples showed no lock
+waits; that observation does not exclude shorter database contention. CPU
+throttling and host activity also changed near the episode, but the retained
+untraced data do not identify one root cause or establish causation. Do not
+reinterpret this attempt as a pass or attribute the older p99 incident to it.
+
+All six fault cases separately pass on the same image/configuration at
+`build/mm-load/20261030-161919-6d9c57/result.json`: feed, volatility defense,
+owner restart, queued expiry, delayed DB and DB failure. This separate result
+does not satisfy the failed all-profile gate. At the operator's request the
+environment is kept as-is; repeat the full unchanged gate and retain all attempts.
+
 ## Remaining gates
 
-The unchanged warm/mixed/burst/hour/fault gate is running. Matched ordinary-entrypoint control,
+The full warm/mixed/burst/hour/fault gate will be repeated. Matched ordinary-entrypoint control,
 the matched ordinary-entrypoint control and final Demo preservation checks remain
 open. No latency, memory, retry, rate, error or continuous-sampling budget has
 been relaxed. Exact progress is tracked in the

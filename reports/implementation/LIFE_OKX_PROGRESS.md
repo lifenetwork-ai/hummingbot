@@ -1885,3 +1885,12 @@ are running; unchanged all-load/hour/faults and ordinary-entrypoint control rema
 open. Persistent Demo remains stopped and its four ledger hashes were captured.
 The scope and live checklist are in [report](../e526-release.md) and
 [plan](../../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
+
+First full e526 load attempt `20261030-145524-a2b39f` fails: warm/mixed/burst
+pass, but hour primary p99 1086.76ms and auxiliary p99 1137.27ms exceed 1000ms.
+Zero unexpected HTTP errors, 4,890 matching fills/positions, three profiles,
+57 continuous samples and the complete retention gate pass. Near minute49.7,
+engine/API event-loop maxima observed are 8.21s/2.91s; do not infer engine is
+unaffected or claim one root cause. All six fault cases pass separately on e526
+at `20261030-161919-6d9c57`. Operator chose to keep the current host environment;
+the full unchanged gate will be repeated. Both results remain retained.

@@ -197,7 +197,7 @@
     }
   },
   "all_load": {
-    "status": "pending"
+    "status": "failed_pending_unchanged_repeat"
   },
   "production_control": {
     "status": "pending"
@@ -210,6 +210,191 @@
     "native.log": "2d0b40ff4ce22953b06ab0f833cd9dfd14812a3acb8260048cd303065ba43b2a",
     "postgres.log": "c5781979efc7b3b10dcd4e34dc35feda46860bb8621a20d05baa14236a260284",
     "swagger.log": "73aa40e366acedf5cbdfc288fe5aa6b4f733bd07b21acb1141d9a519cbc718b4",
-    "packaged-gc.log": "b38bad05647d05c7db5ee24ca16e5e1a1353c5cf718be2402bb36298d580a8ce"
-  }
+    "packaged-gc.log": "b38bad05647d05c7db5ee24ca16e5e1a1353c5cf718be2402bb36298d580a8ce",
+    "all-load.log": "d3e3c55276352dcdf944aa4c84c7744c3e0f3f27d1801fca4c2823959a603497",
+    "faults-separate.log": "f07ba8516ad3d5f4710122b44cc033e539820b143ee7245315a72c7c8a67b2f4"
+  },
+  "all_load_attempts": [
+    {
+      "status": "failed",
+      "report": "build/mm-load/20261030-145524-a2b39f/result.json",
+      "error": "Declared load budgets failed: auxiliary_read_p99, read_p99",
+      "windows": {
+        "warmup": {
+          "duration_seconds": 300,
+          "read_p95_ms": 52.69631001283415,
+          "read_p99_ms": 163.27459199237637,
+          "unexpected_errors": 0,
+          "violations": [],
+          "ledger": {
+            "unique_exchange_fills": 300,
+            "unique_recorder_fills": 300,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "auxiliary": {
+            "requested_reads": 1500,
+            "completed_reads": 1500,
+            "statuses": {
+              "200": 1500
+            },
+            "read_p95_ms": 43.3701729925815,
+            "read_p99_ms": 114.94275400764309
+          },
+          "market_updates_per_second": 100.00152841257551,
+          "fills_per_second": 1.0,
+          "profile_running_coverage": null
+        },
+        "mixed": {
+          "duration_seconds": 900,
+          "read_p95_ms": 62.39885900868103,
+          "read_p99_ms": 324.5097949693445,
+          "unexpected_errors": 0,
+          "violations": [],
+          "ledger": {
+            "unique_exchange_fills": 1200,
+            "unique_recorder_fills": 1200,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "auxiliary": {
+            "requested_reads": 4500,
+            "completed_reads": 4500,
+            "statuses": {
+              "200": 4500
+            },
+            "read_p95_ms": 63.6928949970752,
+            "read_p99_ms": 279.03510199394077
+          },
+          "market_updates_per_second": 99.99891408172412,
+          "fills_per_second": 1.0,
+          "profile_running_coverage": null
+        },
+        "bursts": {
+          "duration_seconds": 90,
+          "read_p95_ms": 66.2784890155308,
+          "read_p99_ms": 166.54985697823577,
+          "unexpected_errors": 0,
+          "violations": [],
+          "ledger": {
+            "unique_exchange_fills": 1290,
+            "unique_recorder_fills": 1290,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "auxiliary": {
+            "requested_reads": 450,
+            "completed_reads": 450,
+            "statuses": {
+              "200": 450
+            },
+            "read_p95_ms": 48.676281003281474,
+            "read_p99_ms": 139.60776198655367
+          },
+          "market_updates_per_second": 144.60668000464034,
+          "fills_per_second": 1.0,
+          "profile_running_coverage": null
+        },
+        "soak": {
+          "duration_seconds": 3600,
+          "read_p95_ms": 106.85738900792785,
+          "read_p99_ms": 1086.7581740312744,
+          "unexpected_errors": 0,
+          "violations": [
+            "auxiliary_read_p99",
+            "read_p99"
+          ],
+          "ledger": {
+            "unique_exchange_fills": 4890,
+            "unique_recorder_fills": 4890,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "auxiliary": {
+            "requested_reads": 18000,
+            "completed_reads": 18000,
+            "statuses": {
+              "200": 18000
+            },
+            "read_p95_ms": 113.37407701648772,
+            "read_p99_ms": 1137.2702789958566
+          },
+          "market_updates_per_second": 99.96105681511608,
+          "fills_per_second": 1.0,
+          "profile_running_coverage": [
+            {
+              "profile": "follow_market",
+              "step": 0,
+              "running_overlap_seconds": 599.0687503814697
+            },
+            {
+              "profile": "follow_token",
+              "step": 1,
+              "running_overlap_seconds": 594.9103879928589
+            },
+            {
+              "profile": "follow_token",
+              "step": 2,
+              "running_overlap_seconds": 595.9510519504547
+            },
+            {
+              "profile": "follow_token",
+              "step": 3,
+              "running_overlap_seconds": 595.0425701141357
+            },
+            {
+              "profile": "sideways",
+              "step": 4,
+              "running_overlap_seconds": 596.1407990455627
+            },
+            {
+              "profile": "follow_token",
+              "step": 5,
+              "running_overlap_seconds": 591.0243039131165
+            }
+          ]
+        }
+      },
+      "retention": {
+        "samples": 57,
+        "max_gap_seconds": 66.34688901901245,
+        "stable_pids": true,
+        "first_last_median_rss_bytes": {
+          "supervisor": [
+            133005312,
+            133005312
+          ],
+          "engine": [
+            435920896,
+            448131072
+          ],
+          "api": [
+            317722624,
+            318279680
+          ]
+        },
+        "retention_violations": []
+      },
+      "first_observed_engine_event_loop_max_ms": 8210.783180926228,
+      "first_observed_api_event_loop_max_ms": 2907.6901364314836,
+      "root_cause": "undetermined"
+    }
+  ],
+  "faults_separate": {
+    "passed": true,
+    "report": "build/mm-load/20261030-161919-6d9c57/result.json",
+    "cases": [
+      "feed",
+      "volatility-defense",
+      "owner-restart",
+      "queued-expiry",
+      "database-delay",
+      "database-failure"
+    ]
+  },
+  "operator_environment_choice": "continue current environment"
 }
