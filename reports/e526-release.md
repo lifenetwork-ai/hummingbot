@@ -21,10 +21,16 @@ retains automatic collection and reclaims 5,000 later cycles without refreezing.
 The four persistent Demo ledger/position fingerprints and stopped control state
 were captured for comparison after the run.
 
+## Full image E2E
+
+All **17 E2E groups pass**, including the packaged ABI/JIT/TLS/SDK/size smoke,
+seeded filled restart, nine MM mode/profile cases, guarded availability and
+compatible previous-image upgrade/rollback preserving economics. Results:
+`build/e2e-offline/20261030-141530-9aeb28/result.json`.
+
 ## Remaining gates
 
-All 17 E2E groups and the compatible previous-image upgrade/rollback are running.
-Shipping-role crash/hang recovery, unchanged warm/mixed/burst/hour/fault tests,
+Shipping-role crash/hang recovery is running. Unchanged warm/mixed/burst/hour/fault tests,
 the matched ordinary-entrypoint control and final Demo preservation checks remain
 open. No latency, memory, retry, rate, error or continuous-sampling budget has
 been relaxed. Exact progress is tracked in the

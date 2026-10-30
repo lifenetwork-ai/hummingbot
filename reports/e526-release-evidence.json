@@ -44,7 +44,50 @@
     "hummingbot/strategy_v2/executors/executor_orchestrator.py": "7a782e414eca8e6f5636f7546e24c7c7b2530a51b0769b57ce16c67e33f4b203"
   },
   "e2e": {
-    "status": "running"
+    "status": "passed",
+    "report": "build/e2e-offline/20261030-141530-9aeb28/result.json",
+    "groups": 17,
+    "runtime_smoke": {
+      "passed": true,
+      "numba_jit": true,
+      "ta_lib": true,
+      "tls_trust": true,
+      "connector_count": 63,
+      "sql_scripts": 17,
+      "build_tools_absent": true,
+      "cli_version": "hbot 2.17.0",
+      "environment_bytes": 1266556462,
+      "service_logging": {
+        "passed": true,
+        "all_severities": true,
+        "network_warning": true,
+        "utc_context": true,
+        "redaction": true,
+        "startup_failure_json": true,
+        "python_warning_json": true,
+        "sql_parameters_suppressed": true
+      }
+    },
+    "scenarios": {
+      "schema": true,
+      "spot": true,
+      "v2-spot": true,
+      "v2-perpetual": true,
+      "life-mm": true,
+      "initial-position-restart": true,
+      "until-stopped": true,
+      "funding": true,
+      "availability": true,
+      "quote-guards": true,
+      "drawdown": true,
+      "spot-outflow": true,
+      "listing-bootstrap": true,
+      "inventory-skew": true,
+      "spread-policy": true,
+      "volatility-defense": true,
+      "upgrade": true
+    },
+    "release_scope_complete": true
   },
   "shipping_roles": {
     "status": "pending"

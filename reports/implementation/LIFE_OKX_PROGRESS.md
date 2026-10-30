@@ -1873,3 +1873,15 @@ for forensics, no history deletion/wipe/live trading/push/Cloud Run deployment.
 All positive-follow-up and remediation checklist items are checked. Earlier
 partial/failing evidence above remains historical. See the completed
 [report](../okx-demo-natural-fill.md) and [evidence](../okx-demo-natural-fill-evidence.json).
+
+## Fixed-image full release revalidation (2026-10-30; in progress)
+
+Operator requests the full release and continuous-hour soak for e526. Native2,047
+plus11subtests, disposable PostgreSQL268, Swagger, ten shipping-module fingerprints
+and packaged GC 5,000-cycle reclamation pass. All17 offline E2E groups pass at
+`build/e2e-offline/20261030-141530-9aeb28/result.json`, including the seeded filled
+restart and prior715a-compatible upgrade/rollback. Shipping-role crash/hang tests
+are running; unchanged all-load/hour/faults and ordinary-entrypoint control remain
+open. Persistent Demo remains stopped and its four ledger hashes were captured.
+The scope and live checklist are in [report](../e526-release.md) and
+[plan](../../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
