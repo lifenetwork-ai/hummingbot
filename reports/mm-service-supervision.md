@@ -476,3 +476,15 @@ connectivity or LIFE listing performance. Cold million-fill SQL can still exceed
 its two-second deadline. One hour within the retention budgets is not a guarantee
 against every multi-day memory leak. Persistent Demo image/database and its
 stopped trading state remain unchanged; no push or deployment is performed.
+
+## Accepted reporting tradeoff
+
+Operator clarification on 2026-10-30: slower historical/daily reports are
+acceptable provided trading-engine availability and correctness are preserved.
+Cold million-fill aggregation latency alone is not a delivery blocker. Bounded
+report admission, separate API/engine pools, existing timeouts and explicit
+timeout/staleness responses remain operational safeguards. Optional report
+failure alone must not stop the engine; mandatory ownership/DB safety gates
+remain authoritative. CPU/PostgreSQL are shared, so process separation is not
+an unlimited resource-isolation guarantee. Current 100k-history acceptance and
+the standalone million-fill SQL benchmark retain their existing measured scopes.

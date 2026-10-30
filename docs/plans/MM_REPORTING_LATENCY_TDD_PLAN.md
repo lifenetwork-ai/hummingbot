@@ -12,6 +12,22 @@ and matched ordinary-entrypoint control pass. Earlier decisions/failures below
 retain their original artifact scope. No Cloud Run deployment or real Demo
 replacement is included; cold million-fill SQL cost remains unchanged.
 
+Operating priority clarified by the operator on 2026-10-30: slower historical
+and daily aggregation is acceptable. Million-fill reporting latency alone is
+not a delivery blocker or a requirement for further SQL optimization. Reporting
+work must remain bounded and preserve engine feed processing, order/cancel
+handling, ownership, recorder and recovery behavior. An optional report failure
+alone must not stop trading; mandatory DB/ownership failures retain their safety
+gates. Report timeout/staleness must remain visible to the UI.
+
+The selected runtime separates API/engine processes and pools (two/three slots
+at the default total five), but still shares CPU and PostgreSQL resources.
+Acceptance therefore depends on measured engine behavior under reporting load,
+not on a claim of unlimited isolation. Existing timeouts and admission limits
+remain in place. The passing 100k-history gate and standalone million-fill SQL
+benchmark retain their distinct scopes; this clarification does not reclassify
+historical failures or certify a million-fill concurrent engine/load gate.
+
 - [x] R1: Compare existing/candidate SQL on 100k/1M fills, repeated and diverse
   original-currency fees; preserve exact paid/rebate/net amounts, volume, missing
   conversion, pair/market/day/timezone and late-fill semantics. Retain candidates
