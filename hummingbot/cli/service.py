@@ -262,6 +262,42 @@ class ServiceHost:
         return (not self.stop.is_set() and getattr(self.owner, "shutdown_requested", False) is not True
                 and self.runtime_problem() is None)
 
+    async def confirmed_runtime_problem(self):
+        problem = self.runtime_problem()
+        if problem != "controller_task_stalled":
+            return problem
+        now = time.monotonic()
+        for identity, controller in getattr(self.hb.trading_core.strategy, "controllers", {}).items():
+            progress = getattr(controller, "_control_progress_at", None)
+            if isinstance(progress, (float, int)) and now - progress > max(5, 3 * controller.update_interval):
+                self.log.warning(
+                    "Controller progress overdue id=%s stage=%s age_s=%.3f; confirming after ready callbacks",
+                    identity, getattr(controller, "_control_stage", "unknown"), now - progress,
+                    extra={"event": "controller_stall_confirmation", "reason_code": problem, "scope": "runtime"})
+        # After a delayed event loop the observer can run before an expired
+        # timer wakes the controller. A timer checkpoint follows already-due
+        # timers and their waiting tasks, unlike sleep(0)'s ready-queue shortcut.
+        # Check again before persisting HALT. This adds no timed grace and never
+        # resets a heartbeat: runtime_healthy still blocks sends until actual
+        # controller progress. A stuck task or explicit failure still halts.
+        loop = asyncio.get_running_loop()
+        turn = loop.create_future()
+
+        def resume():
+            if not turn.done():
+                turn.set_result(None)
+
+        timer = loop.call_later(0, resume)
+        try:
+            await turn
+        finally:
+            timer.cancel()
+        problem = self.runtime_problem()
+        if problem is None:
+            self.log.info("Controller progress recovered before stall confirmation",
+                          extra={"event": "controller_stall_recovered", "scope": "runtime"})
+        return problem
+
     async def admit_mm_session(self):
         if self.mm_session is None or self.mm_session.status not in ("preparing", "running"):
             return False
@@ -597,7 +633,7 @@ class ServiceHost:
                 raise RuntimeError("Risk-stop cleanup did not complete.")
             self.halt_requested = False
         if self.running:
-            problem = self.runtime_problem()
+            problem = await self.confirmed_runtime_problem()
             if problem is not None:
                 self.availability.fail("runtime", problem, operator=True)
                 self.owner.require_recovery("A required runtime task failed; inspect service availability status.")

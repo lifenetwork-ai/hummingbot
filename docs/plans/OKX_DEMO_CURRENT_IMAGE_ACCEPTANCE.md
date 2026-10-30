@@ -254,3 +254,21 @@ Progress: [packaged release report](../../reports/probe-release-20261030.md).
   closed with evidence about that event, not by a passing unrelated run.
 
 Evidence: [Random handover investigation](../../reports/mm-random-handover.md).
+
+### Controller scheduling follow-up — 2026-10-31
+
+The corrected-client repeat `20261031-044542-876453` reached a separate runtime
+HALT (`controller_task_stalled`) near soak minute 50. Preserve that failed run;
+do not describe it as a successful Random/release gate or an OKX outage.
+
+- [x] Reproduce the observer/ready-controller ordering race with Red/Green
+  tests. A delayed ready callback and an already-expired timer must get their
+  waiting controller scheduled before a persistent HALT decision. Keep the
+  synchronous send gate closed until actual progress; a genuinely stuck task,
+  explicit task failure and shutdown cancellation remain covered.
+- [ ] Verify the correction on immutable shipping images with a controlled
+  engine scheduling pause, retaining both old/new results. This fault experiment
+  does not prove the precise cause of the older host's scheduling delay.
+- [ ] Run the affected packaged regression and unchanged full load/retention
+  gates on the new image. Report any new failure without raising deadlines or
+  waiving errors. Preserve Demo and commit the final defect/cause report.
