@@ -193,6 +193,10 @@ The current [ownership contract](../docs/fe-integration.md#what-can-change-and-w
 supersedes the original request-override behavior. Unchecked external tasks are
 not failures of the backend test suite.
 
+Current status (2026-10-30): the remaining open tasks are U0 (operator/FE access
+route and browser verification) and U4 (UI implementation in the separate FE
+repository). They are outside the completed backend/local-runtime acceptance.
+
 - [x] Inventory the 19 registered operations, including three documentation routes.
 - [x] Review control, freshness, accounting scopes, history and Cloud Run access.
 - [x] Verify focused API/runtime tests and generated-contract drift.

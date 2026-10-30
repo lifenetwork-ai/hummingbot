@@ -1,5 +1,11 @@
 # Daily reporting latency remediation
 
+Current follow-up status (2026-10-30): R2/R3 and the later supervised runtime's
+local image/load/hour/fault/control acceptance are complete; see the
+[current runtime report](mm-service-supervision.md). The R1 SQL decision and
+cold million-fill scalability limit below are unchanged. Historical candidate
+results do not certify later images or resolve the original p99 attribution.
+
 R1 decision (2026-10-29): keep the existing SQL. None of the tested alternatives
 establishes a safe improvement across the declared workloads. The confirmed
 reporting timeout remains a scalability limitation; no SQL fix or new release

@@ -6,6 +6,12 @@ mutations or trading were performed. Project/region/DB/registry/secret identitie
 and the FE access route were requested from the operator; a concrete deployment
 configuration is pending those inputs.
 
+Current status (2026-10-30): the local template/review work is complete. Actual
+cloud work below is deferred while the operator prioritizes local verification;
+its open items require deployment inputs and cloud/FE access. They are outside
+the completed [local runtime acceptance](mm-service-supervision.md), and local
+test passes do not close them.
+
 ## Completed locally
 
 - [x] Inspect the runtime defaults, service health/state behavior, credential
@@ -82,6 +88,10 @@ The completed [availability release evidence](life-mm-availability-remediation.m
 retains its original runtime scope.
 
 ## Pending actual cloud work
+
+Deferred external checklist. Owner: deployment operator, with the separate FE
+repository for browser/gateway acceptance. These items are intentionally open;
+they do not indicate unfinished backend fixes or authorize a deployment.
 
 - [ ] Fill the operator worksheet and produce/review the concrete service YAML.
 - [ ] Verify remote image manifest, service account, secret versions, SQL roles,

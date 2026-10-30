@@ -1,7 +1,31 @@
 # LIFE / OKX implementation progress
 
-Updated: 2026-10-27 (Asia/Ho_Chi_Minh).
+Updated: 2026-10-30 (Asia/Saigon).
 Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
+
+## Current status — 2026-10-30
+
+- **Completed local runtime phase:** selected image `715a11f3…`; final regression,
+  E2E, lifecycle, unchanged load/hour/faults and matched ordinary-entrypoint control
+  pass. See the [completed reporting plan](../../docs/plans/MM_REPORTING_LATENCY_TDD_PLAN.md),
+  [acceptance report](../mm-service-supervision.md) and
+  [portable evidence](../mm-service-supervision-evidence.json).
+- **Next recommended verification:** actual OKX Demo preflight and controlled
+  sessions on this selected image. Earlier Demo acceptance retains its own image
+  scope; no new Demo trading is claimed by the completed local gate.
+- **Deferred external work:** actual Cloud Run provisioning/deployment and FE
+  browser integration. Their current checklists are in the
+  [cloud readiness review](../cloudrun-readiness-review.md#pending-actual-cloud-work)
+  and [dashboard review](../admin-api-dashboard-ux-review.md#recommended-implementation-order).
+- **Known limits:** cold million-fill SQL can exceed the two-second deadline;
+  the unique cause of the original historical p99 spike is not established.
+
+The sections below are a chronological journal, not the current task queue.
+“Historical follow-up (superseded)” records what was pending at that stage and
+was later superseded by the selected image's completed local acceptance. It does
+not turn a failed or interrupted earlier image/run into a pass. Current delivery
+checklists live in `docs/plans/`; genuine cloud/FE tasks remain explicitly open in
+the linked external-work reviews.
 
 ## P1 — Controller and configuration foundation
 
@@ -1361,8 +1385,8 @@ retain both earlier failed/interrupted attempts and the final accepted run.
   selected project forwards using a local gcloud argument-capture fixture.
 - [x] Publish the first-deployment worksheet/checklist and FE gateway IAM/Basic
   Auth contract in existing guides; pass 55 focused tests and Swagger check.
-- [ ] Fill actual operator project/region/DB/registry/secrets/access-route values;
-  verify cloud stopped startup and FE browser access after reviewed deployment.
+- **Deferred external work:** Fill actual operator project/region/DB/registry/secrets/access-route
+  values; verify cloud stopped startup and FE browser access after reviewed deployment.
 
 See [readiness review](../cloudrun-readiness-review.md). No cloud provisioning,
 push/deployment, new image/load claim or trading occurred in this step.
@@ -1394,9 +1418,10 @@ to `be3efe46…`. FE browser acceptance and listing/cloud checks remain pending.
   (one selected test passes, 256 deselected); no full regression claim.
 - [x] Pass the matched production-entrypoint 300s/900s control without the load
   wrapper: mixed p99 659.99 ms, zero errors, 1,200 matching fills/positions.
-- [ ] Uniquely attribute the original historical spike or establish repeatable
-  final-image healthy SLOs; one control cannot isolate instrumentation/GIL/host
-  scheduling/emulation. No runtime fix or new release gate is claimed.
+- **Historical follow-up (resolved in part):** final-image healthy SLO acceptance
+  was subsequently completed on `715a11f3…`; see the current status above.
+  Exclusive attribution of the original spike remains an evidence limitation.
+  The diagnostic runs in this section retain their original scope.
 
 See [investigation](../mm-p99-investigation.md) and
 [evidence](../mm-p99-investigation-evidence.json). The prior accepted gate keeps
@@ -1409,8 +1434,10 @@ isolated dummy exchange. No cache, pool, deadline or trading policy was changed.
   2 CPU / 512 MiB paired comparison; all result rows Decimal-equal.
 - [x] Reject grouped payloads, text-rescan and filtered/derived-net changes after
   inconsistent gains or regressions. No runtime SQL change retained.
-- [ ] R2 bounded, explicitly stale daily-only fallback and Red/Green tests.
-- [ ] R3 submit-to-worker-start diagnostics, final-image regression/load controls.
+- **Historical follow-up (superseded):** R2 bounded, explicitly stale daily-only fallback and
+  Red/Green tests.
+- **Historical follow-up (superseded):** R3 submit-to-worker-start diagnostics, final-image
+  regression/load controls.
 
 See [report](../mm-reporting-latency.md), [evidence](../mm-reporting-latency-evidence.json)
 and [plan](../../docs/plans/MM_REPORTING_LATENCY_TDD_PLAN.md). The confirmed 2s
@@ -1431,8 +1458,9 @@ reporting timeout and original historical p99 attribution are not declared fixed
   Short 30s runs pass but do not replace mixed/hour acceptance.
 - [x] Promote a reproducible diagnostic runner/Make target with nonzero healthy
   failure exit, excluding prototypes and runner from the deployment artifact.
-- [ ] Adopt production process isolation: not justified as a blanket p99 fix;
-  lifecycle, API-restart policy, supported pool/port handling and full gates remain.
+- **Historical follow-up (superseded):** Adopt production process isolation: not justified as a
+  blanket p99 fix; lifecycle, API-restart policy, supported pool/port handling and full gates
+  remain.
 
 See [experiment](../mm-process-isolation-experiment.md) and
 [evidence](../mm-process-isolation-evidence.json). Existing priority-test scheduling
@@ -1449,7 +1477,8 @@ stopped. R2 daily fallback / R3 queue diagnostics remain open in the reporting p
 - [x] Preserve healthy load strictness: HTTP 200 stale counts as an error.
 - [x] 53 focused tests; 700 CLI/admin-config tests; 22 real-PG reporting/funding
   tests including actual timeout/recovery/schema errors; Swagger generation/check.
-- [ ] R3 worker-start queue diagnostics and final-image E2E/load verification.
+- **Historical follow-up (superseded):** R3 worker-start queue diagnostics and final-image E2E/load
+  verification.
 
 See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-evidence.json).
 SQL cost and historical p99 attribution remain open. No new production process
@@ -1462,7 +1491,8 @@ architecture adopted; real Demo remains stopped on its existing image.
   physical queue wait, bounded samples, cancellation, errors and control dispatch.
 - [x] Add one fixed test-only metric/trace event; production capacities and
   scheduler unchanged. SQL pool wait remains separately measured.
-- [ ] R3b live profiling; candidate image and unchanged final-image gates.
+- **Historical follow-up (superseded):** R3b live profiling; candidate image and unchanged
+  final-image gates.
 
 See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-evidence.json).
 
@@ -1476,7 +1506,8 @@ See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-
   independent ledger invariants pass. Worker/pool/loop metrics now distinguish
   different queues; individual >1s requests still exist and original attribution
   remains unassigned. No pool expansion or scheduler change.
-- [ ] Full-image E2E, unchanged mixed/burst/hour/fault gates and production control.
+- **Historical follow-up (superseded):** Full-image E2E, unchanged mixed/burst/hour/fault gates and
+  production control.
 
 See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-evidence.json).
 
@@ -1495,14 +1526,14 @@ See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-
 - [x] Two Red tests / 55 focused Green tests; safe pop treats expiry as a miss.
 - [x] Stop pre-fix all-profile gate before soak; retain warmup pass and an
   explicit superseded annotation. No incomplete window is counted as acceptance.
-- [ ] Rebuild/reverify the corrected final artifact; previous 90490bab results
-  remain image-specific. Real Demo stays stopped and unchanged.
+- **Historical follow-up (superseded):** Rebuild/reverify the corrected final artifact; previous
+  90490bab results remain image-specific. Real Demo stays stopped and unchanged.
 
 - [x] Corrected image `58356746…`: 1,940 native tests plus eleven subtests,
   Swagger check, 259 PostgreSQL tests, runtime smoke and packaged-source checks
   pass. Runtime package manifest unchanged.
-- [ ] Corrected artifact E2E/control/full all-profile load; no historical-image
-  result substitutes for this verification.
+- **Historical follow-up (superseded):** Corrected artifact E2E/control/full all-profile load; no
+  historical-image result substitutes for this verification.
 
 ## Single-service supervision follow-up (2026-10-29)
 
@@ -1514,8 +1545,8 @@ See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-
   and positions, preserving HALT without extra orders after engine death.
 - [x] Record failed 300s/900s healthy windows rather than accept a 30s pass.
   Healthy p99 1754.99ms; memory samples show no sustained growth in this window.
-- [ ] Trace the intermittent latency; production adoption and the hour-long
-  memory/final-image gates remain open. Persistent Demo remains stopped.
+- **Historical follow-up (superseded):** Trace the intermittent latency; production adoption and the
+  hour-long memory/final-image gates remain open. Persistent Demo remains stopped.
 
 See [process experiment](../mm-process-isolation-experiment.md).
 
@@ -1527,8 +1558,9 @@ See [process experiment](../mm-process-isolation-experiment.md).
   causing invalid negative lag. Snapshot once; 28 selected tests pass.
 - [x] Corrected 300s trace p99 358.09ms, zero errors, seven valid initial API
   loop samples; all recovery fault checks pass again. No GC/pool policy change.
-- [ ] Production promotion, stable healthy latency, continuous-hour memory and
-  final architecture/image gates remain open. RAM is not the rejection reason.
+- **Historical follow-up (superseded):** Production promotion, stable healthy latency,
+  continuous-hour memory and final architecture/image gates remain open. RAM is not the rejection
+  reason.
 
 No auto-reset HALT or operator Resume endpoint is implemented. Persistent Demo
 remains stopped on its original image; no Cloud Run deployment.
@@ -1556,9 +1588,10 @@ remains stopped on its original image; no Cloud Run deployment.
   focused real-container forced-refresh/full-fault retest passes at
   `20261029-210516-4f66fe`. Engine/session identity, HALT, positions and absence
   of additional orders remain checked. Original long failure is not reclassified.
-- [ ] Cold million-fill query cost, production supervision integration,
-  ordinary-entrypoint/full final-image load and continuous-hour memory gates
-  remain open. Current passing latency windows are not final release acceptance.
+- **Current limitation:** cold million-fill SQL cost is unchanged.
+  **Closed follow-up:** production supervision integration, final-image load/hour
+  and matched ordinary-entrypoint control subsequently pass on `715a11f3…`.
+  Passing diagnostic windows in this earlier section remain scoped to their runs.
 
 ## Production supervision integration — native phase (2026-10-29)
 
@@ -1569,9 +1602,9 @@ remains stopped on its original image; no Cloud Run deployment.
   isolation. Existing engine/recovery/control handlers remain reused.
 - [x] 95 selected native checks pass, including initialization interruption,
   read-only API schema validation, retryable bootstrap, readiness and safe logs.
-- [ ] Update actual-role offline instrumentation, build/reverify the final image
-  and complete the unchanged load/hour/recovery gates. No Demo replacement or
-  Cloud Run deployment has occurred.
+- **Historical follow-up (superseded):** Update actual-role offline instrumentation, build/reverify
+  the final image and complete the unchanged load/hour/recovery gates. No Demo replacement or Cloud
+  Run deployment has occurred.
 
 See [current runtime verification](../mm-service-supervision.md).
 
@@ -1583,9 +1616,9 @@ See [current runtime verification](../mm-service-supervision.md).
 - [x] Complete native regression: 2,009 tests plus 11 subtests pass; Swagger and
   offline deployment-template review pass. Shared DB pool remains total five:
   API two, engine three. A configured ten means API two, engine eight.
-- [ ] Final Dockerfile build, real PostgreSQL regression, full final-image E2E,
-  continuous-hour load/memory and ordinary-entrypoint control are in progress.
-  No persistent Demo replacement, real trading start or Cloud Run deployment.
+- **Historical follow-up (superseded):** Final Dockerfile build, real PostgreSQL regression, full
+  final-image E2E, continuous-hour load/memory and ordinary-entrypoint control are in progress. No
+  persistent Demo replacement, real trading start or Cloud Run deployment.
 
 Final Dockerfile image `4da2f008…` is built and fingerprinted; packaged ABI,
 connector/SQL assets and logging smoke pass. PostgreSQL initially has 257 passes
@@ -1622,10 +1655,10 @@ orders, engine-only migrations and clean 3.28s parent shutdown/ownership release
 - [x] Corrected full16 E2E `20261030-003620-4745f4` passes on `f5e7…` / manifest
   `cee15b5a…`, including compatible image rollback. R6 image/regression phase is
   checked complete; both earlier full failures are retained.
-- [ ] Start unchanged all-feature all-profile load, burst and continuous-hour
-  per-role memory/fault gates, then matched uninstrumented production control.
-  Two CPUs/2GiB, total pool5 (API2/engine3), daily TTL15; no parallel performance
-  jobs. No persistent Demo replacement or Cloud Run deployment.
+- **Historical follow-up (superseded):** Start unchanged all-feature all-profile load, burst and
+  continuous-hour per-role memory/fault gates, then matched uninstrumented production control. Two
+  CPUs/2GiB, total pool5 (API2/engine3), daily TTL15; no parallel performance jobs. No persistent
+  Demo replacement or Cloud Run deployment.
 
 The first long load `20261030-011239-d491a4` is interrupted during mixed: its
 warmup passes (p99 408.83ms, zero errors) but the emulated process sampler retains

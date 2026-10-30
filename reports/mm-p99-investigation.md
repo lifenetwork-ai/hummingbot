@@ -2,6 +2,13 @@
 
 2026-10-29. [Portable evidence](mm-p99-investigation-evidence.json).
 
+Current follow-up status (2026-10-30): final-image local acceptance is complete
+on `715a11f3…`, including unchanged hour/load/faults and matched ordinary control.
+See [the accepted runtime report](mm-service-supervision.md). The original
+diagnostic observations below retain their original image scope. Exclusive
+attribution of the original spike remains unknown; later passes do not supply
+its missing trace or reclassify these failed diagnostics.
+
 **The latency class is reproducible with tracing both enabled and disabled.**
 The dominant observed flow is an event-loop/scheduling stall followed by server
 and client queueing under the one-CPU, emulated synthetic workload. A separate
@@ -18,8 +25,13 @@ No runtime patch, new cache, pool increase or budget change is claimed.
 - [x] Replay CPU components and reuse the existing real-PG 100k-fill reporting benchmark.
 - [x] Run the production entrypoint without the load wrapper for matched 300s/900s windows.
 - [x] Publish failures, successful controls and measurement limits; preserve the real Demo service stopped.
-- [ ] Attribute one exclusive source-level trigger to the original historical failure; its missing trace prevents that conclusion from the retained artifact.
-- [ ] Establish repeatable final-image healthy SLO acceptance before deployment; these diagnostic runs do not replace E2E/hour/fault acceptance.
+- [x] Complete the later final-image healthy SLO follow-up on `715a11f3…` through
+  its own E2E/hour/fault and ordinary-control gates; see the accepted report above.
+  These original diagnostics do not substitute for those gates.
+
+Known evidence limitation: the original historical failure has no retained trace
+that establishes one exclusive source-level trigger. It is not an unfinished
+implementation checklist item or a claim of resolved historical causality.
 
 ## Test matrix
 

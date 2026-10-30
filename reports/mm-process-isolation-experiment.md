@@ -1,13 +1,16 @@
 # Single-service API/engine process isolation experiment
 
 Historical diagnostic results below keep their original scope. Native runtime
-integration has now begun; follow [current verification](mm-service-supervision.md)
-for image/lifecycle/load acceptance. Earlier passing probes do not certify it.
+integration and local final-image/lifecycle/load/hour/control acceptance completed
+on 2026-10-30; see [current verification](mm-service-supervision.md). Earlier
+passing probes do not certify the selected image by themselves.
 
 The experiment retains one Cloud Run service, one container and one image.
 Separate Python API/engine processes demonstrably isolate a blocked engine loop,
-but do **not** establish final architecture/load acceptance. Keep the production entrypoint
-unchanged. The daily fee SQL timeout and historical p99 attribution remain open.
+but did **not** establish final architecture/load acceptance at that stage. The
+baseline decision was to keep the production entrypoint unchanged until later
+integration and verification. The daily fee SQL scalability limit and historical
+p99 attribution remain unresolved.
 
 [Portable evidence](mm-process-isolation-evidence.json) includes samples,
 per-route summaries, fixture hashes, resource limits and verification scope.

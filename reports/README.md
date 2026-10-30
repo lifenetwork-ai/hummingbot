@@ -5,14 +5,19 @@ and sanitized acceptance artifacts. Each report retains its original image,
 source revision, environment and verification limits. A passing historical run
 does not certify a later image. Operational guides and plans live in [docs/](../docs/README.md).
 
+Use the current status at the top of each report. The implementation progress
+file is a chronological journal; superseded pending items are history rather
+than active checkboxes. The remaining cloud/FE checklists explicitly name their
+external scope. Known evidence/performance limitations are not marked as done.
+
 | Report | Associated artifact or scope |
 |---|---|
 | [Runtime supervision](mm-service-supervision.md) | Local acceptance complete: final image/regression/E2E/lifecycle, hour/load/faults and matched ordinary-entrypoint control pass; prior failures retained |
 | [LIFE / OKX progress](implementation/LIFE_OKX_PROGRESS.md) | Phase history and Red/Green verification |
 | [Cloud Run launch preparation](cloudrun-readiness-review.md) | Template/review/project-selection TDD, stopped-startup checklist and pending cloud inputs |
 | [Local Demo startup](local-demo-startup.md), [evidence](local-demo-startup-evidence.json) | Rebuilt runtime smoke, preserved Demo DB/config and authenticated stopped-service API |
-| [Single-service process isolation](mm-process-isolation-experiment.md), [evidence](mm-process-isolation-evidence.json) | Test-only split; TTL15 latency windows pass, long fault-check failure retained and focused refresh retest passes; production topology unchanged |
-| [Daily reporting latency](mm-reporting-latency.md), [evidence](mm-reporting-latency-evidence.json) | SQL scaling unresolved; qualified fallback image/E2E verified; final architecture/load gates pending |
+| [Single-service process isolation](mm-process-isolation-experiment.md), [evidence](mm-process-isolation-evidence.json) | Historical experiment and retained failures; later runtime adoption/acceptance is in the runtime supervision report |
+| [Daily reporting latency](mm-reporting-latency.md), [evidence](mm-reporting-latency-evidence.json) | SQL scaling unresolved; fallback verified; later final architecture/load acceptance is complete in the runtime supervision report |
 | [P99 investigation](mm-p99-investigation.md), [evidence](mm-p99-investigation-evidence.json) | Reproduced traced/untraced tails, confirmed daily SQL timeout, production-entrypoint control and remaining attribution limits |
 | [Service availability audit](life-mm-availability-audit.md), [evidence](life-mm-availability-audit-evidence.json), [TDD remediation](life-mm-availability-remediation.md) | Five TDD fixes complete; 16 image E2E groups, continuous hour and six post-hour faults pass; original failures retained |
 | [MM volatility defense](mm-volatility-defense.md), [evidence](mm-volatility-defense-evidence.json) | Weighted levels, reduced sizing, durable pause/recovery and current acceptance status |
