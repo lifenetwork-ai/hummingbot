@@ -686,6 +686,55 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert not self.ledger()["unknown"]
         self.no_runtime_files(first)
 
+    def initial_position_restart_scenario(self):
+        """A managed MM seed cannot replace post-fill holds during restart."""
+        import yaml
+
+        path = self.assets / 'life_mm_profiles.yaml'
+        original = path.read_text()
+        profiles = yaml.safe_load(original)
+        profiles['markets']['perpetual']['initial_positions'] = [
+            dict(connector_name='okx_perpetual', trading_pair='LIFE-USDT', amount='1', side=side)
+            for side in (1, 2)]
+        path.write_text(yaml.safe_dump(profiles))
+        self.control(initial_positions=[dict(instId='LIFE-USDT-SWAP', posSide=side, pos='100',
+                                             avgPx='0.1', notionalUsd='10', lever='1', upl='0')
+                                        for side in ('long', 'short')])
+        self.env.update(ADMIN_API_ENABLED='true', ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')
+        first, port = self.start('initial-seed')
+        self.mm_command(port, 'start', market_mode='both', selection='fixed', profile_id='sideways', duration_seconds=600)
+        session = self.state()['mm_session']
+
+        def live_buys():
+            orders = [x for x in self.ledger()['orders'] if x['side'] == 'buy' and x['state'] == 'live']
+            return orders if {x['instId'] for x in orders} == {'LIFE-USDT', 'LIFE-USDT-SWAP'} else None
+
+        buys = poll(live_buys, description='seeded MM quotes admitted')
+        for instrument in ('LIFE-USDT', 'LIFE-USDT-SWAP'):
+            order = next(x for x in buys if x['instId'] == instrument)
+            self.control(fill=dict(clOrdId=order['clOrdId'], amount=order['sz'], fee='0.001'), duplicate=True)
+        poll(lambda: self.sql('SELECT count(*) FROM trade_fills') == '2', description='deduplicated spot/perpetual fills')
+        exposure = position_exposure(self.ledger()['positions'])
+        self.terminate(first)
+        snapshot_sql = "SELECT controller_id,side,amount,breakeven_price,cum_fees_quote FROM positions ORDER BY controller_id,side"
+        stored = self.sql(snapshot_sql)
+        assert '0.001' in stored
+        second, port = self.start('filled-seed-restart', auto_migrate=False)
+        self.wait_running(port)
+        restored = self.state()['mm_session']
+        assert all(restored[key] == session[key] for key in ('id', 'anchors', 'started_at', 'expires_at', 'generation'))
+        assert not self.state()['recovery_state'].get('halt')
+        assert self.sql(snapshot_sql) == stored
+        self.mm_command(port, 'stop')
+        assert self.sql(snapshot_sql) == stored and self.sql('SELECT count(*) FROM trade_fills') == '2'
+        assert position_exposure(self.ledger()['positions']) == exposure
+        assert all(x['state'] in ('filled', 'canceled') for x in self.ledger()['orders'])
+        self.terminate(second)
+        path.write_text(original)
+        self.metrics['managed_initial_position_restart'] = dict(durable_seed_once=True, filled_restart=True,
+                                                                exact_quantity_cost_fees=True, unique_fills=2,
+                                                                session_pinned=True, clean_stop=True)
+
     def mm_scenario(self, *, matrix=True):
         print("Offline E2E: LIFE admin three scenarios x spot/perpetual/both", flush=True)
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin", FUNDING_SYNC_INTERVAL_SECONDS="5")
@@ -1639,7 +1688,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
@@ -1682,7 +1731,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense") if args.scenario == "all" else (args.scenario,)
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
             result["scenarios"] = {}
@@ -1696,6 +1745,8 @@ def main():
                         harness.scenario()
                     elif scenario == "schema":
                         harness.schema_scenario()
+                    elif scenario == "initial-position-restart":
+                        harness.initial_position_restart_scenario()
                     elif scenario == "until-stopped":
                         harness.until_stopped_scenario()
                     elif scenario == "funding":

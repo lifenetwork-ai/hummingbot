@@ -385,6 +385,13 @@ class Exchange:
             self.funding_error = bool(data["funding_error"])
         if data.get("clear_positions"):
             self.positions.clear()
+        if "initial_positions" in data:
+            # Fixture setup only: represent exposure held before this process.
+            assert not self.orders and not self.fills and not self.positions
+            for position in data["initial_positions"]:
+                assert Decimal(position["pos"]) > 0 and position["posSide"] in ("long", "short")
+                self.positions[(position["instId"], position["posSide"])] = copy.deepcopy(position)
+            self.mark_positions()
         if "replay_trade_id" in data:
             fill = next(item for item in self.fills if item["tradeId"] == data["replay_trade_id"])
             await self.broadcast(self.event(self.orders[fill["clOrdId"]], fill))
