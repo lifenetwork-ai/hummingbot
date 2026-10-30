@@ -1840,3 +1840,10 @@ Follow-up local verification: native2,047 + 11subtests and PG268 pass. Shipping-
 seeded-exposure E2E reproduces the original filled-restart HALT (run20261030-130900-37e116).
 Runtime fix committed783d35c69; deterministic E2E fixture1ee10e01b. Full replacement
 image build is running. Actual Demo repair/reset remains pending operator review.
+
+Replacement imagee526118b… (runtime commit783d35c69, manifest566788f2…) passes the
+same seeded-position/fill/active-restart/Stop E2E that fails on715a. Quantity, cost,
+fees, session deadlines and two unique fixture fills survive. Packaged strategy
+hash matches the native-tested source. This targeted run does not repeat or claim
+the previous full release/hour-load gate. Six real Demo fills remain verified,
+but real repaired-exposure restart is still pending explicit operator review.

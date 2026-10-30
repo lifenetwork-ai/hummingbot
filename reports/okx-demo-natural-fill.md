@@ -36,11 +36,15 @@ upstream override behavior remains available to unmanaged strategies. No schema,
 API policy, exchange reconciliation gate or trading engine is replaced.
 
 Eight targeted Red tests produced six expected failures and two passes before
-the fix. All eight plus 42 existing orchestrator tests pass afterward. Full native regression passes 2,047 tests plus 11 subtests; PostgreSQL passes
+the fix. All eight plus 42 existing orchestrator tests pass afterward. Full native
+regression passes 2,047 tests plus 11 subtests; PostgreSQL passes
 268 tests. The new shipping-image E2E reproduces the same filled-restart HALT on
-the original image. Replacement-image verification is in progress; this is not
-yet an end-to-end acceptance claim. Runtime fix: `783d35c69`; E2E fixture:
-`1ee10e01b`.
+the original image. The same E2E passes on replacement image `e526118b…`, manifest
+`566788f2…`: both-market fills, exact durable quantity/cost/fees, pinned session,
+active restart, dedup and clean Stop. Runtime fix: `783d35c69`; E2E fixture:
+`1ee10e01b`. The packaged strategy source hash matches the tested checkout.
+This is targeted image acceptance, not a repeated full release/hour-load gate.
+Real Demo recovery on this image still awaits operator review and remains open.
 
 ## Concrete reviewed recovery proposal
 
@@ -60,7 +64,7 @@ recovery/HALT state, and stale repair replay rejected. It has **not** been appli
 to the real Demo database. Its full field diff is in the evidence JSON; private
 SQL/backups remain outside Git. No exchange position is altered or closed.
 
-Before retrying Demo: finish replacement-image checks, stop all account-writing
+Before retrying Demo: stop all account-writing
 processes, recheck exchange truth, apply only the reviewed atomic aggregate
 repair, and explicitly review clearing this resolved HALT. No automated HALT
 reset is introduced. This follows [the recovery procedure](../docs/postgres-runtime.md).

@@ -62,8 +62,11 @@ and original catalogue. Maximum observation1200s; fills are never forced.
 - [ ] Verify unique recorder identities through repeated independent readback
   and filled-exposure restart; preserve session/anchors/deadline and reconcile
   held position quantities after Stop.
-- [ ] Stop/cancel all observation quotes, restore the canonical service/profile
-  stopped, preserve history/positions/private files and publish sanitized evidence.
+- [x] Stop/cancel all observation quotes, restore the canonical service/profile
+  stopped, preserve fill/executor history, venue positions and private files,
+  and publish sanitized evidence.
+  Canonical API is up with HALT retained. The failed restart's two stale aggregate
+  rows are documented; immutable fill/executor history is preserved. No reset.
 
 No-fill or partial coverage remains explicitly open; the zero-fill result above
 does not close this follow-up.
@@ -83,8 +86,11 @@ and [scoped evidence](../../reports/okx-demo-natural-fill-evidence.json).
 - [x] Reconstruct two aggregate rows from the pre-test snapshot and matched fills;
   validate conditional repair on a disposable post-failure clone, preserving
   fills and HALT and rejecting stale repair replay. Actual Demo remains untouched.
-- [ ] Complete broader native/PostgreSQL and replacement-image E2E verification,
+- [x] Complete broader native/PostgreSQL and replacement-image E2E verification,
   including seeded positions followed by fills and active restart.
+  Native2,047 + 11subtests, PostgreSQL268 and targeted image E2E pass. Original
+  image fails the same seeded test. Fixed imagee526118b…/manifest566788f2… is built
+  from runtime commit783d35c69. This does not claim a new full release/hour gate.
 - [ ] Obtain explicit operator review before actual Demo aggregate maintenance
   and clearing only this resolved HALT; no automatic reset or history deletion.
 - [ ] Repeat real filled-exposure recovery with the fixed image, independently

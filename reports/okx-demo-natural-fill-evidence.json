@@ -1,5 +1,5 @@
 {
-  "scope": "Natural maker fill readback passed; filled-exposure restart failed on original image; remediation in progress",
+  "scope": "Six real natural maker fills/fees/cash/dedup passed; original-image filled restart failed; native/PostgreSQL/fixed-image seeded restart passed; real Demo recovery remains pending operator review",
   "original_image": "sha256:715a11f33c59a7575b7f69db9d46d06c0edc81187d8dc8ca88ab4f42c3a1b75b",
   "source_environment": "OKX Demo only",
   "passed": false,
@@ -208,5 +208,84 @@
     "native.log": "1467ca404655a8393f29803276e7d25330c06b9aaf6e40f3e8668ebc91e4b167",
     "postgres.log": "6bbc8d94f098ec127a3ed118ce95d6421522612a059a4c720317b9104117a17b",
     "seed-e2e-red.log": "dc3b726a912435c1299454a19c5fc260d60085fdf7c00d0e87ffa5080bb3a93d"
+  },
+  "replacement_image": {
+    "id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+    "source_commit": "783d35c69dba150531db9aa8109330439c578610",
+    "size_bytes": 1367435432,
+    "strategy_sha256": "2cd5c2f0fcd8d6bc49e243f529e033f45874f961021ac3e487007b1cdcbf080e",
+    "host_source_matches": true
+  },
+  "offline_green": {
+    "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+    "registry_manifest_digest": "sha256:566788f22f8c86f1a7df38088bf23557baf7d1c16cff2c4b411ed2f64e4cb918",
+    "image_size_bytes": 1367435432,
+    "image_size_budget_bytes": 1610612736,
+    "architecture": "amd64",
+    "config_sha256": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "fixture_sha256": {
+      "999_offline_upgrade.sql": "b1252d16a9aeea808d6bd3857f6613fd53cc23809f152b62fd2d5bd7bd4d1a30",
+      "availability_service.py": "eda43c991ef7eea6174eef67b011ce96988de970a61c6ecaa30d8d18d7441073",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "exchange.py": "ee880405ea2a500ecb1c24158f3c0a266955259510c3b3188fab89ba5394b309",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "life_mm_profiles.yaml": "bcfa4738d72a721bdeb5969039dbcd08102a1ca0ff926a2c0ede6946935e6346",
+      "pmm-revised.yml": "44e1cdd0ea6113f620427e0396fb0d8de22ab4e7a4bdac9561d42a02f7277f63",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132"
+    },
+    "runtime_smoke": {
+      "passed": true,
+      "numba_jit": true,
+      "ta_lib": true,
+      "tls_trust": true,
+      "connector_count": 63,
+      "sql_scripts": 17,
+      "build_tools_absent": true,
+      "cli_version": "hbot 2.17.0",
+      "environment_bytes": 1266556462,
+      "service_logging": {
+        "passed": true,
+        "all_severities": true,
+        "network_warning": true,
+        "utc_context": true,
+        "redaction": true,
+        "startup_failure_json": true,
+        "python_warning_json": true,
+        "sql_parameters_suppressed": true
+      }
+    },
+    "scenarios": {
+      "initial-position-restart": {
+        "passed": true,
+        "metrics": {
+          "initial-seed_startup_s": 20.959,
+          "seed_shutdown_s": 1.573,
+          "filled-seed-restart_startup_s": 23.044,
+          "restart_shutdown_s": 1.56,
+          "managed_initial_position_restart": {
+            "durable_seed_once": true,
+            "filled_restart": true,
+            "exact_quantity_cost_fees": true,
+            "unique_fills": 2,
+            "session_pinned": true,
+            "clean_stop": true
+          }
+        }
+      }
+    },
+    "passed": true,
+    "release_scope_complete": false
+  },
+  "final_status": {
+    "api_live": true,
+    "trading_stopped": true,
+    "halt_preserved": true,
+    "pending_mutations": false,
+    "original_private_files_unchanged": true,
+    "real_demo_repair_applied": false,
+    "actual_active_image": "sha256:715a11f33c59a7575b7f69db9d46d06c0edc81187d8dc8ca88ab4f42c3a1b75b"
   }
 }
