@@ -230,3 +230,21 @@ the operator's tolerance of slow/explicitly stale aggregate reporting.
   Keep the failed Random soak and original sustained-liveness cause open.
 
 Progress: [packaged release report](../../reports/probe-release-20261030.md).
+
+### Random handover investigation — operator request 2026-10-31
+
+- [x] Reproduce the producer lifecycle defect before changing it: an empty book
+  at window end is incorrectly treated as undrained work, and a lookup returning
+  after window end can dispatch a new fill. Two failing regressions, then all
+  four lifecycle cases and the existing budget/exchange tests pass (31 tests).
+  End new generation with the measurement window; still await/count dispatched
+  fills and fail genuinely stuck requests under the original ten-second limit.
+  Expose shortfall rather than manufacturing fills; fixed-run rate gates remain.
+- [ ] Observe short Random transitions on the same packaged image, record quote
+  guard/refresh decisions and reconcile the independent ledger.
+- [ ] Repeat full warm/mixed/burst/sixty-minute Random soak and fault verification
+  with the corrected client. Preserve previous failures and explicitly identify
+  the producer lifecycle correction; do not represent this as a runtime fix.
+- [ ] Update evidence and final checklist, preserve Demo, clean test resources
+  and commit. The earlier unexplained sustained-liveness event can only be
+  closed with evidence about that event, not by a passing unrelated run.

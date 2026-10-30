@@ -301,7 +301,11 @@ async def main(args):
         async def fill_events():
             nonlocal valid_fills, fill_attempts, fill_candidate_conflicts
             index = 0
-            while filling or valid_fills < int(args.duration):
+            # Generation ends with the measurement window. Drain only requests
+            # already dispatched, not hypothetical fills needing future quotes.
+            # Fixed-profile throughput is still enforced by the rate budget;
+            # Random handover gaps remain visible in the measured fill count.
+            while filling:
                 if args.random_soak:
                     session = (last_status or {}).get("session") or {}
                     deadline = session.get("step_expires_at")
@@ -319,6 +323,8 @@ async def main(args):
                     continue
                 async with fill_lock:
                     ledger = await exchange("/working-orders")
+                    if not filling:
+                        return
                     working = [order for order in ledger["orders"] if order["state"] in ("live", "partially_filled")]
                     # Alternate both markets/sides; tiny valid partial fills retain all
                     # configured risk caps throughout an hour without external capital.
@@ -404,6 +410,8 @@ async def main(args):
                       market_updates_sent=after["market_update_count"] - before["market_update_count"],
                       market_measurement_seconds=after["observed_at_monotonic"] - before["observed_at_monotonic"],
                       fills_per_second=valid_fills / args.duration, valid_fills=valid_fills, fill_attempts=fill_attempts,
+                      fill_target_shortfall=max(0, int(args.duration) - valid_fills),
+                      fill_drain_policy="await_dispatched_requests_only",
                       expected_fill_candidate_conflicts=fill_candidate_conflicts,
                       backlog_drain_seconds=drained, per_minute=summaries,
                       control_results=control_results, command_accept_p95_ms=percentile(acceptance_ms, .95), command_accept_p99_ms=percentile(acceptance_ms, .99),
