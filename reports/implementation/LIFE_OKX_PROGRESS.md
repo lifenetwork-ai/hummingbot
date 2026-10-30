@@ -1943,3 +1943,20 @@ timeouts recover. Fourteen deliberately stale responses are expected in this
 fault diagnostic, not a healthy full-release pass. Power log clamshell sleep
 19:36:50 +07:00 follows the earlier tests, so cannot explain them. Original cause
 and full gates remain open; prior failed attempts retained; Demo unchanged.
+
+2026-10-30 packaged supervisor-diagnostics verification completed on immutable
+image `dd602fb2` (source `e9a1645b7`): all 17 E2E groups, shipping supervision,
+warm300/mixed900/burst90 and all six injected-fault checks pass. Random soak3600
+passes API latency (primary/auxiliary p99 685.33/718.56ms) and retention, but
+fails the unchanged synthetic fill-generator drain: 3,598 fills and 10.153s.
+The final handover temporarily removes the next required spot SELL quotes;
+replacement acceptance follows the drain deadline. All 4,888 actual cumulative
+fills and positions reconcile; this is not an observed lost recorder fill.
+All 64 transient health-probe timeout episodes recover, with unchanged
+engine/API PIDs; maximum sampled engine lateness is still 4.003s, so absolute
+isolation is not established. Matched ordinary-entrypoint diagnostic passes
+warm300/mixed900 with p99 219.93/240.13ms, zero errors and 1,200 matching fills.
+Strict Random-soak acceptance and the older sustained-liveness cause remain
+open; no deadlines/protections were weakened or runtime source changed in this
+verification. Demo e526 ledger/control unchanged; test fixtures cleaned. See
+[packaged report](../probe-release-20261030.md) for the focused follow-up.

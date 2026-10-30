@@ -220,10 +220,13 @@ the operator's tolerance of slow/explicitly stale aggregate reporting.
 - [ ] Close the strict zero-error/backlog soak acceptance on the packaged image.
   Diagnose the end-of-window handover/quote gap before any repeat; do not shorten
   the window, waive errors or increase the drain deadline to manufacture a pass.
-- [ ] Run matched ordinary-entrypoint warm300/mixed900 control. If the baseline
+- [x] Run matched ordinary-entrypoint warm300/mixed900 control. If the baseline
   fails, any additional control run is explicitly diagnostic and cannot close
-  strict acceptance.
-- [ ] Reconcile ledgers, review probe episodes and continuity, retain every
+  strict acceptance. Diagnostic control `production-control-20261030-232929-970ba2`
+  passes: p99 219.93/240.13ms, zero errors, 1,200 matching fills and positions.
+- [x] Reconcile ledgers, review probe episodes and continuity, retain every
   result, verify Demo preservation, clean temporary resources and commit report.
+  All 64 transient probe episodes recover; no measured-window process restart.
+  Keep the failed Random soak and original sustained-liveness cause open.
 
 Progress: [packaged release report](../../reports/probe-release-20261030.md).
