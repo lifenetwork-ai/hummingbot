@@ -20,8 +20,10 @@ Keep Start/Switch/Stop on the admin API; YAML remains the policy authority.
   Each runs through a 65-second observation. Stop leaves zero pending quotes
   and preserves the existing perpetual quantities. Initial order snapshots may
   be partial while levels are being created/refreshed; no full-book count claim.
-- [ ] Spot Random: observe a real configured 600-second step boundary, restart
+- [x] Spot Random: observe a real configured 600-second step boundary, restart
   during the session and verify the pinned session/anchors/deadline, then Stop.
+  Step0 follows the market; step1 follows AVAX. Session/profile/generation,
+  anchors and global/step deadlines survive restart; quote recovery and Stop pass.
 - [ ] Repeat the three fixed profiles for perpetual and both markets while
   preserving existing exposure and all admission/risk gates.
 - [ ] Reconcile final pending orders, newly observed fills/original fees and

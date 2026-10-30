@@ -1,7 +1,8 @@
 # Current-image OKX Demo acceptance
 
 Date: 2026-10-30 (Asia/Saigon). Status: read-only preflight, stopped upgrade and
-three fixed spot profiles complete; Random/perpetual/both remain in progress.
+three fixed spot profiles and spot Random/restart complete; perpetual/both remain
+in progress.
 Selected immutable runtime
 `715a11f3…` has completed its own local image/E2E/load/hour/control gates.
 
@@ -48,4 +49,7 @@ fill/fee and position reconciliation remains part of the final phase.
 
 Spot Random has also recovered quotes after a real container restart with the
 same session, profile, generation, anchors, start time and expiry. Its configured
-600s step boundary remains pending; the API does not override that YAML timer.
+600s step boundary advances from step0 `follow_market` to step1 `follow_token`.
+The global and step deadlines remain pinned across restart, quotes recover after
+the real rollover, and Stop leaves zero pending orders. The API does not override
+the YAML timer. Perpetual/both and final reconciliation remain pending.
