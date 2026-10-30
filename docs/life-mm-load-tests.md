@@ -36,6 +36,16 @@ clock reversal or missing timestamps invalidate that acceptance even if enough
 active-time samples are eventually collected. This adds a continuity check;
 offered rates, durations, latency/error and resource budgets remain unchanged.
 
+Fill generation stops at the end of each measurement window. Drain waits for
+already-dispatched requests; it must not create new fills afterward to meet a
+quota. Results expose `fill_target_shortfall` and
+`fill_drain_policy: "await_dispatched_requests_only"`. Fixed-profile throughput
+budgets still reject insufficient delivered fills; Random-soak rates remain
+observational around scheduled admission gaps. Actual stuck requests still fail
+the ten-second drain and zero-error checks. Historical runs with the old
+post-window catch-up behavior retain their original results; see the
+[producer investigation](../reports/mm-random-handover.md).
+
 ```sh
 make build-cloudrun
 make test-mm-load

@@ -98,6 +98,23 @@ def test_book_before_private_ack_masks_ambiguous_price_and_missing_competitive_o
     assert observation([order(price="100")], bids=[(99, 100)]).detail == "inconsistent_own_depth"
 
 
+def test_acknowledged_quote_missing_from_public_book_waits_then_recovers_on_fresh_books():
+    """Handover/private-public skew is a bounded safety wait, not a latched halt."""
+    guard = ready_guard()
+    own = order(price='100')
+    inconsistent = observation([own], bids=[(99, 100)], timestamp=1003, now=1003)
+    blocked = guard.evaluate(inconsistent, Decimal('100'), 3, sample=True)
+    assert not blocked['ready'] and blocked['detail'] == 'inconsistent_own_depth'
+    # Seeing the private state again cannot substitute for a fresh public book.
+    assert not guard.evaluate(inconsistent, Decimal('100'), 10, sample=True)['ready']
+    # Once the book contains the acknowledged order, remove its quantity and
+    # qualify external liquidity using the existing recovery time and samples.
+    consistent = observation([own], bids=[(100, 10), (99, 100)], timestamp=1011, now=1011)
+    assert not guard.evaluate(consistent, Decimal('100'), 11, sample=True)['ready']
+    fresh = observation([own], bids=[(100, 10), (99, 100)], timestamp=1013, now=1013)
+    assert guard.evaluate(fresh, Decimal('100'), 13, sample=True)['ready']
+
+
 def test_cached_fill_and_lost_orders_are_included_in_own_price_uncertainty():
     connector = SimpleNamespace(name="okx", in_flight_orders={}, _order_tracker=SimpleNamespace(
         cached_orders={"filled": order(state=OrderState.FILLED, filled="10")}, lost_orders={}))

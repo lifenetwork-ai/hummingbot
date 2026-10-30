@@ -240,11 +240,17 @@ Progress: [packaged release report](../../reports/probe-release-20261030.md).
   End new generation with the measurement window; still await/count dispatched
   fills and fail genuinely stuck requests under the original ten-second limit.
   Expose shortfall rather than manufacturing fills; fixed-run rate gates remain.
-- [ ] Observe short Random transitions on the same packaged image, record quote
-  guard/refresh decisions and reconcile the independent ledger.
+- [x] Observe short Random transitions on the same packaged image, record quote
+  guard/refresh decisions and reconcile the independent ledger. Both 180-second
+  diagnostics pass (`20261031-043633-11a09f`, `20261031-044129-a1fcc9`): 174 fills
+  each, six-fill shortfall visible, zero errors, drains 0.029/0.102s. The first
+  observes `inconsistent_own_depth` safety cancellation; the second observes
+  stable refresh checks. Native guard/defense/client regression: 107 passed.
 - [ ] Repeat full warm/mixed/burst/sixty-minute Random soak and fault verification
   with the corrected client. Preserve previous failures and explicitly identify
   the producer lifecycle correction; do not represent this as a runtime fix.
 - [ ] Update evidence and final checklist, preserve Demo, clean test resources
   and commit. The earlier unexplained sustained-liveness event can only be
   closed with evidence about that event, not by a passing unrelated run.
+
+Evidence: [Random handover investigation](../../reports/mm-random-handover.md).

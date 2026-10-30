@@ -1,0 +1,1531 @@
+{
+  "status": "full_load_running",
+  "producer_commit": "056b11495",
+  "prior_failed_run": "build/mm-load/20261030-215951-3d41e4",
+  "native_regression": {
+    "red_failures": 2,
+    "red_controls_passed": 2,
+    "related_passed": 31,
+    "expanded_passed": 107
+  },
+  "short_runs": [
+    {
+      "diagnostic": true,
+      "release_scope_complete": false,
+      "image_id": "sha256:dd602fb2238df0237f2c0aaa532407f31e47cdfbbd25575452b55a021765874c",
+      "baseline": "build/mm-load/20261030-215951-3d41e4",
+      "passed": true,
+      "step_seconds": 30,
+      "duration_seconds": 180,
+      "fixture_sha256": {
+        "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+        "quote_refresh_probe.py": "45cd1e0f4fd141108a0dec2d9a95a91fe6baff4ed0298f32f7e4f51b842cd810",
+        "exchange.py": "ee880405ea2a500ecb1c24158f3c0a266955259510c3b3188fab89ba5394b309",
+        "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "load_service.py": "e116cf6d96c00b1ff4aab703e59d1ec45a10c21b393821bd6bc93ffba215bb23",
+        "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+        "life_mm_profiles.yaml": "d9d6bebaeff8ab7fbfb122ef93b89abb4e9f1c0d0baeb6d02e5100e3b5db2eb4",
+        "load_trace.py": "333d3e3d55af42e7ea4540420d9dbb1717d1cfd7c0d500d8ab7e1a0cb2135fda",
+        "load_entrypoint.py": "bc0cc27f56830c8ea63430a01c0590e763c2b503ff1685d67df32a74cc23185c",
+        "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+        "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+        "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+        "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+        "load_process_metrics.py": "b42f11a771043e4251ec6b5e9d4e9afde70f7fe713a4396580cf80e544ef2d6a",
+        "load_client.py": "958e5f860e52bef964577c1e316b326e04741f437a23e779ceb2a38a59ffd8b5"
+      },
+      "ledger": {
+        "unique_exchange_fills": 174,
+        "unique_recorder_fills": 174,
+        "positions_matched": true,
+        "identified_funding_bills": 0,
+        "daily_snapshots": 3
+      },
+      "steps": [
+        {
+          "event_type": "step_started",
+          "new_profile": "sideways",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {}
+              }
+            },
+            "expires_at": 1793396818.160315,
+            "started_at": 1793396218.160315,
+            "step_index": 0,
+            "step_expires_at": 1793396818.160315
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "follow_token",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              }
+            },
+            "expires_at": 1793396834.418019,
+            "started_at": 1793396234.418019,
+            "step_index": 0,
+            "step_expires_at": 1793396264.418019
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "sideways",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {}
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {}
+              }
+            },
+            "expires_at": 1793396834.418019,
+            "started_at": 1793396234.418019,
+            "step_index": 1,
+            "step_expires_at": 1793396294.418019
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "follow_market",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00",
+                  "ETH-USDT": "10.00"
+                }
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00",
+                  "ETH-USDT": "10.00"
+                }
+              }
+            },
+            "expires_at": 1793396834.418019,
+            "started_at": 1793396234.418019,
+            "step_index": 2,
+            "step_expires_at": 1793396324.418019
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "follow_token",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              }
+            },
+            "expires_at": 1793396834.418019,
+            "started_at": 1793396234.418019,
+            "step_index": 3,
+            "step_expires_at": 1793396354.418019
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "sideways",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {}
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {}
+              }
+            },
+            "expires_at": 1793396834.418019,
+            "started_at": 1793396234.418019,
+            "step_index": 4,
+            "step_expires_at": 1793396384.418019
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "follow_market",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00",
+                  "ETH-USDT": "10.00"
+                }
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00",
+                  "ETH-USDT": "10.00"
+                }
+              }
+            },
+            "expires_at": 1793396834.418019,
+            "started_at": 1793396234.418019,
+            "step_index": 5,
+            "step_expires_at": 1793396414.418019
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "follow_token",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              }
+            },
+            "expires_at": 1793396834.418019,
+            "started_at": 1793396234.418019,
+            "step_index": 6,
+            "step_expires_at": 1793396444.418019
+          }
+        }
+      ],
+      "quote_probes": [
+        {
+          "at": 1793396389.2505322,
+          "kind": "guard_cancel",
+          "controller": "life_spot",
+          "session_id": "5ed4e4ee-3417-4eed-9da6-8d58bbeaadf9",
+          "ready": true,
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": "conservative_own_quantity_bound",
+            "market_mid": "0.100",
+            "deviation_bps": "0.0",
+            "book_observed_at": 1793396388.0,
+            "evaluated_at": 1793396389.2490327,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "reference_model",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396386.6733692,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "9900.0000",
+              "external_ask_quote": "10100.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": [
+            "BXqrJfKr3qXwzivv7pTYUnDBAt9QS4G2ks3DFKHQnBmz",
+            "7aPTyxmbrQWjNkuGp8svJFYTx9SDnYgTU13TpEvh1nT8",
+            "AcJmPZkswAZsbPxs66yxXKvDMbZpD9RkEm8D8kZDW73s",
+            "58PcDBQa75ZrKCbeaS6JvxenvoSsVTDBkssfAUbB8t9U",
+            "K8g29oEe3FY1NcBvwiAqRdqAWbsLWMUBQchfpj3JumC",
+            "BRyv9zaxGgoNgyUdPXscCyp6uaycnttL5Vf4o63xafpq"
+          ]
+        },
+        {
+          "at": 1793396389.2527618,
+          "kind": "guard_cancel",
+          "controller": "life_perpetual",
+          "session_id": "5ed4e4ee-3417-4eed-9da6-8d58bbeaadf9",
+          "ready": false,
+          "reason": "market_price_unavailable",
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": false,
+            "reason_code": "market_price_unavailable",
+            "data_quality": "unavailable",
+            "detail": "inconsistent_own_depth",
+            "market_mid": null,
+            "deviation_bps": null,
+            "book_observed_at": 1793396388.876,
+            "evaluated_at": 1793396389.2499561,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 0,
+            "can_admit": false,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "waiting",
+              "price_source": "reference_model",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": null,
+              "qualification_valid_samples": 0,
+              "qualification_ready": false,
+              "external_bid_quote": "0",
+              "external_ask_quote": "0",
+              "market_spread_bps": null,
+              "market_breakout_available": false
+            }
+          },
+          "executor_ids": [
+            "9DT57zokbkkM7Peu36VWLXwopT8xihZYnLXawc9B3CeK",
+            "6ZRmzGRsVwzqTgf1Ef8z2LT1cHMQMGQraiuXDRcwQWsK",
+            "BMw7mmoBNsiqDUMDHV8orQLThZFePSH8MVGa5d8JZYXv",
+            "Gt86VLyW76qQzS19u82Y8tY55uAAfuoQZAHpenPaLdVz",
+            "Baf9fnphG1uUYzqC7wYZzsL6XW15mVTK6hpDjRic97p",
+            "CTJWtdFopvQNurG83cH7Uv64YB6ESAqFawFEvKCSjKTJ"
+          ]
+        }
+      ],
+      "artifact": "build/mm-random-handover/20261031-043633-11a09f/result.json",
+      "window": {
+        "duration_seconds": 180,
+        "valid_fills": 174,
+        "fill_target_shortfall": 6,
+        "fill_drain_policy": "await_dispatched_requests_only",
+        "backlog_drain_seconds": 0.028744042007019743,
+        "errors": [],
+        "unexpected_errors": 0,
+        "read_p95_ms": 55.80709001515061,
+        "read_p99_ms": 481.26154401688837,
+        "statuses": {
+          "200": 3600
+        }
+      }
+    },
+    {
+      "diagnostic": true,
+      "release_scope_complete": false,
+      "image_id": "sha256:dd602fb2238df0237f2c0aaa532407f31e47cdfbbd25575452b55a021765874c",
+      "baseline": "build/mm-load/20261030-215951-3d41e4",
+      "passed": true,
+      "step_seconds": 30,
+      "duration_seconds": 180,
+      "fixture_sha256": {
+        "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+        "quote_refresh_probe.py": "3681ed5ab9ef2eb8ea74a7800d6463e8b139876b3b14aee07c23581fde9ce671",
+        "exchange.py": "ee880405ea2a500ecb1c24158f3c0a266955259510c3b3188fab89ba5394b309",
+        "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "load_service.py": "e116cf6d96c00b1ff4aab703e59d1ec45a10c21b393821bd6bc93ffba215bb23",
+        "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+        "life_mm_profiles.yaml": "d9d6bebaeff8ab7fbfb122ef93b89abb4e9f1c0d0baeb6d02e5100e3b5db2eb4",
+        "load_trace.py": "333d3e3d55af42e7ea4540420d9dbb1717d1cfd7c0d500d8ab7e1a0cb2135fda",
+        "load_entrypoint.py": "bc0cc27f56830c8ea63430a01c0590e763c2b503ff1685d67df32a74cc23185c",
+        "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+        "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+        "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+        "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+        "load_process_metrics.py": "b42f11a771043e4251ec6b5e9d4e9afde70f7fe713a4396580cf80e544ef2d6a",
+        "load_client.py": "958e5f860e52bef964577c1e316b326e04741f437a23e779ceb2a38a59ffd8b5"
+      },
+      "ledger": {
+        "unique_exchange_fills": 174,
+        "unique_recorder_fills": 174,
+        "positions_matched": true,
+        "identified_funding_bills": 0,
+        "daily_snapshots": 3
+      },
+      "steps": [
+        {
+          "event_type": "step_started",
+          "new_profile": "sideways",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {}
+              }
+            },
+            "expires_at": 1793397112.284906,
+            "started_at": 1793396512.284906,
+            "step_index": 0,
+            "step_expires_at": 1793397112.284906
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "sideways",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {}
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {}
+              }
+            },
+            "expires_at": 1793397128.576875,
+            "started_at": 1793396528.576875,
+            "step_index": 0,
+            "step_expires_at": 1793396558.576875
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "follow_token",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              }
+            },
+            "expires_at": 1793397128.576875,
+            "started_at": 1793396528.576875,
+            "step_index": 1,
+            "step_expires_at": 1793396588.576875
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "follow_token",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              }
+            },
+            "expires_at": 1793397128.576875,
+            "started_at": 1793396528.576875,
+            "step_index": 2,
+            "step_expires_at": 1793396618.576875
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "follow_market",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00",
+                  "ETH-USDT": "10.00"
+                }
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00",
+                  "ETH-USDT": "10.00"
+                }
+              }
+            },
+            "expires_at": 1793397128.576875,
+            "started_at": 1793396528.576875,
+            "step_index": 3,
+            "step_expires_at": 1793396648.576875
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "follow_token",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              }
+            },
+            "expires_at": 1793397128.576875,
+            "started_at": 1793396528.576875,
+            "step_index": 4,
+            "step_expires_at": 1793396678.576875
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "follow_token",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {
+                  "BTC-USDT": "100.00"
+                }
+              }
+            },
+            "expires_at": 1793397128.576875,
+            "started_at": 1793396528.576875,
+            "step_index": 5,
+            "step_expires_at": 1793396708.576875
+          }
+        },
+        {
+          "event_type": "step_started",
+          "new_profile": "sideways",
+          "payload": {
+            "status": "running",
+            "anchors": {
+              "life_spot": {
+                "life": "0.100",
+                "sources": {}
+              },
+              "life_perpetual": {
+                "life": "0.100",
+                "sources": {}
+              }
+            },
+            "expires_at": 1793397128.576875,
+            "started_at": 1793396528.576875,
+            "step_index": 6,
+            "step_expires_at": 1793396738.576875
+          }
+        }
+      ],
+      "quote_probes": [
+        {
+          "at": 1793396513.6337538,
+          "kind": "refresh_checked",
+          "controller": "life_spot",
+          "session_id": "d9710839-a0d5-4f5c-9fea-fc6e42c1a9ba",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396511.8338182,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0",
+            "book_observed_at": 1793396512.0,
+            "evaluated_at": 1793396512.8587942,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "configured_anchor",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396510.8239596,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "9900.0000",
+              "external_ask_quote": "10100.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396529.3194902,
+          "kind": "refresh_checked",
+          "controller": "life_spot",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396528.3067205,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0",
+            "book_observed_at": 1793396529.0,
+            "evaluated_at": 1793396529.3088622,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "configured_anchor",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396526.2846494,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "9900.0000",
+              "external_ask_quote": "10100.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396529.3422897,
+          "kind": "refresh_checked",
+          "controller": "life_perpetual",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396528.316729,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0",
+            "book_observed_at": 1793396529.244,
+            "evaluated_at": 1793396529.3366084,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "configured_anchor",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396526.3060462,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "99.0000",
+              "external_ask_quote": "101.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396565.0210142,
+          "kind": "refresh_checked",
+          "controller": "life_spot",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396564.0014403,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0",
+            "book_observed_at": 1793396564.0,
+            "evaluated_at": 1793396565.0155725,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "reference_model",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396562.9892554,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "9900.0000",
+              "external_ask_quote": "10100.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396565.0276532,
+          "kind": "refresh_checked",
+          "controller": "life_perpetual",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396564.011925,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0",
+            "book_observed_at": 1793396564.974,
+            "evaluated_at": 1793396565.0238955,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "reference_model",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396563.00168,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "99.0000",
+              "external_ask_quote": "101.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396594.3499696,
+          "kind": "refresh_checked",
+          "controller": "life_spot",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396593.3418305,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0",
+            "book_observed_at": 1793396594.0,
+            "evaluated_at": 1793396594.3440106,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "reference_model",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396592.330869,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "9900.0000",
+              "external_ask_quote": "10100.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396594.5521212,
+          "kind": "refresh_checked",
+          "controller": "life_perpetual",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396593.373785,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0",
+            "book_observed_at": 1793396594.333,
+            "evaluated_at": 1793396594.548239,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "reference_model",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396592.3626885,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "99.0000",
+              "external_ask_quote": "101.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396624.437066,
+          "kind": "refresh_checked",
+          "controller": "life_spot",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396623.4307456,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0.0",
+            "book_observed_at": 1793396624.0,
+            "evaluated_at": 1793396624.4325087,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "reference_model",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396622.4222786,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "9900.0000",
+              "external_ask_quote": "10100.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396624.4463255,
+          "kind": "refresh_checked",
+          "controller": "life_perpetual",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396623.4359388,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0.0",
+            "book_observed_at": 1793396624.423,
+            "evaluated_at": 1793396624.4423294,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "reference_model",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396622.4290917,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "99.0000",
+              "external_ask_quote": "101.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396652.380804,
+          "kind": "refresh_checked",
+          "controller": "life_spot",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396651.3657653,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0",
+            "book_observed_at": 1793396652.0,
+            "evaluated_at": 1793396652.3676136,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "reference_model",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396650.3548477,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "9900.0000",
+              "external_ask_quote": "10100.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396652.4091377,
+          "kind": "refresh_checked",
+          "controller": "life_perpetual",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396651.375793,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0",
+            "book_observed_at": 1793396652.362,
+            "evaluated_at": 1793396652.3933468,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "reference_model",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396650.3676262,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "99.0000",
+              "external_ask_quote": "101.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396682.644589,
+          "kind": "refresh_checked",
+          "controller": "life_spot",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396681.633138,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0",
+            "book_observed_at": 1793396682.0,
+            "evaluated_at": 1793396682.6352568,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "reference_model",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396680.6262627,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "9900.0000",
+              "external_ask_quote": "10100.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396682.6593971,
+          "kind": "refresh_checked",
+          "controller": "life_perpetual",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396681.6462872,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0",
+            "book_observed_at": 1793396682.616,
+            "evaluated_at": 1793396682.6522286,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "reference_model",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396680.6401048,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "99.0000",
+              "external_ask_quote": "101.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396712.3709097,
+          "kind": "refresh_checked",
+          "controller": "life_spot",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396711.3350158,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0",
+            "book_observed_at": 1793396712.0,
+            "evaluated_at": 1793396712.3666232,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "configured_anchor",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396710.327566,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "9900.0000",
+              "external_ask_quote": "10100.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        },
+        {
+          "at": 1793396712.3768091,
+          "kind": "refresh_checked",
+          "controller": "life_perpetual",
+          "session_id": "a238a359-2f0c-4328-b12d-d2c488cdc830",
+          "ready": true,
+          "session_admitted": true,
+          "provider_ready": true,
+          "control_error": null,
+          "quote_diagnostics": {
+            "observed_at": 1793396711.353833,
+            "reasons": {
+              "BUY": [
+                "session_not_admitted"
+              ],
+              "SELL": [
+                "session_not_admitted"
+              ]
+            },
+            "proposed": {
+              "BUY": 0,
+              "SELL": 0
+            }
+          },
+          "reason": null,
+          "guard": {
+            "enabled": true,
+            "mode": "bootstrap_then_market",
+            "ready": true,
+            "reason_code": null,
+            "data_quality": "known_order_filtered",
+            "detail": null,
+            "market_mid": "0.100",
+            "deviation_bps": "0",
+            "book_observed_at": 1793396712.322,
+            "evaluated_at": 1793396712.373349,
+            "recovery_started_at": null,
+            "recovery_valid_samples": 2,
+            "can_admit": true,
+            "qualification_pending": false,
+            "bootstrap": {
+              "state": "market_guarded",
+              "price_source": "configured_anchor",
+              "anchor": "0.1",
+              "lower_price": "0.09",
+              "upper_price": "0.11",
+              "max_quote": "100",
+              "started_at": null,
+              "expires_at": null,
+              "remaining_seconds": null,
+              "market_qualified": true,
+              "qualification_started_at": 1793396710.3461432,
+              "qualification_valid_samples": 2,
+              "qualification_ready": true,
+              "external_bid_quote": "99.0000",
+              "external_ask_quote": "101.0000",
+              "market_spread_bps": "200.00",
+              "market_breakout_available": true
+            }
+          },
+          "executor_ids": []
+        }
+      ],
+      "artifact": "build/mm-random-handover/20261031-044129-a1fcc9/result.json",
+      "window": {
+        "duration_seconds": 180,
+        "valid_fills": 174,
+        "fill_target_shortfall": 6,
+        "fill_drain_policy": "await_dispatched_requests_only",
+        "backlog_drain_seconds": 0.10210049999295734,
+        "errors": [],
+        "unexpected_errors": 0,
+        "read_p95_ms": 50.03343700082041,
+        "read_p99_ms": 102.54742202232592,
+        "statuses": {
+          "200": 3600
+        }
+      }
+    }
+  ],
+  "source_sha256": {
+    "test/e2e/offline/load_client.py": "958e5f860e52bef964577c1e316b326e04741f437a23e779ceb2a38a59ffd8b5",
+    "test/hummingbot/cli/test_mm_load_producer.py": "8affd3d6ffbc3ab943ab77ecffc5d0bd86bc728e596fa9105f70d98d77177b50",
+    "test/e2e/offline/quote_refresh_probe.py": "3681ed5ab9ef2eb8ea74a7800d6463e8b139876b3b14aee07c23581fde9ce671",
+    "scripts/test_mm_random_handover.py": "ec23074944fbe874ef17f7e765d0d8ddefe95faa65c5a67e85b4b3f252aeb611"
+  }
+}
