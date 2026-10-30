@@ -1,0 +1,68 @@
+{
+  "started_at": "2026-10-30T07:13:08.185588+00:00",
+  "checkout_commit": "acd7a1b81b7e6bc84952290c5e948e6d7bd0ddcc",
+  "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+  "manifest": "sha256:566788f22f8c86f1a7df38088bf23557baf7d1c16cff2c4b411ed2f64e4cb918",
+  "image_size_bytes": 1367435432,
+  "runtime_commit": "783d35c69dba150531db9aa8109330439c578610",
+  "runner_sha256": {
+    "scripts/test_mm_load.py": "3b9ba9126c4e1ebfc35720648f6f9d64766e65f0cdb7d6696cfdb62484a07a63",
+    "scripts/test_mm_production_control.py": "afa8b6ef6bc7233de4f5687121f32bc3c430bd1544fd21895e978ed3bbf5fdea",
+    "scripts/test_service_supervision.py": "5d114e2148274891e6ed23f9e31fa67253cd8865779231279044731d297ee41c",
+    "scripts/test_e2e_offline.py": "bbea12dbec72568551445668bf4b914ca6f85f284607b5145fa04eb6c4aa68c5",
+    "scripts/mm_load_budgets.py": "b037ad1734012aaf0a36619f78f812336d9b00696a1b2b90bc8d45bb3e0a7061",
+    "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
+    "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458",
+    "test/e2e/offline/load_client.py": "13f2b5379953068b18fa785481c2f73ddf11f785f37f2eb4663431121ad5129e"
+  },
+  "passed": false,
+  "status": "in_progress",
+  "native": {
+    "passed": 2047,
+    "subtests_passed": 11
+  },
+  "postgres": {
+    "passed": 268
+  },
+  "packaged_gc": {
+    "passed": true,
+    "cycles_reclaimed": 5000,
+    "no_refreeze": true,
+    "program_sha256": "8af79a54e6580cc70c8566032a80f87e4e1cfc3ab6deb8cdcd482d7cce666372"
+  },
+  "swagger_check": true,
+  "runtime_sha256": {
+    "hummingbot/cli/service.py": "f856c5c14489148f5de08070f83cedb7050605065c1dc575e36bfabd703b2c72",
+    "hummingbot/cli/service_processes.py": "d5df25b2c18cbff5b023e50d86f516ea4f1ba6f2d6be652da58e17a3e06a1115",
+    "hummingbot/cli/process_supervision.py": "545385dc8a012e99e2a8097375c399ee55b737b8c306fb46c655e17497ea23b7",
+    "hummingbot/cli/admin_service.py": "6fa227f39528435349cf2219fd13e3ae7336a73e4c033ec1deee782493b924ab",
+    "hummingbot/cli/api_gc.py": "196579a336251f4cfc45d211d04d1171872f1c0bc83646473062392412e3641c",
+    "hummingbot/model/db_migration/postgres/runner.py": "92ed0371a96a5e321763288aa4d458d5f8196b42a6856ced6553cd8fd4593962",
+    "hummingbot/core/bot_ownership.py": "7adabf5f0d21a2248cfd9653041ea982bedc9711985ea6b70a9cf90cf96648db",
+    "hummingbot/core/trading_core.py": "2cbe9be347d21f3e9d6b057ba7dfc8fdac11f7b8ad3aeaf1f7723e7371f0dfea",
+    "hummingbot/strategy/strategy_v2_base.py": "2cd5c2f0fcd8d6bc49e243f529e033f45874f961021ac3e487007b1cdcbf080e",
+    "hummingbot/strategy_v2/executors/executor_orchestrator.py": "7a782e414eca8e6f5636f7546e24c7c7b2530a51b0769b57ce16c67e33f4b203"
+  },
+  "e2e": {
+    "status": "running"
+  },
+  "shipping_roles": {
+    "status": "pending"
+  },
+  "all_load": {
+    "status": "pending"
+  },
+  "production_control": {
+    "status": "pending"
+  },
+  "demo_preservation": {
+    "baseline_recorded": true,
+    "final_check": "pending"
+  },
+  "log_sha256": {
+    "native.log": "2d0b40ff4ce22953b06ab0f833cd9dfd14812a3acb8260048cd303065ba43b2a",
+    "postgres.log": "c5781979efc7b3b10dcd4e34dc35feda46860bb8621a20d05baa14236a260284",
+    "swagger.log": "73aa40e366acedf5cbdfc288fe5aa6b4f733bd07b21acb1141d9a519cbc718b4",
+    "packaged-gc.log": "b38bad05647d05c7db5ee24ca16e5e1a1353c5cf718be2402bb36298d580a8ce"
+  }
+}

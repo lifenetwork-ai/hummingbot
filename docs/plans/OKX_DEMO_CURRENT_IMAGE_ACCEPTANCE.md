@@ -106,3 +106,31 @@ and [scoped evidence](../../reports/okx-demo-natural-fill-evidence.json).
   Real restart resumes four post-only quotes with pinned session state; exact
   held quantity/cost/fees/volume and three unique-fill reads pass. Final API is up,
   original catalogue restored, stopped/no HALT/no pending quotes or mutations.
+
+## Full release revalidation of fixed imagee526 — operator request 2026-10-30
+
+This is a new acceptance scope, after the completed real Demo follow-up above.
+Pin image `sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454`
+and manifest `sha256:566788f22f8c86f1a7df38088bf23557baf7d1c16cff2c4b411ed2f64e4cb918`.
+Use isolated fake-exchange/PostgreSQL fixtures; leave persistent Demo stopped and
+its order/fill/position history unchanged. Preserve all failures and unchanged
+budgets. No live trading, registry publication outside loopback, or cloud deploy.
+
+- [x] Verify immutable image/runtime fingerprints, unchanged budget/runner source,
+  host power/lid readiness, stopped Demo baseline and native/PostgreSQL regression.
+  Native2,047 + 11subtests and PostgreSQL268 pass. Ten packaged runtime module
+  hashes match source. The pinned manifest is cached locally; Demo baseline hashes
+  and original stopped intent are recorded for final comparison.
+- [ ] Complete packaged runtime/ABI/GC/Swagger checks and all seventeen E2E groups,
+  including seeded filled restart and compatible image upgrade/rollback.
+- [ ] Verify ordinary shipping supervisor/API/engine crash/hang recovery and reaping.
+- [ ] Run the unchanged all-feature load gate: warm300, mixed900, burst90,
+  continuous soak3600 and all six recovery faults; 2 CPUs/2GiB, pool5 and TTL15.
+- [ ] Validate complete per-role minute samples, stable PIDs and bounded
+  RSS/thread/descriptor/queue growth, three-profile coverage and exact fill/fee/
+  position/funding ledgers. Keep the existing zero-error and p95/p99 budgets.
+- [ ] Complete matched ordinary-entrypoint warm300/mixed900 control using the
+  passing load run's unchanged fixtures, image and resource limits.
+- [ ] Recheck persistent Demo preservation, clean temporary resources, publish
+  scoped portable results, check only achieved items and commit. A failed gate
+  remains open until a justified fix and an unchanged repeat pass.
