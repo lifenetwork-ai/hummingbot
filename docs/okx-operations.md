@@ -201,12 +201,18 @@ empty/own-only LIFE books. Perpetual has no spot-cash inventory skew.
 
 ### Build and run locally
 
-For local API/FE integration, use one service container (one CPU / 2 GiB) plus
+For local API/FE integration, use one service container (two CPUs / 2 GiB) plus
 the existing persistent PostgreSQL container. Keep `ENV=dev` for Swagger,
 `OKX_TRADING_ENV=demo`, `DB_POOL_SIZE=5`, admin API enabled and JSON/INFO logging.
 Bind HTTP only to `127.0.0.1:8080`; the browser URL and authenticated Swagger path
 are listed below. `ADMIN_CORS_ORIGINS=*` is the current local default. The FE still
 uses Basic Auth; no application token/login session is issued.
+
+The [current-image Demo evidence](../reports/okx-demo-current-image.md) verifies
+this two-CPU runtime with preserved private policies/history, all three profiles
+in spot/perpetual/both, real Random rollover and active restart. It records exact
+terminal orders and unchanged retained positions, with no natural new fills;
+positive new-fill/original-fee processing is explicitly outside that observation.
 
 Start the service stopped, verify API/status first and use an explicit short
 timed session only when testing trading. Merely enabling until-stopped permission
@@ -256,7 +262,7 @@ Then add only the public Demo configuration layer:
 # Existing runtime: make build-cloudrun
 make build-cloudrun-demo
 docker run --rm --name hummingbot-demo --platform linux/amd64 \
-  --read-only --tmpfs /tmp:rw,nosuid,size=256m --cpus 1 --memory 2g \
+  --read-only --tmpfs /tmp:rw,nosuid,size=256m --cpus 2 --memory 2g \
   --env-file "$HOME/.config/hummingbot/cloudrun-demo.env" \
   --publish 127.0.0.1:8080:8080 hummingbot-cloudrun:demo
 ```

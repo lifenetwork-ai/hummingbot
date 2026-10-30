@@ -29,12 +29,17 @@ Keep Start/Switch/Stop on the admin API; YAML remains the policy authority.
 - [x] Reconcile final pending orders, newly observed fills/original fees and
   position quantities against PostgreSQL. Explicitly report zero-fill coverage
   if the market produces no natural fills; do not invent positive fill evidence.
-  All9 profile/mode cases pass. Independent terminal reads confirm404 canceled
+  All 9 profile/mode cases pass. Independent terminal reads confirm 404 canceled
   post-only orders with exact original price/base quantity and both sides in
   every case. One failed local intent has no exchange order. New fills/fees are
   zero, so positive new-fill fee processing remains unobserved on this image.
-- [ ] Leave trading stopped with no test-owned pending quotes, preserve private
+- [x] Leave trading stopped with no test-owned pending quotes, preserve private
   files/DB/backup, audit logs, publish sanitized scoped evidence and commit.
+  Service remains available with trading stopped, owner healthy, no HALT or
+  pending mutation/command. Eight retry ERROR records are classified as guard
+  rejections and all eight attempted client IDs are absent on OKX. See the
+  [report](../../reports/okx-demo-current-image.md) and
+  [sanitized evidence](../../reports/okx-demo-current-image-evidence.json).
 
 Raw helper/results: ignored `build/okx-demo-current/`. The public evidence must
 contain no API keys, passphrases, DB URL or admin password.

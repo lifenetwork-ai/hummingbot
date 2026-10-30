@@ -1,0 +1,751 @@
+{
+  "status": "complete scoped Demo protocol; zero new-fill coverage",
+  "passed": true,
+  "completed_at": "2026-10-30T05:19:25.447026+00:00",
+  "scope": "Real OKX Demo connectivity, nine fixed-profile/mode cases, Random rollover/active restart, exact terminal order precision and retained positions. No forced fills, live trading or Cloud Run.",
+  "runtime": {
+    "image_id": "sha256:715a11f33c59a7575b7f69db9d46d06c0edc81187d8dc8ca88ab4f42c3a1b75b",
+    "manifest": "sha256:7e1048870898471a4c54b31460d7891c2029767f59a2ee60e0955cbacd4276fa",
+    "source_commit": "ddcade36950f4249a4551a7a028adabb0f011f70",
+    "runtime_sha256": {
+      "hummingbot/cli/service.py": "f856c5c14489148f5de08070f83cedb7050605065c1dc575e36bfabd703b2c72",
+      "hummingbot/cli/service_processes.py": "d5df25b2c18cbff5b023e50d86f516ea4f1ba6f2d6be652da58e17a3e06a1115",
+      "hummingbot/cli/process_supervision.py": "545385dc8a012e99e2a8097375c399ee55b737b8c306fb46c655e17497ea23b7",
+      "hummingbot/cli/admin_service.py": "6fa227f39528435349cf2219fd13e3ae7336a73e4c033ec1deee782493b924ab",
+      "hummingbot/cli/api_gc.py": "196579a336251f4cfc45d211d04d1171872f1c0bc83646473062392412e3641c",
+      "hummingbot/model/db_migration/postgres/runner.py": "92ed0371a96a5e321763288aa4d458d5f8196b42a6856ced6553cd8fd4593962",
+      "hummingbot/core/bot_ownership.py": "7adabf5f0d21a2248cfd9653041ea982bedc9711985ea6b70a9cf90cf96648db",
+      "hummingbot/core/trading_core.py": "2cbe9be347d21f3e9d6b057ba7dfc8fdac11f7b8ad3aeaf1f7723e7371f0dfea",
+      "hummingbot/strategy/strategy_v2_base.py": "717eec06a133e584333b6357663d73910dec7eab390223f29d607741048f6fec",
+      "hummingbot/strategy_v2/executors/executor_orchestrator.py": "7a782e414eca8e6f5636f7546e24c7c7b2530a51b0769b57ce16c67e33f4b203"
+    },
+    "cpu": 2,
+    "memory_bytes": 2147483648,
+    "total_pool": 5,
+    "api_pool": 2,
+    "engine_pool": 3,
+    "daily_ttl_seconds": 15
+  },
+  "preflight": {
+    "passed": true,
+    "at": "2026-10-30T04:40:03.917615+00:00",
+    "order_mutations": 0,
+    "account_mutations": 0,
+    "db_mutations": 0,
+    "same_account_for_both_keys": true,
+    "account": [
+      {
+        "acctLv": "2",
+        "posMode": "long_short_mode",
+        "perm": "read_only,trade"
+      },
+      {
+        "acctLv": "2",
+        "posMode": "long_short_mode",
+        "perm": "read_only,trade"
+      }
+    ],
+    "public_ws_instruments": [
+      "AVAX-USDT",
+      "BTC-USDT",
+      "BTC-USDT-SWAP",
+      "ETH-USDT"
+    ],
+    "private_ws": [
+      {
+        "market": "SPOT",
+        "login": true,
+        "readonly_order_subscription": true
+      },
+      {
+        "market": "SWAP",
+        "login": true,
+        "readonly_order_subscription": true
+      }
+    ],
+    "active_instruments": [
+      {
+        "instId": "BTC-USDT",
+        "state": "live",
+        "lotSz": "0.00000001",
+        "minSz": "0.00002",
+        "tickSz": "0.1",
+        "ctVal": "",
+        "ctValCcy": ""
+      },
+      {
+        "instId": "ETH-USDT",
+        "state": "live",
+        "lotSz": "0.000001",
+        "minSz": "0.00073",
+        "tickSz": "0.01",
+        "ctVal": "",
+        "ctValCcy": ""
+      },
+      {
+        "instId": "AVAX-USDT",
+        "state": "live",
+        "lotSz": "0.000001",
+        "minSz": "0.1",
+        "tickSz": "0.001",
+        "ctVal": "",
+        "ctValCcy": ""
+      },
+      {
+        "instId": "BTC-USDT-SWAP",
+        "state": "live",
+        "lotSz": "0.01",
+        "minSz": "0.01",
+        "tickSz": "0.01",
+        "ctVal": "0.01",
+        "ctValCcy": "BTC"
+      }
+    ],
+    "pending_orders": 0,
+    "position_units_matched": true,
+    "position_base": {
+      "BUY": "0.0081",
+      "SELL": "0.0022"
+    },
+    "db_counts": {
+      "orders": 12,
+      "fills": 0,
+      "positions": 2,
+      "funding": 0,
+      "pending_commands": 0
+    }
+  },
+  "preservation": {
+    "database_backup_created": true,
+    "backup_sha256": "966b43abed2dc3ffe4b81880e6c62ab38dee8f08843774a3c9edb66d0cfedf0b",
+    "private_env_unchanged": true,
+    "private_profile_unchanged": true,
+    "profile_sha256": "f76e43b842a5cc1c2bbe6f736f1a7c1e6a4f7aeb3543e1a28a15f7e583271232",
+    "old_order_fill_position_rows_unchanged_across_upgrade": true,
+    "old_container_retained_stopped": true,
+    "database_preserved": true,
+    "halt_resets": false,
+    "forced_fills": false
+  },
+  "protocol": {
+    "started_at": "2026-10-30T04:47:47.964044+00:00",
+    "finished_at": "2026-10-30T05:10:46.878909+00:00",
+    "duration_seconds": 1378.914865,
+    "fixed_cases": [
+      {
+        "market_mode": "spot",
+        "profile": "follow_market",
+        "session_id": "6fadad76-afc7-4658-8af4-268d02513b53",
+        "quotes": [
+          {
+            "market": "spot",
+            "quotes": 6,
+            "sides": [
+              "buy",
+              "sell"
+            ],
+            "notional": "99.996768420",
+            "post_only": true,
+            "tick_lot_minimum": true,
+            "recorded_identity": true
+          }
+        ],
+        "passed": true,
+        "stop_cancels_quotes": true,
+        "positions_after": {
+          "BUY": "0.0081",
+          "SELL": "0.0022"
+        }
+      },
+      {
+        "market_mode": "spot",
+        "profile": "sideways",
+        "session_id": "cfd03896-9dee-4ed5-a9aa-01d3e58489dd",
+        "quotes": [
+          {
+            "market": "spot",
+            "quotes": 6,
+            "sides": [
+              "buy",
+              "sell"
+            ],
+            "notional": "99.997467913",
+            "post_only": true,
+            "tick_lot_minimum": true,
+            "recorded_identity": true
+          }
+        ],
+        "passed": true,
+        "stop_cancels_quotes": true,
+        "positions_after": {
+          "BUY": "0.0081",
+          "SELL": "0.0022"
+        }
+      },
+      {
+        "market_mode": "spot",
+        "profile": "follow_token",
+        "session_id": "134c0e2b-659f-43b4-9b94-710e53f65ac8",
+        "quotes": [
+          {
+            "market": "spot",
+            "quotes": 3,
+            "sides": [
+              "buy"
+            ],
+            "notional": "49.998478492",
+            "post_only": true,
+            "tick_lot_minimum": true,
+            "recorded_identity": true
+          }
+        ],
+        "passed": true,
+        "stop_cancels_quotes": true,
+        "positions_after": {
+          "BUY": "0.0081",
+          "SELL": "0.0022"
+        }
+      },
+      {
+        "market_mode": "perpetual",
+        "profile": "follow_market",
+        "session_id": "af22833d-8fb3-47ba-bf54-c89c1887cc51",
+        "quotes": [
+          {
+            "market": "perpetual",
+            "quotes": 6,
+            "sides": [
+              "buy",
+              "sell"
+            ],
+            "notional": "172.442314",
+            "post_only": true,
+            "tick_lot_minimum": true,
+            "recorded_identity": true
+          }
+        ],
+        "passed": true,
+        "stop_cancels_quotes": true,
+        "positions_after": {
+          "BUY": "0.0081",
+          "SELL": "0.0022"
+        }
+      },
+      {
+        "market_mode": "perpetual",
+        "profile": "sideways",
+        "session_id": "f69b0780-d732-4de5-abc6-6a5aeeb373e8",
+        "quotes": [
+          {
+            "market": "perpetual",
+            "quotes": 6,
+            "sides": [
+              "buy",
+              "sell"
+            ],
+            "notional": "172.486050",
+            "post_only": true,
+            "tick_lot_minimum": true,
+            "recorded_identity": true
+          }
+        ],
+        "passed": true,
+        "stop_cancels_quotes": true,
+        "positions_after": {
+          "BUY": "0.0081",
+          "SELL": "0.0022"
+        }
+      },
+      {
+        "market_mode": "perpetual",
+        "profile": "follow_token",
+        "session_id": "7e046fa9-12bc-481a-bd6f-cf6fdb15bc6a",
+        "quotes": [
+          {
+            "market": "perpetual",
+            "quotes": 3,
+            "sides": [
+              "buy"
+            ],
+            "notional": "85.588622",
+            "post_only": true,
+            "tick_lot_minimum": true,
+            "recorded_identity": true
+          }
+        ],
+        "passed": true,
+        "stop_cancels_quotes": true,
+        "positions_after": {
+          "BUY": "0.0081",
+          "SELL": "0.0022"
+        }
+      },
+      {
+        "market_mode": "both",
+        "profile": "follow_market",
+        "session_id": "a8b7b259-8035-4cae-8132-03fd0e6138b8",
+        "quotes": [
+          {
+            "market": "spot",
+            "quotes": 6,
+            "sides": [
+              "buy",
+              "sell"
+            ],
+            "notional": "99.997816064",
+            "post_only": true,
+            "tick_lot_minimum": true,
+            "recorded_identity": true
+          },
+          {
+            "market": "perpetual",
+            "quotes": 3,
+            "sides": [
+              "buy"
+            ],
+            "notional": "85.594262",
+            "post_only": true,
+            "tick_lot_minimum": true,
+            "recorded_identity": true
+          }
+        ],
+        "passed": true,
+        "stop_cancels_quotes": true,
+        "positions_after": {
+          "BUY": "0.0081",
+          "SELL": "0.0022"
+        }
+      },
+      {
+        "market_mode": "both",
+        "profile": "sideways",
+        "session_id": "d48cd18d-e48c-4f9a-8708-3b1e1c793123",
+        "quotes": [
+          {
+            "market": "spot",
+            "quotes": 6,
+            "sides": [
+              "buy",
+              "sell"
+            ],
+            "notional": "99.997204359",
+            "post_only": true,
+            "tick_lot_minimum": true,
+            "recorded_identity": true
+          },
+          {
+            "market": "perpetual",
+            "quotes": 6,
+            "sides": [
+              "buy",
+              "sell"
+            ],
+            "notional": "172.597810",
+            "post_only": true,
+            "tick_lot_minimum": true,
+            "recorded_identity": true
+          }
+        ],
+        "passed": true,
+        "stop_cancels_quotes": true,
+        "positions_after": {
+          "BUY": "0.0081",
+          "SELL": "0.0022"
+        }
+      },
+      {
+        "market_mode": "both",
+        "profile": "follow_token",
+        "session_id": "b9d80e56-4d7b-446a-b648-b406518ebff2",
+        "quotes": [
+          {
+            "market": "spot",
+            "quotes": 6,
+            "sides": [
+              "buy",
+              "sell"
+            ],
+            "notional": "99.997523486",
+            "post_only": true,
+            "tick_lot_minimum": true,
+            "recorded_identity": true
+          },
+          {
+            "market": "perpetual",
+            "quotes": 3,
+            "sides": [
+              "buy"
+            ],
+            "notional": "85.667862",
+            "post_only": true,
+            "tick_lot_minimum": true,
+            "recorded_identity": true
+          }
+        ],
+        "passed": true,
+        "stop_cancels_quotes": true,
+        "positions_after": {
+          "BUY": "0.0081",
+          "SELL": "0.0022"
+        }
+      }
+    ],
+    "random": {
+      "session_id": "52b14792-10dc-4712-89a2-00951bbfe15e",
+      "initial_step": 0,
+      "initial_profile": "follow_market",
+      "started_at": "2026-10-30T04:51:53.839276Z",
+      "expires_at": "2026-10-30T05:06:53.839276Z",
+      "anchors": {
+        "demo_btc_spot": {
+          "life": "78371.75",
+          "sources": {
+            "BTC-USDT": "78371.75",
+            "ETH-USDT": "2246.18"
+          }
+        }
+      },
+      "active_restart_preserves_session_anchor_clock": true,
+      "step_advanced": true,
+      "step_after": 1,
+      "profile_after": "follow_token",
+      "stop_cancels_quotes": true
+    },
+    "random_step_deadline_pinned": true,
+    "random_configured_step_seconds": 600,
+    "commands": [
+      {
+        "action": "start",
+        "elapsed_seconds": 9.219418708002195,
+        "status": "succeeded"
+      },
+      {
+        "action": "stop",
+        "elapsed_seconds": 4.088185457978398,
+        "status": "succeeded"
+      },
+      {
+        "action": "start",
+        "elapsed_seconds": 8.103991708019748,
+        "status": "succeeded"
+      },
+      {
+        "action": "stop",
+        "elapsed_seconds": 4.093439541058615,
+        "status": "succeeded"
+      },
+      {
+        "action": "start",
+        "elapsed_seconds": 8.100413458188996,
+        "status": "succeeded"
+      },
+      {
+        "action": "stop",
+        "elapsed_seconds": 4.077599166892469,
+        "status": "succeeded"
+      },
+      {
+        "action": "start",
+        "elapsed_seconds": 8.081973291933537,
+        "status": "succeeded"
+      },
+      {
+        "action": "stop",
+        "elapsed_seconds": 4.188423375133425,
+        "status": "succeeded"
+      },
+      {
+        "action": "start",
+        "elapsed_seconds": 11.183909749845043,
+        "status": "succeeded"
+      },
+      {
+        "action": "stop",
+        "elapsed_seconds": 3.0752452090382576,
+        "status": "succeeded"
+      },
+      {
+        "action": "start",
+        "elapsed_seconds": 8.095611833035946,
+        "status": "succeeded"
+      },
+      {
+        "action": "stop",
+        "elapsed_seconds": 4.0837295420933515,
+        "status": "succeeded"
+      },
+      {
+        "action": "start",
+        "elapsed_seconds": 11.137429083930328,
+        "status": "succeeded"
+      },
+      {
+        "action": "stop",
+        "elapsed_seconds": 4.11357512511313,
+        "status": "succeeded"
+      },
+      {
+        "action": "start",
+        "elapsed_seconds": 8.100509874988347,
+        "status": "succeeded"
+      },
+      {
+        "action": "stop",
+        "elapsed_seconds": 6.108479208080098,
+        "status": "succeeded"
+      },
+      {
+        "action": "start",
+        "elapsed_seconds": 8.108066665939987,
+        "status": "succeeded"
+      },
+      {
+        "action": "stop",
+        "elapsed_seconds": 6.10664620785974,
+        "status": "succeeded"
+      },
+      {
+        "action": "start",
+        "elapsed_seconds": 9.126246457919478,
+        "status": "succeeded"
+      },
+      {
+        "action": "stop",
+        "elapsed_seconds": 6.10143162519671,
+        "status": "succeeded"
+      }
+    ]
+  },
+  "terminal_orders": {
+    "passed": true,
+    "total_local_rows": 405,
+    "confirmed_post_only_orders": 404,
+    "statuses": {
+      "canceled": 404,
+      "failed_local_intent_without_exchange_order": 1
+    },
+    "exact_original_price_and_base_amount": true,
+    "case_orders": [
+      {
+        "mode": "spot",
+        "profile": "follow_market",
+        "orders": 18,
+        "markets": {
+          "BTC-USDT": {
+            "buy": 15,
+            "sell": 3
+          }
+        }
+      },
+      {
+        "mode": "spot",
+        "profile": "sideways",
+        "orders": 6,
+        "markets": {
+          "BTC-USDT": {
+            "buy": 3,
+            "sell": 3
+          }
+        }
+      },
+      {
+        "mode": "spot",
+        "profile": "follow_token",
+        "orders": 18,
+        "markets": {
+          "BTC-USDT": {
+            "buy": 3,
+            "sell": 15
+          }
+        }
+      },
+      {
+        "mode": "perpetual",
+        "profile": "follow_market",
+        "orders": 23,
+        "markets": {
+          "BTC-USDT-SWAP": {
+            "buy": 8,
+            "sell": 15
+          }
+        }
+      },
+      {
+        "mode": "perpetual",
+        "profile": "sideways",
+        "orders": 6,
+        "markets": {
+          "BTC-USDT-SWAP": {
+            "buy": 3,
+            "sell": 3
+          }
+        }
+      },
+      {
+        "mode": "perpetual",
+        "profile": "follow_token",
+        "orders": 15,
+        "markets": {
+          "BTC-USDT-SWAP": {
+            "buy": 3,
+            "sell": 12
+          }
+        }
+      },
+      {
+        "mode": "both",
+        "profile": "follow_market",
+        "orders": 42,
+        "markets": {
+          "BTC-USDT": {
+            "buy": 12,
+            "sell": 12
+          },
+          "BTC-USDT-SWAP": {
+            "buy": 9,
+            "sell": 9
+          }
+        }
+      },
+      {
+        "mode": "both",
+        "profile": "sideways",
+        "orders": 18,
+        "markets": {
+          "BTC-USDT": {
+            "buy": 6,
+            "sell": 6
+          },
+          "BTC-USDT-SWAP": {
+            "buy": 3,
+            "sell": 3
+          }
+        }
+      },
+      {
+        "mode": "both",
+        "profile": "follow_token",
+        "orders": 32,
+        "markets": {
+          "BTC-USDT": {
+            "sell": 9,
+            "buy": 3
+          },
+          "BTC-USDT-SWAP": {
+            "buy": 5,
+            "sell": 15
+          }
+        }
+      }
+    ],
+    "both_sides_confirmed_in_every_case": true,
+    "scope": "Terminal orders confirm both directions occurred; no claim of continuous full-depth/two-sided uptime."
+  },
+  "reconciliation": {
+    "new_orders": 405,
+    "new_exchange_fills": 0,
+    "new_recorder_fills": 0,
+    "original_fee_comparisons": 0,
+    "positive_fill_evidence": false,
+    "pending_orders": 0,
+    "positions_matched": true,
+    "positions_base": {
+      "BUY": "0.0081",
+      "SELL": "0.0022"
+    },
+    "final_stopped": true,
+    "halt": false,
+    "pending_mutations": false
+  },
+  "log_classification": {
+    "all_structured_json": true,
+    "severity_counts": {
+      "INFO": 1567,
+      "WARNING": 48,
+      "ERROR": 8
+    },
+    "retry_error_records": 8,
+    "guard_rejection_reasons": {
+      "spread_policy_quote_rejected": 6,
+      "MM markets/data/exposure are not jointly ready.": 2
+    },
+    "all_rejected_attempts_absent_on_exchange": true,
+    "blocked_with_local_row": 1,
+    "blocked_without_local_row": 7,
+    "unclassified_errors": 0,
+    "critical_errors": 0
+  },
+  "final_state": {
+    "passed": true,
+    "at": "2026-10-30T05:18:00.323328+00:00",
+    "image_id": "sha256:715a11f33c59a7575b7f69db9d46d06c0edc81187d8dc8ca88ab4f42c3a1b75b",
+    "service_running": true,
+    "trading_stopped": true,
+    "owner_available": true,
+    "halt": false,
+    "pending_mutations": false,
+    "health": {
+      "/startup": 200,
+      "/live": 200,
+      "/ready": 503
+    },
+    "db_counts": {
+      "orders": 417,
+      "fills": 0,
+      "positions": 2,
+      "funding": 0,
+      "pending_commands": 0
+    },
+    "db_timezone": "UTC",
+    "control_version": 22,
+    "acknowledged_version": 22,
+    "owner_generation": null,
+    "private_files_unchanged": true,
+    "previous_container_retained_stopped": true,
+    "database_preserved": true,
+    "runtime_hashes_still_matched": 10
+  },
+  "limitations": [
+    "No natural new fill occurred; zero fee/fill counts reconcile, but positive new-fill fee processing was not observed on this image.",
+    "BTC-USDT substitute instruments do not certify LIFE listing execution or economics.",
+    "No continuous full-depth/two-sided quote uptime guarantee is inferred from point-in-time or terminal observations."
+  ],
+  "raw": {
+    "preflight.json": {
+      "path": "build/okx-demo-current/preflight.json",
+      "sha256": "1a8d47e07732d88662c25780dbaea78362f270a20c912ff099f7973762632c4e"
+    },
+    "stopped-startup.json": {
+      "path": "build/okx-demo-current/stopped-startup.json",
+      "sha256": "4e67555660333f34047de60c5bea572787389537bb008dd03fb775d79d9a1320"
+    },
+    "acceptance.json": {
+      "path": "build/okx-demo-current/acceptance.json",
+      "sha256": "b5644e67c758dbd05e422b15b05aa3655e2749f64e215226b8cf232d487d94c2"
+    },
+    "terminal-review.json": {
+      "path": "build/okx-demo-current/terminal-review.json",
+      "sha256": "b2036a8bf9ed822227dcffcceea6d9be964bfe61667636943a13b62f3af0faa7"
+    },
+    "log-classification.json": {
+      "path": "build/okx-demo-current/log-classification.json",
+      "sha256": "cc1683ab3c3dff58db0fa40f68a16c220660227c4cccbbbc3e704c32585c3904"
+    },
+    "final-state.json": {
+      "path": "build/okx-demo-current/final-state.json",
+      "sha256": "30b3f89f08974d6b883c0dd367b33dea2c72eb5a9e5a513c1a2ed149ca5e00e9"
+    },
+    "preflight.py": {
+      "path": "build/okx-demo-current/preflight.py",
+      "sha256": "b03aed2aeef085fc5b770015f7b6d3438326256dc0eca85624971535ca9d0bdb"
+    },
+    "acceptance.py": {
+      "path": "build/okx-demo-current/acceptance.py",
+      "sha256": "d199b6509e7e213569231c807940c0d1fe90ce33d6a6ee1b291a787a7416cf7d"
+    },
+    "terminal_review.py": {
+      "path": "build/okx-demo-current/terminal_review.py",
+      "sha256": "95ad5b2e79882b883d32772c08e582ace4f8a744ea23274e2230c22b2e717065"
+    }
+  }
+}

@@ -10,9 +10,12 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   pass. See the [completed reporting plan](../../docs/plans/MM_REPORTING_LATENCY_TDD_PLAN.md),
   [acceptance report](../mm-service-supervision.md) and
   [portable evidence](../mm-service-supervision-evidence.json).
-- **Next recommended verification:** actual OKX Demo preflight and controlled
-  sessions on this selected image. Earlier Demo acceptance retains its own image
-  scope; no new Demo trading is claimed by the completed local gate.
+- **Current-image OKX Demo complete:** read-only preflight, all nine profile/mode
+  cases, real Random step/active restart and 404 exact terminal post-only orders
+  pass on the selected image. No natural new fill occurs, so positive new-fill
+  fee handling remains unobserved. See the [scoped Demo report](../okx-demo-current-image.md)
+  and [evidence](../okx-demo-current-image-evidence.json). Older Demo results retain
+  their own image scope.
 - **Deferred external work:** actual Cloud Run provisioning/deployment and FE
   browser integration. Their current checklists are in the
   [cloud readiness review](../cloudrun-readiness-review.md#pending-actual-cloud-work)
@@ -1791,3 +1794,24 @@ the passing all-load. Final ten runtime fingerprints still match image715a.
 Close top repeat/R4/R6-final/R7-control checklist items: local acceptance complete.
 Preserve all failed attempts, cold1M SQL limitation and historical attribution
 uncertainty. No real Demo change, new real trading, push or Cloud Run deployment.
+
+
+## Current-image real OKX Demo (2026-10-30; scoped acceptance complete)
+
+The operator authorized read-only account review, then BTC-USDT spot profiles,
+Random/restart, perpetual/both and terminal/recorder reconciliation. Existing
+Demo history and policies are preserved across upgrade to 715a; the private DB
+backup and stopped predecessor remain. Twenty Start/Stop commands complete,
+all nine profile/mode cases pass, and a real 600s Random step changes
+follow_market→follow_token while restart preserves the session/anchors/deadlines.
+Independent OKX detail reads confirm 404 canceled post-only orders with exact
+original price/base quantity and both sides in each case. One failed local
+intent has no exchange order. Eight retry ERROR records are classified guard
+rejections, all independently absent on OKX; no CRITICAL/unclassified ERROR or
+HALT/pending mutation remains. New fills/fee comparisons are zero: positive
+new-fill processing is not observed or inferred from older acceptance.
+Final 417 orders / 0 fills / 2 positions retain long 0.0081 / short 0.0022 BTC; service remains
+up but trading stopped with zero pending exchange orders. Private files unchanged.
+See [report](../okx-demo-current-image.md), [evidence](../okx-demo-current-image-evidence.json)
+and [completed checklist](../../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
+No production source change, live trading, push or Cloud Run deployment.
