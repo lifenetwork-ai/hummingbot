@@ -134,7 +134,10 @@ budgets. No live trading, registry publication outside loopback, or cloud deploy
   First attempt `20261030-145524-a2b39f` fails soak p99: primary1086.76ms,
   auxiliary1137.27ms; zero HTTP errors. Warm/mixed/burst pass. Independent six
   fault cases pass at `20261030-161919-6d9c57`; these do not turn the failed full
-  attempt into a pass. Preserve both results and repeat the unchanged full gate.
+  attempt into a pass. Repeat `20261030-162807-3036fa` passes the latency budgets
+  but fails zero-error acceptance: one daily reporting query hits PostgreSQL's
+  2s statement timeout, causing 15 explicitly stale responses over4.2s. Preserve
+  both failures and diagnose without weakening the healthy gate.
 - [x] Validate complete per-role minute samples, stable PIDs and bounded
   RSS/thread/descriptor/queue growth, three-profile coverage and exact fill/fee/
   position/funding ledgers. Keep the existing zero-error and p95/p99 budgets.

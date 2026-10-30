@@ -1894,3 +1894,11 @@ engine/API event-loop maxima observed are 8.21s/2.91s; do not infer engine is
 unaffected or claim one root cause. All six fault cases pass separately on e526
 at `20261030-161919-6d9c57`. Operator chose to keep the current host environment;
 the full unchanged gate will be repeated. Both results remain retained.
+
+Second full e526 load `20261030-162807-3036fa` also fails the unchanged gate:
+soak primary p95/p99 75.86/499.88ms, auxiliary87.64/493.24ms and all HTTP200,
+but 15 daily reads return explicitly stale fallback over4.21s after PostgreSQL
+cancels a daily aggregate at its 2s statement timeout. Fill/position/funding
+ledger and per-role retention checks pass. The failure is not waived; isolate
+and investigate the slow SQL before another full gate. Both failed runs and the
+separate passing six-fault run remain preserved. See [report](../e526-release.md).

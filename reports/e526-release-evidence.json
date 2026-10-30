@@ -197,7 +197,7 @@
     }
   },
   "all_load": {
-    "status": "failed_pending_unchanged_repeat"
+    "status": "two_failed_attempts_under_investigation"
   },
   "production_control": {
     "status": "pending"
@@ -212,7 +212,8 @@
     "swagger.log": "73aa40e366acedf5cbdfc288fe5aa6b4f733bd07b21acb1141d9a519cbc718b4",
     "packaged-gc.log": "b38bad05647d05c7db5ee24ca16e5e1a1353c5cf718be2402bb36298d580a8ce",
     "all-load.log": "d3e3c55276352dcdf944aa4c84c7744c3e0f3f27d1801fca4c2823959a603497",
-    "faults-separate.log": "f07ba8516ad3d5f4710122b44cc033e539820b143ee7245315a72c7c8a67b2f4"
+    "faults-separate.log": "f07ba8516ad3d5f4710122b44cc033e539820b143ee7245315a72c7c8a67b2f4",
+    "all-load-repeat.log": "f3f420731f1138fb4064ccf70bbc8bc7835d36c8e189776be27d0ccb9699207e"
   },
   "all_load_attempts": [
     {
@@ -382,6 +383,269 @@
       "first_observed_engine_event_loop_max_ms": 8210.783180926228,
       "first_observed_api_event_loop_max_ms": 2907.6901364314836,
       "root_cause": "undetermined"
+    },
+    {
+      "status": "failed",
+      "report": "build/mm-load/20261030-162807-3036fa/result.json",
+      "error": "Declared load budgets failed: errors",
+      "windows": {
+        "warmup": {
+          "duration_seconds": 300,
+          "read_p95_ms": 60.121595015516505,
+          "read_p99_ms": 237.22953200922348,
+          "unexpected_errors": 0,
+          "errors": [],
+          "statuses": {
+            "200": 6000
+          },
+          "violations": [],
+          "ledger": {
+            "unique_exchange_fills": 300,
+            "unique_recorder_fills": 300,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "auxiliary": {
+            "requested_reads": 1500,
+            "completed_reads": 1500,
+            "statuses": {
+              "200": 1500
+            },
+            "read_p95_ms": 67.59849999798462,
+            "read_p99_ms": 176.7685570230242
+          },
+          "profile_running_coverage": null
+        },
+        "mixed": {
+          "duration_seconds": 900,
+          "read_p95_ms": 350.3238429839257,
+          "read_p99_ms": 935.5271889944561,
+          "unexpected_errors": 0,
+          "errors": [],
+          "statuses": {
+            "200": 18000
+          },
+          "violations": [],
+          "ledger": {
+            "unique_exchange_fills": 1200,
+            "unique_recorder_fills": 1200,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "auxiliary": {
+            "requested_reads": 4500,
+            "completed_reads": 4500,
+            "statuses": {
+              "200": 4500
+            },
+            "read_p95_ms": 367.5268149818294,
+            "read_p99_ms": 971.7925929871853
+          },
+          "profile_running_coverage": null
+        },
+        "bursts": {
+          "duration_seconds": 90,
+          "read_p95_ms": 374.29906098986976,
+          "read_p99_ms": 904.2347689974122,
+          "unexpected_errors": 0,
+          "errors": [],
+          "statuses": {
+            "200": 1800
+          },
+          "violations": [],
+          "ledger": {
+            "unique_exchange_fills": 1290,
+            "unique_recorder_fills": 1290,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "auxiliary": {
+            "requested_reads": 450,
+            "completed_reads": 450,
+            "statuses": {
+              "200": 450
+            },
+            "read_p95_ms": 259.5435190014541,
+            "read_p99_ms": 940.9608780115377
+          },
+          "profile_running_coverage": null
+        },
+        "soak": {
+          "duration_seconds": 3600,
+          "read_p95_ms": 75.85930902860127,
+          "read_p99_ms": 499.87554299877957,
+          "unexpected_errors": 15,
+          "errors": [
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357293.0328119,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357293.0427494,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357293.0456378,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357293.3806188,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357293.5662754,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357293.7539105,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357293.8822765,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357294.0160346,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357294.1646934,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357294.488314,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357295.0408852,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357295.5904586,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357296.1388123,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357296.6898987,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793357297.2459915,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            }
+          ],
+          "statuses": {
+            "200": 72000
+          },
+          "violations": [
+            "errors"
+          ],
+          "ledger": {
+            "unique_exchange_fills": 4890,
+            "unique_recorder_fills": 4890,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "auxiliary": {
+            "requested_reads": 18000,
+            "completed_reads": 18000,
+            "statuses": {
+              "200": 18000
+            },
+            "read_p95_ms": 87.63931700377725,
+            "read_p99_ms": 493.24268600321375
+          },
+          "profile_running_coverage": [
+            {
+              "profile": "sideways",
+              "step": 0,
+              "running_overlap_seconds": 598.6690299510956
+            },
+            {
+              "profile": "follow_market",
+              "step": 1,
+              "running_overlap_seconds": 593.9801411628723
+            },
+            {
+              "profile": "follow_market",
+              "step": 2,
+              "running_overlap_seconds": 593.9898171424866
+            },
+            {
+              "profile": "sideways",
+              "step": 3,
+              "running_overlap_seconds": 596.2453720569611
+            },
+            {
+              "profile": "follow_market",
+              "step": 4,
+              "running_overlap_seconds": 596.3967990875244
+            },
+            {
+              "profile": "sideways",
+              "step": 5,
+              "running_overlap_seconds": 595.7375040054321
+            }
+          ]
+        }
+      },
+      "postgres_statement_timeout_seconds": 2,
+      "api_stale_fallback": true,
+      "stale_read_count": 15,
+      "stale_interval_seconds": 4.213179588317871,
+      "sql_slowdown_root_cause": "undetermined"
     }
   ],
   "faults_separate": {

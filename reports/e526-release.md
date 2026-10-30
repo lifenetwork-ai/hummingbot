@@ -65,9 +65,29 @@ owner restart, queued expiry, delayed DB and DB failure. This separate result
 does not satisfy the failed all-profile gate. At the operator's request the
 environment is kept as-is; repeat the full unchanged gate and retain all attempts.
 
+## Second full load attempt — failed and retained
+
+Run `build/mm-load/20261030-162807-3036fa/` passes warm/mixed/burst latency and
+the continuous-hour latency budgets: soak primary p95/p99 **75.86/499.88ms**,
+auxiliary p95/p99 **87.64/493.24ms**. All 72,000 primary and 18,000 auxiliary
+reads return HTTP200; 4,890 exchange/recorder fills, positions and funding match.
+
+The run nonetheless fails the unchanged zero-error gate: 15 daily statistics
+reads explicitly report stale fallback during a 4.21-second interval. PostgreSQL
+logs show a 2s statement timeout on the daily aggregate, and the API logs confirm
+the bounded last-good fallback. This is a correctly labelled degraded response,
+but it is not a healthy statistics result. The retained minute samples do not
+establish why that aggregate exceeded its deadline or prove that the engine was
+unaffected. Native per-role sampling and the final ledger checks still pass.
+
+The separate six-fault run above passes, but the second full run stops before
+its own faults and is not accepted. Diagnose the slow aggregate on isolated
+representative data and preserve both failed attempts; do not waive errors,
+raise budgets or call an uninstrumented guess a cause.
+
 ## Remaining gates
 
-The full warm/mixed/burst/hour/fault gate will be repeated. Matched ordinary-entrypoint control,
+After investigation, the full warm/mixed/burst/hour/fault gate remains open. Matched ordinary-entrypoint control,
 the matched ordinary-entrypoint control and final Demo preservation checks remain
 open. No latency, memory, retry, rate, error or continuous-sampling budget has
 been relaxed. Exact progress is tracked in the
