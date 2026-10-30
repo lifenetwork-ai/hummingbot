@@ -24,11 +24,15 @@ Keep Start/Switch/Stop on the admin API; YAML remains the policy authority.
   during the session and verify the pinned session/anchors/deadline, then Stop.
   Step0 follows the market; step1 follows AVAX. Session/profile/generation,
   anchors and global/step deadlines survive restart; quote recovery and Stop pass.
-- [ ] Repeat the three fixed profiles for perpetual and both markets while
+- [x] Repeat the three fixed profiles for perpetual and both markets while
   preserving existing exposure and all admission/risk gates.
-- [ ] Reconcile final pending orders, newly observed fills/original fees and
+- [x] Reconcile final pending orders, newly observed fills/original fees and
   position quantities against PostgreSQL. Explicitly report zero-fill coverage
   if the market produces no natural fills; do not invent positive fill evidence.
+  All9 profile/mode cases pass. Independent terminal reads confirm404 canceled
+  post-only orders with exact original price/base quantity and both sides in
+  every case. One failed local intent has no exchange order. New fills/fees are
+  zero, so positive new-fill fee processing remains unobserved on this image.
 - [ ] Leave trading stopped with no test-owned pending quotes, preserve private
   files/DB/backup, audit logs, publish sanitized scoped evidence and commit.
 
