@@ -1737,3 +1737,15 @@ violations. Actual ten-second burst509.85/s; all six fault cases pass. Hour has
 positions match. Maximum RSS growth supervisor/engine/API0/13.27/0.50MiB;
 threads unchanged, descriptors bounded. Mark R7 all-load/hour/fault done;
 matched ordinary-entrypoint control and overall adoption remain open.
+
+Full-load phase committed as `9fe9f18c1`. Matched ordinary-entrypoint control
+`production-control-20261030-071800-602ad9` runs alone on715a, using the passing
+all-load baseline unchanged. Warm300/mixed900 and final adoption remain pending.
+
+First ordinary control remains failed: warmup client0errors/p99510.54ms, then
+harness KeyError requiring burst-only command_seconds in nonburst output.
+Eight behavioral Red failures / thirty focused Green tests fix this by recording
+actual setup command times (same provenance as baseline) and retaining all
+missing/slow-command gates. Raw client JSON is persisted before summary. Runtime
+image and client/exchange/catalogue fixtures are unchanged. Full ordinary control
+must repeat; no acceptance box closes from its partial warmup.

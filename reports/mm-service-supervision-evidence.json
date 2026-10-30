@@ -494,7 +494,7 @@
     "sampled_api_full_gc_max_ms": 67.746958
   },
   "production_control": {
-    "status": "pending"
+    "status": "pending corrected harness replay; unchanged runtime image and baseline"
   },
   "retained_failures": [
     {
@@ -1726,5 +1726,32 @@
         "scope": "Co-occurring signals in this run; causal import/GC experiment pending; not unique attribution of historical p99."
       }
     }
+  },
+  "production_control_attempts": [
+    {
+      "status": "running; warm300/mixed900 required",
+      "report": "build/service-supervision/production-control-20261030-071800-602ad9/result.json",
+      "log": "build/service-supervision/api-gc-final-production-control.log",
+      "baseline": "build/mm-load/20261030-054619-495f64",
+      "session": 76909,
+      "passed": false,
+      "failure_type": "KeyError",
+      "cause": "Nonburst client has reconciliation only; harness incorrectly required burst-only control_results.command_seconds.",
+      "retained_client_log": "build/service-supervision/production-control-20261030-071800-602ad9/warmup-client.log",
+      "warmup_client_read_p95_ms": 74.8130849970039,
+      "warmup_client_read_p99_ms": 510.54257099167444,
+      "warmup_client_errors": 0,
+      "scope": "Failed harness attempt; incomplete control, not accepted"
+    }
+  ],
+  "production_control_harness_fix": {
+    "runtime_changed": false,
+    "client_exchange_catalogue_fixtures_changed": false,
+    "behavior_red_failed": 8,
+    "behavior_red_passed": 1,
+    "green_passed": 30,
+    "red_log": "build/service-supervision/production-control-command-behavior-red.log",
+    "green_log": "build/service-supervision/production-control-command-green.log",
+    "policy": "Use actual measured setup command application times for nonburst windows, as baseline does; missing/slow measurements still fail unchanged budgets. Persist raw client JSON before summary."
   }
 }

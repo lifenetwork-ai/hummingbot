@@ -164,6 +164,11 @@ image scope; no single historical p99 trigger is assumed.
   three profiles runs; 4,884 unique fills and positions match the recorder.
 - [ ] Complete matched ordinary-entrypoint control on this image before closing
   R4/R6 adoption; the instrumented all-load alone does not waive this control.
+  First attempt `production-control-20261030-071800-602ad9` remains failed:
+  harness assumed burst-only command timings existed in a nonburst window.
+  Eight behavioral Red failures / thirty focused Green tests preserve actual
+  setup-command measurements and unchanged missing/slow-command gates. Runtime,
+  workload fixtures and passing baseline are unchanged; full control replay required.
 
 ## R5: attribute the longer healthy latency failure
 

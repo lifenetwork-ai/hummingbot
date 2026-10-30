@@ -425,3 +425,19 @@ These pass unchanged retention budgets, not a proof against every possible
 multi-day leak. Orders remain three queries at page sizes1/100/500; fills and
 performance remain one query. Ordinary-entrypoint control and final checklist
 closure remain pending.
+
+The first ordinary control `production-control-20261030-071800-602ad9` remains
+failed. Its raw warmup client reports 6,000 primary/1,500 auxiliary reads,
+zero errors and p95/p9974.81/510.54ms, but the harness raises `KeyError` before
+summarizing or running mixed. Nonburst client windows intentionally return only
+reconciliation controls; Start/Switch/Stop timings are burst-only. The ordinary
+control had incorrectly required those fields instead of the actual measured
+setup-command times used by the all-load runner.
+
+Eight behavioral Red failures reproduce the missing-field error. Thirty focused
+Green tests cover measured setup fallback, retained missing/slow-command gates,
+priority for actual in-window failures and unchanged runtime/HTTP/latency/rate
+budgets. The harness now records setup times and persists raw client JSON before
+summarizing. No bot image, client/exchange/catalogue fixture, load budget or
+previous passing baseline changes. The incomplete control is not accepted;
+repeat full warm300/mixed900 using the corrected harness.

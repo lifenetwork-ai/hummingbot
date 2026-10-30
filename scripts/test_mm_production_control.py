@@ -20,6 +20,16 @@ from scripts.test_e2e_offline import Harness, docker, poll  # noqa: E402
 from scripts.test_mm_load import assets_for, command, seed_history, verify_ledger  # noqa: E402
 
 
+def summarize_window(data, *, memory, phase, setup_commands, ledger):
+    """Apply unchanged budgets using measured setup commands for nonburst reads."""
+    row = dict(data)
+    row.update(runtime=dict(runtime_phase=phase, container_memory=memory),
+               peak_rss_bytes=memory['peak_bytes'],
+               command_seconds=row['control_results'].get('command_seconds', setup_commands), ledger=ledger)
+    row['violations'] = violations(row)
+    return row
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline', type=Path, required=True, help='Completed load evidence directory')
@@ -62,9 +72,12 @@ def main():
                 harness.control(funding_bills=[dict(billId=str(i), type='8', subType='174' if value[0] != '-' else '173',
                                                     instId='LIFE-USDT-SWAP', ts=str(stamp), pnl=value, ccy='USDT')
                                                for i, value in ((1, '-0.0000001234567890123456789'), (2, '0.0000000234567890123456789'))])
+                controls = {}
                 for action in ('start', 'switch', 'stop', 'start'):
-                    command(harness, port, action, **(dict(market_mode='both', selection='fixed', profile_id='follow_market',
-                                                           duration_seconds=86400) if action != 'stop' else {}))
+                    elapsed, _ = command(harness, port, action, **(dict(market_mode='both', selection='fixed', profile_id='follow_market',
+                                                                        duration_seconds=86400) if action != 'stop' else {}))
+                    controls.setdefault(action, elapsed)
+                evidence['setup_command_seconds'] = controls
                 poll(lambda: len([o for o in harness.ledger()['orders'] if o['state'] == 'live']) == 12,
                      description='twelve production control quotes')
                 assert harness.state()['status']['spot_outflow']['fill_count'] >= baseline['history_orders'] // 2
@@ -80,13 +93,12 @@ def main():
                     (report / (name + '-client.log')).write_text(result.stdout + result.stderr)
                     assert result.returncode == 0
                     row = json.loads(docker('exec', client, 'cat', '/tmp/result.json').stdout)
+                    (report / (name + '-client.json')).write_text(json.dumps(row, indent=2) + '\n')
                     memory_code = "import json;from pathlib import Path; print(json.dumps({k:int(Path('/sys/fs/cgroup/memory.'+v).read_text()) for k,v in [('current_bytes','current'),('peak_bytes','peak')]}))"
                     memory = json.loads(docker('exec', bot, 'python', '-c', memory_code).stdout)
                     status = harness.admin(port, '/status')[1]
-                    row.update(runtime=dict(runtime_phase=status['phase'], container_memory=memory),
-                               peak_rss_bytes=memory['peak_bytes'], command_seconds=row['control_results']['command_seconds'],
-                               ledger=verify_ledger(harness, port, require_running=False))
-                    row['violations'] = violations(row)
+                    row = summarize_window(row, phase=status['phase'], memory=memory, setup_commands=controls,
+                                           ledger=verify_ledger(harness, port, require_running=False))
                     evidence['windows'][name] = row
                     (report / 'result.json').write_text(json.dumps(evidence, indent=2) + '\n')
                     print(name, {key: row[key] for key in ('read_p95_ms', 'read_p99_ms', 'unexpected_errors', 'violations')}, flush=True)
