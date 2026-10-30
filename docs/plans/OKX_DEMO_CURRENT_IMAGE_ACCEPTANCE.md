@@ -15,8 +15,11 @@ Keep Start/Switch/Stop on the admin API; YAML remains the policy authority.
 - [x] Validate the current catalogue and ten runtime fingerprints, back up the
   persistent DB, replace the stopped old container with the accepted runtime,
   and prove existing order/fill/position rows are unchanged across startup.
-- [ ] Spot: exercise `follow_market`, `sideways`, `follow_token` with independent
+- [x] Spot: exercise `follow_market`, `sideways`, `follow_token` with independent
   exchange order/recorder checks, post-only/rules/budget validation and Stop.
+  Each runs through a 65-second observation. Stop leaves zero pending quotes
+  and preserves the existing perpetual quantities. Initial order snapshots may
+  be partial while levels are being created/refreshed; no full-book count claim.
 - [ ] Spot Random: observe a real configured 600-second step boundary, restart
   during the session and verify the pinned session/anchors/deadline, then Stop.
 - [ ] Repeat the three fixed profiles for perpetual and both markets while
