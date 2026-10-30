@@ -62,11 +62,12 @@ def main():
                 for offset in (0, .17, .43):
                     time.sleep(offset)
                     started = time.monotonic()
-                    docker('exec', bot, 'kill', '-STOP', str(identity))
+                    docker('exec', bot, 'python', '-c', 'import os,signal,sys; os.kill(int(sys.argv[1]),signal.SIGSTOP)', str(identity))
                     try:
                         time.sleep(6)
                     finally:
-                        docker('exec', bot, 'kill', '-CONT', str(identity), check=False)
+                        docker('exec', bot, 'python', '-c', 'import os,signal,sys; os.kill(int(sys.argv[1]),signal.SIGCONT)',
+                               str(identity), check=False)
                     row = dict(paused_seconds=time.monotonic() - started, offset_seconds=offset)
                     evidence['cycles'].append(row)
                     time.sleep(2)
@@ -79,7 +80,9 @@ def main():
                     assert observed['owner_uuid'] == initial['owner_uuid']
                     assert observed['mm_session']['id'] == initial['mm_session']['id']
                     fill_both()
-                    row['ledger'] = verify_ledger(harness, port)
+                    # The shipping entrypoint has no test metrics files. State,
+                    # PID/session continuity and API positions are checked here.
+                    row['ledger'] = verify_ledger(harness, port, require_running=False)
                 command(harness, port, 'stop')
                 evidence['passed'] = True
             finally:
