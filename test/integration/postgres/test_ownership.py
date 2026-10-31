@@ -474,6 +474,8 @@ def test_shutdown_skips_only_proven_unsent_failed_creates(owned, transport_attem
         owned.owner.order_failed(owned.market, order)
     # A cancel-not-found acknowledgement can follow the send-gate rejection.
     if replace_order:
+        # A resident executor may still retain the original rejected object.
+        core.retained_executor_orders = [order]
         # Same client ID is not proof that this different object was rejected
         # before transport by this process's create coroutine.
         order = InFlightOrder.from_json(order.to_json())
