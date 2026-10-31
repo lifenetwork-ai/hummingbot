@@ -44,6 +44,8 @@ class SpotOutflowProjection:
         self.reservations: Dict[str, Reservation] = {}
         self.net = ZERO
         self.future_risk = ZERO
+        # Gross positive future cash by order. Its live reservation covers the
+        # whole order once, including one flat allowance, not once per fill.
         self.future_costs = {}
         self.fees = {}
         self.failure = None
@@ -58,10 +60,16 @@ class SpotOutflowProjection:
         start = now_ms - self.config.window_seconds * 1000
         while self.future and self.future[0][0] < now_ms:
             stamp, key = heapq.heappop(self.future)
-            self.future_risk -= self.future_costs.pop(key, ZERO)
             value = self.entries.get(key)
             if value is None:
                 continue
+            cost = max(ZERO, Decimal(value[2])) if value[2] is not None else ZERO
+            self.future_risk -= cost
+            remaining = self.future_costs.get(key[1], ZERO) - cost
+            if remaining:
+                self.future_costs[key[1]] = remaining
+            else:
+                self.future_costs.pop(key[1], None)
             reservation = self.reservations.get(key[1])
             if reservation is not None and key not in reservation.seen:
                 self._commit_quantity(reservation, key, Decimal(value[1]))
@@ -72,6 +80,9 @@ class SpotOutflowProjection:
             else:
                 self.invalid.discard(key)
                 self.entries.pop(key, None)
+        if not self.future:
+            self.future_risk = ZERO
+            self.future_costs.clear()
         if len(self.expiry) >= 1024 and self._latest_expiry_ms < start:
             # All entries in this heap are due. Sorting once preserves exactly
             # the heappop order (including Decimal arithmetic) without repeated
@@ -171,10 +182,10 @@ class SpotOutflowProjection:
             heapq.heappush(self.expiry, (stamp, key))
             self._latest_expiry_ms = max(self._latest_expiry_ms, stamp)
         else:
-            covered = (amount * reservation.price * (1 + self.config.fee_allowance_rate) + reservation.flat_fee
-                       if reservation is not None else ZERO)
-            self.future_costs[key] = max(ZERO, (cash or ZERO) - covered)
-            self.future_risk += self.future_costs[key]
+            cost = max(ZERO, cash or ZERO)
+            if cost:
+                self.future_costs[key[1]] = self.future_costs.get(key[1], ZERO) + cost
+                self.future_risk += cost
             heapq.heappush(self.future, (stamp, key))
         self.advance(self.now_ms)
 
@@ -190,8 +201,10 @@ class SpotOutflowProjection:
         return None
 
     def reserved(self):
-        return self.future_risk + sum((max(ZERO, item.amount - item.committed) * item.price * (1 + self.config.fee_allowance_rate)
-                                       + item.flat_fee for item in self.reservations.values()), ZERO)
+        return self.future_risk + sum((max(ZERO,
+                                           max(ZERO, item.amount - item.committed) * item.price * (1 + self.config.fee_allowance_rate)
+                                           + item.flat_fee - self.future_costs.get(identity, ZERO))
+                                       for identity, item in self.reservations.items()), ZERO)
 
     def reserve(self, order, flat_fee=ZERO):
         if self.reason():

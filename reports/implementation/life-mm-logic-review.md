@@ -1,6 +1,6 @@
 # LIFE MM logic-flow review — 2026-10-26
 
-Latest follow-up (2026-11-01): **B1 fixed and verified; B2–B4 implementation next**.
+Latest follow-up (2026-11-01): **B1/B2 fixed and verified; B3/B4 implementation next**.
 See [the new findings](#2026-11-01-latent-bug-audit--fixes-pending) and
 [original audit evidence](life-mm-latent-bug-audit-20261101.json), with
 [separate fix evidence](life-mm-latent-bug-fixes-20261101.json). They predate the last
@@ -220,11 +220,14 @@ false unknown-outcome HALT during shutdown.
   admission rolls back before persistence, while attempted intent writes remain
   tracked until a fenced durable rejection succeeds. Acknowledged/conflicting
   recorder rows cannot be rewritten; uncertain rejection still retains HALT/risk.
-- [ ] B2: Red/Green cumulative future fee coverage and exact Decimal differential replay.
+- [x] B2: Red/Green cumulative future fee coverage and exact Decimal differential replay.
+  Red18 failures/6 passes; Green50 native and20 selected PostgreSQL cases.
+  Fixed allowance covers the complete order once; known future debit survives
+  release of its local reservation and expires through the existing window.
 - [ ] B3: Red/Green funding catalogue retry after transient failure/cancellation.
 - [ ] B4: Red/Green bounded rejection history while preserving shutdown evidence.
 
-The original audit was read-only. B1 implementation is now verified; B2/B3/B4
+The original audit was read-only. B1/B2 implementation is now verified; B3/B4
 remain next. [Audit evidence](life-mm-latent-bug-audit-20261101.json) preserves
 the original reproductions/source hashes; [fix evidence](life-mm-latent-bug-fixes-20261101.json)
 tracks new Red/Green results. Raw results are under ignored

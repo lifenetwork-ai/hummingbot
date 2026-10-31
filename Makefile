@@ -85,6 +85,7 @@ test-cloudrun-regression:
 		test/hummingbot/core/data_type/test_order_book_tracker.py \
 		test/hummingbot/core/test_spot_outflow.py \
 		test/hummingbot/core/test_spot_outflow_fairness.py \
+		test/hummingbot/core/test_spot_outflow_future.py \
 		test/hummingbot/core/test_spot_outflow_retention.py \
 		test/hummingbot/core/test_mm_liquidity.py \
 		test/hummingbot/core/test_mm_quote_activity.py \

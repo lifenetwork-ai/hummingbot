@@ -15,7 +15,15 @@
       "behavior": "Rollback local pre-intent admission; mark durable write attempts for fenced rejection; refuse to rewrite acknowledged/conflicting recorder history"
     },
     "B2": {
-      "status": "pending"
+      "status": "implemented_verified",
+      "initial_red": {
+        "failed": 18,
+        "passed": 6
+      },
+      "native_passed": 50,
+      "postgres_passed": 20,
+      "behavior": "Share one remaining order reservation across all known future debits; preserve positive future cash until maturity without anticipating sell credits",
+      "tests": "test/hummingbot/core/test_spot_outflow_future.py"
     },
     "B3": {
       "status": "pending"
