@@ -7,6 +7,11 @@ Application image `5973410d` / manifest `50a95f3a` is unchanged; measurement
 source is frozen at `b7ba104e7`. The bounded follow-up has native114 and matched
 300s recorder/shipping passes; see [measurement remediation](mm-measurement-remediation.md).
 
+Subsequent [historical-cause review](mm-historical-cause-review.md) confirms and
+fixes a test CPU/heartbeat timestamp defect (119 tests and a packaged old/new
+comparison). H1/H2/H3 still lack a unique proven cause. The review does not
+change the accepted image, frozen measurement source or R1/R2 results.
+
 ## Current full R1 — passed and independently verified
 
 Run `20261101-011658-1465e8` completes the entire declared sequence and cleanup:

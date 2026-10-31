@@ -29,8 +29,10 @@ from load_trace import (
     backend_pid,
     instrument_admin_queue,
     instrument_sync,
+    sample_heartbeat,
     sql_metadata,
     stack_snapshot,
+    timed_cpu_sample,
 )
 from sqlalchemy import event
 from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
@@ -348,30 +350,33 @@ def watchdog(loop_thread_id):
                     save_incident_summary()
                 except OSError:
                     pass  # Evidence filesystem errors cannot affect trading health.
+        now = time.monotonic_ns()  # Summary/trigger I/O above may have descheduled this thread.
         if now - last_cpu >= (250000000 if incidents else 1000000000) and cpu.is_file():
-            last_cpu = now
-            record = dict(kind="cpu_sample", at=time.time(), at_ns=now, process_role=process_role,
-                          process_cpu_ns=time.process_time_ns(), sampler_thread_cpu_ns=time.thread_time_ns(),
-                          sample_gap_ms=(now - last_sample) / 1e6,
-                          cgroup_cpu={key: int(value) for key, value in (line.split() for line in cpu.read_text().splitlines())})
+            record = timed_cpu_sample(cpu, process_role=process_role, previous_sample_ns=last_sample)
+            last_cpu = record['sample_started_ns']
             if incidents:
+                record['context_started_ns'] = time.monotonic_ns()
+                heartbeat = sample_heartbeat(lambda: loop_beat_ns)
                 active = tracer.active_snapshot(limit=16)
                 frames = sys._current_frames()
-                record.update(active_spans=active, last_beat_ns=loop_beat_ns,
+                record.update(active_spans=active, heartbeat=heartbeat,
                               stacks={str(tid): stack_snapshot(frames.get(tid)) for tid in
                                       {loop_thread_id, *(span['thread_id'] for span in active[:7])}},
                               pressure={name: path.read_text() for name in ('cpu', 'io', 'memory')
                                         if (path := Path('/proc/pressure') / name).is_file()})
+                record['context_ended_ns'] = time.monotonic_ns()
             emit_trace(record)
-            last_sample = now
-        last_beat = loop_beat_ns
-        lag_ms = (now - last_beat) / 1e6 - 50
-        if lag_ms < 200 or now - previous < 100000000:
+            last_sample = record['sample_started_ns']
+        heartbeat = sample_heartbeat(lambda: loop_beat_ns)
+        now, lag_ms = heartbeat['at_ns'], heartbeat['lag_ms']
+        if not heartbeat['consistent'] or lag_ms < 200 or now - previous < 100000000:
             continue
         previous = now
+        context_started = time.monotonic_ns()
         frames = sys._current_frames()
         active = tracer.active_snapshot(limit=16 if incidents else None)
-        record = dict(kind="loop_stall", at=time.time(), at_ns=now, last_beat_ns=last_beat,
+        record = dict(kind="loop_stall", at=heartbeat['at'], at_ns=now, last_beat_ns=heartbeat['last_beat_ns'],
+                      sample_schema_version=2, heartbeat=heartbeat, context_started_ns=context_started,
                       process_role=process_role,
                       loop_thread_id=loop_thread_id, lag_ms=lag_ms, active_spans=active,
                       stacks={str(tid): stack_snapshot(frames.get(tid)) for tid in
@@ -380,8 +385,9 @@ def watchdog(loop_thread_id):
             record["cgroup_cpu"] = {key: int(value) for key, value in (line.split() for line in cpu.read_text().splitlines())}
         record["pressure"] = {name: path.read_text() for name in ("cpu", "io", "memory")
                               if (path := Path("/proc/pressure") / name).is_file()}
+        record['context_ended_ns'] = time.monotonic_ns()
         if incidents:
-            incidents.trigger(dict(kind='loop_stall_trigger', at_ns=now, at=time.time(),
+            incidents.trigger(dict(kind='loop_stall_trigger', at_ns=now, at=heartbeat['at'],
                                    process_role=process_role, lag_ms=lag_ms))
         emit_trace(record)
 

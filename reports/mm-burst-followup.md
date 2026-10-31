@@ -1,5 +1,11 @@
 # Remaining acceptance investigation — 2026-10-31
 
+Current status (2026-11-01): full R1 and matched shipping R2 now pass; see the
+[release closeout](mm-release-closeout.md). The subsequent
+[historical-cause review](mm-historical-cause-review.md) fixes test-sampler timing
+and records the remaining attribution limits. Pending release statements below
+describe their original checkpoint, not the current accepted result.
+
 Later follow-up: [automatic incident capture and sequential shipping comparison](mm-incident-investigation.md)
 is complete. Both new diagnostic sequences pass; the historical long-lag cause
 and combined release acceptance remain open. Results below retain their original

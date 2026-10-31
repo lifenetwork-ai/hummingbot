@@ -1,0 +1,164 @@
+{
+  "review_date": "2026-11-01",
+  "scope": "Bounded historical artifact review and isolated watchdog comparison; no connected trading or deployment",
+  "accepted_release": {
+    "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
+    "manifest": "sha256:50a95f3a842f95ed072510e9031b2cf5f99d75ed07943c4e52862d9b26a7dc51",
+    "measurement_revision": "b7ba104e7",
+    "r1": "20261101-011658-1465e8",
+    "r2": "production-control-20261101-024951-b873b2",
+    "changed_by_this_review": false
+  },
+  "diagnostic_fix": {
+    "status": "confirmed_and_fixed",
+    "mechanism": "Watchdog timestamp taken before summary I/O but reused for later CPU read/heartbeat",
+    "schema_version": 2,
+    "application_changed": false,
+    "old_new_packaged": {
+      "legacy": {
+        "injected_metadata_wait_ms": 801.64825,
+        "cpu_timestamp_after_metadata_ms": -804.052167,
+        "collection_ms": null,
+        "sample_schema_version": null,
+        "heartbeat": null,
+        "trading_performed": false
+      },
+      "bounded": {
+        "injected_metadata_wait_ms": 805.312167,
+        "cpu_timestamp_after_metadata_ms": 0.410209,
+        "collection_ms": 0.498416,
+        "sample_schema_version": 2,
+        "heartbeat": {
+          "at": 1793481227.5418923,
+          "at_ns": 324538326136867,
+          "sample_started_ns": 324538326135825,
+          "sample_ended_ns": 324538326142159,
+          "last_beat_ns": 324538301780450,
+          "consistent": true,
+          "lag_ms": 0
+        },
+        "trading_performed": false
+      }
+    },
+    "estimated_historical_skew": {
+      "engine": {
+        "max_estimated_skew_ms": 805.976390838623,
+        "mapping_variation_ms": 31.717538833618164,
+        "cpu_samples": 10909
+      },
+      "api": {
+        "max_estimated_skew_ms": 852.3571491241455,
+        "mapping_variation_ms": 15.687227249145508,
+        "cpu_samples": 5398
+      }
+    },
+    "limits": "Skew estimates are not corrected old timestamps. New counter and context intervals are separately bounded."
+  },
+  "validation": {
+    "red_tests": 3,
+    "green_tests": 119,
+    "green_seconds": 8.68,
+    "focused_cases": 5,
+    "packaged_comparison": "actual legacy/new watchdog functions; real cgroup CPU and 20ms heartbeat, injected 800ms evidence I/O, network disabled",
+    "new_release_gate_claimed": false
+  },
+  "incidents": {
+    "H1": {
+      "status": "insufficient_historical_evidence",
+      "original_rate_per_second": 498.033,
+      "minimum_per_second": 500,
+      "client_provenance": {
+        "fixture_sha256": "958e5f860e52bef964577c1e316b326e04741f437a23e779ceb2a38a59ffd8b5",
+        "matching_revisions": [
+          "056b1149599b6455acdb927088f6b12631f833ca"
+        ]
+      },
+      "ruled_out": "Client already switched burst mode before taking its baseline",
+      "missing": "Failed inner 10s control counter/duration; not recoverable from 90s average"
+    },
+    "H2": {
+      "status": "insufficient_historical_evidence",
+      "fallback_to_termination_seconds": 126.698,
+      "last_callback_to_termination_seconds": 9.877,
+      "missing": "Original typed probe history and final blocked engine stack"
+    },
+    "H3": {
+      "status": "insufficient_historical_evidence",
+      "probe_episode_seconds": 7.206,
+      "failed_probes": 5,
+      "first_failure_utc": "2026-10-31T08:32:50.893Z",
+      "recovered_utc": "2026-10-31T08:32:58.093Z",
+      "tracing": false,
+      "gc_diagnostics": true,
+      "gc": {
+        "engine": {
+          "retained_full_gc_events": 3,
+          "max_full_gc_ms": 244.99025,
+          "events_near_episode": []
+        },
+        "api": {
+          "retained_full_gc_events": 78,
+          "max_full_gc_ms": 660.517542,
+          "events_near_episode": [
+            {
+              "start_ns": 282413473433553,
+              "at": 1793435570.5788987,
+              "thread_id": 140736049665728,
+              "duration_ms": 660.517542,
+              "thread_cpu_ms": 253.439,
+              "collected": 233
+            }
+          ]
+        }
+      },
+      "fill_logs_inside_episode_utc": [
+        "08:32:51.126",
+        "08:32:54.324",
+        "08:32:54.496",
+        "08:32:54.616",
+        "08:32:54.889",
+        "08:32:56.422",
+        "08:32:56.814"
+      ],
+      "limit": "Episode duration is not a continuous total process freeze; all timestamps UTC 2026-10-31"
+    },
+    "daily_sql": {
+      "status": "server_cancellation_confirmed_unique_cause_unproven",
+      "postgres_cancel_utc": "2026-10-31T17:07:15.819Z",
+      "backend_pid": 116,
+      "span_ms": 2196.217543,
+      "worker_cpu_ms": 14.580417,
+      "stale_http_200_count": 13,
+      "standalone_100000_fill_replay_ms": 516.85,
+      "missing": "Contemporaneous DB waits/locks/IO and plan information"
+    },
+    "latest_r1": {
+      "longest_probe_episode_seconds": 4.591,
+      "failed_probes": 3,
+      "first_failure_utc": "2026-10-31T19:19:00.440Z",
+      "recovered_utc": "2026-10-31T19:19:05.027Z",
+      "fill_logs_during_episode": true,
+      "unique_cause_proven": false,
+      "trace_loss": true
+    }
+  },
+  "next_action": "Use corrected bounded collection on recurrence; retain exact producer counter intervals and contemporaneous DB wait evidence. No speculative runtime fix or budget change.",
+  "input_sha256": {
+    "build/mm-load/20261031-082445-9a99bd/result.json": "c564f32838ba03e51aae95b65146ac2d0fed0abef9dbc09fdee23e9b1a967e3e",
+    "build/mm-load/20261031-151026-01897f/result.json": "1376987aa3dc66d4aeadf4b6dc53ab9aaf92b67aa4ddc59cc83dd02368bdf1de",
+    "build/mm-load/20261031-151026-01897f/hbot-e2e-8d65c01646-load-bot.log": "8091f60f77c63dd5e7f1c7f274a5ea69969e4a34c4e11e96d475b89b273f40aa",
+    "build/mm-load/20261031-231819-7fe2f2/hbot-e2e-5b530e932f-pg.log": "3ca27bb3ab62770cec87393024466716a669b6f15a9c0a6c09fe7e1f7be82859",
+    "build/mm-load/20261101-011658-1465e8/result.json": "65fdcc5b2f46e05f1407f1a757df7da649be5f9aff486baf9cba1592da7dd8b5",
+    "build/mm-load/20261101-011658-1465e8/incidents/engine-incidents.jsonl": "9975b5ef23d9fee21447007ffe425f6d544ce73a26f745c4ee6f69e32a97292b",
+    "build/mm-load/20261101-011658-1465e8/incidents/api-incidents.jsonl": "560312409c8f9463e71b1a4165cf1bd83da096ff4d12097c770122e9bb9e29cf",
+    "build/historical-cause-review-20261101/packaged_timing.py": "50dc9013171141c153c1ef08441dce18495225fde60cdeed86cb9e400138f79b",
+    "build/historical-cause-review-20261101/timing-red.log": "5700e7df01ee84fd063d1eb995fa7f41580220eacf6fa3db5eebe53f760e4821",
+    "build/historical-cause-review-20261101/native-green.log": "bfe3958e004971420c9767f7be6924a5702c4d5194972c4a0e8433cf1ae5e605"
+  },
+  "diagnostic_source_sha256": {
+    "scripts/analyze_mm_load_trace.py": "2ac761e1015b8b9ebb0660b77f0e9c18df5427ffaa329c268c73861a12629f99",
+    "test/e2e/offline/load_service.py": "0fc68e09976f677d3004f5ef710ce9eabb4525ef0f3b5ff2d09b176e0b84b709",
+    "test/e2e/offline/load_trace.py": "651689e9b3f1b49fbc1d8a189c9abbf033f27309110f0fad43655e11cb1ff89a",
+    "test/hummingbot/cli/test_mm_sample_timing.py": "2f59e0acdce64150a03cc5303c54bf9af9da420395b90610239e2a4d67212224"
+  }
+}

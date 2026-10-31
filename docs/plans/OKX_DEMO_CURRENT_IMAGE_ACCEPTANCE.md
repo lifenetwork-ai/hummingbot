@@ -50,11 +50,17 @@ SQL/cache/pool rewrite is made. See the
 
 ## Historical causes — unresolved evidence
 
+The [2026-11-01 focused review](../../reports/mm-historical-cause-review.md)
+completes the bounded investigation and fixes a newly reproduced test-sampler
+timestamp defect (119 tests plus a packaged old/new comparison). Existing runs
+keep their original hashes and outcomes. Historical attribution remains limited;
+the new sampler does not retroactively establish missing causes.
+
 | ID | Observation still unexplained | Current disposition |
 | --- | --- | --- |
-| H1 | Simulator delivered 498.033/s against the 500/s minimum in one earlier combined run | Bounded diagnostics complete; later bursts exceed 509/s. Cause not established; retries do not explain the failure. |
-| H2 | Older sustained supervisor-liveness incident | Original logs lack sufficient probe/operation timing. Not reproduced; do not assign it to the separately fixed controller race. |
-| H3 | Five recovered timeout probes over 7.206s and sampled scheduled lag6.723s in the failed current-image burst | Automatic capture and both short comparisons pass. The long episode is not reproduced; no speculative runtime fix. |
+| H1 | Simulator delivered 498.033/s against the 500/s minimum in one earlier combined run | Exact old client already switches burst mode before baseline counters. Failed inner-burst count/duration are missing; cause remains unproven. Later passes do not explain it. |
+| H2 | Older sustained supervisor-liveness incident | Original logs lack typed probe history/final blocked stack. Timing alone does not establish SQL timeout or the separately fixed recorder deadlock as its cause. |
+| H3 | Five recovered timeout probes over 7.206s and sampled scheduled lag6.723s in the failed current-image burst | Engine processes fills inside the episode; no completed engine full GC overlaps. Episode length does not prove a continuous total freeze. Other causes remain unproven; no speculative runtime fix. |
 
 These three uncertainties stay explicit. They are not marked fixed, silently
 waived or duplicated as executable checkboxes. A green R1/R2 can establish

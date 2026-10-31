@@ -17,6 +17,34 @@ def overlaps(start, end, low, high):
     return start <= high and end >= low
 
 
+def cpu_observation_bounds(samples):
+    """Keep counter deltas but bound their elapsed time by actual read intervals."""
+    rows = sorted(samples, key=lambda row: row.get('sample_started_ns', row['at_ns']))
+    result = dict(sample_count=len(rows), timing_status='insufficient_samples',
+                  elapsed_lower_ns=None, elapsed_upper_ns=None, cgroup_cpu_delta=None)
+    if len(rows) < 2:
+        return result
+    first, last = rows[0], rows[-1]
+    delta = {key: last['cgroup_cpu'][key] - value for key, value in first['cgroup_cpu'].items()
+             if key in last['cgroup_cpu']}
+    result['cgroup_cpu_delta'] = delta
+    if any(not isinstance(row.get(key), int) or isinstance(row[key], bool)
+           for row in rows for key in ('sample_started_ns', 'sample_ended_ns')):
+        result['timing_status'] = 'legacy_unbounded'
+        return result
+    if any(row['sample_started_ns'] > row['sample_ended_ns'] for row in rows):
+        result['timing_status'] = 'invalid_interval'
+        return result
+    if any(value < 0 for value in delta.values()):
+        result['timing_status'] = ('counter_order_unknown' if last['sample_started_ns'] < first['sample_ended_ns']
+                                   else 'counter_decrease')
+        return result
+    result.update(timing_status='bounded_read_intervals',
+                  elapsed_lower_ns=max(0, last['sample_started_ns'] - first['sample_ended_ns']),
+                  elapsed_upper_ns=last['sample_ended_ns'] - first['sample_started_ns'])
+    return result
+
+
 def analyze(directory, window, *, limit=20, process_case=None):
     result = json.loads((directory / 'result.json').read_text())
     data = result['cases'][process_case][window] if process_case else result['windows'][window]
@@ -116,7 +144,7 @@ def analyze(directory, window, *, limit=20, process_case=None):
                 row['start_ns'], row['start_ns'] + row['duration_ms'] * 1e6,
                 client['scheduled_ns'], client['end_ns'])], key=lambda row: row['duration_ms'], reverse=True)[:3],
             database_spans=[targets[span['span_id']] for span in root['spans'] if span['span_id'] in targets] if root else []))
-    delta = {key: cpu[-1]['cgroup_cpu'][key] - cpu[0]['cgroup_cpu'][key] for key in cpu[0]['cgroup_cpu']} if len(cpu) > 1 else None
+    cpu_bounds = cpu_observation_bounds(cpu)
     return dict(window=window, duration_seconds=data['duration_seconds'],
                 window_start_ns=low, window_end_ns=high, image_id=result['image_id'],
                 counts=dict(counts), operations=operations,
@@ -125,7 +153,7 @@ def analyze(directory, window, *, limit=20, process_case=None):
                                  {row['request_id'] for row in failures}],
                 slowest_sync_spans=[targets[row['span_id']] for row in spans],
                 worst_stalls=sorted(stalls, key=lambda item: item['lag_ms'], reverse=True)[:limit],
-                cpu_samples=len(cpu), cgroup_cpu_delta=delta, longest_gc=gcs,
+                cpu_samples=len(cpu), cgroup_cpu_delta=cpu_bounds['cgroup_cpu_delta'], cpu_observation=cpu_bounds, longest_gc=gcs,
                 client_trace=data.get('client_trace'), server_trace=data.get('runtime', {}).get('trace'),
                 process_case=process_case,
                 trace_sha256={str(path.relative_to(trace)): hashlib.file_digest(path.open('rb'), 'sha256').hexdigest()

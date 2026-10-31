@@ -2165,3 +2165,21 @@ fingerprints remain unchanged. No connected trading/deployment or speculative
 runtime/cache/pool change is performed. Local image5973410d/manifest50a95f3a is
 accepted under the stated R1/R2 protocol; report/evidence retain every failed
 attempt and its scope. See [final closeout](../mm-release-closeout.md).
+
+2026-11-01 focused historical review: exact H1 client provenance rules out the
+proposed burst-mode/baseline ordering defect; the failed inner-burst counters
+were not retained. H3 logs show fill processing inside its7.206s probe episode
+and no overlapping completed engine full GC. H2 lacks original typed probes/
+final stacks. PostgreSQL confirms the old daily statement cancellation, but
+contemporaneous wait/IO/plan evidence is missing. No unique historical root
+cause or speculative runtime fix is claimed.
+
+A separate diagnostic defect is reproduced: the load watchdog timestamps CPU
+before evidence I/O, then reads counters much later. Corrected samples expose
+counter/context intervals and reject raced heartbeats; the analyzer preserves
+legacy uncertainty. Native119 and a same-image actual old/new watchdog
+comparison pass (injected800ms metadata wait: legacy timestamp804ms too early,
+new timestamp0.410ms after the wait). Application/image and accepted R1/R2
+sourceb7ba104e7 remain unchanged; no hour gate is repeated. See
+[focused review](../mm-historical-cause-review.md) and
+[portable evidence](../mm-historical-cause-evidence.json).

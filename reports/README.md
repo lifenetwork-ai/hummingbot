@@ -13,8 +13,9 @@ external scope. Known evidence/performance limitations are not marked as done.
 | Report | Associated artifact or scope |
 |---|---|
 | [Current-image closeout](mm-release-closeout.md), [evidence](mm-release-closeout-evidence.json) | Current full R1 passes all healthy windows and six recovery cases;4,884 fills match, soak p99 717ms and zero errors. Matched shipping R2 also passes; earlier failures and unresolved causes preserved. |
+| [Focused historical-cause review](mm-historical-cause-review.md), [evidence](mm-historical-cause-evidence.json) | Test CPU/heartbeat timestamp defect reproduced and fixed;119 tests and packaged old/new comparison pass. Old H1/H2/H3 causes remain unproven; accepted R1/R2 unchanged. |
 | [Measurement follow-up](mm-measurement-remediation.md), [evidence](mm-measurement-remediation-evidence.json) | On-loop observer cost corrected; measured disk-cache retention contract declared before new gate. Native114, bounded probes, full R1 and matched shipping R2 pass. |
-| [Automatic incident capture](mm-incident-investigation.md), [evidence](mm-incident-investigation-evidence.json) | 61 related tests, known-pause validation and matched shipping/recorded warm/mixed/burst diagnostics pass; historical long-lag cause and full release remain open |
+| [Automatic incident capture](mm-incident-investigation.md), [evidence](mm-incident-investigation-evidence.json) | 61 related tests and matched bounded diagnostics pass; full release is subsequently accepted in current closeout, historical long-lag cause remains unproven |
 | [Current-image OKX Demo](okx-demo-current-image.md), [evidence](okx-demo-current-image-evidence.json) | Image715a read-only preflight, nine profile/mode cases, real Random step/restart and 404 exact canceled post-only orders; no new natural fills |
 | [Runtime supervision](mm-service-supervision.md) | Local acceptance complete: final image/regression/E2E/lifecycle, hour/load/faults and matched ordinary-entrypoint control pass; prior failures retained |
 | [LIFE / OKX progress](implementation/LIFE_OKX_PROGRESS.md) | Phase history and Red/Green verification |
@@ -59,7 +60,7 @@ external scope. Known evidence/performance limitations are not marked as done.
 | [Fixed-image full release](e526-release.md) | [Evidence](e526-release-evidence.json); strict full release gates failed; bounded reporting-isolation diagnostics passed |
 | [Packaged supervisor-diagnostics release](probe-release-20261030.md) | Image dd602fb2: E2E/recovery/ordinary control pass; Random soak fails fill-producer drain, despite passing API latency |
 | [Random handover investigation](mm-random-handover.md) | [Evidence](mm-random-handover-evidence.json); three verified bugs closed; burst-rate and historical liveness investigations remain open; combined full run failed burst rate |
-| [Remaining burst/supervisor follow-up](mm-burst-followup.md) | [Evidence](mm-burst-followup-evidence.json); test-client fix verified; current burst latency fails release; matched traced diagnostic passes; causal investigations open |
+| [Remaining burst/supervisor follow-up](mm-burst-followup.md) | [Evidence](mm-burst-followup-evidence.json); historical failed burst and verified client fix retained; later R1/R2 pass, original causal attribution remains limited |
 | [Engine liveness investigation](mm-engine-liveness-investigation.md) | [Evidence](mm-engine-liveness-investigation-evidence.json); probe diagnostics and retained incident timeline; original sustained-failure cause remains open |
 | [Explicit Demo preset validation](okx-demo-preset-validation.json) | Nine static-metadata selections and runtime/package smoke; no connected or full release gate |
 | [Decimal precision evidence](postgres-decimal-precision.json) | Exact decimal storage migration and verification |

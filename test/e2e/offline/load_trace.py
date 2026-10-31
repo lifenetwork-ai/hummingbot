@@ -14,6 +14,31 @@ from itertools import islice
 from pathlib import Path
 
 
+def timed_cpu_sample(path, *, process_role, previous_sample_ns):
+    """Counters are read within an interval, never at an earlier watchdog tick."""
+    started = time.monotonic_ns()
+    row = dict(kind='cpu_sample', sample_schema_version=2, at=time.time(), at_ns=started,
+               sample_started_ns=started, process_role=process_role,
+               process_cpu_ns=time.process_time_ns(), sampler_thread_cpu_ns=time.thread_time_ns(),
+               sample_gap_ms=(started - previous_sample_ns) / 1e6,
+               cgroup_cpu={key: int(value) for key, value in (line.split() for line in path.read_text().splitlines())})
+    row['sample_ended_ns'] = time.monotonic_ns()
+    row['collection_ms'] = (row['sample_ended_ns'] - started) / 1e6
+    return row
+
+
+def sample_heartbeat(read_beat):
+    """Reject a heartbeat changing across the sampling timestamp."""
+    started = time.monotonic_ns()
+    before = read_beat()
+    observed = time.monotonic_ns()
+    after = read_beat()
+    consistent = before == after and before <= observed
+    return dict(at=time.time(), at_ns=observed, sample_started_ns=started,
+                sample_ended_ns=time.monotonic_ns(), last_beat_ns=after, consistent=consistent,
+                lag_ms=max(0, (observed - before) / 1e6 - 50) if consistent else None)
+
+
 class FullGCProbe:
     """Minimal optional measurement; never changes GC policy or retains objects."""
 
