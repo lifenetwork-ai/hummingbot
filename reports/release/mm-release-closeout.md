@@ -1,6 +1,7 @@
 # Current-image release closeout
 
-Latest follow-up (2026-11-01): **new candidate `3f5cbd0f` load rerun in progress**.
+Latest follow-up (2026-11-01): **candidate `3f5cbd0f` first rerun fails burst
+latency; an unchanged fresh full rerun is starting**.
 See [the new run](#2026-11-01-latent-fix-candidate-rerun) and
 [separate evidence](mm-latent-fixes-load-evidence.json). All earlier accepted/failed
 results below remain tied to their original images and measurement sources.
@@ -264,3 +265,25 @@ thresholds are unchanged. Existing source-level tests and three targeted E2E
 passes on this image do not substitute for these long gates. This section stays
 pending until the actual results are complete; prior release evidence is not
 promoted to the new image.
+
+
+### Preserved first rerun — burst latency failure
+
+Run `20261101-061242-5839e1` passes warm300 and mixed900 with primary p99
+156.44/265.96ms and zero unexpected errors. Burst90 fails primary p95/p99
+1,116.52/1,875.36ms and auxiliary1,199.64/1,985.71ms against unchanged500/1,000ms
+budgets. Burst delivers90 fills, cumulative1,290 unique fills/fees and positions
+match, drain is3.45s and peak memory719.44MiB. Engine/API keep their PIDs and no
+HALT/replacement is observed, but engine probe timeouts self-recover; this does
+not prove uninterrupted quoting. Soak/faults are not executed and R2 is skipped.
+
+A retained daily-statistics request takes1,967.9ms, including sequential715.1ms
+and790.7ms SQL spans; latency is also high across other routes and client
+scheduling. This is evidence of a slow request, not proof that the same SQL
+caused every slow request or engine stall. No pool/cache/runtime change is made
+from this observation. Host remains on AC; host/video/GC/venue causation is not
+proven. All1,221 frozen source hashes still match.
+
+A fresh full rerun keeps the same image/manifest, flags, rates, durations and
+budgets. This failure remains in the separate evidence even if the next run
+passes; no source bug or historical cause is declared fixed by a later pass.

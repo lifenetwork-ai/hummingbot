@@ -5,7 +5,8 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 ## Current result
 
 - [New-image load rerun](release/mm-release-closeout.md#2026-11-01-latent-fix-candidate-rerun):
-  `3f5cbd0f` full R1 running; matched shipping R2 follows only if R1 passes.
+  `3f5cbd0f` first R1 fails burst latency; unchanged full rerun starting.
+  Matched shipping R2 follows only if a complete R1 passes.
   Two retired bot images removed; Demo/container images and volumes preserved.
 
 - [Latent-bug fixes](implementation/life-mm-logic-review.md#2026-11-01-latent-bug-audit-and-fixes):

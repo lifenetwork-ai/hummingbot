@@ -5,8 +5,8 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-01
 
-- **New-image load rerun:** candidate `3f5cbd0f`, full all-feature R1 running
-  with unchanged budgets; matched shipping R2 is conditional on full R1 passing.
+- **New-image load rerun:** candidate `3f5cbd0f`, first R1 passes warm/mixed
+  but fails burst latency; an unchanged fresh full rerun is starting; matched shipping R2 is conditional on full R1 passing.
   Retired bot images removed; Demo/container images and volumes preserved.
   See [live scope/checklist](../release/mm-release-closeout.md#2026-11-01-latent-fix-candidate-rerun).
 

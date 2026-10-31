@@ -1,13 +1,13 @@
 {
-  "status": "running",
+  "status": "rerunning_unchanged_after_preserved_burst_failure",
   "release_accepted": false,
   "image_id": "sha256:3f5cbd0f6862494dbcc7d33d2e2e3b7b1e3b00086794983f1488f9f8ee942ab5",
   "manifest": "sha256:6e54a3481605ad40ef8861294f3887ea63c2116fb246ce1da23617b09e41943a",
   "application_commit": "3da3598bf3db45b04cc671ddedac33ea27ccb882",
   "measurement_commit": "1cc8abaa0e6f346e740ecf527314012540e32897",
   "started_at": "2026-10-31T23:12:42.112657+00:00",
-  "r1_run": "build/mm-load/20261101-061242-5839e1",
-  "r1_passed": null,
+  "r1_run": null,
+  "r1_passed": false,
   "r2_passed": null,
   "configuration": {
     "profile": "all",
@@ -56,5 +56,76 @@
     "No connected Demo trading or Cloud Run deployment",
     "R2 runs only after a complete independently verified passing R1",
     "No reduced durations, widened budgets, stitched passing windows or keep-going override"
+  ],
+  "attempts": [
+    {
+      "run": "build/mm-load/20261101-061242-5839e1",
+      "passed": false,
+      "release_scope_complete": false,
+      "error": "Declared load budgets failed: auxiliary_read_p95, auxiliary_read_p99, read_p95, read_p99",
+      "source_frozen_verified": true,
+      "windows": {
+        "warmup": {
+          "duration_seconds": 300,
+          "read_p95_ms": 54.53548498917371,
+          "read_p99_ms": 156.44128498388454,
+          "unexpected_errors": 0,
+          "violations": [],
+          "ledger": {
+            "unique_exchange_fills": 300,
+            "unique_recorder_fills": 300,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "burst_drain_seconds": null,
+          "peak_rss_bytes": 715202560
+        },
+        "mixed": {
+          "duration_seconds": 900,
+          "read_p95_ms": 60.902527009602636,
+          "read_p99_ms": 265.95599396387115,
+          "unexpected_errors": 0,
+          "violations": [],
+          "ledger": {
+            "unique_exchange_fills": 1200,
+            "unique_recorder_fills": 1200,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "burst_drain_seconds": null,
+          "peak_rss_bytes": 734687232
+        },
+        "bursts": {
+          "duration_seconds": 90,
+          "read_p95_ms": 1116.520072973799,
+          "read_p99_ms": 1875.3568209940568,
+          "unexpected_errors": 0,
+          "violations": [
+            "auxiliary_read_p95",
+            "auxiliary_read_p99",
+            "read_p95",
+            "read_p99"
+          ],
+          "ledger": {
+            "unique_exchange_fills": 1290,
+            "unique_recorder_fills": 1290,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "burst_drain_seconds": 3.4452860355377197,
+          "peak_rss_bytes": 754388992
+        }
+      },
+      "observations": [
+        "Burst fails both primary and auxiliary p95/p99, with zero unexpected API errors",
+        "90 burst fills; 1290 cumulative fills and positions reconcile",
+        "No observed PID replacement/HALT; recovered engine probe timeouts occurred",
+        "Daily-statistics request retained two sequential SQL spans around715/791ms; no unique root cause proven",
+        "Soak and fault matrix not executed; R2 intentionally skipped"
+      ]
+    }
   ]
 }
