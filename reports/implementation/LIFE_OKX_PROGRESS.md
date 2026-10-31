@@ -2031,3 +2031,30 @@ it does not reproduce the long episode or close release acceptance. Current
 baseline/control remain open; no speculative runtime fix, threshold waiver or
 additional blind hour repeat is made. Demo unchanged, test containers cleaned.
 See [bounded follow-up and evidence](../mm-burst-followup.md).
+
+
+2026-10-31 automatic-capture follow-up: `146826501` adds a bounded pre-incident
+stack/active-SQL/CPU ring, supervisor failure/recovery triggers, periodic summary
+snapshots and an explicit diagnostic warm300/mixed900/burst90 profile. A known
+short engine pause validates retained prehistory/recovery and same-PID progress.
+`bf2553679` removes unnecessary source lookup/caching during stack sampling with
+Red/Green regression. Expanded related native suite: **61 passed**. Production
+service/connector/controller/build source remains unchanged.
+
+One sequential ordinary shipping comparison and one incident-recorded sequence
+complete on image5973410d, matching effective YAML/client/exchange fixtures and
+unchanged caps/history/rates/budgets. Both pass: shipping p99 274/173/264ms;
+recorded 92/145/166ms, each with zero unexpected errors, 1,290 matching fills/
+fees/positions and stable engine/API PIDs. The recorder catches shorter observer/
+DB-wait activity, including a 338ms observer pass and a 562ms sampled burst lag.
+None reproduces or identifies the earlier 6.7s/five-probe cause. Bounded child
+span truncation and sampler gaps are explicit; no complete causal chain is
+claimed from partial traces.
+
+Capture and the planned comparison are checked done. Historical attribution and
+full release/hour/fault plus passing-baseline control remain open. No speculative
+runtime fix, budget waiver or blind hour retry is made. All temporary containers
+and the task's idle-sleep assertion are removed; persistent stopped Demo image,
+control/ack and four ledger fingerprints remain unchanged. See
+[incident report](../mm-incident-investigation.md) and
+[portable evidence](../mm-incident-investigation-evidence.json).

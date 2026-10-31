@@ -820,5 +820,14 @@
     "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
     "unchanged": true
   },
-  "current_latency_cause_identified": false
+  "current_latency_cause_identified": false,
+  "automatic_incident_followup": {
+    "report": "reports/mm-incident-investigation.md",
+    "evidence": "reports/mm-incident-investigation-evidence.json",
+    "completed": true,
+    "shipping_and_recorded_sequences_passed": true,
+    "historical_cause_identified": false,
+    "full_release_acceptance_closed": false,
+    "runtime_changes": false
+  }
 }

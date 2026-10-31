@@ -13,14 +13,22 @@ current recovered-probe latency cause and full release acceptance remain open.
   image, keeping actual injection timestamps and retained prehistory/recovery.
   Ninety-second packaged diagnostic passes: 90 matching fills, no HTTP errors,
   p99 129.48ms, same engine PID; both roles retain failure/recovery and context.
-- [ ] Compare one shipping-entrypoint warm300/mixed900/burst90 diagnostic with
+- [x] Compare one shipping-entrypoint warm300/mixed900/burst90 diagnostic with
   one matched incident-recorded sequence. Keep the same image/YAML/client/
   exchange fixtures, caps, history size and budgets; retain every failure.
+  Both pass all three windows: shipping p99 274/173/264ms; recorded 92/145/166ms.
+  Each reconciles 1,290 fills across all four families, zero errors and stable
+  engine/API PIDs. These are diagnostics; the baseline's release failure stays.
 - [ ] Attribute the actual long-lag episode using timestamped evidence. For any
   confirmed runtime defect, demonstrate Red/Green. A non-reproducing comparison
   leaves the historical cause unresolved.
 - [ ] After a justified candidate fix, run the unchanged full hour/recovery
   gate and its matched shipping control; do not merge separate passing windows.
+
+Bounded follow-up complete: the historical long-lag event is not reproduced,
+so its cause and full release acceptance remain open. No speculative runtime
+fix, threshold waiver or further blind hour repeat is made. Capture limits and
+new short observer/DB-wait observations are explicit in the report.
 
 See [incident investigation](../../reports/mm-incident-investigation.md).
 

@@ -1,5 +1,10 @@
 # Remaining acceptance investigation — 2026-10-31
 
+Later follow-up: [automatic incident capture and sequential shipping comparison](mm-incident-investigation.md)
+is complete. Both new diagnostic sequences pass; the historical long-lag cause
+and combined release acceptance remain open. Results below retain their original
+scope; the planned passing-baseline acceptance control is still not closed.
+
 Status: bounded diagnostics complete; an additional load-client head-of-line
 bug is fixed and verified. The earlier three bugs stay closed. Current-candidate
 release acceptance remains **open**: its burst latency gate fails, and a matched

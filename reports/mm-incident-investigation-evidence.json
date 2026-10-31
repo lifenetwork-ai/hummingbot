@@ -1,0 +1,2388 @@
+{
+  "scope": "Bounded incident-capture validation and one sequential warm300/mixed900/burst90 comparison. No new hour/fault release acceptance.",
+  "runtime_changes": false,
+  "diagnostic_commits": [
+    "146826501",
+    "bf2553679"
+  ],
+  "native": {
+    "passed": 61,
+    "red_logs": [
+      "build/incident-investigation-20261031/red.log",
+      "build/incident-investigation-20261031/control-red.log",
+      "build/incident-investigation-20261031/stack-red.log"
+    ],
+    "green_log": "build/incident-investigation-20261031/green.log"
+  },
+  "diagnostic_improvement": {
+    "source_text_lookup_removed": true,
+    "historical_latency_root_cause_claimed": false
+  },
+  "known_pause_capture": {
+    "run": "build/mm-load/20261031-201446-9ea5e1",
+    "diagnostic": true,
+    "release_scope_complete": false,
+    "fault": {
+      "kind": "known_engine_sigstop",
+      "intended_seconds": 1.5,
+      "pid": 31,
+      "started_at": 1793452579.20786,
+      "resumed_at": 1793452581.21678
+    },
+    "window_passed": true,
+    "roles": {
+      "engine": {
+        "fault_failure": {
+          "kind": "probe_failure",
+          "sequence": 9,
+          "role": "engine",
+          "at": 1793452579.9017422,
+          "at_ns": 295890247375157,
+          "reason": "timeout",
+          "status": null,
+          "elapsed_ms": 303.058,
+          "observed_at_ns": 295891543194116,
+          "capturing_role": "engine",
+          "capture_incident": 4
+        },
+        "fault_recovered": {
+          "kind": "probe_recovered",
+          "sequence": 10,
+          "role": "engine",
+          "at": 1793452582.3168626,
+          "at_ns": 295892662494992,
+          "reason": "healthy",
+          "status": 200,
+          "elapsed_ms": 30.975,
+          "observed_at_ns": 295892700415825,
+          "capturing_role": "engine",
+          "capture_incident": 4
+        },
+        "prehistory_samples": 35,
+        "recovery_tail_samples": 8,
+        "last_runtime_summary": {
+          "incidents": 6,
+          "evicted_records": 552,
+          "oversize_records": 0,
+          "suppressed_incidents": 0,
+          "buffered_records": 38,
+          "buffered_bytes": 82461,
+          "max_records": 256,
+          "max_bytes": 524288,
+          "history_seconds": 10.0,
+          "tail_seconds": 10.0,
+          "max_incidents": 32
+        },
+        "retained_bytes": 1563402
+      },
+      "api": {
+        "fault_failure": {
+          "kind": "probe_failure",
+          "sequence": 9,
+          "role": "engine",
+          "at": 1793452579.9017422,
+          "at_ns": 295890247375157,
+          "reason": "timeout",
+          "status": null,
+          "elapsed_ms": 303.058,
+          "observed_at_ns": 295890256110616,
+          "capturing_role": "api",
+          "capture_incident": 5
+        },
+        "fault_recovered": {
+          "kind": "probe_recovered",
+          "sequence": 10,
+          "role": "engine",
+          "at": 1793452582.3168626,
+          "at_ns": 295892662494992,
+          "reason": "healthy",
+          "status": 200,
+          "elapsed_ms": 30.975,
+          "observed_at_ns": 295892670324700,
+          "capturing_role": "api",
+          "capture_incident": 5
+        },
+        "prehistory_samples": 35,
+        "recovery_tail_samples": 7,
+        "last_runtime_summary": {
+          "incidents": 5,
+          "evicted_records": 512,
+          "oversize_records": 0,
+          "suppressed_incidents": 0,
+          "buffered_records": 40,
+          "buffered_bytes": 109630,
+          "max_records": 256,
+          "max_bytes": 524288,
+          "history_seconds": 10.0,
+          "tail_seconds": 10.0,
+          "max_incidents": 32
+        },
+        "retained_bytes": 939956
+      }
+    },
+    "summary_scope": "Latest runtime export before force cleanup; capture predates append/PID/periodic-summary refinements.",
+    "engine_pid_preserved": true,
+    "ledger": {
+      "unique_exchange_fills": 90,
+      "unique_recorder_fills": 90,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    }
+  },
+  "shipping": {
+    "passed": true,
+    "diagnostic": true,
+    "release_scope_complete": false,
+    "baseline_passed": false,
+    "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
+    "bot_limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648
+    },
+    "daily_cache_ttl_seconds": 15.0,
+    "history_orders": 100000,
+    "fixture_sha256": {
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "load_incidents.py": "f6c6039e9e0613122607a54320f0393057f84a48aa795514026343a098c7f3ec",
+      "exchange.py": "52fc186aa3cc081ac478bfe12d495641784b97d2bd4b668de8f8625b429a4d83",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "e5e616ebe874c475e3f625c6fc14ccbbba77772803b2974d1bfb6e0c084ecfdd",
+      "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+      "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+      "load_trace.py": "fb2bf2e55c557f527fa9165a40355805144b1b8556a0c01d20293666a79429e8",
+      "load_entrypoint.py": "41422ac66919e909c16dae7c4d039b84757957345c3e11239ce1cfb1b5246f64",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_process_metrics.py": "b42f11a771043e4251ec6b5e9d4e9afde70f7fe713a4396580cf80e544ef2d6a",
+      "load_client.py": "54e77fe15c96e9efce065b45315aea7ff2f70eae36322128ef69daa4475f3b53"
+    },
+    "source_sha256": null,
+    "run": "build/service-supervision/production-control-20261031-201926-a86d15",
+    "windows": {
+      "warmup": {
+        "duration_seconds": 300,
+        "window_start_utc": 1793452822.9437718,
+        "requested_reads": 6000,
+        "completed_reads": 6000,
+        "read_p95_ms": 52.43169603636488,
+        "read_p99_ms": 274.3464289815165,
+        "unexpected_errors": 0,
+        "fills_per_second": 1.0,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 77,
+          "LIFE-USDT-SWAP:buy": 74,
+          "LIFE-USDT:sell": 74,
+          "LIFE-USDT-SWAP:sell": 75
+        },
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "read_p95_ms": 42.15758602367714,
+          "read_p99_ms": 213.48903398029506,
+          "completed_reads": 1500,
+          "requested_reads": 1500
+        },
+        "burst_updates_per_second": null,
+        "resources": {
+          "before": {
+            "processes": {
+              "supervisor": {
+                "pid": 1,
+                "fds": 5,
+                "VmHWM": 134230016,
+                "VmRSS": 134230016,
+                "Threads": 8
+              },
+              "engine": {
+                "pid": 32,
+                "fds": 31,
+                "VmHWM": 431759360,
+                "VmRSS": 431759360,
+                "Threads": 11
+              },
+              "api": {
+                "pid": 33,
+                "fds": 10,
+                "VmHWM": 298692608,
+                "VmRSS": 298692608,
+                "Threads": 10
+              }
+            },
+            "cpu": {
+              "usage_usec": 53761240,
+              "user_usec": 50006355,
+              "system_usec": 3754885,
+              "nr_periods": 477,
+              "nr_throttled": 91,
+              "throttled_usec": 10402201,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "memory": {
+              "current_bytes": 697876480,
+              "peak_bytes": 706572288
+            }
+          },
+          "after": {
+            "processes": {
+              "supervisor": {
+                "pid": 1,
+                "fds": 5,
+                "VmHWM": 134230016,
+                "VmRSS": 134230016,
+                "Threads": 8
+              },
+              "engine": {
+                "pid": 32,
+                "fds": 30,
+                "VmHWM": 433766400,
+                "VmRSS": 433766400,
+                "Threads": 11
+              },
+              "api": {
+                "pid": 33,
+                "fds": 11,
+                "VmHWM": 307212288,
+                "VmRSS": 307212288,
+                "Threads": 11
+              }
+            },
+            "cpu": {
+              "usage_usec": 157581181,
+              "user_usec": 147736319,
+              "system_usec": 9844862,
+              "nr_periods": 3490,
+              "nr_throttled": 104,
+              "throttled_usec": 11583304,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "memory": {
+              "current_bytes": 708362240,
+              "peak_bytes": 708370432
+            }
+          }
+        },
+        "runtime": {
+          "runtime_phase": "running",
+          "container_memory": {
+            "current_bytes": 708362240,
+            "peak_bytes": 708370432
+          },
+          "processes": null,
+          "incident_capture": null,
+          "trace": null
+        }
+      },
+      "mixed": {
+        "duration_seconds": 900,
+        "window_start_utc": 1793453127.2484787,
+        "requested_reads": 18000,
+        "completed_reads": 18000,
+        "read_p95_ms": 54.605293029453605,
+        "read_p99_ms": 172.83720104023814,
+        "unexpected_errors": 0,
+        "fills_per_second": 1.0,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 229,
+          "LIFE-USDT-SWAP:buy": 225,
+          "LIFE-USDT:sell": 224,
+          "LIFE-USDT-SWAP:sell": 222
+        },
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "read_p95_ms": 47.465840994846076,
+          "read_p99_ms": 154.53667799010873,
+          "completed_reads": 4500,
+          "requested_reads": 4500
+        },
+        "burst_updates_per_second": null,
+        "resources": {
+          "before": {
+            "processes": {
+              "supervisor": {
+                "pid": 1,
+                "fds": 5,
+                "VmHWM": 134230016,
+                "VmRSS": 134230016,
+                "Threads": 8
+              },
+              "engine": {
+                "pid": 32,
+                "fds": 30,
+                "VmHWM": 433766400,
+                "VmRSS": 433766400,
+                "Threads": 11
+              },
+              "api": {
+                "pid": 33,
+                "fds": 11,
+                "VmHWM": 307212288,
+                "VmRSS": 307212288,
+                "Threads": 11
+              }
+            },
+            "cpu": {
+              "usage_usec": 159420688,
+              "user_usec": 149454234,
+              "system_usec": 9966454,
+              "nr_periods": 3520,
+              "nr_throttled": 104,
+              "throttled_usec": 11583304,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "memory": {
+              "current_bytes": 708538368,
+              "peak_bytes": 717664256
+            }
+          },
+          "after": {
+            "processes": {
+              "supervisor": {
+                "pid": 1,
+                "fds": 5,
+                "VmHWM": 134230016,
+                "VmRSS": 134230016,
+                "Threads": 8
+              },
+              "engine": {
+                "pid": 32,
+                "fds": 31,
+                "VmHWM": 435339264,
+                "VmRSS": 435339264,
+                "Threads": 11
+              },
+              "api": {
+                "pid": 33,
+                "fds": 11,
+                "VmHWM": 307474432,
+                "VmRSS": 307474432,
+                "Threads": 11
+              }
+            },
+            "cpu": {
+              "usage_usec": 483410483,
+              "user_usec": 454757898,
+              "system_usec": 28652585,
+              "nr_periods": 12534,
+              "nr_throttled": 116,
+              "throttled_usec": 12216148,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "memory": {
+              "current_bytes": 710520832,
+              "peak_bytes": 717664256
+            }
+          }
+        },
+        "runtime": {
+          "runtime_phase": "running",
+          "container_memory": {
+            "current_bytes": 710520832,
+            "peak_bytes": 717664256
+          },
+          "processes": null,
+          "incident_capture": null,
+          "trace": null
+        }
+      },
+      "bursts": {
+        "duration_seconds": 90,
+        "window_start_utc": 1793454032.2748666,
+        "requested_reads": 1800,
+        "completed_reads": 1800,
+        "read_p95_ms": 55.73807202745229,
+        "read_p99_ms": 264.098740008194,
+        "unexpected_errors": 0,
+        "fills_per_second": 1.0,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 21,
+          "LIFE-USDT-SWAP:buy": 25,
+          "LIFE-USDT:sell": 20,
+          "LIFE-USDT-SWAP:sell": 24
+        },
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1290,
+          "unique_recorder_fills": 1290,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "read_p95_ms": 38.47556601976976,
+          "read_p99_ms": 184.98712603468448,
+          "completed_reads": 450,
+          "requested_reads": 450
+        },
+        "burst_updates_per_second": 509.7807069694022,
+        "resources": {
+          "before": {
+            "processes": {
+              "supervisor": {
+                "pid": 1,
+                "fds": 5,
+                "VmHWM": 134230016,
+                "VmRSS": 134230016,
+                "Threads": 8
+              },
+              "engine": {
+                "pid": 32,
+                "fds": 31,
+                "VmHWM": 435339264,
+                "VmRSS": 435339264,
+                "Threads": 11
+              },
+              "api": {
+                "pid": 33,
+                "fds": 11,
+                "VmHWM": 307474432,
+                "VmRSS": 307474432,
+                "Threads": 11
+              }
+            },
+            "cpu": {
+              "usage_usec": 485721506,
+              "user_usec": 456906195,
+              "system_usec": 28815310,
+              "nr_periods": 12571,
+              "nr_throttled": 116,
+              "throttled_usec": 12216148,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "memory": {
+              "current_bytes": 710348800,
+              "peak_bytes": 720048128
+            }
+          },
+          "after": {
+            "processes": {
+              "supervisor": {
+                "pid": 1,
+                "fds": 5,
+                "VmHWM": 134230016,
+                "VmRSS": 134230016,
+                "Threads": 8
+              },
+              "engine": {
+                "pid": 32,
+                "fds": 30,
+                "VmHWM": 435601408,
+                "VmRSS": 435601408,
+                "Threads": 11
+              },
+              "api": {
+                "pid": 33,
+                "fds": 11,
+                "VmHWM": 307474432,
+                "VmRSS": 307474432,
+                "Threads": 11
+              }
+            },
+            "cpu": {
+              "usage_usec": 519221301,
+              "user_usec": 488264704,
+              "system_usec": 30956596,
+              "nr_periods": 13483,
+              "nr_throttled": 117,
+              "throttled_usec": 12229363,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "memory": {
+              "current_bytes": 710459392,
+              "peak_bytes": 720048128
+            }
+          }
+        },
+        "runtime": {
+          "runtime_phase": "running",
+          "container_memory": {
+            "current_bytes": 710459392,
+            "peak_bytes": 720048128
+          },
+          "processes": null,
+          "incident_capture": null,
+          "trace": null
+        }
+      }
+    },
+    "history_parameter_source": "Referenced baseline; inherited unchanged by control seed_history call"
+  },
+  "incident_recorded": {
+    "passed": true,
+    "diagnostic": true,
+    "release_scope_complete": false,
+    "baseline_passed": null,
+    "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
+    "bot_limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648
+    },
+    "daily_cache_ttl_seconds": 15.0,
+    "history_orders": 100000,
+    "fixture_sha256": {
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "load_incidents.py": "f6c6039e9e0613122607a54320f0393057f84a48aa795514026343a098c7f3ec",
+      "exchange.py": "52fc186aa3cc081ac478bfe12d495641784b97d2bd4b668de8f8625b429a4d83",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "e5e616ebe874c475e3f625c6fc14ccbbba77772803b2974d1bfb6e0c084ecfdd",
+      "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+      "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+      "load_trace.py": "555b0c0bff421aa1991fde45d77c4c2f6d100e466cd6808740b474a186b4b8e1",
+      "load_entrypoint.py": "41422ac66919e909c16dae7c4d039b84757957345c3e11239ce1cfb1b5246f64",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_process_metrics.py": "b42f11a771043e4251ec6b5e9d4e9afde70f7fe713a4396580cf80e544ef2d6a",
+      "load_client.py": "54e77fe15c96e9efce065b45315aea7ff2f70eae36322128ef69daa4475f3b53"
+    },
+    "source_sha256": {
+      "scripts/test_mm_load.py": "c785a0332a40fc7da4c47d6c6f8de061dae4d671e21c4d400541fadec9e7a8bc",
+      "scripts/test_e2e_offline.py": "47dec31c15dc83b731741825a26f9df0afdef817a51cdaf3523f779a05854c08",
+      "scripts/analyze_mm_load_trace.py": "2471e1ab1f45e4d53cfefda260a26cc25bfc4f2067b93a3f94e8fc282728e7dd",
+      "scripts/mm_load_budgets.py": "b037ad1734012aaf0a36619f78f812336d9b00696a1b2b90bc8d45bb3e0a7061",
+      "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
+      "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458",
+      "scripts/mm_load_processes.py": "1b939e85a11b7d374cc17dc2111729b72f0775aad2f5161487110f1f516820fa",
+      "test/e2e/offline/load_entrypoint.py": "41422ac66919e909c16dae7c4d039b84757957345c3e11239ce1cfb1b5246f64",
+      "test/e2e/offline/load_service.py": "e5e616ebe874c475e3f625c6fc14ccbbba77772803b2974d1bfb6e0c084ecfdd",
+      "test/e2e/offline/load_process_metrics.py": "b42f11a771043e4251ec6b5e9d4e9afde70f7fe713a4396580cf80e544ef2d6a"
+    },
+    "run": "build/mm-load/20261031-204226-b6d9ed",
+    "windows": {
+      "warmup": {
+        "duration_seconds": 300,
+        "window_start_utc": 1793454205.3262732,
+        "requested_reads": 6000,
+        "completed_reads": 6000,
+        "read_p95_ms": 50.434687989763916,
+        "read_p99_ms": 91.9133520219475,
+        "unexpected_errors": 0,
+        "fills_per_second": 1.0,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 78,
+          "LIFE-USDT-SWAP:buy": 74,
+          "LIFE-USDT:sell": 75,
+          "LIFE-USDT-SWAP:sell": 73
+        },
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "read_p95_ms": 46.28108598990366,
+          "read_p99_ms": 120.3610539669171,
+          "completed_reads": 1500,
+          "requested_reads": 1500
+        },
+        "burst_updates_per_second": null,
+        "runtime": {
+          "runtime_phase": "running",
+          "container_memory": {
+            "current_bytes": 704442368,
+            "peak_bytes": 709697536
+          },
+          "processes": {
+            "supervisor": {
+              "pid": 1,
+              "fds": 5,
+              "VmHWM": 131387392,
+              "VmRSS": 131387392,
+              "Threads": 8
+            },
+            "engine": {
+              "pid": 32,
+              "fds": 32,
+              "VmHWM": 429912064,
+              "VmRSS": 429912064,
+              "Threads": 13
+            },
+            "api": {
+              "pid": 33,
+              "fds": 20,
+              "VmHWM": 316411904,
+              "VmRSS": 316411904,
+              "Threads": 13
+            }
+          },
+          "incident_capture": {
+            "incidents": 3,
+            "evicted_records": 1326,
+            "oversize_records": 0,
+            "suppressed_incidents": 0,
+            "buffered_records": 39,
+            "buffered_bytes": 86836,
+            "max_records": 256,
+            "max_bytes": 524288,
+            "history_seconds": 10.0,
+            "tail_seconds": 10.0,
+            "max_incidents": 32
+          },
+          "trace": {
+            "written_records": 444,
+            "written_bytes": 1155330,
+            "dropped_records": 0,
+            "writer_cpu_ms": 38.56029800000002,
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "writer_alive": true,
+            "dropped_spans": 160586,
+            "slow_trace_threshold_ms": 100
+          }
+        }
+      },
+      "mixed": {
+        "duration_seconds": 900,
+        "window_start_utc": 1793454509.1957953,
+        "requested_reads": 18000,
+        "completed_reads": 18000,
+        "read_p95_ms": 55.816642998252064,
+        "read_p99_ms": 145.26200498221442,
+        "unexpected_errors": 0,
+        "fills_per_second": 1.0,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 242,
+          "LIFE-USDT-SWAP:buy": 214,
+          "LIFE-USDT:sell": 233,
+          "LIFE-USDT-SWAP:sell": 211
+        },
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "read_p95_ms": 64.05248498776928,
+          "read_p99_ms": 144.94705200195312,
+          "completed_reads": 4500,
+          "requested_reads": 4500
+        },
+        "burst_updates_per_second": null,
+        "runtime": {
+          "runtime_phase": "running",
+          "container_memory": {
+            "current_bytes": 716242944,
+            "peak_bytes": 726130688
+          },
+          "processes": {
+            "supervisor": {
+              "pid": 1,
+              "fds": 5,
+              "VmHWM": 131387392,
+              "VmRSS": 131387392,
+              "Threads": 8
+            },
+            "engine": {
+              "pid": 32,
+              "fds": 32,
+              "VmHWM": 433713152,
+              "VmRSS": 433713152,
+              "Threads": 13
+            },
+            "api": {
+              "pid": 33,
+              "fds": 22,
+              "VmHWM": 320344064,
+              "VmRSS": 320344064,
+              "Threads": 13
+            }
+          },
+          "incident_capture": {
+            "incidents": 11,
+            "evicted_records": 4793,
+            "oversize_records": 0,
+            "suppressed_incidents": 0,
+            "buffered_records": 39,
+            "buffered_bytes": 83684,
+            "max_records": 256,
+            "max_bytes": 524288,
+            "history_seconds": 10.0,
+            "tail_seconds": 10.0,
+            "max_incidents": 32
+          },
+          "trace": {
+            "written_records": 1199,
+            "written_bytes": 2922633,
+            "dropped_records": 0,
+            "writer_cpu_ms": 121.68282099999992,
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "writer_alive": true,
+            "dropped_spans": 189190,
+            "slow_trace_threshold_ms": 100
+          }
+        }
+      },
+      "bursts": {
+        "duration_seconds": 90,
+        "window_start_utc": 1793455413.1070774,
+        "requested_reads": 1800,
+        "completed_reads": 1800,
+        "read_p95_ms": 61.08376197516918,
+        "read_p99_ms": 165.81277694785967,
+        "unexpected_errors": 0,
+        "fills_per_second": 1.0,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 24,
+          "LIFE-USDT-SWAP:buy": 22,
+          "LIFE-USDT:sell": 23,
+          "LIFE-USDT-SWAP:sell": 21
+        },
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1290,
+          "unique_recorder_fills": 1290,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "auxiliary": {
+          "read_p95_ms": 73.50125396624207,
+          "read_p99_ms": 282.23230596631765,
+          "completed_reads": 450,
+          "requested_reads": 450
+        },
+        "burst_updates_per_second": 509.8045024612988,
+        "runtime": {
+          "runtime_phase": "running",
+          "container_memory": {
+            "current_bytes": 717955072,
+            "peak_bytes": 737816576
+          },
+          "processes": {
+            "supervisor": {
+              "pid": 1,
+              "fds": 5,
+              "VmHWM": 131387392,
+              "VmRSS": 131387392,
+              "Threads": 8
+            },
+            "engine": {
+              "pid": 32,
+              "fds": 29,
+              "VmHWM": 434761728,
+              "VmRSS": 434761728,
+              "Threads": 13
+            },
+            "api": {
+              "pid": 33,
+              "fds": 24,
+              "VmHWM": 320475136,
+              "VmRSS": 320475136,
+              "Threads": 13
+            }
+          },
+          "incident_capture": {
+            "incidents": 13,
+            "evicted_records": 5172,
+            "oversize_records": 0,
+            "suppressed_incidents": 0,
+            "buffered_records": 38,
+            "buffered_bytes": 92317,
+            "max_records": 256,
+            "max_bytes": 524288,
+            "history_seconds": 10.0,
+            "tail_seconds": 10.0,
+            "max_incidents": 32
+          },
+          "trace": {
+            "written_records": 1397,
+            "written_bytes": 3437055,
+            "dropped_records": 0,
+            "writer_cpu_ms": 141.66336999999987,
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "writer_alive": true,
+            "dropped_spans": 193772,
+            "slow_trace_threshold_ms": 100
+          }
+        }
+      }
+    }
+  },
+  "shipping_probe_review": {
+    "run": "build/service-supervision/production-control-20261031-201926-a86d15",
+    "events": [
+      {
+        "timestamp": "2026-10-31T13:19:34.557Z",
+        "event": "child_started",
+        "scope": "engine",
+        "message": "Service child event=child_started role=engine exit_code=None retry_after_s=None "
+      },
+      {
+        "timestamp": "2026-10-31T13:19:34.561Z",
+        "event": "child_started",
+        "scope": "api",
+        "message": "Service child event=child_started role=api exit_code=None retry_after_s=None "
+      },
+      {
+        "timestamp": "2026-10-31T13:19:50.795Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.342 probe_status=None probe_elapsed_ms=302.859 max_probe_elapsed_ms=302.859"
+      },
+      {
+        "timestamp": "2026-10-31T13:19:51.833Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.046 max_probe_gap_seconds=1.342 probe_status=None probe_elapsed_ms=302.859 max_probe_elapsed_ms=302.859"
+      },
+      {
+        "timestamp": "2026-10-31T13:20:12.917Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.349 probe_status=None probe_elapsed_ms=302.242 max_probe_elapsed_ms=302.242"
+      },
+      {
+        "timestamp": "2026-10-31T13:20:13.957Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.04 max_probe_gap_seconds=1.349 probe_status=None probe_elapsed_ms=302.242 max_probe_elapsed_ms=302.242"
+      },
+      {
+        "timestamp": "2026-10-31T13:20:50.558Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=2.082 probe_status=None probe_elapsed_ms=1060.196 max_probe_elapsed_ms=1060.196"
+      },
+      {
+        "timestamp": "2026-10-31T13:20:51.606Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.05 max_probe_gap_seconds=2.082 probe_status=None probe_elapsed_ms=1060.196 max_probe_elapsed_ms=1060.196"
+      },
+      {
+        "timestamp": "2026-10-31T13:21:16.016Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.341 probe_status=None probe_elapsed_ms=306.115 max_probe_elapsed_ms=306.115"
+      },
+      {
+        "timestamp": "2026-10-31T13:21:17.080Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.066 max_probe_gap_seconds=1.341 probe_status=None probe_elapsed_ms=306.115 max_probe_elapsed_ms=306.115"
+      },
+      {
+        "timestamp": "2026-10-31T13:21:28.909Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.35 probe_status=None probe_elapsed_ms=301.41 max_probe_elapsed_ms=301.41"
+      },
+      {
+        "timestamp": "2026-10-31T13:21:29.952Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.043 max_probe_gap_seconds=1.35 probe_status=None probe_elapsed_ms=301.41 max_probe_elapsed_ms=301.41"
+      },
+      {
+        "timestamp": "2026-10-31T13:22:37.779Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.339 probe_status=None probe_elapsed_ms=302.636 max_probe_elapsed_ms=302.636"
+      },
+      {
+        "timestamp": "2026-10-31T13:22:38.842Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.064 max_probe_gap_seconds=1.339 probe_status=None probe_elapsed_ms=302.636 max_probe_elapsed_ms=302.636"
+      },
+      {
+        "timestamp": "2026-10-31T13:24:55.265Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.331 probe_status=None probe_elapsed_ms=301.028 max_probe_elapsed_ms=301.028"
+      },
+      {
+        "timestamp": "2026-10-31T13:24:56.293Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.028 max_probe_gap_seconds=1.331 probe_status=None probe_elapsed_ms=301.028 max_probe_elapsed_ms=301.028"
+      },
+      {
+        "timestamp": "2026-10-31T13:26:03.027Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.345 probe_status=None probe_elapsed_ms=301.584 max_probe_elapsed_ms=301.584"
+      },
+      {
+        "timestamp": "2026-10-31T13:26:04.073Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.046 max_probe_gap_seconds=1.345 probe_status=None probe_elapsed_ms=301.584 max_probe_elapsed_ms=301.584"
+      },
+      {
+        "timestamp": "2026-10-31T13:30:39.129Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.338 probe_status=None probe_elapsed_ms=301.867 max_probe_elapsed_ms=301.867"
+      },
+      {
+        "timestamp": "2026-10-31T13:30:40.166Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.037 max_probe_gap_seconds=1.338 probe_status=None probe_elapsed_ms=301.867 max_probe_elapsed_ms=301.867"
+      },
+      {
+        "timestamp": "2026-10-31T13:31:48.213Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.341 probe_status=None probe_elapsed_ms=302.772 max_probe_elapsed_ms=302.772"
+      },
+      {
+        "timestamp": "2026-10-31T13:31:49.258Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.046 max_probe_gap_seconds=1.341 probe_status=None probe_elapsed_ms=302.772 max_probe_elapsed_ms=302.772"
+      },
+      {
+        "timestamp": "2026-10-31T13:32:49.708Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.326 probe_status=None probe_elapsed_ms=310.929 max_probe_elapsed_ms=310.929"
+      },
+      {
+        "timestamp": "2026-10-31T13:32:50.765Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.058 max_probe_gap_seconds=1.326 probe_status=None probe_elapsed_ms=310.929 max_probe_elapsed_ms=310.929"
+      },
+      {
+        "timestamp": "2026-10-31T13:33:27.561Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.356 probe_status=None probe_elapsed_ms=309.77 max_probe_elapsed_ms=309.77"
+      },
+      {
+        "timestamp": "2026-10-31T13:33:28.598Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.044 max_probe_gap_seconds=1.356 probe_status=None probe_elapsed_ms=309.77 max_probe_elapsed_ms=309.77"
+      },
+      {
+        "timestamp": "2026-10-31T13:35:14.204Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.468 probe_status=None probe_elapsed_ms=365.444 max_probe_elapsed_ms=365.444"
+      },
+      {
+        "timestamp": "2026-10-31T13:35:15.221Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.018 max_probe_gap_seconds=1.468 probe_status=None probe_elapsed_ms=365.444 max_probe_elapsed_ms=365.444"
+      },
+      {
+        "timestamp": "2026-10-31T13:35:54.334Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.384 probe_status=None probe_elapsed_ms=337.03 max_probe_elapsed_ms=337.03"
+      },
+      {
+        "timestamp": "2026-10-31T13:35:55.442Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.109 max_probe_gap_seconds=1.384 probe_status=None probe_elapsed_ms=337.03 max_probe_elapsed_ms=337.03"
+      },
+      {
+        "timestamp": "2026-10-31T13:36:20.728Z",
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.341 probe_status=None probe_elapsed_ms=301.584 max_probe_elapsed_ms=301.584"
+      },
+      {
+        "timestamp": "2026-10-31T13:36:21.775Z",
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.048 max_probe_gap_seconds=1.341 probe_status=None probe_elapsed_ms=301.584 max_probe_elapsed_ms=301.584"
+      }
+    ],
+    "max_recovered_failure_seconds": 1.109,
+    "episode_count": 15,
+    "unexpected_replacements": []
+  },
+  "recorded_probe_review": {
+    "events": [
+      {
+        "event": "child_started",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:42:34.499Z",
+        "message": "Service child event=child_started role=engine exit_code=None retry_after_s=None "
+      },
+      {
+        "event": "child_started",
+        "scope": "api",
+        "timestamp": "2026-10-31T13:42:34.502Z",
+        "message": "Service child event=child_started role=api exit_code=None retry_after_s=None "
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:42:48.714Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.347 probe_status=None probe_elapsed_ms=301.414 max_probe_elapsed_ms=301.414"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:42:51.076Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=2 failure_seconds=2.362 max_probe_gap_seconds=1.347 probe_status=None probe_elapsed_ms=305.98 max_probe_elapsed_ms=305.98"
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:43:01.768Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.367 probe_status=None probe_elapsed_ms=302.067 max_probe_elapsed_ms=302.067"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:43:04.161Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=2 failure_seconds=2.393 max_probe_gap_seconds=1.367 probe_status=None probe_elapsed_ms=301.718 max_probe_elapsed_ms=302.067"
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:43:08.626Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.339 probe_status=None probe_elapsed_ms=301.83 max_probe_elapsed_ms=301.83"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:43:09.677Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.051 max_probe_gap_seconds=1.339 probe_status=None probe_elapsed_ms=301.83 max_probe_elapsed_ms=301.83"
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:43:19.439Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.338 probe_status=None probe_elapsed_ms=301.56 max_probe_elapsed_ms=301.56"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:43:20.472Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.032 max_probe_gap_seconds=1.338 probe_status=None probe_elapsed_ms=301.56 max_probe_elapsed_ms=301.56"
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:43:23.932Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.353 probe_status=None probe_elapsed_ms=302.498 max_probe_elapsed_ms=302.498"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:43:24.983Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.051 max_probe_gap_seconds=1.353 probe_status=None probe_elapsed_ms=302.498 max_probe_elapsed_ms=302.498"
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:47:59.011Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.323 probe_status=None probe_elapsed_ms=300.906 max_probe_elapsed_ms=300.906"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:48:00.055Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.044 max_probe_gap_seconds=1.323 probe_status=None probe_elapsed_ms=300.906 max_probe_elapsed_ms=300.906"
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:50:02.940Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.356 probe_status=None probe_elapsed_ms=308.453 max_probe_elapsed_ms=308.453"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:50:04.014Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.075 max_probe_gap_seconds=1.356 probe_status=None probe_elapsed_ms=308.453 max_probe_elapsed_ms=308.453"
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:50:09.540Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.373 probe_status=None probe_elapsed_ms=313.791 max_probe_elapsed_ms=313.791"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:50:10.608Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.068 max_probe_gap_seconds=1.373 probe_status=None probe_elapsed_ms=313.791 max_probe_elapsed_ms=313.791"
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:51:42.967Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.318 probe_status=None probe_elapsed_ms=302.668 max_probe_elapsed_ms=302.668"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:51:44.031Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.065 max_probe_gap_seconds=1.318 probe_status=None probe_elapsed_ms=302.668 max_probe_elapsed_ms=302.668"
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:52:16.731Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.336 probe_status=None probe_elapsed_ms=302.847 max_probe_elapsed_ms=302.847"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:52:17.823Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.093 max_probe_gap_seconds=1.336 probe_status=None probe_elapsed_ms=302.847 max_probe_elapsed_ms=302.847"
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:53:36.653Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.316 probe_status=None probe_elapsed_ms=303.06 max_probe_elapsed_ms=303.06"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:53:37.697Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.044 max_probe_gap_seconds=1.316 probe_status=None probe_elapsed_ms=303.06 max_probe_elapsed_ms=303.06"
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:53:42.168Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.337 probe_status=None probe_elapsed_ms=301.167 max_probe_elapsed_ms=301.167"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T13:53:43.198Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.03 max_probe_gap_seconds=1.337 probe_status=None probe_elapsed_ms=301.167 max_probe_elapsed_ms=301.167"
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T14:04:03.420Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.346 probe_status=None probe_elapsed_ms=303.995 max_probe_elapsed_ms=303.995"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T14:04:04.463Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.044 max_probe_gap_seconds=1.346 probe_status=None probe_elapsed_ms=303.995 max_probe_elapsed_ms=303.995"
+      },
+      {
+        "event": "child_probe_failed",
+        "scope": "engine",
+        "timestamp": "2026-10-31T14:04:15.157Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.338 probe_status=None probe_elapsed_ms=304.991 max_probe_elapsed_ms=304.991"
+      },
+      {
+        "event": "child_probe_recovered",
+        "scope": "engine",
+        "timestamp": "2026-10-31T14:04:16.238Z",
+        "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.081 max_probe_gap_seconds=1.338 probe_status=None probe_elapsed_ms=304.991 max_probe_elapsed_ms=304.991"
+      }
+    ],
+    "event_counts": {
+      "child_started": 2,
+      "child_probe_failed": 14,
+      "child_probe_recovered": 14
+    }
+  },
+  "short_observer_episode": {
+    "scope": "One new short probe episode; not a reproduction of the historical 6.7s event.",
+    "probe_timeout_ended_at": 1793454602.924217,
+    "root_operation": "service.observe_once",
+    "root_started_at": 1793454602.6182694,
+    "root_duration_ms": 337.83275,
+    "omitted_child_spans": 12,
+    "sample": {
+      "kind": "cpu_sample",
+      "at": 1793454602.7954,
+      "at_ns": 297913085055117,
+      "process_role": "engine",
+      "process_cpu_ns": 86644173670,
+      "sampler_thread_cpu_ns": 5440590611,
+      "sample_gap_ms": 268.091,
+      "cgroup_cpu": {
+        "usage_usec": 214988420,
+        "user_usec": 198646105,
+        "system_usec": 16342314,
+        "nr_periods": 4501,
+        "nr_throttled": 134,
+        "throttled_usec": 10326012,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "active_spans": [
+        {
+          "span_id": "0f516a3b66214998",
+          "trace_id": "d3ec72c3cd1042d2ba2df7d17f57b95b",
+          "parent_id": null,
+          "operation": "service.observe_once",
+          "start_ns": 297912908473075,
+          "start_utc": 1793454602.6182694,
+          "thread_id": 140737476621504
+        },
+        {
+          "span_id": "0e7ea32945784680",
+          "trace_id": "d3ec72c3cd1042d2ba2df7d17f57b95b",
+          "parent_id": "0f516a3b66214998",
+          "operation": "pool_checkout_ms",
+          "start_ns": 297913084456075,
+          "start_utc": 1793454602.7942536,
+          "thread_id": 140737476621504
+        },
+        {
+          "span_id": "bec4015f7d3745d6",
+          "trace_id": "d3ec72c3cd1042d2ba2df7d17f57b95b",
+          "parent_id": "0e7ea32945784680",
+          "operation": "db_ping_ms",
+          "start_ns": 297913084739284,
+          "start_utc": 1793454602.7945354,
+          "thread_id": 140737476621504
+        }
+      ],
+      "last_beat_ns": 297912891827784,
+      "stacks": {
+        "140737476621504": [
+          {
+            "file": "/test-assets/load_service.py",
+            "line": 427,
+            "function": "measured"
+          },
+          {
+            "file": "/home/hummingbot/hummingbot/cli/service.py",
+            "line": 669,
+            "function": "observe_once"
+          },
+          {
+            "file": "/home/hummingbot/hummingbot/cli/service.py",
+            "line": 722,
+            "function": "publish_status"
+          },
+          {
+            "file": "/home/hummingbot/hummingbot/model/bot_state_store.py",
+            "line": 112,
+            "function": "publish"
+          },
+          {
+            "file": "/opt/conda/envs/hummingbot/lib/python3.13/contextlib.py",
+            "line": 141,
+            "function": "__enter__"
+          },
+          {
+            "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+            "line": 3239,
+            "function": "begin"
+          },
+          {
+            "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+            "line": 3275,
+            "function": "connect"
+          },
+          {
+            "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+            "line": 149,
+            "function": "__init__"
+          },
+          {
+            "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+            "line": 3299,
+            "function": "raw_connection"
+          },
+          {
+            "file": "/test-assets/load_trace.py",
+            "line": 48,
+            "function": "measured"
+          },
+          {
+            "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/pool/base.py",
+            "line": 445,
+            "function": "connect"
+          },
+          {
+            "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/pool/base.py",
+            "line": 1361,
+            "function": "_checkout"
+          },
+          {
+            "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+            "line": 968,
+            "function": "_do_ping_w_event"
+          },
+          {
+            "file": "/test-assets/load_trace.py",
+            "line": 48,
+            "function": "measured"
+          },
+          {
+            "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/dialects/postgresql/_psycopg_common.py",
+            "line": 190,
+            "function": "do_ping"
+          },
+          {
+            "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+            "line": 55,
+            "function": "bounded_wait"
+          }
+        ]
+      },
+      "pressure": {
+        "cpu": "some avg10=0.53 avg60=0.27 avg300=0.46 total=8051571045\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n",
+        "io": "some avg10=0.00 avg60=0.00 avg300=0.00 total=493923148\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=460191036\n",
+        "memory": "some avg10=0.00 avg60=0.00 avg300=0.00 total=46016339\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=45725282\n"
+      },
+      "capturing_pid": 32,
+      "capturing_role": "engine"
+    },
+    "exclusive_cause_identified": false
+  },
+  "capture_review": {
+    "run": "build/mm-load/20261031-204226-b6d9ed",
+    "diagnostic": true,
+    "cause_identified": false,
+    "windows": {
+      "warmup": {
+        "window_start_utc": 1793454205.3262732,
+        "duration_seconds": 300,
+        "read_p95_ms": 50.434687989763916,
+        "read_p99_ms": 91.9133520219475,
+        "unexpected_errors": 0,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 78,
+          "LIFE-USDT-SWAP:buy": 74,
+          "LIFE-USDT:sell": 75,
+          "LIFE-USDT-SWAP:sell": 73
+        },
+        "violations": [],
+        "capture": {
+          "engine": {
+            "cpu_samples": 194,
+            "probe_episodes": [
+              {
+                "role": "engine",
+                "failed_at": 1793454479.0100183,
+                "recovered_at": 1793454480.0554557,
+                "seconds": 1.04543775,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.054288417,
+                  "throttled_usec_delta": 0,
+                  "throttled_periods_delta": 0,
+                  "process_cpu_seconds": 0.266590527
+                }
+              }
+            ],
+            "max_sampler_gap_ms": 296.239376,
+            "sampler_thread_cpu_ms": 3017.909456,
+            "max_observed_loop_stall_ms": 231.11783400000002,
+            "loop_stall_samples": 1
+          },
+          "api": {
+            "cpu_samples": 116,
+            "probe_episodes": [
+              {
+                "role": "engine",
+                "failed_at": 1793454479.0100183,
+                "recovered_at": 1793454480.0554557,
+                "seconds": 1.04543775,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.312031334,
+                  "throttled_usec_delta": 0,
+                  "throttled_periods_delta": 0,
+                  "process_cpu_seconds": 0.23886742
+                }
+              }
+            ],
+            "max_sampler_gap_ms": 282.327167,
+            "sampler_thread_cpu_ms": 2893.645359,
+            "max_observed_loop_stall_ms": null,
+            "loop_stall_samples": 0
+          }
+        }
+      },
+      "mixed": {
+        "window_start_utc": 1793454509.1957953,
+        "duration_seconds": 900,
+        "read_p95_ms": 55.816642998252064,
+        "read_p99_ms": 145.26200498221442,
+        "unexpected_errors": 0,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 242,
+          "LIFE-USDT-SWAP:buy": 214,
+          "LIFE-USDT:sell": 233,
+          "LIFE-USDT-SWAP:sell": 211
+        },
+        "violations": [],
+        "capture": {
+          "engine": {
+            "cpu_samples": 697,
+            "probe_episodes": [
+              {
+                "role": "engine",
+                "failed_at": 1793454602.924217,
+                "recovered_at": 1793454604.013846,
+                "seconds": 1.089628751,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.349498751,
+                  "throttled_usec_delta": 38266,
+                  "throttled_periods_delta": 1,
+                  "process_cpu_seconds": 0.423803666
+                }
+              },
+              {
+                "role": "engine",
+                "failed_at": 1793454609.5384378,
+                "recovered_at": 1793454610.6079128,
+                "seconds": 1.069474,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.420112334,
+                  "throttled_usec_delta": 0,
+                  "throttled_periods_delta": 0,
+                  "process_cpu_seconds": 0.999826776
+                }
+              },
+              {
+                "role": "engine",
+                "failed_at": 1793454702.963537,
+                "recovered_at": 1793454704.0316577,
+                "seconds": 1.068120334,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.316918792,
+                  "throttled_usec_delta": 3063,
+                  "throttled_periods_delta": 1,
+                  "process_cpu_seconds": 0.304418785
+                }
+              },
+              {
+                "role": "engine",
+                "failed_at": 1793454736.7279801,
+                "recovered_at": 1793454737.8236372,
+                "seconds": 1.095656459,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.338271501,
+                  "throttled_usec_delta": 6944,
+                  "throttled_periods_delta": 1,
+                  "process_cpu_seconds": 0.335211993
+                }
+              },
+              {
+                "role": "engine",
+                "failed_at": 1793454816.6512668,
+                "recovered_at": 1793454817.6970665,
+                "seconds": 1.045799459,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.310771709,
+                  "throttled_usec_delta": 0,
+                  "throttled_periods_delta": 0,
+                  "process_cpu_seconds": 0.351693412
+                }
+              },
+              {
+                "role": "engine",
+                "failed_at": 1793454822.1681795,
+                "recovered_at": 1793454823.1980007,
+                "seconds": 1.029821334,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.325365959,
+                  "throttled_usec_delta": 0,
+                  "throttled_periods_delta": 0,
+                  "process_cpu_seconds": 0.431632133
+                }
+              }
+            ],
+            "max_sampler_gap_ms": 330.807125,
+            "sampler_thread_cpu_ms": 9582.863895,
+            "max_observed_loop_stall_ms": 487.952542,
+            "loop_stall_samples": 17
+          },
+          "api": {
+            "cpu_samples": 435,
+            "probe_episodes": [
+              {
+                "role": "engine",
+                "failed_at": 1793454602.924217,
+                "recovered_at": 1793454604.013846,
+                "seconds": 1.089628751,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.443023168,
+                  "throttled_usec_delta": 38266,
+                  "throttled_periods_delta": 1,
+                  "process_cpu_seconds": 0.758833651
+                }
+              },
+              {
+                "role": "engine",
+                "failed_at": 1793454609.5384378,
+                "recovered_at": 1793454610.6079128,
+                "seconds": 1.069474,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.345838334,
+                  "throttled_usec_delta": 0,
+                  "throttled_periods_delta": 0,
+                  "process_cpu_seconds": 0.852549525
+                }
+              },
+              {
+                "role": "engine",
+                "failed_at": 1793454702.963537,
+                "recovered_at": 1793454704.0316577,
+                "seconds": 1.068120334,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.326267834,
+                  "throttled_usec_delta": 3063,
+                  "throttled_periods_delta": 1,
+                  "process_cpu_seconds": 0.429688711
+                }
+              },
+              {
+                "role": "engine",
+                "failed_at": 1793454736.7279801,
+                "recovered_at": 1793454737.8236372,
+                "seconds": 1.095656459,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.336629126,
+                  "throttled_usec_delta": 6944,
+                  "throttled_periods_delta": 1,
+                  "process_cpu_seconds": 0.497130499
+                }
+              },
+              {
+                "role": "engine",
+                "failed_at": 1793454816.6512668,
+                "recovered_at": 1793454817.6970665,
+                "seconds": 1.045799459,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.329911834,
+                  "throttled_usec_delta": 0,
+                  "throttled_periods_delta": 0,
+                  "process_cpu_seconds": 0.300330972
+                }
+              },
+              {
+                "role": "engine",
+                "failed_at": 1793454822.1681795,
+                "recovered_at": 1793454823.1980007,
+                "seconds": 1.029821334,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.314582501,
+                  "throttled_usec_delta": 0,
+                  "throttled_periods_delta": 0,
+                  "process_cpu_seconds": 0.284737042
+                }
+              }
+            ],
+            "max_sampler_gap_ms": 423.98425,
+            "sampler_thread_cpu_ms": 9312.402063,
+            "max_observed_loop_stall_ms": 214.43562500000002,
+            "loop_stall_samples": 1
+          }
+        }
+      },
+      "bursts": {
+        "window_start_utc": 1793455413.1070774,
+        "duration_seconds": 90,
+        "read_p95_ms": 61.08376197516918,
+        "read_p99_ms": 165.81277694785967,
+        "unexpected_errors": 0,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 24,
+          "LIFE-USDT-SWAP:buy": 22,
+          "LIFE-USDT:sell": 23,
+          "LIFE-USDT-SWAP:sell": 21
+        },
+        "violations": [],
+        "capture": {
+          "engine": {
+            "cpu_samples": 135,
+            "probe_episodes": [
+              {
+                "role": "engine",
+                "failed_at": 1793455443.4148006,
+                "recovered_at": 1793455444.4628503,
+                "seconds": 1.048049459,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.357793834,
+                  "throttled_usec_delta": 0,
+                  "throttled_periods_delta": 0,
+                  "process_cpu_seconds": 0.43749684
+                }
+              },
+              {
+                "role": "engine",
+                "failed_at": 1793455455.1567557,
+                "recovered_at": 1793455456.236452,
+                "seconds": 1.079696834,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.390947375,
+                  "throttled_usec_delta": 31015,
+                  "throttled_periods_delta": 1,
+                  "process_cpu_seconds": 0.97582472
+                }
+              }
+            ],
+            "max_sampler_gap_ms": 304.819417,
+            "sampler_thread_cpu_ms": 540.885143,
+            "max_observed_loop_stall_ms": 562.213834,
+            "loop_stall_samples": 9
+          },
+          "api": {
+            "cpu_samples": 122,
+            "probe_episodes": [
+              {
+                "role": "engine",
+                "failed_at": 1793455443.4148006,
+                "recovered_at": 1793455444.4628503,
+                "seconds": 1.048049459,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.153084792,
+                  "throttled_usec_delta": 0,
+                  "throttled_periods_delta": 0,
+                  "process_cpu_seconds": 0.436693405
+                }
+              },
+              {
+                "role": "engine",
+                "failed_at": 1793455455.1567557,
+                "recovered_at": 1793455456.236452,
+                "seconds": 1.079696834,
+                "reason": "timeout",
+                "cpu_observation": {
+                  "wall_seconds": 1.3451795,
+                  "throttled_usec_delta": 31015,
+                  "throttled_periods_delta": 1,
+                  "process_cpu_seconds": 0.644063822
+                }
+              }
+            ],
+            "max_sampler_gap_ms": 398.225,
+            "sampler_thread_cpu_ms": 475.329415,
+            "max_observed_loop_stall_ms": null,
+            "loop_stall_samples": 0
+          }
+        }
+      }
+    },
+    "roles": {
+      "engine": {
+        "file_bytes": 3437055,
+        "records": 1397,
+        "cpu_samples": 1185,
+        "episodes": [
+          {
+            "role": "engine",
+            "failed_at": 1793454168.7095551,
+            "recovered_at": 1793454171.0747013,
+            "seconds": 2.365110917,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 2.535246792,
+              "throttled_usec_delta": 38750,
+              "throttled_periods_delta": 2,
+              "process_cpu_seconds": 1.593458575
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454181.767676,
+            "recovered_at": 1793454184.1605859,
+            "seconds": 2.39291021,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 2.731669792,
+              "throttled_usec_delta": 170678,
+              "throttled_periods_delta": 8,
+              "process_cpu_seconds": 1.850206556
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454188.6257484,
+            "recovered_at": 1793454189.676876,
+            "seconds": 1.051127584,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.525209335,
+              "throttled_usec_delta": 157366,
+              "throttled_periods_delta": 8,
+              "process_cpu_seconds": 1.806912219
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454199.4389226,
+            "recovered_at": 1793454200.4718525,
+            "seconds": 1.032929875,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.166398001,
+              "throttled_usec_delta": 188190,
+              "throttled_periods_delta": 6,
+              "process_cpu_seconds": 1.107224938
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454203.9315293,
+            "recovered_at": 1793454204.9828088,
+            "seconds": 1.051279709,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.315565501,
+              "throttled_usec_delta": 0,
+              "throttled_periods_delta": 0,
+              "process_cpu_seconds": 0.378415974
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454479.0100183,
+            "recovered_at": 1793454480.0554557,
+            "seconds": 1.04543775,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.054288417,
+              "throttled_usec_delta": 0,
+              "throttled_periods_delta": 0,
+              "process_cpu_seconds": 0.266590527
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454602.924217,
+            "recovered_at": 1793454604.013846,
+            "seconds": 1.089628751,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.349498751,
+              "throttled_usec_delta": 38266,
+              "throttled_periods_delta": 1,
+              "process_cpu_seconds": 0.423803666
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454609.5384378,
+            "recovered_at": 1793454610.6079128,
+            "seconds": 1.069474,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.420112334,
+              "throttled_usec_delta": 0,
+              "throttled_periods_delta": 0,
+              "process_cpu_seconds": 0.999826776
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454702.963537,
+            "recovered_at": 1793454704.0316577,
+            "seconds": 1.068120334,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.316918792,
+              "throttled_usec_delta": 3063,
+              "throttled_periods_delta": 1,
+              "process_cpu_seconds": 0.304418785
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454736.7279801,
+            "recovered_at": 1793454737.8236372,
+            "seconds": 1.095656459,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.338271501,
+              "throttled_usec_delta": 6944,
+              "throttled_periods_delta": 1,
+              "process_cpu_seconds": 0.335211993
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454816.6512668,
+            "recovered_at": 1793454817.6970665,
+            "seconds": 1.045799459,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.310771709,
+              "throttled_usec_delta": 0,
+              "throttled_periods_delta": 0,
+              "process_cpu_seconds": 0.351693412
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454822.1681795,
+            "recovered_at": 1793454823.1980007,
+            "seconds": 1.029821334,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.325365959,
+              "throttled_usec_delta": 0,
+              "throttled_periods_delta": 0,
+              "process_cpu_seconds": 0.431632133
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793455443.4148006,
+            "recovered_at": 1793455444.4628503,
+            "seconds": 1.048049459,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.357793834,
+              "throttled_usec_delta": 0,
+              "throttled_periods_delta": 0,
+              "process_cpu_seconds": 0.43749684
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793455455.1567557,
+            "recovered_at": 1793455456.236452,
+            "seconds": 1.079696834,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.390947375,
+              "throttled_usec_delta": 31015,
+              "throttled_periods_delta": 1,
+              "process_cpu_seconds": 0.97582472
+            }
+          }
+        ],
+        "unpaired_probes": 0,
+        "max_sampler_gap_ms": 524.574958,
+        "max_loop_stall_ms": 1113.298917,
+        "longest_spans": [
+          {
+            "operation": "candle_sample_ms",
+            "duration_ms": 585.298541,
+            "thread_cpu_ms": 579.956455,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          },
+          {
+            "operation": "natr_ms",
+            "duration_ms": 574.888458,
+            "thread_cpu_ms": 569.547872,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          },
+          {
+            "operation": "outflow_advance_ms",
+            "duration_ms": 279.545458,
+            "thread_cpu_ms": 273.240206,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 238.632708,
+            "thread_cpu_ms": 8.659414,
+            "sql_fingerprint": "1531da697ca264ac537f",
+            "backend_pid": 109
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 211.196958,
+            "thread_cpu_ms": 8.293367,
+            "sql_fingerprint": "b9712ac913a805df3dba",
+            "backend_pid": 107
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 153.533625,
+            "thread_cpu_ms": 1.584666,
+            "sql_fingerprint": "b9712ac913a805df3dba",
+            "backend_pid": 107
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 130.848959,
+            "thread_cpu_ms": 11.307097,
+            "sql_fingerprint": "b9712ac913a805df3dba",
+            "backend_pid": 107
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 107.177709,
+            "thread_cpu_ms": 0.836791,
+            "sql_fingerprint": "2a67db7272c6ba211fa2",
+            "backend_pid": 108
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 107.177709,
+            "thread_cpu_ms": 0.836791,
+            "sql_fingerprint": "2a67db7272c6ba211fa2",
+            "backend_pid": 108
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 106.906083,
+            "thread_cpu_ms": 12.62799,
+            "sql_fingerprint": "6de558468ba0a0081e6b",
+            "backend_pid": 108
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 102.257208,
+            "thread_cpu_ms": 69.244209,
+            "sql_fingerprint": "b9712ac913a805df3dba",
+            "backend_pid": 107
+          }
+        ],
+        "last_summary": {
+          "incidents": 13,
+          "evicted_records": 5198,
+          "oversize_records": 0,
+          "suppressed_incidents": 0,
+          "buffered_records": 38,
+          "buffered_bytes": 87245,
+          "max_records": 256,
+          "max_bytes": 524288,
+          "history_seconds": 10.0,
+          "tail_seconds": 10.0,
+          "max_incidents": 32,
+          "at": 1793455507.869232,
+          "process_id": 32,
+          "sink": {
+            "written_records": 1397,
+            "written_bytes": 3437055,
+            "dropped_records": 0,
+            "writer_cpu_ms": 141.66336999999987,
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "writer_alive": true
+          },
+          "dropped_spans": 193955
+        },
+        "active_span_samples_at_limit": 0
+      },
+      "api": {
+        "file_bytes": 3503345,
+        "records": 1105,
+        "cpu_samples": 839,
+        "episodes": [
+          {
+            "role": "engine",
+            "failed_at": 1793454168.7095551,
+            "recovered_at": 1793454171.0747013,
+            "seconds": 2.365110917,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 2.41896221,
+              "throttled_usec_delta": 38750,
+              "throttled_periods_delta": 2,
+              "process_cpu_seconds": 0.142096751
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454181.767676,
+            "recovered_at": 1793454184.1605859,
+            "seconds": 2.39291021,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 2.608332251,
+              "throttled_usec_delta": 190597,
+              "throttled_periods_delta": 9,
+              "process_cpu_seconds": 0.078901627
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454188.6257484,
+            "recovered_at": 1793454189.676876,
+            "seconds": 1.051127584,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.301231668,
+              "throttled_usec_delta": 141739,
+              "throttled_periods_delta": 6,
+              "process_cpu_seconds": 0.02749083
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454199.4389226,
+            "recovered_at": 1793454200.4718525,
+            "seconds": 1.032929875,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.311862209,
+              "throttled_usec_delta": 224443,
+              "throttled_periods_delta": 7,
+              "process_cpu_seconds": 0.030713919
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454203.9315293,
+            "recovered_at": 1793454204.9828088,
+            "seconds": 1.051279709,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.307967084,
+              "throttled_usec_delta": 0,
+              "throttled_periods_delta": 0,
+              "process_cpu_seconds": 0.023580957
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454479.0100183,
+            "recovered_at": 1793454480.0554557,
+            "seconds": 1.04543775,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.312031334,
+              "throttled_usec_delta": 0,
+              "throttled_periods_delta": 0,
+              "process_cpu_seconds": 0.23886742
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454602.924217,
+            "recovered_at": 1793454604.013846,
+            "seconds": 1.089628751,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.443023168,
+              "throttled_usec_delta": 38266,
+              "throttled_periods_delta": 1,
+              "process_cpu_seconds": 0.758833651
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454609.5384378,
+            "recovered_at": 1793454610.6079128,
+            "seconds": 1.069474,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.345838334,
+              "throttled_usec_delta": 0,
+              "throttled_periods_delta": 0,
+              "process_cpu_seconds": 0.852549525
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454702.963537,
+            "recovered_at": 1793454704.0316577,
+            "seconds": 1.068120334,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.326267834,
+              "throttled_usec_delta": 3063,
+              "throttled_periods_delta": 1,
+              "process_cpu_seconds": 0.429688711
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454736.7279801,
+            "recovered_at": 1793454737.8236372,
+            "seconds": 1.095656459,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.336629126,
+              "throttled_usec_delta": 6944,
+              "throttled_periods_delta": 1,
+              "process_cpu_seconds": 0.497130499
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454816.6512668,
+            "recovered_at": 1793454817.6970665,
+            "seconds": 1.045799459,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.329911834,
+              "throttled_usec_delta": 0,
+              "throttled_periods_delta": 0,
+              "process_cpu_seconds": 0.300330972
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793454822.1681795,
+            "recovered_at": 1793454823.1980007,
+            "seconds": 1.029821334,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.314582501,
+              "throttled_usec_delta": 0,
+              "throttled_periods_delta": 0,
+              "process_cpu_seconds": 0.284737042
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793455443.4148006,
+            "recovered_at": 1793455444.4628503,
+            "seconds": 1.048049459,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.153084792,
+              "throttled_usec_delta": 0,
+              "throttled_periods_delta": 0,
+              "process_cpu_seconds": 0.436693405
+            }
+          },
+          {
+            "role": "engine",
+            "failed_at": 1793455455.1567557,
+            "recovered_at": 1793455456.236452,
+            "seconds": 1.079696834,
+            "reason": "timeout",
+            "cpu_observation": {
+              "wall_seconds": 1.3451795,
+              "throttled_usec_delta": 31015,
+              "throttled_periods_delta": 1,
+              "process_cpu_seconds": 0.644063822
+            }
+          }
+        ],
+        "unpaired_probes": 0,
+        "max_sampler_gap_ms": 423.98425,
+        "max_loop_stall_ms": 214.834,
+        "longest_spans": [
+          {
+            "operation": "http.request",
+            "duration_ms": 450.947708,
+            "thread_cpu_ms": 66.627793,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 446.772459,
+            "thread_cpu_ms": 0.401,
+            "sql_fingerprint": "8eaab51aefd5aa29362a",
+            "backend_pid": 181
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 422.342875,
+            "thread_cpu_ms": 0.466085,
+            "sql_fingerprint": "7bf080f6cd3f3c627682",
+            "backend_pid": 110
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 419.236042,
+            "thread_cpu_ms": 182.082292,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 412.3145,
+            "thread_cpu_ms": 179.083626,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 398.290708,
+            "thread_cpu_ms": 179.186292,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 395.461292,
+            "thread_cpu_ms": 173.030085,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 386.373709,
+            "thread_cpu_ms": 169.9265,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 384.223208,
+            "thread_cpu_ms": 0.321876,
+            "sql_fingerprint": "7bf080f6cd3f3c627682",
+            "backend_pid": 181
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 366.095708,
+            "thread_cpu_ms": 166.857501,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 363.874542,
+            "thread_cpu_ms": 255.020832,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 353.299333,
+            "thread_cpu_ms": 0.328874,
+            "sql_fingerprint": "7bf080f6cd3f3c627682",
+            "backend_pid": 110
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 351.650167,
+            "thread_cpu_ms": 302.386077,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 350.665542,
+            "thread_cpu_ms": 248.672915,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 349.838375,
+            "thread_cpu_ms": 248.24229,
+            "sql_fingerprint": null,
+            "backend_pid": null
+          }
+        ],
+        "last_summary": {
+          "incidents": 10,
+          "evicted_records": 5438,
+          "oversize_records": 0,
+          "suppressed_incidents": 0,
+          "buffered_records": 40,
+          "buffered_bytes": 123877,
+          "max_records": 256,
+          "max_bytes": 524288,
+          "history_seconds": 10.0,
+          "tail_seconds": 10.0,
+          "max_incidents": 32,
+          "at": 1793455507.6537848,
+          "process_id": 33,
+          "sink": {
+            "written_records": 1105,
+            "written_bytes": 3503345,
+            "dropped_records": 0,
+            "writer_cpu_ms": 118.19358999999984,
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "writer_alive": true
+          },
+          "dropped_spans": 246
+        },
+        "active_span_samples_at_limit": 0
+      }
+    }
+  },
+  "conditions": {
+    "before_shipping": {
+      "baseline": "build/mm-load/20261031-151026-01897f/result.json",
+      "image": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
+      "bot_limits": {
+        "cpus": 2,
+        "memory_bytes": 2147483648
+      },
+      "emulation": true,
+      "docker_vm_cpus": 8,
+      "docker_vm_memory_bytes": 8218251264,
+      "host_power": "Battery Power; user previously authorized continued testing in current environment",
+      "method": "Sequential experiments, no parallel diagnostic load. Shipping has no internal metrics wrapper. One paired run cannot establish statistical causality."
+    }
+  },
+  "demo_preservation": {
+    "checked_at": "2026-10-31T14:06:13.499039+00:00",
+    "ledger_hashes": {
+      "orders": "23fb84b15c8186e891d9bef55150244c",
+      "trade_fills": "0670a1868dee14d4377e2b36dcd3b4d8",
+      "executors": "ec4d3c225bb224c5ad2b249b8aece160",
+      "positions": "bd78de05d366df0a875912592f4be8ab"
+    },
+    "control": {
+      "desired_state": "stopped",
+      "control_version": 26,
+      "acknowledged_version": 26,
+      "halt": "false"
+    },
+    "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+    "unchanged": true
+  },
+  "historical_long_lag_cause_identified": false,
+  "new_runtime_fix_justified": false,
+  "release_acceptance_closed": false,
+  "limitations": [
+    "One sequential pair does not establish causality or eliminate intermittency.",
+    "Probe recovery intervals are observation intervals, not continuous freeze durations.",
+    "Sampled stack locations and inclusive async-span CPU are not exclusive operation attribution.",
+    "Sampling can be delayed by suspension/GIL/scheduling; bounded loss is reported.",
+    "No additional PostgreSQL wait-sampling connection in incident mode.",
+    "The failed baseline and all prior failed attempts remain failed."
+  ],
+  "shared_fixture_hashes_match": {
+    "life_mm_profiles.yaml": true,
+    "load_client.py": true,
+    "exchange.py": true,
+    "fixtures.json": true,
+    "load_health.py": true
+  }
+}
