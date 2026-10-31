@@ -1,8 +1,10 @@
 # Remaining acceptance investigation — 2026-10-31
 
-Status: three short diagnostics complete; burst shortfall not reproduced. The
-three previously verified bugs stay closed. No additional trading runtime defect
-is established; current-candidate release validation is pending.
+Status: bounded diagnostics complete; an additional load-client head-of-line
+bug is fixed and verified. The earlier three bugs stay closed. Current-candidate
+release acceptance remains **open**: its burst latency gate fails, and a matched
+warm-state traced diagnostic does not reproduce that episode. No speculative
+trading runtime change is made.
 
 ## Starting evidence
 
@@ -14,9 +16,9 @@ exchange ledgers show 319 orders created before the combined burst's first
 control, versus 17 before the fresh retry's control. The final states of those
 orders cannot all be assigned retroactively to that timestamp.
 
-The latest image `81fa1448` is absent from the current Docker daemon. Rebuilding
-the unchanged application source is required before packaged diagnostics; no
-persistent Demo image or database is replaced.
+The latest image `81fa1448` is absent from the current Docker daemon. The unchanged application source
+is rebuilt below before packaged diagnostics; no persistent Demo image or
+database is replaced.
 
 ## Tested diagnostic correction
 
@@ -38,9 +40,10 @@ Raw Red/Green logs: `build/burst-investigation-20261031/`.
 
 ## Pending
 
-- Matched short producer diagnostics, with the workload-state difference explicit.
-- Bounded review of the old supervisor timeline and missing evidence.
-- Current candidate combined release gate and matched ordinary-entrypoint control.
+- Short producer diagnostics and bounded historical review: completed below;
+  historical causes remain unproven.
+- Current candidate combined release gate: attempted, fails burst latency.
+- Ordinary-entrypoint control: not run because its baseline has not passed.
 
 No historical failed result is changed or merged with a separate passing retry.
 
@@ -107,7 +110,8 @@ Machine-readable measurements: [follow-up evidence](mm-burst-followup-evidence.j
 Shipping supervision on restored image `5973410d` passes all existing cases,
 including independent API replacement, engine crash/hang, retained HALT and
 parent cleanup. This verifies current behavior; it does not identify the old
-incident cause. The full gate is the next separate acceptance step.
+incident cause. At that checkpoint the full gate was the next separate acceptance step; its
+later failed result is recorded below.
 
 
 ## Additional confirmed load-client defect
@@ -136,3 +140,70 @@ ten-second drain deadline are unchanged; no new fills are generated after the
 measurement deadline. All four families must remain visible in the subsequent
 load evidence. This is not evidence that the bot lost fills, nor the root cause
 of the unrelated 498.033/s feed shortfall. Targeted packaged confirmation follows.
+
+
+Targeted packaged confirmation `20261031-150311-b31ae8` passes for 300 seconds:
+300/300 fills, zero errors, API p99 512.18ms, matching fills/fees/positions. Actual
+family counts are spot BUY 78, perpetual BUY 74, spot SELL 76, perpetual SELL 72.
+This verifies coverage and executable-quote selection on the corrected harness;
+it is a short diagnostic, not the full release gate. Fix commit `48d2967d0`.
+The corrected-harness full attempt below fails burst latency; the interrupted
+initial attempt and all short results remain retained.
+
+
+## Corrected-harness release attempt: latency still open
+
+Run `20261031-151026-01897f` uses the same restored image, unchanged load budgets
+and the corrected selector. Warmup passes with 300 fills/p99 88.98ms; mixed
+passes with 900 fills/p99 360.01ms. All four families execute in both windows.
+Burst delivers 509.80 updates/s, 90 fills, zero HTTP errors and matching positions,
+but **fails primary and auxiliary p95/p99**: primary p95 3,029.52ms and p99
+4,622.38ms. All 1,290 cumulative actual fills through burst match the recorder.
+This failed attempt is interrupted during partial soak for focused diagnosis;
+there is no completed new 60-minute or six-fault acceptance to claim.
+
+At burst offsets 70.689–77.889s, the supervisor observes five engine timeout
+probes, recovers after 7.206s, and does not replace the engine. The feed burst
+had ended at 52.974s, about 18s before that episode. Maximum sampled engine
+scheduled lateness reaches 6,722.72ms, API 1,337.63ms. The lateness metric alone
+does not establish a continuous total freeze or the function responsible.
+API worker-queue maximum is 1,991.55ms and handler maximum 2,501.69ms; therefore
+the earlier hypothesis of only a delayed client is not sufficient.
+
+Across retained bot-cgroup observations at offsets 66.850–77.504s, throttled
+periods increase by 29 and throttled time by 1.579s. This is shared application
+quota pressure, separate from the simulator's zero-throttle feed measurement.
+It overlaps the slowdown but cannot explain the entire lag by itself. Timing
+and CPU attribution to an individual operation are missing at this event.
+No engine/SQL/pool/priority change is justified solely from these aggregates.
+
+## One bounded warm-state trace, not another full-release retry
+
+A fresh traced burst `20261031-153850-267589` passes at p99 136.82ms and does not
+reproduce the late episode. A closer diagnostic repeats warm300/mixed900/burst90
+with existing bounded trace, then intentionally stops before soak:
+`20261031-154316-871c04`. Source/fixture hashes match the failed full attempt;
+trace activation and the explicitly recorded diagnostic wrapper are differences.
+It passes all three windows: 300/900/90 fills, p99 272.64/213.55/183.58ms and
+matching quantities/fees/positions. Burst rate is 509.62/s. Its largest captured
+burst loop stall is 290.05ms, so the 6.7-second event remains **not reproduced**.
+
+The trace records two throttled periods/0.111s over the 90-second burst, unlike
+the higher-pressure failed episode. This is an observation, not proof that
+tracing, cache state or host scheduling is the cause. Selected slow-root traces
+drop 144 spans, and the cumulative server trace counter also reports dropped
+spans; one PostgreSQL sampler error exists elsewhere in the run. No complete
+causal reconstruction is claimed from incomplete or non-reproducing traces.
+
+The bounded investigation ends with the current latency/long-lag issue open.
+The old simulator-rate and old sustained-supervisor causes also stay unproven.
+These diagnostics do not close the combined release gate, and the planned
+ordinary-entrypoint acceptance control is not started from a failed baseline.
+The next useful evidence is timestamped operation/stack/CPU attribution during
+this specific recovered-probe episode, including a comparison with shipping
+entrypoint instrumentation if justified. Repeating hour gates until one passes
+would not identify its cause.
+
+Demo image, stopped control/ack versions and all four ledger fingerprints remain
+unchanged. Temporary diagnostic containers are cleaned. No deploy or connected
+Demo/live exchange action is part of this work.

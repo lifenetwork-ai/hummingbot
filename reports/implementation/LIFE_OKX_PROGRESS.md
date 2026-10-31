@@ -2008,3 +2008,26 @@ retention bug (`fc0ee55b8`) are **closed — verified**. No runtime change or ne
 test run is introduced by this documentation update. Burst generator shortfall,
 the older sustained-liveness cause and the combined release gate remain open
 as separate items; all historical failed results are preserved.
+
+
+2026-10-31 remaining-item execution: `44c82ecd8` retains failed burst measurements
+and adds bounded opt-in producer diagnostics. Restored image `5973410d` has
+unchanged verified runtime source; runtime smoke and shipping supervision pass.
+Three short cases exceed 509/s; one fails p99, two pass. The old burst/supervisor
+causes remain unproven after bounded review.
+
+A new test-client head-of-line defect is confirmed Red/Green and fixed in
+`48d2967d0` (40 related tests): unavailable families no longer block other real
+executable quotes. Packaged 300-second confirmation reaches 300 fills across
+all four families. The corrected full attempt passes warm/mixed at 300/900 fills,
+but fails burst p95/p99 (p99 4,622.38ms) despite 509.80/s feed, 90 fills and zero
+HTTP errors. Five engine probes time out over 7.206s and recover without PID
+replacement; bot CPU throttling overlaps but does not fully explain the lag.
+The partial soak is interrupted and not accepted.
+
+Fresh traced burst and a matched traced warm300/mixed900/burst90 diagnostic
+both pass. The latter p99 is 183.58ms, largest captured burst loop stall 290ms;
+it does not reproduce the long episode or close release acceptance. Current
+baseline/control remain open; no speculative runtime fix, threshold waiver or
+additional blind hour repeat is made. Demo unchanged, test containers cleaned.
+See [bounded follow-up and evidence](../mm-burst-followup.md).

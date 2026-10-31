@@ -315,9 +315,11 @@ items remain separate; neither a historical failed run nor its cause is erased.
 - [ ] Establish the cause of the older sustained supervisor-liveness incident
   from relevant evidence. Do not equate it with the reproduced controller race
   or infer its cause from a later passing run.
-- [ ] Close the all-window release gate in one uninterrupted run. Soak and six
-  faults pass on `81fa1448`, and the separate burst retry passes; the combined
-  run remains failed. No thresholds are waived by closing the three bugs.
+- [ ] Close the current all-window release gate in one uninterrupted run.
+  Candidate `5973410d` passes warm/mixed and burst feed/fill rates, but fails
+  burst p95/p99. Its partial soak is not accepted; the separate passing traced
+  warm/mixed/burst diagnostic does not close this gate. Earlier `81fa1448` soak
+  and six-fault results remain historical evidence.
 
 ### Execution plan for the remaining items — 2026-10-31
 
@@ -417,5 +419,47 @@ all deliver more than 509/s; the first fails p99, the other two pass. A preload
 of 307 known canceled orders does not reproduce the burst shortfall. Historical
 burst and supervisor causes remain open; the bounded diagnostic stage is
 complete, with no new runtime defect established. See the
-[follow-up report](../../reports/mm-burst-followup.md). Current-candidate full
-release and matched ordinary-entrypoint control remain pending.
+[follow-up report](../../reports/mm-burst-followup.md). The later current-candidate attempt fails burst latency as recorded below;
+matched ordinary-entrypoint acceptance control is not run from that baseline.
+
+
+### Load-client family selection — closed, verified 2026-10-31
+
+- [x] Reproduce head-of-line blocking: a continuously executable spot quote
+  generates only one fill in two seconds because the old client waits for a
+  missing perpetual BUY. Four original generation/drain controls still pass Red.
+- [x] Rotate among actual executable families and skip exhausted levels; retain
+  original deadlines/rate/amounts and report per-family fill counts. Fix
+  `48d2967d0`; 40 related tests pass, including absence, recovery and fairness.
+- [x] Verify packaged 300-second diagnostic: 300/300 fills, all four families,
+  exact recorder/position agreement. Corrected full attempt then passes warm300
+  and mixed900 at 300/900 fills. This test-client bug is closed; it is distinct
+  from runtime controller/OKX bugs and the still-open latency issue.
+
+### Latest acceptance outcome — 2026-10-31
+
+- [x] Complete bounded generator diagnostics and focused historical review;
+  preserve the failed baseline p99 case and all passing controls. Add failed
+  measurement retention and bounded scheduling/send/CPU diagnostics (`44c82ecd8`).
+- [x] Attempt the current full gate with the corrected harness. Preserve
+  `20261031-151026-01897f`: warm and mixed pass; burst feed 509.80/s and all
+  90 fills pass, but primary/auxiliary p95/p99 fail (primary p99 4,622.38ms).
+  The attempt stops during partial soak for focused diagnosis; no hour/fault
+  acceptance is inferred from the incomplete attempt.
+- [x] Run a fresh traced burst, then one traced warm300/mixed900/burst90 sequence
+  to compare warmed conditions (`20261031-154316-871c04`). All three traced
+  windows pass; source/fixture hashes match the failed attempt. Trace and the
+  intentional stop-before-soak diagnostic wrapper are explicit differences.
+  This is a diagnostic only, not a stitched full-release pass.
+- [ ] Attribute the recovered engine probe episode in the failed burst:
+  five timeout probes over 7.206s, sampled scheduled lag 6.723s, no replacement.
+  Shared bot-cgroup throttling overlaps it, but full causal attribution is
+  missing. The matched traced burst's largest captured stall is only 290ms.
+  Historical burst-rate and old sustained-liveness causes remain open too.
+- [ ] Pass a complete current baseline before accepting the matched shipping
+  control. No ordinary-entrypoint acceptance control is run from this failed
+  baseline. Continue only with evidence targeting the specific latency episode;
+  do not repeat hour gates blindly or relax limits to force closure.
+- [x] Verify unchanged Demo image/control/four ledger fingerprints and clean
+  temporary test containers. Publish the outcomes and remaining limits in the
+  [follow-up report](../../reports/mm-burst-followup.md).
