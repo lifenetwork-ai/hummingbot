@@ -717,20 +717,21 @@ class ExecutorOrchestrator:
             return
         executor.early_stop(action.keep_position)
 
-    def _update_positions_from_done_executors(self):
+    def _update_positions_from_done_executors(self, executor_reports=None):
         """
         Update positions from executors that are done but haven't been processed yet.
         This is called before generating reports to ensure position state is current.
         """
         resident_ids = {executor.config.id for rows in self.active_executors.values() for executor in rows}
         self.executors_ids_position_held = set(self.executors_ids_position_held) & resident_ids
-        for controller_id, executors_list in self.active_executors.items():
+        if executor_reports is None:
+            executor_reports = self.get_executors_report()
+        for controller_id, executor_infos in executor_reports.items():
             # Filter executors that need position updates
             executors_to_process = [
-                executor for executor in executors_list
-                if (executor.executor_info.is_done and
-                    executor.executor_info.close_type == CloseType.POSITION_HOLD and
-                    executor.executor_info.config.id not in self.executors_ids_position_held)
+                info for info in executor_infos
+                if (info.is_done and info.close_type == CloseType.POSITION_HOLD and
+                    info.config.id not in self.executors_ids_position_held)
             ]
 
             # Skip if no executors to process
@@ -739,8 +740,7 @@ class ExecutorOrchestrator:
 
             positions = self.positions_held.get(controller_id, [])
 
-            for executor in executors_to_process:
-                executor_info = executor.executor_info
+            for executor_info in executors_to_process:
                 self.executors_ids_position_held.add(executor_info.config.id)
 
                 # Determine position side (handling perpetual markets)
@@ -906,11 +906,10 @@ class ExecutorOrchestrator:
         """
         if getattr(self, "mm_scope_incomplete", False):
             raise ValueError("drawdown_position_scope_unavailable")
-        # Update any pending position holds from done executors
-        self._update_positions_from_done_executors()
-
-        # Generate all reports
+        # A synchronous report uses one DTO per resident executor for hold
+        # transitions, display and PnL. Nothing is retained for the next call.
         executors_report = self.get_executors_report()
+        self._update_positions_from_done_executors(executors_report)
         positions_report = self.get_positions_report()
 
         # Get all controller IDs
@@ -923,12 +922,13 @@ class ExecutorOrchestrator:
             controller_id: {
                 "executors": executors_report.get(controller_id, []),
                 "positions": positions_report.get(controller_id, []),
-                "performance": self.generate_performance_report(controller_id)
+                "performance": self.generate_performance_report(
+                    controller_id, executor_infos=executors_report.get(controller_id, []))
             }
             for controller_id in all_controller_ids
         }
 
-    def generate_performance_report(self, controller_id: str) -> PerformanceReport:
+    def generate_performance_report(self, controller_id: str, *, executor_infos=None) -> PerformanceReport:
         # Create a new report starting from cached base values
         report = PerformanceReport()
         cached_report = self.cached_performance.get(controller_id, PerformanceReport())
@@ -939,11 +939,11 @@ class ExecutorOrchestrator:
         report.close_type_counts = cached_report.close_type_counts.copy() if cached_report.close_type_counts else {}
 
         # Add data from active executors
-        active_executors = self.active_executors.get(controller_id, [])
+        if executor_infos is None:
+            executor_infos = (executor.executor_info for executor in self.active_executors.get(controller_id, []))
         positions = self.positions_held.get(controller_id, [])
 
-        for executor in active_executors:
-            executor_info = executor.executor_info
+        for executor_info in executor_infos:
             if not executor_info.is_done:
                 if self._mm_scope() and executor_info.filled_amount_quote:
                     self._mm_mark_price(controller_id, executor_info.config.connector_name, executor_info.config.trading_pair)

@@ -11,7 +11,7 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 - [Implementation progress](implementation/LIFE_OKX_PROGRESS.md): chronological
   delivery journal, with a current summary at the top.
 - [Ordered flow follow-up](performance/life-mm-runtime-optimization.md#2026-11-01-ordered-implementation):
-  terminal-proof fairness fixed/verified; two measured CPU opportunities remain next.
+  terminal-proof fairness and executor DTO reuse verified; controller selection next.
 
 ## Browse by topic
 

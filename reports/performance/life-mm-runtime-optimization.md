@@ -1,8 +1,8 @@
 # Runtime flow optimization
 
 Latest follow-up (2026-11-01): ordered implementation is underway. Terminal-proof
-fairness is fixed and verified; executor reporting and controller selection are
-next. See [implementation progress](#2026-11-01-ordered-implementation) and
+fairness and executor DTO reuse are verified; controller selection is next.
+See [implementation progress](#2026-11-01-ordered-implementation) and
 [new evidence](runtime-flow-remediation-20261101.json). The original
 [read-only review](#2026-11-01-follow-up--review-only) stays separate. Accepted
 image `5973410d` and its R1/R2 results do not certify these new source changes.
@@ -345,8 +345,14 @@ release acceptance is claimed for this read-only follow-up.
   four-attempt cap and complete `all_orders` proof requirements. Removed entries
   are skipped; cancellation/failure retains pending obligations. The complete
   order/fill proof and reservation-release rules are unchanged.
-- [ ] **2. Executor report DTO reuse:** keep reuse inside one synchronous report
-  call; validate hold transitions, exact fees/PnL and fresh later calls.
+- [x] **2. Executor report DTO reuse:** Red3 failures/2 passes; Green103 native
+  and11 PostgreSQL drawdown cases. One per-call DTO list feeds hold transitions,
+  output and performance. No memo is stored on executors or the orchestrator;
+  independent calls and stale-price errors stay fresh. Tests cover active-to-held
+  transitions, fee/PnL equality, deduplication, legacy reports, failure/retry and
+  standalone callers. Paired actual old/new code gives0.867 →0.320ms for eight
+  partially filled executors (24 →8 DTO constructions), and4.160 →1.467ms for40.
+  This is report CPU on fixed fake prices, not whole-bot throughput or SLO evidence.
 - [ ] **3. Controller selection:** remove redundant construction while retaining
   configuration admission and live session/controller identity checks.
 

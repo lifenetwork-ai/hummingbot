@@ -15,7 +15,73 @@
       "tests": "test/hummingbot/core/test_spot_outflow_fairness.py"
     },
     "executor_reports": {
-      "status": "pending"
+      "status": "implemented_verified",
+      "red": {
+        "failed": 3,
+        "passed": 2
+      },
+      "green_native": 103,
+      "green_postgres": 11,
+      "implementation": "Explicit per-call ExecutorInfo lists shared by hold processing, report output and performance; standalone calls and later reports remain fresh",
+      "tests": "test/hummingbot/strategy_v2/executors/test_report_snapshots.py",
+      "paired_actual_old_new": {
+        "scope": "Native paired CPU replay of real PositionExecutor properties with fixed fake prices/rules; actual old/new report methods, DTOs scoped to one synchronous call. No live actors/network/DB or load-gate claim.",
+        "cases": [
+          {
+            "executors": 8,
+            "partially_filled": false,
+            "paired_rounds": 100,
+            "baseline_median_cpu_ms": 0.31527099999999997,
+            "candidate_median_cpu_ms": 0.12581199999999998,
+            "baseline_dto_reads_per_call": 24.0,
+            "candidate_dto_reads_per_call": 8.0,
+            "baseline_price_reads_per_call": 0.0,
+            "candidate_price_reads_per_call": 0.0,
+            "output_equal": true,
+            "cpu_reduction_percent": 60.09401435590333
+          },
+          {
+            "executors": 8,
+            "partially_filled": true,
+            "paired_rounds": 100,
+            "baseline_median_cpu_ms": 0.866667,
+            "candidate_median_cpu_ms": 0.31995850000000003,
+            "baseline_dto_reads_per_call": 24.0,
+            "candidate_dto_reads_per_call": 8.0,
+            "baseline_price_reads_per_call": 80.0,
+            "candidate_price_reads_per_call": 32.0,
+            "output_equal": true,
+            "cpu_reduction_percent": 63.08172573779779
+          },
+          {
+            "executors": 40,
+            "partially_filled": false,
+            "paired_rounds": 100,
+            "baseline_median_cpu_ms": 1.4765835,
+            "candidate_median_cpu_ms": 0.5338125,
+            "baseline_dto_reads_per_call": 120.0,
+            "candidate_dto_reads_per_call": 40.0,
+            "baseline_price_reads_per_call": 0.0,
+            "candidate_price_reads_per_call": 0.0,
+            "output_equal": true,
+            "cpu_reduction_percent": 63.848133207502315
+          },
+          {
+            "executors": 40,
+            "partially_filled": true,
+            "paired_rounds": 100,
+            "baseline_median_cpu_ms": 4.160208,
+            "candidate_median_cpu_ms": 1.4668125,
+            "baseline_dto_reads_per_call": 120.0,
+            "candidate_dto_reads_per_call": 40.0,
+            "baseline_price_reads_per_call": 400.0,
+            "candidate_price_reads_per_call": 160.0,
+            "output_equal": true,
+            "cpu_reduction_percent": 64.74184704226327
+          }
+        ]
+      },
+      "prior_phase_commit": "9ffb4cf93"
     },
     "controller_selection": {
       "status": "pending"

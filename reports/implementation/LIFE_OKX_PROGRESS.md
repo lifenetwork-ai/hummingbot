@@ -25,7 +25,9 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   test-sampler timestamps without changing the accepted runtime image/results.
 - **Ordered flow follow-up:** terminal-proof polling fairness is fixed and
   verified with26 native/13 PostgreSQL cases after7 Red failures. Per-call executor
-  DTO reuse and controller selection are next. These source changes do not extend
+  DTO reuse passes103 native/11 PostgreSQL cases after3 Red failures; paired report
+  CPU is0.867 →0.320ms for eight partial-fill executors. Controller selection is
+  next. These source changes do not extend
   the frozen image's acceptance; see the
   [checklist](../performance/life-mm-runtime-optimization.md#2026-11-01-ordered-implementation).
 
