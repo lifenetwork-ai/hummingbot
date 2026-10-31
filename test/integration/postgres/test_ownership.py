@@ -460,7 +460,8 @@ def test_incomplete_shutdown_preserves_owner_and_durable_halt(owned):
 
 @pytest.mark.parametrize("transport_attempted", [False, True])
 @pytest.mark.parametrize("terminal_state", [OrderState.FAILED, OrderState.CANCELED])
-def test_shutdown_skips_only_proven_unsent_failed_creates(owned, transport_attempted, terminal_state):
+@pytest.mark.parametrize("replace_order", [False, True])
+def test_shutdown_skips_only_proven_unsent_failed_creates(owned, transport_attempted, terminal_state, replace_order):
     core = reconciliation_core(owned)
     order = intent(owned)
     order.current_state = OrderState.FAILED
@@ -472,15 +473,22 @@ def test_shutdown_skips_only_proven_unsent_failed_creates(owned, transport_attem
     else:
         owned.owner.order_failed(owned.market, order)
     # A cancel-not-found acknowledgement can follow the send-gate rejection.
+    if replace_order:
+        # Same client ID is not proof that this different object was rejected
+        # before transport by this process's create coroutine.
+        order = InFlightOrder.from_json(order.to_json())
+        owned.market.in_flight_orders[order.client_order_id] = order
     order.current_state = terminal_state
     owned.owner._refresh_orders = AsyncMock()
 
     async def shutdown(**kwargs):
+        # Shutdown captured the objects before the tracker releases them.
+        owned.market.in_flight_orders.clear()
         await core.after_order_cancellation()
         return True
     core.shutdown = AsyncMock(side_effect=shutdown)
     owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
-    assert owned.owner._refresh_orders.await_count == int(transport_attempted)
+    assert owned.owner._refresh_orders.await_count == int(transport_attempted or replace_order)
 
 
 def test_fill_during_v2_shutdown_requires_position_reconciliation(owned):

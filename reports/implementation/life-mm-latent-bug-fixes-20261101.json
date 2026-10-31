@@ -37,7 +37,20 @@
       "tests": "test/hummingbot/cli/test_service_funding.py"
     },
     "B4": {
-      "status": "pending"
+      "status": "implemented_verified",
+      "native_red_failed": 2,
+      "postgres_red": {
+        "failed": 2,
+        "passed": 6
+      },
+      "native_passed": 6,
+      "postgres_passed": 48,
+      "behavior": "Weak references retain no-transport proof for the exact live rejected object; retired objects release IDs; replacement objects require exchange readback",
+      "tests": [
+        "test/hummingbot/core/test_unsent_rejection_retention.py",
+        "test/integration/postgres/test_ownership.py"
+      ],
+      "notes": "First native Green attempt exposed an invalid MagicMock fixture, corrected then both failures reconfirmed against unchanged baseline before final Green"
     }
   },
   "new_image_release_accepted": false

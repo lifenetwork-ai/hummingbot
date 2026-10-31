@@ -3,6 +3,7 @@ import asyncio
 import json
 import time
 import uuid
+import weakref
 from datetime import datetime
 from decimal import Decimal
 from urllib.parse import urlparse
@@ -43,7 +44,9 @@ class BotOwnership:
         self.connectors = {}
         self.active_intents = set()
         self.sent_intents = set()
-        self.unsent_rejections = set()
+        # Proof follows the actual rejected order object, including references
+        # captured by shutdown, without retaining retired IDs indefinitely.
+        self.unsent_rejections = weakref.WeakValueDictionary()
         self.submission_tasks = set()
         self.transport_tasks = {}
         self.account_lock = asyncio.Lock()
@@ -245,7 +248,7 @@ class BotOwnership:
             # This hook runs only in this process's create coroutine. Retain
             # positive no-transport evidence even if a later cancel-not-found
             # acknowledgement changes FAILED to CANCELED in the tracker.
-            self.unsent_rejections.add(order.client_order_id)
+            self.unsent_rejections[order.client_order_id] = order
         if order.client_order_id in self.sent_intents:
             self.require_recovery("An order submission did not finish with a durable acknowledgment.")
         elif order.client_order_id in self.active_intents:
@@ -718,7 +721,7 @@ class BotOwnership:
                     # failed, never-transported order cannot exist remotely;
                     # asking OKX for it yields an empty not-found response.
                     # Sent/uncertain failures still require exchange readback.
-                    if (order.is_done and order.client_order_id in self.unsent_rejections and not order.exchange_order_id
+                    if (order.is_done and self.unsent_rejections.get(order.client_order_id) is order and not order.exchange_order_id
                             and order.client_order_id not in self.sent_intents):
                         continue
                     await self._refresh_orders(connector, [order])
