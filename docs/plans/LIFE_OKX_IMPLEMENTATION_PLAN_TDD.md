@@ -12,9 +12,9 @@ legacy receipts remain readable but are not templates for new override requests.
 Updated: 2026-10-26 (Asia/Ho_Chi_Minh). Implementation baseline: `2d1dc0b7b`.
 Status: P1–P7 implementation and required local/Demo acceptance complete,
 including the actual funding settlement and cold-restart deduplication check.
-See [funding acceptance evidence](../../reports/okx-demo-funding.json).
+See [funding acceptance evidence](../../reports/demo/okx-demo-funding.json).
 Post-completion logic-flow review is complete; its checklist follows P7.
-The [previous audit](../../reports/LIFE_OKX_IMPLEMENTATION_AUDIT.md) covers historical scope;
+The [previous audit](../../reports/implementation/LIFE_OKX_IMPLEMENTATION_AUDIT.md) covers historical scope;
 this document is the current delivery checklist.
 
 The separate [incremental enhancements plan](LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md)
@@ -527,7 +527,7 @@ load runner/Make target rather than another service or load-testing framework.
 The bot runs at **1 CPU / 2 GiB**; PG/simulator/load generation have separate
 recorded limits. Record host architecture/emulation, image/config hashes, fixture
 sizes and requested **and achieved** rates. Reuse existing large-history/query
-fixtures from [the PostgreSQL performance review](../../reports/postgres-performance-review.md).
+fixtures from [the PostgreSQL performance review](../../reports/platform/postgres-performance-review.md).
 Seed sufficient virtual inventory/collateral for the valid-fill workload while
 retaining all configured risk caps.
 
@@ -565,8 +565,8 @@ p95 **74ms**, p99 **584ms**, 72,000 completed reads and 3,600 valid fills. All f
 fault windows pass; independent recorder/exchange comparison agrees on 4,890
 unique fills. Peak bot RSS **341 MiB**; burst backlog drains in **0.53s**.
 
-Evidence and per-route caveats: [load report](../../reports/life-mm-load-tests.md),
-[sanitized acceptance data](../../reports/life-mm-load-acceptance.json). Daily statistics
+Evidence and per-route caveats: [load report](../../reports/performance/life-mm-load-tests.md),
+[sanitized acceptance data](../../reports/performance/life-mm-load-acceptance.json). Daily statistics
 cache misses remain approximately 1.1 seconds, so aggregate acceptance is not a
 per-endpoint latency guarantee. Upstream teardown pending-task diagnostics remain
 visible; no healthy HTTP failures/HALT or sustained resource growth was observed.
@@ -581,7 +581,7 @@ records subsequent source changes separately.
 - [x] Retain and drain controller generations, including blocked/failed startup and immediate stop/start/stop. Await reference release and public-network closure; retire the action listener before waiting for slow cleanup.
 - [x] Trace residual pending-task diagnostics in Docker, reproduce the orphaned perpetual funding-payment poller and cancel/drain it before replacing its notifier on network stop. Confirm clean final-image debug logs.
 - [x] Add native lifecycle regressions to the Makefile regression target and run the full 111-test PostgreSQL suite. Record idle before/after measurements.
-- [x] Validate the final rebuilt image with affected offline E2E and burst load; record evidence and complete the separate [optimization report](../../reports/life-mm-optimization-review.md). Keep the original 60-minute soak evidence attached to its original image.
+- [x] Validate the final rebuilt image with affected offline E2E and burst load; record evidence and complete the separate [optimization report](../../reports/performance/life-mm-optimization-review.md). Keep the original 60-minute soak evidence attached to its original image.
 
 Follow-up complete: native daily-report median **812 → 504ms**; 100-currency
 snapshot **100 → 1 SQL**, median **184 → 28ms**. All **1,249 native regression**
@@ -610,8 +610,8 @@ reconciliations and automatic expiry/cancellation. That image created 288
 orders; all are cancelled. At that protocol's completion the DB had 300 including the earlier 12-order
 pilot, zero fills, UTC, no HALT and no owner. Those exchange reads showed no pending
 orders or perpetual positions and unchanged cash. No new full load/soak or Cloud
-Run deployment was performed. See [Demo acceptance](../../reports/okx-demo-acceptance.md),
-[portable evidence](../../reports/okx-demo-acceptance.json) and
+Run deployment was performed. See [Demo acceptance](../../reports/demo/okx-demo-acceptance.md),
+[portable evidence](../../reports/demo/okx-demo-acceptance.json) and
 [environment setup](../okx-operations.md#environment-and-credentials).
 
 Post-observation log review identified duplicate cancel response `51400` being
@@ -632,8 +632,8 @@ Legacy scale-six spot quantity truncation is explicitly reported, not described
 as lossless reconciliation. A capped no-new-order funding smoke passed. A bounded
 local watcher will observe the 2026-10-26 00:00 UTC settlement; payment stays
 unverified until a real bill matches the recorder. See
-[natural-fill evidence](../../reports/okx-demo-fill-acceptance.json) and the
-[updated acceptance report](../../reports/okx-demo-acceptance.md).
+[natural-fill evidence](../../reports/demo/okx-demo-fill-acceptance.json) and the
+[updated acceptance report](../../reports/demo/okx-demo-acceptance.md).
 
 OKX documents Demo API keys, the `x-simulated-trading: 1` REST header and separate
 demo WebSocket endpoints; REST may share the production host. Verify the account's
@@ -659,7 +659,7 @@ port 443 is already available. Checked 2026-10-25.
 Focused follow-up checklist:
 
 - [x] Observe natural fills and verify exchange/private-stream/recorder fees and recovery with filled exposure. Five natural maker fills, exact original fees/currencies, real SHORT recovery and matched reconciliation are recorded in the focused follow-up.
-- [x] Observe a Demo funding payment and verify its original-currency accounting against the exchange. P7 matched the actual bill, exact DB and daily totals, then verified cold-restart deduplication; see reports/okx-demo-funding.json.
+- [x] Observe a Demo funding payment and verify its original-currency accounting against the exchange. P7 matched the actual bill, exact DB and daily totals, then verified cold-restart deduplication; see reports/demo/okx-demo-funding.json.
 
 ### Post-Demo correctness — preserve recorded decimal quantities
 
@@ -672,7 +672,7 @@ replaying a truncated fill could also be rejected as conflicting economic data.
 - [x] Add replayable SQL converting all 15 scaled BIGINT fields once; test legacy rows, new precise values, replay and disabled-migration validation.
 - [x] Sum natural units in daily statistics and compare quantities/prices exactly in observational reconciliation.
 - [x] Test 8-decimal partial fills/fees/replay and round-trip every affected ORM field beyond 18 decimal places.
-- [x] Finish full PostgreSQL/regression verification and deployment-image offline precision/recovery checks; record evidence and commit. 1,271 regression tests/nine subtests, 113 PostgreSQL tests and three extended precision checks pass. The same rebuilt image passes schema/spot, V2 spot/perpetual and all nine LIFE cases across combined/selected runs, plus a 60-second/100,000-history-fill diagnostic load probe. See [portable precision evidence](../../reports/postgres-decimal-precision.json).
+- [x] Finish full PostgreSQL/regression verification and deployment-image offline precision/recovery checks; record evidence and commit. 1,271 regression tests/nine subtests, 113 PostgreSQL tests and three extended precision checks pass. The same rebuilt image passes schema/spot, V2 spot/perpetual and all nine LIFE cases across combined/selected runs, plus a 60-second/100,000-history-fill diagnostic load probe. See [portable precision evidence](../../reports/platform/postgres-decimal-precision.json).
 
 Original Demo evidence remains historical: no old quantity is fabricated or
 silently repaired, and the existing funding watcher continues on its original
@@ -746,12 +746,12 @@ passes at 20 reads/s, ~100 book updates/s and one fill/s: read p95 **262.63ms**,
 p99 **676.13ms**, zero unexpected errors/violations. Sixty unique fills and two
 identified funding bills match the independent ledger. This is a bounded local
 probe, not a new full soak or Cloud Run benchmark. Earlier failed runs remain
-recorded with their fixes/limits in [portable evidence](../../reports/funding-backfill-evidence.json).
+recorded with their fixes/limits in [portable evidence](../../reports/implementation/funding-backfill-evidence.json).
 
 ### Post-completion logic-flow review — 2026-10-26
 
 Reuse the existing service, control state, controller, reconciler and funding
-checkpoint. Detailed reproduction and scope: [logic-flow review](../../reports/life-mm-logic-review.md).
+checkpoint. Detailed reproduction and scope: [logic-flow review](../../reports/implementation/life-mm-logic-review.md).
 
 - [x] Reproduce partial-fill/cancellation exposure release, reserve entries through cancel acknowledgement, and verify terminal hold releases the temporary reservation.
 - [x] Reproduce decimal-spread boundary rejection and preserve exact configured bid/ask prices through the shared MM helper.
@@ -782,7 +782,7 @@ remain required; unavailable Demo/LIFE checks must remain explicitly open. P7 is
 an additional required funding-accounting follow-up before calling the new
 idle/restart funding behavior complete; prior P1–P6 evidence does not mark it done.
 
-P7 final Demo evidence: P7 funding settlement verified at 2026-10-26T00:01:32.620179+00:00: Demo bill 4042315866684412230 reports 0.0032045728 USDT at UTC epoch-ms 1792972800651. Exact funding_bills and daily API totals match. The same stopped service was cold-restarted and the bill was ingested again without duplication. Orders/fills remain 320/5; no strategy or exchange trading command was submitted. The service stopped and released ownership after observation. See [portable result](../../reports/okx-demo-funding.json).
+P7 final Demo evidence: P7 funding settlement verified at 2026-10-26T00:01:32.620179+00:00: Demo bill 4042315866684412230 reports 0.0032045728 USDT at UTC epoch-ms 1792972800651. Exact funding_bills and daily API totals match. The same stopped service was cold-restarted and the bill was ingested again without duplication. Orders/fills remain 320/5; no strategy or exchange trading command was submitted. The service stopped and released ownership after observation. See [portable result](../../reports/demo/okx-demo-funding.json).
 
 ## 9. Follow-up: explain latency tails with traces
 
@@ -794,7 +794,7 @@ P7 final Demo evidence: P7 funding settlement verified at 2026-10-26T00:01:32.62
 - [x] Use Red/Green tests for the confirmed UTC/serialization runtime fix; preserve Decimal precision and the OpenAPI contract.
 - [x] Repeat the unchanged sixty-minute zero-error load gate on a full rebuilt/pinned Cloud Run image: 72,000 HTTP 200 responses, zero errors, p95 67.77 ms, p99 355.03 ms; ledger/position/funding/resource assertions passed. The earlier mixed profile alone was not used to close this gate.
 
-Traced follow-up results: fixed mixed p95/p99 158.88/830.72 ms passed; the completed sixty-minute soak failed at p99 1,250.96 ms with ten client timeouts. Fill/fee/position and resource-growth checks passed. See [the traced load review](../../reports/life-mm-trace-load-review.md) and [portable evidence](../../reports/life-mm-trace-load-evidence.json). This is historical failed-run evidence; the subsequent passing full-image gate is recorded in section 9.2. The reproduction follow-up was subsequently closed by user decision after the passing gate.
+Traced follow-up results: fixed mixed p95/p99 158.88/830.72 ms passed; the completed sixty-minute soak failed at p99 1,250.96 ms with ten client timeouts. Fill/fee/position and resource-growth checks passed. See [the traced load review](../../reports/investigations/life-mm-trace-load-review.md) and [portable evidence](../../reports/investigations/life-mm-trace-load-evidence.json). This is historical failed-run evidence; the subsequent passing full-image gate is recorded in section 9.2. The reproduction follow-up was subsequently closed by user decision after the passing gate.
 
 ### 9.1 Short diagnostic iteration
 
@@ -803,13 +803,13 @@ Traced follow-up results: fixed mixed p95/p99 158.88/830.72 ms passed; the compl
 - [x] Reproduce nested mapping timestamps escaping UTC normalization; replace wildcard serialization with Pydantic datetime-only serializers and verify exact Decimal/UTC/OpenAPI behavior.
 - [x] Compare parent/patched images with identical-fixture sixty-second traced/untraced probes; retain all results, source hashes and diagnostic-image scope.
 
-Short probes all passed, but neither parent probe reproduced the historical ten-timeout cluster. The controlled one-CPU CPU replay reduced 500-row serialization CPU by 65.66% (orders) / 68.44% (fills). CLI tests: 457 passed; selected PostgreSQL tests: 8 passed. At this short-iteration checkpoint, timeout reproduction and the final one-hour gate were still open; section 9.2 records the later passing gate. See [short diagnostic review](../../reports/life-mm-short-repro-review.md) and [portable evidence](../../reports/life-mm-short-repro-evidence.json).
+Short probes all passed, but neither parent probe reproduced the historical ten-timeout cluster. The controlled one-CPU CPU replay reduced 500-row serialization CPU by 65.66% (orders) / 68.44% (fills). CLI tests: 457 passed; selected PostgreSQL tests: 8 passed. At this short-iteration checkpoint, timeout reproduction and the final one-hour gate were still open; section 9.2 records the later passing gate. See [short diagnostic review](../../reports/investigations/life-mm-short-repro-review.md) and [portable evidence](../../reports/investigations/life-mm-short-repro-evidence.json).
 
 ### 9.2 Full-image sixty-minute retest
 
 - [x] Rebuild the complete Cloud Run target, verify 23 runtime/SQL source hashes and pin the actual tested manifest.
 - [x] Run the complete 3,600-second traced random/both profile with unchanged resources and budgets; retain successful and historical failed evidence.
 - [x] Reconcile all 3,600 fills, prices/fees, positions, two funding bills and daily records; pass 58-sample resource-growth and existing query-count checks.
-- [x] Publish the [full retest report](../../reports/life-mm-soak-retest.md) and [portable evidence](../../reports/life-mm-soak-retest-evidence.json). Gate passed at p95/p99 67.77/355.03 ms with zero errors. The user accepted the passing gate and closed the remaining reproduction follow-up on 2026-10-26; no additional reproduction is required. The historical cause remains unproven.
+- [x] Publish the [full retest report](../../reports/performance/life-mm-soak-retest.md) and [portable evidence](../../reports/performance/life-mm-soak-retest-evidence.json). Gate passed at p95/p99 67.77/355.03 ms with zero errors. The user accepted the passing gate and closed the remaining reproduction follow-up on 2026-10-26; no additional reproduction is required. The historical cause remains unproven.
 
 Closure decision (2026-10-26): the user explicitly accepted the passing one-hour gate and requested closure without further timeout reproduction. Section 9 is closed; historical failures and the limits of causal attribution remain recorded in the reports.

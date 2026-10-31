@@ -15,7 +15,7 @@ The earlier verified defects remain closed; historical attribution limits remain
   Soak p95/p99:147/717ms, zero unexpected errors. Retention16.08MiB and raw
   cgroup growth58.13MiB both meet64MiB. Native114 and bounded matched probes
   precede this gate. Temporary containers are removed; stopped Demo fingerprints
-  remain unchanged. See the [closeout report](../../reports/mm-release-closeout.md).
+  remain unchanged. See the [closeout report](../../reports/release/mm-release-closeout.md).
 - [x] **R2 — Complete the passing-baseline shipping control:** run
   `production-control-20261101-024951-b873b2` passes ordinary-entrypoint
   warm300/mixed900 against the actual passing R1, with matching image/effective
@@ -46,11 +46,11 @@ Previous full failures `20261031-222312-6f060d` and
 quantile-export cost are test-tool defects, verified with Red/Green diagnostics.
 Bounded100,000-fill query replay does not reproduce the old cancellation, so no
 SQL/cache/pool rewrite is made. See the
-[measurement follow-up](../../reports/mm-measurement-remediation.md).
+[measurement follow-up](../../reports/investigations/mm-measurement-remediation.md).
 
 ## Historical causes — unresolved evidence
 
-The [2026-11-01 focused review](../../reports/mm-historical-cause-review.md)
+The [2026-11-01 focused review](../../reports/investigations/mm-historical-cause-review.md)
 completes the bounded investigation and fixes a newly reproduced test-sampler
 timestamp defect (119 tests plus a packaged old/new comparison). Existing runs
 keep their original hashes and outcomes. Historical attribution remains limited;
@@ -90,7 +90,7 @@ so H3 was unresolved and R1/R2 were pending at that checkpoint; current status a
 fix or threshold waiver is made. Capture limits and new short observer/DB-wait
 observations are explicit in the report.
 
-See [incident investigation](../../reports/mm-incident-investigation.md).
+See [incident investigation](../../reports/investigations/mm-incident-investigation.md).
 
 ## Historical verification checkpoints
 
@@ -139,8 +139,8 @@ Keep Start/Switch/Stop on the admin API; YAML remains the policy authority.
   Service remains available with trading stopped, owner healthy, no HALT or
   pending mutation/command. Eight retry ERROR records are classified as guard
   rejections and all eight attempted client IDs are absent on OKX. See the
-  [report](../../reports/okx-demo-current-image.md) and
-  [sanitized evidence](../../reports/okx-demo-current-image-evidence.json).
+  [report](../../reports/demo/okx-demo-current-image.md) and
+  [sanitized evidence](../../reports/demo/okx-demo-current-image-evidence.json).
 
 Raw helper/results: ignored `build/okx-demo-current/`. The public evidence must
 contain no API keys, passphrases, DB URL or admin password.
@@ -181,8 +181,8 @@ original observation and fixed-image retry. Neither run forces exchange fills.
 Original image715a fails this new restart case: managed YAML `initial_positions`
 overrides post-fill durable holds, then failed initialization stores stale seed
 aggregates. Fill history survives. After the approved repair and passing fixed
-retry, canonical API is up with trading stopped and no HALT. See [follow-up report](../../reports/okx-demo-natural-fill.md)
-and [scoped evidence](../../reports/okx-demo-natural-fill-evidence.json).
+retry, canonical API is up with trading stopped and no HALT. See [follow-up report](../../reports/demo/okx-demo-natural-fill.md)
+and [scoped evidence](../../reports/demo/okx-demo-natural-fill-evidence.json).
 
 - [x] Reproduce stale seed overwrite and failed cleanup using Red tests; verify
   a managed bootstrap-only fix and preserve upstream unmanaged override behavior.
@@ -294,7 +294,7 @@ fresh or claiming an absolute independence guarantee for shared CPU/PostgreSQL.
 - **Historical unknown H2:** The original sustained-failure/long-lag cause lacks
   sufficient evidence. Short transient timeout recovery neither identifies its
   cause nor satisfies the failed release gates above. See
-  [investigation](../../reports/mm-engine-liveness-investigation.md).
+  [investigation](../../reports/investigations/mm-engine-liveness-investigation.md).
 
 ### Packaged supervisor-diagnostics release — operator request 2026-10-30
 
@@ -334,7 +334,7 @@ the operator's tolerance of slow/explicitly stale aggregate reporting.
   Preserve the failed original Random soak. The historical sustained-liveness
   cause remains open; the corrected image was tested separately below.
 
-Progress: [packaged release report](../../reports/probe-release-20261030.md).
+Progress: [packaged release report](../../reports/release/probe-release-20261030.md).
 
 ### Random handover investigation — operator request 2026-10-31
 
@@ -363,7 +363,7 @@ verify the correction. This closure does not waive any failed release window.
   resources. The earlier unexplained sustained-liveness event remains open; a
   passing unrelated run does not identify its historical cause.
 
-Evidence: [Random handover investigation](../../reports/mm-random-handover.md).
+Evidence: [Random handover investigation](../../reports/investigations/mm-random-handover.md).
 
 ### Controller scheduling follow-up — 2026-10-31
 
@@ -521,7 +521,7 @@ all deliver more than 509/s; the first fails p99, the other two pass. A preload
 of 307 known canceled orders does not reproduce the burst shortfall. Historical
 burst and supervisor causes remain open; the bounded diagnostic stage is
 complete, with no new runtime defect established. See the
-[follow-up report](../../reports/mm-burst-followup.md). The later current-candidate attempt fails burst latency as recorded below;
+[follow-up report](../../reports/investigations/mm-burst-followup.md). The later current-candidate attempt fails burst latency as recorded below;
 matched ordinary-entrypoint acceptance control is not run from that baseline.
 
 
@@ -565,4 +565,4 @@ matched ordinary-entrypoint acceptance control is not run from that baseline.
   do not repeat hour gates blindly or relax limits to force closure.
 - [x] Verify unchanged Demo image/control/four ledger fingerprints and clean
   temporary test containers. Publish the outcomes and remaining limits in the
-  [follow-up report](../../reports/mm-burst-followup.md).
+  [follow-up report](../../reports/investigations/mm-burst-followup.md).

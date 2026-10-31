@@ -6,4 +6,4 @@
 - [x] Verify native/PG lifecycle and run a bounded image memory/lifecycle probe with RSS and retained-object counts.
 - [x] Record results, limitations and commits in a separate report. A short stable probe cannot prove unlimited leak-free uptime.
 
-Results: [report](../../reports/mm-memory-retention-review.md), [evidence](../../reports/mm-memory-retention-evidence.json).
+Results: [report](../../reports/performance/mm-memory-retention-review.md), [evidence](../../reports/performance/mm-memory-retention-evidence.json).

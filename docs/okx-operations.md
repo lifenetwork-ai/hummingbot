@@ -142,7 +142,7 @@ Status exposes the reason rather than promising continuous quote uptime.
 - Lost DB ownership, recorder failure or unsafe cleanup can still require a
   controlled process exit. The existing durable recovery rules apply afterward.
 
-The E6 [availability/load evidence](../reports/life-mm-e6-verification.md)
+The E6 [availability/load evidence](../reports/implementation/life-mm-e6-verification.md)
 describes the tested runtime artifact and fault scopes. This configuration
 example does not change those runtime rules or certify a new image digest.
 
@@ -219,7 +219,7 @@ Bind HTTP only to `127.0.0.1:8080`; the browser URL and authenticated Swagger pa
 are listed below. `ADMIN_CORS_ORIGINS=*` is the current local default. The FE still
 uses Basic Auth; no application token/login session is issued.
 
-The [current-image Demo evidence](../reports/okx-demo-current-image.md) verifies
+The [current-image Demo evidence](../reports/demo/okx-demo-current-image.md) verifies
 this two-CPU runtime with preserved private policies/history, all three profiles
 in spot/perpetual/both, real Random rollover and active restart. It records exact
 terminal orders and unchanged retained positions, with no natural new fills;
@@ -263,7 +263,7 @@ charts. The shared application default remains five seconds. A longer interval
 reduces repeated history aggregation and retains the original observation time;
 current balances, positions, trading guards and admin controls use separate
 paths. Set this through the environment file when preparing a new setup. The
-local [measurement report](../reports/mm-process-isolation-experiment.md) records
+local [measurement report](../reports/investigations/mm-process-isolation-experiment.md) records
 the tested resource shape and remaining acceptance limits.
 
 Build the normal runtime first if it is unavailable or its runtime source changed.

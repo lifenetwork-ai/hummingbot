@@ -1,7 +1,7 @@
 # LIFE MM local load testing
 
 Workload, commands and acceptance budgets for offline verification. Historical
-results and measured fixes are in [the load report](../reports/life-mm-load-tests.md).
+results and measured fixes are in [the load report](../reports/performance/life-mm-load-tests.md).
 
 For the separate **single-service process-isolation experiment**, run
 `make test-mm-process-isolation MM_PROCESS_CPUS=1 MM_PROCESS_SECONDS=90`
@@ -12,12 +12,12 @@ a controlled 2.5s engine-loop stall and critical-child death tests on the isolat
 exchange. This is an architectural diagnostic, not a deployment entrypoint or
 the final hour gate. Healthy latency/error violations remain nonzero failures.
 Raw artifacts go under `build/mm-process-isolation/`; the
-[experiment report](../reports/mm-process-isolation-experiment.md) records its
+[experiment report](../reports/investigations/mm-process-isolation-experiment.md) records its
 scope and unresolved limits.
 
 The ordinary runtime now supervises API and engine independently inside one
 container. Current integration evidence and open final gates are in
-[supervision verification](../reports/mm-service-supervision.md); the prototype
+[supervision verification](../reports/release/mm-service-supervision.md); the prototype
 experiment above does not replace actual shipping-role verification.
 
 Healthy load also checks daily-statistics freshness. HTTP 200 with an explicit
@@ -44,7 +44,7 @@ budgets still reject insufficient delivered fills; Random-soak rates remain
 observational around scheduled admission gaps. Actual stuck requests still fail
 the ten-second drain and zero-error checks. Historical runs with the old
 post-window catch-up behavior retain their original results; see the
-[producer investigation](../reports/mm-random-handover.md).
+[producer investigation](../reports/investigations/mm-random-handover.md).
 
 ```sh
 make build-cloudrun
@@ -269,7 +269,7 @@ and identical JSON outputs. `scripts/replay_mm_executor_reports.py` reuses the
 existing report math on a stored offline executor batch without starting actors
 or a database. These isolate small stages; their scope excludes live scheduling
 and does not replace the zero-error soak gate. Commands, excluded state and the
-measured iteration are in the [short diagnostic review](../reports/life-mm-short-repro-review.md).
+measured iteration are in the [short diagnostic review](../reports/investigations/life-mm-short-repro-review.md).
 
 The test wrapper also measures separate pool queue/connect/pre-ping operations
 and wall/thread CPU for executor reports and response validation/serialization.
@@ -302,7 +302,7 @@ E6 release acceptance uses the ordinary bounded instrumentation without the
 opt-in diagnostic tracer, matching the production default. Add `--trace` for
 request/SQL/GC investigation and label those results separately. The accepted
 full profile and retained cold/traced stress failures are recorded in the
-[E6 verification report](../reports/life-mm-e6-verification.md); passing the
+[E6 verification report](../reports/implementation/life-mm-e6-verification.md); passing the
 ordinary gate does not certify a traced soak.
 
 `--enhancements` selects explicit test-only strict/bootstrap guards, drawdown,

@@ -72,5 +72,5 @@ matches all 18 changed runtime/schema files. Its targeted LIFE MM matrix passes
 nine profile/market combinations, restart, expiry, reconciliation and DB-fault
 handling. A 60-second diagnostic with 100,000 orders and 100,000 fills completes
 1,500 reads without errors or budget violations. This is not the full release
-matrix or a new hour soak. See the [report](../../reports/admin-operations-api-implementation.md)
-and [portable evidence](../../reports/admin-operations-api-evidence.json).
+matrix or a new hour soak. See the [report](../../reports/implementation/admin-operations-api-implementation.md)
+and [portable evidence](../../reports/implementation/admin-operations-api-evidence.json).

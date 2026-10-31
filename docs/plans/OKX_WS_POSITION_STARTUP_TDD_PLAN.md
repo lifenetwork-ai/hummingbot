@@ -5,4 +5,4 @@
 - [x] Run connector/native and PostgreSQL regression, then verify the built image under session churn, fills and Stop/Start with no contract-size startup errors.
 - [x] Update prior follow-up references, record scoped evidence and commit completed phases.
 
-Results: [report](../../reports/okx-ws-position-startup.md), [evidence](../../reports/okx-ws-position-startup-evidence.json).
+Results: [report](../../reports/implementation/okx-ws-position-startup.md), [evidence](../../reports/implementation/okx-ws-position-startup-evidence.json).

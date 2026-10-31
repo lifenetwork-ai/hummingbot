@@ -36,5 +36,5 @@ does not certify profitability or production acceptance. 17 economic tests,
 1613 native regressions/11 subtests, runtime smoke, Swagger/hooks and targeted
 real-PG V2 perpetual E2E pass. Initial failed matrix/setup/export attempts remain
 documented; rolling outflow overshoots and margin concerns remain visible.
-See [results](../../reports/life-mm-economic-stress.md) and
-[evidence](../../reports/life-mm-economic-stress-evidence.json).
+See [results](../../reports/performance/life-mm-economic-stress.md) and
+[evidence](../../reports/performance/life-mm-economic-stress-evidence.json).

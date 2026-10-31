@@ -138,7 +138,7 @@ and controller-history indexes. With automatic migration disabled, run `make mig
 before deploying this revision. For a large active database, stop trading and
 schedule the index build in a maintenance window: ordinary `CREATE INDEX` can
 wait on/block writers, and the existing bootstrap deadline still applies.
-See [the performance review](../reports/postgres-performance-review.md) for measurements,
+See [the performance review](../reports/platform/postgres-performance-review.md) for measurements,
 query budgets and the decision to retain the existing in-memory caches.
 
 ### Decimal storage
@@ -165,11 +165,11 @@ schema validation must reject it. With auto migration disabled, apply migrations
 explicitly first. No existing Demo database is changed merely by editing or
 building this source. At the original precision-correction checkpoint, Demo
 retained its old image/schema. Its later P7 upgrade and preserved logical-history
-hashes are recorded in [Demo acceptance](../reports/okx-demo-acceptance.md).
+hashes are recorded in [Demo acceptance](../reports/demo/okx-demo-acceptance.md).
 
 Recorded image/test/precision measurements are in the
-[verification report](../reports/postgres-verification.md) and
-[portable precision evidence](../reports/postgres-decimal-precision.json).
+[verification report](../reports/platform/postgres-verification.md) and
+[portable precision evidence](../reports/platform/postgres-decimal-precision.json).
 
 ## Existing databases
 

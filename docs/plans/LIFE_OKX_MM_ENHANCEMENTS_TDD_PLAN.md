@@ -16,7 +16,7 @@ and [PostgreSQL / Cloud Run port](POSTGRES_CLOUD_RUN_PORT_PLAN.md). This plan se
 the useful additions from the Campaign-Driven MM v2 proposal without rebuilding
 session management, trading execution, persistence or the admin API.
 
-The existing full-image [sixty-minute acceptance gate](../../reports/life-mm-soak-retest.md)
+The existing full-image [sixty-minute acceptance gate](../../reports/performance/life-mm-soak-retest.md)
 is closed. Its historical timeout reproduction follow-up stays closed. Changes
 delivered here require their own verification; they do not invalidate or reopen
 the historical checklist. Cloud Run packaging/local verification is available;
@@ -232,8 +232,8 @@ A real-PG Red/Green test also fixes queued creates leaking into tracking snapsho
 and breaking a rapid switch. Final verification: 1,361 native tests/nine subtests,
 nineteen recorder tests rerun after that correction, 134 real-PG tests, all seven
 offline image groups and an unchanged sixty-second probe (p95 50.40ms / p99
-232.05ms, zero unexpected HTTP errors). See the [E0 report](../../reports/life-mm-e0-availability.md)
-and [portable evidence](../../reports/life-mm-e0-availability.json). The E0 delivery
+232.05ms, zero unexpected HTTP errors). See the [E0 report](../../reports/implementation/life-mm-e0-availability.md)
+and [portable evidence](../../reports/implementation/life-mm-e0-availability.json). The E0 delivery
 did not include subsequent phases or a new sixty-minute, upgrade or real Demo gate.
 
 ## 4. E1 — Price and manual-range guards
@@ -285,8 +285,8 @@ image E2E groups and a guard-enabled sixty-second probe passed (p95 54.99ms / p9
 order quantity as a conservative upper bound; only clear residual depth qualifies.
 The non-unit-contract Red/Green test also fixes perpetual WS snapshot quantity
 normalization to match existing REST/diff base units. Defaults remain disabled.
-See [report](../../reports/life-mm-e1-quote-guards.md) and
-[evidence](../../reports/life-mm-e1-quote-guards.json). At that phase, E2–E6 remained open; no new
+See [report](../../reports/implementation/life-mm-e1-quote-guards.md) and
+[evidence](../../reports/implementation/life-mm-e1-quote-guards.json). At that phase, E2–E6 remained open; no new
 sixty-minute, previous-image upgrade, deployment or real OKX Demo gate is claimed.
 
 ## 5. E2 — Loss and spending limits
@@ -333,8 +333,8 @@ p95 74.81ms / p99 518.06ms, 1,200 HTTP 200 responses and no unexpected errors.
 The image-discovered final-shutdown Decimal serialization defect was fixed with
 a failing native test before rerunning the image gates. Defaults remain disabled;
 policy/peaks/HALT cannot be reset by normal commands. See the
-[guide](../life-mm-controls.md#drawdown), [report](../../reports/life-mm-e2a-drawdown.md)
-and [evidence](../../reports/life-mm-e2a-drawdown.json). At that phase, E2b–E6 remained open.
+[guide](../life-mm-controls.md#drawdown), [report](../../reports/implementation/life-mm-e2a-drawdown.md)
+and [evidence](../../reports/implementation/life-mm-e2a-drawdown.json). At that phase, E2b–E6 remained open.
 
 ### E2b — Rolling spot USDT outflow
 
@@ -405,8 +405,8 @@ tests. A real-PG Red/Green startup test also keeps setup permission during
 reconstruction and prevents a new binding HALT from reopening orders. Defaults
 remain disabled; no fill table, index, cache service or reset API
 was added. See the [guide](../life-mm-controls.md#spot-outflow),
-[report](../../reports/life-mm-e2b-spot-outflow.md) and
-[evidence](../../reports/life-mm-e2b-spot-outflow.json). At that phase, E4–E6 remained open.
+[report](../../reports/implementation/life-mm-e2b-spot-outflow.md) and
+[evidence](../../reports/implementation/life-mm-e2b-spot-outflow.json). At that phase, E4–E6 remained open.
 
 ### E2c — Listing bootstrap without outside two-sided liquidity
 
@@ -477,8 +477,8 @@ and the combined enabled sixty-second diagnostic passed. It uses 1 CPU/2 GiB,
 p95 57.74ms / p99 296.04ms and sixty matching fills. The image scenario injects
 **zero fills** to qualify listing liquidity. It also proves clean stop after
 qualified outside-depth loss; the initially failing report/shutdown path was
-fixed with Red/Green coverage. See [report](../../reports/life-mm-e2c-listing-bootstrap.md),
-[evidence](../../reports/life-mm-e2c-listing-bootstrap.json) and
+fixed with Red/Green coverage. See [report](../../reports/implementation/life-mm-e2c-listing-bootstrap.md),
+[evidence](../../reports/implementation/life-mm-e2c-listing-bootstrap.json) and
 [operational guide](../life-mm-controls.md#listing-bootstrap). Production defaults remain
 disabled. At that phase, E4–E6, the final all-feature image matrix/soak and external Demo checks
 remained open; this diagnostic does not close E6.
@@ -524,8 +524,8 @@ perpetual sizing and no additional market orders. Its combined enabled 60-second
 healthy diagnostic passed 1200 HTTP 200 reads, zero errors, p95 49.36ms / p99
 225.97ms and sixty matching fills/positions with 100000 historical rows on
 1 CPU/2 GiB. Original PMM math files remain unchanged; the adapter calls the
-existing interpolation directly. See [report](../../reports/life-mm-e3-inventory-skew.md),
-[evidence](../../reports/life-mm-e3-inventory-skew.json) and
+existing interpolation directly. See [report](../../reports/implementation/life-mm-e3-inventory-skew.md),
+[evidence](../../reports/implementation/life-mm-e3-inventory-skew.json) and
 [guide](../life-mm-controls.md#inventory-skew). Defaults remain disabled. At that phase, E4–E6 and the
 final all-feature image matrix/soak remained open; this diagnostic does not close E6.
 
@@ -572,8 +572,8 @@ denominator design are outside this phase.
 - [x] **Green:** add minimal event migration/model and API projections; bound payload/counter sizes and label observed coverage explicitly.
 - [x] **Verify/commit:** migration replay/schema checks, real-PG/API tests, constant query-count checks and Swagger pass; prove FE polling adds no exchange calls.
 
-E4 verification: [report](../../reports/life-mm-e4-history-liquidity.md),
-[evidence](../../reports/life-mm-e4-history-liquidity.json) and
+E4 verification: [report](../../reports/implementation/life-mm-e4-history-liquidity.md),
+[evidence](../../reports/implementation/life-mm-e4-history-liquidity.json) and
 [API guide](../fe-integration.md#session-history-and-liquidity). Final image verification remains E6.
 
 ## 8. E5 — Fee-aware and volatility-adjusted spread
@@ -614,13 +614,13 @@ NATR or copying the full book again for each order.
 - [x] **Green:** integrate a small policy using existing providers/helpers; keep session anchors fixed and spot/perpetual observations separate.
 - [x] **Verify/commit:** disabled parity, simulator spread response, subscription cleanup, CPU/query cost and feed-recovery behavior pass before E6.
 
-E5 verification: [report](../../reports/life-mm-e5-spread-policy.md),
-[evidence](../../reports/life-mm-e5-spread-policy.json) and
+E5 verification: [report](../../reports/implementation/life-mm-e5-spread-policy.md),
+[evidence](../../reports/implementation/life-mm-e5-spread-policy.json) and
 [guide](../life-mm-controls.md#fee-and-volatility-spreads). Final-image candle-gap recovery: 7.20s, zero restarts.
 
 ## 9. E6 — Verification and delivery gates
 
-Current verification and reproduced Red/Green fixes: [E6 report](../../reports/life-mm-e6-verification.md).
+Current verification and reproduced Red/Green fixes: [E6 report](../../reports/implementation/life-mm-e6-verification.md).
 
 Reuse the [existing load harness and budgets](../life-mm-load-tests.md). Unit tests
 exercise pure decisions; real disposable PostgreSQL proves transaction/recovery
@@ -629,7 +629,7 @@ exchange load test or Cloud Run staging is required.
 
 - [x] Run relevant config, controller, runner, executor, owner, recorder, API and PostgreSQL regression suites; keep Red/Green evidence for every confirmed runtime fix.
 - [x] Build the full Cloud Run image; record immutable image identity, source/config/schema hashes and new feature settings. Verify packaged helpers, SQL and optional candle dependencies.
-- [x] Verify private cancellation with an exchange ID before REST create ACK resolves the intent, preserves its BUY/SELL side and keeps the canceled status through a late ACK; both markets must resume quoting. Cancellation without an exchange ID must still require reconciliation. See the [terminal-ACK Red/Green evidence](../../reports/life-mm-e6-verification.md).
+- [x] Verify private cancellation with an exchange ID before REST create ACK resolves the intent, preserves its BUY/SELL side and keeps the canceled status through a late ACK; both markets must resume quoting. Cancellation without an exchange ID must still require reconciliation. See the [terminal-ACK Red/Green evidence](../../reports/implementation/life-mm-e6-verification.md).
 - [x] Run three profiles × spot/perpetual/both through existing image E2E, with new options disabled for compatibility and representative enabled combinations for acceptance.
 - [x] Exercise deviation/breakout, spend/drawdown breaches, stale candles, concurrent commands/fills, expiry, switching, DB failure and clean/unclean restart. Verify no duplicate effects, no cap bypass and correct preserved positions/HALT.
 - [x] Exercise E0's failure matrix through the full service process: inject optional report/snapshot errors, read timeouts, WS loss, transient startup failure, dead controller task and candle outage. Assert expected API/process availability, classified quote restrictions and automatic recovery; no unexplained exit or indefinite unreported readiness wait is accepted.

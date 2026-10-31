@@ -1,27 +1,32 @@
 # LIFE / OKX implementation progress
 
-Updated: 2026-10-30 (Asia/Saigon).
+Updated: 2026-11-01 (Asia/Saigon).
 Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
 
-## Current status — 2026-10-30
+## Current status — 2026-11-01
 
-- **Completed local runtime phase:** selected image `715a11f3…`; final regression,
-  E2E, lifecycle, unchanged load/hour/faults and matched ordinary-entrypoint control
-  pass. See the [completed reporting plan](../../docs/plans/MM_REPORTING_LATENCY_TDD_PLAN.md),
-  [acceptance report](../mm-service-supervision.md) and
-  [portable evidence](../mm-service-supervision-evidence.json).
-- **Current-image OKX Demo complete:** read-only preflight, all nine profile/mode
-  cases, real Random step/active restart and 404 exact terminal post-only orders
-  pass on the selected image. No natural new fill occurs, so positive new-fill
-  fee handling remains unobserved. See the [scoped Demo report](../okx-demo-current-image.md)
-  and [evidence](../okx-demo-current-image-evidence.json). Older Demo results retain
-  their own image scope.
+- **Completed local release verification:** image `5973410d`, measurement source
+  `b7ba104e7`; full R1 and matched shipping R2 pass. R1 reconciles 4,884 fills,
+  original fees and positions; soak p99 is 717ms with zero unexpected API errors.
+  See the [release closeout](../release/mm-release-closeout.md) and
+  [portable evidence](../release/mm-release-closeout-evidence.json).
+- **Connected Demo evidence has its own image scope:** earlier preflight,
+  profiles/Random and restart checks are followed by six real maker fills,
+  exact fees, deduplication and a verified filled restart on `e526118b`.
+  See the [natural-fill follow-up](../demo/okx-demo-natural-fill.md).
+  This does not claim a new connected acceptance run on `5973410d`.
 - **Deferred external work:** actual Cloud Run provisioning/deployment and FE
   browser integration. Their current checklists are in the
-  [cloud readiness review](../cloudrun-readiness-review.md#pending-actual-cloud-work)
-  and [dashboard review](../admin-api-dashboard-ux-review.md#recommended-implementation-order).
+  [cloud readiness review](../platform/cloudrun-readiness-review.md#pending-actual-cloud-work)
+  and [dashboard review](admin-api-dashboard-ux-review.md#recommended-implementation-order).
 - **Known limits:** cold million-fill SQL can exceed the two-second deadline;
-  the unique cause of the original historical p99 spike is not established.
+  historical H1/H2/H3 causes remain unproven. The latest
+  [focused review](../investigations/mm-historical-cause-review.md) corrects
+  test-sampler timestamps without changing the accepted runtime image/results.
+
+Reports are grouped by topic in the [report index](../README.md); each report
+stays with its original evidence. Evidence JSON contents and historical outcomes
+are unchanged by the folder cleanup.
 
 The sections below are a chronological journal, not the current task queue.
 “Historical follow-up (superseded)” records what was pending at that stage and
@@ -484,7 +489,7 @@ match the independent ledger. Random steps retain their session start/deadline.
 DB-delay and DB-loss restart both retain HALT.
 
 The plan checklist is updated. Evidence: [load report](../../docs/life-mm-load-tests.md),
-[portable sanitized data](../life-mm-load-acceptance.json), and full local
+[portable sanitized data](../performance/life-mm-load-acceptance.json), and full local
 `build/mm-load/20261025-080606-4367d6/result.json`. All 107 PG tests and regression
 groups 149 + 11 + 898 + 88 pass; Swagger and pre-commit pass. Daily cache-miss
 latency (~1.1 s) and upstream teardown pending-task diagnostics are reported
@@ -499,7 +504,7 @@ spot/perpetual/both workflows and the 30-minute conservative observation.
 
 ### Completed — Cache, SQL and task-lifecycle optimization follow-up
 
-The [separate optimization report](../life-mm-optimization-review.md) records
+The [separate optimization report](../performance/life-mm-optimization-review.md) records
 before/after results, code changes, rejected slower aggregate trials, image
 hashes, test commands and remaining limits. Valid cache hits bypass unrelated
 misses; the daily transaction avoids measured JIT overhead; balance snapshots
@@ -542,7 +547,7 @@ and recovery. The previous failed attempt's durable HALT was reviewed separately
 against an empty exchange/DB and unchanged initial balances before explicit local
 Demo recovery; startup never clears it automatically. Real Demo workflows and
 the 30-minute observation remain open. See
-[the Demo report](../okx-demo-acceptance.md) for evidence and gaps.
+[the Demo report](../demo/okx-demo-acceptance.md) for evidence and gaps.
 
 The next real run completed all three spot profiles, including AVAX following:
 12 exchange-confirmed post-only buy/sell orders were recorded and cancelled,
@@ -580,8 +585,8 @@ Natural fills/fee accounting, filled-position restart and funding payments are
 unverified on Demo because no fill/payment occurred; their checkboxes remain
 open. The long random sample drew follow_market three times from the full pool;
 the separate nine-case matrix covers all profiles. No new full load/soak or Cloud
-Run deployment is claimed. See [the completed report](../okx-demo-acceptance.md)
-and [portable sanitized evidence](../okx-demo-acceptance.json).
+Run deployment is claimed. See [the completed report](../demo/okx-demo-acceptance.md)
+and [portable sanitized evidence](../demo/okx-demo-acceptance.json).
 
 Final log review retains 40 duplicate-cancel `51400` errors from that observation,
 each paired with a successful cancellation event and terminal REST/DB readback.
@@ -612,8 +617,8 @@ sell leaves SHORT 0.0004 BTC. Current state is 320 orders/five fills, no pending
 exchange orders, no HALT and released ownership. The bot is stopped; dedicated
 PostgreSQL and the held Demo position remain. Follow-up service logs contain no
 ERROR/WARNING entries. No new runtime code, image build or full regression was
-needed. Evidence: [focused report](../okx-demo-acceptance.md) and
-[portable JSON](../okx-demo-fill-acceptance.json).
+needed. Evidence: [focused report](../demo/okx-demo-acceptance.md) and
+[portable JSON](../demo/okx-demo-fill-acceptance.json).
 
 Legacy scaled-six storage truncates the three spot quantities by
 0.00000016–0.00000018 BTC. Existing reconciliation allows 0.000001 BTC, so its
@@ -666,7 +671,7 @@ orders use at most three queries, fills/performance one, with no new N+1. Native
 recorder p95 is **30.97ms** over 25 transactions (budget 100ms). Cold 100,000-fill
 daily statistics p95 is 1,289.85ms/11 samples and six queries. These local numbers
 overlapped test/image preparation; no full soak or Cloud Run performance claim
-is made. [Portable evidence](../postgres-decimal-precision.json) includes source
+is made. [Portable evidence](../platform/postgres-decimal-precision.json) includes source
 hashes, individual offline reports, scope and probe metrics.
 
 The existing Demo database and five historical fills are unchanged. Its stopped
@@ -752,7 +757,7 @@ there are zero unexpected errors or budget violations. Independent ledgers match
 benchmark/deployment or exchange load test is claimed. The earlier overlapping
 probe failed latency/error budgets and remains recorded; isolated runs pass with
 unchanged budgets. No additional cache is justified by this bounded workload.
-[Portable evidence](../funding-backfill-evidence.json) retains image/source
+[Portable evidence](funding-backfill-evidence.json) retains image/source
 identity, original artifacts, metrics and unsuccessful attempts.
 
 The dedicated Demo service now uses this final P7 image with desired state
@@ -771,7 +776,7 @@ real bill passes those checks; a successful empty read is not payment evidence.
 
 P7 funding settlement verified at 2026-10-26T00:01:32.620179+00:00: Demo bill 4042315866684412230 reports 0.0032045728 USDT at UTC epoch-ms 1792972800651. Exact funding_bills and daily API totals match. The same stopped service was cold-restarted and the bill was ingested again without duplication. Orders/fills remain 320/5; no strategy or exchange trading command was submitted. The service stopped and released ownership after observation.
 
-[Portable evidence](../okx-demo-funding.json).
+[Portable evidence](../demo/okx-demo-funding.json).
 
 ### Post-completion logic-flow review — 2026-10-26
 
@@ -799,7 +804,7 @@ the exact 99 order/fill/held-position price. Both failed image attempts remain
 retained. No new full soak, cloud deployment or real Demo account operation was
 performed; original Demo evidence keeps its own image. Conservative full-entry
 reservation can temporarily reduce quoting until terminal hold. See the
-[review](../life-mm-logic-review.md) and [portable evidence](../life-mm-logic-review-evidence.json).
+[review](life-mm-logic-review.md) and [portable evidence](life-mm-logic-review-evidence.json).
 
 ### Incremental enhancements E0 — 2026-10-26
 
@@ -825,7 +830,7 @@ and funding match the independent ledger. Final image:
 Earlier failed probes, the setup race and the obsolete eleven-query benchmark
 assertion remain documented. E1–E6 have not started; no new sixty-minute, previous
 image upgrade, Cloud Run or real OKX Demo acceptance is claimed. See the
-[E0 report](../life-mm-e0-availability.md) and [evidence](../life-mm-e0-availability.json).
+[E0 report](life-mm-e0-availability.md) and [evidence](life-mm-e0-availability.json).
 
 ### Incremental enhancements E1 — 2026-10-26
 
@@ -854,7 +859,7 @@ Final image `sha256:52a7a27f8062f02f47a71140474e185bd2741e6bbeffe0729975547fc8cb
 sixty-second probe passed unchanged budgets: p95 54.99ms / p99 437.33ms, 1,200 HTTP
 200 responses, zero unexpected errors and sixty matching fills/positions. E2–E6
 have not started; no new sixty-minute, upgrade, Cloud Run or real Demo gate is claimed.
-See [E1 report](../life-mm-e1-quote-guards.md) and [evidence](../life-mm-e1-quote-guards.json).
+See [E1 report](life-mm-e1-quote-guards.md) and [evidence](life-mm-e1-quote-guards.json).
 
 ### Incremental enhancements E2a — 2026-10-26
 
@@ -887,8 +892,8 @@ guard/drawdown sixty-second probe passed unchanged budgets: p95 74.81ms / p99
 518.06ms, 1,200 HTTP 200 responses, no unexpected errors and sixty matched
 fills/positions. Observed RSS was 328,478,720 bytes on a 1 CPU/2 GiB bot.
 E2b–E6 remain open; no new sixty-minute, upgrade, Cloud Run or real Demo gate is
-claimed. See [E2a report](../life-mm-e2a-drawdown.md) and
-[evidence](../life-mm-e2a-drawdown.json).
+claimed. See [E2a report](life-mm-e2a-drawdown.md) and
+[evidence](life-mm-e2a-drawdown.json).
 
 ### Incremental enhancements E2b — 2026-10-26
 
@@ -923,8 +928,8 @@ times ranged 1.92–3.21 seconds / 19–34ms; 100000-fill burst expiry took 234.
 The E6 1-CPU active-window/expiry and full-soak gate remains open. Fixture errors
 and diagnostic prior-image measurements are retained. No Cloud Run deployment,
 new sixty-minute/upgrade gate or real Demo operation is claimed. See
-[E2b report](../life-mm-e2b-spot-outflow.md) and
-[evidence](../life-mm-e2b-spot-outflow.json).
+[E2b report](life-mm-e2b-spot-outflow.md) and
+[evidence](life-mm-e2b-spot-outflow.json).
 
 
 ## E2c — Bounded listing bootstrap (complete)
@@ -950,7 +955,7 @@ packaged source/config/contract hashes. The enabled 60-second diagnostic with
 HTTP 200 reads, zero unexpected errors and sixty matching fills/positions.
 
 Checklist and evidence: [enhancements plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md),
-[E2c report](../life-mm-e2c-listing-bootstrap.md), [JSON evidence](../life-mm-e2c-listing-bootstrap.json).
+[E2c report](life-mm-e2c-listing-bootstrap.md), [JSON evidence](life-mm-e2c-listing-bootstrap.json).
 Defaults remain disabled. E3–E6/full final image matrix/soak remain open. No external
 OKX account or deployment was used.
 
@@ -980,7 +985,7 @@ The final combined bootstrap/drawdown/outflow/skew 60-second diagnostic on
 1 CPU/2 GiB and 100000 historical rows passes 1200 reads, zero errors, p95 49.36ms /
 p99 225.97ms and sixty matching fills/positions. Thirty packaged paths match source.
 
-See [E3 report](../life-mm-e3-inventory-skew.md), [evidence](../life-mm-e3-inventory-skew.json)
+See [E3 report](life-mm-e3-inventory-skew.md), [evidence](life-mm-e3-inventory-skew.json)
 and [plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md). Defaults remain
 disabled. E4–E6/full final matrix/soak remain open. No external account or deployment.
 
@@ -995,7 +1000,7 @@ changes. No polling exchange calls or new worker/cache.
 
 Native: 1538 tests/11 subtests. Full real-PG: 182; final targeted history: 12.
 Migration/schema, rollback/idempotency, filter indexes, constant query counts and
-HTTP/UTC/no-exchange-read contracts pass. See [report](../life-mm-e4-history-liquidity.md)
+HTTP/UTC/no-exchange-read contracts pass. See [report](life-mm-e4-history-liquidity.md)
 and [plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md). E5–E6 remain open.
 
 
@@ -1010,8 +1015,8 @@ perpetual OPEN fee signature and prompt recovery from a disconnected candle tail
 1559 unique native cases/11 subtests and 185 unique PG cases across full/focused
 runs. Final image `ee3b3b0b40fe` is 1364799073 bytes; 35 packaged paths match.
 Both-market image E2E passes normal/shock/outage/recovery/stop; recovery 7.20s,
-zero restarts. See [report](../life-mm-e5-spread-policy.md),
-[evidence](../life-mm-e5-spread-policy.json) and [plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md).
+zero restarts. See [report](life-mm-e5-spread-policy.md),
+[evidence](life-mm-e5-spread-policy.json) and [plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md).
 Full final matrix/load/soak and external Demo remain E6. No deployment performed.
 
 
@@ -1038,8 +1043,8 @@ keep it enabled. Original private files/backup remain unchanged. Test quotes
 are canceled, service/copy PG stopped, positions/data preserved. No push/deploy.
 
 Cold traced large-window admission latency failures remain an explicit residual;
-the ordinary passing gate is untraced. See [E6 report](../life-mm-e6-verification.md),
-[evidence](../life-mm-e6-verification.json) and
+the ordinary passing gate is untraced. See [E6 report](life-mm-e6-verification.md),
+[evidence](life-mm-e6-verification.json) and
 [completed plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md).
 
 
@@ -1062,7 +1067,7 @@ evidence, not the previous E6 artifact's full release certification. No connecte
 OKX request, trading session or deployment was started.
 
 See [guide](../../docs/okx-operations.md#demo-preset) and
-[sanitized validation](../okx-demo-preset-validation.json).
+[sanitized validation](../demo/okx-demo-preset-validation.json).
 
 
 ## Runtime flow optimization (complete)
@@ -1094,8 +1099,8 @@ retained positions, passes all five windows. This combined evidence is not a
 passing monolithic rerun; both original and supplemental scopes are preserved.
 
 Runtime commits: `d6fac719b`, `ce22de4e3`, `7594b1784`, `6aae523fc`.
-See [optimization report](../life-mm-runtime-optimization.md) and
-[portable evidence](../life-mm-runtime-optimization.json). All work is local;
+See [optimization report](../performance/life-mm-runtime-optimization.md) and
+[portable evidence](../performance/life-mm-runtime-optimization.json). All work is local;
 historical E6 Demo and cold traced stress limits retain their original scope.
 
 
@@ -1163,7 +1168,7 @@ No connected OKX account, Cloud Run deployment, schema change, cache backend or
 new service is involved.
 
 Implementation commits: `09dc7198d`, `1c405ba57`, `7400c296d`, `37cad9c0a`.
-See [portable verification evidence](../life-mm-maintainability.json).
+See [portable verification evidence](life-mm-maintainability.json).
 
 ## Cloud Run logging severity (2026-10-27)
 
@@ -1226,8 +1231,8 @@ remain visible. All test containers are cleaned up.
 
 No new upgrade/rollback, load/soak, OKX account or Cloud Run run is claimed.
 The historical comparison image is absent, so `release_scope_complete` remains
-false. See [verification report](../cloudrun-logging-verification.md) and its
-[portable evidence](../cloudrun-logging-verification.json).
+false. See [verification report](../platform/cloudrun-logging-verification.md) and its
+[portable evidence](../platform/cloudrun-logging-verification.json).
 
 ## Pre-listing economic stress replay (2026-10-27)
 
@@ -1258,8 +1263,8 @@ unchanged Linux matrix writes directly to persisted host evidence. All failures
 and their scope remain recorded, and test containers are removed.
 
 No profitable/optimal strategy, new load/soak/full release matrix/upgrade,
-real OKX trading or Cloud Run run is claimed. See [results](../life-mm-economic-stress.md),
-[portable evidence](../life-mm-economic-stress-evidence.json) and
+real OKX trading or Cloud Run run is claimed. See [results](../performance/life-mm-economic-stress.md),
+[portable evidence](../performance/life-mm-economic-stress-evidence.json) and
 [the completed plan](../../docs/plans/LIFE_MM_ECONOMIC_STRESS_PLAN.md).
 
 ## Operations API and configuration ownership (2026-10-27)
@@ -1276,8 +1281,8 @@ Image `a2d823c5a2c9` matches 18 changed runtime/schema files. The diagnostic com
 An obsolete 16-script packaging assertion was corrected to 17 before the same
 image passed. This is scoped backend/image verification, not a new full release
 or hour-soak result. FE/browser integration and Cloud Run access routing are still
-external tasks. See [report](../admin-operations-api-implementation.md),
-[evidence](../admin-operations-api-evidence.json) and
+external tasks. See [report](admin-operations-api-implementation.md),
+[evidence](admin-operations-api-evidence.json) and
 [completed plan](../../docs/plans/ADMIN_OPERATIONS_API_TDD_PLAN.md).
 
 ## Working-order activity and diagnostics (2026-10-28)
@@ -1290,7 +1295,7 @@ external tasks. See [report](../admin-operations-api-implementation.md),
 
 Source changes are committed separately from the existing packaged-image results.
 No new image/load/soak, real exchange, FE browser or cloud verification is claimed.
-See [report](../mm-quote-activity.md), [evidence](../mm-quote-activity-evidence.json)
+See [report](mm-quote-activity.md), [evidence](mm-quote-activity-evidence.json)
 and [completed plan](../../docs/plans/MM_QUOTE_ACTIVITY_TDD_PLAN.md).
 
 ## Until-stopped sessions (2026-10-28)
@@ -1302,7 +1307,7 @@ and [completed plan](../../docs/plans/MM_QUOTE_ACTIVITY_TDD_PLAN.md).
 - [x] Publish English Swagger capabilities and FE/configuration ownership guidance; no API override of YAML.
 - [x] Pass 1,673 native tests + 11 subtests, 215 PG tests, separate timed/continuous image E2Es and a scoped 60-second diagnostic load probe.
 
-See [report](../mm-until-stopped.md), [evidence](../mm-until-stopped-evidence.json)
+See [report](mm-until-stopped.md), [evidence](mm-until-stopped-evidence.json)
 and [completed plan](../../docs/plans/MM_UNTIL_STOPPED_TDD_PLAN.md). This work does
 not claim a new full release soak, real exchange, cloud deployment or FE browser verification.
 
@@ -1315,7 +1320,7 @@ not claim a new full release soak, real exchange, cloud deployment or FE browser
 - [x] Pass 1,691 native tests + 11 subtests and 219 PostgreSQL tests; verify the same image in a 10-minute churn/UI/fill diagnostic.
 - [x] Record 15k reads with zero unexpected HTTP errors, 599/599 fills, matched positions and collectible retired strategies/providers.
 
-See [report](../mm-memory-retention-review.md), [evidence](../mm-memory-retention-evidence.json)
+See [report](../performance/mm-memory-retention-review.md), [evidence](../performance/mm-memory-retention-evidence.json)
 and [completed checklist](../../docs/plans/MM_MEMORY_RETENTION_REVIEW.md). This is
 scoped memory evidence, not a new release-hour/multi-day production guarantee.
 Early private-stream contract-size initialization errors were recorded as a
@@ -1330,7 +1335,7 @@ HTTP-error result did not hide those runtime logs.
 - [x] Verify zero contract-size/structured ERROR logs, 7,500 completed reads, 298/298 matching fills and correct positions through Stop/Start/Switch.
 - [x] Close the earlier memory-review startup follow-up while retaining its historical four errors and original image evidence.
 
-See [report](../okx-ws-position-startup.md), [evidence](../okx-ws-position-startup-evidence.json)
+See [report](okx-ws-position-startup.md), [evidence](okx-ws-position-startup-evidence.json)
 and [completed plan](../../docs/plans/OKX_WS_POSITION_STARTUP_TDD_PLAN.md). No real
 OKX, cloud deployment, hour-long release gate or multi-day uptime claim is added.
 
@@ -1351,7 +1356,7 @@ OKX, cloud deployment, hour-long release gate or multi-day uptime claim is added
 - [x] Pass bounded BTC spot/perpetual OKX Demo: twelve independently confirmed weighted post-only quotes, both real 1m feeds advance, Stop retains positions and removes quotes; container stopped, persistent DB kept.
 - [x] Retain the first Demo startup-observer failure and its focused Red/Green correction; runtime/image/load scope is unchanged.
 
-See [current report](../mm-volatility-defense.md) and
+See [current report](mm-volatility-defense.md) and
 [ordered checklist](../../docs/plans/MM_VOLATILITY_DEFENSE_TDD_PLAN.md). The runtime
 and final V5 acceptance are complete on `f52f6ee3f` / `c924030a…`. Earlier
 images and failed observer attempts retain their original scope; no Cloud Run
@@ -1374,8 +1379,8 @@ successful full repeat. Restart/DB fault HTTP failures are retained separately
 from the zero-error healthy windows. This work adds no real exchange, Cloud Run
 or multi-day uptime claim.
 
-See the canonical [remediation checklist](../life-mm-availability-remediation.md)
-and [portable evidence](../life-mm-availability-remediation-evidence.json), which
+See the canonical [remediation checklist](life-mm-availability-remediation.md)
+and [portable evidence](life-mm-availability-remediation-evidence.json), which
 retain both earlier failed/interrupted attempts and the final accepted run.
 
 ## Cloud Run launch preparation (2026-10-29; local review complete)
@@ -1391,7 +1396,7 @@ retain both earlier failed/interrupted attempts and the final accepted run.
 - **Deferred external work:** Fill actual operator project/region/DB/registry/secrets/access-route
   values; verify cloud stopped startup and FE browser access after reviewed deployment.
 
-See [readiness review](../cloudrun-readiness-review.md). No cloud provisioning,
+See [readiness review](../platform/cloudrun-readiness-review.md). No cloud provisioning,
 push/deployment, new image/load claim or trading occurred in this step.
 
 ## Local Demo API preparation (2026-10-29; stopped startup verified)
@@ -1404,8 +1409,8 @@ push/deployment, new image/load claim or trading occurred in this step.
   localhost-only HTTP alongside the existing PostgreSQL container.
 - [x] Verify stopped owner, health, auth and docs/profiles/schema; no trading POST.
 
-See [local startup report](../local-demo-startup.md) and
-[evidence](../local-demo-startup-evidence.json). Rebuilt image `143ddfe2…` has only
+See [local startup report](../demo/local-demo-startup.md) and
+[evidence](../demo/local-demo-startup-evidence.json). Rebuilt image `143ddfe2…` has only
 this local startup/smoke scope; the earlier release-hour result remains attached
 to `be3efe46…`. FE browser acceptance and listing/cloud checks remain pending.
 
@@ -1426,8 +1431,8 @@ to `be3efe46…`. FE browser acceptance and listing/cloud checks remain pending.
   Exclusive attribution of the original spike remains an evidence limitation.
   The diagnostic runs in this section retain their original scope.
 
-See [investigation](../mm-p99-investigation.md) and
-[evidence](../mm-p99-investigation-evidence.json). The prior accepted gate keeps
+See [investigation](../investigations/mm-p99-investigation.md) and
+[evidence](../investigations/mm-p99-investigation-evidence.json). The prior accepted gate keeps
 its image scope. The real Demo remains stopped; all stress trading used the
 isolated dummy exchange. No cache, pool, deadline or trading policy was changed.
 
@@ -1442,7 +1447,7 @@ isolated dummy exchange. No cache, pool, deadline or trading policy was changed.
 - **Historical follow-up (superseded):** R3 submit-to-worker-start diagnostics, final-image
   regression/load controls.
 
-See [report](../mm-reporting-latency.md), [evidence](../mm-reporting-latency-evidence.json)
+See [report](../investigations/mm-reporting-latency.md), [evidence](../investigations/mm-reporting-latency-evidence.json)
 and [plan](../../docs/plans/MM_REPORTING_LATENCY_TDD_PLAN.md). The confirmed 2s
 reporting timeout and original historical p99 attribution are not declared fixed.
 
@@ -1465,8 +1470,8 @@ reporting timeout and original historical p99 attribution are not declared fixed
   blanket p99 fix; lifecycle, API-restart policy, supported pool/port handling and full gates
   remain.
 
-See [experiment](../mm-process-isolation-experiment.md) and
-[evidence](../mm-process-isolation-evidence.json). Existing priority-test scheduling
+See [experiment](../investigations/mm-process-isolation-experiment.md) and
+[evidence](../investigations/mm-process-isolation-evidence.json). Existing priority-test scheduling
 assumption corrected; no production executor behavior changed. Real Demo remains
 stopped. R2 daily fallback / R3 queue diagnostics remain open in the reporting plan.
 
@@ -1483,7 +1488,7 @@ stopped. R2 daily fallback / R3 queue diagnostics remain open in the reporting p
 - **Historical follow-up (superseded):** R3 worker-start queue diagnostics and final-image E2E/load
   verification.
 
-See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-evidence.json).
+See [report](../investigations/mm-reporting-latency.md) and [evidence](../investigations/mm-reporting-latency-evidence.json).
 SQL cost and historical p99 attribution remain open. No new production process
 architecture adopted; real Demo remains stopped on its existing image.
 
@@ -1497,7 +1502,7 @@ architecture adopted; real Demo remains stopped on its existing image.
 - **Historical follow-up (superseded):** R3b live profiling; candidate image and unchanged
   final-image gates.
 
-See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-evidence.json).
+See [report](../investigations/mm-reporting-latency.md) and [evidence](../investigations/mm-reporting-latency-evidence.json).
 
 ## Candidate verification and queue diagnostic (2026-10-29; R3b)
 
@@ -1512,7 +1517,7 @@ See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-
 - **Historical follow-up (superseded):** Full-image E2E, unchanged mixed/burst/hour/fault gates and
   production control.
 
-See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-evidence.json).
+See [report](../investigations/mm-reporting-latency.md) and [evidence](../investigations/mm-reporting-latency-evidence.json).
 
 - [x] Candidate image full E2E: sixteen groups, including upgrade/rollback from
   `143ddfe2…`. Manifest `11dfdc61…`; packaged critical source hashes and runtime
@@ -1551,7 +1556,7 @@ See [report](../mm-reporting-latency.md) and [evidence](../mm-reporting-latency-
 - **Historical follow-up (superseded):** Trace the intermittent latency; production adoption and the
   hour-long memory/final-image gates remain open. Persistent Demo remains stopped.
 
-See [process experiment](../mm-process-isolation-experiment.md).
+See [process experiment](../investigations/mm-process-isolation-experiment.md).
 
 ## Process-trace measurement follow-up (2026-10-29)
 
@@ -1609,7 +1614,7 @@ remains stopped on its original image; no Cloud Run deployment.
   the final image and complete the unchanged load/hour/recovery gates. No Demo replacement or Cloud
   Run deployment has occurred.
 
-See [current runtime verification](../mm-service-supervision.md).
+See [current runtime verification](../release/mm-service-supervision.md).
 
 ## Supervised runtime verification follow-up (2026-10-29)
 
@@ -1812,7 +1817,7 @@ HALT/pending mutation remains. New fills/fee comparisons are zero: positive
 new-fill processing is not observed or inferred from older acceptance.
 Final 417 orders / 0 fills / 2 positions retain long 0.0081 / short 0.0022 BTC; service remains
 up but trading stopped with zero pending exchange orders. Private files unchanged.
-See [report](../okx-demo-current-image.md), [evidence](../okx-demo-current-image-evidence.json)
+See [report](../demo/okx-demo-current-image.md), [evidence](../demo/okx-demo-current-image-evidence.json)
 and [completed checklist](../../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
 No production source change, live trading, push or Cloud Run deployment.
 
@@ -1833,7 +1838,7 @@ manual override semantics and uses one batched startup lookup. Exact aggregate
 repair derived from pre-test durable holds plus matched fills passes on a disposable
 post-failure clone. Replacement-image verification and explicit operator review
 of actual Demo recovery remain open; previous zero-fill acceptance stays scoped.
-See [follow-up report](../okx-demo-natural-fill.md), [evidence](../okx-demo-natural-fill-evidence.json)
+See [follow-up report](../demo/okx-demo-natural-fill.md), [evidence](../demo/okx-demo-natural-fill-evidence.json)
 and [live checklist](../../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
 
 Follow-up local verification: native2,047 + 11subtests and PG268 pass. Shipping-image
@@ -1872,7 +1877,7 @@ original private environment/catalogue hashes match. Previous715a remains stoppe
 for forensics, no history deletion/wipe/live trading/push/Cloud Run deployment.
 All positive-follow-up and remediation checklist items are checked. Earlier
 partial/failing evidence above remains historical. See the completed
-[report](../okx-demo-natural-fill.md) and [evidence](../okx-demo-natural-fill-evidence.json).
+[report](../demo/okx-demo-natural-fill.md) and [evidence](../demo/okx-demo-natural-fill-evidence.json).
 
 ## Fixed-image full release revalidation (2026-10-30; in progress)
 
@@ -1883,7 +1888,7 @@ and packaged GC 5,000-cycle reclamation pass. All17 offline E2E groups pass at
 restart and prior715a-compatible upgrade/rollback. Shipping-role crash/hang tests
 are running; unchanged all-load/hour/faults and ordinary-entrypoint control remain
 open. Persistent Demo remains stopped and its four ledger hashes were captured.
-The scope and live checklist are in [report](../e526-release.md) and
+The scope and live checklist are in [report](../release/e526-release.md) and
 [plan](../../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
 
 First full e526 load attempt `20261030-145524-a2b39f` fails: warm/mixed/burst
@@ -1901,7 +1906,7 @@ but 15 daily reads return explicitly stale fallback over4.21s after PostgreSQL
 cancels a daily aggregate at its 2s statement timeout. Fill/position/funding
 ledger and per-role retention checks pass. The failure is not waived; isolate
 and investigate the slow SQL before another full gate. Both failed runs and the
-separate passing six-fault run remain preserved. See [report](../e526-release.md).
+separate passing six-fault run remain preserved. See [report](../release/e526-release.md).
 
 Isolated PG14/2CPU/512MiB investigation confirms the failed SQL is original-fee
 currency aggregation. 100k daily report succeeds in 11 reads (p50 512ms,
@@ -1920,7 +1925,7 @@ an unresponsive warning after its window, cause unknown. Tests do not prove
 absolute isolation. Ordinary-entrypoint diagnostic also failed mixed p99/backlog;
 trace probe is lossy and diagnostic only. Both full release failures remain open;
 Demo baseline ledger fingerprints and stopped/no-HALT state match. See
-[release report](../e526-release.md).
+[release report](../release/e526-release.md).
 
 2026-10-30 engine-liveness follow-up: the earlier supervisor event occurred
 126.698s after the reporting fallback and 9.877s after an engine cancellation
@@ -1932,7 +1937,7 @@ passes; CPU test retains a feed-rate failure99.93658/s versus99.96667/s after
 successful ledger/Stop checks, with four transient timeout episodes and no child
 restart. An initial CPU setup assertion and one prior native initialization
 timeout are also retained. Original cause and full release gates remain open;
-Demo ledger/control unchanged. See [investigation](../mm-engine-liveness-investigation.md).
+Demo ledger/control unchanged. See [investigation](../investigations/mm-engine-liveness-investigation.md).
 
 Operator-requested CPU-fault repeat after reopening the Mac passes at
 `build/mm-reporting-isolation/20261030-210016-db909f/result.json`: unchanged
@@ -1959,7 +1964,7 @@ warm300/mixed900 with p99 219.93/240.13ms, zero errors and 1,200 matching fills.
 Strict Random-soak acceptance and the older sustained-liveness cause remain
 open; no deadlines/protections were weakened or runtime source changed in this
 verification. Demo e526 ledger/control unchanged; test fixtures cleaned. See
-[packaged report](../probe-release-20261030.md) for the focused follow-up.
+[packaged report](../release/probe-release-20261030.md) for the focused follow-up.
 
 
 2026-10-31 Random/availability follow-up: the fill producer incorrectly created
@@ -1979,7 +1984,7 @@ checkpoint, preserving the original deadline and stale-progress send gate;
 genuinely stuck/failed tasks still halt. Related native regression: 37 passed.
 The new immutable image and load confirmation are in progress; no claim is made
 about the precise host cause of scheduling delay or the older sustained
-supervisor failure. See [defect/cause report](../mm-random-handover.md).
+supervisor failure. See [defect/cause report](../investigations/mm-random-handover.md).
 
 
 Controller fix shipping image `dbd5b5ba` passes native 2,069 tests/11 subtests,
@@ -2000,7 +2005,7 @@ it **fails overall** because the burst generator delivered 498.033/s under its
 500/s requirement. An independent same-image/source/fixture burst retry passes
 at 509.80/s; it does not erase or explain the first failure. Demo fingerprints,
 control and image unchanged. Detailed causes, missing tests, timings and open
-limits: [Random/availability report](../mm-random-handover.md).
+limits: [Random/availability report](../investigations/mm-random-handover.md).
 
 2026-10-31 operator-requested closure: the post-window fill producer bug
 (`056b11495`), false controller HALT race (`3789b2500`) and OKX lost-order
@@ -2030,7 +2035,7 @@ both pass. The latter p99 is 183.58ms, largest captured burst loop stall 290ms;
 it does not reproduce the long episode or close release acceptance. Current
 baseline/control remain open; no speculative runtime fix, threshold waiver or
 additional blind hour repeat is made. Demo unchanged, test containers cleaned.
-See [bounded follow-up and evidence](../mm-burst-followup.md).
+See [bounded follow-up and evidence](../investigations/mm-burst-followup.md).
 
 
 2026-10-31 automatic-capture follow-up: `146826501` adds a bounded pre-incident
@@ -2056,8 +2061,8 @@ full release/hour/fault plus passing-baseline control remain open. No speculativ
 runtime fix, budget waiver or blind hour retry is made. All temporary containers
 and the task's idle-sleep assertion are removed; persistent stopped Demo image,
 control/ack and four ledger fingerprints remain unchanged. See
-[incident report](../mm-incident-investigation.md) and
-[portable evidence](../mm-incident-investigation-evidence.json).
+[incident report](../investigations/mm-incident-investigation.md) and
+[portable evidence](../investigations/mm-incident-investigation-evidence.json).
 
 
 2026-10-31 requested R1/R2 closeout: `d61405c62` makes the test-only capture count
@@ -2079,8 +2084,8 @@ not a production engine change or proof of every historical incident's cause.
 Canonical corrected full rerun `20261031-231819-7fe2f2` is in progress on unchanged
 image5973410d; R2 requires its completed passing baseline. Both active acceptance
 items stay unchecked. Demo remains stopped and unchanged. See
-[closeout report](../mm-release-closeout.md) and
-[scoped evidence](../mm-release-closeout-evidence.json).
+[closeout report](../release/mm-release-closeout.md) and
+[scoped evidence](../release/mm-release-closeout-evidence.json).
 
 2026-11-01 local closeout update: corrected canonical run
 `20261031-231819-7fe2f2` completes warm300/mixed900/burst90/soak3600 with unchanged
@@ -2104,7 +2109,7 @@ closure is claimed. Temporary test containers are removed and persistent Demo
 image/control/four ledger fingerprints remain unchanged. Both active acceptance
 items remain open for bounded causal investigation before a full repeat; no
 budget waiver or speculative runtime fix is made. See the updated
-[closeout report](../mm-release-closeout.md).
+[closeout report](../release/mm-release-closeout.md).
 
 2026-11-01 bounded measurement remediation: retained stacks and two signal dumps
 show quantile export on the measured loop. Same-image full-buffer microbenchmark
@@ -2127,8 +2132,8 @@ Matched300s probes pass with300 matching fills each: recorder p95/p99 62.64/
 610.26ms, ordinary shipping51.16/115.08ms, zero unexpected errors. This is bounded
 observer validation only. A new scope guard prevents a passed diagnostic/short
 baseline from qualifying as R2. Both full acceptance items remain open. Demo
-fingerprints remain unchanged. See [measurement follow-up](../mm-measurement-remediation.md)
-and [portable evidence](../mm-measurement-remediation-evidence.json).
+fingerprints remain unchanged. See [measurement follow-up](../investigations/mm-measurement-remediation.md)
+and [portable evidence](../investigations/mm-measurement-remediation-evidence.json).
 
 2026-11-01 full R1 passes on sourceb7ba104e7/image5973410d/manifest50a95f3a:
 `20261101-011658-1465e8` completes warm300/mixed900/burst90/soak3600 plus all six
@@ -2146,7 +2151,7 @@ trace cap drops2,684 sink records; child-span truncation and incomplete trace
 scope are preserved. No claim of uninterrupted quotes or historical-cause closure.
 All temporary R1 containers are removed; stopped Demo fingerprints are unchanged.
 R1 is checked done; R2 awaits the actual passing baseline. Prior failures remain
-failed. See [current closeout](../mm-release-closeout.md).
+failed. See [current closeout](../release/mm-release-closeout.md).
 
 2026-11-01 scoped local closeout complete: matched ordinary-entrypoint R2
 `production-control-20261101-024951-b873b2` passes warm300/mixed900 against the
@@ -2164,7 +2169,7 @@ caffeinate assertion is stopped. Existing stopped Demo image/control/four ledger
 fingerprints remain unchanged. No connected trading/deployment or speculative
 runtime/cache/pool change is performed. Local image5973410d/manifest50a95f3a is
 accepted under the stated R1/R2 protocol; report/evidence retain every failed
-attempt and its scope. See [final closeout](../mm-release-closeout.md).
+attempt and its scope. See [final closeout](../release/mm-release-closeout.md).
 
 2026-11-01 focused historical review: exact H1 client provenance rules out the
 proposed burst-mode/baseline ordering defect; the failed inner-burst counters
@@ -2181,5 +2186,5 @@ legacy uncertainty. Native119 and a same-image actual old/new watchdog
 comparison pass (injected800ms metadata wait: legacy timestamp804ms too early,
 new timestamp0.410ms after the wait). Application/image and accepted R1/R2
 sourceb7ba104e7 remain unchanged; no hour gate is repeated. See
-[focused review](../mm-historical-cause-review.md) and
-[portable evidence](../mm-historical-cause-evidence.json).
+[focused review](../investigations/mm-historical-cause-review.md) and
+[portable evidence](../investigations/mm-historical-cause-evidence.json).

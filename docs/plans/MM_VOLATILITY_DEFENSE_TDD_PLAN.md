@@ -2,7 +2,7 @@
 
 Date: 2026-10-28 (Asia/Ho_Chi_Minh).
 Status: V0–V5 complete; final current-image local/load and bounded OKX Demo acceptance pass.
-Evidence: [implementation report](../../reports/mm-volatility-defense.md).
+Evidence: [implementation report](../../reports/implementation/mm-volatility-defense.md).
 
 Improve quote protection and automatic recovery while keeping the existing
 Hummingbot execution engine. Priorities are explainable liquidity provision,
@@ -354,7 +354,7 @@ allocation remain an operational decision after instrument rules, inventory and
 budget are known.
 
 Post-acceptance availability audit: track the five source fixes and new-source
-verification in the [ordered TDD remediation checklist](../../reports/life-mm-availability-remediation.md).
+verification in the [ordered TDD remediation checklist](../../reports/implementation/life-mm-availability-remediation.md).
 The V5 image/load results above remain historical acceptance for their declared
 source; they do not certify later runtime changes.
 

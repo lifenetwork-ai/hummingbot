@@ -22,6 +22,6 @@ of fills does not trigger restart, risk-limit changes or trading actions.
 Verification complete: 1,661 native tests plus 11 subtests, a final 42-test
 capture/controller/API selection, and 18 PostgreSQL integration tests pass.
 Status/liquidity each retain one state query and do not mutate control state.
-Swagger and changed-file checks pass. See [report](../../reports/mm-quote-activity.md)
-and [portable evidence](../../reports/mm-quote-activity-evidence.json). This scope
+Swagger and changed-file checks pass. See [report](../../reports/implementation/mm-quote-activity.md)
+and [portable evidence](../../reports/implementation/mm-quote-activity-evidence.json). This scope
 does not include a new image build, load/soak, exchange, browser or Cloud Run run.

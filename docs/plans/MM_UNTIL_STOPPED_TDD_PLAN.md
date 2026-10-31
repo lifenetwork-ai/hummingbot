@@ -20,6 +20,6 @@ introduced. Missing deadlines on a timed or malformed session must fail closed.
 Final verification: 1,673 native tests + 11 subtests, 215 PostgreSQL tests,
 independent timed/continuous image E2Es and a bounded 60-second diagnostic probe.
 The image regression also caught/fixed random-boundary startup cancellation.
-See [scoped report](../../reports/mm-until-stopped.md) and
-[evidence](../../reports/mm-until-stopped-evidence.json). No full new release
+See [scoped report](../../reports/implementation/mm-until-stopped.md) and
+[evidence](../../reports/implementation/mm-until-stopped-evidence.json). No full new release
 soak, old-image rollback, real OKX, Cloud Run deployment or FE browser test claimed.

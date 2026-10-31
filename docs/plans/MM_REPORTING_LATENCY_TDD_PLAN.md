@@ -34,7 +34,7 @@ historical failures or certify a million-fill concurrent engine/load gate.
   only with measured improvement and explain plans; commit the verified phase.
   Decision: reject all candidates after workload-dependent regressions; existing
   SQL retained. The confirmed timeout is not declared fixed. See the
-  [report](../../reports/mm-reporting-latency.md).
+  [report](../../reports/investigations/mm-reporting-latency.md).
 - [x] R1A (requested architecture experiment): retain **one Cloud Run service**;
   compare one process with two isolated API/engine processes in one container.
   Reuse existing handlers, durable command queue, ownership/fencing and engine.
@@ -45,7 +45,7 @@ historical failures or certify a million-fill concurrent engine/load gate.
   production adoption. Process isolation alone does not reduce the SQL cost.
   Decision: stall isolation verified (about 2.6s -> 0.1s), but both longer paired
   healthy diagnostics miss p99; keep production unchanged. See the
-  [experiment](../../reports/mm-process-isolation-experiment.md).
+  [experiment](../../reports/investigations/mm-process-isolation-experiment.md).
 - [x] R2 Red: cover last-good fallback, no fallback without a matching successful
   snapshot, stale age/clock/day rollover, transient versus permanent failures,
   concurrency, filter isolation, cancellation and recovery.
@@ -101,7 +101,7 @@ whole-container failure policy still require work. Keep one Cloud Run service.
   unbounded growth, hidden degradation and relaxed budgets are not.
   Local final-image gates pass: hour p99 657.95 ms / zero errors and stable role
   PIDs; ordinary-entrypoint mixed900 p99 499.00 ms / zero errors. See R6/R7 and
-  [retained evidence](../../reports/mm-service-supervision-evidence.json).
+  [retained evidence](../../reports/release/mm-service-supervision-evidence.json).
 
 Process recovery does not authorize trading recovery. Current operator HALT
 recovery still requires technical review; no reset/resume API is implemented.
@@ -155,7 +155,7 @@ recovery still requires technical review; no reset/resume API is implemented.
   and matched ordinary control `production-control-20261030-072728-027167`.
 
 Real local Demo remains stopped. Load tests use isolated fake exchanges/DBs.
-The [investigation](../../reports/mm-p99-investigation.md) retains its original
+The [investigation](../../reports/investigations/mm-p99-investigation.md) retains its original
 image scope; no single historical p99 trigger is assumed.
 
 ## R7: bound API full-GC startup scanning after a retained burst failure
