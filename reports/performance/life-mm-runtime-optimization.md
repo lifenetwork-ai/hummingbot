@@ -1,6 +1,12 @@
 # Runtime flow optimization
 
-Status: runtime optimization complete; native/PostgreSQL regression, image E2E,
+Latest follow-up (2026-11-01): a read-only review reproduces terminal-proof
+starvation and measures two engine CPU opportunities. These are **not shipped
+fixes**. See [the follow-up](#2026-11-01-follow-up--review-only) and its
+[portable evidence](runtime-flow-review-20261101.json). Accepted image `5973410d`
+and its R1/R2 results are unchanged; the findings are separate from that scope.
+
+Previous implementation status: runtime optimization complete; native/PostgreSQL regression, image E2E,
 healthy load/soak and a separate five-fault retest pass. The first combined run
 failed during fault preparation; that result is retained below. Reviewed 2026-10-27
 (Asia/Ho_Chi_Minh), baseline
@@ -222,3 +228,110 @@ workload. All optimization checks use local synthetic data; no Cloud Run deploym
 or connected exchange session is started.
 
 Fixture correction commit: `9d6538343`.
+
+## 2026-11-01 follow-up — review only
+
+This follow-up inspects order admission/cancellation, outflow reconciliation,
+executor reports, controller lookup, status publication and API/DB reporting.
+It uses current source at `60d8b6a0c` and isolated native replays. No connector
+actor, connected Demo, database workload, runtime source, schema or image changes.
+The earlier passing gates remain tied to their recorded source/image; this audit
+is not an additional release test or a claim that every flow is optimal.
+
+### Priority 1: terminal proof admission can starve later orders
+
+[`SpotOutflowGuard.reconcile_terminal`](../../hummingbot/core/spot_outflow_guard.py#L216)
+always takes the first four entries from `terminal_pending`, a set. Failed or
+incomplete proofs remain in that set. With stable membership, repeated calls can
+keep selecting the same four entries while other independently verifiable orders
+receive no attempt. This is an in-memory admission fairness defect, not a SQL
+N+1 query or a demonstrated service crash.
+
+The actual method is reproduced with nine locally terminal orders and fixed fake
+proof responses: the first four return incomplete, the other five could succeed.
+After ten polling rounds, all40 proof attempts belong to the same four orders;
+none of the other five is attempted. All nine reservations remain. This can delay
+release of verified reservations and unnecessarily constrain further spot BUYs.
+It does not bypass limits or prove incorrect accounting, and has not been
+observed on the connected Demo in this review.
+
+Recommended narrow fix: fairly rotate bounded proof admission while retaining
+the four-attempt cap, exact order/fill proof, rate limiting and all reservations
+until successful durable confirmation. No general cache or parallel request
+fan-out is required. Red/Green cases should cover more than four pending orders,
+permanent failures ahead of successes, insertion/removal during polling,
+cancellation, and the unchanged `all_orders=True` incomplete-proof failure.
+The isolated reproduction does not replace those implementation tests.
+
+### Priority 2: reuse executor DTOs within one report call
+
+[`get_all_reports`](../../hummingbot/strategy_v2/executors/executor_orchestrator.py#L902)
+rebuilds executor information during hold processing, executor reporting and
+performance reporting. For active executors this reads `executor_info` three
+times per report; terminal paths can read it more often. Each property access
+constructs a Pydantic DTO and recomputes PnL/fee/order-derived properties.
+
+A paired100-round replay uses real `PositionExecutor` properties and actual
+in-flight partial-fill models with fixed lightweight fake prices/rules. A
+prototype reuses each DTO only within one synchronous report call. Complete
+outputs match; no memo survives the next call. The production source is unchanged.
+
+| Resident executors | State | Current median CPU | Per-call prototype | DTO reads |
+| --- | --- | --- | --- | --- |
+| 8 | Unfilled | 0.310ms | 0.123ms | 24 → 8 |
+| 8 | Partially filled | 0.848ms | 0.313ms | 24 → 8 |
+| 40 | Unfilled | 1.453ms | 0.527ms | 120 → 40 |
+| 40 | Partially filled | 4.148ms | 1.463ms | 120 → 40 |
+
+This is about60–65% less CPU **for this report computation**, not the whole engine.
+The eight-executor partial-fill saving is about0.535ms per call. Fake prices,
+no fill-arrival interleaving and no DB/network limit the comparison; it does not
+explain historical multi-second probe episodes. TDD before implementation must
+preserve POSITION_HOLD transitions/deduplication, active-to-terminal behavior,
+fees and failed/stale marks, and prove that the next call sees changed fills and
+prices. Keep final ownership and send-time checks fresh. Do not add a TTL cache
+to executors or reuse a report across independent control ticks.
+
+### Priority 3: avoid rebuilding configs merely to identify controllers
+
+[`ServiceHost._mm_controllers`](../../hummingbot/cli/service.py#L124) invokes
+`catalogue.controller_configs` on each lookup. In both-market mode that builds
+two full `LifeMMConfig` objects just to obtain controller IDs. Readiness, quote
+validation and status publication call this selector repeatedly.
+
+On the checked YAML,1000 valid-case samples take median0.0925ms for the current
+selector versus0.00129ms to select already-known IDs and verify the controller
+set. The direct-ID prototype deliberately omits full validation; it is **not** a
+behavior-equivalent replacement. Actual CPU benefit must be measured after
+preserving validation at session/config admission and rejecting wrong/missing
+markets, stale session/generation and changed controller identity. Do not skip
+these checks or cache authority to obtain the prototype timing.
+
+### Lower priority and work that should stay unchanged
+
+- Status publication normalizes reporting JSON and later serializes the whole
+  snapshot again. A future single normalization boundary could reduce allocations,
+  but must retain finite-value checks, Decimal/UTC output and last-good observation
+  isolation. No new measured saving is claimed here; ordinary account payloads
+  are small, so this follows the three items above.
+- Command observation uses an UPDATE and SELECT even when no receipt remains
+  pending. There is already a matching status/version index and this occurs on
+  observer publication, not per fill. Only consider combining statements after
+  measuring actual round-trip cost; retain atomic supersession and truthful
+  completion. Caching pending-command state is not recommended.
+- API orders use grouped fill/side queries per page; fills use one paginated
+  query. This audit finds no per-row SQL N+1 in those paths. Keep the existing
+  query-count regressions rather than adding an unmeasured cache.
+- Daily statistics already have bounded last-good TTL storage and serialized
+  cache misses. Large cold aggregates remain a documented limitation. The
+  operator accepts slower reports provided trading remains protected; no new
+  rollup, Redis dependency, index or speculative SQL rewrite is justified here.
+- Preserve current ownership/pre-send fencing, exact fill/fee deduplication,
+  failure/HALT behavior, fresh balance/position checks and startup recovery.
+  The existing resident-executor/order-ID pruning already bounds that history;
+  do not replace it with a TTL that could lose deduplication guarantees.
+
+Raw isolated experiment outputs are under `build/runtime-flow-review-20261101/`;
+the [portable evidence](runtime-flow-review-20261101.json) records measurements,
+source hashes and limits. No fix, production speedup, new memory bound or new
+release acceptance is claimed for this read-only follow-up.

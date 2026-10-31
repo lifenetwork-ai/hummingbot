@@ -10,6 +10,8 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
   diagnostic fix and explicit H1/H2/H3 attribution limits; accepted R1/R2 unchanged.
 - [Implementation progress](implementation/LIFE_OKX_PROGRESS.md): chronological
   delivery journal, with a current summary at the top.
+- [Latest flow audit](performance/life-mm-runtime-optimization.md#2026-11-01-follow-up--review-only):
+  terminal-proof fairness needs a fix; two CPU opportunities measured, not shipped.
 
 ## Browse by topic
 

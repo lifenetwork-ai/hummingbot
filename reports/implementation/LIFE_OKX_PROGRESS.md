@@ -23,6 +23,11 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   historical H1/H2/H3 causes remain unproven. The latest
   [focused review](../investigations/mm-historical-cause-review.md) corrects
   test-sampler timestamps without changing the accepted runtime image/results.
+- **New read-only flow audit:** terminal-proof polling can repeatedly select the
+  same four incomplete orders and starve later candidates. This requires a narrow
+  TDD fairness fix. Per-call executor DTO reuse and controller selection also
+  have measured CPU opportunities; none is implemented in this review. See the
+  [follow-up](../performance/life-mm-runtime-optimization.md#2026-11-01-follow-up--review-only).
 
 Reports are grouped by topic in the [report index](../README.md); each report
 stays with its original evidence. Evidence JSON contents and historical outcomes
