@@ -99,10 +99,11 @@ def percentile(values, fraction):
     return sorted(values)[max(0, math.ceil(len(values) * fraction) - 1)] if values else None
 
 
-async def measure_market_burst(exchange, rate, duration=10):
+async def measure_market_burst(exchange, rate, duration=10, *, on_measurement=None, diagnostics=False):
     """Require real delivered throughput; restore steady load even on failure."""
     target = rate * 5
-    await exchange("/control", {"target_updates_per_second": target})
+    await exchange("/control", {"target_updates_per_second": target,
+                                **({'market_diagnostics': True} if diagnostics else {})})
     started = time.time()
     try:
         before = await exchange("/market-metrics")
@@ -111,11 +112,16 @@ async def measure_market_burst(exchange, rate, duration=10):
         elapsed = after["observed_at_monotonic"] - before["observed_at_monotonic"]
         updates = after["market_update_count"] - before["market_update_count"]
         measured = updates / elapsed
+        measurement = dict(burst_started_at=started, burst_ended_at=time.time(), burst_updates_per_second=measured,
+                           burst_updates=updates, burst_measurement_seconds=elapsed, burst_minimum_updates_per_second=target,
+                           **({'burst_diagnostics': after['diagnostics']} if 'diagnostics' in after else {}))
+        if on_measurement is not None:
+            on_measurement(measurement)
         assert measured + 4 / elapsed >= target, f"Burst feed delivered {measured:.3f}/s below {target}/s minimum"
     finally:
-        await exchange("/control", {"target_updates_per_second": rate})
-    return dict(burst_started_at=started, burst_ended_at=time.time(), burst_updates_per_second=measured,
-                burst_updates=updates, burst_measurement_seconds=elapsed, burst_minimum_updates_per_second=target)
+        await exchange("/control", {"target_updates_per_second": rate,
+                                    **({'market_diagnostics': False} if diagnostics else {})})
+    return measurement
 
 
 async def main(args):
@@ -236,7 +242,8 @@ async def main(args):
                         status, receipt = await post("/commands", payload, str(uuid.uuid4()))
                         assert status == 202, receipt
                         control_results["command_seconds"][action] = await applied(receipt, started, maximum)
-                control_results.update(await measure_market_burst(exchange, args.market_rate))
+                await measure_market_burst(exchange, args.market_rate, on_measurement=control_results.update,
+                                           diagnostics=getattr(args, 'market_diagnostics', False))
                 ledger = await exchange("/ledger")
                 if ledger["fills"]:
                     # Old/duplicate private events after newer fills must not
@@ -428,6 +435,7 @@ if __name__ == "__main__":
     parser.add_argument("--market-rate", type=int, default=100)
     parser.add_argument("--output", default="/tmp/load-result.json")
     parser.add_argument("--burst", action="store_true")
+    parser.add_argument('--market-diagnostics', action='store_true', help='Bounded simulator burst scheduling/send diagnostics')
     parser.add_argument("--fills", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--controls", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--random-soak", action="store_true", help="Stop injecting synthetic fills in the five-second scheduled handover window; rates remain recorded")

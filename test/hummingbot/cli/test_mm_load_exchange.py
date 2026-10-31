@@ -117,6 +117,7 @@ async def test_emitter_counts_only_delivered_book_frames_under_burst_load():
     with patch('test.e2e.offline.exchange.Path.read_text', return_value=json.dumps(fixtures)):
         exchange = Exchange()
     messages = []
+    await exchange.control({'market_diagnostics': True})
 
     class Socket:
         closed = False
@@ -134,6 +135,7 @@ async def test_emitter_counts_only_delivered_book_frames_under_burst_load():
         await asyncio.gather(task, return_exceptions=True)
     assert exchange.market_update_count > 0
     assert exchange.market_update_count == sum(row['arg']['channel'] == 'books' for row in messages)
+    assert exchange.market_diagnostics.snapshot()['delivered_frames'] == exchange.market_update_count
 
 
 @pytest.mark.asyncio
@@ -161,6 +163,7 @@ async def test_closed_transport_during_market_send_does_not_kill_other_subscribe
             delivered.set()
 
     closing, healthy = ClosingSocket(), HealthySocket()
+    await exchange.control({'market_diagnostics': True})
     exchange.socket_args[closing] = [dict(channel=closing_channel, instId='LIFE-USDT')]
     exchange.socket_args[healthy] = [dict(channel='books', instId='LIFE-USDT')]
     exchange.sockets[closing] = {closing_channel}
@@ -172,6 +175,9 @@ async def test_closed_transport_during_market_send_does_not_kill_other_subscribe
         assert waiting in done and not task.done(), 'A closed client killed the simulator market feed'
         assert closing not in exchange.socket_args and closing not in exchange.sockets
         assert exchange.market_update_count == len(messages) > 0
+        diagnostics = exchange.market_diagnostics.snapshot()
+        assert diagnostics['delivered_frames'] == len(messages)
+        assert diagnostics['failed_frames'] == (1 if closing_channel == 'books' else 0)
     finally:
         task.cancel()
         waiting.cancel()

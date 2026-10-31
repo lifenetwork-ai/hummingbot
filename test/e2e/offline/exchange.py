@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import json
 import time
+from collections import deque
 from decimal import Decimal
 from pathlib import Path
 
@@ -19,6 +20,61 @@ from aiohttp import WSMsgType, web
 
 def millis():
     return str(int(time.time() * 1000))
+
+
+class MarketDiagnostics:
+    """Opt-in producer evidence; only the latest 64 observed seconds are kept."""
+
+    def __init__(self):
+        self.origin = time.monotonic()
+        self.process_cpu_origin = time.process_time()
+        self.seconds = deque(maxlen=64)
+        self.discarded_seconds = 0
+        self.delivered_frames = 0
+        self.failed_frames = 0
+        self.cpu_origin = self.cpu_stat()
+
+    @staticmethod
+    def cpu_stat():
+        try:
+            return {key: int(value) for key, value in (line.split() for line in Path('/sys/fs/cgroup/cpu.stat').read_text().splitlines())}
+        except (OSError, ValueError):
+            return {}
+
+    def bucket(self, at):
+        second = int(at - self.origin)
+        if not self.seconds or self.seconds[-1]['second'] != second:
+            self.discarded_seconds += int(len(self.seconds) == self.seconds.maxlen)
+            self.seconds.append(dict(second=second, delivered_frames=0, failed_frames=0,
+                                     max_schedule_lag_ms=0, max_book_build_ms=0, max_send_ms=0,
+                                     min_subscriptions=None, max_subscriptions=0,
+                                     process_cpu_seconds=time.process_time() - self.process_cpu_origin))
+        return self.seconds[-1]
+
+    def cycle(self, scheduled, actual, subscriptions):
+        row = self.bucket(actual)
+        row['max_schedule_lag_ms'] = max(row['max_schedule_lag_ms'], max(0, actual - scheduled) * 1000)
+        row['min_subscriptions'] = subscriptions if row['min_subscriptions'] is None else min(row['min_subscriptions'], subscriptions)
+        row['max_subscriptions'] = max(row['max_subscriptions'], subscriptions)
+
+    def send(self, at, build_seconds, send_seconds, *, delivered):
+        row = self.bucket(at)
+        key = 'delivered_frames' if delivered else 'failed_frames'
+        row[key] += 1
+        if delivered:
+            self.delivered_frames += 1
+        else:
+            self.failed_frames += 1
+        row['max_book_build_ms'] = max(row['max_book_build_ms'], build_seconds * 1000)
+        row['max_send_ms'] = max(row['max_send_ms'], send_seconds * 1000)
+
+    def snapshot(self):
+        cpu = self.cpu_stat()
+        return dict(seconds=[dict(row) for row in self.seconds], discarded_seconds=self.discarded_seconds,
+                    delivered_frames=self.delivered_frames, failed_frames=self.failed_frames,
+                    process_cpu_seconds=time.process_time() - self.process_cpu_origin,
+                    cgroup_cpu=cpu, cgroup_cpu_delta={key: value - self.cpu_origin[key]
+                                                      for key, value in cpu.items() if key in self.cpu_origin})
 
 
 class Exchange:
@@ -57,6 +113,7 @@ class Exchange:
         self.target_updates_per_second = 0
         self.market_update_count = 0
         self.market_rate_changed = asyncio.Event()
+        self.market_diagnostics = None
 
     def event(self, order, fill=None):
         message = copy.deepcopy(self.fixtures["order_event"])
@@ -169,6 +226,9 @@ class Exchange:
                 continue
             except asyncio.TimeoutError:
                 pass
+            diagnostics = self.market_diagnostics
+            if diagnostics is not None:
+                diagnostics.cycle(next_update, time.monotonic(), subscriptions)
             for socket, args_list in list(self.socket_args.items()):
                 try:
                     for arg in list(args_list):
@@ -184,7 +244,18 @@ class Exchange:
                         if (socket.closed or arg.get("channel") != "books" or pair.removesuffix("-SWAP") in self.stale_pairs
                                 or pair in self.stale_instruments):
                             continue
-                        await socket.send_json({"arg": arg, "action": "snapshot", "data": [self.book(pair)]})
+                        if diagnostics is None:
+                            await socket.send_json({"arg": arg, "action": "snapshot", "data": [self.book(pair)]})
+                        else:
+                            started = time.monotonic()
+                            book = self.book(pair)
+                            built = time.monotonic()
+                            try:
+                                await socket.send_json({"arg": arg, "action": "snapshot", "data": [book]})
+                            except ConnectionError:
+                                diagnostics.send(time.monotonic(), built - started, time.monotonic() - built, delivered=False)
+                                raise
+                            diagnostics.send(time.monotonic(), built - started, time.monotonic() - built, delivered=True)
                         self.market_update_count += 1
                 except ConnectionError:
                     # A client may close after the check and before send_json.
@@ -207,7 +278,8 @@ class Exchange:
             return await self.websocket(request)
         if path == "/market-metrics":
             return web.json_response({"market_update_count": self.market_update_count,
-                                      "observed_at_monotonic": time.monotonic()})
+                                      "observed_at_monotonic": time.monotonic(),
+                                      **({'diagnostics': self.market_diagnostics.snapshot()} if self.market_diagnostics else {})})
         if path == "/working-orders":
             return web.json_response({"orders": [order for order in self.orders.values()
                                                  if order["state"] in ("live", "partially_filled")]})
@@ -341,6 +413,8 @@ class Exchange:
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
 
     async def control(self, data):
+        if 'market_diagnostics' in data:
+            self.market_diagnostics = MarketDiagnostics() if data['market_diagnostics'] else None
         if 'fill_on_cancel' in data:
             # One-shot deterministic cancellation race, using the normal fill
             # ledger/balance/WS implementation rather than inventing exposure.

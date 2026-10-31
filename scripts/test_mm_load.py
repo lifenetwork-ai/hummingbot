@@ -187,6 +187,7 @@ def main():
     parser.add_argument("--refresh-seconds", type=int, help="Diagnostic-only accelerated quote refresh")
     parser.add_argument("--trace", action="store_true", help="Bounded request/SQL/commit/loop-stack/PG-wait traces; no parameters or credentials")
     parser.add_argument('--gc-diagnostics', action='store_true', help='Minimal bounded full-GC timing in the test wrapper; no GC policy changes')
+    parser.add_argument('--market-diagnostics', action='store_true', help='Opt-in bounded simulator burst scheduling/send metrics')
     parser.add_argument("--strict-guards", action="store_true", help="Explicit strict-guard fixture; production defaults remain disabled")
     parser.add_argument("--drawdown", action="store_true", help="Explicit drawdown limits; production defaults remain disabled")
     parser.add_argument("--spot-outflow", action="store_true", help="Explicit outflow policy, bound on an empty DB before historical seeding")
@@ -223,6 +224,7 @@ def main():
                     operations_reads_per_second=3 if args.operations else 0,
                     tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap, inventory_skew=args.inventory_skew,
                     gc_diagnostics=args.gc_diagnostics,
+                    market_diagnostics=args.market_diagnostics,
                     daily_cache_ttl_seconds=args.daily_cache_ttl_seconds,
                     continue_after_budget_failure=args.keep_going, windows={})
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
@@ -370,6 +372,8 @@ def main():
                     if name == "soak":
                         _, _ = command(harness, port, "switch", market_mode="both", selection="random", duration_seconds=7200)
                     options = (("--random-soak",) if name == "soak" else ()) + (("--operations",) if args.operations else ())
+                    if args.market_diagnostics:
+                        options += ('--market-diagnostics',)
                     data = run_window(harness, bot, client, name, duration, report, burst=name == "bursts", options=options)
                     data["command_seconds"] = data["control_results"].get("command_seconds", controls)
                     data["ledger"] = verify_ledger(harness, port)
