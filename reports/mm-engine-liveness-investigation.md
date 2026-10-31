@@ -148,3 +148,16 @@ cause.
 
 See [machine-readable evidence](mm-engine-liveness-investigation-evidence.json)
 and [full release report](e526-release.md).
+
+
+## Focused follow-up — 2026-10-31
+
+A bounded review reconfirms that the old event lacks probe reason/status,
+consecutive failure timing and supervisor scheduling-gap evidence. Its cause
+remains **not reproduced / insufficient historical evidence**. No new engine or
+watchdog change is justified by the existing timeline. The tested diagnostics
+are now included in packaged candidates; the earlier source-overlay limitations
+above describe the historical runs, not the current artifact. See the
+[current follow-up](mm-burst-followup.md) for short experiments, failed results,
+and current-candidate verification. Historical root-cause closure and release
+acceptance remain distinct.

@@ -1,7 +1,8 @@
 # Remaining acceptance investigation — 2026-10-31
 
-Status: short diagnostics in progress. The three previously verified bugs stay
-closed. This follow-up does not claim an additional trading runtime defect.
+Status: three short diagnostics complete; burst shortfall not reproduced. The
+three previously verified bugs stay closed. No additional trading runtime defect
+is established; current-candidate release validation is pending.
 
 ## Starting evidence
 
@@ -42,3 +43,68 @@ Raw Red/Green logs: `build/burst-investigation-20261031/`.
 - Current candidate combined release gate and matched ordinary-entrypoint control.
 
 No historical failed result is changed or merged with a separate passing retry.
+
+
+## Bounded short results
+
+Native tests pass **36 cases** after the five initial Red failures. Diagnostic
+commit: `44c82ecd8`. Restored image `5973410d` has the same verified service and
+connector hashes as `81fa1448`; tracked application source, controller, build and
+configuration files have no diff from the previously verified runtime commit.
+Runtime ABI/JIT/TLS/logging smoke passes. The image was rebuilt because the old
+artifact was no longer present, not to apply a speculative engine fix.
+
+| Short case | Feed/s | API p99 | Result |
+| --- | --- | --- | --- |
+| Diagnostics disabled | 509.67 | 1,476.59ms | **fail**, primary and auxiliary p99; zero HTTP errors, 90 matching fills |
+| Diagnostics enabled | 509.83 | 97.47ms | pass; zero errors, 90 matching fills |
+| Diagnostics plus 307 known canceled order snapshots | 509.78 | 75.64ms | pass; zero errors, 90 matching fills |
+
+All three use the same image, resource caps and threshold. The third changes
+only the explicitly recorded diagnostic exchange fixture to preload canceled
+history under non-bot identities. It does not replay prior positions/fills or
+reconstruct the original subscription timing, and is not release acceptance.
+The ordinary and instrumented fresh cases share source/fixture hashes. These
+results are sequential observations, not a statistically established causal
+comparison or permission to discard the first failed p99 result.
+
+Both instrumented bursts show four book subscriptions and no failed sends or
+cgroup CPU throttling. Their ten-second process/container CPU demand is modest:
+about 0.80s fresh and 1.13s with terminal history. Maximum scheduling lateness is
+21.83/62.58ms; maximum wall time building one book is 0.56/52.82ms and sending is
+0.50/15.50ms. Wall spans can include descheduling; they do not establish CPU
+attribution to the book algorithm. Both delivered the required rate, so the
+307-order preload did not reproduce the shortfall. The reason for the original
+498.033/s measurement remains unproven; the newly retained measurements are
+available if it recurs. The bounded short investigation stops here rather than
+repeating until every failed metric disappears.
+
+The first short case has API handler maxima around 471ms, API worker queue
+maximum around 63ms, and end-to-end p99 1.48s. The client metric deliberately
+includes scheduled dispatch/backlog time. Existing aggregate metrics do not
+attribute every slow request to a complete timestamped path. No SQL, client or
+engine root cause is assigned without that evidence.
+
+## Focused supervisor review
+
+The original `child_unresponsive` occurs 126.698s after the reporting fallback,
+22.125s after the measured load window and 9.877s after a successful engine
+cancellation callback. The original event lacks typed probe status, consecutive
+failure timestamps and supervisor scheduling gaps. Its eight-second rolling
+lag maximum is not a timestamped stack-duration attribution, and the old trace
+also drops spans. These missing historical facts cannot be recovered by a fresh
+passing test. Outcome: **not reproduced / insufficient historical evidence**.
+
+Current supervision retains reason/status/count/elapsed/gap and controller
+progress details. Existing shipping fault tests cover API/engine crash and hang,
+ownership/recovery and retained HALT. Recheck that harness on the restored image;
+do not expand watchdog grace or bypass ownership to make an unknown event pass.
+The original cause stays open. The closed controller scheduling race is not
+retroactively assigned as its cause.
+
+Machine-readable measurements: [follow-up evidence](mm-burst-followup-evidence.json).
+
+Shipping supervision on restored image `5973410d` passes all existing cases,
+including independent API replacement, engine crash/hang, retained HALT and
+parent cleanup. This verifies current behavior; it does not identify the old
+incident cause. The full gate is the next separate acceptance step.

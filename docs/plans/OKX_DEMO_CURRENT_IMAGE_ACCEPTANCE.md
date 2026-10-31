@@ -408,3 +408,14 @@ old supervisor cause; any remaining uncertainty stays explicit for the operator.
 If a gate fails, keep the result and investigate that failure before another
 long repeat. No automatic deployment or real-exchange trading is part of this
 plan.
+
+
+Execution checkpoint: diagnostic commit `44c82ecd8` passes 36 related native
+checks after five Red tests. Restored image `5973410d` retains the previously
+verified application source; runtime smoke passes. Three short cases complete:
+all deliver more than 509/s; the first fails p99, the other two pass. A preload
+of 307 known canceled orders does not reproduce the burst shortfall. Historical
+burst and supervisor causes remain open; the bounded diagnostic stage is
+complete, with no new runtime defect established. See the
+[follow-up report](../../reports/mm-burst-followup.md). Current-candidate full
+release and matched ordinary-entrypoint control remain pending.
