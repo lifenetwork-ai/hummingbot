@@ -6,6 +6,16 @@ from collections import deque
 from pathlib import Path
 
 
+def capture_limit(value):
+    """Explicit test-only capacity; disk and in-memory limits stay independent."""
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        raise ValueError('Incident capture count must be an integer within 1..128')
+    count = int(value)
+    if not 1 <= count <= 128:
+        raise ValueError('Incident capture count must be an integer within 1..128')
+    return count
+
+
 class IncidentBuffer:
     def __init__(self, sink, *, max_records=256, max_bytes=512 * 1024,
                  history_seconds=10, tail_seconds=10, max_incidents=32):

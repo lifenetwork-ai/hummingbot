@@ -15,6 +15,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from test.e2e.offline.load_incidents import capture_limit  # noqa: E402
+
 from scripts.mm_load_budgets import soak_violations, violations  # noqa: E402
 from scripts.mm_load_faults import fault_windows  # noqa: E402
 from scripts.mm_load_ledger import funding_ledger_violations, ledger_violations  # noqa: E402
@@ -187,6 +189,7 @@ def main():
     parser.add_argument("--refresh-seconds", type=int, help="Diagnostic-only accelerated quote refresh")
     parser.add_argument("--trace", action="store_true", help="Bounded request/SQL/commit/loop-stack/PG-wait traces; no parameters or credentials")
     parser.add_argument('--incident-diagnostics', action='store_true', help='Bounded stack/SQL/CPU prehistory automatically retained on failed probes or loop stalls')
+    parser.add_argument('--incident-max-captures', type=capture_limit, default=32, help='Test-only incident count within 1..128; keep independent RAM/disk caps')
     parser.add_argument('--gc-diagnostics', action='store_true', help='Minimal bounded full-GC timing in the test wrapper; no GC policy changes')
     parser.add_argument('--market-diagnostics', action='store_true', help='Opt-in bounded simulator burst scheduling/send metrics')
     parser.add_argument("--strict-guards", action="store_true", help="Explicit strict-guard fixture; production defaults remain disabled")
@@ -201,6 +204,8 @@ def main():
     args = parser.parse_args()
     if args.trace and args.incident_diagnostics:
         parser.error('Use either full tracing or incident diagnostics to keep their overhead distinct')
+    if args.incident_max_captures != 32 and not args.incident_diagnostics:
+        parser.error('incident-max-captures requires incident-diagnostics')
     if not math.isfinite(args.daily_cache_ttl_seconds) or not 0 <= args.daily_cache_ttl_seconds <= 60:
         parser.error('daily-cache-ttl-seconds must be finite and within 0..60')
     if args.volatility_defense:
@@ -229,6 +234,7 @@ def main():
                     gc_diagnostics=args.gc_diagnostics,
                     market_diagnostics=args.market_diagnostics,
                     incident_diagnostics=args.incident_diagnostics,
+                    incident_max_captures=args.incident_max_captures,
                     release_scope_complete=False,
                     daily_cache_ttl_seconds=args.daily_cache_ttl_seconds,
                     continue_after_budget_failure=args.keep_going, windows={})
@@ -325,10 +331,11 @@ def main():
                     harness.env['HBOT_LOAD_GC_DIAGNOSTICS'] = '1'
                 incident_directory = report / 'incidents' if args.incident_diagnostics else None
                 if incident_directory:
+                    harness.env['HBOT_LOAD_INCIDENT_MAX_CAPTURES'] = str(args.incident_max_captures)
                     incident_directory.mkdir()
                     incident_directory.chmod(0o777)
                     evidence['incident_policy'] = dict(history_seconds=10, tail_seconds=10, max_records=256,
-                                                       max_buffer_bytes_per_role=512 * 1024, max_incidents_per_role=32,
+                                                       max_buffer_bytes_per_role=512 * 1024, max_incidents_per_role=args.incident_max_captures,
                                                        max_disk_bytes_per_role=32 * 1024**2,
                                                        sampling_ms=250, watchdog_poll_ms=50, max_active_spans=16,
                                                        parameters_and_frame_locals=False)
@@ -343,7 +350,10 @@ def main():
                 bot, port = harness.start("load-bot", instrumented=True, trace_directory=trace_directory,
                                           incident_directory=incident_directory, cpus=args.cpus)
                 docker("update", "--cpus", args.cpus, "--memory", "2g", "--memory-swap", "2g", bot)
-                poll(lambda: read_metrics(harness, bot), timeout=30, description='complete fresh runtime role metrics')
+                initial_metrics = poll(lambda: read_metrics(harness, bot), timeout=30, description='complete fresh runtime role metrics')
+                if args.incident_diagnostics:
+                    for role_metrics in initial_metrics.get('role_metrics', {'combined': initial_metrics}).values():
+                        assert role_metrics.get('incident_capture', {}).get('max_incidents') == args.incident_max_captures, 'Incident capacity not applied to runtime role'
                 poll(lambda: bool(harness.state().get("status")), description="load owner status")
                 print(f"Local load evidence: {report}", flush=True)
                 if args.spot_outflow:

@@ -18,7 +18,7 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 from aiohttp import web
-from load_incidents import IncidentBuffer
+from load_incidents import IncidentBuffer, capture_limit
 from load_process_metrics import collect_requested, process_snapshot
 from load_trace import (
     FullGCProbe,
@@ -89,7 +89,8 @@ trace_sink = TraceSink(Path(trace_directory) / ('server-api.jsonl' if process_ro
 incident_sink = TraceSink(Path(incident_directory) / (process_role + '-incidents.jsonl'),
                           max_bytes=32 * 1024**2, queue_limit=256, append=True) if incident_directory else None
 incidents = IncidentBuffer(lambda row: incident_sink.emit({**row, 'capturing_pid': os.getpid(),
-                                                          'capturing_role': process_role})) if incident_sink else None
+                                                          'capturing_role': process_role}),
+                           max_incidents=capture_limit(os.environ.get('HBOT_LOAD_INCIDENT_MAX_CAPTURES', '32'))) if incident_sink else None
 tracer = TraceRecorder(trace_sink.emit) if trace_sink else TraceRecorder(incidents.emit, max_children=16) if incidents else None
 loop_beat_ns = time.monotonic_ns()
 watchdog_stop = threading.Event()

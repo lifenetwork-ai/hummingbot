@@ -10,6 +10,9 @@ pending execution; older checkpoints are history, not additional tasks.
 - [ ] **R1 — Complete current-image release verification:** freeze the image
   and harness hashes; run warm300/mixed900/burst90/continuous-soak3600 and all six
   recovery faults as one uninterrupted gate, with the validated incident recorder.
+  Set its test-only capture count to128 for this long run; retain the same
+  512KiB ring and 32MiB stream caps per role. Record/verify the applied policy
+  before measurement. The earlier short comparisons used the default32.
   Keep 2 CPUs/2GiB, pool5, TTL15, history, rates and error/latency/retention budgets.
   Preserve any failure and diagnose it before another long repeat. No separate
   passing windows may be combined into a pass. The measured windows alone take

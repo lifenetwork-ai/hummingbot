@@ -1,6 +1,31 @@
 """Incident capture preserves bounded context without changing health decisions."""
 import json
-from test.e2e.offline.load_incidents import IncidentBuffer, ProbeIncidentPublisher
+from test.e2e.offline.load_incidents import IncidentBuffer, ProbeIncidentPublisher, capture_limit
+
+import pytest
+
+
+@pytest.mark.parametrize('value', [1, 32, 128, '1', '32', '128'])
+def test_capture_limit_accepts_only_bounded_explicit_counts(value):
+    assert capture_limit(value) == int(value)
+
+
+@pytest.mark.parametrize('value', [0, 129, -1, True, 1.5, '', '1.5', 'bad'])
+def test_capture_limit_rejects_invalid_or_unbounded_configuration(value):
+    with pytest.raises(ValueError):
+        capture_limit(value)
+
+
+def test_explicit_long_run_limit_preserves_incident_33_with_same_ring_bounds():
+    rows = []
+    capture = IncidentBuffer(rows.append, max_incidents=capture_limit('128'), tail_seconds=1)
+    for n in range(33):
+        capture.trigger({'kind': 'probe_failure', 'at_ns': n * 2_000_000_000})
+    assert len(rows) == 33
+    assert capture.summary()['incidents'] == 33
+    assert capture.summary()['suppressed_incidents'] == 0
+    assert capture.summary()['max_records'] == 256
+    assert capture.summary()['max_bytes'] == 512 * 1024
 
 
 def test_incident_flushes_preceding_records_and_keeps_recovery_tail():
