@@ -2,7 +2,12 @@
 
 Status: producer defect fixed with Red/Green tests; two short diagnostics passed;
 full-load confirmation on `dd602fb2` failed on a separately reproduced controller
-scheduling race. Runtime correction `3789b2500` is being packaged for verification.
+scheduling race. Its correction passes shipping-image fault verification. The
+next repeat exposes an OKX lost-order retention defect; all three corrections
+are now packaged as `81fa1448` (source `fc0ee55b8`). Native release regression:
+**2,092 tests and 11 subtests passed**; packaged E2E and supervised fault tests
+pass. The 60-minute soak passes, but the full run fails its burst generator rate;
+a separate same-image, same-fixture burst retry passes. See details below.
 No production risk guard, health grace or acceptance deadline was relaxed.
 
 ## Confirmed defect
@@ -117,9 +122,10 @@ and eight exact, duplicate-safe recorder fills with matching positions. Logs
 show both controllers were in `sleep`, 6.5–6.9s overdue, then made real progress
 before the confirmed check; the patch did not invent a healthy heartbeat.
 Artifact: `build/controller-stall/20261031-061636-c97288/result.json`. Packaged
-`service.py` hash matches the reviewed source. Full release confirmation is
-still pending. Full native release regression passes **2,069 tests and 11
-subtests**; all **17 packaged E2E groups** and shipping supervision pass.
+`service.py` hash matches the reviewed source. Its subsequent full-load attempt
+failed the mixed fill-rate gate and was interrupted during partial soak. Native
+regression passes **2,069 tests and 11 subtests**; all **17 packaged E2E groups**
+and shipping supervision pass. The final image results are recorded below.
 The separate older sustained supervisor-liveness incident still lacks enough
 evidence to identify its historical cause; this report does not claim otherwise.
 
@@ -152,6 +158,78 @@ is preserved. Cancellation-error handling is outside this targeted change.
 TDD: both previously disabled upstream lifecycle tests fail before the fix;
 after correction, the affected suite passes **126 tests and two subtests**,
 including 23 new response-classification checks. The shared checks are included
-in `make test-cloudrun-regression`. Packaging and full load verification remain
-pending. This defect has **not** been established as the cause of the three-fill
-mixed-window shortfall, and the report makes no such claim.
+in `make test-cloudrun-regression`. The final image, 60-minute soak and targeted
+burst repeat are verified below; the combined full run remains failed. This
+defect has **not** been established as the cause of the three-fill mixed-window
+shortfall, and the report makes no such claim.
+
+
+## Why earlier tests did not catch these defects
+
+| Defect | Missing coverage | Added regression |
+| --- | --- | --- |
+| Post-window fill generation | Empty book / pending lookup at generation deadline were not distinguished from dispatched work | Boundary tests fail before the correction; dispatched and stuck-request controls preserve drain semantics |
+| Controller false HALT | A delayed healthy controller and observer could be scheduled in the opposite order; hung-task coverage alone did not exercise it | Ready callback and expired timer Red/Green tests, plus old/new shipping-image SIGSTOP/SIGCONT reproduction |
+| OKX lost-order retention | Both status-not-found classifiers were TODOs and inherited lifecycle tests had been overridden with disabled test bodies | Re-enable upstream lifecycle tests; classify explicit absence separately from ambiguous payloads and transport failures |
+
+A high passing test count did not cover these missing branches. The prior review
+missed disabled upstream coverage and asynchronous boundary conditions. The
+new regressions constrain the demonstrated defects; they do not establish that
+all scheduling, exchange or retention failures are impossible.
+
+
+## Final image validation and remaining limitation
+
+Immutable image `sha256:81fa144825b1c63aef634e71a19b7e371ede33c430f607c3d84ec649df7c3fb6`
+packages source commit `fc0ee55b8`; SHA-256 checks of the changed connector
+files and service match source. Native release: **2,092 tests, 11 subtests**;
+PostgreSQL integration: **268 tests**; packaged E2E: **17 groups**, including
+upgrade/rollback; shipping supervision: passed. Controller scheduling fault
+experiment on this image: three 6.55–6.58-second engine pauses, same PID/session,
+no erroneous HALT, eight unique fills and positions reconcile.
+
+Full unchanged load run `build/mm-load/20261031-082445-9a99bd` remains **failed**:
+
+| Window | Result | Actual evidence |
+| --- | --- | --- |
+| Warmup 300s | pass | 300 fills; zero errors; API p99 346.58ms |
+| Mixed 900s | pass | 899/900 fills, within existing one-fill tolerance; zero errors; p99 272.49ms |
+| Burst 90s | **fail** | generator measured 498.033/s, below required 500/s; API p99 911.01ms; 90 fills |
+| Random soak 3600s | pass | 3,594 fills, shortfall 6 observed; zero errors; p99 138.24ms; drain 0.179s |
+
+The burst failure is a failed feed-rate assertion, not an HTTP failure: all
+1,800 primary and 450 auxiliary requests returned 200. The exact reason the
+simulator missed the target in that run is not established. All six injected
+fault scenarios passed. All **4,883 actual cumulative fills** through soak match
+recorder quantities/fees; positions agree. Random soak throughput is observed,
+as declared by the existing gate, because readiness can pause quote generation.
+No claim is made that each of the six ungenerated fills is caused by a specific
+transition.
+
+There were 58 minute samples: 56 `running`, two `waiting_for_mm_readiness`, no
+HALT, no PID change. At sample 21, volatility defense logged perpetual
+`market_liquidity_unqualified` at 02:09:18.811 UTC and `normal` at 02:09:19.817;
+at sample 33 the same occurred for spot at 02:21:42.694 and 02:21:43.702 UTC.
+These are observed brief safety waits, not engine restarts. Supervisor logged
+19 transient probe failures and all 19 recoveries across measured windows.
+The largest sampled engine event-loop delay was 1.425s; this run cannot establish
+absolute isolation or identify the original unexplained sustained-liveness event.
+
+The 58-sample retention gate passes: first/last-five median RSS growth is 0 MiB
+supervisor, 13.99 MiB engine, and 0.125 MiB API; engine threshold is 64 MiB.
+Thread and FD checks also pass. The harness label `RSS` in its summary prints
+container cgroup memory including page cache, while process RSS is measured
+separately; these values must not be added as independent physical memory.
+One hour without excessive growth is not proof that indefinite execution can
+never leak.
+
+Independent burst retry `build/mm-load/20261031-095522-67306b` on the same
+image, with matching source/fixture hashes and unchanged 500/s minimum, **passes**:
+509.80 delivered updates/s for 10.004s; zero errors, API p99 562.68ms; 90 unique
+fills and positions reconcile. It is a separate retry with a fresh fixture, not
+a retroactive pass for the failed combined run. A single pass does not prove
+why the prior generator achieved only 498.033/s or eliminate recurrence.
+
+Demo preservation check: image and stopped control/ack versions unchanged; all
+orders, trade fills, executors and positions hashes match the baseline. Local
+test containers were removed. No Demo or live exchange orders were submitted.

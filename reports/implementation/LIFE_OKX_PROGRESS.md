@@ -1990,3 +1990,14 @@ HTTP-success order-absence code 51603 and retain/poll the lost order indefinitel
 Re-enabled upstream Red tests reproduce it; the shared decoder reuses existing
 tracker cleanup, with 126 tests/two subtests Green. Latest-image release gates
 remain pending; this is not a claimed cause of the mixed fill shortfall.
+
+
+2026-10-31 final image `81fa1448` (source `fc0ee55b8`): native 2,092 tests/11
+subtests, PostgreSQL 268, all 17 packaged E2E groups, shipping supervision and
+three pause/resume controller experiments pass. The full load run passes the
+60-minute soak and all six faults, reconciling 4,883 cumulative fills/positions;
+it **fails overall** because the burst generator delivered 498.033/s under its
+500/s requirement. An independent same-image/source/fixture burst retry passes
+at 509.80/s; it does not erase or explain the first failure. Demo fingerprints,
+control and image unchanged. Detailed causes, missing tests, timings and open
+limits: [Random/availability report](../mm-random-handover.md).
