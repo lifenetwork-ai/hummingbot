@@ -28,7 +28,11 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   DTO reuse passes103 native/11 PostgreSQL cases after3 Red failures; paired report
   CPU is0.867 →0.320ms for eight partial-fill executors. Controller selection
   passes70 native/23 PostgreSQL cases after9 Red failures; lookup is0.0935 →0.00313ms.
-  All three source phases are checked done; broad/image verification is running.
+  All three source phases are checked done. Declared native regression2178 plus11
+  subtests, PostgreSQL268, Swagger and three targeted image groups pass on candidate
+  `4971ea59324e` (source `d3c34153a`, four-module derivative of accepted runtime).
+  Nine profile/market cases, restart/fills/fees and fault HALT are verified; Demo
+  fingerprints are unchanged. No new hour soak/full image release is claimed.
   These source changes do not extend
   the frozen image's acceptance; see the
   [checklist](../performance/life-mm-runtime-optimization.md#2026-11-01-ordered-implementation).

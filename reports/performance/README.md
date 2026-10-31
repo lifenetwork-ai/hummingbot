@@ -11,5 +11,5 @@ Compare runs only within their declared image, fixture and measurement scope.
 | [Full-image soak retest](life-mm-soak-retest.md) | [Gate evidence](life-mm-soak-retest-evidence.json); sixty-minute gate passed; further reproduction closed by user decision |
 | [Load and soak results](life-mm-load-tests.md) | [Original acceptance JSON](life-mm-load-acceptance.json) |
 | [MM optimization review](life-mm-optimization-review.md) | Cache, SQL and task-lifecycle follow-up |
-| [Runtime flow optimization](life-mm-runtime-optimization.md) | Nov1 ordered changes have targeted TDD verification; broad/image checks running. Earlier acceptance stays separate. [Review](runtime-flow-review-20261101.json), [implementation](runtime-flow-remediation-20261101.json) |
+| [Runtime flow optimization](life-mm-runtime-optimization.md) | All three Nov1 changes complete; native2178/PG268/Swagger and three targeted candidate-image groups pass. Full hour/release scope stays separate. [Review](runtime-flow-review-20261101.json), [implementation](runtime-flow-remediation-20261101.json) |
 | [Pre-listing economic stress](life-mm-economic-stress.md) | [Portable evidence](life-mm-economic-stress-evidence.json); paired 648-case native/Linux replay, synthetic costs/liquidity/PnL, rolling-credit and margin caveats; no profit forecast |

@@ -12,7 +12,8 @@
       "green_native": 26,
       "green_postgres": 13,
       "implementation": "Insertion-ordered pending identities rotate before await; cap four attempts, retain all proof/reservation rules, skip removed snapshot entries",
-      "tests": "test/hummingbot/core/test_spot_outflow_fairness.py"
+      "tests": "test/hummingbot/core/test_spot_outflow_fairness.py",
+      "commit": "9ffb4cf93"
     },
     "executor_reports": {
       "status": "implemented_verified",
@@ -81,7 +82,8 @@
           }
         ]
       },
-      "prior_phase_commit": "9ffb4cf93"
+      "prior_phase_commit": "9ffb4cf93",
+      "commit": "8fcf20fab"
     },
     "controller_selection": {
       "status": "implemented_verified",
@@ -101,14 +103,209 @@
         "baseline_full_models_per_call": 2,
         "implemented_full_models_per_call": 0
       },
-      "prior_phase_commit": "8fcf20fab"
+      "prior_phase_commit": "8fcf20fab",
+      "commit": "d3c34153a"
     }
   },
   "final_verification": {
-    "status": "running",
+    "status": "passed_with_declared_scope",
+    "completed_at_utc": "2026-10-31T22:25:37.513006+00:00",
     "native_command": "make test-cloudrun-regression",
+    "native_groups": [
+      178,
+      11,
+      1418,
+      571
+    ],
+    "native_total": 2178,
+    "native_subtests": 11,
     "postgres_command": "python scripts/test_postgres.py",
-    "new_image": "pending_targeted_verification",
-    "new_full_load_or_soak_claimed": false
+    "postgres_passed": 268,
+    "postgres_seconds": 419.52,
+    "swagger_check_passed": true,
+    "image": {
+      "base_image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
+      "source_commit": "d3c34153a6f9f35508a719b0df68c9cd931b1daa",
+      "source_sha256": {
+        "hummingbot/cli/service.py": "7c52809b0c256e11dd4bd60aec9da88f19237fabe25432d40d35d207705cd5ef",
+        "hummingbot/client/config/mm_profiles.py": "47e63693adb808e0d5d0b9f616f030476e8fcd7a73040bd5b704d258cd7ec2f2",
+        "hummingbot/core/spot_outflow_guard.py": "b406c526a61b410acc3e1a7464f5df5bb2a53249213f3a2eb5b38fd1032dc3a6",
+        "hummingbot/strategy_v2/executors/executor_orchestrator.py": "d9c9ca0b6e00921429ad4d12fe76b3fb11d2babf2adae58ddd4801f19016b14c"
+      },
+      "method": "Local derivative of accepted image with exactly four changed Python modules; native dependencies unchanged, not a clean full Dockerfile rebuild",
+      "image_id": "sha256:4971ea59324ecc187f3e2784b93973e9399edd81c90b5af90c33606638f17218",
+      "image_size_bytes": 1367602404,
+      "packaged_hashes_match": true
+    },
+    "e2e": {
+      "image": "hummingbot-cloudrun:flow-optimized",
+      "scenarios": {
+        "spot-outflow": {
+          "result": "build/e2e-offline/20261101-051354-d00202/result.json",
+          "passed": true,
+          "image_id": "sha256:4971ea59324ecc187f3e2784b93973e9399edd81c90b5af90c33606638f17218",
+          "manifest": "sha256:6a1aaaa062517c7a1ee69d7343c1be4f2aef841c790d6bcbf654d521e97fd5f8",
+          "error": null,
+          "exit_code": 0,
+          "scenario_metrics": {
+            "outflow_startup_s": 25.959,
+            "outflow_shutdown_s": 1.987,
+            "outflow-restart_startup_s": 22.892,
+            "spot_outflow": {
+              "buy_only_cap": true,
+              "perpetual_unaffected": true,
+              "funded_sells_continue": true,
+              "partial_commit": true,
+              "original_usdt_fee_and_rebate": true,
+              "duplicates": 2,
+              "terminal_proof_releases": true,
+              "restart_and_mode_switch": true,
+              "bound_identity": true,
+              "used_quote": "2.39999999974000",
+              "effective_config_sha256": "666b24641b7040e4c2bd7dfb8d819f56be160b967b77ed685d4c9206fb537dca"
+            }
+          },
+          "result_sha256": "e60425c884c35000bac47a5d6adcb07cdba22ae9475e54b8efc996b9cc04226e"
+        },
+        "drawdown": {
+          "result": "build/e2e-offline/20261101-051649-9d5b57/result.json",
+          "passed": true,
+          "image_id": "sha256:4971ea59324ecc187f3e2784b93973e9399edd81c90b5af90c33606638f17218",
+          "manifest": "sha256:6a1aaaa062517c7a1ee69d7343c1be4f2aef841c790d6bcbf654d521e97fd5f8",
+          "error": null,
+          "exit_code": 0,
+          "scenario_metrics": {
+            "drawdown_startup_s": 21.079,
+            "drawdown_shutdown_s": 2.046,
+            "drawdown-clean-restart_startup_s": 20.413,
+            "restart_shutdown_s": 2.151,
+            "drawdown-halt-restart_startup_s": 22.614,
+            "drawdown": {
+              "retained_disabled_market": true,
+              "partial_fill_preserved": true,
+              "stale_coverage_waits": true,
+              "coverage_recovers": true,
+              "clean_restart_peak": true,
+              "global_breach_halt": true,
+              "restart_halt": true,
+              "post_halt_start_rejected": true,
+              "retained_feed_has_no_account_mutations": true,
+              "global_peak_quote": "0.125262626000",
+              "fresh_stopped_pnl_not_invented": true,
+              "effective_config_sha256": "a2b8d8ca75f8e355639a0ef7df7ecc45f6891f41d148181e8942f0ae4f112c59"
+            }
+          },
+          "result_sha256": "b42b76391246a27243954df8977a47f5a13bffe441b7723af335b9c3b46e6e98"
+        },
+        "life-mm": {
+          "result": "build/e2e-offline/20261101-051959-e941fe/result.json",
+          "passed": true,
+          "image_id": "sha256:4971ea59324ecc187f3e2784b93973e9399edd81c90b5af90c33606638f17218",
+          "manifest": "sha256:6a1aaaa062517c7a1ee69d7343c1be4f2aef841c790d6bcbf654d521e97fd5f8",
+          "error": null,
+          "exit_code": 0,
+          "scenario_metrics": {
+            "mm-first_startup_s": 20.166,
+            "first_shutdown_s": 1.959,
+            "mm-restart_startup_s": 19.333,
+            "terminal_create_ack_hold_ms": 1224.975830078125,
+            "admin_operations_contract": true,
+            "terminal_cancel_ack_before_create": true,
+            "hbot-e2e-4b790a63d4-mm-restart_failed_engine_reaped": 32,
+            "restart_shutdown_s": 0.93,
+            "mm-db-restart_startup_s": 20.375,
+            "matrix": [
+              {
+                "mode": "spot",
+                "profile": "follow_market",
+                "count": 4
+              },
+              {
+                "mode": "spot",
+                "profile": "sideways",
+                "count": 4
+              },
+              {
+                "mode": "spot",
+                "profile": "follow_token",
+                "count": 4
+              },
+              {
+                "mode": "perpetual",
+                "profile": "follow_market",
+                "count": 4
+              },
+              {
+                "mode": "perpetual",
+                "profile": "sideways",
+                "count": 4
+              },
+              {
+                "mode": "perpetual",
+                "profile": "follow_token",
+                "count": 4
+              },
+              {
+                "mode": "both",
+                "profile": "follow_market",
+                "count": 8
+              },
+              {
+                "mode": "both",
+                "profile": "sideways",
+                "count": 8
+              },
+              {
+                "mode": "both",
+                "profile": "follow_token",
+                "count": 8
+              }
+            ],
+            "cli_mm_stop": true,
+            "legacy_replaces_mm": true,
+            "exact_quote_levels": true,
+            "restart_anchors": true,
+            "weighted_reference": true,
+            "stale_both": true,
+            "fills": 2,
+            "random_steps": true,
+            "expiry": true,
+            "expiry_funding": true,
+            "reconciliation": "matched",
+            "db_fault_halt": true
+          },
+          "result_sha256": "d87776be9591156d154715d5c9ac573ad59688ec74c7df94ce524a57aeae8dfc"
+        }
+      },
+      "scope": "Three targeted simulator cases; no full release or soak claim"
+    },
+    "temporary_test_containers_removed": true,
+    "demo_preservation": {
+      "checked_at": "2026-10-31T22:25:37.486693+00:00",
+      "ledger_hashes": {
+        "orders": "23fb84b15c8186e891d9bef55150244c",
+        "trade_fills": "0670a1868dee14d4377e2b36dcd3b4d8",
+        "executors": "ec4d3c225bb224c5ad2b249b8aece160",
+        "positions": "bd78de05d366df0a875912592f4be8ab"
+      },
+      "control": {
+        "desired_state": "stopped",
+        "control_version": 26,
+        "acknowledged_version": 26,
+        "halt": "false"
+      },
+      "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+      "unchanged": true
+    },
+    "new_full_load_or_soak_claimed": false,
+    "clean_full_dockerfile_rebuild_claimed": false,
+    "release_accepted_for_new_image": false,
+    "limit": "New candidate has native/PG regression and three targeted image scenarios. Earlier full R1/R2 certify only image597; this follow-up does not rerun full image matrix, upgrade/rollback or hour load/soak.",
+    "log_sha256": {
+      "native-regression.log": "2dc299b9b5885102bfbbd813676ff8b0b8ac1a8dac99b9ec3afaffe10f9b6d88",
+      "postgres-regression.log": "856248b883453be686952fb4599159c9aa05bd42bbbfdbe077d79977ffbf73be",
+      "swagger-check.log": "3e38a232de7da785c02fbaadc20de432bb439ca80a7ccbd717aaef9a19523edb",
+      "image-build.log": "57a3eaac2461dec88b5dfba53dcf4372df0eda07934db0ba1b92b211bed1898e"
+    }
   }
 }

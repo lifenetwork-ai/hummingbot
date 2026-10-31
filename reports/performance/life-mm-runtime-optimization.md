@@ -1,7 +1,7 @@
 # Runtime flow optimization
 
-Latest follow-up (2026-11-01): all three ordered source changes have targeted
-Red/Green verification; broad regression and packaged verification are running.
+Latest follow-up (2026-11-01): all three ordered source changes are complete.
+Native regression, PostgreSQL, Swagger and three targeted image scenarios pass.
 See [implementation progress](#2026-11-01-ordered-implementation) and
 [new evidence](runtime-flow-remediation-20261101.json). The original
 [read-only review](#2026-11-01-follow-up--review-only) stays separate. Accepted
@@ -364,10 +364,37 @@ release acceptance is claimed for this read-only follow-up.
   equivalence on arbitrary unvalidated data or a whole-engine performance claim.
 
 The regression Makefile explicitly includes the new fairness and report-snapshot
-tests; controller-selection tests are discovered with the CLI suite. Full native/
-PostgreSQL regression and new packaged targeted checks are running separately.
+tests; controller-selection tests are discovered with the CLI suite.
+
+### Final scoped verification
+
+The declared Cloud Run native target passes **2,178 tests plus11 subtests**;
+the complete PostgreSQL integration job passes **268 tests** in419.52s. Swagger
+drift checking and changed-file hooks pass. Existing dependency deprecation
+warnings remain. These totals are the declared target, not all connectors in
+the upstream repository.
+
+Local candidate `hummingbot-cloudrun:flow-optimized`, image `4971ea59324e` /
+manifest `6a1aaaa06251`, contains source `d3c34153a`. It is a derivative of
+accepted image `5973410d` with exactly the four changed Python modules copied
+over; packaged hashes match the checkout and native dependencies are unchanged.
+It is **not** a clean full Dockerfile rebuild. Size is1,367,602,404 bytes, within
+the existing1.5GiB limit; runtime ABI/JIT/TLS/SDK smoke passes.
+
+Three targeted image groups pass on this exact candidate:
+
+| Scenario | Raw result | Verified scope |
+| --- | --- | --- |
+| Spot outflow | `build/e2e-offline/20261101-051354-d00202/result.json` | BUY-only limits, committed accounting, durable binding and terminal proof behavior |
+| Drawdown | `build/e2e-offline/20261101-051649-9d5b57/result.json` | Retained-market valuation and position-preserving HALT |
+| LIFE MM | `build/e2e-offline/20261101-051959-e941fe/result.json` | All nine profile/market combinations, weighted reference, restart anchors, stale-feed recovery, two deduplicated fills/fees, reconciliation, terminal-before-ACK race, Random step/expiry/funding and DB-failure HALT |
+
+Temporary test containers are removed. The existing Demo image, control and four
+ledger fingerprints remain unchanged. No connected trading or deployment occurs.
+Full image matrix, upgrade/rollback and hour load/soak are **not rerun here**;
+this candidate is not newly release-accepted by borrowing image597's R1/R2.
 
 [Implementation evidence](runtime-flow-remediation-20261101.json) is separate
 from the earlier read-only measurements. No connected account or Demo container
-is changed. A newly built runtime needs its own image verification; historical
-image `5973410d` keeps its accepted results and original source hashes.
+is changed. Historical image `5973410d` keeps its accepted full-release results
+and original source hashes; this candidate's verification has the scope above.

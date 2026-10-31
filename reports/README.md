@@ -11,7 +11,8 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 - [Implementation progress](implementation/LIFE_OKX_PROGRESS.md): chronological
   delivery journal, with a current summary at the top.
 - [Ordered flow follow-up](performance/life-mm-runtime-optimization.md#2026-11-01-ordered-implementation):
-  all three source changes have targeted verification; broad/image checks running.
+  all three changes complete; native2178/PG268 and three image scenarios pass.
+  New candidate `4971ea59` has targeted verification, not a new hour-soak acceptance.
 
 ## Browse by topic
 
