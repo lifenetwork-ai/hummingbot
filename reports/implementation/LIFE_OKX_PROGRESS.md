@@ -5,6 +5,12 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-01
 
+- **Latest latent-bug audit:** four pre-existing defects reproduced, not fixed:
+  pre-intent denial can retain outflow reservations, future-fill flat allowance
+  can understate risk, initial funding YAML failure can be negatively cached,
+  and unsent rejection IDs can accumulate during a continuous fixed session.
+  Conditions and B1–B4 next steps are in the
+  [audit](life-mm-logic-review.md#2026-11-01-latent-bug-audit--fixes-pending).
 - **Completed local release verification:** image `5973410d`, measurement source
   `b7ba104e7`; full R1 and matched shipping R2 pass. R1 reconciles 4,884 fills,
   original fees and positions; soak p99 is 717ms with zero unexpected API errors.

@@ -4,6 +4,8 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [New latent-bug audit](implementation/life-mm-logic-review.md#2026-11-01-latent-bug-audit--fixes-pending):
+  four pre-existing defects reproduced; reservation/fee fixes are the next priority.
 - [Release closeout](release/mm-release-closeout.md): image `5973410d`, full R1
   and matched shipping R2 pass. Earlier failures remain recorded.
 - [Historical-cause review](investigations/mm-historical-cause-review.md): latest

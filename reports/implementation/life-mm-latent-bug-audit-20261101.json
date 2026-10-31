@@ -1,0 +1,68 @@
+{
+  "date": "2026-11-01",
+  "source_revision": "57095f2dfbcc76ea9d8af3f9c940f07c46ea38e2",
+  "scope": "Read-only targeted source audit and four isolated current-code reproductions; mocked ownership/recorder/IO or synthetic Decimal data as described per case. No runtime fixes, DB/network/account mutation, deployment or new release acceptance.",
+  "compared_application_baseline": "fc0ee55b8",
+  "audited_files_identical_to_baseline": true,
+  "predates_last_three_optimizations": true,
+  "source_sha256": {
+    "hummingbot/core/bot_ownership.py": "7adabf5f0d21a2248cfd9653041ea982bedc9711985ea6b70a9cf90cf96648db",
+    "hummingbot/core/spot_outflow.py": "8c02c16533256cd1e311d6a2c7972cc5ee9283ba6b6fee2d2912b5daf3be0d59",
+    "hummingbot/cli/funding_observer.py": "9427d99665ab6c083c7ba767035dc2bf65c1d1c6fac38d73089183635104594e"
+  },
+  "findings": {
+    "B1": {
+      "scope": "Actual before_order/order_failed/outflow methods; mocked healthy ownership, identity and recorder, no DB/network",
+      "intent_record_calls": 0,
+      "active_intents": 0,
+      "sent_intents": 0,
+      "positive_unsent_evidence": true,
+      "reserved_quote": "10",
+      "tracked_orders": 1,
+      "terminal_pending": 1,
+      "reason": "spot_outflow_reconciling",
+      "next_buy_preview": false,
+      "reproduced": true
+    },
+    "B2": {
+      "scope": "Actual projection methods, exact synthetic Decimal fills; same nonzero flat-fee allowance on both orders, two future-dated fills, no network/DB",
+      "known_future_debit": "20.0",
+      "reported_reserved_before_next": "15",
+      "next_order_notional": "5",
+      "next_order_flat_fee_allowance": "5",
+      "next_order_reserved_cost": "10",
+      "next_order_accepted": true,
+      "cap": "25",
+      "known_debit_plus_next": "30",
+      "reproduced": true
+    },
+    "B3": {
+      "scope": "Actual FundingObserver.collect with fake store/owner and one transient catalogue read error; idle service, no credentials or network",
+      "collect_attempts": 2,
+      "catalogue_load_attempts": 1,
+      "cached_template_pairs": [],
+      "reader_factory_calls": 0,
+      "error": "OSError",
+      "reproduced": true
+    },
+    "B4": {
+      "scope": "Actual order_failed and _check_intents with empty mocked durable-intent query and no resident connectors/orders; no DB/network",
+      "locally_rejected_orders": 10000,
+      "resident_active_intents": 0,
+      "resident_sent_intents": 0,
+      "resident_connectors": 0,
+      "retained_unsent_ids": 10000,
+      "estimated_container_and_strings_bytes": 1113394,
+      "only_explicit_clear": "prepare() on new preparation",
+      "reproduced": true
+    }
+  },
+  "severity": {
+    "B1": "P1 availability: pre-intent rejection leaks reservation",
+    "B2": "P1 risk admission, conditional: repeated future-fill flat fee coverage understates known exposure",
+    "B3": "P2 funding recovery: failed initial config read is negatively cached",
+    "B4": "P2 retention: unsent rejection IDs accumulate until prepare"
+  },
+  "fixes_implemented": false,
+  "historical_release_outcomes_changed": false
+}

@@ -1,6 +1,12 @@
 # LIFE MM logic-flow review — 2026-10-26
 
-Status: fixes, final native/real-PostgreSQL checks, rebuilt-image E2E and the
+Latest audit (2026-11-01): **four additional defects reproduced; fixes pending**.
+See [the new findings](#2026-11-01-latent-bug-audit--fixes-pending) and
+[portable evidence](life-mm-latent-bug-audit-20261101.json). They predate the last
+three flow optimizations. This read-only review does not alter runtime or
+retroactively change earlier passing release/test results.
+
+Historical 2026-10-26 status: fixes, final native/real-PostgreSQL checks, rebuilt-image E2E and the
 isolated load probe pass. All review checklist items are complete. The implementation
 reuses the existing service, MM controller, control store, connector helpers and
 funding checkpoint. No new framework, storage table or cache is needed.
@@ -103,3 +109,118 @@ These short observations show run-to-run tail variation; they neither establish
 a cause for the first spike nor demonstrate a sustained performance improvement.
 SQL query budgets remain bounded: orders at most three statements,
 fills/performance one, daily statistics six. No extra cache was introduced.
+
+## 2026-11-01 latent-bug audit — fixes pending
+
+This targeted audit inspects intent admission/cleanup, partial-fill outflow,
+session/Random transitions, owner recovery, shutdown and funding observation.
+Four isolated current-code reproductions confirm the defects below. Ownership,
+recorder or filesystem dependencies are mocked where stated; no connected venue,
+Demo account, database or runtime configuration is changed. This is not an
+exhaustive proof that the remaining code has no defects.
+
+The three affected files are byte-identical to application baseline `fc0ee55b8`.
+These are pre-existing gaps, not regressions introduced by the three optimizations
+committed as `9ffb4cf93`, `8fcf20fab` and `d3c34153a`. Passing earlier release
+results retain their image/scope; they do not exercise every edge case here.
+
+### B1 — P1: rejection before intent recording leaves spot reservation behind
+
+[`before_order`](../../hummingbot/core/bot_ownership.py#L201) reserves spot outflow
+before checking the final quote policy and recording the intent. If the quote
+check rejects, no active intent was added. However,
+[`order_failed`](../../hummingbot/core/bot_ownership.py#L233) releases unsent outflow
+only inside its active-intent branch. The earlier reservation/tracked order stays.
+
+Reproduction uses the actual owner/outflow methods with mocked healthy ownership,
+identity and recorder, then injects a legitimate `spread_policy_quote_rejected`.
+After the local FAILED transition, there are zero recorded/active/sent intents,
+positive no-transport evidence, but10 USDT remains reserved and one terminal proof
+is pending. The next BUY preview returns false with `spot_outflow_reconciling`.
+No order was submitted to the venue in this reproduction.
+
+The terminal reconciler cannot establish a positive venue proof for an order that
+never existed. This can leave BUY waiting until explicit recovery/session cleanup;
+the same obligation also reaches the shutdown proof path. The downstream shutdown
+effect follows from source inspection, not a reproduced process crash.
+
+Fix direction: unwind pre-intent side effects when no transport is possible;
+preserve durable unsent rejection, owner fencing and uncertain-send HALT behavior.
+Cover quote rejection after reservation, failed intent recording, failures after
+a recorded intent, cancellation and sent/unknown outcomes. Merely clearing every
+failed order would discard necessary uncertainty protection.
+
+### B2 — P1, conditional: fixed-fee coverage reused for multiple future fills
+
+In [`SpotOutflowProjection.add_fill`](../../hummingbot/core/spot_outflow.py#L174),
+each future fill subtracts a coverage amount including the order's entire flat-fee
+allowance. [`reserved`](../../hummingbot/core/spot_outflow.py#L192) includes that
+flat allowance only once. Multiple future fills can therefore receive the same
+coverage repeatedly and understate known debit risk.
+
+The exact Decimal reproduction uses a25 USDT cap, a10 USDT order and5 USDT flat
+allowance. Two future-dated half-fills each cost5 USDT plus5 USDT actual fee:
+known future debit is20 USDT, while the projection reserves only15. Another
+order costing5 USDT plus the same5 USDT flat allowance is accepted. Known debit
+plus new reservation is30 USDT, above the25 USDT cap.
+
+This requires a **nonzero flat allowance and multiple future-dated fills**; it
+does not demonstrate failure of the ordinary zero-flat-fee setup. Actual OKX
+occurrence is not claimed. Fixed fee overrides are supported by the existing fee
+schema; future-dated observations already have an explicit projection path.
+
+Fix direction: account for known future debit and remaining order coverage
+together, allowing the per-order flat allowance only once. Red/Green cases must
+cover duplicate/reordered fills, partial maturity, rebates, zero/positive flat
+allowances, expiry and terminal confirmation. Do not discard actual fees or
+advance the clock artificially to hide the excess risk.
+
+### B3 — P2: a transient first YAML read can disable idle funding discovery
+
+[`FundingObserver.collect`](../../hummingbot/cli/funding_observer.py#L51) assigns an
+empty `template_pairs` set before awaiting catalogue load. If the first load
+raises, later polls see a non-None empty cache and do not retry it. With no
+historical pairs and no active connector, collection returns early indefinitely.
+
+The actual method is exercised twice with a fake store/owner and a loader that
+fails once, then could succeed. Catalogue load is attempted only once, no reader
+is created, and the previous `OSError` persists. Trading is not stopped by this
+optional observer failure, but configured funding observation does not self-heal
+in this idle/no-history case.
+
+Fix direction: publish discovered pairs only after successful loading. Verify
+failure→success retry, legitimately absent/no-perpetual configuration, cancellation
+and continued stopped-service observation; do not start a trading connector.
+
+### B4 — P2: rejected-order identity history is unbounded in a continuous session
+
+[`order_failed`](../../hummingbot/core/bot_ownership.py#L238) adds every positively
+unsent rejection ID to `unsent_rejections`. Its only explicit clear is
+[`prepare`](../../hummingbot/core/bot_ownership.py#L106); normal intent pruning
+does not retire these IDs. A fixed Until-stopped session can run without another
+preparation, so repeated harmless submission denials grow this set indefinitely.
+
+After10,000 simulated local failures and an actual `_check_intents` call with an
+empty mocked durable query, all10,000 IDs remain despite zero resident intents
+and connectors. The native set/string size estimate is1,113,394 bytes; this is
+not whole-process RSS or an observed OOM. Random/session changes that call
+`prepare` can hide this growth in other workload profiles.
+
+Fix direction: retain no-transport evidence for orders/tasks that can still be
+visited by tracker, executor or shutdown processing, then retire it with that
+lifecycle. Test sustained rejected-order churn and retained failed/cancelled order
+objects. Arbitrary TTL eviction or a small recent-ID cache could reintroduce
+false unknown-outcome HALT during shutdown.
+
+### Ordered next work
+
+- [ ] B1: Red/Green pre-intent reservation cleanup and real PostgreSQL owner tests.
+- [ ] B2: Red/Green cumulative future fee coverage and exact Decimal differential replay.
+- [ ] B3: Red/Green funding catalogue retry after transient failure/cancellation.
+- [ ] B4: Red/Green bounded rejection history while preserving shutdown evidence.
+
+Prioritize B1/B2 before production trading. These items are newly identified and
+**not fixed in this audit**. [Portable evidence](life-mm-latent-bug-audit-20261101.json)
+records every reproduction and source hash; raw results are under ignored
+`build/potential-bug-audit-20261101/`. No new load, image, deployment or historical
+H1/H2/H3 causal closure is claimed.
