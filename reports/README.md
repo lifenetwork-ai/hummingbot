@@ -4,8 +4,9 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
-- [New latent-bug audit](implementation/life-mm-logic-review.md#2026-11-01-latent-bug-audit--fixes-pending):
-  B1 reservation cleanup verified; B2–B4 fixes are next. Original reproductions retained.
+- [Latent-bug fixes](implementation/life-mm-logic-review.md#2026-11-01-latent-bug-audit-and-fixes):
+  B1–B4 fixed/committed; native2,208/PG279, Swagger and3 targeted image groups pass
+  on `3f5cbd0f`. Original reproductions retained; no new hour-soak acceptance.
 - [Release closeout](release/mm-release-closeout.md): image `5973410d`, full R1
   and matched shipping R2 pass. Earlier failures remain recorded.
 - [Historical-cause review](investigations/mm-historical-cause-review.md): latest

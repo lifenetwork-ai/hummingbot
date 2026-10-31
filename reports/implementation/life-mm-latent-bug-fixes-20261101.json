@@ -12,7 +12,8 @@
       "postgres_passed": 69,
       "native_passed": 27,
       "tests": "test/integration/postgres/test_pre_intent_cleanup.py",
-      "behavior": "Rollback local pre-intent admission; mark durable write attempts for fenced rejection; refuse to rewrite acknowledged/conflicting recorder history"
+      "behavior": "Rollback local pre-intent admission; mark durable write attempts for fenced rejection; refuse to rewrite acknowledged/conflicting recorder history",
+      "commit": "a3105729128e6f791c2e297572e4852e4120cdef"
     },
     "B2": {
       "status": "implemented_verified",
@@ -23,7 +24,8 @@
       "native_passed": 50,
       "postgres_passed": 20,
       "behavior": "Share one remaining order reservation across all known future debits; preserve positive future cash until maturity without anticipating sell credits",
-      "tests": "test/hummingbot/core/test_spot_outflow_future.py"
+      "tests": "test/hummingbot/core/test_spot_outflow_future.py",
+      "commit": "a71f5495f353055982f1cf64cde4aaddc948d0dd"
     },
     "B3": {
       "status": "implemented_verified",
@@ -34,7 +36,8 @@
       "native_passed": 24,
       "postgres_passed": 11,
       "behavior": "Publish funding template discovery only after successful load; transient errors and cancellation remain retryable; empty/missing catalogues remain read-only",
-      "tests": "test/hummingbot/cli/test_service_funding.py"
+      "tests": "test/hummingbot/cli/test_service_funding.py",
+      "commit": "93c3daa183159e771c080e0e30e2798d3a93ba7f"
     },
     "B4": {
       "status": "implemented_verified",
@@ -50,8 +53,237 @@
         "test/hummingbot/core/test_unsent_rejection_retention.py",
         "test/integration/postgres/test_ownership.py"
       ],
-      "notes": "First native Green attempt exposed an invalid MagicMock fixture, corrected then both failures reconfirmed against unchanged baseline before final Green"
+      "notes": "First native Green attempt exposed an invalid MagicMock fixture, corrected then both failures reconfirmed against unchanged baseline before final Green",
+      "commit": "3da3598bf3db45b04cc671ddedac33ea27ccb882",
+      "retained_identity_postgres_passed": 8,
+      "identity_test_commit": "a177d7f398c5f1a67fad01f4a1e43a7c55977ae2"
     }
   },
-  "new_image_release_accepted": false
+  "new_image_release_accepted": false,
+  "verification": {
+    "native": {
+      "groups": [
+        178,
+        11,
+        1422,
+        597
+      ],
+      "total_passed": 2208,
+      "subtests_passed": 11
+    },
+    "postgres": {
+      "passed": 279,
+      "retained_identity_followup_passed": 8
+    },
+    "swagger_check_passed": true,
+    "image": {
+      "base_image_id": "sha256:4971ea59324ecc187f3e2784b93973e9399edd81c90b5af90c33606638f17218",
+      "source_commit": "3da3598bf3db45b04cc671ddedac33ea27ccb882",
+      "method": "Local derivative of the flow-optimized image with exactly four changed Python modules; native dependencies unchanged, not a clean full Dockerfile rebuild",
+      "source_sha256": {
+        "hummingbot/core/bot_ownership.py": "a11e7aff2e0d94a58f0d88b67625aff89687a5688608d4658115fd619e2ab670",
+        "hummingbot/core/spot_outflow.py": "a6f9bbd3864e39ba41e27a27b62365eaa42860fe46cc92db3685ce8f7c7c0adf",
+        "hummingbot/connector/markets_recorder.py": "84c35363154cdce6731d23a8aab1b53e63639b88a1c75739db0fc8f1004e1074",
+        "hummingbot/cli/funding_observer.py": "0d0111e7184de717d64d7ee161bbb29b542b8c09bee737d7e569187b05e89153"
+      },
+      "image_id": "sha256:3f5cbd0f6862494dbcc7d33d2e2e3b7b1e3b00086794983f1488f9f8ee942ab5",
+      "image_size_bytes": 1367710644,
+      "packaged_hashes_match": true,
+      "build_platform": "linux/amd64",
+      "imported_modules": {
+        "hummingbot.core.bot_ownership": "/home/hummingbot/hummingbot/core/bot_ownership.py",
+        "hummingbot.core.spot_outflow": "/home/hummingbot/hummingbot/core/spot_outflow.py",
+        "hummingbot.connector.markets_recorder": "/home/hummingbot/hummingbot/connector/markets_recorder.py",
+        "hummingbot.cli.funding_observer": "/home/hummingbot/hummingbot/cli/funding_observer.py"
+      }
+    },
+    "image_e2e": {
+      "image": "hummingbot-cloudrun:latent-fixes",
+      "scenarios": {
+        "spot-outflow": {
+          "result": "build/e2e-offline/20261101-055846-417f5b/result.json",
+          "passed": true,
+          "image_id": "sha256:3f5cbd0f6862494dbcc7d33d2e2e3b7b1e3b00086794983f1488f9f8ee942ab5",
+          "manifest": "sha256:6e54a3481605ad40ef8861294f3887ea63c2116fb246ce1da23617b09e41943a",
+          "error": null,
+          "exit_code": 0,
+          "metrics": {
+            "outflow_startup_s": 25.956,
+            "outflow_shutdown_s": 1.784,
+            "outflow-restart_startup_s": 20.478,
+            "spot_outflow": {
+              "buy_only_cap": true,
+              "perpetual_unaffected": true,
+              "funded_sells_continue": true,
+              "partial_commit": true,
+              "original_usdt_fee_and_rebate": true,
+              "duplicates": 2,
+              "terminal_proof_releases": true,
+              "restart_and_mode_switch": true,
+              "bound_identity": true,
+              "used_quote": "2.39999999974000",
+              "effective_config_sha256": "666b24641b7040e4c2bd7dfb8d819f56be160b967b77ed685d4c9206fb537dca"
+            }
+          }
+        },
+        "funding": {
+          "result": "build/e2e-offline/20261101-060026-0f2e15/result.json",
+          "passed": true,
+          "image_id": "sha256:3f5cbd0f6862494dbcc7d33d2e2e3b7b1e3b00086794983f1488f9f8ee942ab5",
+          "manifest": "sha256:6e54a3481605ad40ef8861294f3887ea63c2116fb246ce1da23617b09e41943a",
+          "error": null,
+          "exit_code": 0,
+          "metrics": {
+            "funding-first_startup_s": 25.346,
+            "first_shutdown_s": 1.586,
+            "funding-restart_startup_s": 27.514,
+            "funding-standby_startup_s": 32.679,
+            "restart_shutdown_s": 2.342,
+            "hbot-e2e-4742a307ca-funding-standby_failed_engine_reaped": 38,
+            "standby_shutdown_s": 1.423,
+            "funding-db-recovery_startup_s": 26.481,
+            "identified_bills": 6,
+            "original_amounts_exact": true,
+            "same_timestamp_bills": true,
+            "stopped_observation": true,
+            "closed_position_backfill": true,
+            "repeated_pages_idempotent": true,
+            "legacy_not_double_counted": true,
+            "owner_handover": true,
+            "unavailable_visible": true,
+            "db_failure_backfill": true,
+            "no_trading_mutations_after_stop": true
+          }
+        },
+        "life-mm": {
+          "result": "build/e2e-offline/20261101-060319-0da252/result.json",
+          "passed": true,
+          "image_id": "sha256:3f5cbd0f6862494dbcc7d33d2e2e3b7b1e3b00086794983f1488f9f8ee942ab5",
+          "manifest": "sha256:6e54a3481605ad40ef8861294f3887ea63c2116fb246ce1da23617b09e41943a",
+          "error": null,
+          "exit_code": 0,
+          "metrics": {
+            "mm-first_startup_s": 29.988,
+            "first_shutdown_s": 1.655,
+            "mm-restart_startup_s": 21.382,
+            "terminal_create_ack_hold_ms": 1204.880126953125,
+            "admin_operations_contract": true,
+            "terminal_cancel_ack_before_create": true,
+            "hbot-e2e-8a9dbe37bd-mm-restart_failed_engine_reaped": 32,
+            "restart_shutdown_s": 1.274,
+            "mm-db-restart_startup_s": 21.186,
+            "matrix": [
+              {
+                "mode": "spot",
+                "profile": "follow_market",
+                "count": 4
+              },
+              {
+                "mode": "spot",
+                "profile": "sideways",
+                "count": 4
+              },
+              {
+                "mode": "spot",
+                "profile": "follow_token",
+                "count": 4
+              },
+              {
+                "mode": "perpetual",
+                "profile": "follow_market",
+                "count": 4
+              },
+              {
+                "mode": "perpetual",
+                "profile": "sideways",
+                "count": 4
+              },
+              {
+                "mode": "perpetual",
+                "profile": "follow_token",
+                "count": 4
+              },
+              {
+                "mode": "both",
+                "profile": "follow_market",
+                "count": 8
+              },
+              {
+                "mode": "both",
+                "profile": "sideways",
+                "count": 8
+              },
+              {
+                "mode": "both",
+                "profile": "follow_token",
+                "count": 8
+              }
+            ],
+            "cli_mm_stop": true,
+            "legacy_replaces_mm": true,
+            "exact_quote_levels": true,
+            "restart_anchors": true,
+            "weighted_reference": true,
+            "stale_both": true,
+            "fills": 2,
+            "random_steps": true,
+            "expiry": true,
+            "expiry_funding": true,
+            "reconciliation": "matched",
+            "db_fault_halt": true
+          }
+        }
+      },
+      "scope": "Three targeted simulator cases; no full release or soak claim"
+    },
+    "demo_preservation": {
+      "checked_at": "2026-10-31T23:00:30.960951+00:00",
+      "ledger_hashes": {
+        "orders": "23fb84b15c8186e891d9bef55150244c",
+        "trade_fills": "0670a1868dee14d4377e2b36dcd3b4d8",
+        "executors": "ec4d3c225bb224c5ad2b249b8aece160",
+        "positions": "bd78de05d366df0a875912592f4be8ab"
+      },
+      "control": {
+        "desired_state": "stopped",
+        "control_version": 26,
+        "acknowledged_version": 26,
+        "halt": "false"
+      },
+      "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+      "unchanged": true
+    },
+    "scope_limits": [
+      "No new full E2E/upgrade matrix, hour soak or load acceptance",
+      "No connected Demo trading, deployment or secret/YAML changes",
+      "Historical H1/H2/H3 attribution remains unproven",
+      "Original audit and prior release evidence unchanged",
+      "B4 identity fixture strengthened after full suite collection; all eight final identity cases rerun separately"
+    ]
+  },
+  "raw_log_sha256": {
+    "build/latent-bug-fixes-20261101/b1-green.log": "e25d176211d2da14fcfa7c0db5ab703136580deef34e2662506a451ae113360f",
+    "build/latent-bug-fixes-20261101/b1-native.log": "360a3092d1b20bbca0b2d7970329f402e4e7b4ef7c56169008b6cb504716ab4c",
+    "build/latent-bug-fixes-20261101/b1-red.log": "a41473d9eda12d9d0bd1f55be3d5448e6b1872e2fdfea487597585d762e20748",
+    "build/latent-bug-fixes-20261101/b2-green.log": "07f63cef629c5f3e41aac3136d233253597032e19b3fc7eb0bc9e969ee9f4955",
+    "build/latent-bug-fixes-20261101/b2-postgres.log": "e8a4c913ce44aff161636a75a44342b8c4f78956f80acf6bf1ec40b56cf45a7b",
+    "build/latent-bug-fixes-20261101/b2-red.log": "9e4a277dda35c53c7227851e5150028fffe4d59ff92ff79bb0e37e6bbd01de18",
+    "build/latent-bug-fixes-20261101/b3-green.log": "aa2ec7328668ec00970e5b6ef12f6f5b1bf87b5c097e9cb26b2535843326e0c6",
+    "build/latent-bug-fixes-20261101/b3-postgres.log": "d06119f40acf66733888c76ce33fdbf7bb023489be712ec2ccb58121c294e06d",
+    "build/latent-bug-fixes-20261101/b3-red.log": "32c9c9ff3c8c8713c77912e4f9efe28bd213e21c61fa6ae2210f184c8bba0f38",
+    "build/latent-bug-fixes-20261101/b4-native-green.log": "ecacf709f1721639aa23a331427a914c5ada50d7e7b8ce3dfcb8ade4d769aa7b",
+    "build/latent-bug-fixes-20261101/b4-native-red-confirmed.log": "baf0755321f87e85e3caad51fd6ab2c22de39865a2e8c6601a7956c1ccee3389",
+    "build/latent-bug-fixes-20261101/b4-native-red.log": "30147e22e8b2c29b2d5e78e027cae65ae3d4b9283b8da1e60730ec49094ba660",
+    "build/latent-bug-fixes-20261101/b4-postgres-green.log": "912e72b99a809bfd77e623cd8edfaf0ec7e4671a9c62497a88345479e59b7889",
+    "build/latent-bug-fixes-20261101/b4-postgres-red.log": "c7d5cab04060368902717ae3a5fb531b9393674fd560a3bcb00e2d578150f7f4",
+    "build/latent-bug-fixes-20261101/b4-retained-identity.log": "fee845e7c68df6555f328235c00096f681b019f8f906b3ca0a53bd8b629f65f3",
+    "build/latent-bug-fixes-20261101/e2e-funding.log": "68de34ea5afe2dd378b3571391f2d03a02e5b7df9b43bd5d2790eb668962ccdb",
+    "build/latent-bug-fixes-20261101/e2e-life-mm.log": "7f9742a02499feed2c01dd81c1f85addead3c818ca0d77b4fa04902778be125e",
+    "build/latent-bug-fixes-20261101/e2e-run.log": "134ae61dcce947aa53bfedc96f3a867653abd5ddb27216a7e4e77bd5a9cd0426",
+    "build/latent-bug-fixes-20261101/e2e-spot-outflow.log": "3b461dec31af0e66a312bbeb4ed085ea04e11f292e12a2f75a6c38d4e017d3fa",
+    "build/latent-bug-fixes-20261101/image-build.log": "c9161ec23410bb1862b4bbf5c844beb213d01d3eec47cc7d96e61d81d11479f7",
+    "build/latent-bug-fixes-20261101/native-regression.log": "83848422a82eabda431bcaade4de04ba252ed6565bbc90c64e8cdbe14b99ffff",
+    "build/latent-bug-fixes-20261101/postgres-regression.log": "7a5939ef8c618abc8bed00b9a7938271b0e432496ae2985409201c49117d83ff",
+    "build/latent-bug-fixes-20261101/swagger.log": "3e38a232de7da785c02fbaadc20de432bb439ca80a7ccbd717aaef9a19523edb"
+  }
 }

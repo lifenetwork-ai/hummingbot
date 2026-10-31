@@ -5,13 +5,15 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-01
 
-- **Latest latent-bug remediation:** B1 reservation cleanup passes69 PostgreSQL
-  and27 native cases after5 initial Red failures. B2/B3/B4 are next. Original findings:
-  pre-intent denial can retain outflow reservations, future-fill flat allowance
-  can understate risk, initial funding YAML failure can be negatively cached,
-  and unsent rejection IDs can accumulate during a continuous fixed session.
-  Conditions and B1–B4 next steps are in the
-  [audit](life-mm-logic-review.md#2026-11-01-latent-bug-audit--fixes-pending).
+- **Latest latent-bug remediation:** B1–B4 completed and committed separately.
+  Native2,208 plus11 subtests, PostgreSQL279, Swagger and3 targeted E2E groups
+  pass on candidate `3f5cbd0f` (application commit `3da3598bf`). Additional8
+  PostgreSQL cases preserve the original object while verifying replacement
+  identity. Fixes cover pre-intent rollback, shared future-fee coverage, retryable
+  funding discovery and lifecycle-bound no-transport proof. See the
+  [review/checklist](life-mm-logic-review.md#2026-11-01-latent-bug-audit-and-fixes)
+  and [portable evidence](life-mm-latent-bug-fixes-20261101.json). Demo unchanged;
+  no new full image matrix or hour-soak acceptance is claimed.
 - **Completed local release verification:** image `5973410d`, measurement source
   `b7ba104e7`; full R1 and matched shipping R2 pass. R1 reconciles 4,884 fills,
   original fees and positions; soak p99 is 717ms with zero unexpected API errors.

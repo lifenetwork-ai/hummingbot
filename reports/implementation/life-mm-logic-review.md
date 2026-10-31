@@ -1,7 +1,7 @@
 # LIFE MM logic-flow review — 2026-10-26
 
-Latest follow-up (2026-11-01): **B1–B4 fixed and verified; combined verification next**.
-See [the new findings](#2026-11-01-latent-bug-audit--fixes-pending) and
+Latest follow-up (2026-11-01): **B1–B4 fixed, committed and verified on image `3f5cbd0f`**.
+See [the new findings](#2026-11-01-latent-bug-audit-and-fixes) and
 [original audit evidence](life-mm-latent-bug-audit-20261101.json), with
 [separate fix evidence](life-mm-latent-bug-fixes-20261101.json). They predate the last
 three flow optimizations. This read-only review does not alter runtime or
@@ -111,17 +111,17 @@ a cause for the first spike nor demonstrate a sustained performance improvement.
 SQL query budgets remain bounded: orders at most three statements,
 fills/performance one, daily statistics six. No extra cache was introduced.
 
-## 2026-11-01 latent-bug audit — fixes pending
+## 2026-11-01 latent-bug audit and fixes
 
 This targeted audit inspects intent admission/cleanup, partial-fill outflow,
 session/Random transitions, owner recovery, shutdown and funding observation.
-Four isolated current-code reproductions confirm the defects below. Ownership,
+Four isolated reproductions at audit revision `bc2e4a626` confirmed the defects below. Ownership,
 recorder or filesystem dependencies are mocked where stated; no connected venue,
 Demo account, database or runtime configuration is changed. This is not an
 exhaustive proof that the remaining code has no defects.
 
-The three affected files are byte-identical to application baseline `fc0ee55b8`.
-These are pre-existing gaps, not regressions introduced by the three optimizations
+At audit time, the three affected files were byte-identical to application baseline
+`fc0ee55b8`. These were pre-existing gaps, not regressions introduced by the three optimizations
 committed as `9ffb4cf93`, `8fcf20fab` and `d3c34153a`. Passing earlier release
 results retain their image/scope; they do not exercise every edge case here.
 
@@ -213,7 +213,7 @@ lifecycle. Test sustained rejected-order churn and retained failed/cancelled ord
 objects. Arbitrary TTL eviction or a small recent-ID cache could reintroduce
 false unknown-outcome HALT during shutdown.
 
-### Ordered next work
+### Remediation checklist
 
 - [x] B1: Red/Green pre-intent reservation cleanup and real PostgreSQL owner tests.
   Initial Red5 failures/1 pass; Green69 selected PG and27 native cases. New local
@@ -234,10 +234,39 @@ false unknown-outcome HALT during shutdown.
   tracker removal. Different objects with the same ID require readback; sent
   failures and uncertain outcomes retain the existing recovery behavior.
 
-The original audit was read-only. B1–B4 implementation is now verified; combined native/PostgreSQL/image
-verification is next. [Audit evidence](life-mm-latent-bug-audit-20261101.json) preserves
+The original audit was read-only. B1–B4 implementation and combined native/PostgreSQL/targeted-image
+verification are complete. [Audit evidence](life-mm-latent-bug-audit-20261101.json) preserves
 the original reproductions/source hashes; [fix evidence](life-mm-latent-bug-fixes-20261101.json)
 tracks new Red/Green results. Raw results are under ignored
 `build/potential-bug-audit-20261101/` and `build/latent-bug-fixes-20261101/`.
 No new full-release/image/load acceptance, deployment or historical H1/H2/H3
 causal closure is claimed.
+
+
+### Combined verification — 2026-11-01
+
+- [x] Native declared regression target: **2,208 passed**, plus11 subtests.
+- [x] Disposable PostgreSQL suite: **279 passed**. All8 strengthened shutdown
+  identity cases were rerun after keeping the original rejected object alive.
+- [x] Swagger drift check and commit hooks pass.
+- [x] Image `3f5cbd0f` (application commit `3da3598bf`) packages all4 changed
+  modules with matching SHA-256 hashes. This is a local derivative of `4971ea59`,
+  with unchanged native dependencies, **not a clean full Dockerfile rebuild**.
+- [x] Targeted image E2E groups: **spot-outflow, funding and life-mm** pass
+  using the same immutable manifest. These cover outflow admission/fills/restart,
+  exact funding bills/restart/closed-position catch-up, and the MM profile/mode
+  matrix, Random expiry, fill/fee restart and database-outage HALT.
+- [x] Read-only preservation check: Demo ledger fingerprints, control and its
+  existing `e526118b` image remain unchanged.
+
+The rejection-retention regression creates10,000 retired orders while keeping3
+live order objects, then releases those3: only the3 live proofs remain, then0.
+This verifies the specific retention fix; it is not a new whole-process memory
+soak. No production GC policy, risk cap, ownership fence or timeout is relaxed.
+
+[Portable fix evidence](life-mm-latent-bug-fixes-20261101.json) records each
+phase commit, Red/Green results, source/image hashes, E2E metrics and raw-log
+hashes. The original [audit JSON](life-mm-latent-bug-audit-20261101.json) remains
+unchanged. This follow-up does **not** claim a new full E2E/upgrade matrix,
+hour-load/soak acceptance, connected Demo trading or deployment; previous
+release evidence retains its own image/scope and H1/H2/H3 attribution limits.
