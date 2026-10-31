@@ -611,9 +611,10 @@ class OkxExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
             self, order: InFlightOrder, mock_api: aioresponses,
             callback: Optional[Callable] = lambda *args, **kwargs: None
     ) -> List[str]:
-        # Implement the expected not found response when enabling
-        # test_lost_order_removed_if_not_found_during_order_status_update
-        raise NotImplementedError
+        url = web_utils.private_rest_url(path_url=CONSTANTS.OKX_ORDER_DETAILS_PATH)
+        mock_api.get(re.compile(url + r"\?.*"), body=json.dumps({"code": "51603", "msg": "Order does not exist", "data": []}),
+                     callback=callback)
+        return [url]
 
     def configure_completely_filled_order_status_response(
             self,
@@ -988,12 +989,6 @@ class OkxExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
     def test_cancel_order_not_found_in_the_exchange(self, mock_api):
         # Disabling this test because the connector has not been updated yet to validate
         # order not found during cancellation (check _is_order_not_found_during_cancelation_error)
-        pass
-
-    @aioresponses()
-    def test_lost_order_removed_if_not_found_during_order_status_update(self, mock_api):
-        # Disabling this test because the connector has not been updated yet to validate
-        # order not found during status update (check _is_order_not_found_during_status_update_error)
         pass
 
     def _order_cancelation_request_successful_mock_response(self, response_scode: int, order: InFlightOrder) -> Any:

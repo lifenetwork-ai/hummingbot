@@ -266,9 +266,23 @@ do not describe it as a successful Random/release gate or an OKX outage.
   waiting controller scheduled before a persistent HALT decision. Keep the
   synchronous send gate closed until actual progress; a genuinely stuck task,
   explicit task failure and shutdown cancellation remain covered.
-- [ ] Verify the correction on immutable shipping images with a controlled
+- [x] Verify the correction on immutable shipping images with a controlled
   engine scheduling pause, retaining both old/new results. This fault experiment
-  does not prove the precise cause of the older host's scheduling delay.
+  does not prove the precise cause of the older host's scheduling delay. Old
+  `dd602fb2` HALTs on the first 6.529s pause; new `dbd5b5ba` passes all three
+  pauses with unchanged PID/session and eight reconciled fills. See
+  `build/controller-stall/20261031-061636-c97288/result.json`.
 - [ ] Run the affected packaged regression and unchanged full load/retention
   gates on the new image. Report any new failure without raising deadlines or
   waiving errors. Preserve Demo and commit the final defect/cause report.
+
+
+### OKX lost-order status follow-up — 2026-10-31
+
+- [x] Re-enable upstream spot/perpetual lost-order absence tests and observe both
+  fail. Decode explicit OKX 51603 into the existing tracker's absence path;
+  keep ambiguous payloads and network failures retryable. Related Green suite:
+  126 tests and two subtests. Preserve fees/fill history and clock-error handling.
+- [ ] Verify the new immutable image and unchanged release gates. The preceding
+  `dbd5b5ba` mixed window failed at 897/900 fills; its interrupted partial soak
+  is not a pass and the shortfall cause is not assigned to this connector fix.

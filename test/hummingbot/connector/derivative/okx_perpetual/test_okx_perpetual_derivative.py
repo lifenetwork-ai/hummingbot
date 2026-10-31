@@ -111,7 +111,7 @@ class OkxPerpetualDerivativeTests(
                               price=Decimal("100"), creation_timestamp=1700000000)
         event = self.order_event_for_full_fill_websocket_update(order)["data"][0]
         event["uTime"] = "1700000000123"
-        with patch.object(self.exchange, "_request_order_update", AsyncMock(return_value={"data": [event]})):
+        with patch.object(self.exchange, "_request_order_update", AsyncMock(return_value={"code": "0", "data": [event]})):
             update = self.run_async_with_timeout(self.exchange._request_order_status(order))
         self.assertEqual(1700000000.123, update.update_timestamp)
         self.exchange._order_tracker.start_tracking_order(order)
@@ -903,9 +903,10 @@ class OkxPerpetualDerivativeTests(
             self, order: InFlightOrder, mock_api: aioresponses,
             callback: Optional[Callable] = lambda *args, **kwargs: None
     ) -> List[str]:
-        # Implement the expected not found response when enabling
-        # test_lost_order_removed_if_not_found_during_order_status_update
-        raise NotImplementedError
+        url = web_utils.get_rest_url_for_endpoint(CONSTANTS.REST_QUERY_ACTIVE_ORDER[CONSTANTS.ENDPOINT], domain=CONSTANTS.DEFAULT_DOMAIN)
+        mock_api.get(re.compile(url + r"\?.*"), body=json.dumps({"code": "51603", "msg": "Order does not exist", "data": []}),
+                     callback=callback)
+        return [url]
 
     def configure_completely_filled_order_status_response(
             self,
@@ -1658,12 +1659,6 @@ class OkxPerpetualDerivativeTests(
     def test_cancel_order_not_found_in_the_exchange(self, mock_api):
         # Disabling this test because the connector has not been updated yet to validate
         # order not found during cancellation (check _is_order_not_found_during_cancelation_error)
-        pass
-
-    @aioresponses()
-    def test_lost_order_removed_if_not_found_during_order_status_update(self, mock_api):
-        # Disabling this test because the connector has not been updated yet to validate
-        # order not found during status update (check _is_order_not_found_during_status_update_error)
         pass
 
     @staticmethod

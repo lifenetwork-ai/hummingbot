@@ -74,6 +74,7 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/executors/test_terminal_position_checkpoint.py \
 		test/hummingbot/strategy_v2/executors/position_executor
 	$(PYTHON) -m pytest -q test/hummingbot/connector/test_okx_environment.py \
+		test/hummingbot/connector/test_okx_order_status.py \
 		test/hummingbot/connector/test_okx_environment_transport.py \
 		test/hummingbot/connector/test_okx_account_observations.py \
 		test/hummingbot/core/test_mm_session.py test/hummingbot/core/test_admin_reconciliation.py test/hummingbot/core/test_funding_sync.py \

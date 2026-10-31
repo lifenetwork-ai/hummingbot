@@ -16,6 +16,7 @@ from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_user_stream_dat
     OkxPerpetualUserStreamDataSource,
 )
 from hummingbot.connector.derivative.position import Position
+from hummingbot.connector.okx_order_status import OKXOrderNotFoundError, order_status_data
 from hummingbot.connector.perpetual_derivative_py_base import PerpetualDerivativePyBase
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.connector.utils import combine_to_hb_trading_pair
@@ -149,11 +150,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         return is_time_synchronizer_related
 
     def _is_order_not_found_during_status_update_error(self, status_update_exception: Exception) -> bool:
-        # TODO: implement this method correctly for the connector
-        # The default implementation was added when the functionality to detect not found orders was introduced in the
-        # ExchangePyBase class. Also fix the unit test test_lost_order_removed_if_not_found_during_order_status_update
-        # when replacing the dummy implementation
-        return False
+        return isinstance(status_update_exception, OKXOrderNotFoundError)
 
     def _is_order_not_found_during_cancelation_error(self, cancelation_exception: Exception) -> bool:
         # TODO: implement this method correctly for the connector
@@ -513,7 +510,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
         updated_order_data = await self._request_order_update(order=tracked_order)
 
-        order_data = updated_order_data["data"][0]
+        order_data = order_status_data(updated_order_data)
         new_state = CONSTANTS.ORDER_STATE[order_data["state"]]
 
         order_update = OrderUpdate(

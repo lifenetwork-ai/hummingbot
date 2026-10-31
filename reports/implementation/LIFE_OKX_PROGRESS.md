@@ -1960,3 +1960,33 @@ Strict Random-soak acceptance and the older sustained-liveness cause remain
 open; no deadlines/protections were weakened or runtime source changed in this
 verification. Demo e526 ledger/control unchanged; test fixtures cleaned. See
 [packaged report](../probe-release-20261030.md) for the focused follow-up.
+
+
+2026-10-31 Random/availability follow-up: the fill producer incorrectly created
+new work after its measurement deadline; two Red regressions and 31 related
+Green tests establish the correction (`056b11495`). Both short Random diagnostics
+pass; the full repeat `20261031-044542-876453` drains in 0.187s but exposes a
+separate `controller_task_stalled` HALT near minute 50. It remains failed (71
+unexpected/degraded responses, p99 2446.14ms), with 4,242 actual fills matching
+recorder quantities and fees. The 648-fill shortfall follows the HALT and is not
+an acceptable handover gap.
+
+Controller ordering is now reproduced with ready callbacks and expired timers:
+the observer can persist HALT before a healthy delayed controller gets a turn.
+An actual old-image scheduling pause (6.529s) reproduces the same HALT with the
+same engine PID and recovered probe. Fix `3789b2500` confirms after a timer
+checkpoint, preserving the original deadline and stale-progress send gate;
+genuinely stuck/failed tasks still halt. Related native regression: 37 passed.
+The new immutable image and load confirmation are in progress; no claim is made
+about the precise host cause of scheduling delay or the older sustained
+supervisor failure. See [defect/cause report](../mm-random-handover.md).
+
+
+Controller fix shipping image `dbd5b5ba` passes native 2,069 tests/11 subtests,
+all 17 E2E groups and shipping supervision. Its mixed load still fails the
+unchanged fill-rate gate (897/900; zero API errors, p99 117.61ms). Partial soak
+was interrupted after another confirmed defect: both OKX connectors mishandle
+HTTP-success order-absence code 51603 and retain/poll the lost order indefinitely.
+Re-enabled upstream Red tests reproduce it; the shared decoder reuses existing
+tracker cleanup, with 126 tests/two subtests Green. Latest-image release gates
+remain pending; this is not a claimed cause of the mixed fill shortfall.
