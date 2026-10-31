@@ -80,3 +80,45 @@ def test_soak_rejects_hidden_per_role_growth_or_restart(fault):
         else:
             row['processes'].pop('api')
     assert 'process_' + fault in soak_violations(rows)
+
+
+def memory_rows():
+    return [dict(at=60 * (i + 1), memory={'VmRSS': 300_000_000},
+                 container_memory=dict(current_bytes=300_000_000, peak_bytes=300_000_000,
+                                       file_bytes=20_000_000, shmem_bytes=1_000_000),
+                 latest={'book_backlog': 1}, distributions={'pool_checkout_ms': {'p95': 1}}) for i in range(59)]
+
+
+def test_retention_excludes_only_reclaimable_file_cache_not_tmpfs_or_anonymous_growth():
+    rows = memory_rows()
+    for row in rows[-5:]:
+        row['memory']['VmRSS'] += 80 * 1024**2
+        row['container_memory']['current_bytes'] += 80 * 1024**2
+        row['container_memory']['file_bytes'] += 80 * 1024**2
+    assert soak_violations(rows) == []
+    # The same growth in tmpfs is not reclaimable disk cache.
+    for row in rows[-5:]:
+        row['container_memory']['shmem_bytes'] += 80 * 1024**2
+    assert 'rss_growth' in soak_violations(rows)
+    rows = memory_rows()
+    for row in rows[-5:]:
+        row['memory']['VmRSS'] += 65 * 1024**2
+        row['container_memory']['current_bytes'] += 65 * 1024**2
+    assert 'rss_growth' in soak_violations(rows)
+
+
+@pytest.mark.parametrize('fault', ['missing', 'negative', 'boolean', 'inconsistent', 'shmem_exceeds_file'])
+def test_incomplete_memory_breakdown_cannot_certify_retention(fault):
+    rows = memory_rows()
+    memory = rows[20]['container_memory']
+    if fault == 'missing':
+        del memory['file_bytes']
+    elif fault == 'negative':
+        memory['file_bytes'] = -1
+    elif fault == 'boolean':
+        memory['file_bytes'] = True
+    elif fault == 'inconsistent':
+        memory['current_bytes'] += 1
+    else:
+        memory['shmem_bytes'] = memory['file_bytes'] + 1
+    assert 'memory_breakdown_missing' in soak_violations(rows)

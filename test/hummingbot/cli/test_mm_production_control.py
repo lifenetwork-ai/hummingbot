@@ -67,3 +67,26 @@ def test_control_retains_existing_runtime_http_latency_and_rate_gates(fault):
     elif fault == 'rate':
         data['market_updates_per_second'] = 80
     assert summarize(data, {'start': 1, 'switch': 1, 'stop': 1}, phase=phase)['violations']
+
+
+def test_bounded_control_cannot_be_confused_with_full_shipping_windows():
+    from scripts.test_mm_production_control import control_windows
+    assert control_windows() == [('warmup', 300), ('mixed', 900)]
+    assert control_windows(include_burst=True)[-1] == ('bursts', 90)
+    assert control_windows(probe_seconds=300) == [('probe', 300)]
+    for invalid in (True, 29, 901, 60.5):
+        with pytest.raises(ValueError):
+            control_windows(probe_seconds=invalid)
+    with pytest.raises(ValueError):
+        control_windows(probe_seconds=300, include_burst=True)
+
+
+def test_passing_short_or_diagnostic_baseline_cannot_qualify_r2():
+    from scripts.test_mm_production_control import acceptance_eligible
+    complete = dict(passed=True, profile='all', release_scope_complete=True, diagnostic=False)
+    assert acceptance_eligible(complete)
+    assert not acceptance_eligible(complete, probe_seconds=300)
+    for change in ({'profile': 'probe'}, {'diagnostic': True}, {'passed': False},
+                   {'release_scope_complete': False}, {'release_scope_complete': None}):
+        assert not acceptance_eligible({**complete, **change})
+    assert not acceptance_eligible({})

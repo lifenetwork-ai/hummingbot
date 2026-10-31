@@ -36,6 +36,37 @@ def violations(result, *, require_rates=True):
     return [name for name, passed in checks.items() if not passed]
 
 
+def memory_retention(samples):
+    """Bound retained memory separately from reclaimable disk cache; keep tmpfs.
+
+    Historical samples without a breakdown retain their original conservative
+    cgroup-current rule. They must never be reclassified using guessed cache.
+    The absolute container peak and per-role RSS checks remain independent.
+    """
+    breakdown = any('file_bytes' in row.get('container_memory', {}) or
+                    'shmem_bytes' in row.get('container_memory', {}) for row in samples)
+    values = []
+    for row in samples:
+        current = row['memory']['VmRSS']
+        if not isinstance(current, int) or isinstance(current, bool) or current < 0:
+            raise ValueError('Invalid memory sample')
+        if breakdown:
+            fields = row.get('container_memory', {})
+            if any(not isinstance(fields.get(key), int) or isinstance(fields[key], bool) or fields[key] < 0
+                   for key in ('current_bytes', 'file_bytes', 'shmem_bytes')):
+                raise ValueError('Incomplete memory breakdown')
+            if fields['current_bytes'] != current or not fields['shmem_bytes'] <= fields['file_bytes'] <= current:
+                raise ValueError('Inconsistent memory breakdown')
+            current -= fields['file_bytes'] - fields['shmem_bytes']
+        values.append(current)
+    early, late = median(values[:5]), median(values[-5:])
+    return dict(basis='cgroup_current_minus_file_plus_shmem' if breakdown else 'legacy_cgroup_current',
+                early_median_bytes=early, late_median_bytes=late, growth_bytes=late - early,
+                budget_bytes=64 * 1024**2,
+                raw_cgroup_growth_bytes=median(row['memory']['VmRSS'] for row in samples[-5:]) -
+                median(row['memory']['VmRSS'] for row in samples[:5]))
+
+
 def soak_violations(samples):
     if len(samples) < 55:
         return ["missing_minute_samples"]
@@ -47,10 +78,15 @@ def soak_violations(samples):
         # A suspended host can eventually collect enough active-time samples.
         # Their wall-clock cadence must also prove one continuous hour.
         continuous = all(0 < right - left <= 90 for left, right in zip(times, times[1:]))
+    try:
+        retained = memory_retention(samples)
+    except (KeyError, TypeError, ValueError):
+        retained = None
     checks = {
         "sampling_continuity": continuous,
         "runtime_halt": not any(row.get("runtime_phase") == "halted" for row in samples),
-        "rss_growth": median(row["memory"]["VmRSS"] for row in last) <= median(row["memory"]["VmRSS"] for row in first) + 64 * 1024**2,
+        "memory_breakdown_missing": retained is not None,
+        "rss_growth": retained is not None and retained['growth_bytes'] <= retained['budget_bytes'],
         "book_queue_growth": median(row["latest"].get("book_backlog", 0) for row in last) <= max(10, median(row["latest"].get("book_backlog", 0) for row in first) + 4),
         "pool_wait_growth": median(row["distributions"]["pool_checkout_ms"]["p95"] for row in last) <= max(20, median(row["distributions"]["pool_checkout_ms"]["p95"] for row in first) + 5),
     }

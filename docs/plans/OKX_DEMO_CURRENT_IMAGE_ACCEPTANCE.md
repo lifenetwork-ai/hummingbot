@@ -14,6 +14,14 @@ pending execution; older checkpoints are history, not additional tasks.
   512KiB ring and 32MiB stream caps per role. Record/verify the applied policy
   before measurement. The earlier short comparisons used the default32.
   Keep 2 CPUs/2GiB, pool5, TTL15, history, rates and error/latency/retention budgets.
+  For new runs with a complete measured cgroup breakdown, retention uses
+  `memory.current - (file - shmem)`: exclude reclaimable disk cache, retain
+  tmpfs/shared memory. Keep64MiB growth, all per-role RSS/thread/FD limits and
+  the1.5GiB absolute container-peak limit. Publish raw cgroup growth alongside it.
+  Missing/inconsistent partial breakdowns fail; old runs without a breakdown
+  keep their original conservative rule and failed result. This measurement
+  contract is declared before the next full gate, based on a controlled trace
+  file-cache experiment, not an increase of the64MiB threshold.
   Preserve any failure and diagnose it before another long repeat. No separate
   passing windows may be combined into a pass. The measured windows alone take
   81.5 minutes, followed by fault verification and cleanup.
@@ -41,6 +49,14 @@ shipping/recorded diagnostics pass, but do not satisfy these full acceptance
 scopes. A new runtime change is needed only if a confirmed defect justifies it;
 do not invent a fix as a prerequisite to validating the frozen candidate. A
 failed gate must be investigated rather than retried blindly.
+
+The 2026-11-01 bounded investigation identifies additional observer overhead:
+the old test exporter computes full-buffer quantiles on the measured event loop.
+Stack captures and an image-level heartbeat comparison support moving exports
+to one bounded background worker. The quantiles remain exact, with no export
+backlog; this is a test-tool change. Isolated100,000-fill query replay does not
+reproduce the cancellation. See [measurement follow-up](../../reports/mm-measurement-remediation.md)
+for scoped evidence and the remaining full validation.
 
 ## Historical causes — unresolved evidence
 

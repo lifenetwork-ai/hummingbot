@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 
 from test.e2e.offline.load_incidents import capture_limit  # noqa: E402
 
-from scripts.mm_load_budgets import soak_violations, violations  # noqa: E402
+from scripts.mm_load_budgets import memory_retention, soak_violations, violations  # noqa: E402
 from scripts.mm_load_faults import fault_windows  # noqa: E402
 from scripts.mm_load_ledger import funding_ledger_violations, ledger_violations  # noqa: E402
 from scripts.mm_load_processes import merge_metrics  # noqa: E402
@@ -227,6 +227,9 @@ def main():
                     bot_limits=dict(cpus=args.cpus, memory_bytes=2 * 1024**3), postgres_limits=dict(cpus=2, memory_bytes=512 * 1024**2),
                     simulator_limits=dict(cpus=1, memory_bytes=512 * 1024**2), client_limits=dict(cpus=1, memory_bytes=512 * 1024**2),
                     history_orders=args.history_rows, history_fills=args.history_rows, funding_sync_interval_seconds=5,
+                    memory_retention_policy=dict(basis='cgroup_current_minus_file_plus_shmem',
+                                                 growth_budget_bytes=64 * 1024**2,
+                                                 absolute_peak_budget_bytes=int(1.5 * 1024**3)),
                     enhancements=args.enhancements, active_outflow_history=args.enhancements, history_read_mix="original eleven routes/rates/latency population unchanged; add 1 event + 1 liquidity read/s with the same separate latency/error gates",
                     volatility_defense=args.volatility_defense,
                     operations_reads_per_second=3 if args.operations else 0,
@@ -351,6 +354,8 @@ def main():
                                           incident_directory=incident_directory, cpus=args.cpus)
                 docker("update", "--cpus", args.cpus, "--memory", "2g", "--memory-swap", "2g", bot)
                 initial_metrics = poll(lambda: read_metrics(harness, bot), timeout=30, description='complete fresh runtime role metrics')
+                assert memory_retention([initial_metrics])['basis'] == 'cgroup_current_minus_file_plus_shmem', \
+                    'New load measurements require the complete observed memory breakdown'
                 if args.incident_diagnostics:
                     for role_metrics in initial_metrics.get('role_metrics', {'combined': initial_metrics}).values():
                         assert role_metrics.get('incident_capture', {}).get('max_incidents') == args.incident_max_captures, 'Incident capacity not applied to runtime role'
@@ -405,7 +410,12 @@ def main():
                     data["violations"] = violations(data, require_rates=name != "soak")
                     if name == "soak":
                         data["rate_scope"] = "observed; random-step admission gaps are intentional; fixed mixed window enforces rates"
-                        data["violations"] += soak_violations(json.loads((report / (name + "-runtime-minutes.json")).read_text()))
+                        minute_samples = json.loads((report / (name + "-runtime-minutes.json")).read_text())
+                        data["violations"] += soak_violations(minute_samples)
+                        try:
+                            data['memory_retention'] = memory_retention(minute_samples)
+                        except (KeyError, TypeError, ValueError):
+                            data['memory_retention'] = dict(error='Incomplete or inconsistent memory breakdown')
                     route_queries = data["runtime"]["route_queries"]
                     assert all(row["max"] <= (3 if "/orders?" in path else 1) for path, row in route_queries.items()
                                if "/orders?" in path or "/fills?" in path or path.endswith("/performance")), "History/performance query count grew with page size"

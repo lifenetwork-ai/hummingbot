@@ -2105,3 +2105,27 @@ image/control/four ledger fingerprints remain unchanged. Both active acceptance
 items remain open for bounded causal investigation before a full repeat; no
 budget waiver or speculative runtime fix is made. See the updated
 [closeout report](../mm-release-closeout.md).
+
+2026-11-01 bounded measurement remediation: retained stacks and two signal dumps
+show quantile export on the measured loop. Same-image full-buffer microbenchmark
+costs208–302ms; a controlled heartbeat comparison improves maximum gap285.26ms
+to42.65ms with one background exporter. New regressions cover immutable copies,
+no queued backlog, surfaced errors, exact quantiles and atomic export. All114
+related native tests pass; production application/image remain unchanged.
+
+A controlled trace-write experiment confirms reclaimable file-cache charges
+without equivalent RSS growth. Fresh measurements retain64MiB growth budget on
+`current - (file - shmem)`, keep tmpfs/kernel/anonymous charges, per-role RSS/FD/
+thread/PID checks and the1.5GiB absolute container peak. Incomplete breakdowns
+fail; legacy samples keep their old rule and the prior70.68MiB failure stays.
+The contract is documented before the next full gate. No eviction or forced GC
+is added to actual acceptance. Isolated100,000-fill daily replay takes516.85ms
+and does not reproduce the query cancellation; no speculative SQL/pool/cache
+change is made.
+
+Matched300s probes pass with300 matching fills each: recorder p95/p99 62.64/
+610.26ms, ordinary shipping51.16/115.08ms, zero unexpected errors. This is bounded
+observer validation only. A new scope guard prevents a passed diagnostic/short
+baseline from qualifying as R2. Both full acceptance items remain open. Demo
+fingerprints remain unchanged. See [measurement follow-up](../mm-measurement-remediation.md)
+and [portable evidence](../mm-measurement-remediation-evidence.json).

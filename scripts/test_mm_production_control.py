@@ -28,6 +28,20 @@ def validate_baseline(baseline, *, diagnostic_baseline=False):
     return baseline.get('passed') is True
 
 
+def control_windows(*, probe_seconds=None, include_burst=False):
+    if probe_seconds is not None:
+        if (isinstance(probe_seconds, bool) or not isinstance(probe_seconds, int) or
+                not 30 <= probe_seconds <= 900 or include_burst):
+            raise ValueError('A diagnostic probe requires 30..900 seconds and cannot include burst')
+        return [('probe', probe_seconds)]
+    return [('warmup', 300), ('mixed', 900)] + ([('bursts', 90)] if include_burst else [])
+
+
+def acceptance_eligible(baseline, *, probe_seconds=None):
+    return (probe_seconds is None and baseline.get('passed') is True and baseline.get('profile') == 'all' and
+            baseline.get('release_scope_complete') is True and baseline.get('diagnostic') is False)
+
+
 def resource_snapshot(bot):
     # One-shot inspection only, outside the measured client window. Ordinary
     # service children keep their shipping command and have no probe monkeypatch.
@@ -53,8 +67,13 @@ def main():
     parser.add_argument('--baseline', type=Path, required=True, help='Completed load evidence directory')
     parser.add_argument('--diagnostic-baseline', action='store_true', help='Explicit investigation of a failed baseline; never release acceptance')
     parser.add_argument('--include-burst', action='store_true', help='Add the same ninety-second burst after warm300/mixed900')
+    parser.add_argument('--probe-seconds', type=int, help='Bounded 30..900s diagnostic only; never the R2 shipping control')
     parser.add_argument('--keep-going', action='store_true', help='Retain later diagnostic windows after a budget failure; overall result still fails')
     args = parser.parse_args()
+    try:
+        windows = control_windows(probe_seconds=args.probe_seconds, include_burst=args.include_burst)
+    except ValueError as error:
+        parser.error(str(error))
     args.baseline = args.baseline.resolve()
     baseline = json.loads((args.baseline / 'result.json').read_text())
     baseline_passed = validate_baseline(baseline, diagnostic_baseline=args.diagnostic_baseline)
@@ -62,7 +81,9 @@ def main():
     report = ROOT / 'build/service-supervision' / ('production-control-' + time.strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:6])
     report.mkdir(parents=True)
     evidence = dict(scope=__doc__, diagnostic=True, release_scope_complete=False, image_id=image,
-                    baseline_passed=baseline_passed, baseline_acceptance_eligible=baseline_passed,
+                    baseline_passed=baseline_passed,
+                    baseline_acceptance_eligible=acceptance_eligible(baseline, probe_seconds=args.probe_seconds),
+                    probe_seconds=args.probe_seconds,
                     include_burst=args.include_burst, continue_after_budget_failure=args.keep_going,
                     baseline=str(args.baseline.relative_to(ROOT)), bot_limits=baseline['bot_limits'],
                     daily_cache_ttl_seconds=baseline['daily_cache_ttl_seconds'], passed=False, windows={},
@@ -110,7 +131,6 @@ def main():
                                                f'type=bind,source={assets},target=/test-assets,readonly'],
                                       command=['python', '-c', 'import time;time.sleep(20000)'])
                 print('Production control:', report, flush=True)
-                windows = [('warmup', 300), ('mixed', 900)] + ([('bursts', 90)] if args.include_burst else [])
                 for name, duration in windows:
                     before = resource_snapshot(bot)
                     options = (['--operations'] if baseline.get('operations_reads_per_second') else [])

@@ -10,7 +10,6 @@ import faulthandler
 import gc
 import json
 import logging
-import math
 import os
 import signal
 import sys
@@ -21,7 +20,7 @@ from pathlib import Path
 
 from aiohttp import web
 from load_incidents import IncidentBuffer, capture_limit
-from load_process_metrics import collect_requested, process_snapshot
+from load_process_metrics import MetricsExporter, collect_requested
 from load_trace import (
     DeferredGCTrace,
     FullGCProbe,
@@ -99,6 +98,7 @@ loop_beat_ns = time.monotonic_ns()
 watchdog_stop = threading.Event()
 gc_trace = DeferredGCTrace() if tracer else None
 full_gc_probe = FullGCProbe() if os.environ.get('HBOT_LOAD_GC_DIAGNOSTICS') == '1' else None
+metrics_exporter = MetricsExporter(Path('/tmp/load-metrics-api.json' if process_role == 'api' else '/tmp/load-metrics.json'))
 if trace_sink:
     atexit.register(trace_sink.close)
 if incident_sink:
@@ -272,14 +272,6 @@ wrap_books(OkxAPIOrderBookDataSource)
 wrap_books(OkxPerpetualAPIOrderBookDataSource)
 
 
-def distribution(values):
-    ordered = sorted(tuple(values))
-    if not ordered:
-        return {"count": 0, "p50": None, "p95": None, "p99": None, "max": None}
-    return {"count": len(ordered), **{key: ordered[max(0, math.ceil(len(ordered) * fraction) - 1)] for key, fraction in
-            (("p50", .5), ("p95", .95), ("p99", .99))}, "max": ordered[-1]}
-
-
 async def probe(host):
     global loop_beat_ns, memory_gc_runs
     next_sample, next_export = time.monotonic(), time.monotonic()
@@ -290,19 +282,13 @@ async def probe(host):
         samples["event_loop_lag_ms"].append(max(0, (time.monotonic() - next_sample) * 1000))
         if time.monotonic() >= next_export:
             next_export = time.monotonic() + 5
-            fields = {}
-            for line in Path("/proc/self/status").read_text().splitlines():
-                if line.startswith(("VmRSS:", "VmHWM:")):
-                    name, amount, _ = line.split()
-                    fields[name.rstrip(":")] = int(amount) * 1024
-            data = dict(at=time.time(), memory=fields, process_role=process_role, process_id=os.getpid(),
+            data = dict(at=time.time(), process_role=process_role, process_id=os.getpid(),
                         gc_policy=dict(enabled=gc.isenabled(), thresholds=gc.get_threshold(),
                                        permanent_objects=gc.get_freeze_count()),
-                        distributions={key: distribution(values) for key, values in list(samples.items())},
                         runtime_phase=host.phase, runtime_running=getattr(host, 'running', False),
                         spot_outflow_fill_count=(getattr(getattr(host, 'observations', None), 'outflow', None) or {}).get("fill_count"),
                         latest={key: values[-1] for key, values in list(samples.items()) if values},
-                        totals=dict(totals), route_queries=dict(route_queries),
+                        totals=dict(totals), route_queries={key: dict(value) for key, value in list(route_queries.items())},
                         checked_out=host.engine.pool.checkedout() if host.engine else None,
                         pool_size=host.engine.pool.size() if host.engine else None)
             if full_gc_probe is not None:
@@ -313,13 +299,6 @@ async def probe(host):
                                  'gc_trace': gc_trace.summary()}
             if incidents:
                 data['incident_capture'] = incidents.summary()
-            cpu = Path("/sys/fs/cgroup/cpu.stat")
-            if cpu.is_file():
-                data["cgroup_cpu"] = {key: int(value) for key, value in (line.split() for line in cpu.read_text().splitlines())}
-            if process_role in ('engine', 'api'):
-                data['processes'] = process_snapshot(role=process_role, identity=os.getpid())
-                data['container_memory'] = dict(current_bytes=int(Path('/sys/fs/cgroup/memory.current').read_text()),
-                                                peak_bytes=int(Path('/sys/fs/cgroup/memory.peak').read_text()))
             core = host.hb.trading_core if getattr(host, 'hb', None) is not None else None
             strategy = core.strategy if core else None
             orchestrator = getattr(strategy, "executor_orchestrator", None)
@@ -340,10 +319,8 @@ async def probe(host):
                 if collect_requested(process_role, marker):
                     memory_gc_runs += 1
                 data["retention"] = retention_counts(core, orchestrator)
-            destination = Path('/tmp/load-metrics-api.json' if process_role == 'api' else '/tmp/load-metrics.json')
-            temporary = destination.with_suffix('.new')
-            temporary.write_text(json.dumps(data, default=str))
-            temporary.replace(destination)
+            data['metrics_export_skipped'] = metrics_exporter.skipped
+            metrics_exporter.submit(data, samples)
 
 
 def watchdog(loop_thread_id):
@@ -447,6 +424,7 @@ def instrument_run(original):
         finally:
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+            await asyncio.to_thread(metrics_exporter.close)
             if full_gc_probe is not None:
                 gc.callbacks.remove(full_gc_probe)
             if tracer:

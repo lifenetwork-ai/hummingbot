@@ -4,6 +4,12 @@ Status: **corrected R1 fails API/retention budgets; R2 is not started.** No rele
 closure is claimed. Application image `5973410d` / manifest `50a95f3a` is
 unchanged; corrected diagnostic source is `2cb18eccc`.
 
+2026-11-01 follow-up: bounded diagnostics identify additional on-loop metrics
+export cost and verify a single-worker correction. A measured cache breakdown
+defines new-run retention without reclassifying this failed result. Native114
+and the matched300s recorder/shipping pair pass; full R1/R2 remain pending.
+See [measurement follow-up](mm-measurement-remediation.md).
+
 ## Preparation and preserved failures
 
 The operator requested R1/R2 closeout on 2026-10-31. The machine is on AC power
