@@ -124,6 +124,22 @@ async def measure_market_burst(exchange, rate, duration=10, *, on_measurement=No
     return measurement
 
 
+def fill_candidate(working, cursor):
+    """Round-robin executable families; unavailable quotes do not block others."""
+    families = (('LIFE-USDT', 'buy'), ('LIFE-USDT-SWAP', 'buy'),
+                ('LIFE-USDT', 'sell'), ('LIFE-USDT-SWAP', 'sell'))
+    for offset in range(len(families)):
+        selected = (cursor + offset) % len(families)
+        market, side = families[selected]
+        amount = Decimal('0.001') if market == 'LIFE-USDT' else Decimal('0.1')
+        for order in working:
+            if (order['instId'] == market and order['side'] == side
+                    and order['state'] in ('live', 'partially_filled')
+                    and Decimal(order['accFillSz']) + amount <= Decimal(order['sz'])):
+                return order, amount, (selected + 1) % len(families)
+    return None
+
+
 async def main(args):
     start_tracing()
     auth = aiohttp.BasicAuth("operator", "offline-admin")
@@ -260,6 +276,7 @@ async def main(args):
         queue = asyncio.Queue(maxsize=1000)
         latencies, schedule_lag, errors, statuses, per_route = [], [], [], Counter(), {}
         requested, completed, valid_fills, fill_attempts = 0, 0, 0, 0
+        fill_counts = Counter()
         auxiliary_requested, auxiliary_completed, auxiliary_latencies, auxiliary_statuses = 0, 0, [], Counter()
         fill_candidate_conflicts = 0
         last_completion, completed_in_window = None, 0
@@ -308,6 +325,7 @@ async def main(args):
         async def fill_events():
             nonlocal valid_fills, fill_attempts, fill_candidate_conflicts
             index = 0
+            cursor = 0
             # Generation ends with the measurement window. Drain only requests
             # already dispatched, not hypothetical fills needing future quotes.
             # Fixed-profile throughput is still enforced by the rate budget;
@@ -333,23 +351,21 @@ async def main(args):
                     if not filling:
                         return
                     working = [order for order in ledger["orders"] if order["state"] in ("live", "partially_filled")]
-                    # Alternate both markets/sides; tiny valid partial fills retain all
-                    # configured risk caps throughout an hour without external capital.
-                    market = "LIFE-USDT" if index % 2 == 0 else "LIFE-USDT-SWAP"
-                    side = "buy" if (index // 2) % 2 == 0 else "sell"
-                    eligible = [order for order in working if order["instId"] == market and order["side"] == side]
-                    if eligible:
-                        order = eligible[0]
-                        amount = Decimal("0.001") if market == "LIFE-USDT" else Decimal("0.1")
-                        if Decimal(order["accFillSz"]) + amount <= Decimal(order["sz"]):
-                            fill_attempts += 1
-                            accepted = await try_fill({"fill": {"clOrdId": order["clOrdId"], "amount": str(amount), "fee": "0.000001"}, "duplicate": index % 7 == 0})
-                            if accepted:
-                                valid_fills += 1
-                                index += 1
-                            else:
-                                fill_candidate_conflicts += 1
-                await asyncio.sleep(.25 if eligible else .1)
+                    # Advance only after an accepted fill; use another actually
+                    # executable family during normal refresh of the next one.
+                    candidate = fill_candidate(working, cursor)
+                    if candidate:
+                        order, amount, next_cursor = candidate
+                        fill_attempts += 1
+                        accepted = await try_fill({"fill": {"clOrdId": order["clOrdId"], "amount": str(amount), "fee": "0.000001"}, "duplicate": index % 7 == 0})
+                        if accepted:
+                            valid_fills += 1
+                            index += 1
+                            cursor = next_cursor
+                            fill_counts[order['instId'] + ':' + order['side']] += 1
+                        else:
+                            fill_candidate_conflicts += 1
+                await asyncio.sleep(.25 if candidate else .1)
 
         workers = [asyncio.create_task(reader()) for _ in range(10)]
         fills = asyncio.create_task(fill_events()) if args.fills else None
@@ -417,6 +433,7 @@ async def main(args):
                       market_updates_sent=after["market_update_count"] - before["market_update_count"],
                       market_measurement_seconds=after["observed_at_monotonic"] - before["observed_at_monotonic"],
                       fills_per_second=valid_fills / args.duration, valid_fills=valid_fills, fill_attempts=fill_attempts,
+                      fill_counts_by_market_side=dict(fill_counts),
                       fill_target_shortfall=max(0, int(args.duration) - valid_fills),
                       fill_drain_policy="await_dispatched_requests_only",
                       expected_fill_candidate_conflicts=fill_candidate_conflicts,

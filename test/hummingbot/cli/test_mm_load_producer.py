@@ -140,3 +140,48 @@ async def test_genuinely_stuck_fill_request_still_fails_drain(monkeypatch, tmp_p
     assert session.cancelled_request
     assert result['valid_fills'] == 0
     assert result['errors'] == [{'path': 'fill_generator', 'error': 'backlog_not_drained'}]
+
+
+@pytest.mark.asyncio
+async def test_missing_next_family_does_not_block_other_executable_quotes(monkeypatch, tmp_path):
+    # The simulator continuously offers one real working order. The old strict
+    # family cursor stops after one fill while waiting for an absent perpetual
+    # BUY, even though the measured workload can still execute a spot fill.
+    session, result = await run_client(monkeypatch, tmp_path, 'available', duration=2)
+    assert result['valid_fills'] == 2
+    assert session.posts == [False, False]
+    assert result['fill_target_shortfall'] == 0
+    assert result['errors'] == []
+
+
+def quote(identity, market='LIFE-USDT', side='buy', **values):
+    return dict(clOrdId=identity, instId=market, side=side, state='live', accFillSz='0', sz='1', **values)
+
+
+def test_family_rotation_recovers_a_missing_family_without_starving_others():
+    quotes = [quote('spot-buy'), quote('spot-sell', side='sell'),
+              quote('perp-sell', market='LIFE-USDT-SWAP', side='sell')]
+    cursor, selected = 1, []
+    for _ in range(3):
+        order, amount, cursor = load_client.fill_candidate(quotes, cursor)
+        selected.append(order['clOrdId'])
+    assert selected == ['spot-sell', 'perp-sell', 'spot-buy']
+    quotes.append(quote('perp-buy', market='LIFE-USDT-SWAP'))
+    order, amount, cursor = load_client.fill_candidate(quotes, cursor)
+    assert order['clOrdId'] == 'perp-buy'
+    assert amount == load_client.Decimal('.1')
+
+
+def test_exhausted_first_order_does_not_hide_an_executable_order_at_another_level():
+    first, second = quote('exhausted'), quote('available')
+    first['accFillSz'] = '.9999'
+    order, amount, _ = load_client.fill_candidate([first, second], 0)
+    assert order['clOrdId'] == 'available'
+    assert amount == load_client.Decimal('.001')
+
+
+def test_absent_and_terminal_orders_cannot_generate_synthetic_fills():
+    canceled, filled = quote('canceled'), quote('filled')
+    canceled['state'], filled['state'] = 'canceled', 'filled'
+    assert load_client.fill_candidate([], 0) is None
+    assert load_client.fill_candidate([canceled, filled], 0) is None

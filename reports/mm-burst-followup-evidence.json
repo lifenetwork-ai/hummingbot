@@ -518,5 +518,23 @@
     "artifact": "build/service-supervision/20261031-144636-2516e5/result.json",
     "completed": true,
     "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495"
+  },
+  "head_of_line_fix": {
+    "red_log": "build/burst-investigation-20261031/producer-head-block-red.log",
+    "red_failed_tests": 1,
+    "red_control_tests_passed": 4,
+    "green_log": "build/burst-investigation-20261031/producer-head-block-green.log",
+    "green_tests": 40,
+    "runtime_changes": false,
+    "workload_change": "Round-robin actual executable families; skip unavailable families and exhausted levels. Output per-family fill counts. Original total rate/deadline/amount gates preserved.",
+    "initial_full_attempt": {
+      "artifact": "build/mm-load/20261031-145220-cb1675/result.json",
+      "accepted": false,
+      "completed": false,
+      "warmup_fills": 296,
+      "warmup_p99_ms": 74.90758504718542,
+      "reason": "Warmup failed fill_rate. Confirmed head-of-line blocking in test client; stop failed candidate before harness correction. Partial mixed window is not acceptance."
+    },
+    "packaged_confirmation": "pending"
   }
 }

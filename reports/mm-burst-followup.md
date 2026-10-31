@@ -108,3 +108,31 @@ Shipping supervision on restored image `5973410d` passes all existing cases,
 including independent API replacement, engine crash/hang, retained HALT and
 parent cleanup. This verifies current behavior; it does not identify the old
 incident cause. The full gate is the next separate acceptance step.
+
+
+## Additional confirmed load-client defect
+
+The first restored-image full attempt `20261031-145220-cb1675` fails warmup
+fill rate (296/300), with zero HTTP errors, p99 74.91ms and drain 0.011s. It is
+interrupted during partial mixed after a separate, reproducible test-client bug
+is confirmed; no completed full-load or retention acceptance is claimed.
+
+Boundary logs show spot SELL quotes canceled 7.6s before the warmup deadline,
+with replacement 0.45s before it. Other families continue filling. The generator
+waits for its exact next family instead of using another executable quote. A
+new two-second real-client regression offers a continuously working spot BUY:
+the old client accepts only one fill while waiting for a nonexistent perpetual
+BUY. It fails Red; the corrected client accepts two. Expanded related suite:
+**40 passed**, including all previous generation/drain boundary cases.
+
+The correction rotates across available executable market/side families and
+returns to a missing family once available. It also skips an exhausted first
+order if another level has capacity. Only real live/partial orders with enough
+remaining size can be chosen. The output records actual fills by market/side.
+This is an explicit workload-selection correction: unavailable quotes no longer
+block other available families. The existing minimum total fill rate, window,
+partial-fill amounts, fee injection, duplicate frequency, order-state checks and
+ten-second drain deadline are unchanged; no new fills are generated after the
+measurement deadline. All four families must remain visible in the subsequent
+load evidence. This is not evidence that the bot lost fills, nor the root cause
+of the unrelated 498.033/s feed shortfall. Targeted packaged confirmation follows.
