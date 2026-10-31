@@ -12,6 +12,7 @@ external scope. Known evidence/performance limitations are not marked as done.
 
 | Report | Associated artifact or scope |
 |---|---|
+| [Current-image closeout](mm-release-closeout.md), [evidence](mm-release-closeout-evidence.json) | R1 interrupted on engine replacement/HALT; recorder GC-lock defect reproduced and fixed with81 related tests and packaged diagnostics. Corrected full R1 and R2 remain pending. |
 | [Automatic incident capture](mm-incident-investigation.md), [evidence](mm-incident-investigation-evidence.json) | 61 related tests, known-pause validation and matched shipping/recorded warm/mixed/burst diagnostics pass; historical long-lag cause and full release remain open |
 | [Current-image OKX Demo](okx-demo-current-image.md), [evidence](okx-demo-current-image-evidence.json) | Image715a read-only preflight, nine profile/mode cases, real Random step/restart and 404 exact canceled post-only orders; no new natural fills |
 | [Runtime supervision](mm-service-supervision.md) | Local acceptance complete: final image/regression/E2E/lifecycle, hour/load/faults and matched ordinary-entrypoint control pass; prior failures retained |

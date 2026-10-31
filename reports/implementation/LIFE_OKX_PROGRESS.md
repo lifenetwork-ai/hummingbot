@@ -2058,3 +2058,26 @@ and the task's idle-sleep assertion are removed; persistent stopped Demo image,
 control/ack and four ledger fingerprints remain unchanged. See
 [incident report](../mm-incident-investigation.md) and
 [portable evidence](../mm-incident-investigation-evidence.json).
+
+
+2026-10-31 requested R1/R2 closeout: `d61405c62` makes the test-only capture count
+explicitly configurable within1..128 while retaining independent ring/file caps;
+76 related tests pass. A preparation attempt is interrupted with no completed
+window and preserved. Full attempt `20261031-222312-6f060d` then passes
+warm300/mixed900/burst90 (p99 226/245/262ms, 1,290 matching fills), but fails healthy
+soak with an unplanned engine replacement/HALT. It is stopped on observed
+failure; no hour/fault/R2 acceptance is claimed.
+
+The actual old GC callback is reproduced deadlocking the recorder's own lock.
+`2cb18eccc` defers GC event emission outside callbacks/critical sections and adds
+a bounded signal stack fallback after established probe failures. Expanded native
+suite:81 passed. A packaged counterfactual captures the exact reentry lock cycle
+and thirteen failed probes; the fixed packaged forced-GC case passes90s/90 fills,
+p99 72.82ms, zero unexpected errors. This verifies a test-recorder defect/fix,
+not a production engine change or proof of every historical incident's cause.
+
+Canonical corrected full rerun `20261031-231819-7fe2f2` is in progress on unchanged
+image5973410d; R2 requires its completed passing baseline. Both active acceptance
+items stay unchecked. Demo remains stopped and unchanged. See
+[closeout report](../mm-release-closeout.md) and
+[scoped evidence](../mm-release-closeout-evidence.json).

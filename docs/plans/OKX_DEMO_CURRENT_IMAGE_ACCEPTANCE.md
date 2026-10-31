@@ -17,6 +17,12 @@ pending execution; older checkpoints are history, not additional tasks.
   Preserve any failure and diagnose it before another long repeat. No separate
   passing windows may be combined into a pass. The measured windows alone take
   81.5 minutes, followed by fault verification and cleanup.
+  Attempt `20261031-222312-6f060d` passes the first three windows but is
+  interrupted after an unexpected engine replacement/HALT in soak. A recorder
+  GC-lock reentry defect is then reproduced and fixed with81 related tests and
+  packaged Red/Green diagnostics (`2cb18eccc`); the application image is unchanged.
+  A fresh full run is required. See the
+  [closeout report](../../reports/mm-release-closeout.md).
 - [ ] **R2 — Complete the passing-baseline shipping control:** after R1 passes,
   run ordinary-entrypoint warm300/mixed900 with its matching image, YAML, client,
   exchange fixtures and resource limits. Reconcile ledgers, verify Demo

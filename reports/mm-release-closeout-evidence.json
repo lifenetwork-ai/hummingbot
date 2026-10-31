@@ -1,0 +1,175 @@
+{
+  "status": "R1 corrected rerun in progress; R2 pending passing baseline",
+  "release_accepted": false,
+  "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
+  "manifest": "sha256:50a95f3a842f95ed072510e9031b2cf5f99d75ed07943c4e52862d9b26a7dc51",
+  "production_runtime_changes": false,
+  "early_capacity_interruption": {
+    "at": "2026-10-31T15:21:23.626208+00:00",
+    "run": "build/mm-load/20261031-221920-6c4d3f",
+    "accepted": false,
+    "reason": "Early operator-agent interruption to configure bounded incident count for long release gate; no runtime defect or budget waiver inferred. Preserve partial run and logs.",
+    "signal": "SIGINT",
+    "pid": 56018,
+    "completed_windows": [],
+    "release_scope_complete": false,
+    "runtime_failure_inferred": false
+  },
+  "failed_r1": {
+    "run": "build/mm-load/20261031-222312-6f060d",
+    "completed_windows": {
+      "warmup": {
+        "duration_seconds": 300,
+        "read_p95_ms": 54.12981106201187,
+        "read_p99_ms": 226.20243002893403,
+        "unexpected_errors": 0,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 78,
+          "LIFE-USDT-SWAP:buy": 74,
+          "LIFE-USDT:sell": 74,
+          "LIFE-USDT-SWAP:sell": 74
+        },
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "violations": []
+      },
+      "mixed": {
+        "duration_seconds": 900,
+        "read_p95_ms": 59.61147497873753,
+        "read_p99_ms": 245.1388500048779,
+        "unexpected_errors": 0,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 229,
+          "LIFE-USDT-SWAP:buy": 229,
+          "LIFE-USDT:sell": 217,
+          "LIFE-USDT-SWAP:sell": 225
+        },
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "violations": []
+      },
+      "bursts": {
+        "duration_seconds": 90,
+        "read_p95_ms": 56.69627105817199,
+        "read_p99_ms": 262.03166600316763,
+        "unexpected_errors": 0,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 23,
+          "LIFE-USDT-SWAP:buy": 23,
+          "LIFE-USDT:sell": 22,
+          "LIFE-USDT-SWAP:sell": 22
+        },
+        "ledger": {
+          "unique_exchange_fills": 1290,
+          "unique_recorder_fills": 1290,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "violations": []
+      }
+    },
+    "observed_failure": {
+      "at": "2026-10-31T15:58:14.359947+00:00",
+      "run": "build/mm-load/20261031-222312-6f060d",
+      "accepted": false,
+      "release_scope_complete": false,
+      "reason": "Observed unplanned engine replacement and retained HALT during healthy soak; stop early for recorded incident diagnosis, not an accepted shortened soak.",
+      "old_engine_pid": 31,
+      "signal": "SIGINT",
+      "runner_pid": 61206
+    },
+    "full_release_complete": false
+  },
+  "gc_defect": {
+    "status": "closed_verified",
+    "scope": "test recorder only",
+    "fix_commit": "2cb18eccc",
+    "native_related_tests_passed": 81,
+    "native_actual_callback_red_log": "build/release-closeout-20261031/gc-deadlock-red.log",
+    "green_log": "build/release-closeout-20261031/gc-green.log",
+    "actual_failed_soak_exact_stack_available": false,
+    "specific_historical_incident_attribution_claimed": false,
+    "legacy_packaged": {
+      "run": "/Users/deeznuts/hummingbot/build/mm-load/20261031-231135-c87850",
+      "variant": "legacy-inline",
+      "diagnostic": true,
+      "release_scope_complete": false,
+      "intentional_counterfactual_failure": true,
+      "driver_failure": "AssertionError",
+      "forced_gc_completed": false,
+      "signal_stack_observed": true
+    },
+    "fixed_packaged": {
+      "run": "/Users/deeznuts/hummingbot/build/mm-load/20261031-231434-d15615",
+      "variant": "deferred",
+      "diagnostic": true,
+      "release_scope_complete": false,
+      "intentional_counterfactual_failure": false,
+      "driver_failure": null,
+      "forced_gc_completed": true,
+      "signal_stack_observed": false
+    }
+  },
+  "current_preflight": {
+    "started_at": "2026-10-31T16:18:19.441257+00:00",
+    "git_commit": "2cb18eccca2dd20c549ba378a4ba49a5207cd08e",
+    "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
+    "manifest": "127.0.0.1:58137/hummingbot@sha256:50a95f3a842f95ed072510e9031b2cf5f99d75ed07943c4e52862d9b26a7dc51",
+    "runtime_source_unchanged_since": "fc0ee55b8",
+    "source_sha256": {
+      "scripts/mm_load_budgets.py": "b037ad1734012aaf0a36619f78f812336d9b00696a1b2b90bc8d45bb3e0a7061",
+      "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
+      "scripts/test_e2e_offline.py": "47dec31c15dc83b731741825a26f9df0afdef817a51cdaf3523f779a05854c08",
+      "scripts/test_mm_load.py": "00758b031e1dec0c15b8f2cb59506291daec9cc7d121373d9e7564606e4e1dad",
+      "scripts/test_mm_production_control.py": "b657fd9dbb4bf68b48a90dca429471a5b169358e36046ff4ab0527105c4aaac0",
+      "test/e2e/offline/exchange.py": "52fc186aa3cc081ac478bfe12d495641784b97d2bd4b668de8f8625b429a4d83",
+      "test/e2e/offline/load_client.py": "54e77fe15c96e9efce065b45315aea7ff2f70eae36322128ef69daa4475f3b53",
+      "test/e2e/offline/load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+      "test/e2e/offline/load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+      "test/e2e/offline/load_service.py": "4b7073d8622988c8279df109b5c90228251e53fc46e2eb3629d112a99090c6e5",
+      "test/e2e/offline/load_trace.py": "db5711b80389ba1e8341b1740fae414715090b885cc97533979e4c9b859fb7bc"
+    },
+    "power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=6881379)\t100%; charged; 0:00 remaining present: true\n",
+    "docker_resources": "cpus=8 memory_bytes=8218251264",
+    "r1_passed": false,
+    "r2_passed": false,
+    "incident_capture_count": 128,
+    "incident_ring_bytes": 524288,
+    "incident_stream_bytes": 33554432,
+    "early_interruption": "early-interruption.json",
+    "related_native_tests_passed": 81,
+    "gc_fix_commit": "2cb18eccc",
+    "deferred_gc": true,
+    "signal_stack_fallback": {
+      "consecutive_failed_probes": 3,
+      "max_dumps_per_role": 16
+    },
+    "prior_runtime_failure": "r1-observed-runtime-failure.json"
+  },
+  "current_execution": {
+    "r1_run": "build/mm-load/20261031-231819-7fe2f2",
+    "r1_exec_session": 52683,
+    "caffeinate_pid": 55561,
+    "caffeinate_exec_session": 61875,
+    "frozen_source_commit": "2cb18eccca2dd20c549ba378a4ba49a5207cd08e",
+    "r1_log": "build/release-closeout-20261031/r1.log",
+    "r2_pending_after_r1_pass": true,
+    "native_related_tests_passed": 81,
+    "early_interruption": "build/release-closeout-20261031/early-interruption.json",
+    "previous_failed_r1": "build/mm-load/20261031-222312-6f060d",
+    "gc_fix_commit": "2cb18eccc",
+    "gc_packaged_fixed_proof": "build/release-closeout-20261031/deferred-packaged-gc-proof.json"
+  },
+  "historical_H1_H2_H3_causes_closed": false
+}
