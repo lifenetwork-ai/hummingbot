@@ -1,5 +1,28 @@
 # Current-image OKX Demo acceptance
 
+## Active follow-up: automatic incident capture and shipping comparison
+
+Operator request: 2026-10-31. The earlier verified fixes remain closed. The
+current recovered-probe latency cause and full release acceptance remain open.
+
+- [x] Red/Green test bounded pre-incident stack/SQL/CPU context, failed-probe and
+  recovery triggers, explicit retention/loss limits and failed-baseline exclusion.
+  Expanded related native suite: 59 passed.
+- [x] Verify automatic capture with a known short engine pause on the isolated
+  image, keeping actual injection timestamps and retained prehistory/recovery.
+  Ninety-second packaged diagnostic passes: 90 matching fills, no HTTP errors,
+  p99 129.48ms, same engine PID; both roles retain failure/recovery and context.
+- [ ] Compare one shipping-entrypoint warm300/mixed900/burst90 diagnostic with
+  one matched incident-recorded sequence. Keep the same image/YAML/client/
+  exchange fixtures, caps, history size and budgets; retain every failure.
+- [ ] Attribute the actual long-lag episode using timestamped evidence. For any
+  confirmed runtime defect, demonstrate Red/Green. A non-reproducing comparison
+  leaves the historical cause unresolved.
+- [ ] After a justified candidate fix, run the unchanged full hour/recovery
+  gate and its matched shipping control; do not merge separate passing windows.
+
+See [incident investigation](../../reports/mm-incident-investigation.md).
+
 Operator request: 2026-10-30. Selected runtime `715a11f3…`, after completed local
 regression/E2E/load/hour/recovery/control acceptance. Earlier real Demo results
 retain their original image scope.

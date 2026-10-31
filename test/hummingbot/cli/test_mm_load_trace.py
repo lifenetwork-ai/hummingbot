@@ -87,6 +87,16 @@ def test_request_children_are_bounded_and_loss_is_explicit():
     assert recorder.active_snapshot() == []
 
 
+def test_incident_sampler_bounds_active_span_snapshot_without_losing_active_state():
+    recorder = TraceRecorder(lambda row: None)
+    spans = [recorder.begin('sql', backend_pid=n) for n in range(20)]
+    assert len(recorder.active_snapshot(limit=3)) == 3
+    assert len(recorder.active_snapshot()) == 20
+    for span in reversed(spans):
+        recorder.end(span)
+    assert recorder.active_snapshot() == []
+
+
 def test_full_gc_probe_is_bounded_and_ignores_young_collections(monkeypatch):
     from test.e2e.offline import load_trace
     probe = load_trace.FullGCProbe(limit=2)

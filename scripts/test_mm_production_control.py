@@ -20,6 +20,24 @@ from scripts.test_e2e_offline import Harness, docker, poll  # noqa: E402
 from scripts.test_mm_load import assets_for, command, seed_history, verify_ledger  # noqa: E402
 
 
+def validate_baseline(baseline, *, diagnostic_baseline=False):
+    if not baseline.get('enhancements') or not baseline.get('volatility_defense'):
+        raise ValueError('Matched control requires an all-feature volatility-defense fixture')
+    if not baseline.get('passed') and not diagnostic_baseline:
+        raise ValueError('A failed baseline requires --diagnostic-baseline; it cannot close release acceptance')
+    return baseline.get('passed') is True
+
+
+def resource_snapshot(bot):
+    # One-shot inspection only, outside the measured client window. Ordinary
+    # service children keep their shipping command and have no probe monkeypatch.
+    import inspect
+    from test.e2e.offline.load_process_metrics import process_snapshot
+    code = 'import json; from pathlib import Path\n' + inspect.getsource(process_snapshot)
+    code += "\nprint(json.dumps(dict(processes=process_snapshot(),cpu={k:int(v) for k,v in (line.split() for line in Path('/sys/fs/cgroup/cpu.stat').read_text().splitlines())},memory={k:int(Path('/sys/fs/cgroup/memory.'+v).read_text()) for k,v in [('current_bytes','current'),('peak_bytes','peak')]})))"
+    return json.loads(docker('exec', bot, 'python', '-c', code).stdout)
+
+
 def summarize_window(data, *, memory, phase, setup_commands, ledger):
     """Apply unchanged budgets using measured setup commands for nonburst reads."""
     row = dict(data)
@@ -33,14 +51,19 @@ def summarize_window(data, *, memory, phase, setup_commands, ledger):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline', type=Path, required=True, help='Completed load evidence directory')
+    parser.add_argument('--diagnostic-baseline', action='store_true', help='Explicit investigation of a failed baseline; never release acceptance')
+    parser.add_argument('--include-burst', action='store_true', help='Add the same ninety-second burst after warm300/mixed900')
+    parser.add_argument('--keep-going', action='store_true', help='Retain later diagnostic windows after a budget failure; overall result still fails')
     args = parser.parse_args()
     args.baseline = args.baseline.resolve()
     baseline = json.loads((args.baseline / 'result.json').read_text())
-    assert baseline.get('passed') and baseline['enhancements'] and baseline['volatility_defense']
+    baseline_passed = validate_baseline(baseline, diagnostic_baseline=args.diagnostic_baseline)
     image = baseline['image_id']
     report = ROOT / 'build/service-supervision' / ('production-control-' + time.strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:6])
     report.mkdir(parents=True)
     evidence = dict(scope=__doc__, diagnostic=True, release_scope_complete=False, image_id=image,
+                    baseline_passed=baseline_passed, baseline_acceptance_eligible=baseline_passed,
+                    include_burst=args.include_burst, continue_after_budget_failure=args.keep_going,
                     baseline=str(args.baseline.relative_to(ROOT)), bot_limits=baseline['bot_limits'],
                     daily_cache_ttl_seconds=baseline['daily_cache_ttl_seconds'], passed=False, windows={},
                     not_measured=['query counts', 'worker/pool queue', 'event-loop/GC timing', 'held-adapter introspection'])
@@ -87,22 +110,31 @@ def main():
                                                f'type=bind,source={assets},target=/test-assets,readonly'],
                                       command=['python', '-c', 'import time;time.sleep(20000)'])
                 print('Production control:', report, flush=True)
-                for name, duration in (('warmup', 300), ('mixed', 900)):
+                windows = [('warmup', 300), ('mixed', 900)] + ([('bursts', 90)] if args.include_burst else [])
+                for name, duration in windows:
+                    before = resource_snapshot(bot)
+                    options = (['--operations'] if baseline.get('operations_reads_per_second') else [])
+                    if name == 'bursts':
+                        options += ['--burst']
+                        if baseline.get('market_diagnostics'):
+                            options += ['--market-diagnostics']
                     result = docker('exec', client, 'python', '/test-assets/load_client.py', '--duration', duration,
-                                    '--output', '/tmp/result.json', '--operations', timeout=duration + 60, check=False)
+                                    '--output', '/tmp/result.json', *options, timeout=duration + 60, check=False)
                     (report / (name + '-client.log')).write_text(result.stdout + result.stderr)
                     assert result.returncode == 0
                     row = json.loads(docker('exec', client, 'cat', '/tmp/result.json').stdout)
                     (report / (name + '-client.json')).write_text(json.dumps(row, indent=2) + '\n')
-                    memory_code = "import json;from pathlib import Path; print(json.dumps({k:int(Path('/sys/fs/cgroup/memory.'+v).read_text()) for k,v in [('current_bytes','current'),('peak_bytes','peak')]}))"
-                    memory = json.loads(docker('exec', bot, 'python', '-c', memory_code).stdout)
+                    after = resource_snapshot(bot)
                     status = harness.admin(port, '/status')[1]
-                    row = summarize_window(row, phase=status['phase'], memory=memory, setup_commands=controls,
+                    row = summarize_window(row, phase=status['phase'], memory=after['memory'], setup_commands=controls,
                                            ledger=verify_ledger(harness, port, require_running=False))
+                    row['resources'] = dict(before=before, after=after)
                     evidence['windows'][name] = row
                     (report / 'result.json').write_text(json.dumps(evidence, indent=2) + '\n')
                     print(name, {key: row[key] for key in ('read_p95_ms', 'read_p99_ms', 'unexpected_errors', 'violations')}, flush=True)
-                    assert not row['violations'], 'Ordinary-entrypoint latency/error budget failed'
+                    if row['violations'] and not args.keep_going:
+                        raise AssertionError('Ordinary-entrypoint latency/error budget failed')
+                assert all(not row['violations'] for row in evidence['windows'].values()), 'Ordinary-entrypoint budgets failed'
                 evidence['passed'] = True
             finally:
                 harness.cleanup()

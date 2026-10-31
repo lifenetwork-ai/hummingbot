@@ -18,6 +18,7 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 from aiohttp import web
+from load_incidents import IncidentBuffer
 from load_process_metrics import collect_requested, process_snapshot
 from load_trace import (
     FullGCProbe,
@@ -82,15 +83,37 @@ samples = defaultdict(lambda: deque(maxlen=12000))
 totals = defaultdict(int)
 route_queries = defaultdict(lambda: {"calls": 0, "queries": 0, "min": None, "max": 0})
 trace_directory = os.environ.get("HBOT_LOAD_TRACE_DIRECTORY")
+incident_directory = os.environ.get('HBOT_LOAD_INCIDENT_DIRECTORY')
 process_role = sys.argv[sys.argv.index('--role') + 1] if '--role' in sys.argv else 'combined'
 trace_sink = TraceSink(Path(trace_directory) / ('server-api.jsonl' if process_role == 'api' else 'server.jsonl')) if trace_directory else None
-tracer = TraceRecorder(trace_sink.emit) if trace_sink else None
+incident_sink = TraceSink(Path(incident_directory) / (process_role + '-incidents.jsonl'),
+                          max_bytes=32 * 1024**2, queue_limit=256, append=True) if incident_directory else None
+incidents = IncidentBuffer(lambda row: incident_sink.emit({**row, 'capturing_pid': os.getpid(),
+                                                          'capturing_role': process_role})) if incident_sink else None
+tracer = TraceRecorder(trace_sink.emit) if trace_sink else TraceRecorder(incidents.emit, max_children=16) if incidents else None
 loop_beat_ns = time.monotonic_ns()
 watchdog_stop = threading.Event()
 gc_started = {}
 full_gc_probe = FullGCProbe() if os.environ.get('HBOT_LOAD_GC_DIAGNOSTICS') == '1' else None
 if trace_sink:
     atexit.register(trace_sink.close)
+if incident_sink:
+    atexit.register(incident_sink.close)
+
+
+def emit_trace(record):
+    if trace_sink:
+        trace_sink.emit(record)
+    if incidents:
+        incidents.emit(record)
+
+
+def save_incident_summary():
+    destination = Path(incident_directory) / (process_role + '-incident-summary.json')
+    temporary = destination.with_suffix('.new')
+    temporary.write_text(json.dumps({**incidents.summary(), 'at': time.time(), 'process_id': os.getpid(),
+                                     'sink': incident_sink.summary(), 'dropped_spans': tracer.dropped_spans}))
+    temporary.replace(destination)
 
 
 def timed_sync(owner, name, key):
@@ -277,8 +300,10 @@ async def probe(host):
             if full_gc_probe is not None:
                 data['full_gc_events'] = list(full_gc_probe.events)
             if tracer:
-                data["trace"] = {**trace_sink.summary(), "dropped_spans": tracer.dropped_spans,
-                                 "slow_trace_threshold_ms": tracer.slow_ms}
+                data["trace"] = {**(trace_sink.summary() if trace_sink else incident_sink.summary()),
+                                 "dropped_spans": tracer.dropped_spans, "slow_trace_threshold_ms": tracer.slow_ms}
+            if incidents:
+                data['incident_capture'] = incidents.summary()
             cpu = Path("/sys/fs/cgroup/cpu.stat")
             if cpu.is_file():
                 data["cgroup_cpu"] = {key: int(value) for key, value in (line.split() for line in cpu.read_text().splitlines())}
@@ -315,21 +340,50 @@ async def probe(host):
 def watchdog(loop_thread_id):
     previous = 0
     last_cpu = 0
+    last_sample = time.monotonic_ns()
+    last_summary = 0
+    last_sequence = 0
+    trigger_path = Path('/tmp/load-incident-trigger.json')
     while not watchdog_stop.wait(.05):
         now = time.monotonic_ns()
         cpu = Path("/sys/fs/cgroup/cpu.stat")
-        if now - last_cpu >= 1000000000 and cpu.is_file():
+        if incidents:
+            try:
+                for entry in json.loads(trigger_path.read_text())['events']:
+                    if entry['sequence'] > last_sequence:
+                        incidents.trigger({**entry, 'observed_at_ns': now, 'capturing_role': process_role})
+                        last_sequence = entry['sequence']
+            except (OSError, ValueError, KeyError):
+                pass
+            if now - last_summary >= 1000000000:
+                last_summary = now
+                try:
+                    save_incident_summary()
+                except OSError:
+                    pass  # Evidence filesystem errors cannot affect trading health.
+        if now - last_cpu >= (250000000 if incidents else 1000000000) and cpu.is_file():
             last_cpu = now
-            trace_sink.emit(dict(kind="cpu_sample", at=time.time(), at_ns=now,
-                                 cgroup_cpu={key: int(value) for key, value in
-                                             (line.split() for line in cpu.read_text().splitlines())}))
+            record = dict(kind="cpu_sample", at=time.time(), at_ns=now, process_role=process_role,
+                          process_cpu_ns=time.process_time_ns(), sampler_thread_cpu_ns=time.thread_time_ns(),
+                          sample_gap_ms=(now - last_sample) / 1e6,
+                          cgroup_cpu={key: int(value) for key, value in (line.split() for line in cpu.read_text().splitlines())})
+            if incidents:
+                active = tracer.active_snapshot(limit=16)
+                frames = sys._current_frames()
+                record.update(active_spans=active, last_beat_ns=loop_beat_ns,
+                              stacks={str(tid): stack_snapshot(frames.get(tid)) for tid in
+                                      {loop_thread_id, *(span['thread_id'] for span in active[:7])}},
+                              pressure={name: path.read_text() for name in ('cpu', 'io', 'memory')
+                                        if (path := Path('/proc/pressure') / name).is_file()})
+            emit_trace(record)
+            last_sample = now
         last_beat = loop_beat_ns
         lag_ms = (now - last_beat) / 1e6 - 50
         if lag_ms < 200 or now - previous < 100000000:
             continue
         previous = now
         frames = sys._current_frames()
-        active = tracer.active_snapshot()
+        active = tracer.active_snapshot(limit=16 if incidents else None)
         record = dict(kind="loop_stall", at=time.time(), at_ns=now, last_beat_ns=last_beat,
                       process_role=process_role,
                       loop_thread_id=loop_thread_id, lag_ms=lag_ms, active_spans=active,
@@ -339,7 +393,10 @@ def watchdog(loop_thread_id):
             record["cgroup_cpu"] = {key: int(value) for key, value in (line.split() for line in cpu.read_text().splitlines())}
         record["pressure"] = {name: path.read_text() for name in ("cpu", "io", "memory")
                               if (path := Path("/proc/pressure") / name).is_file()}
-        trace_sink.emit(record)
+        if incidents:
+            incidents.trigger(dict(kind='loop_stall_trigger', at_ns=now, at=time.time(),
+                                   process_role=process_role, lag_ms=lag_ms))
+        emit_trace(record)
 
 
 def gc_trace(phase, info):
@@ -350,8 +407,8 @@ def gc_trace(phase, info):
         started = gc_started.pop(key)
         duration = (time.monotonic_ns() - started) / 1e6
         if duration >= 10:
-            trace_sink.emit(dict(kind="gc", at=time.time(), start_ns=started, duration_ms=duration,
-                                 thread_id=key[0], generation=key[1], collected=info["collected"]))
+            emit_trace(dict(kind="gc", at=time.time(), start_ns=started, duration_ms=duration,
+                            thread_id=key[0], generation=key[1], collected=info["collected"]))
 
 
 if tracer:
@@ -380,11 +437,13 @@ if tracer:
 def instrument_run(original):
     async def run(host):
         task = asyncio.create_task(probe(host))
+        watchdog_thread = None
         if full_gc_probe is not None:
             gc.callbacks.append(full_gc_probe)
         if tracer:
             gc.callbacks.append(gc_trace)
-            threading.Thread(target=watchdog, args=(threading.get_ident(),), name="load-loop-watchdog", daemon=True).start()
+            watchdog_thread = threading.Thread(target=watchdog, args=(threading.get_ident(),), name="load-loop-watchdog", daemon=True)
+            watchdog_thread.start()
         try:
             return await original(host)
         finally:
@@ -395,10 +454,15 @@ def instrument_run(original):
             if tracer:
                 watchdog_stop.set()
                 gc.callbacks.remove(gc_trace)
+                watchdog_thread.join(timeout=1)
+            if trace_sink:
                 trace_sink.close()
                 name = 'server-api-summary.json' if process_role == 'api' else 'server-summary.json'
                 (Path(trace_directory) / name).write_text(json.dumps(
                     {**trace_sink.summary(), "dropped_spans": tracer.dropped_spans}, indent=2))
+            if incidents:
+                incident_sink.close()
+                save_incident_summary()
     return run
 
 

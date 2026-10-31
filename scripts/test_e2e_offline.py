@@ -172,7 +172,7 @@ class Harness:
         assert json.loads(docker("network", "inspect", self.network).stdout)[0]["Internal"]
 
     def start(self, revision, *, auto_migrate=True, runtime_role=False, expect_failure=False, additive_fixture=False,
-              storage_backend="postgres", instrumented=False, trace_directory=None, availability=False,
+              storage_backend="postgres", instrumented=False, trace_directory=None, incident_directory=None, availability=False,
               instrumented_entrypoint='load_entrypoint.py', cpus=1, network_alias=None):
         name = self.prefix + "-" + revision
         env = {**self.env, "K_REVISION": revision, "ENABLE_AUTO_MIGRATION": str(auto_migrate).lower(),
@@ -195,6 +195,10 @@ class Harness:
             assert instrumented
             env["HBOT_LOAD_TRACE_DIRECTORY"] = "/trace-output"
             mounts += ["--mount", f"type=bind,source={trace_directory},target=/trace-output"]
+        if incident_directory is not None:
+            assert instrumented
+            env['HBOT_LOAD_INCIDENT_DIRECTORY'] = '/incident-output'
+            mounts += ['--mount', f'type=bind,source={incident_directory},target=/incident-output']
         self.run_container(name, ["--platform", "linux/amd64", "--cpus", str(cpus), "--memory", "2g", "--read-only",
                                   "--tmpfs", "/tmp:rw,nosuid,size=128m",
                                   *(['--network-alias', network_alias or 'bot'] if instrumented or network_alias else []), *mounts],

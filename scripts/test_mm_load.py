@@ -60,7 +60,7 @@ def assets_for(path):
 
     import yaml
     path.chmod(0o755)
-    for name in ("exchange.py", "load_service.py", "load_entrypoint.py", "load_process_metrics.py", "load_trace.py", "load_health.py", "load_client.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
+    for name in ("exchange.py", "load_service.py", "load_entrypoint.py", "load_process_metrics.py", "load_trace.py", "load_incidents.py", "load_health.py", "load_client.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
         (path / name).write_bytes((ROOT / "test/e2e/offline" / name).read_bytes())
     (path / "pmm-revised.yml").write_bytes((path / "pmm.yml").read_bytes())
     write_fixtures(path / "fixtures.json")
@@ -178,7 +178,7 @@ def run_window(harness, bot, client, name, duration, report, *, options=(), burs
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    parser.add_argument("--profile", choices=("probe", "mixed", "bursts", "soak", "faults", "all"), default="probe")
+    parser.add_argument("--profile", choices=("probe", "sequence", "mixed", "bursts", "soak", "faults", "all"), default="probe")
     parser.add_argument("--probe-seconds", type=int, default=60)
     parser.add_argument("--history-rows", type=int, default=100000)
     parser.add_argument('--cpus', type=int, choices=(1, 2), default=2, help='Total application container CPUs')
@@ -186,6 +186,7 @@ def main():
     parser.add_argument("--diagnostic", action="store_true", help="Use local image ID for iteration; cannot serve as final artifact acceptance")
     parser.add_argument("--refresh-seconds", type=int, help="Diagnostic-only accelerated quote refresh")
     parser.add_argument("--trace", action="store_true", help="Bounded request/SQL/commit/loop-stack/PG-wait traces; no parameters or credentials")
+    parser.add_argument('--incident-diagnostics', action='store_true', help='Bounded stack/SQL/CPU prehistory automatically retained on failed probes or loop stalls')
     parser.add_argument('--gc-diagnostics', action='store_true', help='Minimal bounded full-GC timing in the test wrapper; no GC policy changes')
     parser.add_argument('--market-diagnostics', action='store_true', help='Opt-in bounded simulator burst scheduling/send metrics')
     parser.add_argument("--strict-guards", action="store_true", help="Explicit strict-guard fixture; production defaults remain disabled")
@@ -198,6 +199,8 @@ def main():
     parser.add_argument("--keep-going", action="store_true", help="Continue healthy windows after budget violations; final result still fails")
     parser.add_argument("--operations", action="store_true", help="Add three operator-history/configuration reads/s to the existing read mix")
     args = parser.parse_args()
+    if args.trace and args.incident_diagnostics:
+        parser.error('Use either full tracing or incident diagnostics to keep their overhead distinct')
     if not math.isfinite(args.daily_cache_ttl_seconds) or not 0 <= args.daily_cache_ttl_seconds <= 60:
         parser.error('daily-cache-ttl-seconds must be finite and within 0..60')
     if args.volatility_defense:
@@ -209,7 +212,7 @@ def main():
     metadata = json.loads(docker("image", "inspect", args.image).stdout)[0]
     assert metadata["Architecture"] == "amd64"
     # Cached immutable digest from P4 needs no registry/network preparation again.
-    diagnostic = args.diagnostic or args.profile == "probe"
+    diagnostic = args.diagnostic or args.profile in ('probe', 'sequence')
     image = (metadata["Id"] if diagnostic else
              next(iter(metadata["RepoDigests"]), None) or pin_manifest(args.image))
     report = ROOT / "build/mm-load" / (time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6])
@@ -225,6 +228,8 @@ def main():
                     tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap, inventory_skew=args.inventory_skew,
                     gc_diagnostics=args.gc_diagnostics,
                     market_diagnostics=args.market_diagnostics,
+                    incident_diagnostics=args.incident_diagnostics,
+                    release_scope_complete=False,
                     daily_cache_ttl_seconds=args.daily_cache_ttl_seconds,
                     continue_after_budget_failure=args.keep_going, windows={})
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
@@ -318,6 +323,15 @@ def main():
                 harness.env["FUNDING_SYNC_INTERVAL_SECONDS"] = "5"
                 if args.gc_diagnostics:
                     harness.env['HBOT_LOAD_GC_DIAGNOSTICS'] = '1'
+                incident_directory = report / 'incidents' if args.incident_diagnostics else None
+                if incident_directory:
+                    incident_directory.mkdir()
+                    incident_directory.chmod(0o777)
+                    evidence['incident_policy'] = dict(history_seconds=10, tail_seconds=10, max_records=256,
+                                                       max_buffer_bytes_per_role=512 * 1024, max_incidents_per_role=32,
+                                                       max_disk_bytes_per_role=32 * 1024**2,
+                                                       sampling_ms=250, watchdog_poll_ms=50, max_active_spans=16,
+                                                       parameters_and_frame_locals=False)
                 trace_directory = report / "trace" if args.trace else None
                 if trace_directory:
                     trace_directory.mkdir()
@@ -326,7 +340,8 @@ def main():
                                                     slow_trace_ms=100, loop_stall_ms=200, database_sample_ms=250,
                                                     max_bytes_per_stream=128 * 1024**2, diagnostic_database_connections=1,
                                                     span_cpu_scope="inclusive thread CPU; async spans include interleaved work")
-                bot, port = harness.start("load-bot", instrumented=True, trace_directory=trace_directory, cpus=args.cpus)
+                bot, port = harness.start("load-bot", instrumented=True, trace_directory=trace_directory,
+                                          incident_directory=incident_directory, cpus=args.cpus)
                 docker("update", "--cpus", args.cpus, "--memory", "2g", "--memory-swap", "2g", bot)
                 poll(lambda: read_metrics(harness, bot), timeout=30, description='complete fresh runtime role metrics')
                 poll(lambda: bool(harness.state().get("status")), description="load owner status")
@@ -363,8 +378,8 @@ def main():
                 if args.profile == "probe":
                     windows = [("probe", args.probe_seconds)]
                 else:
-                    windows = ([("warmup", 300), ("mixed", 900)] if args.profile in ("mixed", "all") else [])
-                    if args.profile in ("bursts", "all"):
+                    windows = ([("warmup", 300), ("mixed", 900)] if args.profile in ("sequence", "mixed", "all") else [])
+                    if args.profile in ("bursts", "sequence", "all"):
                         windows.append(("bursts", 90))
                     if args.profile in ("soak", "all"):
                         windows.append(("soak", 3600))
@@ -421,6 +436,7 @@ def main():
                 if failed:
                     raise AssertionError("Declared load budgets failed: " + json.dumps(failed))
                 evidence["passed"] = True
+                evidence['release_scope_complete'] = args.profile == 'all' and not diagnostic
             finally:
                 evidence['command_receipt_transport_retries'] = harness.metrics.get('command_receipt_transport_retries', 0)
                 try:

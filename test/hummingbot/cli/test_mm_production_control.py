@@ -1,6 +1,19 @@
 import pytest
 
-from scripts.test_mm_production_control import summarize_window
+from scripts.test_mm_production_control import summarize_window, validate_baseline
+
+
+def test_failed_baseline_requires_explicit_diagnostic_scope_and_cannot_close_acceptance():
+    baseline = dict(passed=False, enhancements=True, volatility_defense=True)
+    with pytest.raises(ValueError, match='diagnostic-baseline'):
+        validate_baseline(baseline)
+    assert validate_baseline(baseline, diagnostic_baseline=True) is False
+    assert validate_baseline({**baseline, 'passed': True}) is True
+
+
+def test_diagnostic_baseline_does_not_bypass_required_fixture_features():
+    with pytest.raises(ValueError, match='all-feature'):
+        validate_baseline(dict(passed=False, enhancements=False, volatility_defense=True), diagnostic_baseline=True)
 
 
 def client_window():

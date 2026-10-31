@@ -11,6 +11,7 @@ import traceback
 import uuid
 from collections import deque
 from functools import lru_cache
+from itertools import islice
 from pathlib import Path
 
 
@@ -207,9 +208,10 @@ class TraceRecorder:
         if event:
             self.sink(event)
 
-    def active_snapshot(self):
+    def active_snapshot(self, limit=None):
         with self.lock:
-            return [{key: value for key, value in span.items() if not key.startswith('_')} for span in self.active.values()]
+            return [{key: value for key, value in span.items() if not key.startswith('_')}
+                    for span in islice(self.active.values(), limit)]
 
 
 def stack_snapshot(frame, limit=16):
