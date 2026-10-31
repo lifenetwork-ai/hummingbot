@@ -318,3 +318,93 @@ items remain separate; neither a historical failed run nor its cause is erased.
 - [ ] Close the all-window release gate in one uninterrupted run. Soak and six
   faults pass on `81fa1448`, and the separate burst retry passes; the combined
   run remains failed. No thresholds are waived by closing the three bugs.
+
+### Execution plan for the remaining items — 2026-10-31
+
+Use the latest immutable candidate (`81fa1448` unless a verified runtime fix
+requires rebuilding). Earlier unchecked full-load/control entries record failed
+acceptance on older images; execute the current gates below, not repeated runs
+of superseded images. Keep their historical outcomes unchanged. These three
+investigations do not reopen the three verified bugs above.
+
+#### 1. Explain the burst generator shortfall with short diagnostics
+
+The immediate question is why the simulator delivered 498.033/s in the combined
+run and 509.80/s in a separate retry. Neither result establishes a bot defect.
+
+1. Reuse `Exchange.market_updates()`, `/market-metrics` and
+   `measure_market_burst()`; add bounded diagnostic measurements only where
+   existing evidence is missing. Retain actual sends per one-second interval,
+   elapsed monotonic time, scheduled-versus-actual emission lateness, active
+   book subscriptions, send duration, and producer/container CPU or throttling
+   where available. Always retain the measurement on assertion failure too.
+   Do not log order/account payloads or add an unbounded event history.
+2. Use Red/Green tests for diagnostic behavior: actual-send counters, failed
+   sends, sample limits, monotonic timing, failed-measurement evidence, and
+   restoring the steady feed in `finally`. Never increment counters for work
+   that was not sent. Keep the existing 500/s minimum and counting tolerance.
+3. Run a small matched set sequentially: an unchanged uninstrumented burst,
+   an instrumented burst, and one targeted confirmation if the first two expose
+   a hypothesis. Keep image, fixture, resource limits and admin workload fixed;
+   compare the retained pre-burst order/subscription state with the fresh retry
+   and reconstruct any relevant difference for the diagnostic. A fresh fixture
+   passing is not a matched reproduction of the combined run's warmed state.
+   Record emulation/host conditions without assigning them as causes. No build
+   or other benchmark runs concurrently. Target a 10–15-minute diagnostic pass;
+   if inconclusive, record the missing evidence rather than repeating blindly.
+4. If a generator defect is demonstrated, write the failing regression first
+   and fix the generator. If runtime backpressure is demonstrated, fix the
+   affected runtime path with Red/Green tests and rebuild the candidate. A
+   larger headroom multiplier or a higher timeout is not a causal fix.
+
+Closure requires evidence explaining the shortfall and verification of any
+correction under the unchanged threshold. A passing retry alone is evidence of
+capacity in that run, not an explanation of the failed one. Preserve an
+inconclusive outcome as open; do not force an engine change.
+
+#### 2. Bound the historical supervisor investigation
+
+This has greater availability impact, but the old logs lack probe details that
+cannot be reconstructed. Perform a focused review alongside the burst analysis,
+without running competing workloads during a timing measurement.
+
+1. Reuse the supervisor reason/status/timing logs, controller stage/progress,
+   process identity, loop-lag and SQL/recorder timing already implemented.
+   Build one timeline of the original event and list which facts are missing.
+2. Select a short controlled fault only when a specific hypothesis is testable:
+   distinguish transport timeout, explicit unhealthy response, observer stall,
+   engine scheduling delay and shared-DB delay. Use the existing shipping-image
+   fault harness and ownership/recovery assertions; do not add another service.
+3. For a confirmed defect, require Red/Green tests and a targeted shipping-image
+   check. Preserve order fencing, retained HALT when outcomes are uncertain,
+   and existing restart/probe limits. The closed controller scheduling race is
+   not automatically the cause of this separate sustained failure.
+
+Closure of the historical cause requires supporting evidence. If the focused
+review cannot establish it, record `not reproduced / insufficient historical
+evidence`, retain the open investigation and identify the exact evidence to
+collect on recurrence. Do not spend repeated hour-long runs trying to recover
+missing historical logs. Release testing and causal closure remain distinct.
+
+#### 3. Revalidate the release candidate once the short work is complete
+
+1. Freeze the candidate image and harness hashes. If code changed, run affected
+   regression/packaged checks first; do not rerun unrelated suites solely for a
+   documentation change. Report any diagnostic or harness changes explicitly.
+2. Run the unchanged full gate sequentially: warm300, mixed900, burst90,
+   continuous soak3600 and all six recovery faults; 2 CPUs/2GiB, pool5, TTL15,
+   the same history fixture and error/latency/retention budgets. Allow about
+   90 minutes. Separate passing windows must not be stitched into a passing run.
+3. Once that baseline passes, run the matched ordinary shipping-entrypoint
+   warm300/mixed900 control using its image, fixtures and resource limits. This
+   addresses the remaining control acceptance on the current candidate without
+   retroactively accepting the old image's failed control.
+4. Reconcile actual orders/fills/fees/positions; review PID continuity, brief
+   readiness waits and per-process memory retention. Verify Demo preservation,
+   clean only test resources, update evidence/checklists and commit.
+
+A fully green gate closes current release acceptance. It does not identify the
+old supervisor cause; any remaining uncertainty stays explicit for the operator.
+If a gate fails, keep the result and investigate that failure before another
+long repeat. No automatic deployment or real-exchange trading is part of this
+plan.
