@@ -4056,5 +4056,35 @@
       "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
       "unchanged": true
     }
+  },
+  "bug_closure": {
+    "closed_on": "2026-10-31",
+    "basis": "Operator requested closure of verified bugs; existing Red/Green and final-image evidence retained. No new test run.",
+    "bugs": [
+      {
+        "id": "post_window_fill_generation",
+        "status": "closed_verified",
+        "fix_commit": "056b11495",
+        "evidence_section": "native_regression"
+      },
+      {
+        "id": "false_controller_stall_halt",
+        "status": "closed_verified",
+        "fix_commit": "3789b2500",
+        "evidence_section": "controller_stall"
+      },
+      {
+        "id": "okx_absent_order_retention",
+        "status": "closed_verified",
+        "fix_commit": "fc0ee55b8",
+        "evidence_section": "okx_lost_order_followup"
+      }
+    ],
+    "open_investigations": [
+      "simulator_burst_rate_shortfall",
+      "historical_sustained_supervisor_liveness_cause"
+    ],
+    "combined_release_gate": "open_failed_run_preserved",
+    "historical_results_modified": false
   }
 }

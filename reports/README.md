@@ -55,7 +55,7 @@ external scope. Known evidence/performance limitations are not marked as done.
 | [Current natural-fill follow-up](okx-demo-natural-fill.md) | [Evidence](okx-demo-natural-fill-evidence.json); six real maker fills, reviewed aggregate repair and passing real fixed-image filled restart |
 | [Fixed-image full release](e526-release.md) | [Evidence](e526-release-evidence.json); strict full release gates failed; bounded reporting-isolation diagnostics passed |
 | [Packaged supervisor-diagnostics release](probe-release-20261030.md) | Image dd602fb2: E2E/recovery/ordinary control pass; Random soak fails fill-producer drain, despite passing API latency |
-| [Random handover investigation](mm-random-handover.md) | [Evidence](mm-random-handover-evidence.json); three defects fixed; final-image soak/faults and independent burst retry pass; combined full run failed burst rate |
+| [Random handover investigation](mm-random-handover.md) | [Evidence](mm-random-handover-evidence.json); three verified bugs closed; burst-rate and historical liveness investigations remain open; combined full run failed burst rate |
 | [Engine liveness investigation](mm-engine-liveness-investigation.md) | [Evidence](mm-engine-liveness-investigation-evidence.json); probe diagnostics and retained incident timeline; original sustained-failure cause remains open |
 | [Explicit Demo preset validation](okx-demo-preset-validation.json) | Nine static-metadata selections and runtime/package smoke; no connected or full release gate |
 | [Decimal precision evidence](postgres-decimal-precision.json) | Exact decimal storage migration and verification |

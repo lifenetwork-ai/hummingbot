@@ -1,6 +1,7 @@
 # Random handover and load-producer investigation — 2026-10-31
 
-Status: producer defect fixed with Red/Green tests; two short diagnostics passed;
+Status: **three verified bugs closed on 2026-10-31 at the operator's request**.
+Producer defect fixed with Red/Green tests; two short diagnostics passed;
 full-load confirmation on `dd602fb2` failed on a separately reproduced controller
 scheduling race. Its correction passes shipping-image fault verification. The
 next repeat exposes an OKX lost-order retention defect; all three corrections
@@ -9,6 +10,19 @@ are now packaged as `81fa1448` (source `fc0ee55b8`). Native release regression:
 pass. The 60-minute soak passes, but the full run fails its burst generator rate;
 a separate same-image, same-fixture burst retry passes. See details below.
 No production risk guard, health grace or acceptance deadline was relaxed.
+
+## Bug closure record
+
+| Bug | Status | Fix | Verification |
+| --- | --- | --- | --- |
+| New synthetic fills generated after the measurement deadline | Closed — verified | `056b11495` | Red/Green deadline regressions; final-image 60-minute soak drains in 0.179s |
+| False controller HALT after delayed scheduling | Closed — verified | `3789b2500` | Red/Green ready-callback/timer tests; old-image reproduction; final-image pause/resume and soak pass |
+| Absent OKX orders retained and polled repeatedly | Closed — verified | `fc0ee55b8` | Re-enabled upstream spot/perpetual Red/Green tests; ambiguity/timeout controls; final-image regression |
+
+These are bug closures, not an all-window release approval. The simulator
+burst-rate shortfall and the older sustained supervisor-liveness cause remain
+open investigations. Historical failures remain unchanged; the independently
+passing burst retry is not merged into a fabricated passing combined run.
 
 ## Confirmed defect
 

@@ -2001,3 +2001,10 @@ it **fails overall** because the burst generator delivered 498.033/s under its
 at 509.80/s; it does not erase or explain the first failure. Demo fingerprints,
 control and image unchanged. Detailed causes, missing tests, timings and open
 limits: [Random/availability report](../mm-random-handover.md).
+
+2026-10-31 operator-requested closure: the post-window fill producer bug
+(`056b11495`), false controller HALT race (`3789b2500`) and OKX lost-order
+retention bug (`fc0ee55b8`) are **closed — verified**. No runtime change or new
+test run is introduced by this documentation update. Burst generator shortfall,
+the older sustained-liveness cause and the combined release gate remain open
+as separate items; all historical failed results are preserved.

@@ -236,6 +236,10 @@ Progress: [packaged release report](../../reports/probe-release-20261030.md).
 
 ### Random handover investigation — operator request 2026-10-31
 
+**Bug status: closed — verified, 2026-10-31.** Fix `056b11495` stops
+post-window fill generation; Red/Green regressions and the final-image soak
+verify the correction. This closure does not waive any failed release window.
+
 - [x] Reproduce the producer lifecycle defect before changing it: an empty book
   at window end is incorrectly treated as undrained work, and a lookup returning
   after window end can dispatch a new fill. Two failing regressions, then all
@@ -261,6 +265,10 @@ Evidence: [Random handover investigation](../../reports/mm-random-handover.md).
 
 ### Controller scheduling follow-up — 2026-10-31
 
+**Bug status: closed — verified, 2026-10-31.** Fix `3789b2500` prevents
+the reproduced observer/controller scheduling race from latching a false HALT.
+Red/Green tests, old/new image fault reproduction and the final-image soak pass.
+
 The corrected-client repeat `20261031-044542-876453` reached a separate runtime
 HALT (`controller_task_stalled`) near soak minute 50. Preserve that failed run;
 do not describe it as a successful Random/release gate or an OKX outage.
@@ -279,11 +287,13 @@ do not describe it as a successful Random/release gate or an OKX outage.
 - [x] Run packaged regression and unchanged full load/retention gates on final
   image `81fa1448`. Soak and six faults pass; the combined run fails burst feed
   rate and an independent unchanged burst repeat passes. Preserve both results.
-- [ ] Establish and address the recurring simulator burst-rate shortfall if an
-  uninterrupted all-window green release gate is required. No minimum is waived.
 
 
 ### OKX lost-order status follow-up — 2026-10-31
+
+**Bug status: closed — verified, 2026-10-31.** Fix `fc0ee55b8` handles
+explicit order absence through the existing spot/perpetual lost-order lifecycle.
+Re-enabled upstream regressions and the final-image validation verify the fix.
 
 - [x] Re-enable upstream spot/perpetual lost-order absence tests and observe both
   fail. Decode explicit OKX 51603 into the existing tracker's absence path;
@@ -293,5 +303,18 @@ do not describe it as a successful Random/release gate or an OKX outage.
   controller scheduling experiment and unchanged load gates. Combined run fails
   burst feed rate; targeted burst repeat passes independently. Prior `dbd5b5ba`
   mixed failure and interrupted partial soak remain preserved.
-- [ ] Close the all-window release gate in one run after resolving the simulator
-  burst-rate shortfall; its precise cause has not been established.
+
+### Separate open investigations and release acceptance
+
+The operator requested closure of the three verified bugs above. The following
+items remain separate; neither a historical failed run nor its cause is erased.
+
+- [ ] Establish the cause of the simulator burst-rate shortfall (498.033/s versus
+  the unchanged 500/s minimum). The independent 509.80/s retry passes but does
+  not explain the failed combined run.
+- [ ] Establish the cause of the older sustained supervisor-liveness incident
+  from relevant evidence. Do not equate it with the reproduced controller race
+  or infer its cause from a later passing run.
+- [ ] Close the all-window release gate in one uninterrupted run. Soak and six
+  faults pass on `81fa1448`, and the separate burst retry passes; the combined
+  run remains failed. No thresholds are waived by closing the three bugs.
