@@ -2081,3 +2081,27 @@ image5973410d; R2 requires its completed passing baseline. Both active acceptanc
 items stay unchecked. Demo remains stopped and unchanged. See
 [closeout report](../mm-release-closeout.md) and
 [scoped evidence](../mm-release-closeout-evidence.json).
+
+2026-11-01 local closeout update: corrected canonical run
+`20261031-231819-7fe2f2` completes warm300/mixed900/burst90/soak3600 with unchanged
+source hashes and image. The first three windows pass, p99 84/163/244ms. Full
+Random soak fails: p95/p99 510/1,472ms,13 HTTP200-but-degraded daily responses,
+and70.68MiB median container-memory growth against64MiB. Trace directly captures
+the daily aggregate `QueryCanceled` followed by explicit last-good fallback;
+the original slowdown and entire memory-growth attribution are still unproven.
+
+All4,885 cumulative fills/positions reconcile. Same engine/API PIDs and no HALT
+do not mean zero stalls:195 probe failure/recovery episodes occur across the
+full log, longest6.476s;15 bounded diagnostic stack signals are explicit. Process
+RSS rises about10.75/4.04MiB for engine/API, with no median thread/FD growth;
+late file-cache observations are retained, not declared proof of a leak or its
+absence. Both32MiB trace caps cause explicit sink drops; GC event queues stay
+empty without GC-event loss. The earlier confirmed GC callback deadlock remains
+a separately closed test-tool defect, not a production strategy change.
+
+Six recovery faults are not reached after the failed soak; no R2 or release
+closure is claimed. Temporary test containers are removed and persistent Demo
+image/control/four ledger fingerprints remain unchanged. Both active acceptance
+items remain open for bounded causal investigation before a full repeat; no
+budget waiver or speculative runtime fix is made. See the updated
+[closeout report](../mm-release-closeout.md).

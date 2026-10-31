@@ -1,5 +1,5 @@
 {
-  "status": "R1 corrected rerun in progress; R2 pending passing baseline",
+  "status": "Corrected R1 completed healthy windows but failed API/retention budgets; R2 not started",
   "release_accepted": false,
   "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
   "manifest": "sha256:50a95f3a842f95ed072510e9031b2cf5f99d75ed07943c4e52862d9b26a7dc51",
@@ -159,7 +159,7 @@
   },
   "current_execution": {
     "r1_run": "build/mm-load/20261031-231819-7fe2f2",
-    "r1_exec_session": 52683,
+    "r1_exec_session": null,
     "caffeinate_pid": 55561,
     "caffeinate_exec_session": 61875,
     "frozen_source_commit": "2cb18eccca2dd20c549ba378a4ba49a5207cd08e",
@@ -169,7 +169,543 @@
     "early_interruption": "build/release-closeout-20261031/early-interruption.json",
     "previous_failed_r1": "build/mm-load/20261031-222312-6f060d",
     "gc_fix_commit": "2cb18eccc",
-    "gc_packaged_fixed_proof": "build/release-closeout-20261031/deferred-packaged-gc-proof.json"
+    "gc_packaged_fixed_proof": "build/release-closeout-20261031/deferred-packaged-gc-proof.json",
+    "r1_result": "failed_preserved"
   },
-  "historical_H1_H2_H3_causes_closed": false
+  "historical_H1_H2_H3_causes_closed": false,
+  "corrected_r1": {
+    "run": "build/mm-load/20261031-231819-7fe2f2",
+    "source_commit": "2cb18eccca2dd20c549ba378a4ba49a5207cd08e",
+    "passed": false,
+    "release_scope_complete": false,
+    "error": "Declared load budgets failed: errors, auxiliary_read_p95, auxiliary_read_p99, read_p95, read_p99, rss_growth",
+    "windows": {
+      "warmup": {
+        "duration_seconds": 300,
+        "read_p95_ms": 52.10081103723496,
+        "read_p99_ms": 84.29639402311295,
+        "unexpected_errors": 0,
+        "statuses": {
+          "200": 6000
+        },
+        "auxiliary": {
+          "requested_reads": 1500,
+          "completed_reads": 1500,
+          "statuses": {
+            "200": 1500
+          },
+          "read_p95_ms": 46.316120016854256,
+          "read_p99_ms": 84.07987502869219
+        },
+        "violations": [],
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 81,
+          "LIFE-USDT-SWAP:buy": 71,
+          "LIFE-USDT:sell": 78,
+          "LIFE-USDT-SWAP:sell": 70
+        },
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 712613888
+      },
+      "mixed": {
+        "duration_seconds": 900,
+        "read_p95_ms": 58.321841002907604,
+        "read_p99_ms": 163.3443390019238,
+        "unexpected_errors": 0,
+        "statuses": {
+          "200": 18000
+        },
+        "auxiliary": {
+          "requested_reads": 4500,
+          "completed_reads": 4500,
+          "statuses": {
+            "200": 4500
+          },
+          "read_p95_ms": 56.05548800667748,
+          "read_p99_ms": 127.6433159946464
+        },
+        "violations": [],
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 233,
+          "LIFE-USDT-SWAP:buy": 227,
+          "LIFE-USDT:sell": 217,
+          "LIFE-USDT-SWAP:sell": 223
+        },
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 728510464
+      },
+      "bursts": {
+        "duration_seconds": 90,
+        "read_p95_ms": 76.00630796514452,
+        "read_p99_ms": 244.22512896126136,
+        "unexpected_errors": 0,
+        "statuses": {
+          "200": 1800
+        },
+        "auxiliary": {
+          "requested_reads": 450,
+          "completed_reads": 450,
+          "statuses": {
+            "200": 450
+          },
+          "read_p95_ms": 71.4015580015257,
+          "read_p99_ms": 384.24525497248396
+        },
+        "violations": [],
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 23,
+          "LIFE-USDT-SWAP:buy": 23,
+          "LIFE-USDT:sell": 22,
+          "LIFE-USDT-SWAP:sell": 22
+        },
+        "ledger": {
+          "unique_exchange_fills": 1290,
+          "unique_recorder_fills": 1290,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 740048896
+      },
+      "soak": {
+        "duration_seconds": 3600,
+        "read_p95_ms": 510.30082994839177,
+        "read_p99_ms": 1471.8013409874402,
+        "unexpected_errors": 13,
+        "statuses": {
+          "200": 72000
+        },
+        "auxiliary": {
+          "requested_reads": 18000,
+          "completed_reads": 18000,
+          "statuses": {
+            "200": 18000
+          },
+          "read_p95_ms": 508.3831869997084,
+          "read_p99_ms": 1465.731300006155
+        },
+        "violations": [
+          "errors",
+          "auxiliary_read_p95",
+          "auxiliary_read_p99",
+          "read_p95",
+          "read_p99",
+          "rss_growth"
+        ],
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 946,
+          "LIFE-USDT-SWAP:buy": 886,
+          "LIFE-USDT:sell": 898,
+          "LIFE-USDT-SWAP:sell": 865
+        },
+        "ledger": {
+          "unique_exchange_fills": 4885,
+          "unique_recorder_fills": 4885,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 6
+        },
+        "peak_rss_bytes": 797966336,
+        "profile_running_coverage": [
+          {
+            "profile": "follow_token",
+            "step": 0,
+            "running_overlap_seconds": 598.8644187450409
+          },
+          {
+            "profile": "follow_token",
+            "step": 1,
+            "running_overlap_seconds": 594.2550370693207
+          },
+          {
+            "profile": "follow_market",
+            "step": 2,
+            "running_overlap_seconds": 595.8545360565186
+          },
+          {
+            "profile": "sideways",
+            "step": 3,
+            "running_overlap_seconds": 592.8931419849396
+          },
+          {
+            "profile": "sideways",
+            "step": 4,
+            "running_overlap_seconds": 595.1527919769287
+          },
+          {
+            "profile": "sideways",
+            "step": 5,
+            "running_overlap_seconds": 595.4014730453491
+          }
+        ]
+      }
+    },
+    "faults_executed": false,
+    "shipping_control_executed": false,
+    "soak_samples": 57,
+    "soak_max_gap_seconds": 66.77575373649597,
+    "soak_process_ids": {
+      "supervisor": [
+        1
+      ],
+      "engine": [
+        32
+      ],
+      "api": [
+        33
+      ]
+    },
+    "soak_container_memory_median_growth_bytes": 74113024,
+    "soak_process_median_growth": {
+      "supervisor": {
+        "VmRSS": 131072,
+        "Threads": 0,
+        "fds": 0
+      },
+      "engine": {
+        "VmRSS": 11276288,
+        "Threads": 0,
+        "fds": 0
+      },
+      "api": {
+        "VmRSS": 4231168,
+        "Threads": 0,
+        "fds": 0
+      }
+    },
+    "daily_degraded": {
+      "responses": [
+        {
+          "path": "/statistics/daily",
+          "status": 200,
+          "at": 1793466436.0636165,
+          "reason": "daily_statistics_degraded",
+          "server_request_id": null
+        },
+        {
+          "path": "/statistics/daily",
+          "status": 200,
+          "at": 1793466436.0652928,
+          "reason": "daily_statistics_degraded",
+          "server_request_id": null
+        },
+        {
+          "path": "/statistics/daily",
+          "status": 200,
+          "at": 1793466437.3495686,
+          "reason": "daily_statistics_degraded",
+          "server_request_id": null
+        },
+        {
+          "path": "/statistics/daily",
+          "status": 200,
+          "at": 1793466437.70709,
+          "reason": "daily_statistics_degraded",
+          "server_request_id": null
+        },
+        {
+          "path": "/statistics/daily",
+          "status": 200,
+          "at": 1793466438.128337,
+          "reason": "daily_statistics_degraded",
+          "server_request_id": null
+        },
+        {
+          "path": "/statistics/daily",
+          "status": 200,
+          "at": 1793466438.4711237,
+          "reason": "daily_statistics_degraded",
+          "server_request_id": null
+        },
+        {
+          "path": "/statistics/daily",
+          "status": 200,
+          "at": 1793466438.8146589,
+          "reason": "daily_statistics_degraded",
+          "server_request_id": null
+        },
+        {
+          "path": "/statistics/daily",
+          "status": 200,
+          "at": 1793466439.0278494,
+          "reason": "daily_statistics_degraded",
+          "server_request_id": null
+        },
+        {
+          "path": "/statistics/daily",
+          "status": 200,
+          "at": 1793466439.3432102,
+          "reason": "daily_statistics_degraded",
+          "server_request_id": null
+        },
+        {
+          "path": "/statistics/daily",
+          "status": 200,
+          "at": 1793466439.5790648,
+          "reason": "daily_statistics_degraded",
+          "server_request_id": null
+        },
+        {
+          "path": "/statistics/daily",
+          "status": 200,
+          "at": 1793466439.8620245,
+          "reason": "daily_statistics_degraded",
+          "server_request_id": null
+        },
+        {
+          "path": "/statistics/daily",
+          "status": 200,
+          "at": 1793466440.0785334,
+          "reason": "daily_statistics_degraded",
+          "server_request_id": null
+        },
+        {
+          "path": "/statistics/daily",
+          "status": 200,
+          "at": 1793466440.571176,
+          "reason": "daily_statistics_degraded",
+          "server_request_id": null
+        }
+      ],
+      "all_http_200": true,
+      "cluster_span_seconds": 4.507559537887573,
+      "captured_query_cancellations": [
+        {
+          "operation": "sql",
+          "start_utc": 1793466433.8158443,
+          "duration_ms": 2196.217543,
+          "thread_cpu_ms": 14.580417,
+          "error": "QueryCanceled",
+          "sql_fingerprint": "7bf080f6cd3f3c627682",
+          "backend_pid": 116
+        }
+      ],
+      "underlying_query_slowdown_cause_established": false
+    },
+    "child_log_events": {
+      "child_started": 2,
+      "child_probe_failed": 195,
+      "child_probe_recovered": 195,
+      "load_stack_dump": 15
+    },
+    "max_recovered_probe_failure_seconds": 6.476,
+    "signal_dump_is_diagnostic_intervention": true,
+    "trace_limits": {
+      "engine-incident-summary": {
+        "incidents": 96,
+        "evicted_records": 20554,
+        "oversize_records": 0,
+        "suppressed_incidents": 0,
+        "buffered_records": 42,
+        "buffered_bytes": 114552,
+        "max_records": 256,
+        "max_bytes": 524288,
+        "history_seconds": 10.0,
+        "tail_seconds": 10.0,
+        "max_incidents": 128,
+        "at": 1793468483.5032074,
+        "process_id": 32,
+        "sink": {
+          "written_records": 12771,
+          "written_bytes": 33554379,
+          "dropped_records": 2252,
+          "writer_cpu_ms": 3228.2006400000105,
+          "queue_depth": 0,
+          "max_bytes": 33554432,
+          "writer_alive": true
+        },
+        "dropped_spans": 315424,
+        "gc_trace": {
+          "pending_events": 0,
+          "max_events": 128,
+          "dropped_events": 0
+        }
+      },
+      "api-incident-summary": {
+        "incidents": 80,
+        "evicted_records": 31461,
+        "oversize_records": 0,
+        "suppressed_incidents": 0,
+        "buffered_records": 39,
+        "buffered_bytes": 94482,
+        "max_records": 256,
+        "max_bytes": 524288,
+        "history_seconds": 10.0,
+        "tail_seconds": 10.0,
+        "max_incidents": 128,
+        "at": 1793468483.359877,
+        "process_id": 33,
+        "sink": {
+          "written_records": 7405,
+          "written_bytes": 33554293,
+          "dropped_records": 14104,
+          "writer_cpu_ms": 5841.848077000011,
+          "queue_depth": 0,
+          "max_bytes": 33554432,
+          "writer_alive": true
+        },
+        "dropped_spans": 14874,
+        "gc_trace": {
+          "pending_events": 0,
+          "max_events": 128,
+          "dropped_events": 0
+        }
+      }
+    },
+    "late_memory_observations": [
+      {
+        "at": 1793467526.808482,
+        "memory_stat": {
+          "anon": 714641408,
+          "file": 61333504,
+          "kernel": 13271040,
+          "kernel_stack": 557056,
+          "pagetables": 2859008,
+          "sec_pagetables": 0,
+          "percpu": 21920,
+          "sock": 32768,
+          "vmalloc": 0,
+          "shmem": 94208,
+          "zswap": 0,
+          "zswapped": 0,
+          "file_mapped": 0,
+          "file_dirty": 0,
+          "file_writeback": 0,
+          "swapcached": 0,
+          "anon_thp": 0,
+          "file_thp": 0,
+          "shmem_thp": 0,
+          "inactive_anon": 0,
+          "active_anon": 714678272,
+          "inactive_file": 61239296,
+          "active_file": 0,
+          "unevictable": 0,
+          "slab_reclaimable": 8094768,
+          "slab_unreclaimable": 1701360,
+          "slab": 9796128,
+          "workingset_refault_anon": 0,
+          "workingset_refault_file": 0,
+          "workingset_activate_anon": 0,
+          "workingset_activate_file": 0,
+          "workingset_restore_anon": 0,
+          "workingset_restore_file": 0,
+          "workingset_nodereclaim": 0,
+          "pgscan": 0,
+          "pgsteal": 0,
+          "pgscan_kswapd": 0,
+          "pgscan_direct": 0,
+          "pgscan_khugepaged": 0,
+          "pgsteal_kswapd": 0,
+          "pgsteal_direct": 0,
+          "pgsteal_khugepaged": 0,
+          "pgfault": 881736,
+          "pgmajfault": 0,
+          "pgrefill": 0,
+          "pgactivate": 0,
+          "pgdeactivate": 0,
+          "pglazyfree": 0,
+          "pglazyfreed": 0,
+          "zswpin": 0,
+          "zswpout": 0,
+          "zswpwb": 0,
+          "thp_fault_alloc": 0,
+          "thp_collapse_alloc": 0,
+          "thp_swpout": 0,
+          "thp_swpout_fallback": 0
+        }
+      },
+      {
+        "at": 1793468012.484214,
+        "memory_stat": {
+          "anon": 715722752,
+          "file": 67031040,
+          "kernel": 13287424,
+          "kernel_stack": 557056,
+          "pagetables": 2859008,
+          "sec_pagetables": 0,
+          "percpu": 21920,
+          "sock": 32768,
+          "vmalloc": 0,
+          "shmem": 94208,
+          "zswap": 0,
+          "zswapped": 0,
+          "file_mapped": 0,
+          "file_dirty": 0,
+          "file_writeback": 0,
+          "swapcached": 0,
+          "anon_thp": 0,
+          "file_thp": 0,
+          "shmem_thp": 0,
+          "inactive_anon": 0,
+          "active_anon": 715759616,
+          "inactive_file": 66936832,
+          "active_file": 0,
+          "unevictable": 0,
+          "slab_reclaimable": 8111944,
+          "slab_unreclaimable": 1706048,
+          "slab": 9817992,
+          "workingset_refault_anon": 0,
+          "workingset_refault_file": 0,
+          "workingset_activate_anon": 0,
+          "workingset_activate_file": 0,
+          "workingset_restore_anon": 0,
+          "workingset_restore_file": 0,
+          "workingset_nodereclaim": 0,
+          "pgscan": 0,
+          "pgsteal": 0,
+          "pgscan_kswapd": 0,
+          "pgscan_direct": 0,
+          "pgscan_khugepaged": 0,
+          "pgsteal_kswapd": 0,
+          "pgsteal_direct": 0,
+          "pgsteal_khugepaged": 0,
+          "pgfault": 889296,
+          "pgmajfault": 0,
+          "pgrefill": 0,
+          "pgactivate": 0,
+          "pgdeactivate": 0,
+          "pglazyfree": 0,
+          "pglazyfreed": 0,
+          "zswpin": 0,
+          "zswpout": 0,
+          "zswpwb": 0,
+          "thp_fault_alloc": 0,
+          "thp_collapse_alloc": 0,
+          "thp_swpout": 0,
+          "thp_swpout_fallback": 0
+        }
+      }
+    ],
+    "memory_cause_limit": "Late anonymous memory nearly stable while file cache increases. No first-five-sample cgroup breakdown or controlled cache test exists; do not attribute all 70.68 MiB growth to trace or claim a production leak.",
+    "source_hashes_unchanged": true
+  },
+  "demo_preservation_after_corrected_r1": {
+    "checked_at": "2026-10-31T17:44:19.095083+00:00",
+    "ledger_hashes": {
+      "orders": "23fb84b15c8186e891d9bef55150244c",
+      "trade_fills": "0670a1868dee14d4377e2b36dcd3b4d8",
+      "executors": "ec4d3c225bb224c5ad2b249b8aece160",
+      "positions": "bd78de05d366df0a875912592f4be8ab"
+    },
+    "control": {
+      "desired_state": "stopped",
+      "control_version": 26,
+      "acknowledged_version": 26,
+      "halt": "false"
+    },
+    "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+    "unchanged": true
+  }
 }

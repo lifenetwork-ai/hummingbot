@@ -2,7 +2,7 @@
 
 ## Current release work — single source of pending actions
 
-Updated 2026-10-31. Candidate image `5973410d` contains the verified runtime
+Updated 2026-11-01 (local time). Candidate image `5973410d` contains the verified runtime
 fixes. Diagnostic changes `146826501` / `bf2553679` do not change the application
 runtime. The earlier verified bugs remain closed. Only R1 and R2 below are
 pending execution; older checkpoints are history, not additional tasks.
@@ -23,6 +23,14 @@ pending execution; older checkpoints are history, not additional tasks.
   packaged Red/Green diagnostics (`2cb18eccc`); the application image is unchanged.
   A fresh full run is required. See the
   [closeout report](../../reports/mm-release-closeout.md).
+  Corrected run `20261031-231819-7fe2f2` completes all four measured windows,
+  retaining stable PIDs/no HALT and4,885 matching cumulative fills, but fails
+  soak API latency,13 degraded daily-statistics results and70.68MiB container
+  retention growth against64MiB. A captured aggregate is canceled by PostgreSQL;
+  its underlying slowdown and the entire memory-growth attribution are not yet
+  established. Keep this failed result, separate it from the closed GC deadlock,
+  and perform bounded causal checks before any further full repeat. Six faults
+  are not reached; R2 is not started from this failed baseline.
 - [ ] **R2 — Complete the passing-baseline shipping control:** after R1 passes,
   run ordinary-entrypoint warm300/mixed900 with its matching image, YAML, client,
   exchange fixtures and resource limits. Reconcile ledgers, verify Demo

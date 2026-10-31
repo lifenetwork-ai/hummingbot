@@ -1,7 +1,7 @@
 # Current-image release closeout
 
-Status: **R1 rerun in progress; R2 pending its passing baseline.** No release
-closure is claimed yet. Application image `5973410d` / manifest `50a95f3a` is
+Status: **corrected R1 fails API/retention budgets; R2 is not started.** No release
+closure is claimed. Application image `5973410d` / manifest `50a95f3a` is
 unchanged; corrected diagnostic source is `2cb18eccc`.
 
 ## Preparation and preserved failures
@@ -91,9 +91,63 @@ Only a complete green R1 permits the matching ordinary-entrypoint R2. Separate
 passing windows will not be combined into acceptance. Historical failed runs
 and unresolved causes remain explicit.
 
+### Completed corrected run — failed, preserved
+
+Run `20261031-231819-7fe2f2` completes all four measured windows on the canonical
+fixture. The source hashes remain unchanged. Warm300/mixed900/burst90 pass:
+p99 84.30/163.34/244.23ms, zero unexpected errors and 1,290 reconciled fills.
+The full3600s Random soak then fails the declared budgets:
+
+| Measure | Observed result |
+| --- | --- |
+| Primary reads | 72,000 HTTP200; p95 510.30ms, p99 1,471.80ms |
+| Auxiliary reads | 18,000 HTTP200; p95 508.38ms, p99 1,465.73ms |
+| Unexpected application results | 13 explicitly degraded daily-statistics responses over4.51s; no HTTP error responses |
+| Ledger | 4,885 cumulative unique exchange/recorder fills; positions match |
+| Runtime | Same supervisor1/engine32/API33; no unplanned replacement or HALT |
+| Minute continuity | 57 samples, maximum gap66.78s |
+| Container retention | Last-five minus first-five median70.68MiB; fails unchanged64MiB budget |
+| Per-process retention | Engine+10.75MiB, API+4.04MiB, supervisor+0.125MiB; no median thread/FD growth |
+
+All three profiles have actual running coverage. A stable PID does **not** mean
+there were no stalls: the full service log has195 failed/recovered probe episodes,
+the longest recovered engine episode6.476s. The bounded signal fallback fires15
+times; its diagnostic intervention stays explicit. No `child_unresponsive`
+replacement occurs. This is useful liveness/ledger evidence, not a release pass
+or proof of uninterrupted quote execution.
+
+The retained API trace catches `QueryCanceled` on the daily fill aggregation:
+SQL wall time2,196.22ms, worker thread CPU14.58ms. The API then serves its existing
+explicit last-good fallback. This establishes the cancellation/fallback path for
+the degraded cluster; it does not identify why the database query became slow,
+nor explain every route's latency or historical H1/H2/H3. It is separate from
+the previously reproduced recorder GC deadlock. Do not change query deadlines,
+probe grace or zero-error acceptance just to convert this result to green.
+
+Late passive cgroup observations show anonymous memory715MB approximately stable
+while file cache grows from61.3MB to67.0MB. Both trace files eventually reach the
+original32MiB cap. There is no first-five-sample cgroup breakdown or controlled
+cache experiment, so attributing the entire70.68MiB increase to trace is not
+proven. The modest process RSS changes and bounded threads/FDs also do not prove
+a production memory leak. Report the failed container-retention check separately.
+
+The recorder is deliberately bounded: final engine/API sink drop counters are
+retained in portable evidence. Later records are missing after the32MiB caps;
+GC pending/dropped-event counters remain zero. Do not describe these traces as
+complete or equate every dropped trace record with an application error.
+
+The runner exits on these failed budgets before six fault cases. R2 is not run
+from this failed baseline. Temporary test containers are removed; read-only
+fingerprints confirm the existing stopped Demo image/control/four ledgers are
+unchanged. The next causal checks are a bounded replay of the canceled aggregate
+and a matched ordinary-entrypoint long diagnostic if needed; neither can be
+labelled R2 or current release acceptance while R1 has not passed. A confirmed
+runtime defect needs Red/Green remediation, not a speculative fix or blind hour
+repeat.
+
 Portable [evidence](mm-release-closeout-evidence.json) keeps the failed attempt,
 controlled diagnostics and pending execution scopes separate.
 
 Raw evidence: ignored `build/release-closeout-20261031/` and the run directories
-above. Final portable results and checklist closure will be added only after
-the actual gates complete.
+above. R1/R2 remain open; the confirmed test-recorder GC defect is closed with
+its own scoped verification.
