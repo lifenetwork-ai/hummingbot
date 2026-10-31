@@ -26,7 +26,15 @@
       "tests": "test/hummingbot/core/test_spot_outflow_future.py"
     },
     "B3": {
-      "status": "pending"
+      "status": "implemented_verified",
+      "initial_red": {
+        "failed": 2,
+        "passed": 9
+      },
+      "native_passed": 24,
+      "postgres_passed": 11,
+      "behavior": "Publish funding template discovery only after successful load; transient errors and cancellation remain retryable; empty/missing catalogues remain read-only",
+      "tests": "test/hummingbot/cli/test_service_funding.py"
     },
     "B4": {
       "status": "pending"

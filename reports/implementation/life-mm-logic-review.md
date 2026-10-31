@@ -1,6 +1,6 @@
 # LIFE MM logic-flow review — 2026-10-26
 
-Latest follow-up (2026-11-01): **B1/B2 fixed and verified; B3/B4 implementation next**.
+Latest follow-up (2026-11-01): **B1–B3 fixed and verified; B4 implementation next**.
 See [the new findings](#2026-11-01-latent-bug-audit--fixes-pending) and
 [original audit evidence](life-mm-latent-bug-audit-20261101.json), with
 [separate fix evidence](life-mm-latent-bug-fixes-20261101.json). They predate the last
@@ -224,11 +224,14 @@ false unknown-outcome HALT during shutdown.
   Red18 failures/6 passes; Green50 native and20 selected PostgreSQL cases.
   Fixed allowance covers the complete order once; known future debit survives
   release of its local reservation and expires through the existing window.
-- [ ] B3: Red/Green funding catalogue retry after transient failure/cancellation.
+- [x] B3: Red/Green funding catalogue retry after transient failure/cancellation.
+  Red2 failures/9 passes; Green24 native and11 selected PostgreSQL cases.
+  Failed/cancelled reads leave the catalogue uncached for the next poll.
+  Missing/perpetual-free YAML does not activate trading.
 - [ ] B4: Red/Green bounded rejection history while preserving shutdown evidence.
 
-The original audit was read-only. B1/B2 implementation is now verified; B3/B4
-remain next. [Audit evidence](life-mm-latent-bug-audit-20261101.json) preserves
+The original audit was read-only. B1–B3 implementation is now verified; B4
+remains next. [Audit evidence](life-mm-latent-bug-audit-20261101.json) preserves
 the original reproductions/source hashes; [fix evidence](life-mm-latent-bug-fixes-20261101.json)
 tracks new Red/Green results. Raw results are under ignored
 `build/potential-bug-audit-20261101/` and `build/latent-bug-fixes-20261101/`.

@@ -48,13 +48,16 @@ class FundingObserver:
             pairs, earliest = await asyncio.to_thread(self.store.scope)
             pairs.update(self.state.get("pairs", []))
             if self.template_pairs is None:
-                self.template_pairs = set()
+                template_pairs = set()
                 path = CONF_DIR_PATH / "life_mm_profiles.yaml"
                 if path.exists():
                     catalogue = await MMProfilesConfig.load(path)
                     template = catalogue.markets.get("perpetual")
                     if template is not None:
-                        self.template_pairs.add(template.trading_pair)
+                        template_pairs.add(template.trading_pair)
+                # Publish only after a complete read; transient errors and
+                # cancellation must leave discovery retryable.
+                self.template_pairs = template_pairs
             pairs.update(self.template_pairs)
             connector = core.connector_manager.connectors.get("okx_perpetual")
             if connector is not None:
