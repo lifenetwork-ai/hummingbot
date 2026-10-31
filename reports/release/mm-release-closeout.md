@@ -1,5 +1,10 @@
 # Current-image release closeout
 
+Latest follow-up (2026-11-01): **new candidate `3f5cbd0f` load rerun in progress**.
+See [the new run](#2026-11-01-latent-fix-candidate-rerun) and
+[separate evidence](mm-latent-fixes-load-evidence.json). All earlier accepted/failed
+results below remain tied to their original images and measurement sources.
+
 Status: **R1 and R2 pass; scoped local release verification is complete.**
 Earlier failures and unresolved historical causes are preserved below. No
 Cloud Run deployment or connected trading occurs in this closeout.
@@ -232,3 +237,30 @@ controlled diagnostics and the subsequent completed R1/R2 scopes separate.
 Raw evidence: ignored `build/release-closeout-20261031/` and the run directories
 above. Historical failed results remain failed; the current R1 result supersedes
 execution status only. Current R1/R2 verification is complete; historical causes stay explicit.
+
+
+## 2026-11-01 latent-fix candidate rerun
+
+- [x] Remove retired bot images `4971ea59` and `5973410d` and redundant Demo
+  aliases. Preserve every running/stopped container's image, PostgreSQL/registry
+  test dependencies and both persistent Demo containers/volumes. Unique image
+  count falls7→5; layers shared by the retained candidate remain, so this does
+  not reclaim the sum of their displayed image sizes.
+- [x] Pin candidate `3f5cbd0f` / manifest `6e54a348`, freeze1,221 tracked source
+  inputs and run the same all-feature workload with2CPU/2GiB,100,000 history
+  fills, TTL15 and128 bounded incident captures. Source changes are the four
+  [verified latent-bug fixes](../implementation/life-mm-logic-review.md#2026-11-01-latent-bug-audit-and-fixes),
+  on top of the earlier three flow optimizations. No production YAML is changed.
+- [ ] Complete unchanged warm300/mixed900/burst90/Random-soak3600 and six fault
+  cases; independently verify zero errors, latency, memory/continuity, ledger,
+  process identities and frozen-source scope. Run `20261101-061242-5839e1`.
+- [ ] After green full R1, run the ordinary shipping entrypoint with matching
+  warm300/mixed900 resources/fixtures; independently verify the R2 scope.
+- [ ] Verify cleanup and Demo preservation; record final evidence and outcome.
+
+The foreground runner holds its own sleep assertion while the gate runs. Host
+sleep or a failed budget invalidates the result; durations, fill rates and
+thresholds are unchanged. Existing source-level tests and three targeted E2E
+passes on this image do not substitute for these long gates. This section stays
+pending until the actual results are complete; prior release evidence is not
+promoted to the new image.

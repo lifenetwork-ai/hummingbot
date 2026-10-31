@@ -4,6 +4,10 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [New-image load rerun](release/mm-release-closeout.md#2026-11-01-latent-fix-candidate-rerun):
+  `3f5cbd0f` full R1 running; matched shipping R2 follows only if R1 passes.
+  Two retired bot images removed; Demo/container images and volumes preserved.
+
 - [Latent-bug fixes](implementation/life-mm-logic-review.md#2026-11-01-latent-bug-audit-and-fixes):
   B1–B4 fixed/committed; native2,208/PG279, Swagger and3 targeted image groups pass
   on `3f5cbd0f`. Original reproductions retained; no new hour-soak acceptance.

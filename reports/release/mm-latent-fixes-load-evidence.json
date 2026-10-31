@@ -1,0 +1,60 @@
+{
+  "status": "running",
+  "release_accepted": false,
+  "image_id": "sha256:3f5cbd0f6862494dbcc7d33d2e2e3b7b1e3b00086794983f1488f9f8ee942ab5",
+  "manifest": "sha256:6e54a3481605ad40ef8861294f3887ea63c2116fb246ce1da23617b09e41943a",
+  "application_commit": "3da3598bf3db45b04cc671ddedac33ea27ccb882",
+  "measurement_commit": "1cc8abaa0e6f346e740ecf527314012540e32897",
+  "started_at": "2026-10-31T23:12:42.112657+00:00",
+  "r1_run": "build/mm-load/20261101-061242-5839e1",
+  "r1_passed": null,
+  "r2_passed": null,
+  "configuration": {
+    "profile": "all",
+    "history_fills": 100000,
+    "cpus": 2,
+    "memory_bytes": 2147483648,
+    "daily_cache_ttl_seconds": 15,
+    "enhancements": true,
+    "volatility_defense": true,
+    "operations": true,
+    "gc_diagnostics": true,
+    "market_diagnostics": true,
+    "incident_diagnostics": true,
+    "incident_max_captures": 128,
+    "windows_seconds": {
+      "warmup": 300,
+      "mixed": 900,
+      "bursts": 90,
+      "soak": 3600
+    },
+    "thresholds_unchanged": true
+  },
+  "cleanup": {
+    "retired_image_ids": [
+      "sha256:4971ea59324ecc187f3e2784b93973e9399edd81c90b5af90c33606638f17218",
+      "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495"
+    ],
+    "removed_refs": [
+      "127.0.0.1:58005/hummingbot:offline",
+      "127.0.0.1:58053/hummingbot:offline",
+      "127.0.0.1:58759/hummingbot:offline",
+      "hummingbot-cloudrun:flow-optimized",
+      "127.0.0.1:58137/hummingbot:offline",
+      "hummingbot-cloudrun:burst-followup",
+      "127.0.0.1:59335/hummingbot:offline",
+      "127.0.0.1:57391/hummingbot:offline"
+    ],
+    "image_count_before": 7,
+    "image_count_after": 5,
+    "all_container_images_preserved": true,
+    "volumes_touched": false,
+    "scope": "Only task-related retired bot images and redundant Demo aliases; shared layers remain referenced by retained images, so logical image sizes are not additive reclaimed disk space"
+  },
+  "scope_limits": [
+    "Previous accepted 5973410d results remain immutable and apply to that image only",
+    "No connected Demo trading or Cloud Run deployment",
+    "R2 runs only after a complete independently verified passing R1",
+    "No reduced durations, widened budgets, stitched passing windows or keep-going override"
+  ]
+}

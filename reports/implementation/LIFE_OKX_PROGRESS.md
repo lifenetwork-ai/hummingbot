@@ -5,6 +5,11 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-01
 
+- **New-image load rerun:** candidate `3f5cbd0f`, full all-feature R1 running
+  with unchanged budgets; matched shipping R2 is conditional on full R1 passing.
+  Retired bot images removed; Demo/container images and volumes preserved.
+  See [live scope/checklist](../release/mm-release-closeout.md#2026-11-01-latent-fix-candidate-rerun).
+
 - **Latest latent-bug remediation:** B1–B4 completed and committed separately.
   Native2,208 plus11 subtests, PostgreSQL279, Swagger and3 targeted E2E groups
   pass on candidate `3f5cbd0f` (application commit `3da3598bf`). Additional8
