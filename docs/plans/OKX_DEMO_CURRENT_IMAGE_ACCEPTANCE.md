@@ -2,61 +2,46 @@
 
 ## Current release work — single source of pending actions
 
-Updated 2026-11-01 (local time). Candidate image `5973410d` contains the verified runtime
-fixes. Diagnostic changes `146826501` / `bf2553679` do not change the application
-runtime. The earlier verified bugs remain closed. Only R1 and R2 below are
-pending execution; older checkpoints are history, not additional tasks.
+Updated 2026-11-01 (local time). Immutable candidate image `5973410d` / manifest
+`50a95f3a` is unchanged. Measurement source is frozen at `b7ba104e7`.
+Only R2 below remains pending; the earlier verified defects remain closed.
 
-- [ ] **R1 — Complete current-image release verification:** freeze the image
-  and harness hashes; run warm300/mixed900/burst90/continuous-soak3600 and all six
-  recovery faults as one uninterrupted gate, with the validated incident recorder.
-  Set its test-only capture count to128 for this long run; retain the same
-  512KiB ring and 32MiB stream caps per role. Record/verify the applied policy
-  before measurement. The earlier short comparisons used the default32.
-  Keep 2 CPUs/2GiB, pool5, TTL15, history, rates and error/latency/retention budgets.
-  For new runs with a complete measured cgroup breakdown, retention uses
-  `memory.current - (file - shmem)`: exclude reclaimable disk cache, retain
-  tmpfs/shared memory. Keep64MiB growth, all per-role RSS/thread/FD limits and
-  the1.5GiB absolute container-peak limit. Publish raw cgroup growth alongside it.
-  Missing/inconsistent partial breakdowns fail; old runs without a breakdown
-  keep their original conservative rule and failed result. This measurement
-  contract is declared before the next full gate, based on a controlled trace
-  file-cache experiment, not an increase of the64MiB threshold.
-  Preserve any failure and diagnose it before another long repeat. No separate
-  passing windows may be combined into a pass. The measured windows alone take
-  81.5 minutes, followed by fault verification and cleanup.
-  Attempt `20261031-222312-6f060d` passes the first three windows but is
-  interrupted after an unexpected engine replacement/HALT in soak. A recorder
-  GC-lock reentry defect is then reproduced and fixed with81 related tests and
-  packaged Red/Green diagnostics (`2cb18eccc`); the application image is unchanged.
-  A fresh full run is required. See the
-  [closeout report](../../reports/mm-release-closeout.md).
-  Corrected run `20261031-231819-7fe2f2` completes all four measured windows,
-  retaining stable PIDs/no HALT and4,885 matching cumulative fills, but fails
-  soak API latency,13 degraded daily-statistics results and70.68MiB container
-  retention growth against64MiB. A captured aggregate is canceled by PostgreSQL;
-  its underlying slowdown and the entire memory-growth attribution are not yet
-  established. Keep this failed result, separate it from the closed GC deadlock,
-  and perform bounded causal checks before any further full repeat. Six faults
-  are not reached; R2 is not started from this failed baseline.
-- [ ] **R2 — Complete the passing-baseline shipping control:** after R1 passes,
-  run ordinary-entrypoint warm300/mixed900 with its matching image, YAML, client,
-  exchange fixtures and resource limits. Reconcile ledgers, verify Demo
-  preservation, clean temporary resources and publish the scoped release result.
+- [x] **R1 — Complete current-image release verification:** run
+  `20261101-011658-1465e8` passes warm300/mixed900/burst90/continuous-soak3600 and
+  all six recovery cases as one full gate. Independent checks confirm the same
+  image/source hashes,58 continuous minute samples, all three Random profiles,
+  unchanged healthy process identities and4,884 matching unique fills/positions.
+  Soak p95/p99:147/717ms, zero unexpected errors. Retention16.08MiB and raw
+  cgroup growth58.13MiB both meet64MiB. Native114 and bounded matched probes
+  precede this gate. Temporary containers are removed; stopped Demo fingerprints
+  remain unchanged. See the [closeout report](../../reports/mm-release-closeout.md).
+- [ ] **R2 — Complete the passing-baseline shipping control:** run ordinary
+  entrypoint warm300/mixed900 against the completed R1 above, matching image,
+  effective YAML, client/exchange fixtures, resources, history, pool5 and TTL15.
+  Reconcile ledgers, verify Demo preservation, clean temporary resources and
+  publish the scoped release result. A passed short/diagnostic baseline cannot
+  qualify as R2.
 
-R1 and R2 are validation work, not two unimplemented features. The latest short
-shipping/recorded diagnostics pass, but do not satisfy these full acceptance
-scopes. A new runtime change is needed only if a confirmed defect justifies it;
-do not invent a fix as a prerequisite to validating the frozen candidate. A
-failed gate must be investigated rather than retried blindly.
+R1 uses2CPUs/2GiB, history100,000, original rates and error/latency budgets, plus
+128 test-only captures with512KiB ring/32MiB stream caps per role. R1 acceptance
+is not a claim of zero transient stalls:98 healthy-sequence probe episodes
+recover, longest4.591s, with one declared diagnostic signal intervention. No
+unplanned child replacement/HALT occurs. Original historical causes remain
+unresolved below; no speculative runtime fix or attribution is claimed.
 
-The 2026-11-01 bounded investigation identifies additional observer overhead:
-the old test exporter computes full-buffer quantiles on the measured event loop.
-Stack captures and an image-level heartbeat comparison support moving exports
-to one bounded background worker. The quantiles remain exact, with no export
-backlog; this is a test-tool change. Isolated100,000-fill query replay does not
-reproduce the cancellation. See [measurement follow-up](../../reports/mm-measurement-remediation.md)
-for scoped evidence and the remaining full validation.
+The retention contract declared before this run is
+`memory.current - (file - shmem)`: exclude disk cache, retain tmpfs/shared memory.
+Keep64MiB growth, each process's RSS/thread/FD limits and the1.5GiB absolute
+container peak including all cache. Raw growth is also published. Partial or
+inconsistent breakdowns fail; old runs keep their original conservative rule
+and failed result. Both retention and raw growth pass in this new run.
+
+Previous full failures `20261031-222312-6f060d` and
+`20261031-231819-7fe2f2` are preserved. Confirmed GC callback deadlock and on-loop
+quantile-export cost are test-tool defects, verified with Red/Green diagnostics.
+Bounded100,000-fill query replay does not reproduce the old cancellation, so no
+SQL/cache/pool rewrite is made. See the
+[measurement follow-up](../../reports/mm-measurement-remediation.md).
 
 ## Historical causes — unresolved evidence
 
@@ -90,7 +75,7 @@ during validation require Red/Green remediation before acceptance.
   engine/API PIDs. These are diagnostics; the baseline's release failure stays.
 
 Bounded follow-up complete: the historical long-lag event is not reproduced,
-so H3 and R1/R2 remain unresolved/pending respectively. No speculative runtime
+so H3 was unresolved and R1/R2 were pending at that checkpoint; current status above supersedes that execution status. No speculative runtime
 fix or threshold waiver is made. Capture limits and new short observer/DB-wait
 observations are explicit in the report.
 

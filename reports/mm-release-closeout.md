@@ -1,14 +1,55 @@
 # Current-image release closeout
 
-Status: **corrected R1 fails API/retention budgets; R2 is not started.** No release
-closure is claimed. Application image `5973410d` / manifest `50a95f3a` is
-unchanged; corrected diagnostic source is `2cb18eccc`.
+Status: **full R1 passes; R2 awaits execution from that baseline.** Earlier full
+failures are preserved below. Combined release closure is not claimed yet.
+Application image `5973410d` / manifest `50a95f3a` is unchanged; measurement
+source is frozen at `b7ba104e7`. The bounded follow-up has native114 and matched
+300s recorder/shipping passes; see [measurement remediation](mm-measurement-remediation.md).
 
-2026-11-01 follow-up: bounded diagnostics identify additional on-loop metrics
-export cost and verify a single-worker correction. A measured cache breakdown
-defines new-run retention without reclassifying this failed result. Native114
-and the matched300s recorder/shipping pair pass; full R1/R2 remain pending.
-See [measurement follow-up](mm-measurement-remediation.md).
+## Current full R1 — passed and independently verified
+
+Run `20261101-011658-1465e8` completes the entire declared sequence and cleanup:
+
+| Healthy window | Duration | p95 | p99 | Unexpected errors | Cumulative matched fills |
+| --- | --- | --- | --- | --- | --- |
+| Warmup | 300s | 121.97ms | 475.54ms | 0 | 300 |
+| Mixed | 900s | 84.55ms | 436.39ms | 0 | 1,200 |
+| Burst | 90s | 66.25ms | 264.65ms | 0 | 1,290 |
+| Random soak | 3,600s | 147.21ms | 717.41ms | 0 | 4,884 |
+
+All three Random profiles have actual running coverage. Venue quantities,
+original fees and unique recorder identities reconcile; positions match.
+Six injected cases pass: feed recovery, volatility defense, owner restart,
+queued expiry, database delay and database failure. DB failure cases retain
+HALT rather than resuming uncertain trading. Their planned interruptions remain
+excluded from healthy latency. Independent verification checks the immutable
+image, unchanged source hashes and complete scope; no passing windows are stitched.
+
+Soak has58 continuous minute samples, maximum gap66.29s, same healthy supervisor/
+engine/API identities and no unplanned child start/replacement or HALT.
+Retention grows16.08MiB, raw cgroup current grows58.13MiB; **both** are below64MiB.
+The declared new retention formula is `current - (file - shmem)`; this run would
+also meet the conservative raw-growth threshold. Peak container memory is
+760.76MiB, below1.5GiB. Engine/API median RSS grows10.00/5.90MiB; thread medians
+stay fixed, FD medians grow2/0. No export is skipped in retained minute samples.
+
+Stable identities do not mean zero stalls:98 healthy-sequence failed/recovered
+probe episodes remain, longest4.591s. One bounded diagnostic signal captures the
+engine at status `snapshot` assembly; a sampled frame alone does not prove the
+whole episode's cause. The signal can interrupt a syscall and is an explicit
+measurement intervention. This is a scoped passing load/recovery gate, not proof
+of uninterrupted quoting or a closure of historical H1/H2/H3.
+
+At healthy-sequence end, engine/API capture counts are125/87 out of128. The API
+trace hits32MiB and drops2,684 sink records; engine sink drops zero. Bounded child
+span truncation also remains explicit in portable evidence. GC pending/dropped
+queues are zero. Traces are incomplete; do not infer absence of an event from a
+missing record. Fault-time restarts have separate identities and summaries.
+
+Temporary R1 containers are removed. The stopped Demo image/control/four ledger
+fingerprints remain unchanged. R2 must now use this passing baseline with the
+ordinary shipping entrypoint and matching fixtures/resources; short comparisons
+cannot substitute for it.
 
 ## Preparation and preserved failures
 
@@ -145,8 +186,8 @@ complete or equate every dropped trace record with an application error.
 The runner exits on these failed budgets before six fault cases. R2 is not run
 from this failed baseline. Temporary test containers are removed; read-only
 fingerprints confirm the existing stopped Demo image/control/four ledgers are
-unchanged. The next causal checks are a bounded replay of the canceled aggregate
-and a matched ordinary-entrypoint long diagnostic if needed; neither can be
+unchanged. At that checkpoint the proposed causal checks were a bounded aggregate replay
+and a matched ordinary-entrypoint diagnostic if needed; neither can be
 labelled R2 or current release acceptance while R1 has not passed. A confirmed
 runtime defect needs Red/Green remediation, not a speculative fix or blind hour
 repeat.
@@ -155,5 +196,5 @@ Portable [evidence](mm-release-closeout-evidence.json) keeps the failed attempt,
 controlled diagnostics and pending execution scopes separate.
 
 Raw evidence: ignored `build/release-closeout-20261031/` and the run directories
-above. R1/R2 remain open; the confirmed test-recorder GC defect is closed with
-its own scoped verification.
+above. Historical failed results remain failed; the current R1 result supersedes
+execution status only. R2 is still pending, and historical causes stay explicit.

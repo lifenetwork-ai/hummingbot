@@ -12,8 +12,8 @@ external scope. Known evidence/performance limitations are not marked as done.
 
 | Report | Associated artifact or scope |
 |---|---|
-| [Current-image closeout](mm-release-closeout.md), [evidence](mm-release-closeout-evidence.json) | Recorder GC deadlock closed with81 tests/packaged diagnostics. Corrected full R1 keeps PIDs/4,885 fills consistent but fails API/retention budgets; captured daily query cancellation, remaining causes explicit. R2 not started. |
-| [Measurement follow-up](mm-measurement-remediation.md), [evidence](mm-measurement-remediation-evidence.json) | On-loop observer cost corrected; measured disk-cache retention contract declared before new gate. Native114 and matched300s probes pass; full R1/R2 pending. |
+| [Current-image closeout](mm-release-closeout.md), [evidence](mm-release-closeout-evidence.json) | Current full R1 passes all healthy windows and six recovery cases;4,884 fills match, soak p99 717ms and zero errors. R2 pending; earlier failures and unresolved causes preserved. |
+| [Measurement follow-up](mm-measurement-remediation.md), [evidence](mm-measurement-remediation-evidence.json) | On-loop observer cost corrected; measured disk-cache retention contract declared before new gate. Native114, matched300s probes and full R1 pass; R2 pending. |
 | [Automatic incident capture](mm-incident-investigation.md), [evidence](mm-incident-investigation-evidence.json) | 61 related tests, known-pause validation and matched shipping/recorded warm/mixed/burst diagnostics pass; historical long-lag cause and full release remain open |
 | [Current-image OKX Demo](okx-demo-current-image.md), [evidence](okx-demo-current-image-evidence.json) | Image715a read-only preflight, nine profile/mode cases, real Random step/restart and 404 exact canceled post-only orders; no new natural fills |
 | [Runtime supervision](mm-service-supervision.md) | Local acceptance complete: final image/regression/E2E/lifecycle, hour/load/faults and matched ordinary-entrypoint control pass; prior failures retained |

@@ -2129,3 +2129,21 @@ observer validation only. A new scope guard prevents a passed diagnostic/short
 baseline from qualifying as R2. Both full acceptance items remain open. Demo
 fingerprints remain unchanged. See [measurement follow-up](../mm-measurement-remediation.md)
 and [portable evidence](../mm-measurement-remediation-evidence.json).
+
+2026-11-01 full R1 passes on sourceb7ba104e7/image5973410d/manifest50a95f3a:
+`20261101-011658-1465e8` completes warm300/mixed900/burst90/soak3600 plus all six
+injected recovery cases as one gate. Independent verification confirms hashes,
+58 continuous minute samples (maximum gap66.29s), all three Random profiles,
+4,884 matched unique fills/original fees/positions, and zero healthy API errors.
+Soak p95/p99 147.21/717.41ms. Retention16.08MiB and raw growth58.13MiB both meet
+64MiB; peak760.76MiB. Engine/API RSS grows10.00/5.90MiB with fixed thread medians
+and FD growth2/0. No skipped exports in minute samples.
+
+Healthy-sequence probe episodes remain98, maximum recovered4.591s, with one
+explicit diagnostic signal and no unplanned child start/replacement/HALT.
+The sampled snapshot frame does not prove the whole slowdown's cause. The API
+trace cap drops2,684 sink records; child-span truncation and incomplete trace
+scope are preserved. No claim of uninterrupted quotes or historical-cause closure.
+All temporary R1 containers are removed; stopped Demo fingerprints are unchanged.
+R1 is checked done; R2 awaits the actual passing baseline. Prior failures remain
+failed. See [current closeout](../mm-release-closeout.md).

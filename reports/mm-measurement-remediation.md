@@ -1,7 +1,7 @@
 # Release measurement follow-up
 
 Status: bounded source/microbenchmark checks and packaged pair pass; full
-R1/R2 validation remains pending. Production image5973410d is unchanged.
+R1 has passed; R2 awaits execution from that baseline. Production image5973410d is unchanged.
 The failed [prior release result](mm-release-closeout.md) remains failed.
 
 ## Confirmed observer cost and correction
@@ -47,6 +47,13 @@ New exports measure `memory.current`, `memory.peak`, `memory.stat.file` and
 ```
 retained_bytes = memory.current - (file - shmem)
 ```
+
+The [Linux cgroup v2 documentation](https://docs.kernel.org/admin-guide/cgroup-v2.html)
+defines `file` as filesystem-cache memory including tmpfs/shared memory, and
+`shmem` as swap-backed filesystem data. Adding `shmem` back prevents subtracting
+tmpfs from retention. This formula is the test's declared accounting convention,
+not a kernel leak verdict or a guarantee of immediate cache reclamation; the
+independent raw-peak and per-process guards remain necessary.
 
 This excludes reclaimable disk cache while keeping anonymous memory, kernel
 charges and tmpfs/shared memory. The unchanged64MiB growth budget compares the
@@ -97,6 +104,9 @@ The old full result still evaluates as `legacy_cgroup_current` and fails
 `rss_growth`; the corrected measurement does not relabel it. The next full gate
 uses the declared new measurement on fresh samples, with all other original
 budgets and six recovery cases retained. A fresh passing R1 is required for R2.
+
+Full run `20261101-011658-1465e8` starts on frozen source `b7ba104e7` and immutable
+image5973410d/manifest50a95f3a. It completes successfully, with independent image/source/scope verification; R1 is checked done and R2 remains pending.
 
 Portable [evidence](mm-measurement-remediation-evidence.json) retains both runs,
 exact microbenchmarks, memory contract and historical-result preservation.

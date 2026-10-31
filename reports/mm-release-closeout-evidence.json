@@ -1,5 +1,5 @@
 {
-  "status": "Corrected R1 completed healthy windows but failed API/retention budgets; R2 not started",
+  "status": "R1 fully passed and independently verified; R2 pending",
   "release_accepted": false,
   "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
   "manifest": "sha256:50a95f3a842f95ed072510e9031b2cf5f99d75ed07943c4e52862d9b26a7dc51",
@@ -693,6 +693,313 @@
   },
   "demo_preservation_after_corrected_r1": {
     "checked_at": "2026-10-31T17:44:19.095083+00:00",
+    "ledger_hashes": {
+      "orders": "23fb84b15c8186e891d9bef55150244c",
+      "trade_fills": "0670a1868dee14d4377e2b36dcd3b4d8",
+      "executors": "ec4d3c225bb224c5ad2b249b8aece160",
+      "positions": "bd78de05d366df0a875912592f4be8ab"
+    },
+    "control": {
+      "desired_state": "stopped",
+      "control_version": 26,
+      "acknowledged_version": 26,
+      "halt": "false"
+    },
+    "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+    "unchanged": true
+  },
+  "active_execution": {
+    "r1_run": "build/mm-load/20261101-011658-1465e8",
+    "r1_exec_session": null,
+    "r1_log": "build/release-closeout-20261101/r1.log",
+    "caffeinate_pid": 76726,
+    "caffeinate_exec_session": 5966,
+    "frozen_source_commit": "b7ba104e7cb749b64f9fa05b57ff34273f1ef284",
+    "r2_pending_after_r1_pass": true,
+    "r1_verified_passed": true
+  },
+  "prior_completed_r1_preserved": true,
+  "current_r1": {
+    "run": "build/mm-load/20261101-011658-1465e8",
+    "passed": true,
+    "release_scope_complete": true,
+    "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
+    "manifest": "sha256:50a95f3a842f95ed072510e9031b2cf5f99d75ed07943c4e52862d9b26a7dc51",
+    "source_commit": "b7ba104e7cb749b64f9fa05b57ff34273f1ef284",
+    "windows": {
+      "warmup": {
+        "read_p95_ms": 121.96796003263444,
+        "read_p99_ms": 475.53544701077044,
+        "unexpected_errors": 0,
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 707866624,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 81,
+          "LIFE-USDT-SWAP:buy": 71,
+          "LIFE-USDT:sell": 78,
+          "LIFE-USDT-SWAP:sell": 70
+        }
+      },
+      "mixed": {
+        "read_p95_ms": 84.55297298496589,
+        "read_p99_ms": 436.3940639887005,
+        "unexpected_errors": 0,
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 729071616,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 240,
+          "LIFE-USDT-SWAP:buy": 214,
+          "LIFE-USDT:sell": 234,
+          "LIFE-USDT-SWAP:sell": 212
+        }
+      },
+      "bursts": {
+        "read_p95_ms": 66.24718301463872,
+        "read_p99_ms": 264.6541749709286,
+        "unexpected_errors": 0,
+        "ledger": {
+          "unique_exchange_fills": 1290,
+          "unique_recorder_fills": 1290,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 750374912,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 25,
+          "LIFE-USDT-SWAP:buy": 22,
+          "LIFE-USDT:sell": 22,
+          "LIFE-USDT-SWAP:sell": 21
+        }
+      },
+      "soak": {
+        "read_p95_ms": 147.20551599748433,
+        "read_p99_ms": 717.4076240044087,
+        "unexpected_errors": 0,
+        "ledger": {
+          "unique_exchange_fills": 4884,
+          "unique_recorder_fills": 4884,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 797716480,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 922,
+          "LIFE-USDT-SWAP:buy": 899,
+          "LIFE-USDT:sell": 895,
+          "LIFE-USDT-SWAP:sell": 878
+        }
+      }
+    },
+    "soak_samples": 58,
+    "soak_max_gap_seconds": 66.28505897521973,
+    "memory_retention": {
+      "basis": "cgroup_current_minus_file_plus_shmem",
+      "early_median_bytes": 716517376,
+      "late_median_bytes": 733376512,
+      "growth_bytes": 16859136,
+      "budget_bytes": 67108864,
+      "raw_cgroup_growth_bytes": 60956672
+    },
+    "profile_running_coverage": [
+      {
+        "profile": "sideways",
+        "step": 0,
+        "running_overlap_seconds": 598.4685771465302
+      },
+      {
+        "profile": "follow_token",
+        "step": 1,
+        "running_overlap_seconds": 595.7736039161682
+      },
+      {
+        "profile": "follow_market",
+        "step": 2,
+        "running_overlap_seconds": 595.7091999053955
+      },
+      {
+        "profile": "follow_token",
+        "step": 3,
+        "running_overlap_seconds": 593.8689389228821
+      },
+      {
+        "profile": "sideways",
+        "step": 4,
+        "running_overlap_seconds": 595.8753418922424
+      },
+      {
+        "profile": "follow_token",
+        "step": 5,
+        "running_overlap_seconds": 595.9502389431
+      }
+    ],
+    "faults": [
+      "feed",
+      "volatility-defense",
+      "owner-restart",
+      "queued-expiry",
+      "database-delay",
+      "database-failure"
+    ]
+  },
+  "current_r1_health": {
+    "scope": "healthy sequence only, from warmup start through soak end; injected faults excluded",
+    "events": {
+      "child_probe_failed": 98,
+      "child_probe_recovered": 98,
+      "load_stack_dump": 1
+    },
+    "max_recovered_probe_seconds": 4.591,
+    "longest_recovered_probes": [
+      {
+        "role": "engine",
+        "seconds": 4.591,
+        "at": "2026-10-31T19:19:05.027Z"
+      },
+      {
+        "role": "engine",
+        "seconds": 3.826,
+        "at": "2026-10-31T19:04:21.802Z"
+      },
+      {
+        "role": "engine",
+        "seconds": 2.603,
+        "at": "2026-10-31T19:37:47.571Z"
+      },
+      {
+        "role": "engine",
+        "seconds": 2.602,
+        "at": "2026-10-31T18:59:05.374Z"
+      },
+      {
+        "role": "engine",
+        "seconds": 2.552,
+        "at": "2026-10-31T19:28:44.896Z"
+      }
+    ],
+    "process_median_growth": {
+      "supervisor": {
+        "VmRSS": 0,
+        "Threads": 0,
+        "fds": 0
+      },
+      "engine": {
+        "VmRSS": 10485760,
+        "Threads": 0,
+        "fds": 2
+      },
+      "api": {
+        "VmRSS": 6189056,
+        "Threads": 0,
+        "fds": 0
+      }
+    },
+    "peak_container_bytes": 797716480,
+    "healthy_trace_at_soak_end": {
+      "engine": {
+        "trace": {
+          "written_records": 12541,
+          "written_bytes": 30402648,
+          "dropped_records": 0,
+          "writer_cpu_ms": 2026.4040519999974,
+          "queue_depth": 0,
+          "max_bytes": 33554432,
+          "writer_alive": true,
+          "dropped_spans": 315927,
+          "slow_trace_threshold_ms": 100,
+          "gc_trace": {
+            "pending_events": 0,
+            "max_events": 128,
+            "dropped_events": 0
+          }
+        },
+        "incident_capture": {
+          "incidents": 125,
+          "evicted_records": 19575,
+          "oversize_records": 0,
+          "suppressed_incidents": 0,
+          "buffered_records": 39,
+          "buffered_bytes": 86691,
+          "max_records": 256,
+          "max_bytes": 524288,
+          "history_seconds": 10.0,
+          "tail_seconds": 10.0,
+          "max_incidents": 128
+        },
+        "gc_policy": {
+          "enabled": true,
+          "thresholds": [
+            2000,
+            10,
+            10
+          ],
+          "permanent_objects": 0
+        },
+        "metrics_export_skipped": 0
+      },
+      "api": {
+        "trace": {
+          "written_records": 8654,
+          "written_bytes": 33554360,
+          "dropped_records": 2684,
+          "writer_cpu_ms": 2220.8851119999945,
+          "queue_depth": 0,
+          "max_bytes": 33554432,
+          "writer_alive": true,
+          "dropped_spans": 14863,
+          "slow_trace_threshold_ms": 100,
+          "gc_trace": {
+            "pending_events": 0,
+            "max_events": 128,
+            "dropped_events": 0
+          }
+        },
+        "incident_capture": {
+          "incidents": 87,
+          "evicted_records": 24265,
+          "oversize_records": 0,
+          "suppressed_incidents": 0,
+          "buffered_records": 52,
+          "buffered_bytes": 210890,
+          "max_records": 256,
+          "max_bytes": 524288,
+          "history_seconds": 10.0,
+          "tail_seconds": 10.0,
+          "max_incidents": 128
+        },
+        "gc_policy": {
+          "enabled": true,
+          "thresholds": [
+            2000,
+            10,
+            10
+          ],
+          "permanent_objects": 277963
+        },
+        "metrics_export_skipped": 0
+      }
+    },
+    "observed_profiles": [
+      "follow_market",
+      "follow_token",
+      "sideways"
+    ]
+  },
+  "demo_after_r1": {
+    "checked_at": "2026-10-31T19:46:44.307412+00:00",
     "ledger_hashes": {
       "orders": "23fb84b15c8186e891d9bef55150244c",
       "trade_fills": "0670a1868dee14d4377e2b36dcd3b4d8",
