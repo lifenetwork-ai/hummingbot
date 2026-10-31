@@ -85,3 +85,13 @@ show cold indicator imports and the active historical outflow rebuild/DB work.
 These sampled locations describe these new setup events; none is a reproduction
 or causal explanation of the historical late 6.7s episode. The automatic capture
 is validated; the long-lag cause remains open.
+
+## Remove unnecessary work in the sampler
+
+A focused Red test confirms that the existing `traceback.extract_stack` resolves
+source lines through `linecache.getline`. The recorder outputs only file/line/
+function, so that source lookup and caching are unnecessary observer work.
+Direct bounded frame traversal preserves the same output order/limit and omits
+source resolution. The new regression and prior tests pass: **61 cases**.
+This is a confirmed test-instrumentation improvement, with no measured claim
+about the historical latency cause or an application-runtime speedup.

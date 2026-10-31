@@ -1,8 +1,33 @@
 import asyncio
 import json
-from test.e2e.offline.load_trace import TraceRecorder, TraceSink, sql_metadata
+import linecache
+import sys
+from test.e2e.offline.load_trace import TraceRecorder, TraceSink, sql_metadata, stack_snapshot
 
 import pytest
+
+
+def test_stack_sampling_does_not_read_or_cache_source_lines(monkeypatch):
+    calls = []
+    original = linecache.getline
+
+    def observed(*args, **kwargs):
+        calls.append(args)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(linecache, 'getline', observed)
+    rows = stack_snapshot(sys._getframe(), limit=1)
+    assert not calls, 'Incident sampling must not resolve source text'
+    assert len(rows) == 1
+    assert rows[0]['function'] == 'test_stack_sampling_does_not_read_or_cache_source_lines'
+    assert set(rows[0]) == {'file', 'line', 'function'}
+
+
+def test_stack_sampling_keeps_existing_oldest_to_newest_order_and_limit():
+    def nested():
+        return stack_snapshot(sys._getframe(), limit=2)
+    assert [row['function'] for row in nested()] == [
+        'test_stack_sampling_keeps_existing_oldest_to_newest_order_and_limit', 'nested']
+    assert stack_snapshot(None) == []
 
 
 def test_sql_trace_retains_shape_without_literal_credentials_or_parameters():

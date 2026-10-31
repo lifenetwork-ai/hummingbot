@@ -7,7 +7,6 @@ import queue
 import re
 import threading
 import time
-import traceback
 import uuid
 from collections import deque
 from functools import lru_cache
@@ -215,8 +214,11 @@ class TraceRecorder:
 
 
 def stack_snapshot(frame, limit=16):
-    return [dict(file=row.filename, line=row.lineno, function=row.name)
-            for row in traceback.extract_stack(frame, limit=limit)] if frame else []
+    rows = []
+    while frame is not None and len(rows) < limit:
+        rows.append(dict(file=frame.f_code.co_filename, line=frame.f_lineno, function=frame.f_code.co_name))
+        frame = frame.f_back
+    return list(reversed(rows))
 
 
 def backend_pid(connection):

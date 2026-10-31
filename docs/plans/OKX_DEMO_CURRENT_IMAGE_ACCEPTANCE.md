@@ -7,7 +7,8 @@ current recovered-probe latency cause and full release acceptance remain open.
 
 - [x] Red/Green test bounded pre-incident stack/SQL/CPU context, failed-probe and
   recovery triggers, explicit retention/loss limits and failed-baseline exclusion.
-  Expanded related native suite: 59 passed.
+  Expanded related native suite: 61 passed, including a Red/Green correction
+  that removes unnecessary source-text lookup/caching during stack sampling.
 - [x] Verify automatic capture with a known short engine pause on the isolated
   image, keeping actual injection timestamps and retained prehistory/recovery.
   Ninety-second packaged diagnostic passes: 90 matching fills, no HTTP errors,
