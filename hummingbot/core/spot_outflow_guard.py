@@ -1,6 +1,7 @@
 """Owner adapter for spot cashflow; recorder rows remain the only fill ledger."""
 import asyncio
 from decimal import Decimal
+from itertools import islice
 from types import SimpleNamespace
 
 from sqlalchemy import select
@@ -24,7 +25,9 @@ class SpotOutflowGuard:
         self.pending = []
         self.pending_overflow = False
         self.orders = {}
-        self.terminal_pending = set()
+        # Insertion order is retry order. Failed proofs rotate behind orders
+        # that have not had a turn; repeated observations do not reset it.
+        self.terminal_pending = {}
         self.initializing = False
         self.reason_code = "spot_outflow_initializing"
         self.last_buy_denial = None
@@ -203,10 +206,10 @@ class SpotOutflowGuard:
         if self.projection is not None:
             self.projection.release_unsent(client_id)
         self.orders.pop(client_id, None)
-        self.terminal_pending.discard(client_id)
+        self.terminal_pending.pop(client_id, None)
 
     def mark_terminal_pending(self, client_id):
-        self.terminal_pending.add(client_id)
+        self.terminal_pending.setdefault(client_id, None)
 
     def _mark_terminal_orders(self):
         for client_id, (_, order) in self.orders.items():
@@ -214,16 +217,23 @@ class SpotOutflowGuard:
                 self.mark_terminal_pending(client_id)
 
     async def reconcile_terminal(self, *, all_orders=False):
-        for client_id, (_, order) in list(self.orders.items()):
+        for client_id, (_, order) in self.orders.items():
             if order.is_done or all_orders:
                 self.mark_terminal_pending(client_id)
-        for client_id in list(self.terminal_pending)[:MAX_FILLS if all_orders else 4]:
+        candidates = tuple(islice(self.terminal_pending, MAX_FILLS if all_orders else 4))
+        for client_id in candidates:
+            if client_id not in self.terminal_pending:
+                continue  # An earlier awaited proof may have removed an unsent order.
+            # Rotate before awaiting so failures and cancellation retain proof
+            # obligations without monopolizing the next bounded polling batch.
+            self.terminal_pending.pop(client_id)
+            self.terminal_pending[client_id] = None
             try:
                 if not await asyncio.wait_for(self._confirm(client_id), timeout=10):
                     continue
             except (ValueError, OSError, asyncio.TimeoutError, KeyError, ArithmeticError):
                 continue  # Retain the reservation and explicit BUY-only wait.
-            self.terminal_pending.discard(client_id)
+            self.terminal_pending.pop(client_id, None)
             self.orders.pop(client_id, None)
         if all_orders and self.terminal_pending:
             raise SubmissionBlocked("spot_outflow terminal fill reconciliation is incomplete")

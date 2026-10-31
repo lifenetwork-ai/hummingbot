@@ -1,10 +1,11 @@
 # Runtime flow optimization
 
-Latest follow-up (2026-11-01): a read-only review reproduces terminal-proof
-starvation and measures two engine CPU opportunities. These are **not shipped
-fixes**. See [the follow-up](#2026-11-01-follow-up--review-only) and its
-[portable evidence](runtime-flow-review-20261101.json). Accepted image `5973410d`
-and its R1/R2 results are unchanged; the findings are separate from that scope.
+Latest follow-up (2026-11-01): ordered implementation is underway. Terminal-proof
+fairness is fixed and verified; executor reporting and controller selection are
+next. See [implementation progress](#2026-11-01-ordered-implementation) and
+[new evidence](runtime-flow-remediation-20261101.json). The original
+[read-only review](#2026-11-01-follow-up--review-only) stays separate. Accepted
+image `5973410d` and its R1/R2 results do not certify these new source changes.
 
 Previous implementation status: runtime optimization complete; native/PostgreSQL regression, image E2E,
 healthy load/soak and a separate five-fault retest pass. The first combined run
@@ -335,3 +336,21 @@ Raw isolated experiment outputs are under `build/runtime-flow-review-20261101/`;
 the [portable evidence](runtime-flow-review-20261101.json) records measurements,
 source hashes and limits. No fix, production speedup, new memory bound or new
 release acceptance is claimed for this read-only follow-up.
+
+## 2026-11-01 ordered implementation
+
+- [x] **1. Terminal-proof fairness:** Red7 failures/1 pass before the fix;
+  Green26 native and13 real PostgreSQL outflow cases. Retry identities use one
+  insertion-ordered dictionary, rotate before awaiting, and preserve the existing
+  four-attempt cap and complete `all_orders` proof requirements. Removed entries
+  are skipped; cancellation/failure retains pending obligations. The complete
+  order/fill proof and reservation-release rules are unchanged.
+- [ ] **2. Executor report DTO reuse:** keep reuse inside one synchronous report
+  call; validate hold transitions, exact fees/PnL and fresh later calls.
+- [ ] **3. Controller selection:** remove redundant construction while retaining
+  configuration admission and live session/controller identity checks.
+
+[Implementation evidence](runtime-flow-remediation-20261101.json) is separate
+from the earlier read-only measurements. No connected account or Demo container
+is changed. A newly built runtime needs its own image verification; historical
+image `5973410d` keeps its accepted results and original source hashes.

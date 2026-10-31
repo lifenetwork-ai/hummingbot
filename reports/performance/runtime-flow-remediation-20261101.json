@@ -1,0 +1,24 @@
+{
+  "date": "2026-11-01",
+  "scope": "Ordered runtime implementation after read-only review; no deployment or connected Demo changes",
+  "accepted_image_597_retested": false,
+  "phases": {
+    "terminal_fairness": {
+      "status": "implemented_verified",
+      "red": {
+        "failed": 7,
+        "passed": 1
+      },
+      "green_native": 26,
+      "green_postgres": 13,
+      "implementation": "Insertion-ordered pending identities rotate before await; cap four attempts, retain all proof/reservation rules, skip removed snapshot entries",
+      "tests": "test/hummingbot/core/test_spot_outflow_fairness.py"
+    },
+    "executor_reports": {
+      "status": "pending"
+    },
+    "controller_selection": {
+      "status": "pending"
+    }
+  }
+}
