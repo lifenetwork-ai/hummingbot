@@ -1,9 +1,45 @@
 # Current-image OKX Demo acceptance
 
-## Active follow-up: automatic incident capture and shipping comparison
+## Current release work — single source of pending actions
 
-Operator request: 2026-10-31. The earlier verified fixes remain closed. The
-current recovered-probe latency cause and full release acceptance remain open.
+Updated 2026-10-31. Candidate image `5973410d` contains the verified runtime
+fixes. Diagnostic changes `146826501` / `bf2553679` do not change the application
+runtime. The earlier verified bugs remain closed. Only R1 and R2 below are
+pending execution; older checkpoints are history, not additional tasks.
+
+- [ ] **R1 — Complete current-image release verification:** freeze the image
+  and harness hashes; run warm300/mixed900/burst90/continuous-soak3600 and all six
+  recovery faults as one uninterrupted gate, with the validated incident recorder.
+  Keep 2 CPUs/2GiB, pool5, TTL15, history, rates and error/latency/retention budgets.
+  Preserve any failure and diagnose it before another long repeat. No separate
+  passing windows may be combined into a pass. The measured windows alone take
+  81.5 minutes, followed by fault verification and cleanup.
+- [ ] **R2 — Complete the passing-baseline shipping control:** after R1 passes,
+  run ordinary-entrypoint warm300/mixed900 with its matching image, YAML, client,
+  exchange fixtures and resource limits. Reconcile ledgers, verify Demo
+  preservation, clean temporary resources and publish the scoped release result.
+
+R1 and R2 are validation work, not two unimplemented features. The latest short
+shipping/recorded diagnostics pass, but do not satisfy these full acceptance
+scopes. A new runtime change is needed only if a confirmed defect justifies it;
+do not invent a fix as a prerequisite to validating the frozen candidate. A
+failed gate must be investigated rather than retried blindly.
+
+## Historical causes — unresolved evidence
+
+| ID | Observation still unexplained | Current disposition |
+| --- | --- | --- |
+| H1 | Simulator delivered 498.033/s against the 500/s minimum in one earlier combined run | Bounded diagnostics complete; later bursts exceed 509/s. Cause not established; retries do not explain the failure. |
+| H2 | Older sustained supervisor-liveness incident | Original logs lack sufficient probe/operation timing. Not reproduced; do not assign it to the separately fixed controller race. |
+| H3 | Five recovered timeout probes over 7.206s and sampled scheduled lag6.723s in the failed current-image burst | Automatic capture and both short comparisons pass. The long episode is not reproduced; no speculative runtime fix. |
+
+These three uncertainties stay explicit. They are not marked fixed, silently
+waived or duplicated as executable checkboxes. A green R1/R2 can establish
+current scoped release acceptance without proving an old incident's cause;
+the historical uncertainty must still be disclosed. Confirmed defects found
+during validation require Red/Green remediation before acceptance.
+
+## Completed automatic-capture follow-up
 
 - [x] Red/Green test bounded pre-incident stack/SQL/CPU context, failed-probe and
   recovery triggers, explicit retention/loss limits and failed-baseline exclusion.
@@ -19,18 +55,20 @@ current recovered-probe latency cause and full release acceptance remain open.
   Both pass all three windows: shipping p99 274/173/264ms; recorded 92/145/166ms.
   Each reconciles 1,290 fills across all four families, zero errors and stable
   engine/API PIDs. These are diagnostics; the baseline's release failure stays.
-- [ ] Attribute the actual long-lag episode using timestamped evidence. For any
-  confirmed runtime defect, demonstrate Red/Green. A non-reproducing comparison
-  leaves the historical cause unresolved.
-- [ ] After a justified candidate fix, run the unchanged full hour/recovery
-  gate and its matched shipping control; do not merge separate passing windows.
 
 Bounded follow-up complete: the historical long-lag event is not reproduced,
-so its cause and full release acceptance remain open. No speculative runtime
-fix, threshold waiver or further blind hour repeat is made. Capture limits and
-new short observer/DB-wait observations are explicit in the report.
+so H3 and R1/R2 remain unresolved/pending respectively. No speculative runtime
+fix or threshold waiver is made. Capture limits and new short observer/DB-wait
+observations are explicit in the report.
 
 See [incident investigation](../../reports/mm-incident-investigation.md).
+
+## Historical verification checkpoints
+
+The following journal preserves each image's actual result. Failed or
+unaccepted outcomes remain labelled as such; their next actions are tracked
+only once in R1/R2 and H1–H3 above. Do not rerun superseded images to complete
+an old checkpoint, or treat a checked diagnostic task as release acceptance.
 
 Operator request: 2026-10-30. Selected runtime `715a11f3…`, after completed local
 regression/E2E/load/hour/recovery/control acceptance. Earlier real Demo results
@@ -161,7 +199,8 @@ budgets. No live trading, registry publication outside loopback, or cloud deploy
   The actual entrypoint passes API repeated crash/hang, engine crash/hang,
   retained HALT, process reaping and ownership release at
   `build/service-supervision/20261030-145208-f3d592/result.json`.
-- [ ] Run the unchanged all-feature load gate: warm300, mixed900, burst90,
+- **Historical outcome — e526 gate not accepted; superseded by R1:**
+  The requested all-feature load scope was warm300, mixed900, burst90,
   continuous soak3600 and all six recovery faults; 2 CPUs/2GiB, pool5 and TTL15.
   First attempt `20261030-145524-a2b39f` fails soak p99: primary1086.76ms,
   auxiliary1137.27ms; zero HTTP errors. Warm/mixed/burst pass. Independent six
@@ -176,9 +215,10 @@ budgets. No live trading, registry publication outside loopback, or cloud deploy
   The failed first attempt nonetheless passes these specific retention/ledger
   checks: 57 samples, max gap66.35s, stable role PIDs, 4,890 matching fills,
   all three profiles and no retention violation. Its p99 violations remain open.
-- [ ] Complete matched ordinary-entrypoint warm300/mixed900 control using the
-  passing load run's unchanged fixtures, image and resource limits. A diagnostic
-  from the failed baseline also fails mixed p99/backlog; it does not close this item.
+- **Historical outcome — e526 control not accepted; superseded by R2:**
+  No passing-baseline matched ordinary-entrypoint control was established. A diagnostic
+  from the failed baseline also fails mixed p99/backlog; it does not establish
+  acceptance for that checkpoint.
 - [x] Recheck persistent Demo preservation, clean temporary resources, publish
   scoped portable results, check only achieved items and commit. A failed gate
   remains open until a justified fix and an unchanged repeat pass.
@@ -221,9 +261,9 @@ fresh or claiming an absolute independence guarantee for shared CPU/PostgreSQL.
   passes: 120 matching fills, 99.98318 simulator updates/s, p99 API 89.70ms, no HALT
   or engine replacement. Two transient probe timeouts recover. The recorded
   clamshell sleep began after the prior tests, so it does not explain their failures.
-- [ ] Identify or reproduce the original sustained-failure/long-lag cause with
-  sufficient evidence. Short transient timeout recovery does not close this item
-  or either full release gate above. See
+- **Historical unknown H2:** The original sustained-failure/long-lag cause lacks
+  sufficient evidence. Short transient timeout recovery neither identifies its
+  cause nor satisfies the failed release gates above. See
   [investigation](../../reports/mm-engine-liveness-investigation.md).
 
 ### Packaged supervisor-diagnostics release — operator request 2026-10-30
@@ -336,29 +376,29 @@ Re-enabled upstream regressions and the final-image validation verify the fix.
   burst feed rate; targeted burst repeat passes independently. Prior `dbd5b5ba`
   mixed failure and interrupted partial soak remain preserved.
 
-### Separate open investigations and release acceptance
+### Earlier unresolved outcomes — tracked once in the current register
 
 The operator requested closure of the three verified bugs above. The following
 items remain separate; neither a historical failed run nor its cause is erased.
 
-- [ ] Establish the cause of the simulator burst-rate shortfall (498.033/s versus
+- **Historical unknown H1:** Simulator burst-rate shortfall (498.033/s versus
   the unchanged 500/s minimum). The independent 509.80/s retry passes but does
   not explain the failed combined run.
-- [ ] Establish the cause of the older sustained supervisor-liveness incident
-  from relevant evidence. Do not equate it with the reproduced controller race
+- **Historical unknown H2:** The older sustained supervisor-liveness cause is
+  not established. Do not equate it with the reproduced controller race
   or infer its cause from a later passing run.
-- [ ] Close the current all-window release gate in one uninterrupted run.
+- **Unaccepted checkpoint — next validation is R1:**
   Candidate `5973410d` passes warm/mixed and burst feed/fill rates, but fails
   burst p95/p99. Its partial soak is not accepted; the separate passing traced
   warm/mixed/burst diagnostic does not close this gate. Earlier `81fa1448` soak
   and six-fault results remain historical evidence.
 
-### Execution plan for the remaining items — 2026-10-31
+### Historical execution protocol — 2026-10-31
 
-Use the latest immutable candidate (`81fa1448` unless a verified runtime fix
-requires rebuilding). Earlier unchecked full-load/control entries record failed
-acceptance on older images; execute the current gates below, not repeated runs
-of superseded images. Keep their historical outcomes unchanged. These three
+Historical protocol: `81fa1448` was the then-current candidate and was later
+restored as unchanged-runtime image `5973410d`. The execution checklist now
+lives in R1/R2 above; this protocol explains the original diagnostic decisions.
+Keep old outcomes unchanged and do not repeat superseded-image gates. These
 investigations do not reopen the three verified bugs above.
 
 #### 1. Explain the burst generator shortfall with short diagnostics
@@ -468,7 +508,7 @@ matched ordinary-entrypoint acceptance control is not run from that baseline.
   and mixed900 at 300/900 fills. This test-client bug is closed; it is distinct
   from runtime controller/OKX bugs and the still-open latency issue.
 
-### Latest acceptance outcome — 2026-10-31
+### Diagnostic checkpoint before automatic incident capture — 2026-10-31
 
 - [x] Complete bounded generator diagnostics and focused historical review;
   preserve the failed baseline p99 case and all passing controls. Add failed
@@ -483,13 +523,13 @@ matched ordinary-entrypoint acceptance control is not run from that baseline.
   windows pass; source/fixture hashes match the failed attempt. Trace and the
   intentional stop-before-soak diagnostic wrapper are explicit differences.
   This is a diagnostic only, not a stitched full-release pass.
-- [ ] Attribute the recovered engine probe episode in the failed burst:
+- **Historical unknown H3:** Recovered engine probe episode in the failed burst:
   five timeout probes over 7.206s, sampled scheduled lag 6.723s, no replacement.
   Shared bot-cgroup throttling overlaps it, but full causal attribution is
   missing. The matched traced burst's largest captured stall is only 290ms.
   Historical burst-rate and old sustained-liveness causes remain open too.
-- [ ] Pass a complete current baseline before accepting the matched shipping
-  control. No ordinary-entrypoint acceptance control is run from this failed
+- **Unaccepted checkpoint — next validation is R1/R2:**
+  No ordinary-entrypoint acceptance control is run from this failed
   baseline. Continue only with evidence targeting the specific latency episode;
   do not repeat hour gates blindly or relax limits to force closure.
 - [x] Verify unchanged Demo image/control/four ledger fingerprints and clean
