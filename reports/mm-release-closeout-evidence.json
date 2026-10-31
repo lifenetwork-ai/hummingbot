@@ -1,6 +1,6 @@
 {
-  "status": "R1 fully passed and independently verified; R2 pending",
-  "release_accepted": false,
+  "status": "Complete: scoped local R1 and matched shipping R2 passed",
+  "release_accepted": true,
   "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
   "manifest": "sha256:50a95f3a842f95ed072510e9031b2cf5f99d75ed07943c4e52862d9b26a7dc51",
   "production_runtime_changes": false,
@@ -120,57 +120,6 @@
       "forced_gc_completed": true,
       "signal_stack_observed": false
     }
-  },
-  "current_preflight": {
-    "started_at": "2026-10-31T16:18:19.441257+00:00",
-    "git_commit": "2cb18eccca2dd20c549ba378a4ba49a5207cd08e",
-    "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
-    "manifest": "127.0.0.1:58137/hummingbot@sha256:50a95f3a842f95ed072510e9031b2cf5f99d75ed07943c4e52862d9b26a7dc51",
-    "runtime_source_unchanged_since": "fc0ee55b8",
-    "source_sha256": {
-      "scripts/mm_load_budgets.py": "b037ad1734012aaf0a36619f78f812336d9b00696a1b2b90bc8d45bb3e0a7061",
-      "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
-      "scripts/test_e2e_offline.py": "47dec31c15dc83b731741825a26f9df0afdef817a51cdaf3523f779a05854c08",
-      "scripts/test_mm_load.py": "00758b031e1dec0c15b8f2cb59506291daec9cc7d121373d9e7564606e4e1dad",
-      "scripts/test_mm_production_control.py": "b657fd9dbb4bf68b48a90dca429471a5b169358e36046ff4ab0527105c4aaac0",
-      "test/e2e/offline/exchange.py": "52fc186aa3cc081ac478bfe12d495641784b97d2bd4b668de8f8625b429a4d83",
-      "test/e2e/offline/load_client.py": "54e77fe15c96e9efce065b45315aea7ff2f70eae36322128ef69daa4475f3b53",
-      "test/e2e/offline/load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
-      "test/e2e/offline/load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
-      "test/e2e/offline/load_service.py": "4b7073d8622988c8279df109b5c90228251e53fc46e2eb3629d112a99090c6e5",
-      "test/e2e/offline/load_trace.py": "db5711b80389ba1e8341b1740fae414715090b885cc97533979e4c9b859fb7bc"
-    },
-    "power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=6881379)\t100%; charged; 0:00 remaining present: true\n",
-    "docker_resources": "cpus=8 memory_bytes=8218251264",
-    "r1_passed": false,
-    "r2_passed": false,
-    "incident_capture_count": 128,
-    "incident_ring_bytes": 524288,
-    "incident_stream_bytes": 33554432,
-    "early_interruption": "early-interruption.json",
-    "related_native_tests_passed": 81,
-    "gc_fix_commit": "2cb18eccc",
-    "deferred_gc": true,
-    "signal_stack_fallback": {
-      "consecutive_failed_probes": 3,
-      "max_dumps_per_role": 16
-    },
-    "prior_runtime_failure": "r1-observed-runtime-failure.json"
-  },
-  "current_execution": {
-    "r1_run": "build/mm-load/20261031-231819-7fe2f2",
-    "r1_exec_session": null,
-    "caffeinate_pid": 55561,
-    "caffeinate_exec_session": 61875,
-    "frozen_source_commit": "2cb18eccca2dd20c549ba378a4ba49a5207cd08e",
-    "r1_log": "build/release-closeout-20261031/r1.log",
-    "r2_pending_after_r1_pass": true,
-    "native_related_tests_passed": 81,
-    "early_interruption": "build/release-closeout-20261031/early-interruption.json",
-    "previous_failed_r1": "build/mm-load/20261031-222312-6f060d",
-    "gc_fix_commit": "2cb18eccc",
-    "gc_packaged_fixed_proof": "build/release-closeout-20261031/deferred-packaged-gc-proof.json",
-    "r1_result": "failed_preserved"
   },
   "historical_H1_H2_H3_causes_closed": false,
   "corrected_r1": {
@@ -708,16 +657,6 @@
     "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
     "unchanged": true
   },
-  "active_execution": {
-    "r1_run": "build/mm-load/20261101-011658-1465e8",
-    "r1_exec_session": null,
-    "r1_log": "build/release-closeout-20261101/r1.log",
-    "caffeinate_pid": 76726,
-    "caffeinate_exec_session": 5966,
-    "frozen_source_commit": "b7ba104e7cb749b64f9fa05b57ff34273f1ef284",
-    "r2_pending_after_r1_pass": true,
-    "r1_verified_passed": true
-  },
   "prior_completed_r1_preserved": true,
   "current_r1": {
     "run": "build/mm-load/20261101-011658-1465e8",
@@ -1014,5 +953,393 @@
     },
     "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
     "unchanged": true
-  }
+  },
+  "prior_attempt_metadata": {
+    "preflight": {
+      "started_at": "2026-10-31T16:18:19.441257+00:00",
+      "git_commit": "2cb18eccca2dd20c549ba378a4ba49a5207cd08e",
+      "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
+      "manifest": "127.0.0.1:58137/hummingbot@sha256:50a95f3a842f95ed072510e9031b2cf5f99d75ed07943c4e52862d9b26a7dc51",
+      "runtime_source_unchanged_since": "fc0ee55b8",
+      "source_sha256": {
+        "scripts/mm_load_budgets.py": "b037ad1734012aaf0a36619f78f812336d9b00696a1b2b90bc8d45bb3e0a7061",
+        "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
+        "scripts/test_e2e_offline.py": "47dec31c15dc83b731741825a26f9df0afdef817a51cdaf3523f779a05854c08",
+        "scripts/test_mm_load.py": "00758b031e1dec0c15b8f2cb59506291daec9cc7d121373d9e7564606e4e1dad",
+        "scripts/test_mm_production_control.py": "b657fd9dbb4bf68b48a90dca429471a5b169358e36046ff4ab0527105c4aaac0",
+        "test/e2e/offline/exchange.py": "52fc186aa3cc081ac478bfe12d495641784b97d2bd4b668de8f8625b429a4d83",
+        "test/e2e/offline/load_client.py": "54e77fe15c96e9efce065b45315aea7ff2f70eae36322128ef69daa4475f3b53",
+        "test/e2e/offline/load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+        "test/e2e/offline/load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+        "test/e2e/offline/load_service.py": "4b7073d8622988c8279df109b5c90228251e53fc46e2eb3629d112a99090c6e5",
+        "test/e2e/offline/load_trace.py": "db5711b80389ba1e8341b1740fae414715090b885cc97533979e4c9b859fb7bc"
+      },
+      "power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=6881379)\t100%; charged; 0:00 remaining present: true\n",
+      "docker_resources": "cpus=8 memory_bytes=8218251264",
+      "r1_passed": false,
+      "r2_passed": false,
+      "incident_capture_count": 128,
+      "incident_ring_bytes": 524288,
+      "incident_stream_bytes": 33554432,
+      "early_interruption": "early-interruption.json",
+      "related_native_tests_passed": 81,
+      "gc_fix_commit": "2cb18eccc",
+      "deferred_gc": true,
+      "signal_stack_fallback": {
+        "consecutive_failed_probes": 3,
+        "max_dumps_per_role": 16
+      },
+      "prior_runtime_failure": "r1-observed-runtime-failure.json"
+    },
+    "execution": {
+      "r1_run": "build/mm-load/20261031-231819-7fe2f2",
+      "r1_exec_session": null,
+      "caffeinate_pid": 55561,
+      "caffeinate_exec_session": 61875,
+      "frozen_source_commit": "2cb18eccca2dd20c549ba378a4ba49a5207cd08e",
+      "r1_log": "build/release-closeout-20261031/r1.log",
+      "r2_pending_after_r1_pass": true,
+      "native_related_tests_passed": 81,
+      "early_interruption": "build/release-closeout-20261031/early-interruption.json",
+      "previous_failed_r1": "build/mm-load/20261031-222312-6f060d",
+      "gc_fix_commit": "2cb18eccc",
+      "gc_packaged_fixed_proof": "build/release-closeout-20261031/deferred-packaged-gc-proof.json",
+      "r1_result": "failed_preserved"
+    }
+  },
+  "acceptance_scope": "Local immutable-image full R1 plus matched ordinary-entrypoint warm300/mixed900 R2; no deployment",
+  "deployment_performed": false,
+  "this_closeout_connected_trading_performed": false,
+  "current_r2": {
+    "run": "build/service-supervision/production-control-20261101-024951-b873b2",
+    "passed": true,
+    "baseline": "build/mm-load/20261101-011658-1465e8",
+    "baseline_acceptance_eligible": true,
+    "shipping_control_scope_complete": true,
+    "full_R1_scope_claimed_for_control": false,
+    "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
+    "required_fixture_hashes_match": true,
+    "windows": {
+      "warmup": {
+        "duration_seconds": 300,
+        "read_p95_ms": 52.23953298991546,
+        "read_p99_ms": 288.9904870535247,
+        "unexpected_errors": 0,
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 704512000,
+        "violations": [],
+        "resources": {
+          "before": {
+            "processes": {
+              "supervisor": {
+                "pid": 1,
+                "fds": 5,
+                "VmHWM": 134270976,
+                "VmRSS": 134270976,
+                "Threads": 8
+              },
+              "engine": {
+                "pid": 32,
+                "fds": 31,
+                "VmHWM": 428072960,
+                "VmRSS": 428072960,
+                "Threads": 11
+              },
+              "api": {
+                "pid": 33,
+                "fds": 10,
+                "VmHWM": 298766336,
+                "VmRSS": 298766336,
+                "Threads": 10
+              }
+            },
+            "cpu": {
+              "usage_usec": 46414987,
+              "user_usec": 43197925,
+              "system_usec": 3217061,
+              "nr_periods": 431,
+              "nr_throttled": 77,
+              "throttled_usec": 8552818,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "memory": {
+              "current_bytes": 695099392,
+              "peak_bytes": 702951424
+            }
+          },
+          "after": {
+            "processes": {
+              "supervisor": {
+                "pid": 1,
+                "fds": 5,
+                "VmHWM": 134270976,
+                "VmRSS": 134270976,
+                "Threads": 8
+              },
+              "engine": {
+                "pid": 32,
+                "fds": 30,
+                "VmHWM": 430080000,
+                "VmRSS": 430080000,
+                "Threads": 11
+              },
+              "api": {
+                "pid": 33,
+                "fds": 11,
+                "VmHWM": 306937856,
+                "VmRSS": 306937856,
+                "Threads": 11
+              }
+            },
+            "cpu": {
+              "usage_usec": 147391472,
+              "user_usec": 138207102,
+              "system_usec": 9184369,
+              "nr_periods": 3443,
+              "nr_throttled": 96,
+              "throttled_usec": 9770693,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "memory": {
+              "current_bytes": 704499712,
+              "peak_bytes": 704512000
+            }
+          }
+        }
+      },
+      "mixed": {
+        "duration_seconds": 900,
+        "read_p95_ms": 55.21498393500224,
+        "read_p99_ms": 396.387071989011,
+        "unexpected_errors": 0,
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 713318400,
+        "violations": [],
+        "resources": {
+          "before": {
+            "processes": {
+              "supervisor": {
+                "pid": 1,
+                "fds": 5,
+                "VmHWM": 134270976,
+                "VmRSS": 134270976,
+                "Threads": 8
+              },
+              "engine": {
+                "pid": 32,
+                "fds": 30,
+                "VmHWM": 430080000,
+                "VmRSS": 430080000,
+                "Threads": 11
+              },
+              "api": {
+                "pid": 33,
+                "fds": 11,
+                "VmHWM": 306937856,
+                "VmRSS": 306937856,
+                "Threads": 11
+              }
+            },
+            "cpu": {
+              "usage_usec": 149377004,
+              "user_usec": 140052238,
+              "system_usec": 9324766,
+              "nr_periods": 3476,
+              "nr_throttled": 96,
+              "throttled_usec": 9770693,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "memory": {
+              "current_bytes": 704503808,
+              "peak_bytes": 713318400
+            }
+          },
+          "after": {
+            "processes": {
+              "supervisor": {
+                "pid": 1,
+                "fds": 5,
+                "VmHWM": 134270976,
+                "VmRSS": 134270976,
+                "Threads": 8
+              },
+              "engine": {
+                "pid": 32,
+                "fds": 30,
+                "VmHWM": 431652864,
+                "VmRSS": 431652864,
+                "Threads": 11
+              },
+              "api": {
+                "pid": 33,
+                "fds": 11,
+                "VmHWM": 307068928,
+                "VmRSS": 307068928,
+                "Threads": 11
+              }
+            },
+            "cpu": {
+              "usage_usec": 460026296,
+              "user_usec": 432796275,
+              "system_usec": 27230021,
+              "nr_periods": 12489,
+              "nr_throttled": 122,
+              "throttled_usec": 11225865,
+              "nr_bursts": 0,
+              "burst_usec": 0
+            },
+            "memory": {
+              "current_bytes": 706719744,
+              "peak_bytes": 713318400
+            }
+          }
+        }
+      }
+    }
+  },
+  "current_r2_health": {
+    "scope": "shipping healthy windows and transition only; setup/cleanup excluded",
+    "events": {
+      "child_probe_failed": 12,
+      "child_probe_recovered": 12
+    },
+    "max_recovered_probe_seconds": 1.182,
+    "longest_recovered_probes": [
+      {
+        "role": "engine",
+        "seconds": 1.182,
+        "at": "2026-10-31T19:55:53.635Z"
+      },
+      {
+        "role": "engine",
+        "seconds": 1.173,
+        "at": "2026-10-31T19:56:28.012Z"
+      },
+      {
+        "role": "engine",
+        "seconds": 1.084,
+        "at": "2026-10-31T20:06:11.365Z"
+      },
+      {
+        "role": "engine",
+        "seconds": 1.084,
+        "at": "2026-10-31T20:06:31.451Z"
+      },
+      {
+        "role": "engine",
+        "seconds": 1.081,
+        "at": "2026-10-31T19:54:23.315Z"
+      }
+    ],
+    "peak_container_bytes": 713318400,
+    "process_ids": {
+      "supervisor": [
+        1
+      ],
+      "engine": [
+        32
+      ],
+      "api": [
+        33
+      ]
+    }
+  },
+  "demo_after_r2": {
+    "checked_at": "2026-10-31T20:11:58.883268+00:00",
+    "ledger_hashes": {
+      "orders": "23fb84b15c8186e891d9bef55150244c",
+      "trade_fills": "0670a1868dee14d4377e2b36dcd3b4d8",
+      "executors": "ec4d3c225bb224c5ad2b249b8aece160",
+      "positions": "bd78de05d366df0a875912592f4be8ab"
+    },
+    "control": {
+      "desired_state": "stopped",
+      "control_version": 26,
+      "acknowledged_version": 26,
+      "halt": "false"
+    },
+    "image_id": "sha256:e526118b94324ab4a116839c171482fffa4c3e66adc5effa626d2c0242172454",
+    "unchanged": true
+  },
+  "current_preflight": {
+    "started_at_utc": "2026-10-31T18:16:58.462575+00:00",
+    "source_commit": "b7ba104e7cb749b64f9fa05b57ff34273f1ef284",
+    "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
+    "manifest_reference": "127.0.0.1:58137/hummingbot@sha256:50a95f3a842f95ed072510e9031b2cf5f99d75ed07943c4e52862d9b26a7dc51",
+    "native_related_tests_passed": 114,
+    "source_sha256": {
+      "deploy/cloudrun/conf/life_mm_profiles.yaml": "8bf8db61dc871606c46228f162c300f3184466110be65e3067ae51a9c5010cdf",
+      "scripts/mm_load_budgets.py": "e63c9f4741475bae7bd2fd1b69d70ffb8b7b1fdba8fb7c1e4348d96a841694c7",
+      "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
+      "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458",
+      "scripts/mm_load_processes.py": "1b939e85a11b7d374cc17dc2111729b72f0775aad2f5161487110f1f516820fa",
+      "scripts/test_e2e_offline.py": "47dec31c15dc83b731741825a26f9df0afdef817a51cdaf3523f779a05854c08",
+      "scripts/test_mm_load.py": "43a32c2441073e24db42484d3b3e1575c1dcaf7ab95786ae4ff8a2620b298783",
+      "scripts/test_mm_production_control.py": "bd480f32e0613f1b84653118572abaaccf386b2233f8cca03e25c4872fb92c7d",
+      "test/e2e/offline/availability_service.py": "eda43c991ef7eea6174eef67b011ce96988de970a61c6ecaa30d8d18d7441073",
+      "test/e2e/offline/build_fixtures.py": "47fc8c6ef320b6abba5925d1f43a7c17d88f7fe0c94aaf5543a7441a2d278a1f",
+      "test/e2e/offline/exchange.py": "52fc186aa3cc081ac478bfe12d495641784b97d2bd4b668de8f8625b429a4d83",
+      "test/e2e/offline/load_client.py": "54e77fe15c96e9efce065b45315aea7ff2f70eae36322128ef69daa4475f3b53",
+      "test/e2e/offline/load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+      "test/e2e/offline/load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "test/e2e/offline/load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+      "test/e2e/offline/load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+      "test/e2e/offline/load_service.py": "d3f3c1a57d6fc8eb32f2d4e60099f673445b61225a9eeb230abf199657989deb",
+      "test/e2e/offline/load_trace.py": "db5711b80389ba1e8341b1740fae414715090b885cc97533979e4c9b859fb7bc",
+      "test/e2e/offline/mm_economics.py": "dd63e8d89b7a8c816dfde3172afa36514f871522a4ecb61186a42becb28a8be4",
+      "test/e2e/offline/mm_economics_replay.py": "3262acb3aa9ac25b3b60b147fefd44674c8da0af7a6e884571f16c2a35e529ea",
+      "test/e2e/offline/mm_economics_scenarios.py": "8df9342f4c5b840d9a4bd9b869c17ac261c1be7e61167841da8eb9ff91893b1e",
+      "test/e2e/offline/quote_refresh_probe.py": "3681ed5ab9ef2eb8ea74a7800d6463e8b139876b3b14aee07c23581fde9ce671",
+      "test/e2e/offline/runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+      "test/e2e/offline/slow_reporting_injection.py": "87d769021f0a11a87f3e7b4bcc92001736042f2fec41d737397280d0e31c9d47"
+    },
+    "production_source_unchanged_since": "fc0ee55b8",
+    "retention_contract": "current - (file - shmem); 64MiB growth; raw total retained; per-role RSS unchanged; absolute peak1.5GiB",
+    "read_budgets_ms": {
+      "p95": 500,
+      "p99": 1000
+    },
+    "unexpected_error_budget": 0,
+    "incident_policy": {
+      "max_incidents_per_role": 128,
+      "ring_bytes": 524288,
+      "stream_bytes_per_role": 33554432
+    },
+    "limits": {
+      "bot_cpus": 2,
+      "bot_memory_bytes": 2147483648,
+      "postgres_cpus": 2,
+      "postgres_memory_bytes": 536870912,
+      "simulator_cpus": 1,
+      "client_cpus": 1,
+      "pool": 5,
+      "cache_ttl_seconds": 15,
+      "history_rows": 100000
+    }
+  },
+  "current_execution": {
+    "r1_run": "build/mm-load/20261101-011658-1465e8",
+    "r2_run": "build/service-supervision/production-control-20261101-024951-b873b2",
+    "frozen_source_commit": "b7ba104e7cb749b64f9fa05b57ff34273f1ef284",
+    "r1_verified_passed": true,
+    "r2_verified_passed": true,
+    "caffeinate_stopped": true,
+    "completed_at_utc": "2026-10-31T20:12:27.442655+00:00"
+  },
+  "raw_execution_manifest": "build/release-closeout-20261101/execution.json"
 }

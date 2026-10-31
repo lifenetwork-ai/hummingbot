@@ -1,5 +1,5 @@
 {
-  "status": "Bounded diagnostics and full R1 passed; R2 pending",
+  "status": "Bounded diagnostics complete; scoped full R1 and shipping R2 also verified passed",
   "diagnostic": true,
   "release_scope_complete": false,
   "production_runtime_changed": false,
@@ -433,148 +433,13 @@
   },
   "full_gate_execution": {
     "r1_run": "build/mm-load/20261101-011658-1465e8",
-    "r1_exec_session": null,
-    "r1_log": "build/release-closeout-20261101/r1.log",
-    "caffeinate_pid": 76726,
-    "caffeinate_exec_session": 5966,
+    "r2_run": "build/service-supervision/production-control-20261101-024951-b873b2",
     "frozen_source_commit": "b7ba104e7cb749b64f9fa05b57ff34273f1ef284",
-    "r2_pending_after_r1_pass": true,
-    "r1_verified_passed": true
+    "r1_verified_passed": true,
+    "r2_verified_passed": true,
+    "completed_at_utc": "2026-10-31T20:12:27.442655+00:00"
   },
-  "full_r1_verification": {
-    "run": "build/mm-load/20261101-011658-1465e8",
-    "passed": true,
-    "release_scope_complete": true,
-    "image_id": "sha256:5973410d15fc9de0b204100f9c365b4f2bf4a2ba75e7bd2c556b26b83459f495",
-    "manifest": "sha256:50a95f3a842f95ed072510e9031b2cf5f99d75ed07943c4e52862d9b26a7dc51",
-    "source_commit": "b7ba104e7cb749b64f9fa05b57ff34273f1ef284",
-    "windows": {
-      "warmup": {
-        "read_p95_ms": 121.96796003263444,
-        "read_p99_ms": 475.53544701077044,
-        "unexpected_errors": 0,
-        "ledger": {
-          "unique_exchange_fills": 300,
-          "unique_recorder_fills": 300,
-          "positions_matched": true,
-          "identified_funding_bills": 2,
-          "daily_snapshots": 3
-        },
-        "peak_rss_bytes": 707866624,
-        "fill_counts_by_market_side": {
-          "LIFE-USDT:buy": 81,
-          "LIFE-USDT-SWAP:buy": 71,
-          "LIFE-USDT:sell": 78,
-          "LIFE-USDT-SWAP:sell": 70
-        }
-      },
-      "mixed": {
-        "read_p95_ms": 84.55297298496589,
-        "read_p99_ms": 436.3940639887005,
-        "unexpected_errors": 0,
-        "ledger": {
-          "unique_exchange_fills": 1200,
-          "unique_recorder_fills": 1200,
-          "positions_matched": true,
-          "identified_funding_bills": 2,
-          "daily_snapshots": 3
-        },
-        "peak_rss_bytes": 729071616,
-        "fill_counts_by_market_side": {
-          "LIFE-USDT:buy": 240,
-          "LIFE-USDT-SWAP:buy": 214,
-          "LIFE-USDT:sell": 234,
-          "LIFE-USDT-SWAP:sell": 212
-        }
-      },
-      "bursts": {
-        "read_p95_ms": 66.24718301463872,
-        "read_p99_ms": 264.6541749709286,
-        "unexpected_errors": 0,
-        "ledger": {
-          "unique_exchange_fills": 1290,
-          "unique_recorder_fills": 1290,
-          "positions_matched": true,
-          "identified_funding_bills": 2,
-          "daily_snapshots": 3
-        },
-        "peak_rss_bytes": 750374912,
-        "fill_counts_by_market_side": {
-          "LIFE-USDT:buy": 25,
-          "LIFE-USDT-SWAP:buy": 22,
-          "LIFE-USDT:sell": 22,
-          "LIFE-USDT-SWAP:sell": 21
-        }
-      },
-      "soak": {
-        "read_p95_ms": 147.20551599748433,
-        "read_p99_ms": 717.4076240044087,
-        "unexpected_errors": 0,
-        "ledger": {
-          "unique_exchange_fills": 4884,
-          "unique_recorder_fills": 4884,
-          "positions_matched": true,
-          "identified_funding_bills": 2,
-          "daily_snapshots": 3
-        },
-        "peak_rss_bytes": 797716480,
-        "fill_counts_by_market_side": {
-          "LIFE-USDT:buy": 922,
-          "LIFE-USDT-SWAP:buy": 899,
-          "LIFE-USDT:sell": 895,
-          "LIFE-USDT-SWAP:sell": 878
-        }
-      }
-    },
-    "soak_samples": 58,
-    "soak_max_gap_seconds": 66.28505897521973,
-    "memory_retention": {
-      "basis": "cgroup_current_minus_file_plus_shmem",
-      "early_median_bytes": 716517376,
-      "late_median_bytes": 733376512,
-      "growth_bytes": 16859136,
-      "budget_bytes": 67108864,
-      "raw_cgroup_growth_bytes": 60956672
-    },
-    "profile_running_coverage": [
-      {
-        "profile": "sideways",
-        "step": 0,
-        "running_overlap_seconds": 598.4685771465302
-      },
-      {
-        "profile": "follow_token",
-        "step": 1,
-        "running_overlap_seconds": 595.7736039161682
-      },
-      {
-        "profile": "follow_market",
-        "step": 2,
-        "running_overlap_seconds": 595.7091999053955
-      },
-      {
-        "profile": "follow_token",
-        "step": 3,
-        "running_overlap_seconds": 593.8689389228821
-      },
-      {
-        "profile": "sideways",
-        "step": 4,
-        "running_overlap_seconds": 595.8753418922424
-      },
-      {
-        "profile": "follow_token",
-        "step": 5,
-        "running_overlap_seconds": 595.9502389431
-      }
-    ],
-    "faults": [
-      "feed",
-      "volatility-defense",
-      "owner-restart",
-      "queued-expiry",
-      "database-delay",
-      "database-failure"
-    ]
-  }
+  "full_gate_closeout_evidence": "reports/mm-release-closeout-evidence.json",
+  "full_R1_verified_passed": true,
+  "full_R2_verified_passed": true
 }

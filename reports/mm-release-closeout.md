@@ -1,7 +1,8 @@
 # Current-image release closeout
 
-Status: **full R1 passes; R2 awaits execution from that baseline.** Earlier full
-failures are preserved below. Combined release closure is not claimed yet.
+Status: **R1 and R2 pass; scoped local release verification is complete.**
+Earlier failures and unresolved historical causes are preserved below. No
+Cloud Run deployment or connected trading occurs in this closeout.
 Application image `5973410d` / manifest `50a95f3a` is unchanged; measurement
 source is frozen at `b7ba104e7`. The bounded follow-up has native114 and matched
 300s recorder/shipping passes; see [measurement remediation](mm-measurement-remediation.md).
@@ -47,9 +48,37 @@ queues are zero. Traces are incomplete; do not infer absence of an event from a
 missing record. Fault-time restarts have separate identities and summaries.
 
 Temporary R1 containers are removed. The stopped Demo image/control/four ledger
-fingerprints remain unchanged. R2 must now use this passing baseline with the
-ordinary shipping entrypoint and matching fixtures/resources; short comparisons
-cannot substitute for it.
+fingerprints remain unchanged. R2 below uses this passing baseline with the ordinary shipping entrypoint and
+matching fixtures/resources; short comparisons do not substitute for it.
+
+## Matched shipping R2 — passed and independently verified
+
+Run `production-control-20261101-024951-b873b2` uses the normal
+`python -m hummingbot.cli.service` command, with no timing wrapper or diagnostic
+signal recorder. The actual completed R1 baseline qualifies; image and required
+YAML/client/exchange hashes match, as do2CPU/2GiB, PG caps, history100,000,
+pool5 and TTL15. This is the planned shipping control, not a second full-hour gate.
+
+| Window | Duration | p95 | p99 | Unexpected errors | Cumulative matched fills |
+| --- | --- | --- | --- | --- | --- |
+| Warmup | 300s | 52.24ms | 288.99ms | 0 | 300 |
+| Mixed | 900s | 55.21ms | 396.39ms | 0 | 1,200 |
+
+Independent verification confirms source hashes and identical supervisor/engine/
+API identities before/after both windows and across their transition. No
+unplanned child start/replacement occurs. Twelve probe episodes self-recover,
+longest1.182s; no diagnostic stack signal is used. Peak container memory is
+680.27MiB. This shorter shipping run does not establish a full-hour memory trend
+or identify every earlier slowdown. It retains the same safe strategy and guards.
+
+R1 and R2 checklist items are checked done. Temporary test containers are gone;
+the existing stopped Demo image/control/four ledger fingerprints remain unchanged.
+Only the task's own caffeinate process is stopped. Application runtime remains
+unchanged fromfc0ee55b8; fixes here concern test instrumentation, accounting and
+acceptance scope. The local artifact qualifies under the declared protocol.
+This is not proof of zero transient stalls, universal absence of memory leaks,
+or attribution of historical H1/H2/H3 to test infrastructure. No speculative
+runtime/cache/pool change is introduced to explain them.
 
 ## Preparation and preserved failures
 
@@ -193,8 +222,8 @@ runtime defect needs Red/Green remediation, not a speculative fix or blind hour
 repeat.
 
 Portable [evidence](mm-release-closeout-evidence.json) keeps the failed attempt,
-controlled diagnostics and pending execution scopes separate.
+controlled diagnostics and the subsequent completed R1/R2 scopes separate.
 
 Raw evidence: ignored `build/release-closeout-20261031/` and the run directories
 above. Historical failed results remain failed; the current R1 result supersedes
-execution status only. R2 is still pending, and historical causes stay explicit.
+execution status only. Current R1/R2 verification is complete; historical causes stay explicit.

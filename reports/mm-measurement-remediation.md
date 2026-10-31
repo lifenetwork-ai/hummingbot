@@ -1,7 +1,7 @@
 # Release measurement follow-up
 
-Status: bounded source/microbenchmark checks and packaged pair pass; full
-R1 has passed; R2 awaits execution from that baseline. Production image5973410d is unchanged.
+Status: bounded checks, full R1 and the planned shipping R2 all pass. Scoped
+local verification is complete. Production image5973410d is unchanged.
 The failed [prior release result](mm-release-closeout.md) remains failed.
 
 ## Confirmed observer cost and correction
@@ -103,10 +103,10 @@ isolation. Persistent stopped Demo image/control/ledger fingerprints are unchang
 The old full result still evaluates as `legacy_cgroup_current` and fails
 `rss_growth`; the corrected measurement does not relabel it. The next full gate
 uses the declared new measurement on fresh samples, with all other original
-budgets and six recovery cases retained. A fresh passing R1 is required for R2.
+budgets and six recovery cases retained. The completed passing R1 is the baseline for the verified R2.
 
 Full run `20261101-011658-1465e8` starts on frozen source `b7ba104e7` and immutable
-image5973410d/manifest50a95f3a. It completes successfully, with independent image/source/scope verification; R1 is checked done and R2 remains pending.
+image5973410d/manifest50a95f3a. It completes successfully, with independent image/source/scope verification; R1 and the matched shipping R2 are checked done.
 
 Portable [evidence](mm-measurement-remediation-evidence.json) retains both runs,
 exact microbenchmarks, memory contract and historical-result preservation.
@@ -114,3 +114,7 @@ exact microbenchmarks, memory contract and historical-result preservation.
 Raw evidence: ignored `build/release-diagnostics-20261101/` contains the native
 Red/Green logs, exact microbenchmark outputs, query plans and cache experiment.
 No connected exchange trading or maintenance of the persistent Demo is performed.
+
+The full outcome and retained limits are in the [closeout report](mm-release-closeout.md).
+R2 warm300/mixed900 passes with p99 289/396ms, zero unexpected errors and1,200
+matching fills/positions; Demo preservation and cleanup are verified.

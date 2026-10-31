@@ -1,10 +1,11 @@
 # Current-image OKX Demo acceptance
 
-## Current release work — single source of pending actions
+## Current release verification — completed scopes
 
 Updated 2026-11-01 (local time). Immutable candidate image `5973410d` / manifest
 `50a95f3a` is unchanged. Measurement source is frozen at `b7ba104e7`.
-Only R2 below remains pending; the earlier verified defects remain closed.
+Both R1 and R2 below are complete for this scoped local release verification.
+The earlier verified defects remain closed; historical attribution limits remain explicit.
 
 - [x] **R1 — Complete current-image release verification:** run
   `20261101-011658-1465e8` passes warm300/mixed900/burst90/continuous-soak3600 and
@@ -15,12 +16,16 @@ Only R2 below remains pending; the earlier verified defects remain closed.
   cgroup growth58.13MiB both meet64MiB. Native114 and bounded matched probes
   precede this gate. Temporary containers are removed; stopped Demo fingerprints
   remain unchanged. See the [closeout report](../../reports/mm-release-closeout.md).
-- [ ] **R2 — Complete the passing-baseline shipping control:** run ordinary
-  entrypoint warm300/mixed900 against the completed R1 above, matching image,
-  effective YAML, client/exchange fixtures, resources, history, pool5 and TTL15.
-  Reconcile ledgers, verify Demo preservation, clean temporary resources and
-  publish the scoped release result. A passed short/diagnostic baseline cannot
-  qualify as R2.
+- [x] **R2 — Complete the passing-baseline shipping control:** run
+  `production-control-20261101-024951-b873b2` passes ordinary-entrypoint
+  warm300/mixed900 against the actual passing R1, with matching image/effective
+  YAML/client/exchange hashes and resources/history/pool5/TTL15. Warmup p95/p99
+  52/289ms; mixed55/396ms. Zero unexpected API errors,1,200 matching fills/fees/
+  positions and unchanged process identities. Twelve probe episodes recover,
+  longest1.182s; no unplanned child start/replacement. Temporary containers and
+  the task-owned idle-sleep assertion are removed; Demo fingerprints remain
+  unchanged. Independent source/scope checks pass; scoped release evidence is
+  published. No Cloud Run deployment or connected trading occurs in closeout.
 
 R1 uses2CPUs/2GiB, history100,000, original rates and error/latency budgets, plus
 128 test-only captures with512KiB ring/32MiB stream caps per role. R1 acceptance
@@ -232,7 +237,8 @@ budgets. No live trading, registry publication outside loopback, or cloud deploy
   position/funding ledgers. Keep the existing zero-error and p95/p99 budgets.
   The failed first attempt nonetheless passes these specific retention/ledger
   checks: 57 samples, max gap66.35s, stable role PIDs, 4,890 matching fills,
-  all three profiles and no retention violation. Its p99 violations remain open.
+  all three profiles and no retention violation. That failed p99 measurement
+  remains failed; current candidate acceptance is completed above.
 - **Historical outcome — e526 control not accepted; superseded by R2:**
   No passing-baseline matched ordinary-entrypoint control was established. A diagnostic
   from the failed baseline also fails mixed p99/backlog; it does not establish
@@ -524,7 +530,8 @@ matched ordinary-entrypoint acceptance control is not run from that baseline.
 - [x] Verify packaged 300-second diagnostic: 300/300 fills, all four families,
   exact recorder/position agreement. Corrected full attempt then passes warm300
   and mixed900 at 300/900 fills. This test-client bug is closed; it is distinct
-  from runtime controller/OKX bugs and the still-open latency issue.
+  from runtime controller/OKX bugs and the latency observation unresolved at
+  that checkpoint.
 
 ### Diagnostic checkpoint before automatic incident capture — 2026-10-31
 
@@ -546,7 +553,7 @@ matched ordinary-entrypoint acceptance control is not run from that baseline.
   Shared bot-cgroup throttling overlaps it, but full causal attribution is
   missing. The matched traced burst's largest captured stall is only 290ms.
   Historical burst-rate and old sustained-liveness causes remain open too.
-- **Unaccepted checkpoint — next validation is R1/R2:**
+- **Historical unaccepted checkpoint — superseded by current R1/R2:**
   No ordinary-entrypoint acceptance control is run from this failed
   baseline. Continue only with evidence targeting the specific latency episode;
   do not repeat hour gates blindly or relax limits to force closure.

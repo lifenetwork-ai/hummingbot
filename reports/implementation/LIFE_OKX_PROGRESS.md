@@ -2147,3 +2147,21 @@ scope are preserved. No claim of uninterrupted quotes or historical-cause closur
 All temporary R1 containers are removed; stopped Demo fingerprints are unchanged.
 R1 is checked done; R2 awaits the actual passing baseline. Prior failures remain
 failed. See [current closeout](../mm-release-closeout.md).
+
+2026-11-01 scoped local closeout complete: matched ordinary-entrypoint R2
+`production-control-20261101-024951-b873b2` passes warm300/mixed900 against the
+actual full passing R1. Required image/fixture/source hashes, resources/history/
+pool5/TTL15 match. Warm p95/p99 52.24/288.99ms; mixed55.21/396.39ms. Zero
+unexpected API errors;1,200 unique fills/original fees/positions reconcile.
+Same supervisor/engine/API identities across both windows; no unplanned child
+start/replacement. Twelve probe episodes recover, longest1.182s, with no
+recorder signal. Peak680.27MiB is a20-minute control observation, not an hour
+retention claim. R1's98 recovered probes/max4.591s and incomplete trace limits
+remain explicit; old H1/H2/H3 causes are not declared solved.
+
+R2 is checked done. All temporary test containers are removed and only the task's
+caffeinate assertion is stopped. Existing stopped Demo image/control/four ledger
+fingerprints remain unchanged. No connected trading/deployment or speculative
+runtime/cache/pool change is performed. Local image5973410d/manifest50a95f3a is
+accepted under the stated R1/R2 protocol; report/evidence retain every failed
+attempt and its scope. See [final closeout](../mm-release-closeout.md).
