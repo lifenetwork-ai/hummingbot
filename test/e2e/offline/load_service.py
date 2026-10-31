@@ -6,11 +6,13 @@ the container's ephemeral /tmp, never used as bot state. No metrics HTTP route.
 import asyncio
 import atexit
 import contextvars
+import faulthandler
 import gc
 import json
 import logging
 import math
 import os
+import signal
 import sys
 import threading
 import time
@@ -21,6 +23,7 @@ from aiohttp import web
 from load_incidents import IncidentBuffer, capture_limit
 from load_process_metrics import collect_requested, process_snapshot
 from load_trace import (
+    DeferredGCTrace,
     FullGCProbe,
     TraceRecorder,
     TraceSink,
@@ -94,12 +97,15 @@ incidents = IncidentBuffer(lambda row: incident_sink.emit({**row, 'capturing_pid
 tracer = TraceRecorder(trace_sink.emit) if trace_sink else TraceRecorder(incidents.emit, max_children=16) if incidents else None
 loop_beat_ns = time.monotonic_ns()
 watchdog_stop = threading.Event()
-gc_started = {}
+gc_trace = DeferredGCTrace() if tracer else None
 full_gc_probe = FullGCProbe() if os.environ.get('HBOT_LOAD_GC_DIAGNOSTICS') == '1' else None
 if trace_sink:
     atexit.register(trace_sink.close)
 if incident_sink:
     atexit.register(incident_sink.close)
+    # C-level signal handler can dump stacks even if every Python thread is
+    # waiting on a recorder lock. Parent sends only after established failures.
+    faulthandler.register(signal.SIGUSR2, file=sys.stderr, all_threads=True)
 
 
 def emit_trace(record):
@@ -113,7 +119,8 @@ def save_incident_summary():
     destination = Path(incident_directory) / (process_role + '-incident-summary.json')
     temporary = destination.with_suffix('.new')
     temporary.write_text(json.dumps({**incidents.summary(), 'at': time.time(), 'process_id': os.getpid(),
-                                     'sink': incident_sink.summary(), 'dropped_spans': tracer.dropped_spans}))
+                                     'sink': incident_sink.summary(), 'dropped_spans': tracer.dropped_spans,
+                                     'gc_trace': gc_trace.summary()}))
     temporary.replace(destination)
 
 
@@ -302,7 +309,8 @@ async def probe(host):
                 data['full_gc_events'] = list(full_gc_probe.events)
             if tracer:
                 data["trace"] = {**(trace_sink.summary() if trace_sink else incident_sink.summary()),
-                                 "dropped_spans": tracer.dropped_spans, "slow_trace_threshold_ms": tracer.slow_ms}
+                                 "dropped_spans": tracer.dropped_spans, "slow_trace_threshold_ms": tracer.slow_ms,
+                                 'gc_trace': gc_trace.summary()}
             if incidents:
                 data['incident_capture'] = incidents.summary()
             cpu = Path("/sys/fs/cgroup/cpu.stat")
@@ -346,6 +354,7 @@ def watchdog(loop_thread_id):
     last_sequence = 0
     trigger_path = Path('/tmp/load-incident-trigger.json')
     while not watchdog_stop.wait(.05):
+        gc_trace.drain(emit_trace)
         now = time.monotonic_ns()
         cpu = Path("/sys/fs/cgroup/cpu.stat")
         if incidents:
@@ -400,18 +409,6 @@ def watchdog(loop_thread_id):
         emit_trace(record)
 
 
-def gc_trace(phase, info):
-    key = threading.get_ident(), info["generation"]
-    if phase == "start":
-        gc_started[key] = time.monotonic_ns()
-    elif key in gc_started:
-        started = gc_started.pop(key)
-        duration = (time.monotonic_ns() - started) / 1e6
-        if duration >= 10:
-            emit_trace(dict(kind="gc", at=time.time(), start_ns=started, duration_ms=duration,
-                            thread_id=key[0], generation=key[1], collected=info["collected"]))
-
-
 if tracer:
     from hummingbot.cli.funding_observer import FundingObserver
 
@@ -456,6 +453,7 @@ def instrument_run(original):
                 watchdog_stop.set()
                 gc.callbacks.remove(gc_trace)
                 watchdog_thread.join(timeout=1)
+                gc_trace.drain(emit_trace)
             if trace_sink:
                 trace_sink.close()
                 name = 'server-api-summary.json' if process_role == 'api' else 'server-summary.json'

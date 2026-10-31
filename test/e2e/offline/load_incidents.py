@@ -1,5 +1,6 @@
 """Test-only bounded flight recorder; no locals, SQL parameters or health changes."""
 import json
+import signal
 import threading
 import time
 from collections import deque
@@ -14,6 +15,30 @@ def capture_limit(value):
     if not 1 <= count <= 128:
         raise ValueError('Incident capture count must be an integer within 1..128')
     return count
+
+
+class ProbeStackSampler:
+    """Bounded signal fallback independent of the child's Python recorder locks."""
+
+    def __init__(self, *, max_dumps=16):
+        self.states, self.dumps = {}, {}
+        self.max_dumps = max_dumps
+
+    def observe(self, role, healthy, child):
+        if child is None:
+            return None
+        state = self.states.get(role)
+        if state is None or state['child'] is not child:
+            state = self.states[role] = dict(child=child, healthy_once=False, failures=0)
+        if healthy:
+            state.update(healthy_once=True, failures=0)
+        elif state['healthy_once']:
+            state['failures'] += 1
+            if state['failures'] == 3 and self.dumps.get(role, 0) < self.max_dumps:
+                child.send_signal(signal.SIGUSR2)
+                self.dumps[role] = self.dumps.get(role, 0) + 1
+                return dict(role=role, failed_probes=3, dump_count=self.dumps[role])
+        return None
 
 
 class IncidentBuffer:

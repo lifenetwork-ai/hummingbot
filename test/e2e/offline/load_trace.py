@@ -35,6 +35,45 @@ class FullGCProbe:
                                     collected=info['collected']))
 
 
+class DeferredGCTrace:
+    """GC callbacks may interrupt any recorder lock: never emit from the callback.
+
+    Keep only scalar events in a bounded deque. The ordinary watchdog drains it
+    after collection, outside the callback and outside any recorder critical section.
+    """
+
+    def __init__(self, *, limit=128, minimum_ms=10):
+        self.pending = deque(maxlen=limit)
+        self.started = {}
+        self.minimum_ms = minimum_ms
+        self.dropped_events = 0
+
+    def __call__(self, phase, info):
+        key = threading.get_ident(), info['generation']
+        if phase == 'start':
+            self.started[key] = time.monotonic_ns()
+        elif key in self.started:
+            started = self.started.pop(key)
+            duration = (time.monotonic_ns() - started) / 1e6
+            if duration >= self.minimum_ms:
+                if len(self.pending) == self.pending.maxlen:
+                    self.dropped_events += 1
+                self.pending.append(dict(kind='gc', at=time.time(), start_ns=started, duration_ms=duration,
+                                         thread_id=key[0], generation=key[1], collected=info['collected']))
+
+    def drain(self, sink):
+        while self.pending:
+            try:
+                event = self.pending.popleft()
+            except IndexError:
+                break
+            sink(event)
+
+    def summary(self):
+        return dict(pending_events=len(self.pending), max_events=self.pending.maxlen,
+                    dropped_events=self.dropped_events)
+
+
 def instrument_sync(owner, name, key, samples, totals, tracer, attributes=None):
     """Test-only synchronous wall/thread-CPU timing, preserving method binding."""
     descriptor = inspect.getattr_static(owner, name)

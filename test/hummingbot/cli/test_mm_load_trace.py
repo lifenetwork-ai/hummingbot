@@ -1,6 +1,8 @@
 import asyncio
 import json
 import linecache
+import signal
+import subprocess
 import sys
 from test.e2e.offline.load_trace import TraceRecorder, TraceSink, sql_metadata, stack_snapshot
 
@@ -28,6 +30,75 @@ def test_stack_sampling_keeps_existing_oldest_to_newest_order_and_limit():
     assert [row['function'] for row in nested()] == [
         'test_stack_sampling_keeps_existing_oldest_to_newest_order_and_limit', 'nested']
     assert stack_snapshot(None) == []
+
+
+def test_gc_callback_does_not_reenter_incident_lock_during_capture():
+    # A real collection at JSON decoding/allocation inside trigger's lock.
+    # Isolate the regression so a broken callback cannot deadlock pytest itself.
+    program = '''
+import gc,json,time
+from test.e2e.offline.load_trace import DeferredGCTrace
+from test.e2e.offline.load_incidents import IncidentBuffer
+events=[]
+capture=IncidentBuffer(events.append)
+gc_trace=DeferredGCTrace(minimum_ms=0)
+gc.disable()
+gc.callbacks.append(gc_trace)
+capture.emit({'kind':'before','at_ns':time.monotonic_ns()})
+original=json.loads
+def collect_inside_capture(line):
+    gc.collect()
+    return original(line)
+json.loads=collect_inside_capture
+capture.trigger({'kind':'probe_failure','at_ns':time.monotonic_ns()})
+gc.callbacks.remove(gc_trace)
+json.loads=original
+gc_trace.drain(capture.emit)
+assert any(row['kind']=='gc' for row in events)
+assert capture.summary()['incidents']==1
+'''
+    result = subprocess.run([sys.executable, '-c', program], capture_output=True, text=True, timeout=5)
+    assert result.returncode == 0, result.stderr
+
+
+def test_deferred_gc_trace_is_bounded_and_reports_loss(monkeypatch):
+    from test.e2e.offline import load_trace
+    probe = load_trace.DeferredGCTrace(limit=2, minimum_ms=0)
+    ticks = iter([0, 10, 20, 30, 40, 50])
+    monkeypatch.setattr(load_trace.time, 'monotonic_ns', lambda: next(ticks))
+    for n in range(3):
+        probe('start', {'generation': 2})
+        probe('stop', {'generation': 2, 'collected': n})
+    assert probe.dropped_events == 1
+    events = []
+    probe.drain(events.append)
+    assert [r['collected'] for r in events] == [1, 2]
+    probe.drain(events.append)
+    assert len(events) == 2 and not probe.started
+
+
+def test_signal_stack_dump_works_while_child_is_deadlocked_without_unlocking_it():
+    program = '''
+import faulthandler,signal,threading
+faulthandler.register(signal.SIGUSR2,all_threads=True)
+def blocked_on_lock():
+    lock=threading.Lock()
+    lock.acquire()
+    print('ready',flush=True)
+    lock.acquire()
+blocked_on_lock()
+'''
+    child = subprocess.Popen([sys.executable, '-c', program], stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True)
+    try:
+        assert child.stdout.readline().strip() == 'ready'
+        child.send_signal(signal.SIGUSR2)
+        with pytest.raises(subprocess.TimeoutExpired):
+            child.communicate(timeout=.2)
+    finally:
+        child.kill()
+        _, error = child.communicate(timeout=3)
+    assert 'blocked_on_lock' in error and 'thread' in error.lower()
 
 
 def test_sql_trace_retains_shape_without_literal_credentials_or_parameters():

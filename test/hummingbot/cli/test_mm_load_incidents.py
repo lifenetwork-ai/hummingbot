@@ -1,8 +1,44 @@
 """Incident capture preserves bounded context without changing health decisions."""
 import json
-from test.e2e.offline.load_incidents import IncidentBuffer, ProbeIncidentPublisher, capture_limit
+import signal
+from test.e2e.offline.load_incidents import IncidentBuffer, ProbeIncidentPublisher, ProbeStackSampler, capture_limit
+from types import SimpleNamespace
 
 import pytest
+
+
+def test_stack_signal_requires_established_child_and_three_failed_probes():
+    signals = []
+    child = SimpleNamespace(send_signal=signals.append)
+    sampler = ProbeStackSampler(max_dumps=1)
+    for _ in range(5):
+        assert sampler.observe('engine', False, child) is None
+    sampler.observe('engine', True, child)
+    assert sampler.observe('engine', False, child) is None
+    assert sampler.observe('engine', False, child) is None
+    assert sampler.observe('engine', False, child)['failed_probes'] == 3
+    for _ in range(10):
+        sampler.observe('engine', False, child)
+    sampler.observe('engine', True, child)
+    for _ in range(3):
+        sampler.observe('engine', False, child)
+    assert signals == [signal.SIGUSR2]
+
+
+def test_replacement_child_must_become_healthy_before_stack_signal():
+    old_signals, new_signals = [], []
+    old = SimpleNamespace(send_signal=old_signals.append)
+    new = SimpleNamespace(send_signal=new_signals.append)
+    sampler = ProbeStackSampler()
+    sampler.observe('engine', True, old)
+    sampler.observe('engine', False, old)
+    for _ in range(5):
+        sampler.observe('engine', False, new)
+    assert not old_signals and not new_signals
+    sampler.observe('engine', True, new)
+    for _ in range(3):
+        sampler.observe('engine', False, new)
+    assert new_signals == [signal.SIGUSR2]
 
 
 @pytest.mark.parametrize('value', [1, 32, 128, '1', '32', '128'])
