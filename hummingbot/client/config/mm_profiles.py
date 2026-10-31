@@ -146,23 +146,38 @@ class MMProfilesConfig(BaseModel):
             raise RequestError("Duration is outside the configured integer-second bounds", code="duration_out_of_range", field="duration_seconds")
         return duration_seconds
 
+    def _market_selection(self, profile_id: str, market_mode: MarketMode):
+        if market_mode not in ("spot", "perpetual", "both"):
+            raise ValueError("Unsupported market mode")
+        if profile_id not in self.profiles:
+            raise RequestError("Unknown profile", code="profile_unavailable", field="profile_id")
+        selected = ("spot", "perpetual") if market_mode == "both" else (market_mode,)
+        for market in selected:
+            if market not in self.markets:
+                raise ValueError(f"Market is not configured: {market}")
+        return self.profiles[profile_id], [self.markets[market] for market in selected]
+
+    def controller_ids(self, profile_id: str, market_mode: MarketMode):
+        """IDs from an admitted catalogue, whose template/profile combinations were validated.
+
+        This is an identity projection, not runtime admission or a config factory.
+        Selection and combined budgets remain fresh; nothing is cached.
+        """
+        _, templates = self._market_selection(profile_id, market_mode)
+        if sum(template.total_amount_quote for template in templates) > self.max_total_amount_quote:
+            raise ValueError("Combined market budgets exceed the configured total")
+        return tuple(template.id for template in templates)
+
     def controller_configs(self, profile_id: str, market_mode: MarketMode,
                            supported_pairs: Optional[Dict[str, Set[str]]],
                            references: Optional[List[ReferencePair]] = None,
                            available_quote: Optional[Decimal] = None):
         """Select defaults or API references against full, tradable instrument metadata."""
-        if market_mode not in ("spot", "perpetual", "both"):
-            raise ValueError("Unsupported market mode")
-        if profile_id not in self.profiles:
-            raise RequestError("Unknown profile", code="profile_unavailable", field="profile_id")
-        profile = self.profiles[profile_id]
-        selected = ("spot", "perpetual") if market_mode == "both" else (market_mode,)
+        profile, templates = self._market_selection(profile_id, market_mode)
         configs = []
-        for market in selected:
-            if market not in self.markets:
-                raise ValueError(f"Market is not configured: {market}")
+        for template in templates:
             config = LifeMMConfig.model_validate({
-                **self.markets[market].model_dump(), "scenario": profile.scenario,
+                **template.model_dump(), "scenario": profile.scenario,
                 "reference_connector": self.reference_connector,
                 "references": profile.references if references is None else references,
                 "sideways_range": profile.sideways_range,

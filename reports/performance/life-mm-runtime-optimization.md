@@ -1,7 +1,7 @@
 # Runtime flow optimization
 
-Latest follow-up (2026-11-01): ordered implementation is underway. Terminal-proof
-fairness and executor DTO reuse are verified; controller selection is next.
+Latest follow-up (2026-11-01): all three ordered source changes have targeted
+Red/Green verification; broad regression and packaged verification are running.
 See [implementation progress](#2026-11-01-ordered-implementation) and
 [new evidence](runtime-flow-remediation-20261101.json). The original
 [read-only review](#2026-11-01-follow-up--review-only) stays separate. Accepted
@@ -353,8 +353,19 @@ release acceptance is claimed for this read-only follow-up.
   standalone callers. Paired actual old/new code gives0.867 →0.320ms for eight
   partially filled executors (24 →8 DTO constructions), and4.160 →1.467ms for40.
   This is report CPU on fixed fake prices, not whole-bot throughput or SLO evidence.
-- [ ] **3. Controller selection:** remove redundant construction while retaining
-  configuration admission and live session/controller identity checks.
+- [x] **3. Controller selection:** Red9 failures/8 passes; Green70 native and23
+  PostgreSQL service/session cases. Fresh IDs come from the already validated
+  catalogue; profile/mode/membership/combined budget and exact controller-set
+  checks remain. Full config/metadata admission stays in the original factory,
+  including saved legacy custom references. Session/generation, exposure and
+  current collateral checks are unchanged. Paired actual old/new lookup gives
+  0.0935 →0.00313ms over1000 valid both-market pairs, with zero new config models
+  on that identity-only path. This is a local CPU microbenchmark, not admission
+  equivalence on arbitrary unvalidated data or a whole-engine performance claim.
+
+The regression Makefile explicitly includes the new fairness and report-snapshot
+tests; controller-selection tests are discovered with the CLI suite. Full native/
+PostgreSQL regression and new packaged targeted checks are running separately.
 
 [Implementation evidence](runtime-flow-remediation-20261101.json) is separate
 from the earlier read-only measurements. No connected account or Demo container

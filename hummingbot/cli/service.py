@@ -124,13 +124,20 @@ class ServiceHost:
     def _mm_controllers(self):
         if self.mm_session is None or self.hb is None or self.hb.trading_core.strategy is None:
             return []
-        configs = self.mm_session.catalogue.controller_configs(
-            self.mm_session.profile_id, self.mm_session.request.market_mode, None,
-            references=self.mm_session.request.references)
+        session = self.mm_session
+        if session.request.references is None:
+            # Catalogue loading/admission validates every YAML profile/template
+            # combination. Identity lookup does not need two new config models.
+            identities = session.catalogue.controller_ids(session.profile_id, session.request.market_mode)
+        else:
+            # Saved legacy sessions can carry a custom basket. Preserve its full
+            # validation; new admin requests cannot override YAML references.
+            identities = tuple(config.id for config in session.catalogue.controller_configs(
+                session.profile_id, session.request.market_mode, None, references=session.request.references))
         current = self.hb.trading_core.strategy.controllers
-        if set(current) != {config.id for config in configs}:
+        if set(current) != set(identities):
             return []
-        return [current[config.id] for config in configs]
+        return [current[identity] for identity in identities]
 
     def mm_startup_pending(self):
         """Keep initialization or volatility recovery alive across step expiry.

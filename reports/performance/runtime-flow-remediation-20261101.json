@@ -84,7 +84,31 @@
       "prior_phase_commit": "9ffb4cf93"
     },
     "controller_selection": {
-      "status": "pending"
+      "status": "implemented_verified",
+      "red": {
+        "failed": 9,
+        "passed": 8
+      },
+      "green_native": 70,
+      "green_postgres": 23,
+      "implementation": "Fresh ID projection from already validated YAML catalogue; preserve full legacy basket factory, static admission, market/profile/budget and runtime identity/collateral checks; no cache",
+      "tests": "test/hummingbot/cli/test_controller_selection.py",
+      "paired_actual_old_new": {
+        "scope": "Actual old/new valid both-market selector with identical admitted YAML and old full config factory; new path retains selection/budget checks. Native CPU only, no DB/network or load-gate claim.",
+        "paired_rounds": 1000,
+        "baseline_median_cpu_ms": 0.093541,
+        "implemented_median_cpu_ms": 0.003125,
+        "baseline_full_models_per_call": 2,
+        "implemented_full_models_per_call": 0
+      },
+      "prior_phase_commit": "8fcf20fab"
     }
+  },
+  "final_verification": {
+    "status": "running",
+    "native_command": "make test-cloudrun-regression",
+    "postgres_command": "python scripts/test_postgres.py",
+    "new_image": "pending_targeted_verification",
+    "new_full_load_or_soak_claimed": false
   }
 }

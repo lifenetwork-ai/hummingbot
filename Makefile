@@ -69,6 +69,7 @@ test-cloudrun-regression:
 		test/hummingbot/strategy/test_strategy_v2_base.py \
 		test/hummingbot/strategy/test_mm_initial_position_bootstrap.py \
 		test/hummingbot/strategy_v2/executors/test_executor_orchestrator.py \
+		test/hummingbot/strategy_v2/executors/test_report_snapshots.py \
 		test/hummingbot/strategy_v2/executors/test_mm_drawdown_reports.py \
 		test/hummingbot/strategy_v2/executors/test_executor_retention.py \
 		test/hummingbot/strategy_v2/executors/test_terminal_position_checkpoint.py \
@@ -83,6 +84,7 @@ test-cloudrun-regression:
 		test/hummingbot/core/test_reconciliation_cancellation.py \
 		test/hummingbot/core/data_type/test_order_book_tracker.py \
 		test/hummingbot/core/test_spot_outflow.py \
+		test/hummingbot/core/test_spot_outflow_fairness.py \
 		test/hummingbot/core/test_spot_outflow_retention.py \
 		test/hummingbot/core/test_mm_liquidity.py \
 		test/hummingbot/core/test_mm_quote_activity.py \
