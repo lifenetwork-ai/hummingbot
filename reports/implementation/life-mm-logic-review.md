@@ -1,8 +1,9 @@
 # LIFE MM logic-flow review — 2026-10-26
 
-Latest audit (2026-11-01): **four additional defects reproduced; fixes pending**.
+Latest follow-up (2026-11-01): **B1 fixed and verified; B2–B4 implementation next**.
 See [the new findings](#2026-11-01-latent-bug-audit--fixes-pending) and
-[portable evidence](life-mm-latent-bug-audit-20261101.json). They predate the last
+[original audit evidence](life-mm-latent-bug-audit-20261101.json), with
+[separate fix evidence](life-mm-latent-bug-fixes-20261101.json). They predate the last
 three flow optimizations. This read-only review does not alter runtime or
 retroactively change earlier passing release/test results.
 
@@ -214,13 +215,19 @@ false unknown-outcome HALT during shutdown.
 
 ### Ordered next work
 
-- [ ] B1: Red/Green pre-intent reservation cleanup and real PostgreSQL owner tests.
+- [x] B1: Red/Green pre-intent reservation cleanup and real PostgreSQL owner tests.
+  Initial Red5 failures/1 pass; Green69 selected PG and27 native cases. New local
+  admission rolls back before persistence, while attempted intent writes remain
+  tracked until a fenced durable rejection succeeds. Acknowledged/conflicting
+  recorder rows cannot be rewritten; uncertain rejection still retains HALT/risk.
 - [ ] B2: Red/Green cumulative future fee coverage and exact Decimal differential replay.
 - [ ] B3: Red/Green funding catalogue retry after transient failure/cancellation.
 - [ ] B4: Red/Green bounded rejection history while preserving shutdown evidence.
 
-Prioritize B1/B2 before production trading. These items are newly identified and
-**not fixed in this audit**. [Portable evidence](life-mm-latent-bug-audit-20261101.json)
-records every reproduction and source hash; raw results are under ignored
-`build/potential-bug-audit-20261101/`. No new load, image, deployment or historical
-H1/H2/H3 causal closure is claimed.
+The original audit was read-only. B1 implementation is now verified; B2/B3/B4
+remain next. [Audit evidence](life-mm-latent-bug-audit-20261101.json) preserves
+the original reproductions/source hashes; [fix evidence](life-mm-latent-bug-fixes-20261101.json)
+tracks new Red/Green results. Raw results are under ignored
+`build/potential-bug-audit-20261101/` and `build/latent-bug-fixes-20261101/`.
+No new full-release/image/load acceptance, deployment or historical H1/H2/H3
+causal closure is claimed.

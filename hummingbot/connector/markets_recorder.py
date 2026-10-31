@@ -422,6 +422,9 @@ class MarketsRecorder:
         with self._sql_manager.get_new_session() as session, session.begin():
             order = session.get(Order, order_id)
             if order is not None:
+                if (not order.creation_pending or order.exchange_order_id
+                        or order.market != market.display_name or order.config_file_path != self._config_file_path):
+                    raise ValueError("Unsent rejection conflicts with acknowledged order history.")
                 order.creation_pending = False
                 order.last_status = MarketEvent.OrderFailure.name
             saved = self.get_market_states(self._config_file_path, market, session)

@@ -24,7 +24,7 @@ is a chronological journal; current task checklists live in docs/plans/.
 | [E3 spot inventory skew](life-mm-e3-inventory-skew.md) | Original PMM interpolation, cash-only sizing, bounded allocations and local verification |
 | [E2c listing bootstrap](life-mm-e2c-listing-bootstrap.md) | Bounded fresh-listing quotes, atomic episode, outside-market qualification and local image evidence |
 | [E2b spot USDT outflow](life-mm-e2b-spot-outflow.md) | Rolling spending, BUY reservations, account binding, terminal proof and large-window measurements |
-| [MM logic-flow review](life-mm-logic-review.md) | Earlier verified fixes; Nov1 audit reproduces four additional defects, fixes pending. [Original evidence](life-mm-logic-review-evidence.json), [new audit](life-mm-latent-bug-audit-20261101.json) |
+| [MM logic-flow review](life-mm-logic-review.md) | Nov1 B1 fix verified; B2–B4 next. [Historical fixes](life-mm-logic-review-evidence.json), [audit](life-mm-latent-bug-audit-20261101.json), [new fixes](life-mm-latent-bug-fixes-20261101.json) |
 | [LIFE / OKX audit](LIFE_OKX_IMPLEMENTATION_AUDIT.md) | Historical source inventory and reuse review |
 | [Maintainability verification](life-mm-maintainability.json) | Six refactor items; native/PG, 13 functional groups plus separate baseline-fixture upgrade, short load and five faults; details in the progress report |
 | [Funding backfill evidence](funding-backfill-evidence.json) | Implementation, image E2E/load probe and Demo acceptance scope |

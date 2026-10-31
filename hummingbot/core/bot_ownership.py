@@ -213,15 +213,25 @@ class BotOwnership:
                 or recorder.config_file_path != self.config_file_path or connector not in recorder._markets):
             raise SubmissionBlocked("The active recorder/configuration does not match the service owner.")
         self._check_intents(recorder)
-        if self.listing_bootstrap is not None:
-            self.listing_bootstrap.before_order(connector, order, row)
-        if self.spot_outflow is not None:
-            self.spot_outflow.before_order(connector, order, row)
-        if self.mm_quote_check is not None:
-            self.mm_quote_check(connector, order)
-        recorder.record_order_intent(connector, order)
+        try:
+            if self.listing_bootstrap is not None:
+                self.listing_bootstrap.before_order(connector, order, row)
+            if self.spot_outflow is not None:
+                self.spot_outflow.before_order(connector, order, row)
+            if self.mm_quote_check is not None:
+                self.mm_quote_check(connector, order)
+        except BaseException:
+            # Admission has not attempted a durable write or transport. Only
+            # unwind a new local identity, never an existing/acknowledged order.
+            if (order.client_order_id not in self.active_intents and order.client_order_id not in self.sent_intents
+                    and not order.exchange_order_id):
+                self._release_unsent_admission(order.client_order_id)
+            raise
+        # Track the write attempt too: a lost commit acknowledgment still needs
+        # a fenced durable rejection before releasing its local reservations.
         self.active_intents.add(order.client_order_id)
         self.intent_scopes[order.client_order_id] = scope
+        recorder.record_order_intent(connector, order)
         try:
             task = asyncio.current_task()
         except RuntimeError:
@@ -246,14 +256,17 @@ class BotOwnership:
                 from hummingbot.connector.markets_recorder import MarketsRecorder
                 recorder = MarketsRecorder._shared_instance
                 recorder.reject_unsent_order(connector, order.client_order_id)
-                if self.spot_outflow is not None:
-                    self.spot_outflow.release_unsent(order.client_order_id)
-                self.active_intents.discard(order.client_order_id)
-                self.intent_scopes.pop(order.client_order_id, None)
-                if self.listing_bootstrap is not None:
-                    self.listing_bootstrap.deadlines.pop(order.client_order_id, None)
+                self._release_unsent_admission(order.client_order_id)
             except Exception:
                 self.require_recovery("An unsent order intent could not be resolved durably.")
+
+    def _release_unsent_admission(self, client_id):
+        if self.spot_outflow is not None:
+            self.spot_outflow.release_unsent(client_id)
+        self.active_intents.discard(client_id)
+        self.intent_scopes.pop(client_id, None)
+        if self.listing_bootstrap is not None:
+            self.listing_bootstrap.deadlines.pop(client_id, None)
 
     def transport_started(self):
         task = asyncio.current_task()

@@ -5,7 +5,8 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-01
 
-- **Latest latent-bug audit:** four pre-existing defects reproduced, not fixed:
+- **Latest latent-bug remediation:** B1 reservation cleanup passes69 PostgreSQL
+  and27 native cases after5 initial Red failures. B2/B3/B4 are next. Original findings:
   pre-intent denial can retain outflow reservations, future-fill flat allowance
   can understate risk, initial funding YAML failure can be negatively cached,
   and unsent rejection IDs can accumulate during a continuous fixed session.

@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-01",
+  "scope": "Ordered TDD fixes B1\u2013B4; no connected Demo changes or deployment",
+  "audit_revision": "bc2e4a626",
+  "phases": {
+    "B1": {
+      "status": "implemented_verified",
+      "initial_red": {
+        "failed": 5,
+        "passed": 1
+      },
+      "postgres_passed": 69,
+      "native_passed": 27,
+      "tests": "test/integration/postgres/test_pre_intent_cleanup.py",
+      "behavior": "Rollback local pre-intent admission; mark durable write attempts for fenced rejection; refuse to rewrite acknowledged/conflicting recorder history"
+    },
+    "B2": {
+      "status": "pending"
+    },
+    "B3": {
+      "status": "pending"
+    },
+    "B4": {
+      "status": "pending"
+    }
+  },
+  "new_image_release_accepted": false
+}
