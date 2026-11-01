@@ -44,6 +44,32 @@ Result: [connected report](../../reports/demo/okx-demo-latent-fixes.md), [saniti
 239 plus4 subtests and PostgreSQL50 pass. This source change is not packaged into
 Demo image `3f5cbd0f`; its completed connected acceptance above is unchanged.
 
+## Submission-log image release follow-up — 2026-11-01
+
+Candidate `a190b024` packages source `4af96c0ee`, as a four-Python-module
+local derivative of `3f5cbd0f`; native dependencies are unchanged. This is not
+claimed as a clean Dockerfile rebuild. Earlier image results retain their scopes.
+
+- [x] Verify the four packaged module hashes and real imported paths. Run a
+  network-disabled packaged smoke through connector, failure event, executor and
+  structured formatter: expected severities/reasons, redaction and unchanged
+  failed-state/retry semantics.
+- [ ] Run the targeted spot-outflow, funding and LIFE-MM simulator E2E groups,
+  including packaged runtime/ABI smoke, on this exact candidate.
+- [ ] Run one unchanged full R1: warm300/mixed900/burst90/soak3600 and six recovery
+  cases, with frozen source/image, original latency/zero-error/memory budgets and
+  independent scope/ledger/continuity checks. Preserve any failed attempt.
+- [ ] Run and independently verify matched ordinary-entrypoint R2 warm300/mixed900
+  using the passing full R1 baseline; do not claim a second full-hour soak.
+- [ ] Fresh read-only Demo preflight, private DB backup and stopped upgrade only
+  after local gates pass. Preserve existing config, history, positions and rollback;
+  align revision with the image and verify stopped startup/health/recovery.
+- [ ] Publish exact results and remaining limits, update checklists and commit.
+
+Raw evidence: `build/submission-log-release-20261101/`. No forced fill, trading
+Start, HALT reset, DB repair, live account or Cloud Run deployment is included.
+The earlier unresolved burst p99 is not closed by a later passing run.
+
 ## Prior release verification — completed scopes (`5973410d`)
 
 Updated 2026-11-01 (local time). Immutable candidate image `5973410d` / manifest
