@@ -7,7 +7,8 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 - **New-image load rerun:** candidate `3f5cbd0f`, first R1 passes warm/mixed
   but fails burst latency. The unchanged second run passes warm/mixed/burst
-  and is now in Random soak; matched shipping R2 is conditional on full R1 passing.
+  and completes the60-minute soak/six faults; independent full R1 verification
+  passes. Matched shipping R2 is now running.
   Retired bot images removed; Demo/container images and volumes preserved.
   See [live scope/checklist](../release/mm-release-closeout.md#2026-11-01-latent-fix-candidate-rerun).
 

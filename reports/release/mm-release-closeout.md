@@ -1,12 +1,12 @@
 # Current-image release closeout
 
 Latest follow-up (2026-11-01): **candidate `3f5cbd0f` first rerun fails burst
-latency; the unchanged second run passes warm/mixed/burst and is in soak**.
+latency; the unchanged second full R1 passes and matched shipping R2 is running**.
 See [the new run](#2026-11-01-latent-fix-candidate-rerun) and
 [separate evidence](mm-latent-fixes-load-evidence.json). All earlier accepted/failed
 results below remain tied to their original images and measurement sources.
 
-Status: **R1 and R2 pass; scoped local release verification is complete.**
+Prior image `5973410d`: **R1 and R2 pass; scoped local verification is complete.**
 Earlier failures and unresolved historical causes are preserved below. No
 Cloud Run deployment or connected trading occurs in this closeout.
 Application image `5973410d` / manifest `50a95f3a` is unchanged; measurement
@@ -252,9 +252,10 @@ execution status only. Current R1/R2 verification is complete; historical causes
   fills, TTL15 and128 bounded incident captures. Source changes are the four
   [verified latent-bug fixes](../implementation/life-mm-logic-review.md#2026-11-01-latent-bug-audit-and-fixes),
   on top of the earlier three flow optimizations. No production YAML is changed.
-- [ ] Complete unchanged warm300/mixed900/burst90/Random-soak3600 and six fault
+- [x] Complete unchanged warm300/mixed900/burst90/Random-soak3600 and six fault
   cases; independently verify zero errors, latency, memory/continuity, ledger,
-  process identities and frozen-source scope. Run `20261101-061242-5839e1`.
+  process identities and frozen-source scope. Passing run `20261101-063816-31af48`;
+  the first failed run is retained below.
 - [ ] After green full R1, run the ordinary shipping entrypoint with matching
   warm300/mixed900 resources/fixtures; independently verify the R2 scope.
 - [ ] Verify cleanup and Demo preservation; record final evidence and outcome.
@@ -289,11 +290,23 @@ budgets. This failure remains in the separate evidence even if the next run
 passes; no source bug or historical cause is declared fixed by a later pass.
 
 
-### Second full rerun — healthy prefixes pass, soak pending
+### Second full rerun — R1 passed; matched shipping R2 running
 
-Run `20261101-063816-31af48` uses the same candidate and all original settings.
-Warm300/mixed900/burst90 pass with primary p99 338.91/718.24/285.11ms and zero
-unexpected errors. The cumulative1,290 fills and positions match. Random3600
-soak is now running; faults and matched shipping R2 remain conditional on the
-complete passing full R1. This passing burst does not explain or erase the
-first attempt's latency failure; no runtime/pool/cache change has been made.
+Run `20261101-063816-31af48` completes warm300/mixed900/burst90/soak3600 and all
+six fault cases. Independent verification passes, including all1,221 frozen
+source inputs. Primary p99 is338.91/718.24/285.11/337.97ms; all four healthy
+windows have zero unexpected errors. At soak end4,884 unique fills/original fees
+and positions match. Memory retention grows13.53MiB, raw cgroup growth35.64MiB,
+peak752.14MiB;58 minute samples have maximum gap65.99s. All memory/continuity
+budgets pass unchanged.
+
+Random draws `follow_market` and `follow_token` in this hour; **`sideways` is not
+drawn**, so this is not a long-soak observation of all three profiles. The earlier
+same-image nine-case E2E matrix retains its separate three-profile coverage.
+Random is permitted to repeat a profile; no pool/seed/duration is changed to
+force coverage. This passing run does not explain or erase the first burst
+failure, and no runtime/pool/cache change has been made during the reruns.
+
+Matched ordinary-entrypoint R2 is running from this passing full R1, with the
+same image/catalogue/client/exchange/resources. It still must complete its
+warm300/mixed900 control; final cleanup/preservation and acceptance remain open.

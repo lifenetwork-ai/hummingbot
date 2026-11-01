@@ -1,5 +1,5 @@
 {
-  "status": "second_attempt_soak_running_after_warm_mixed_burst_pass",
+  "status": "latest_full_R1_passed_matched_shipping_R2_running",
   "release_accepted": false,
   "image_id": "sha256:3f5cbd0f6862494dbcc7d33d2e2e3b7b1e3b00086794983f1488f9f8ee942ab5",
   "manifest": "sha256:6e54a3481605ad40ef8861294f3887ea63c2116fb246ce1da23617b09e41943a",
@@ -7,7 +7,7 @@
   "measurement_commit": "1cc8abaa0e6f346e740ecf527314012540e32897",
   "started_at": "2026-10-31T23:12:42.112657+00:00",
   "r1_run": "build/mm-load/20261101-063816-31af48",
-  "r1_passed": null,
+  "r1_passed": true,
   "r2_passed": null,
   "configuration": {
     "profile": "all",
@@ -131,9 +131,9 @@
   "retry_source_unchanged": true,
   "current_attempt": {
     "run": "build/mm-load/20261101-063816-31af48",
-    "passed": null,
-    "release_scope_complete": false,
-    "completed_windows": {
+    "passed": true,
+    "release_scope_complete": true,
+    "windows": {
       "warmup": {
         "duration_seconds": 300,
         "read_p95_ms": 64.9661990464665,
@@ -147,7 +147,7 @@
           "identified_funding_bills": 2,
           "daily_snapshots": 3
         },
-        "burst_drain_seconds": null,
+        "memory_retention": null,
         "peak_rss_bytes": 714067968
       },
       "mixed": {
@@ -163,7 +163,7 @@
           "identified_funding_bills": 2,
           "daily_snapshots": 3
         },
-        "burst_drain_seconds": null,
+        "memory_retention": null,
         "peak_rss_bytes": 742694912
       },
       "bursts": {
@@ -179,10 +179,48 @@
           "identified_funding_bills": 2,
           "daily_snapshots": 3
         },
-        "burst_drain_seconds": 2.3229451179504395,
+        "memory_retention": null,
         "peak_rss_bytes": 764162048
+      },
+      "soak": {
+        "duration_seconds": 3600,
+        "read_p95_ms": 70.6672910018824,
+        "read_p99_ms": 337.9723259713501,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 4884,
+          "unique_recorder_fills": 4884,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "memory_retention": {
+          "basis": "cgroup_current_minus_file_plus_shmem",
+          "early_median_bytes": 721924096,
+          "late_median_bytes": 736108544,
+          "growth_bytes": 14184448,
+          "budget_bytes": 67108864,
+          "raw_cgroup_growth_bytes": 37376000
+        },
+        "peak_rss_bytes": 788680704
       }
     },
-    "next_stage": "Random soak 3600 seconds; faults only after healthy gates pass"
-  }
+    "faults_completed": [
+      "feed",
+      "volatility-defense",
+      "owner-restart",
+      "queued-expiry",
+      "database-delay",
+      "database-failure"
+    ],
+    "random_profiles_observed": [
+      "follow_market",
+      "follow_token"
+    ],
+    "random_profiles_not_observed": [
+      "sideways"
+    ]
+  },
+  "r1_independently_verified": true
 }
