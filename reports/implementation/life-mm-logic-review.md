@@ -1,5 +1,8 @@
 # LIFE MM logic-flow review — 2026-10-26
 
+Later load rerun: see [current release results](../release/mm-release-closeout.md#2026-11-01-latent-fix-candidate-rerun).
+The native/targeted-image verification below preserves its original scope.
+
 Latest follow-up (2026-11-01): **B1–B4 fixed, committed and verified on image `3f5cbd0f`**.
 See [the new findings](#2026-11-01-latent-bug-audit-and-fixes) and
 [original audit evidence](life-mm-latent-bug-audit-20261101.json), with

@@ -1,7 +1,7 @@
 # Current-image release closeout
 
 Latest follow-up (2026-11-01): **candidate `3f5cbd0f` first rerun fails burst
-latency; the unchanged second full R1 passes and matched shipping R2 is running**.
+latency; the latest complete R1/R2 result is recorded below**.
 See [the new run](#2026-11-01-latent-fix-candidate-rerun) and
 [separate evidence](mm-latent-fixes-load-evidence.json). All earlier accepted/failed
 results below remain tied to their original images and measurement sources.
@@ -247,66 +247,114 @@ execution status only. Current R1/R2 verification is complete; historical causes
   test dependencies and both persistent Demo containers/volumes. Unique image
   count falls7→5; layers shared by the retained candidate remain, so this does
   not reclaim the sum of their displayed image sizes.
-- [x] Pin candidate `3f5cbd0f` / manifest `6e54a348`, freeze1,221 tracked source
-  inputs and run the same all-feature workload with2CPU/2GiB,100,000 history
-  fills, TTL15 and128 bounded incident captures. Source changes are the four
+- [x] Pin candidate `3f5cbd0f` / manifest `6e54a348`, freeze 1,221 tracked source
+  inputs and run the same all-feature workload with 2 CPU/2 GiB, 100,000 history
+  fills, TTL15 and 128 bounded incident captures. Source changes are the four
   [verified latent-bug fixes](../implementation/life-mm-logic-review.md#2026-11-01-latent-bug-audit-and-fixes),
   on top of the earlier three flow optimizations. No production YAML is changed.
 - [x] Complete unchanged warm300/mixed900/burst90/Random-soak3600 and six fault
   cases; independently verify zero errors, latency, memory/continuity, ledger,
   process identities and frozen-source scope. Passing run `20261101-063816-31af48`;
   the first failed run is retained below.
-- [ ] After green full R1, run the ordinary shipping entrypoint with matching
+- [x] After green full R1, run the ordinary shipping entrypoint with matching
   warm300/mixed900 resources/fixtures; independently verify the R2 scope.
-- [ ] Verify cleanup and Demo preservation; record final evidence and outcome.
+- [x] Verify cleanup and Demo preservation; record final evidence and outcome.
 
 The foreground runner holds its own sleep assertion while the gate runs. Host
 sleep or a failed budget invalidates the result; durations, fill rates and
 thresholds are unchanged. Existing source-level tests and three targeted E2E
-passes on this image do not substitute for these long gates. This section stays
-pending until the actual results are complete; prior release evidence is not
-promoted to the new image.
+passes on this image retain their separate scope. The completed new-image
+results below were measured independently; prior release results remain
+tied to their original image.
 
 
 ### Preserved first rerun — burst latency failure
 
 Run `20261101-061242-5839e1` passes warm300 and mixed900 with primary p99
 156.44/265.96ms and zero unexpected errors. Burst90 fails primary p95/p99
-1,116.52/1,875.36ms and auxiliary1,199.64/1,985.71ms against unchanged500/1,000ms
-budgets. Burst delivers90 fills, cumulative1,290 unique fills/fees and positions
-match, drain is3.45s and peak memory719.44MiB. Engine/API keep their PIDs and no
+1,116.52/1,875.36ms and auxiliary1,199.64/1,985.71ms against unchanged 500/1,000 ms
+budgets. Burst delivers 90 fills, cumulative 1,290 unique fills/fees and positions
+match, drain is 3.45 s and peak memory 719.44 MiB. Engine/API keep their PIDs and no
 HALT/replacement is observed, but engine probe timeouts self-recover; this does
 not prove uninterrupted quoting. Soak/faults are not executed and R2 is skipped.
 
-A retained daily-statistics request takes1,967.9ms, including sequential715.1ms
-and790.7ms SQL spans; latency is also high across other routes and client
+A retained daily-statistics request takes 1,967.9 ms, including sequential 715.1 ms
+and 790.7 ms SQL spans; latency is also high across other routes and client
 scheduling. This is evidence of a slow request, not proof that the same SQL
 caused every slow request or engine stall. No pool/cache/runtime change is made
-from this observation. Host remains on AC; host/video/GC/venue causation is not
-proven. All1,221 frozen source hashes still match.
+from this observation. The host remained on AC. Host/video/GC causation is not proven; the
+external OKX service is outside this isolated simulator test path. All 1,221 frozen source hashes still match.
 
 A fresh full rerun keeps the same image/manifest, flags, rates, durations and
 budgets. This failure remains in the separate evidence even if the next run
 passes; no source bug or historical cause is declared fixed by a later pass.
 
 
-### Second full rerun — R1 passed; matched shipping R2 running
+### Latest completed rerun — scoped result
 
-Run `20261101-063816-31af48` completes warm300/mixed900/burst90/soak3600 and all
-six fault cases. Independent verification passes, including all1,221 frozen
-source inputs. Primary p99 is338.91/718.24/285.11/337.97ms; all four healthy
-windows have zero unexpected errors. At soak end4,884 unique fills/original fees
-and positions match. Memory retention grows13.53MiB, raw cgroup growth35.64MiB,
-peak752.14MiB;58 minute samples have maximum gap65.99s. All memory/continuity
-budgets pass unchanged.
+Latest full R1 and matched shipping R2 pass; the first burst failure remains unexplained.
 
-Random draws `follow_market` and `follow_token` in this hour; **`sideways` is not
-drawn**, so this is not a long-soak observation of all three profiles. The earlier
-same-image nine-case E2E matrix retains its separate three-profile coverage.
-Random is permitted to repeat a profile; no pool/seed/duration is changed to
-force coverage. This passing run does not explain or erase the first burst
-failure, and no runtime/pool/cache change has been made during the reruns.
+Application image `3f5cbd0f` / manifest `6e54a348` is unchanged. Latest full
+R1 is `build/mm-load/20261101-063816-31af48`. All 1,221 tracked source inputs retain their frozen hashes;
+no runtime, pool/cache policy, rate, duration or budget is changed during reruns.
 
-Matched ordinary-entrypoint R2 is running from this passing full R1, with the
-same image/catalogue/client/exchange/resources. It still must complete its
-warm300/mixed900 control; final cleanup/preservation and acceptance remain open.
+| Healthy window | Duration | p95 | p99 | Unexpected errors | Cumulative matched fills |
+| --- | --- | --- | --- | --- | --- |
+| warmup | 300s | 64.97ms | 338.91ms | 0 | 300 |
+| mixed | 900s | 144.22ms | 718.24ms | 0 | 1200 |
+| bursts | 90s | 77.81ms | 285.11ms | 0 | 1290 |
+| soak | 3600s | 70.67ms | 337.97ms | 0 | 4884 |
+
+Soak has 58 minute samples, maximum gap 65.99 s.
+Retention grows 13.53 MiB, raw cgroup grows 35.64 MiB;
+peak is 752.14 MiB. The unchanged
+64MiB retention / 1.5 GiB peak and continuity gates pass. Healthy-sequence
+process identities remain stable; per-role RSS/thread/FD growth is recorded
+in the portable evidence. This is a one-hour observation, not proof of universal
+absence of memory leaks.
+
+Healthy-sequence logs retain 57 recovered probe episodes, maximum 2.680 s.
+No diagnostic stack signal was requested. Stable PIDs and matching fills do not
+imply uninterrupted quoting. At healthy end, both trace sinks have zero dropped
+records, but engine/API child-span truncations are 317,725/14,864; normal bounded
+prehistory evictions are 19,360/22,137. No metric export is skipped, and pending/
+dropped GC queues are zero. These captures are incomplete; all loss counters
+remain in the evidence. Missing trace records do not establish absence of
+a slow operation or identify a unique historical cause.
+
+Random actually draws `follow_market`, `follow_token`.
+`sideways` is not drawn in this hour: no long-soak coverage of that profile is
+claimed. Uniform Random may repeat profiles; no seed/pool/duration is changed
+to force coverage. The earlier same-image nine-case E2E matrix retains its
+separate all-three-profile verification.
+
+All six injected faults pass: feed, volatility defense, owner restart, queued
+expiry, database delay and database failure. Planned fault interruptions are
+excluded from healthy latency; uncertain database/ownership effects retain HALT.
+
+Matched shipping R2: `build/service-supervision/production-control-20261101-080809-a584fd`. It uses the normal
+`python -m hummingbot.cli.service` entrypoint with matching image, catalogue,
+client/exchange fixtures and resources, without the timing/incident wrapper.
+
+- Warmup (300 s): p95 54.03 ms, p99 307.85 ms; 0 unexpected errors; 300 matched cumulative fills.
+- Mixed (900 s): p95 55.36 ms, p99 253.37 ms; 0 unexpected errors; 1,200 matched cumulative fills.
+
+R2 is a matched warm300/mixed900 control, **not a second full-hour soak**. Its
+raw diagnostic/full-scope flags remain unchanged; independent verification
+checks baseline eligibility, budgets, fixture/resource matches and identities
+before/after/between windows. Internal SQL/worker/GC counters are not measured
+in this shipping control. Peak container memory is 682.23 MiB. Its healthy logs
+retain 6 recovered probe episodes, longest 1.215 s, with no unplanned child
+replacement/start or HALT observed.
+
+The first attempt's burst p99 remains 1,875.36 ms and its cause remains open.
+A later pass does not fix/explain it, attribute it to host/video/GC/OKX, or erase
+it. These are isolated internal-simulator tests, with no public OKX calls or
+connected Demo trading. Historical H1/H2/H3 remain unproven as before.
+
+The runner's own test containers/networks and sleep assertion are cleaned.
+Demo ledger/control/image preservation is checked read-only; its existing
+`e526118b` image and all persistent volumes are retained. No Cloud Run deployment
+or new full E2E/upgrade matrix is claimed. [Portable evidence](mm-latent-fixes-load-evidence.json)
+contains both attempts, independent checks, matching ledgers, supervision,
+resource/coverage limits and raw-result hashes.

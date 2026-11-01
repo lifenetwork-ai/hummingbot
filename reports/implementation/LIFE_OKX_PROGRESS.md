@@ -5,13 +5,13 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-01
 
-- **New-image load rerun:** candidate `3f5cbd0f`, first R1 passes warm/mixed
-  but fails burst latency. The unchanged second run passes warm/mixed/burst
-  and completes the60-minute soak/six faults; independent full R1 verification
-  passes. Matched shipping R2 is now running.
-  Retired bot images removed; Demo/container images and volumes preserved.
-  See [live scope/checklist](../release/mm-release-closeout.md#2026-11-01-latent-fix-candidate-rerun).
-
+- **New-image load rerun:** latest full R1 and matched shipping R2 pass on
+  `3f5cbd0f`; first burst failure remains unexplained. Retention grows13.53MiB
+  over60 minutes;4,884 fills/positions match. Random selects two profiles in
+  this hour; the same-image E2E matrix retains all-three-profile scope.
+  Two retired bot images removed; Demo/container images and volumes preserved.
+  See [results/checklist](../release/mm-release-closeout.md#2026-11-01-latent-fix-candidate-rerun)
+  and [portable evidence](../release/mm-latent-fixes-load-evidence.json).
 - **Latest latent-bug remediation:** B1–B4 completed and committed separately.
   Native2,208 plus11 subtests, PostgreSQL279, Swagger and3 targeted E2E groups
   pass on candidate `3f5cbd0f` (application commit `3da3598bf`). Additional8
@@ -20,7 +20,8 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   funding discovery and lifecycle-bound no-transport proof. See the
   [review/checklist](life-mm-logic-review.md#2026-11-01-latent-bug-audit-and-fixes)
   and [portable evidence](life-mm-latent-bug-fixes-20261101.json). Demo unchanged;
-  no new full image matrix or hour-soak acceptance is claimed.
+  initial source-fix verification was native/targeted-image only; the separate
+  long-load follow-up is recorded above.
 - **Completed local release verification:** image `5973410d`, measurement source
   `b7ba104e7`; full R1 and matched shipping R2 pass. R1 reconciles 4,884 fills,
   original fees and positions; soak p99 is 717ms with zero unexpected API errors.

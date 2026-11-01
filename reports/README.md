@@ -5,14 +5,14 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 ## Current result
 
 - [New-image load rerun](release/mm-release-closeout.md#2026-11-01-latent-fix-candidate-rerun):
-  `3f5cbd0f` second full R1 passes, including60-minute soak and six faults;
-  matched shipping R2 is running. First burst failure remains unexplained.
+  `3f5cbd0f` latest full R1 and matched shipping R2 pass. First burst failure
+  remains unexplained; Random long-soak coverage is two profiles only.
   Two retired bot images removed; Demo/container images and volumes preserved.
 
 - [Latent-bug fixes](implementation/life-mm-logic-review.md#2026-11-01-latent-bug-audit-and-fixes):
   B1–B4 fixed/committed; native2,208/PG279, Swagger and3 targeted image groups pass
-  on `3f5cbd0f`. Original reproductions retained; no new hour-soak acceptance.
-- [Release closeout](release/mm-release-closeout.md): image `5973410d`, full R1
+  on `3f5cbd0f`. Original source-fix scope retained; long-load follow-up is recorded above.
+- [Prior accepted release](release/mm-release-closeout.md): image `5973410d`, full R1
   and matched shipping R2 pass. Earlier failures remain recorded.
 - [Historical-cause review](investigations/mm-historical-cause-review.md): latest
   diagnostic fix and explicit H1/H2/H3 attribution limits; accepted R1/R2 unchanged.
