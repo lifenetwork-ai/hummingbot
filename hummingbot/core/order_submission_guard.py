@@ -4,6 +4,7 @@ The connector persists an intent, and REST rechecks ownership after throttling a
 authentication, immediately before transport. Only the reviewed OKX connectors are
 enabled for the service. Legacy tests/tooling without PG retain existing behavior.
 """
+import logging
 from contextlib import contextmanager
 from contextvars import ContextVar
 
@@ -37,6 +38,24 @@ def current_quote_level():
 
 class SubmissionBlocked(RuntimeError):
     pass
+
+
+class SessionSubmissionBlocked(SubmissionBlocked):
+    """A stopped/superseded session or shutdown no longer permits submission."""
+
+
+class MarketReadinessBlocked(SubmissionBlocked):
+    """Required market/data/exposure readiness currently prevents submission."""
+
+
+def submission_block_log_context(error_type):
+    """Classify the existing failure-event type; unknown failures stay errors."""
+    return {
+        "SessionSubmissionBlocked": (logging.INFO, "session_submission_closed"),
+        "MarketReadinessBlocked": (logging.WARNING, "market_not_ready"),
+        "SubmissionBlocked": (logging.ERROR, "submission_safety_blocked"),
+        "OwnershipLost": (logging.ERROR, "ownership_lost"),
+    }.get(error_type)
 
 
 def install_guard(guard) -> None:

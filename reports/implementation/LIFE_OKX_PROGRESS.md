@@ -5,6 +5,12 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-01
 
+- **Submission-block log clarity (source only):** expected Stop/session closure
+  logs INFO; required-market readiness waits log WARNING; unsafe/unknown guards,
+  missing wiring and ownership loss retain ERROR. No misleading API-key/network
+  advice for guard blocks; failure state/retry/recovery behavior remains unchanged.
+  Native239 plus4 subtests and50 selected PostgreSQL tests pass. The Demo image
+  is unchanged; see [verification](../platform/submission-block-logging.md).
 - **Latest connected Demo:** image `3f5cbd0f` passes read-only preflight,
   stopped upgrade with unchanged ledgers, all nine fixed profile/market cases,
   Random step plus active spot restart, and active both-market restart. All 381

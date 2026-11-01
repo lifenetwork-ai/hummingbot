@@ -10,7 +10,12 @@ from urllib.parse import urlparse
 
 from sqlalchemy import select, text, update
 
-from hummingbot.core.order_submission_guard import SUPPORTED_CONNECTORS, SubmissionBlocked
+from hummingbot.core.order_submission_guard import (
+    SUPPORTED_CONNECTORS,
+    MarketReadinessBlocked,
+    SessionSubmissionBlocked,
+    SubmissionBlocked,
+)
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import BotStateStore
 from hummingbot.model.order import Order
@@ -67,7 +72,7 @@ class BotOwnership:
 
     def _check_shutdown(self):
         if self.shutdown_requested or self.stopping():
-            raise SubmissionBlocked("Service shutdown requested; new exchange mutations are closed.")
+            raise SessionSubmissionBlocked("Service shutdown requested; new exchange mutations are closed.")
 
     def try_acquire(self) -> bool:
         if self.lost:
@@ -148,6 +153,13 @@ class BotOwnership:
                          or row["control_version"] != self.version or row["config_file_path"] != self.config_file_path
                          or (row["recovery_state"] or {}).get("halt")
                          or (row["recovery_state"] or {}).get("pending_mutations")):
+            recovery = row["recovery_state"] or {}
+            if (not recovery.get("halt") and not recovery.get("pending_mutations")
+                    and row["config_file_path"] == self.config_file_path):
+                if row["desired_state"] != "running":
+                    raise SessionSubmissionBlocked("Trading is stopped; new order submissions are closed.")
+                if row["control_version"] != self.version:
+                    raise SessionSubmissionBlocked("Trading control version changed; this executor can no longer submit.")
             raise SubmissionBlocked("Trading is stopped, unreconciled, superseded or requires recovery.")
         if new_risk:
             from hummingbot.connector.markets_recorder import MarketsRecorder
@@ -374,14 +386,17 @@ class BotOwnership:
     def _check_mm_authority(self, row, scope):
         if row["config_type"] != "mm-session":
             if scope is not None:
-                raise SubmissionBlocked("A previous MM executor cannot submit in another strategy.")
+                raise SessionSubmissionBlocked("A previous MM executor cannot submit in another strategy.")
             return
         from hummingbot.core.mm_session import session_permits
-        if (scope is None or not session_permits(row["mm_session"] or {}, session_id=scope[0], generation=scope[1],
-                                                 now=float(row["database_now"]))):
-            raise SubmissionBlocked("MM session/step authority expired or changed.")
-        if self.mm_ready_check is None or not self.mm_ready_check():
-            raise SubmissionBlocked("MM markets/data/exposure are not jointly ready.")
+        if scope is None:
+            raise SubmissionBlocked("MM order submission has no session authority.")
+        if not session_permits(row["mm_session"] or {}, session_id=scope[0], generation=scope[1], now=float(row["database_now"])):
+            raise SessionSubmissionBlocked("MM session/step authority expired or changed.")
+        if self.mm_ready_check is None:
+            raise SubmissionBlocked("MM market readiness check is unavailable.")
+        if not self.mm_ready_check():
+            raise MarketReadinessBlocked("MM markets/data/exposure are not jointly ready.")
 
     async def finish_account_mutation(self, token, response):
         try:

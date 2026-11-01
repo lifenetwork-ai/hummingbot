@@ -192,6 +192,25 @@ severity. A changed reason or operator-action flag logs immediately; repeated
 unchanged incidents remain limited to once per 60 seconds per scope. Recovery
 emits INFO. This limits retry noise without hiding escalation.
 
+Order-submission logs distinguish control/admission blocks from transport errors:
+
+| Condition | Severity | `reason_code` |
+| --- | --- | --- |
+| Stop/shutdown, superseded control version, or expired/changed session authority | INFO | `session_submission_closed` |
+| Required markets/data/exposure are not jointly ready | WARNING | `market_not_ready` |
+| Other submission safety blocks, unresolved recovery, or missing authority/readiness wiring | ERROR | `submission_safety_blocked` |
+| Ownership lost | ERROR | `ownership_lost` |
+
+Both connector and position executor emit `event=order_submission_blocked`,
+`scope=connector|executor`, the failure type and an English reason with the order
+ID. These messages do not advise checking API keys/network for a local service
+block or promise that retry will succeed. A stopped request with HALT, pending
+mutations or mismatched recorder configuration retains ERROR priority. Ordinary
+transport/exchange failures keep their existing diagnostics. Failed-order state,
+retry counts, admission, cleanup and recovery behavior are unchanged; these log
+levels do not permit trading or automatically clear a HALT. Unknown guard
+failures are not downgraded by guessing from their message text.
+
 Known configured secret values are replaced with `[REDACTED]` in messages,
 context and exception output: environment keys containing PASSWORD, PASSPHRASE,
 SECRET, API_KEY or DATABASE_URL, plus the encoded/decoded DSN password. Values

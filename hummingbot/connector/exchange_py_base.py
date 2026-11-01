@@ -514,6 +514,18 @@ class ExchangePyBase(ExchangeBase, ABC):
         exception: Exception,
         **kwargs,
     ):
+        from hummingbot.core.order_submission_guard import SubmissionBlocked, submission_block_log_context
+        if isinstance(exception, SubmissionBlocked):
+            error_type = type(exception).__name__
+            level, reason = submission_block_log_context(error_type) or submission_block_log_context("SubmissionBlocked")
+            self.logger().log(
+                level, "Order submission blocked by service checks on %s: order_id=%s side=%s pair=%s reason=%s",
+                self.name_cap, order_id, trade_type.name, trading_pair, str(exception),
+                extra={"event": "order_submission_blocked", "reason_code": reason,
+                       "scope": "connector", "error_type": error_type},
+            )
+            self._update_order_after_failure(order_id=order_id, trading_pair=trading_pair, exception=exception)
+            return
         self.logger().network(
             f"Error submitting {trade_type.name.lower()} {order_type.name.upper()} order to {self.name_cap} for "
             f"{amount} {trading_pair} {price}.",

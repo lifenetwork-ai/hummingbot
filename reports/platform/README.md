@@ -7,6 +7,7 @@ Local verification does not imply a completed cloud deployment.
 
 | Report | Evidence and scope |
 | --- | --- |
+| [Submission-block logging](submission-block-logging.md) | INFO for expected session closure, WARNING for market readiness, ERROR for unsafe/unknown guards; native239 plus4 subtests and PG50; source-only change |
 | [Cloud Run launch preparation](cloudrun-readiness-review.md) | Template/review/project-selection TDD, stopped-startup checklist and pending cloud inputs |
 | [PostgreSQL verification](postgres-verification.md) | Port, packaging and release evidence |
 | [PostgreSQL performance review](postgres-performance-review.md) | SQL, cache and recovery measurements |

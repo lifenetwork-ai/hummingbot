@@ -31,6 +31,19 @@ this verification. Raw local results: `build/okx-demo-latent-20261101/`.
 
 Result: [connected report](../../reports/demo/okx-demo-latent-fixes.md), [sanitized evidence](../../reports/demo/okx-demo-latent-fixes-evidence.json). New natural fills observed: 0; earlier positive-fill evidence is not relabelled.
 
+## Submission-block log clarity follow-up — source only
+
+- [x] Red/Green expected session/readiness log severity and preserve ERROR for
+  unsafe/unknown guards, missing wiring, HALT and pending mutations.
+- [x] Preserve connector failure events, executor failure state/list/retry counts
+  and ordinary transport diagnostics; add the new tests to the release target.
+- [x] Verify targeted native/OKX/tracker/logging regressions and isolated
+  PostgreSQL ownership/submission/shutdown behavior; document severity semantics.
+
+[Verification report](../../reports/platform/submission-block-logging.md): native
+239 plus4 subtests and PostgreSQL50 pass. This source change is not packaged into
+Demo image `3f5cbd0f`; its completed connected acceptance above is unchanged.
+
 ## Prior release verification — completed scopes (`5973410d`)
 
 Updated 2026-11-01 (local time). Immutable candidate image `5973410d` / manifest

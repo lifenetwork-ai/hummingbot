@@ -708,17 +708,31 @@ class PositionExecutor(ExecutorBase):
         if self._open_order and event.order_id == self._open_order.order_id:
             self._failed_orders.append(self._open_order)
             self._open_order = None
-            self.logger().error(f"Open order failed {event.order_id}. Retrying {self._current_retries}/{self._max_retries}")
+            self._log_order_failure("Open", event)
             self._current_retries += 1
         elif self._close_order and event.order_id == self._close_order.order_id:
             self._failed_orders.append(self._close_order)
             self._close_order = None
-            self.logger().error(f"Close order failed {event.order_id}. Retrying {self._current_retries}/{self._max_retries}")
+            self._log_order_failure("Close", event)
             self._current_retries += 1
         elif self._take_profit_limit_order and event.order_id == self._take_profit_limit_order.order_id:
             self._failed_orders.append(self._take_profit_limit_order)
             self._take_profit_limit_order = None
-            self.logger().error(f"Take profit order failed {event.order_id}. Retrying {self._current_retries}/{self._max_retries}")
+            self._log_order_failure("Take profit", event)
+
+    def _log_order_failure(self, role: str, event: MarketOrderFailureEvent):
+        from hummingbot.core.order_submission_guard import submission_block_log_context
+        context = submission_block_log_context(event.error_type)
+        if context is None:
+            self.logger().error(f"{role} order failed {event.order_id}. Retrying {self._current_retries}/{self._max_retries}")
+            return
+        level, reason = context
+        self.logger().log(
+            level, "%s order blocked by service checks: order_id=%s reason=%s. Retry count %s/%s.",
+            role, event.order_id, event.error_message or reason, self._current_retries, self._max_retries,
+            extra={"event": "order_submission_blocked", "reason_code": reason,
+                   "scope": "executor", "error_type": event.error_type},
+        )
 
     def get_custom_info(self) -> Dict:
         unfilled_managed = not self.filled_amount and (self.config.mm_session_id is not None or self.config.use_configured_entry_price)
