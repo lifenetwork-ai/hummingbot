@@ -127,7 +127,8 @@ class AdminAPI:
         self._reference_lock = asyncio.Lock()
         self._reference_provider = None
         self._daily_cache = DailyStatisticsCache(settings.statistics_cache_ttl_seconds)
-        self._daily_lock = asyncio.Lock()
+        self._daily_flights = {}
+        self._daily_closing = False
         # Bound API database concurrency independently of the default executor.
         # The shared pool has five slots; reporting must not consume all five.
         self._database_executor = AdminDatabaseExecutor()
@@ -163,6 +164,12 @@ class AdminAPI:
                 for connector in self._reference_provider._non_trading_connectors.values():
                     await connector.stop_network()
         finally:
+            self._daily_closing = True
+            tasks = tuple(self._daily_flights.values())
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            self._daily_flights.clear()
             await self._database_executor.close()
 
     def reference_source(self):
@@ -404,34 +411,62 @@ class AdminAPI:
         query = self.query(request, DailyQuery)
         filters = query.model_dump()
         key = self._daily_cache.key(filters, self.settings.reporting_timezone)
-        # This loop owns the cache: hits need no lock and must not queue behind
-        # an unrelated slow aggregate. Serialize misses to bound database work,
-        # rechecking after admission so identical polls share the first result.
+        if self._daily_closing:
+            raise APIUnavailable('Daily reporting is closing')
+        # The event loop owns cache/task admission. Physical concurrency and
+        # control priority remain bounded by the existing database executor.
         body = self._daily_cache.get(key)
         if body is None:
-            async with self._daily_lock:
-                key = self._daily_cache.key(filters, self.settings.reporting_timezone)
-                body = self._daily_cache.get(key)
-                if body is None:
-                    try:
-                        row = await self.run_database(self.storage().daily, **filters, reporting_timezone=self.settings.reporting_timezone)
-                    except (APIUnavailable, SQLAlchemyError, TimeoutError) as error:
-                        if not isinstance(error, APIUnavailable) and not transient_reporting_error(error):
-                            raise
-                        # A refresh may cross a reporting-day boundary while
-                        # awaiting DB work. Re-resolve before borrowing a result.
-                        key = self._daily_cache.key(filters, self.settings.reporting_timezone)
+            if key is None or self._daily_cache.ttl == 0:
+                body = await self._refresh_daily(filters)
+            else:
+                task = self._daily_flights.get(key)
+                if task is None:
+                    if len(self._daily_flights) >= self._database_executor.MAX_REPORTS:
                         body = self._daily_cache.fallback(key)
                         if body is None:
-                            raise
-                        logging.getLogger(__name__).warning(
-                            'Daily statistics refresh unavailable; returning a bounded stale observation type=%s',
-                            type(error).__name__, extra={'event': 'admin_daily_stale', 'error_type': type(error).__name__})
+                            raise APIUnavailable('Daily reporting capacity is busy')
                     else:
-                        body = DailyResponse.model_validate(row).model_dump(mode="json")
-                        key = self._daily_cache.key(filters, self.settings.reporting_timezone)
-                        self._daily_cache.remember(key, body)
+                        task = asyncio.create_task(self._refresh_daily(filters))
+                        self._daily_flights[key] = task
+                        task.add_done_callback(functools.partial(self._daily_done, key))
+                if task is not None:
+                    # A disconnected waiter must not release an ongoing refresh
+                    # and allow the next poll to duplicate its physical DB call.
+                    body = await asyncio.shield(task)
+                    current = self._daily_cache.key(filters, self.settings.reporting_timezone)
+                    observed_range = body['reporting_timezone'], body['start_day'], body['end_day']
+                    if current != key or observed_range != key[:3]:
+                        # Relative and explicit ranges may have shared a key
+                        # before midnight. Re-read with this caller's filters;
+                        # do not loop indefinitely on host/database clock skew.
+                        body = self._daily_cache.get(current) or await self._refresh_daily(filters)
         return web.json_response(body)
+
+    def _daily_done(self, key, task):
+        if self._daily_flights.get(key) is task:
+            self._daily_flights.pop(key)
+        if not task.cancelled():
+            task.exception()  # Retrieve failures even if every HTTP waiter disconnected.
+
+    async def _refresh_daily(self, filters):
+        try:
+            row = await self.run_database(self.storage().daily, **filters, reporting_timezone=self.settings.reporting_timezone)
+        except (APIUnavailable, SQLAlchemyError, TimeoutError) as error:
+            if not isinstance(error, APIUnavailable) and not transient_reporting_error(error):
+                raise
+            key = self._daily_cache.key(filters, self.settings.reporting_timezone)
+            body = self._daily_cache.fallback(key)
+            if body is None:
+                raise
+            logging.getLogger(__name__).warning(
+                'Daily statistics refresh unavailable; returning a bounded stale observation type=%s',
+                type(error).__name__, extra={'event': 'admin_daily_stale', 'error_type': type(error).__name__})
+            return body
+        body = DailyResponse.model_validate(row).model_dump(mode="json")
+        key = self._daily_cache.key(filters, self.settings.reporting_timezone)
+        self._daily_cache.remember(key, body)
+        return body
 
     @staticmethod
     def check_response(row):

@@ -185,20 +185,28 @@ async def test_retry_cooldown_recovers_on_a_new_successful_database_observation(
 
 
 @pytest.mark.asyncio
-async def test_lock_wait_crossing_midnight_cannot_borrow_yesterdays_fallback(daily_api):
+async def test_worker_wait_crossing_midnight_cannot_borrow_yesterdays_fallback(daily_api):
+    import threading
+
     api, storage = daily_api
     clock = controlled_snapshot(api, storage, datetime(2026, 10, 29, 23, 59, 58, tzinfo=timezone.utc))
     await api.daily(request())
     clock.wall += 1
     clock.monotonic += 1
     storage.daily.side_effect = TimeoutError()
-    async with api._daily_lock:
+    release = threading.Event()
+    blockers = [api._database_executor.submit(lambda: release.wait(3)) for _ in range(api._database_executor.WORKERS)]
+    try:
         task = asyncio.create_task(api.daily(request()))
         await asyncio.sleep(0)
         clock.wall += 2
         clock.monotonic += 2
-    with pytest.raises(TimeoutError):
-        await task
+        release.set()
+        with pytest.raises(TimeoutError):
+            await task
+    finally:
+        release.set()
+        await asyncio.gather(*blockers, return_exceptions=True)
 
 
 @pytest.mark.asyncio
@@ -217,3 +225,41 @@ async def test_failure_crossing_midnight_does_not_use_the_previous_day_range(dai
     storage.daily.side_effect = fail
     with pytest.raises(TimeoutError):
         await api.daily(request())
+
+
+@pytest.mark.asyncio
+async def test_relative_and_explicit_shared_key_separate_when_database_observation_crosses_midnight(daily_api):
+    api, storage = daily_api
+    instant = datetime(2026, 10, 29, 23, 59, 59, tzinfo=timezone.utc)
+    clock = controlled_snapshot(api, storage, instant)
+    old_start, old_end, *_ = day_range(None, None, 'UTC', instant)
+    started, release = asyncio.Event(), asyncio.Event()
+    calls = 0
+
+    async def aggregate(function, **filters):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            started.set()
+            await release.wait()
+        observed = datetime.fromtimestamp(clock.wall, timezone.utc)
+        start, end, *_ = day_range(filters['start_day'], filters['end_day'], 'UTC', observed)
+        return {**snapshot(), 'start_day': start, 'end_day': end, 'server_time': observed}
+
+    api.run_database = aggregate
+    relative = asyncio.create_task(api.daily(request()))
+    explicit = None
+    try:
+        await started.wait()
+        explicit = asyncio.create_task(api.daily(request(**{'from': str(old_start), 'to': str(old_end)})))
+        await asyncio.sleep(0)
+        clock.wall += 2
+        clock.monotonic += 2
+        release.set()
+        relative_body, explicit_body = [json.loads(r.text) for r in await asyncio.gather(relative, explicit)]
+        assert relative_body['end_day'] != str(old_end)
+        assert explicit_body['start_day'] == str(old_start) and explicit_body['end_day'] == str(old_end)
+        assert calls == 2 and not api._daily_flights
+    finally:
+        release.set()
+        await asyncio.gather(relative, *([explicit] if explicit else []), return_exceptions=True)

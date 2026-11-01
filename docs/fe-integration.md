@@ -660,6 +660,15 @@ and timezone, resolved reporting dates, market and pair isolate observations.
 Relative date ranges roll over at reporting midnight, including during a refresh.
 Setting the cache TTL to zero disables both caching and fallback.
 
+With caching enabled, simultaneous cache misses for the same canonical
+timezone/date/market/pair share one in-flight refresh. Different filters can
+refresh independently within the existing two-worker API database executor;
+control priority and queue limits remain. At most12 distinct daily refresh keys
+are outstanding. Further uncached keys receive the existing503/unavailable
+response, or an eligible explicitly stale observation. Disconnecting one client
+does not cancel a shared physical query. TTL0 also disables in-flight sharing.
+Completed keys leave the registry; the cache still holds at most32 entries.
+
 Render stale daily charts as **"Statistics updating"** and show their original
 observation time; retry after the supplied delay. Keep the financial values
 qualified as last observed. Do not infer trading health, current balances or
