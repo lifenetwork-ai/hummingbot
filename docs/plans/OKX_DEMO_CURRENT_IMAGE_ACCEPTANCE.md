@@ -1,5 +1,10 @@
 # Current-image OKX Demo acceptance
 
+Latest completed scope: [`a190b024` release and stopped Demo upgrade](../../reports/release/mm-submission-log-release.md).
+Packaged smoke, three targeted E2E groups, full R1 and matched R2 pass; the
+canonical service is trading-stopped on this image. Earlier active Demo and
+natural-fill results below retain their original image scope.
+
 ## Latent-fix candidate connected Demo follow-up — 2026-11-01
 
 This is a new connected scope on image `3f5cbd0f` / manifest `6e54a348`.
@@ -41,8 +46,9 @@ Result: [connected report](../../reports/demo/okx-demo-latent-fixes.md), [saniti
   PostgreSQL ownership/submission/shutdown behavior; document severity semantics.
 
 [Verification report](../../reports/platform/submission-block-logging.md): native
-239 plus4 subtests and PostgreSQL50 pass. This source change is not packaged into
-Demo image `3f5cbd0f`; its completed connected acceptance above is unchanged.
+239 plus4 subtests and PostgreSQL50 pass. At this checkpoint the source change
+was not packaged into Demo image `3f5cbd0f`; the following image-release scope
+packages it separately without relabelling the earlier connected acceptance.
 
 ## Submission-log image release follow-up — 2026-11-01
 
@@ -54,17 +60,23 @@ claimed as a clean Dockerfile rebuild. Earlier image results retain their scopes
   network-disabled packaged smoke through connector, failure event, executor and
   structured formatter: expected severities/reasons, redaction and unchanged
   failed-state/retry semantics.
-- [ ] Run the targeted spot-outflow, funding and LIFE-MM simulator E2E groups,
+- [x] Run the targeted spot-outflow, funding and LIFE-MM simulator E2E groups,
   including packaged runtime/ABI smoke, on this exact candidate.
-- [ ] Run one unchanged full R1: warm300/mixed900/burst90/soak3600 and six recovery
+- [x] Run one unchanged full R1: warm300/mixed900/burst90/soak3600 and six recovery
   cases, with frozen source/image, original latency/zero-error/memory budgets and
   independent scope/ledger/continuity checks. Preserve any failed attempt.
-- [ ] Run and independently verify matched ordinary-entrypoint R2 warm300/mixed900
+- [x] Run and independently verify matched ordinary-entrypoint R2 warm300/mixed900
   using the passing full R1 baseline; do not claim a second full-hour soak.
-- [ ] Fresh read-only Demo preflight, private DB backup and stopped upgrade only
+- [x] Fresh read-only Demo preflight, private DB backup and stopped upgrade only
   after local gates pass. Preserve existing config, history, positions and rollback;
   align revision with the image and verify stopped startup/health/recovery.
-- [ ] Publish exact results and remaining limits, update checklists and commit.
+- [x] Publish exact results and remaining limits, update checklists and commit.
+
+Result: [release/stopped-upgrade report](../../reports/release/mm-submission-log-release.md)
+and [portable evidence](../../reports/release/mm-submission-log-release-evidence.json).
+R1 soak p99 is643ms with zero unexpected API errors and14.39MiB retention growth;
+all six faults pass. R2 warm/mixed p99 is849/347ms with zero errors. No new active
+Demo session or natural fill is claimed for this logging-only image.
 
 Raw evidence: `build/submission-log-release-20261101/`. No forced fill, trading
 Start, HALT reset, DB repair, live account or Cloud Run deployment is included.

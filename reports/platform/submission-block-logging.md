@@ -55,8 +55,10 @@ an earlier transport had no effect; uncertain effects still require recovery.
 Raw logs: `build/submission-logging-20261101/{red,authority-red,native,postgres}.log`.
 The existing Pydantic deprecation warnings remain unchanged.
 
-This is source-level verification, not a new image build, connected Demo run or
-hour-load gate. The canonical Demo service remains on image `3f5cbd0f`, trading
-stopped, with its existing acceptance scope. A future candidate must package
-these changes before its runtime logs have the new behavior. No public exchange
-orders, configuration changes or Cloud Run deployment are part of this change.
+This section records source-level verification, not an image or hour-load gate.
+At this checkpoint the canonical Demo service remained on `3f5cbd0f`, trading
+stopped. The subsequent [packaged release verification](../release/mm-submission-log-release.md)
+passes packaged smoke, targeted E2E, full R1 and matched R2, and upgrades the
+stopped Demo to `a190b024`. It has its own evidence and does not relabel earlier
+connected trading results. No public exchange orders, trading-configuration
+changes or Cloud Run deployment are part of this change.

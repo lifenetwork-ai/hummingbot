@@ -1,6 +1,9 @@
 # Current-image release closeout
 
-Latest follow-up (2026-11-01): **candidate `3f5cbd0f` first rerun fails burst
+Latest packaged follow-up: [`a190b024` full R1/R2 and stopped Demo upgrade](mm-submission-log-release.md).
+The results below keep their original image scopes and are not relabelled.
+
+Earlier follow-up (2026-11-01): **candidate `3f5cbd0f` first rerun fails burst
 latency; the latest complete R1/R2 result is recorded below**.
 See [the new run](#2026-11-01-latent-fix-candidate-rerun) and
 [separate evidence](mm-latent-fixes-load-evidence.json). All earlier accepted/failed

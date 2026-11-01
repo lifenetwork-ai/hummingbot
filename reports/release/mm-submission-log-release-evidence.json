@@ -1,0 +1,700 @@
+{
+  "status": "R1_R2_pass_stopped_Demo_upgraded_historical_burst_cause_open",
+  "release_accepted": true,
+  "scope": "Packaged logging smoke, targeted E2E, full unchanged R1 and matched R2; stopped Demo upgrade only after pass",
+  "image": {
+    "base_image_id": "sha256:3f5cbd0f6862494dbcc7d33d2e2e3b7b1e3b00086794983f1488f9f8ee942ab5",
+    "source_commit": "4af96c0eefabe205bfa1f487432a7ab7e3222588",
+    "method": "Local derivative of the accepted latent-fix image with exactly four changed Python modules; native dependencies unchanged, not a clean full Dockerfile rebuild",
+    "source_sha256": {
+      "hummingbot/core/bot_ownership.py": "9e6f84b5644cad528fffddeebda98d059515b7c9006ba7999ceb4ff697c9ac8c",
+      "hummingbot/core/order_submission_guard.py": "d4c2d6acd85de8f5c7b3bed4552cd6cf3767bbe18036345e0876ca508b8e44ca",
+      "hummingbot/connector/exchange_py_base.py": "0dd5e50b24522e5c663f605bfdb90bb5066c352d97829ee1e08a63c93d20da36",
+      "hummingbot/strategy_v2/executors/position_executor/position_executor.py": "4dddc643f2b886c70643fabe731a173029e7458906b5c15cfe8937fa91a02272"
+    },
+    "image_id": "sha256:a190b02491cf218f381582a6baa914825f01fd411d60776700cdb3ec66ed97de",
+    "image_size_bytes": 1367850765,
+    "packaged_hashes_match": true
+  },
+  "packaged_logging_smoke": {
+    "passed": true,
+    "checks": [
+      {
+        "type": "SessionSubmissionBlocked",
+        "severity": "INFO",
+        "reason_code": "session_submission_closed",
+        "event_preserved": true,
+        "failed_state_and_retry_preserved": true,
+        "redacted": true
+      },
+      {
+        "type": "MarketReadinessBlocked",
+        "severity": "WARNING",
+        "reason_code": "market_not_ready",
+        "event_preserved": true,
+        "failed_state_and_retry_preserved": true,
+        "redacted": true
+      },
+      {
+        "type": "SubmissionBlocked",
+        "severity": "ERROR",
+        "reason_code": "submission_safety_blocked",
+        "event_preserved": true,
+        "failed_state_and_retry_preserved": true,
+        "redacted": true
+      },
+      {
+        "type": "OwnershipLost",
+        "severity": "ERROR",
+        "reason_code": "ownership_lost",
+        "event_preserved": true,
+        "failed_state_and_retry_preserved": true,
+        "redacted": true
+      }
+    ],
+    "imports": {
+      "hummingbot.core.bot_ownership": "/home/hummingbot/hummingbot/core/bot_ownership.py",
+      "hummingbot.core.order_submission_guard": "/home/hummingbot/hummingbot/core/order_submission_guard.py",
+      "hummingbot.connector.exchange_py_base": "/home/hummingbot/hummingbot/connector/exchange_py_base.py",
+      "hummingbot.strategy_v2.executors.position_executor.position_executor": "/home/hummingbot/hummingbot/strategy_v2/executors/position_executor/position_executor.py"
+    },
+    "imported_sha256": {
+      "hummingbot.core.bot_ownership": "9e6f84b5644cad528fffddeebda98d059515b7c9006ba7999ceb4ff697c9ac8c",
+      "hummingbot.core.order_submission_guard": "d4c2d6acd85de8f5c7b3bed4552cd6cf3767bbe18036345e0876ca508b8e44ca",
+      "hummingbot.connector.exchange_py_base": "0dd5e50b24522e5c663f605bfdb90bb5066c352d97829ee1e08a63c93d20da36",
+      "hummingbot.strategy_v2.executors.position_executor.position_executor": "4dddc643f2b886c70643fabe731a173029e7458906b5c15cfe8937fa91a02272"
+    }
+  },
+  "demo_before": {
+    "at": "2026-11-01T14:42:11.588057+00:00",
+    "ledger_hashes": {
+      "orders": "2dfd3b0af9241bbe1ad5040d20857988",
+      "trade_fills": "0670a1868dee14d4377e2b36dcd3b4d8",
+      "executors": "bdad727155953e0c952b96d9a1a8c04a",
+      "positions": "5ed309125d48f6be040fcbaf08b8203c"
+    },
+    "control": {
+      "desired_state": "stopped",
+      "control_version": 46,
+      "acknowledged_version": 46,
+      "halt": "false",
+      "pending": []
+    },
+    "image_id": "sha256:3f5cbd0f6862494dbcc7d33d2e2e3b7b1e3b00086794983f1488f9f8ee942ab5",
+    "container_id": "52a08da01567a539dd2a4caf1a09760a23669bc96af2ebc8a3df12baee36c586"
+  },
+  "attempts": [
+    {
+      "run": "build/mm-load/20261101-215045-297059",
+      "passed": true,
+      "release_scope_complete": true,
+      "error": null,
+      "source_frozen_verified": true,
+      "windows": {
+        "warmup": {
+          "duration_seconds": 300,
+          "read_p95_ms": 61.88619101885706,
+          "read_p99_ms": 370.20869000116363,
+          "auxiliary": {
+            "requested_reads": 1500,
+            "completed_reads": 1500,
+            "statuses": {
+              "200": 1500
+            },
+            "read_p95_ms": 73.15692299744114,
+            "read_p99_ms": 322.66033499035984
+          },
+          "unexpected_errors": 0,
+          "violations": [],
+          "ledger": {
+            "unique_exchange_fills": 300,
+            "unique_recorder_fills": 300,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "peak_rss_bytes": 708866048,
+          "burst_drain_seconds": null,
+          "memory_retention": null,
+          "profile_running_coverage": null
+        },
+        "mixed": {
+          "duration_seconds": 900,
+          "read_p95_ms": 60.30243501299992,
+          "read_p99_ms": 177.0133480313234,
+          "auxiliary": {
+            "requested_reads": 4500,
+            "completed_reads": 4500,
+            "statuses": {
+              "200": 4500
+            },
+            "read_p95_ms": 72.73408799665049,
+            "read_p99_ms": 165.60162202222273
+          },
+          "unexpected_errors": 0,
+          "violations": [],
+          "ledger": {
+            "unique_exchange_fills": 1200,
+            "unique_recorder_fills": 1200,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "peak_rss_bytes": 727535616,
+          "burst_drain_seconds": null,
+          "memory_retention": null,
+          "profile_running_coverage": null
+        },
+        "bursts": {
+          "duration_seconds": 90,
+          "read_p95_ms": 66.92095601465553,
+          "read_p99_ms": 388.07415001792833,
+          "auxiliary": {
+            "requested_reads": 450,
+            "completed_reads": 450,
+            "statuses": {
+              "200": 450
+            },
+            "read_p95_ms": 66.2034529959783,
+            "read_p99_ms": 393.41877499828115
+          },
+          "unexpected_errors": 0,
+          "violations": [],
+          "ledger": {
+            "unique_exchange_fills": 1290,
+            "unique_recorder_fills": 1290,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "peak_rss_bytes": 744292352,
+          "burst_drain_seconds": 1.5287790298461914,
+          "memory_retention": null,
+          "profile_running_coverage": null
+        },
+        "soak": {
+          "duration_seconds": 3600,
+          "read_p95_ms": 95.95995105337352,
+          "read_p99_ms": 643.1403370224871,
+          "auxiliary": {
+            "requested_reads": 18000,
+            "completed_reads": 18000,
+            "statuses": {
+              "200": 18000
+            },
+            "read_p95_ms": 118.53909102501348,
+            "read_p99_ms": 664.5244309911504
+          },
+          "unexpected_errors": 0,
+          "violations": [],
+          "ledger": {
+            "unique_exchange_fills": 4885,
+            "unique_recorder_fills": 4885,
+            "positions_matched": true,
+            "identified_funding_bills": 2,
+            "daily_snapshots": 3
+          },
+          "peak_rss_bytes": 796479488,
+          "burst_drain_seconds": null,
+          "memory_retention": {
+            "basis": "cgroup_current_minus_file_plus_shmem",
+            "early_median_bytes": 716419072,
+            "late_median_bytes": 731512832,
+            "growth_bytes": 15093760,
+            "budget_bytes": 67108864,
+            "raw_cgroup_growth_bytes": 67076096
+          },
+          "profile_running_coverage": [
+            {
+              "profile": "follow_market",
+              "step": 0,
+              "running_overlap_seconds": 598.9362947940826
+            },
+            {
+              "profile": "sideways",
+              "step": 1,
+              "running_overlap_seconds": 596.0351099967957
+            },
+            {
+              "profile": "follow_market",
+              "step": 2,
+              "running_overlap_seconds": 596.0353770256042
+            },
+            {
+              "profile": "follow_market",
+              "step": 3,
+              "running_overlap_seconds": 595.530914068222
+            },
+            {
+              "profile": "follow_token",
+              "step": 4,
+              "running_overlap_seconds": 595.6314930915833
+            },
+            {
+              "profile": "follow_token",
+              "step": 5,
+              "running_overlap_seconds": 595.7209479808807
+            }
+          ]
+        }
+      },
+      "healthy_supervision": {
+        "events": {
+          "child_probe_failed": 77,
+          "child_probe_recovered": 77
+        },
+        "recovered_probe_episodes": 77,
+        "max_recovered_failure_seconds": 4.957,
+        "diagnostic_events": [
+          {
+            "role": "engine",
+            "at": "2026-11-01T15:31:49.375Z",
+            "event": "load_stack_dump"
+          },
+          {
+            "role": "engine",
+            "at": "2026-11-01T16:01:46.246Z",
+            "event": "load_stack_dump"
+          },
+          {
+            "role": "engine",
+            "at": "2026-11-01T16:05:47.616Z",
+            "event": "load_stack_dump"
+          }
+        ],
+        "low_utc": 1793544708.532431,
+        "high_utc": 1793549621.2092602,
+        "scope": "First healthy window start through declared last-window end; planned fault windows and final post-window drain excluded. Diagnostic signals are interventions. Stable PIDs do not imply uninterrupted quoting."
+      },
+      "soak_observation": {
+        "samples": 58,
+        "max_gap_seconds": 65.94757556915283,
+        "memory_retention": {
+          "basis": "cgroup_current_minus_file_plus_shmem",
+          "early_median_bytes": 716419072,
+          "late_median_bytes": 731512832,
+          "growth_bytes": 15093760,
+          "budget_bytes": 67108864,
+          "raw_cgroup_growth_bytes": 67076096
+        },
+        "process_pids": {
+          "supervisor": [
+            1
+          ],
+          "engine": [
+            32
+          ],
+          "api": [
+            33
+          ]
+        },
+        "role_growth": {
+          "supervisor": {
+            "VmRSS": 131072,
+            "Threads": 0,
+            "fds": 0
+          },
+          "engine": {
+            "VmRSS": 8257536,
+            "Threads": 0,
+            "fds": 0
+          },
+          "api": {
+            "VmRSS": 6553600,
+            "Threads": 0,
+            "fds": 0
+          }
+        }
+      },
+      "faults": {
+        "feed": {
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "duration_seconds": 45,
+          "unexpected_errors": 0,
+          "statuses": {
+            "200": 900
+          },
+          "read_p95_ms": 70.13597100740299,
+          "read_p99_ms": 319.41210199147463,
+          "control_results": {},
+          "defense": null
+        },
+        "volatility-defense": {
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "duration_seconds": 90,
+          "unexpected_errors": 0,
+          "statuses": {
+            "200": 1800
+          },
+          "read_p95_ms": 107.29163500946015,
+          "read_p99_ms": 459.8308840068057,
+          "control_results": {},
+          "defense": {
+            "stimulus_to_terminal_cancel_ms": {
+              "LIFE-USDT": 4085.674072265625,
+              "LIFE-USDT-SWAP": 3151.674072265625
+            },
+            "latency_scope": "Conservative upper bound: input precedes controller restriction; first terminal proof, not duplicate acknowledgment time",
+            "working_at_joint_pause": {
+              "LIFE-USDT": 6,
+              "LIFE-USDT-SWAP": 6
+            },
+            "joint_pause_to_terminal_cancel_ms": {
+              "LIFE-USDT": 1021.0,
+              "LIFE-USDT-SWAP": 1091.0
+            },
+            "reduced_allocation_verified": true,
+            "pause_checkpoint_count": 2,
+            "no_submissions_during_stale_pause": true,
+            "positions_preserved": true,
+            "recovery_seconds": 11.91329404199496
+          }
+        },
+        "owner-restart": {
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "duration_seconds": 45,
+          "unexpected_errors": 311,
+          "statuses": {
+            "200": 618,
+            "503": 27
+          },
+          "read_p95_ms": 396.6878430219367,
+          "read_p99_ms": 1010.2207129821181,
+          "control_results": {},
+          "defense": null
+        },
+        "queued-expiry": {
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "duration_seconds": 75,
+          "unexpected_errors": 0,
+          "statuses": {
+            "200": 1500
+          },
+          "read_p95_ms": 143.0123569443822,
+          "read_p99_ms": 1626.0511520085856,
+          "control_results": {},
+          "defense": null
+        },
+        "database-delay": {
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "duration_seconds": 45,
+          "unexpected_errors": 324,
+          "statuses": {
+            "200": 606,
+            "503": 45
+          },
+          "read_p95_ms": 1540.6540039693937,
+          "read_p99_ms": 2785.4207970085554,
+          "control_results": {},
+          "defense": null
+        },
+        "database-failure": {
+          "classification": "injected_fault_excluded_from_healthy_latency",
+          "duration_seconds": 45,
+          "unexpected_errors": 384,
+          "statuses": {
+            "200": 551,
+            "503": 35
+          },
+          "read_p95_ms": 63.46288905479014,
+          "read_p99_ms": 856.4932980225421,
+          "control_results": {},
+          "defense": null
+        }
+      },
+      "observability": {
+        "engine": {
+          "trace": {
+            "written_records": 10825,
+            "written_bytes": 29492796,
+            "dropped_records": 0,
+            "writer_cpu_ms": 2180.066662999997,
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "writer_alive": true,
+            "dropped_spans": 316497,
+            "slow_trace_threshold_ms": 100,
+            "gc_trace": {
+              "pending_events": 0,
+              "max_events": 128,
+              "dropped_events": 0
+            }
+          },
+          "incident_capture": {
+            "incidents": 111,
+            "evicted_records": 19374,
+            "oversize_records": 0,
+            "suppressed_incidents": 0,
+            "buffered_records": 38,
+            "buffered_bytes": 96952,
+            "max_records": 256,
+            "max_bytes": 524288,
+            "history_seconds": 10.0,
+            "tail_seconds": 10.0,
+            "max_incidents": 128
+          },
+          "metrics_export_skipped": 0
+        },
+        "api": {
+          "trace": {
+            "written_records": 8195,
+            "written_bytes": 33552503,
+            "dropped_records": 30,
+            "writer_cpu_ms": 1491.004644000006,
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "writer_alive": true,
+            "dropped_spans": 14859,
+            "slow_trace_threshold_ms": 100,
+            "gc_trace": {
+              "pending_events": 0,
+              "max_events": 128,
+              "dropped_events": 0
+            }
+          },
+          "incident_capture": {
+            "incidents": 64,
+            "evicted_records": 22652,
+            "oversize_records": 0,
+            "suppressed_incidents": 0,
+            "buffered_records": 42,
+            "buffered_bytes": 165355,
+            "max_records": 256,
+            "max_bytes": 524288,
+            "history_seconds": 10.0,
+            "tail_seconds": 10.0,
+            "max_incidents": 128
+          },
+          "metrics_export_skipped": 0
+        }
+      }
+    }
+  ],
+  "historical_burst_root_cause_closed": false,
+  "targeted_e2e": {
+    "image": "hummingbot-cloudrun:submission-logging",
+    "scenarios": {
+      "spot-outflow": {
+        "result": "build/e2e-offline/20261101-214207-9168c4/result.json",
+        "passed": true,
+        "image_id": "sha256:a190b02491cf218f381582a6baa914825f01fd411d60776700cdb3ec66ed97de",
+        "manifest": "sha256:5962a8dce8491a56c7f11504f54267fce1a2c6f0ac18f469ba9b0bb61472ac4f",
+        "error": null,
+        "exit_code": 0
+      },
+      "funding": {
+        "result": "build/e2e-offline/20261101-214333-d65135/result.json",
+        "passed": true,
+        "image_id": "sha256:a190b02491cf218f381582a6baa914825f01fd411d60776700cdb3ec66ed97de",
+        "manifest": "sha256:5962a8dce8491a56c7f11504f54267fce1a2c6f0ac18f469ba9b0bb61472ac4f",
+        "error": null,
+        "exit_code": 0
+      },
+      "life-mm": {
+        "result": "build/e2e-offline/20261101-214546-1646a7/result.json",
+        "passed": true,
+        "image_id": "sha256:a190b02491cf218f381582a6baa914825f01fd411d60776700cdb3ec66ed97de",
+        "manifest": "sha256:5962a8dce8491a56c7f11504f54267fce1a2c6f0ac18f469ba9b0bb61472ac4f",
+        "error": null,
+        "exit_code": 0
+      }
+    },
+    "scope": "Three targeted simulator cases; no full release or soak claim"
+  },
+  "manifest": "sha256:5962a8dce8491a56c7f11504f54267fce1a2c6f0ac18f469ba9b0bb61472ac4f",
+  "r1_passed": true,
+  "r1_run": "build/mm-load/20261101-215045-297059",
+  "r1_independently_verified": true,
+  "r2_passed": true,
+  "r2": {
+    "run": "build/service-supervision/production-control-20261101-232026-8c99d2",
+    "passed": true,
+    "baseline_acceptance_eligible": true,
+    "raw_diagnostic_flag": true,
+    "raw_release_scope_complete": false,
+    "windows": {
+      "warmup": {
+        "duration_seconds": 300,
+        "read_p95_ms": 75.32314804848284,
+        "read_p99_ms": 848.637435992714,
+        "auxiliary": {
+          "requested_reads": 1500,
+          "completed_reads": 1500,
+          "statuses": {
+            "200": 1500
+          },
+          "read_p95_ms": 71.83110603364184,
+          "read_p99_ms": 662.3940910212696
+        },
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 705118208,
+        "burst_drain_seconds": null,
+        "memory_retention": null,
+        "profile_running_coverage": null
+      },
+      "mixed": {
+        "duration_seconds": 900,
+        "read_p95_ms": 55.973688955418766,
+        "read_p99_ms": 347.47036499902606,
+        "auxiliary": {
+          "requested_reads": 4500,
+          "completed_reads": 4500,
+          "statuses": {
+            "200": 4500
+          },
+          "read_p95_ms": 46.1568949976936,
+          "read_p99_ms": 262.9117809701711
+        },
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 714162176,
+        "burst_drain_seconds": null,
+        "memory_retention": null,
+        "profile_running_coverage": null
+      }
+    },
+    "healthy_supervision": {
+      "events": {
+        "child_probe_failed": 16,
+        "child_probe_recovered": 16
+      },
+      "recovered_probe_episodes": 16,
+      "max_recovered_failure_seconds": 4.056,
+      "diagnostic_events": [],
+      "low_utc": 1793550082.1874063,
+      "high_utc": 1793551288.8249319,
+      "scope": "First healthy window start through declared last-window end; planned fault windows and final post-window drain excluded. Diagnostic signals are interventions. Stable PIDs do not imply uninterrupted quoting."
+    },
+    "not_measured": [
+      "query counts",
+      "worker/pool queue",
+      "event-loop/GC timing",
+      "held-adapter introspection"
+    ]
+  },
+  "r2_independently_verified": true,
+  "finished_at": "2026-11-01T16:41:36.995279+00:00",
+  "source_freeze": {
+    "files": 1221,
+    "verified_unchanged": true,
+    "measurement_commit": "fcdeaf21acbbfa3f4b17c96289681b442eeda958",
+    "sha256": "5af7c7f714133947be53a7c9588221ea898027ca03ff9bc291d17dc840af1836"
+  },
+  "raw_result_sha256": {
+    "build/mm-load/20261101-215045-297059/result.json": "6f2d528885a5cb282dac2271fabb5bff2f46f5f201d20386fc43f662a0bb11b2",
+    "build/service-supervision/production-control-20261101-232026-8c99d2/result.json": "8ef671dceab8d5dca18252b73ebeb524a965ce88e4071700b7769490a942e243",
+    "build/submission-log-release-20261101/image-verification.json": "61cc500aa230139cab900917188541ce95642c6a5a5504d0f9385907a07f6121",
+    "build/submission-log-release-20261101/logging-smoke.json": "497948b9787b0df8ad811c8d0674959e5254c770f4dab25fdbbba8e2e473adb0",
+    "build/submission-log-release-20261101/e2e-verification.json": "9fdc9b7c08a8ff827cc98c2a56bd35a0440863bc340db13a6d06638090a553a9",
+    "build/submission-log-release-20261101/r1-verification.json": "091bb5925cf019b574abb71a8e499c70c3584da5cd47e1775d63a4fcdf7055ee",
+    "build/submission-log-release-20261101/r2-verification.json": "cc78e0228ccea72cb945e40c7761546f3f26b9fae6bd5abea026f50c7ec9d2b7",
+    "build/submission-log-release-20261101/preflight.json": "74c9f6a5785ad8967954eb3b1453f366984273d06e2b697f9396a92fb447cdc0",
+    "build/submission-log-release-20261101/preflight-after.json": "273fec134d5d411221d0a76f961b6f4cf698a2f4755c93dcebed06458663d41c",
+    "build/submission-log-release-20261101/upgrade-review.json": "a8e8ccc164a2c0d79add7583fe88c6a999a06378a56c433181929a3fc0e76c42",
+    "build/submission-log-release-20261101/demo-before.json": "ca49a5e1a19c8990347f7d18cb6387d76393a6a0d83d833e38754220f06a9d3d",
+    "build/submission-log-release-20261101/demo-after.json": "5f3c036f647248dcc882f51a0359ea3981cd7372a154d6c3f85c1dcaeab475d9",
+    "build/submission-log-release-20261101/probes-after.json": "c69075e0535a9dd1e5f4882dbbbda69e1303003c9202962cc6c5570cce6aee7f"
+  },
+  "demo_upgrade": {
+    "passed": true,
+    "before_image_id": "sha256:3f5cbd0f6862494dbcc7d33d2e2e3b7b1e3b00086794983f1488f9f8ee942ab5",
+    "after_image_id": "sha256:a190b02491cf218f381582a6baa914825f01fd411d60776700cdb3ec66ed97de",
+    "revision": "4af96c0eefabe205bfa1f487432a7ab7e3222588",
+    "trading_stopped": true,
+    "control_unchanged": true,
+    "ledger_unchanged": true,
+    "ledger_before": {
+      "orders": "2dfd3b0af9241bbe1ad5040d20857988",
+      "trade_fills": "0670a1868dee14d4377e2b36dcd3b4d8",
+      "executors": "bdad727155953e0c952b96d9a1a8c04a",
+      "positions": "5ed309125d48f6be040fcbaf08b8203c"
+    },
+    "ledger_after": {
+      "orders": "2dfd3b0af9241bbe1ad5040d20857988",
+      "trade_fills": "0670a1868dee14d4377e2b36dcd3b4d8",
+      "executors": "bdad727155953e0c952b96d9a1a8c04a",
+      "positions": "5ed309125d48f6be040fcbaf08b8203c"
+    },
+    "private_backup_created": true,
+    "backup_sha256": "82cf8fdfcffe578d47fbea4c483c353a01e134b2fc5679995e34cd2efeb00afd",
+    "predecessor_preserved_stopped": true,
+    "private_profile_sha256": "f76e43b842a5cc1c2bbe6f736f1a7c1e6a4f7aeb3543e1a28a15f7e583271232",
+    "private_env_sha256": "8d68414214cbb68c59e64096b7fb1899b9a64b938634f74cc20a7d928248ee84",
+    "db_counts": {
+      "orders": 850,
+      "fills": 6,
+      "positions": 3,
+      "funding": 0,
+      "pending_commands": 0
+    },
+    "perpetual_base_positions_matched": {
+      "long": "0.0084",
+      "short": "0.0027"
+    },
+    "read_only_preflight_before_at": "2026-11-01T16:42:05.819361+00:00",
+    "read_only_preflight_after_at": "2026-11-01T16:43:22.828454+00:00",
+    "public_ws_pairs": [
+      "AVAX-USDT",
+      "BTC-USDT",
+      "BTC-USDT-SWAP",
+      "ETH-USDT"
+    ],
+    "private_ws": [
+      {
+        "market": "SPOT",
+        "login": true,
+        "readonly_order_subscription": true
+      },
+      {
+        "market": "SWAP",
+        "login": true,
+        "readonly_order_subscription": true
+      }
+    ],
+    "pending_exchange_orders": 0,
+    "probes": {
+      "startup": {
+        "status": 200,
+        "body": {
+          "state": "stopped"
+        }
+      },
+      "live": {
+        "status": 200,
+        "body": {
+          "state": "api_running"
+        }
+      },
+      "ready": {
+        "status": 503,
+        "body": {
+          "state": "stopped"
+        }
+      }
+    },
+    "startup_log_severities": {
+      "INFO": 22
+    },
+    "startup_error_records": 0,
+    "order_mutations": 0,
+    "account_mutations": 0,
+    "new_fill_claim": false,
+    "raw_evidence": "build/submission-log-release-20261101/"
+  },
+  "closed_at": "2026-11-01T16:44:09.933900+00:00"
+}

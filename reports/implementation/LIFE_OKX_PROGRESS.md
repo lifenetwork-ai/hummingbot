@@ -5,13 +5,26 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-01
 
-- **Submission-block log clarity (source only):** expected Stop/session closure
+- **Submission-block logging release complete:** image `a190b024` packages
+  source `4af96c0ee` (four Python modules over the accepted runtime; not a clean
+  Dockerfile rebuild). Packaged smoke and three targeted E2E groups pass, followed
+  by unchanged full R1 and matched ordinary-entrypoint R2. Soak p95/p99 is96/643ms,
+  zero unexpected API errors, retention +14.39MiB, peak759.58MiB,58 samples and
+  4,885 matching fills/positions. All three Random profiles and six fault cases
+  pass. R2 p99 is849/347ms with zero errors. Fresh read-only preflights and stopped
+  Demo upgrade pass; config/control/four ledger fingerprints are unchanged,
+  no HALT or pending orders, previous image/backup retained. No new active Demo
+  session or natural fill is claimed. Earlier burst attribution remains open;
+  see [scoped report](../release/mm-submission-log-release.md) and
+  [evidence](../release/mm-submission-log-release-evidence.json).
+- **Submission-block log clarity (source verification):** expected Stop/session closure
   logs INFO; required-market readiness waits log WARNING; unsafe/unknown guards,
   missing wiring and ownership loss retain ERROR. No misleading API-key/network
   advice for guard blocks; failure state/retry/recovery behavior remains unchanged.
-  Native239 plus4 subtests and50 selected PostgreSQL tests pass. The Demo image
-  is unchanged; see [verification](../platform/submission-block-logging.md).
-- **Latest connected Demo:** image `3f5cbd0f` passes read-only preflight,
+  Native239 plus4 subtests and50 selected PostgreSQL tests pass. Initial source
+  verification did not change Demo; packaged follow-up is above. See
+  [verification](../platform/submission-block-logging.md).
+- **Latest active-session Demo verification:** image `3f5cbd0f` passes read-only preflight,
   stopped upgrade with unchanged ledgers, all nine fixed profile/market cases,
   Random step plus active spot restart, and active both-market restart. All 381
   independent terminal order reads confirm canceled post-only orders; positions,
@@ -20,7 +33,7 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   The canonical service is left trading-stopped; see the
   [connected report](../demo/okx-demo-latent-fixes.md) and
   [evidence](../demo/okx-demo-latent-fixes-evidence.json).
-- **New-image load rerun:** latest full R1 and matched shipping R2 pass on
+- **Prior latent-fix image load rerun:** full R1 and matched shipping R2 pass on
   `3f5cbd0f`; first burst failure remains unexplained. Retention grows13.53MiB
   over60 minutes;4,884 fills/positions match. Random selects two profiles in
   this hour; the same-image E2E matrix retains all-three-profile scope.

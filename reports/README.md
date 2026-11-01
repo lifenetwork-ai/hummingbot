@@ -4,12 +4,19 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
-- [Latest connected Demo](demo/okx-demo-latent-fixes.md): `3f5cbd0f` passes nine
+- [Latest packaged release and stopped Demo upgrade](release/mm-submission-log-release.md):
+  `a190b024` passes packaged logging smoke, three targeted E2E groups, full R1
+  (including60-minute soak and six faults) and matched R2. Soak p99 is643ms,
+  zero unexpected API errors, retention grows14.39MiB;4,885 fills/positions match.
+  Demo is upgraded while stopped with unchanged history/config. Earlier burst
+  cause remains open; no new active Demo session or natural fill is claimed.
+
+- [Latest active-session Demo verification](demo/okx-demo-latent-fixes.md): `3f5cbd0f` passes nine
   fixed cases, Random rollover and spot/both active restart. 381 post-only orders
   independently confirmed canceled; balances/positions/history match. No new fill,
   so earlier positive-fill evidence is not relabelled. Service is trading-stopped.
 
-- [New-image load rerun](release/mm-release-closeout.md#2026-11-01-latent-fix-candidate-rerun):
+- [Prior latent-fix image load rerun](release/mm-release-closeout.md#2026-11-01-latent-fix-candidate-rerun):
   `3f5cbd0f` latest full R1 and matched shipping R2 pass. First burst failure
   remains unexplained; Random long-soak coverage is two profiles only.
   Two retired bot images removed; Demo/container images and volumes preserved.
