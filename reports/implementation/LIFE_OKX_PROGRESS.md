@@ -5,6 +5,15 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-01
 
+- **Latest connected Demo:** image `3f5cbd0f` passes read-only preflight,
+  stopped upgrade with unchanged ledgers, all nine fixed profile/market cases,
+  Random step plus active spot restart, and active both-market restart. All 381
+  independent terminal order reads confirm canceled post-only orders; positions,
+  fee-net BTC cash and six historical fills remain consistent. No new fill occurs,
+  so positive new-fill/original-fee processing remains outside this new-image scope.
+  The canonical service is left trading-stopped; see the
+  [connected report](../demo/okx-demo-latent-fixes.md) and
+  [evidence](../demo/okx-demo-latent-fixes-evidence.json).
 - **New-image load rerun:** latest full R1 and matched shipping R2 pass on
   `3f5cbd0f`; first burst failure remains unexplained. Retention grows13.53MiB
   over60 minutes;4,884 fills/positions match. Random selects two profiles in
@@ -27,7 +36,7 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   original fees and positions; soak p99 is 717ms with zero unexpected API errors.
   See the [release closeout](../release/mm-release-closeout.md) and
   [portable evidence](../release/mm-release-closeout-evidence.json).
-- **Connected Demo evidence has its own image scope:** earlier preflight,
+- **Earlier positive-fill Demo evidence has its own image scope:** earlier preflight,
   profiles/Random and restart checks are followed by six real maker fills,
   exact fees, deduplication and a verified filled restart on `e526118b`.
   See the [natural-fill follow-up](../demo/okx-demo-natural-fill.md).

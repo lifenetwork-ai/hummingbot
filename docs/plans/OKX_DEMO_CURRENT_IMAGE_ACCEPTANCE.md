@@ -1,6 +1,37 @@
 # Current-image OKX Demo acceptance
 
-## Current release verification — completed scopes
+## Latent-fix candidate connected Demo follow-up — 2026-11-01
+
+This is a new connected scope on image `3f5cbd0f` / manifest `6e54a348`.
+The completed local R1/R2 gates remain in the
+[release report](../../reports/release/mm-release-closeout.md#latest-completed-rerun--scoped-result).
+Earlier Demo results below retain their original image scope.
+
+- [x] Read-only preflight: both credential sets, account mode, public/private
+  REST/WS, balances, no pending orders, no HALT/unfinished commands, and exact
+  contract-to-base perpetual position reconciliation.
+- [x] Back up the persistent DB privately; preserve the old stopped container;
+  upgrade the canonical service while trading is stopped. Verify unchanged
+  order/fill/executor/position hashes and original private YAML/environment.
+- [x] Run the nine fixed profile/market cases with existing policy budgets,
+  post-only quotes, independent exchange identity/precision checks and Stop.
+- [x] Verify the configured Random step and active spot restart with pinned
+  session/anchor/deadlines; verify active both-market restart with durable holds.
+- [x] Independently reconcile terminal orders, new fills/original fees, spot
+  balance changes and perpetual positions; repeat fill readback for deduplication.
+  Zero new fills must remain a stated limitation, not positive-fill acceptance.
+- [x] Align the deployment revision label with the candidate image; verify a
+  stopped startup with unchanged ledger hashes and original trading config.
+- [x] Leave the service running with trading stopped, no pending orders or
+  unresolved mutations; publish scoped evidence, limits and rollback instructions.
+
+No private catalogue budget or safety guard is changed; no forced fill, live
+account, database repair, HALT reset, or Cloud Run deployment is authorized by
+this verification. Raw local results: `build/okx-demo-latent-20261101/`.
+
+Result: [connected report](../../reports/demo/okx-demo-latent-fixes.md), [sanitized evidence](../../reports/demo/okx-demo-latent-fixes-evidence.json). New natural fills observed: 0; earlier positive-fill evidence is not relabelled.
+
+## Prior release verification — completed scopes (`5973410d`)
 
 Updated 2026-11-01 (local time). Immutable candidate image `5973410d` / manifest
 `50a95f3a` is unchanged. Measurement source is frozen at `b7ba104e7`.
