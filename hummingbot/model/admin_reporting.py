@@ -75,9 +75,11 @@ def daily(engine, *, start_day=None, end_day=None, reporting_timezone, market="a
         raise ValueError("Unknown market")
     selected = tuple(MARKETS) if market == "all" else (market,)
     with engine.connect().execution_options(isolation_level="REPEATABLE READ") as connection, connection.begin():
-        # These bounded UI aggregates repeatedly paid more JIT compilation than
-        # execution. Keep the setting local to this read-only transaction.
-        connection.exec_driver_sql("SET LOCAL jit = off")
+        # Keep reporting CPU/memory fan-out within the existing API worker
+        # bound. Parallel plans exhausted a constrained shared DB on million-row
+        # history even with statement deadlines; JIT also adds compilation cost.
+        # Both settings revert on commit/rollback and never alter trading work.
+        connection.exec_driver_sql("SET LOCAL jit = off; SET LOCAL max_parallel_workers_per_gather = 0")
         observation = connection.execute(text("""
             SELECT clock_timestamp() AS now,
                 (SELECT recovery_state->'funding_sync' FROM bot_state LIMIT 1) AS funding_sync,

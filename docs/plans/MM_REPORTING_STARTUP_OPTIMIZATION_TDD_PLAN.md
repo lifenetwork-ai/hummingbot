@@ -16,7 +16,7 @@ Persistent Demo storage/configuration and exchange accounts are untouched.
   query count and Python peak memory with disposable PostgreSQL. If allocation
   is material, remove unnecessary row hydration with differential/cost tests;
   preserve exact Float-to-Decimal behavior and cursor cleanup. Commit findings.
-- [ ] C: Reassess existing daily SQL measurements and current 100k/1M behavior.
+- [x] C: Reassess existing daily SQL measurements and current 100k/1M behavior.
   Retain a change only with exact-result equality and repeatable improvement;
   otherwise retain bounded reporting and document the scaling decision. Commit.
 - [ ] Final: Freeze application/measurement source, package the final runtime,

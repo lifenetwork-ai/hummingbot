@@ -76,9 +76,46 @@ same lightweight query retained by the source change. Raw comparison/helpers:
 
 ## C — Daily SQL scaling
 
-Review pending. Earlier workload-dependent SQL regressions and the cold
-million-fill limit remain recorded in the
+The derived-net alternative did not provide a consistent win: five shuffled
+100k-fee trials measured medians278.14/279.18ms (original/alternative) with
+repeated fees, and286.14/268.69ms with unique fees. Original full daily reads
+completed in500–526ms in those100k cases. No aggregate formula, Decimal handling,
+original fee attribution, migration or index change is retained.
+
+The million-row diagnostic exposed a shared-database resource failure, rather
+than merely a slow UI response. On PostgreSQL14.15/arm64 limited to2 CPU/512MiB,
+the extended-deadline candidate lost its backend to OOM. The original report
+also lost a backend under its ordinary2s deadline. A fresh reader connection
+after disposing the seeding pool still failed; retained seeding connection
+memory alone does not explain the failure. Raw PostgreSQL logs and Docker OOM
+state are preserved. DB process recovery must not be confused with no OOM.
+
+A bounded row-count admission experiment also failed in that setup and was
+withdrawn. It adds no API restriction, new environment variable or cache policy.
+The retained mitigation instead disables parallel workers **only inside the
+existing daily-report transaction**, alongside its existing local JIT setting.
+This bounds database-process fan-out of the existing two API workers without
+changing trading connections or global PostgreSQL settings. Commit and rollback
+restore the original pooled-connection setting. Query formulas and the2s
+statement deadline stay unchanged; a large report may still time out.
+
+A controlled serial-read experiment on the same million-row fee fixture returns
+SQLSTATE57014 for three individual reads and two concurrent reads, without a
+backend loss or OOM. Seventy-one separate lightweight DB probes all succeed
+(maximum35.35ms). This is bounded-query safety evidence, not a full trading-engine
+availability guarantee or proof of the exact PostgreSQL allocation mechanism.
+The setup's bulk insert/update places its512MiB cgroup near capacity; verification repeats the experiment through the actual retained runtime code.
+Earlier workload-dependent SQL regressions remain in the
 [SQL investigation](../investigations/mm-reporting-latency.md).
+
+Deterministic Red tests fail twice because aggregates inherit two parallel
+workers. Green checks require zero workers, JIT off and unchanged2s deadline
+before both aggregates, plus restoration and pool cleanup after success/failure.
+Both Reds and all17 selected PostgreSQL cases pass after the change (265
+cases deselected), including existing snapshot/fee arithmetic and100k checks.
+The actual source-code million-row repeat passes separately. Broad final gates
+are pending. [Portable measurements](mm-reporting-startup-evidence.json) retain
+failed controls, successful mitigation and attribution limits.
 
 ## Final image and load
 

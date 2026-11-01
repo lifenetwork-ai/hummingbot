@@ -668,6 +668,10 @@ are outstanding. Further uncached keys receive the existing503/unavailable
 response, or an eligible explicitly stale observation. Disconnecting one client
 does not cancel a shared physical query. TTL0 also disables in-flight sharing.
 Completed keys leave the registry; the cache still holds at most32 entries.
+Daily-report transactions disable PostgreSQL parallel workers locally to limit
+shared-database CPU/memory fan-out. The2s statement deadline still applies;
+a million-fill report can time out. This does not change trading settings or
+prove full isolation from shared database resource pressure.
 
 Render stale daily charts as **"Statistics updating"** and show their original
 observation time; retry after the supplied delay. Keep the financial values

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from test.integration.postgres.test_performance import measure, queries, report
 
+import pytest
 from sqlalchemy import event, text
 
 from hummingbot.model.admin_reporting import daily, save_daily_balances
@@ -73,3 +74,38 @@ def test_reporting_snapshot_measurement(pg_engine):
         assert write() == 0
     report("snapshot_100_currencies_no_change", {**measure(write, samples=11), "queries": len(statements)})
     assert len(statements) == 1
+
+
+@pytest.mark.parametrize("fail_aggregate", [False, True])
+def test_daily_report_limits_parallel_workers_only_within_its_transaction(pg_engine, fail_aggregate):
+    bootstrap_postgres(pg_engine, auto_migrate=True)
+    with pg_engine.connect() as connection:
+        original = connection.exec_driver_sql("SHOW max_parallel_workers_per_gather").scalar_one()
+    assert int(original) > 0  # The regression must exercise a parallel-capable default.
+    observed = []
+
+    def inspect_settings(connection, cursor, statement, params, *args):
+        if "AS fill_count" in statement or "AS currency" in statement:
+            settings = connection.exec_driver_sql(
+                "SELECT current_setting('max_parallel_workers_per_gather'), "
+                "current_setting('jit'), current_setting('statement_timeout')").one()
+            observed.append(tuple(settings))
+            assert tuple(settings) == ("0", "off", "2s")
+            if fail_aggregate:
+                raise RuntimeError("Injected reporting failure")
+
+    event.listen(pg_engine, "before_cursor_execute", inspect_settings)
+    try:
+        if fail_aggregate:
+            with pytest.raises(RuntimeError, match="Injected reporting failure"):
+                daily(pg_engine, reporting_timezone="UTC")
+        else:
+            result = daily(pg_engine, reporting_timezone="UTC")
+            assert all(not market["days"] for market in result["markets"])
+    finally:
+        event.remove(pg_engine, "before_cursor_execute", inspect_settings)
+    assert len(observed) == (1 if fail_aggregate else 2)
+    assert pg_engine.pool.checkedout() == 0
+    with pg_engine.connect() as connection:
+        assert connection.exec_driver_sql("SHOW max_parallel_workers_per_gather").scalar_one() == original
+        assert connection.exec_driver_sql("SELECT 1").scalar_one() == 1
