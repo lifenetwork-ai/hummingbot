@@ -261,6 +261,40 @@ The analyzer retains up to twenty slowest requests plus twenty failed requests,
 so timeouts keep their server correlation when queued successes rank slower.
 
 
+## Bounded probe incident analysis
+
+Use `--incident-diagnostics` for the existing flight recorder instead of
+`--trace`; the two modes are mutually exclusive. For a short diagnostic:
+
+```sh
+python scripts/test_mm_load.py --image hummingbot-cloudrun:probe-review \
+  --profile probe --probe-seconds 300 --diagnostic --enhancements \
+  --volatility-defense --operations --incident-diagnostics
+python scripts/analyze_mm_load_trace.py build/mm-load/<run> --window probe --incidents
+```
+
+Incident history remains bounded to256 records/512KiB per role, with a256-record
+writer queue and32MiB disk ceiling. Of that disk ceiling,8MiB is reserved for
+probe failure/recovery, loop-stall and GC evidence. Reservation does not eliminate
+queue or file exhaustion; summaries expose dropped records by kind. Append mode
+counts existing bytes before admitting more records. Retained child spans are
+the longest within the existing capacity (16 in incident mode,128 in full trace),
+returned in completion order with omitted-span counters.
+
+Every outflow-advance call contributes scalar timing/count metrics, while only
+completed calls lasting at least100ms allocate detailed leaf spans. In-progress
+work remains visible through enclosing spans and watchdog stacks. Phase timings
+also distinguish ownership checks, fill storage and market-state checkpoints.
+Scalar deques retain at most12,000 samples; counters cover all observed calls.
+
+The incident analyzer deduplicates shared supervisor markers, handles sequence
+resets and reports missing recovery explicitly. It selects same-role context
+including one second before a reported timeout; `intersects_transition` labels
+whether a retained interval actually intersects the failure/recovery markers.
+Observed transition time is not quote downtime, and overlap is not causation.
+Inspect loss counters before drawing conclusions. A short probe does not replace
+the full release/hour gate. See the [verified follow-up](../reports/investigations/mm-engine-probe-latency.md).
+
 ## Quick CPU replay before long-run acceptance
 
 `python scripts/benchmark_admin_serialization.py --baseline <previous-admin-models.py> --output <result.json>`

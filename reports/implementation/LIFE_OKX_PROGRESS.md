@@ -1,9 +1,23 @@
 # LIFE / OKX implementation progress
 
-Updated: 2026-11-01 (Asia/Saigon).
+Updated: 2026-11-02 (Asia/Saigon).
 Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
 
-## Current status — 2026-11-01
+## Current status — 2026-11-02
+
+- **Probe diagnostic follow-up complete:** longest bounded child-span retention,
+  reserved incident capacity within32MiB, cheaper hot-leaf tracing and ownership/
+  fill/checkpoint phase timings. Native61 and packaged smoke pass. A clean rebuilt
+  diagnostic image `eb72604c` passes300s all-feature/operator load at p95/p99
+  53/158ms, zero errors,300 matching fills/fees/positions and unchanged sampled
+  PIDs. One engine probe timeout recovers; its unique cause remains open. Native
+  50k-call trace overhead is556→87ms with the hot-leaf policy; this is a diagnostic
+  improvement, not a trading-throughput claim. See [report](../investigations/mm-engine-probe-latency.md)
+  and [evidence](../investigations/mm-engine-probe-latency-evidence.json).
+- **Observed local Docker state:** cleanup between sessions removed the bot image
+  and Demo container; the persistent `hummingbot-okx-demo-data` volume remains
+  untouched. The rebuilt image is diagnostic-only and Demo is not restored here.
+  Earlier connected/release outcomes below keep their original image/date scope.
 
 - **Submission-block logging release complete:** image `a190b024` packages
   source `4af96c0ee` (four Python modules over the accepted runtime; not a clean

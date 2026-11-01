@@ -183,6 +183,71 @@ def test_request_children_are_bounded_and_loss_is_explicit():
     assert recorder.active_snapshot() == []
 
 
+def test_late_slow_child_survives_many_fast_children_without_exceeding_limit(monkeypatch):
+    from test.e2e.offline import load_trace
+    clock = [0]
+    monkeypatch.setattr(load_trace.time, 'monotonic_ns', lambda: clock[0])
+    rows = []
+    recorder = TraceRecorder(rows.append, slow_ms=0, max_children=3)
+    root = recorder.begin('request')
+    for n in range(100):
+        child = recorder.begin('fast', index=n)
+        clock[0] += 1_000_000
+        recorder.end(child)
+    slow = recorder.begin('ownership_check', backend_pid=42)
+    clock[0] += 500_000_000
+    recorder.end(slow)
+    recorder.end(root)
+    spans = rows[0]['spans']
+    assert len(spans) == 3
+    assert [s['operation'] for s in spans] == ['fast', 'ownership_check', 'request']
+    assert spans[1]['parent_id'] == root['span_id'] and spans[1]['backend_pid'] == 42
+    assert rows[0]['dropped_spans'] == recorder.dropped_spans == 99
+    assert recorder.active_snapshot() == []
+
+
+def test_reserved_sink_keeps_late_probe_evidence_after_bulk_budget_is_full(tmp_path):
+    path = tmp_path / 'incidents.jsonl'
+    sink = TraceSink(path, max_bytes=1200, queue_limit=64, reserved_bytes=400,
+                     reserved_kinds={'probe_failure', 'loop_stall'})
+    for n in range(20):
+        sink.emit({'kind': 'cpu_sample', 'sequence': n, 'padding': 'x' * 100})
+        sink.queue.join()
+    sink.emit({'kind': 'probe_failure', 'sequence': 21})
+    sink.emit({'kind': 'loop_stall', 'sequence': 22})
+    sink.close()
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert [r['kind'] for r in rows[-2:]] == ['probe_failure', 'loop_stall']
+    summary = sink.summary()
+    assert path.stat().st_size <= 1200
+    assert summary['ordinary_written_bytes'] <= 800
+    assert summary['dropped_by_kind']['cpu_sample'] > 0
+    assert summary['reserved_written_bytes'] > 0
+    assert summary['dropped_records'] == sum(summary['dropped_by_kind'].values())
+
+
+def test_reserved_sink_append_cannot_rejuvenate_either_budget(tmp_path):
+    path = tmp_path / 'incidents.jsonl'
+    options = dict(max_bytes=600, reserved_bytes=200, reserved_kinds={'probe_failure'}, append=True)
+    for n in range(3):
+        sink = TraceSink(path, **options)
+        for _ in range(10):
+            sink.emit({'kind': 'cpu_sample', 'data': 'x' * 90})
+            sink.queue.join()
+        sink.emit({'kind': 'probe_failure', 'sequence': n})
+        sink.close()
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert path.stat().st_size <= 600
+    assert [r['sequence'] for r in rows if r['kind'] == 'probe_failure'] == [0, 1, 2]
+    assert sink.summary()['ordinary_written_bytes'] <= 400
+
+
+@pytest.mark.parametrize('reserved', [-1, 501, True])
+def test_reserved_sink_rejects_invalid_budget_before_starting_worker(tmp_path, reserved):
+    with pytest.raises(ValueError):
+        TraceSink(tmp_path / 'bad.jsonl', max_bytes=500, reserved_bytes=reserved)
+
+
 def test_incident_sampler_bounds_active_span_snapshot_without_losing_active_state():
     recorder = TraceRecorder(lambda row: None)
     spans = [recorder.begin('sql', backend_pid=n) for n in range(20)]

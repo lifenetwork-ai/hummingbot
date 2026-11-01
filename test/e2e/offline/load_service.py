@@ -46,6 +46,7 @@ from hummingbot.cli.admin_api import AdminAPI  # noqa: E402
 from hummingbot.cli.admin_database import AdminDatabaseExecutor  # noqa: E402
 from hummingbot.cli.admin_models import APIModel  # noqa: E402
 from hummingbot.connector.markets_recorder import MarketsRecorder  # noqa: E402
+from hummingbot.core.bot_ownership import BotOwnership  # noqa: E402
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base  # noqa: E402
 from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator  # noqa: E402
 
@@ -91,7 +92,10 @@ incident_directory = os.environ.get('HBOT_LOAD_INCIDENT_DIRECTORY')
 process_role = sys.argv[sys.argv.index('--role') + 1] if '--role' in sys.argv else 'combined'
 trace_sink = TraceSink(Path(trace_directory) / ('server-api.jsonl' if process_role == 'api' else 'server.jsonl')) if trace_directory else None
 incident_sink = TraceSink(Path(incident_directory) / (process_role + '-incidents.jsonl'),
-                          max_bytes=32 * 1024**2, queue_limit=256, append=True) if incident_directory else None
+                          max_bytes=32 * 1024**2, queue_limit=256, append=True,
+                          reserved_bytes=8 * 1024**2,
+                          reserved_kinds={'probe_failure', 'probe_recovered', 'loop_stall',
+                                          'loop_stall_trigger', 'gc'}) if incident_directory else None
 incidents = IncidentBuffer(lambda row: incident_sink.emit({**row, 'capturing_pid': os.getpid(),
                                                           'capturing_role': process_role}),
                            max_incidents=capture_limit(os.environ.get('HBOT_LOAD_INCIDENT_MAX_CAPTURES', '32'))) if incident_sink else None
@@ -126,13 +130,13 @@ def save_incident_summary():
     temporary.replace(destination)
 
 
-def timed_sync(owner, name, key):
+def timed_sync(owner, name, key, *, slow_only=False):
     def details(args, result):
         pid = backend_pid(result) if key == "pool_checkout_ms" and result is not None else None
         if key in ("commit_ms", "rollback_ms", "db_ping_ms"):
             pid = backend_pid(args[1])
         return {"backend_pid": pid}
-    instrument_sync(owner, name, key, samples, totals, tracer, details)
+    instrument_sync(owner, name, key, samples, totals, tracer, details, slow_only=slow_only)
 
 
 timed_sync(QueuePool, "connect", "pool_checkout_ms")
@@ -140,6 +144,9 @@ timed_sync(PoolQueue, "get", "pool_queue_ms")
 timed_sync(QueuePool, "_create_connection", "db_connect_ms")
 timed_sync(PGDialect_psycopg2, "do_ping", "db_ping_ms")
 timed_sync(MarketsRecorder, "_did_fill_order", "recorder_ms")
+timed_sync(MarketsRecorder, "_store_fill", "fill_store_ms")
+timed_sync(MarketsRecorder, "save_market_states", "market_checkpoint_ms")
+timed_sync(BotOwnership, "check_owner", "ownership_check_ms")
 timed_sync(MarketsRecorder, "store_or_update_executors", "executor_batch_store_ms")
 timed_sync(PGDialect_psycopg2, "do_commit", "commit_ms")
 timed_sync(PGDialect_psycopg2, "do_rollback", "rollback_ms")
@@ -160,7 +167,7 @@ from hummingbot.strategy_v2.utils import mm_spread  # noqa: E402
 timed_sync(mm_spread, "natr_value", "natr_ms")
 timed_sync(mm_spread.SpreadPolicy, "refresh", "candle_sample_ms")
 timed_sync(mm_spread.SpreadPolicy, "compose", "spread_compose_ms")
-timed_sync(SpotOutflowProjection, "advance", "outflow_advance_ms")
+timed_sync(SpotOutflowProjection, "advance", "outflow_advance_ms", slow_only=True)
 timed_sync(SpotOutflowGuard, "_load", "outflow_rebuild_ms")
 timed_sync(LiquidityObserver, "observe", "liquidity_observe_ms")
 

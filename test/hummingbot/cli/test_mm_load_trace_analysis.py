@@ -3,6 +3,83 @@ import json
 from scripts.analyze_mm_load_trace import analyze
 
 
+def test_incident_analysis_deduplicates_cross_role_markers_and_keeps_matching_context(tmp_path):
+    from scripts.analyze_mm_load_trace import analyze_incidents
+    incident = tmp_path / 'incidents'
+    incident.mkdir()
+    (tmp_path / 'result.json').write_text(json.dumps(dict(image_id='fixed', windows={
+        'probe': dict(window_start_ns=1_000_000_000, window_end_ns=5_000_000_000, runtime={})})))
+    failure = dict(kind='probe_failure', role='engine', sequence=1, at_ns=2_000_000_000)
+    recovered = dict(kind='probe_recovered', role='engine', sequence=2, at_ns=3_000_000_000)
+    span = dict(span_id='slow', operation='ownership_check_ms', start_ns=2_100_000_000,
+                end_ns=2_900_000_000, duration_ms=800, thread_cpu_ms=2)
+    rows = [failure, recovered, dict(kind='trace', spans=[span]),
+            dict(kind='gc', start_ns=2_200_000_000, duration_ms=20),
+            dict(kind='probe_failure', role='engine', sequence=3, at_ns=6_000_000_000)]
+    for role in ('engine', 'api'):
+        (incident / (role + '-incidents.jsonl')).write_text('\n'.join(
+            json.dumps({**row, 'capturing_role': role, 'capturing_pid': 11 if role == 'engine' else 12}) for row in rows))
+    result = analyze_incidents(tmp_path, 'probe')
+    assert result['probe_failures_in_window'] == 1
+    episode = result['episodes'][0]
+    assert episode['observed_transition_seconds'] == 1
+    assert episode['overlapping_spans'][0]['capturing_role'] == 'engine'
+    assert len(episode['overlapping_spans']) == len(episode['overlapping_gc']) == 1
+    assert episode['overlapping_spans'][0]['operation'] == 'ownership_check_ms'
+    assert 'causation' in result['interpretation']
+
+
+def test_incident_analysis_keeps_missing_recovery_explicit_and_bounds_selected_episodes(tmp_path):
+    from scripts.analyze_mm_load_trace import analyze_incidents
+    incident = tmp_path / 'incidents'
+    incident.mkdir()
+    (tmp_path / 'result.json').write_text(json.dumps(dict(image_id='fixed', windows={
+        'probe': dict(window_start_ns=0, window_end_ns=10_000_000_000, runtime={})})))
+    rows = [dict(kind='probe_failure', role='engine', sequence=1, at_ns=1_000_000_000),
+            dict(kind='probe_recovered', role='engine', sequence=2, at_ns=2_000_000_000),
+            dict(kind='probe_failure', role='engine', sequence=3, at_ns=4_000_000_000)]
+    (incident / 'engine-incidents.jsonl').write_text('\n'.join(map(json.dumps, rows)))
+    result = analyze_incidents(tmp_path, 'probe', limit=1)
+    assert result['probe_failures_in_window'] == 2 and len(result['episodes']) == 1
+    assert result['episodes'][0]['observed_transition_seconds'] is None
+    assert not result['episodes'][0]['recovery_observed_within_window']
+
+
+def test_incident_analysis_handles_restarted_publisher_sequences_and_a_lost_recovery(tmp_path):
+    from scripts.analyze_mm_load_trace import analyze_incidents
+    incident = tmp_path / 'incidents'
+    incident.mkdir()
+    (tmp_path / 'result.json').write_text(json.dumps(dict(image_id='fixed', windows={
+        'probe': dict(window_start_ns=0, window_end_ns=10_000_000_000, runtime={})})))
+    rows = [dict(kind='probe_failure', role='engine', sequence=1, at_ns=1_000_000_000),
+            dict(kind='probe_failure', role='engine', sequence=1, at_ns=4_000_000_000),
+            dict(kind='probe_recovered', role='engine', sequence=2, at_ns=5_000_000_000)]
+    (incident / 'engine-incidents.jsonl').write_text('\n'.join(map(json.dumps, rows)))
+    result = analyze_incidents(tmp_path, 'probe')
+    assert result['probe_failures_in_window'] == 2
+    assert result['episodes'][0]['observed_transition_seconds'] is None
+    assert result['episodes'][0]['recovery_missing_reason'] == 'next_failure_seen'
+    assert result['episodes'][1]['observed_transition_seconds'] == 1
+
+
+def test_incident_context_keeps_work_just_before_timeout_result_without_calling_it_transition_overlap(tmp_path):
+    from scripts.analyze_mm_load_trace import analyze_incidents
+    incident = tmp_path / 'incidents'
+    incident.mkdir()
+    (tmp_path / 'result.json').write_text(json.dumps(dict(image_id='fixed', windows={
+        'probe': dict(window_start_ns=0, window_end_ns=10_000_000_000, runtime={})})))
+    span = dict(span_id='before', operation='recorder_ms', start_ns=1_500_000_000,
+                end_ns=1_900_000_000, duration_ms=400)
+    rows = [dict(kind='probe_failure', role='engine', sequence=1, at_ns=2_000_000_000),
+            dict(kind='probe_recovered', role='engine', sequence=2, at_ns=3_000_000_000),
+            dict(kind='trace', capturing_role='engine', spans=[span])]
+    (incident / 'engine-incidents.jsonl').write_text('\n'.join(map(json.dumps, rows)))
+    episode = analyze_incidents(tmp_path, 'probe')['episodes'][0]
+    assert episode['context_start_ns'] == 1_000_000_000
+    assert episode['overlapping_spans'][0]['span_id'] == 'before'
+    assert not episode['overlapping_spans'][0]['intersects_transition']
+
+
 def test_analyzer_correlates_request_stack_and_only_same_pid_wait_in_window(tmp_path):
     trace = tmp_path / 'trace'
     trace.mkdir()

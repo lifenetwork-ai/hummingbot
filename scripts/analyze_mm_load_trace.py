@@ -175,14 +175,110 @@ def request_stages(client, root):
                 sql_ms=[span['duration_ms'] for span in root['spans'] if span['operation'] == 'sql'])
 
 
+def analyze_incidents(directory, window, *, limit=10):
+    """Correlate bounded probe evidence; transition intervals are not quote downtime."""
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 128:
+        raise ValueError('Incident episode limit must be within 1..128')
+    result = json.loads((directory / 'result.json').read_text())
+    data = result['windows'][window]
+    low, high = data['window_start_ns'], data['window_end_ns']
+    paths = sorted((directory / 'incidents').glob('*-incidents.jsonl'))
+    if not paths:
+        raise ValueError('No incident files; this run did not retain incident diagnostics')
+    markers = {}
+    for row in chain.from_iterable(records(path) for path in paths):
+        if row['kind'] in ('probe_failure', 'probe_recovered'):
+            # Both child recorders can publish the same supervisor transition.
+            # Appended captures can span supervisor restarts, which reset the
+            # local sequence. Monotonic transition time distinguishes them.
+            key = row['role'], row['sequence'], row['at_ns']
+            value = {key: row[key] for key in ('kind', 'role', 'sequence', 'at_ns')}
+            if key in markers and markers[key] != value:
+                raise ValueError('Conflicting supervisor transition identity')
+            markers[key] = value
+    opened, episodes = {}, []
+
+    def missing(row, reason):
+        if low <= row['at_ns'] <= high:
+            episodes.append(dict(role=row['role'], failure_ns=row['at_ns'], recovery_ns=None,
+                                 observed_transition_seconds=None, recovery_observed_within_window=False,
+                                 recovery_missing_reason=reason))
+
+    for row in sorted(markers.values(), key=lambda row: row['at_ns']):
+        role = row['role']
+        if row['kind'] == 'probe_failure':
+            if role in opened:
+                missing(opened[role], 'next_failure_seen')
+            opened[role] = row
+        elif role in opened:
+            failure = opened.pop(role)
+            if low <= failure['at_ns'] <= high:
+                elapsed = row['at_ns'] - failure['at_ns']
+                if elapsed < 0:
+                    raise ValueError('Probe recovery precedes its failure')
+                episodes.append(dict(role=role, failure_ns=failure['at_ns'], recovery_ns=row['at_ns'],
+                                     observed_transition_seconds=elapsed / 1e9,
+                                     recovery_observed_within_window=row['at_ns'] <= high))
+    for row in opened.values():
+        missing(row, 'end_of_capture')
+    selected = sorted(episodes, key=lambda row: row['observed_transition_seconds']
+                      if row['observed_transition_seconds'] is not None else float('inf'), reverse=True)[:limit]
+    for episode in selected:
+        # A failure marker is published after a timeout response, so work just
+        # before it is useful context but must not be labelled concurrent work.
+        episode.update(context_start_ns=max(low, episode['failure_ns'] - 1_000_000_000),
+                       context_end_ns=min(high, episode['recovery_ns'] or episode['failure_ns'] + 15_000_000_000),
+                       overlapping_spans=[], overlapping_gc=[], overlapping_stalls=[])
+
+    def keep(rows, value, key, identity):
+        rows[:] = sorted([row for row in rows if row.get(identity) != value.get(identity)] + [value],
+                         key=lambda row: row[key], reverse=True)[:5]
+
+    for row in chain.from_iterable(records(path) for path in paths):
+        for episode in selected:
+            if row.get('capturing_role') != episode['role']:
+                continue
+            start = episode['context_start_ns']
+            # Missing recovery never creates an unbounded attribution interval.
+            end = episode['context_end_ns']
+            if row['kind'] in ('trace', 'late_span'):
+                spans = row['spans'] if row['kind'] == 'trace' else [row['span']]
+                for span in spans:
+                    if overlaps(span['start_ns'], span['end_ns'], start, end):
+                        captured = {**span, 'capturing_role': row['capturing_role'],
+                                    'capturing_pid': row.get('capturing_pid'),
+                                    'intersects_transition': overlaps(span['start_ns'], span['end_ns'], episode['failure_ns'], end)}
+                        keep(episode['overlapping_spans'], captured,
+                             'duration_ms', 'span_id')
+            elif row['kind'] == 'gc' and overlaps(row['start_ns'], row['start_ns'] + row['duration_ms'] * 1e6, start, end):
+                captured = {**row, 'intersects_transition': row['start_ns'] + row['duration_ms'] * 1e6 >= episode['failure_ns']}
+                keep(episode['overlapping_gc'], captured, 'duration_ms', 'start_ns')
+            elif row['kind'] == 'loop_stall' and start <= row['at_ns'] <= end:
+                keep(episode['overlapping_stalls'], {**row, 'intersects_transition': row['at_ns'] >= episode['failure_ns']},
+                     'lag_ms', 'at_ns')
+    loss = {role: {key: values.get(key) for key in ('trace', 'incident_capture', 'metrics_export_skipped')}
+            for role, values in data.get('runtime', {}).get('role_metrics', {}).items()}
+    return dict(window=window, image_id=result['image_id'], probe_failures_in_window=len(episodes),
+                episodes=selected, runtime_loss_counters=loss,
+                trace_sha256={path.name: hashlib.file_digest(path.open('rb'), 'sha256').hexdigest() for path in paths},
+                interpretation='Temporal overlap does not establish causation. Transition intervals are supervisor observations, '
+                'not measured quote downtime. Context includes up to one second before failure; intersects_transition '
+                'distinguishes preceding work. Captured stacks/spans describe their own sampling times. Missing records and '
+                'bounded incident/file/queue limits prevent complete attribution; an unpaired failure uses at most 15s context.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', type=Path)
     parser.add_argument('--window', required=True)
     parser.add_argument('--process-case', choices=('single', 'split'), help='Read the supervised diagnostic trace layout')
+    parser.add_argument('--incidents', action='store_true', help='Correlate probe transitions with bounded incident evidence')
     args = parser.parse_args()
-    output = analyze(args.directory, args.window, process_case=args.process_case)
-    path = args.directory / (args.window + '-trace-analysis.json')
+    if args.incidents and args.process_case:
+        parser.error('Incident and process-case layouts are separate')
+    output = (analyze_incidents(args.directory, args.window) if args.incidents else
+              analyze(args.directory, args.window, process_case=args.process_case))
+    path = args.directory / (args.window + ('-incident-analysis.json' if args.incidents else '-trace-analysis.json'))
     path.write_text(json.dumps(output, indent=2) + '\n')
     print(path)
 

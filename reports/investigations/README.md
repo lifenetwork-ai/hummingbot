@@ -8,6 +8,7 @@ current release acceptance is recorded separately in the release closeout.
 
 | Report | Evidence and scope |
 | --- | --- |
+| [Engine probe diagnostics](mm-engine-probe-latency.md), [evidence](mm-engine-probe-latency-evidence.json) | Longest-span retention, reserved incident capacity and cheaper hot-leaf instrumentation;61 tests, smoke and300s probe pass. One transient probe recovers; no unique runtime cause or new full release is claimed. |
 | [Focused historical-cause review](mm-historical-cause-review.md), [evidence](mm-historical-cause-evidence.json) | Test CPU/heartbeat timestamp defect reproduced and fixed;119 tests and packaged old/new comparison pass. Old H1/H2/H3 causes remain unproven; accepted R1/R2 unchanged. |
 | [Measurement follow-up](mm-measurement-remediation.md), [evidence](mm-measurement-remediation-evidence.json) | On-loop observer cost corrected; measured disk-cache retention contract declared before new gate. Native114, bounded probes, full R1 and matched shipping R2 pass. |
 | [Automatic incident capture](mm-incident-investigation.md), [evidence](mm-incident-investigation-evidence.json) | 61 related tests and matched bounded diagnostics pass; full release is subsequently accepted in current closeout, historical long-lag cause remains unproven |

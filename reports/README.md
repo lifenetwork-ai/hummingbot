@@ -4,6 +4,13 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Probe diagnostics follow-up](investigations/mm-engine-probe-latency.md), 2026-11-02:
+  61 native tests, clean-image smoke and300s diagnostic pass (p99 158ms, zero
+  errors,300 matching fills). Native hot-leaf trace overhead is556→87ms per50k
+  calls; no trading-logic change. One short probe timeout recovers; cause remains
+  open. Docker cleanup removed the previous Demo container/image; its persistent
+  DB volume remains. The new diagnostic image is not promoted to Demo/release.
+
 - [Latest packaged release and stopped Demo upgrade](release/mm-submission-log-release.md):
   `a190b024` passes packaged logging smoke, three targeted E2E groups, full R1
   (including60-minute soak and six faults) and matched R2. Soak p99 is643ms,

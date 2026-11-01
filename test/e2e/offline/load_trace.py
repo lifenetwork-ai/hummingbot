@@ -1,6 +1,7 @@
 """Bounded, test-only causal traces. Never records SQL parameters or frame locals."""
 import contextvars
 import hashlib
+import heapq
 import inspect
 import json
 import queue
@@ -99,14 +100,18 @@ class DeferredGCTrace:
                     dropped_events=self.dropped_events)
 
 
-def instrument_sync(owner, name, key, samples, totals, tracer, attributes=None):
+def instrument_sync(owner, name, key, samples, totals, tracer, attributes=None, *, slow_only=False):
     """Test-only synchronous wall/thread-CPU timing, preserving method binding."""
     descriptor = inspect.getattr_static(owner, name)
     original = descriptor.__func__ if isinstance(descriptor, classmethod) else getattr(owner, name)
 
     def measured(*args, **kwargs):
         started, cpu = time.perf_counter_ns(), time.thread_time_ns()
-        span = tracer.begin(key) if tracer else None
+        trace_started = time.monotonic_ns() if tracer and slow_only else None
+        parent = tracer.current.get() if tracer and slow_only else None
+        if parent and parent['_root']['finished']:
+            parent = None
+        span = tracer.begin(key) if tracer and not slow_only else None
         result, error = None, None
         try:
             result = original(*args, **kwargs)
@@ -115,12 +120,17 @@ def instrument_sync(owner, name, key, samples, totals, tracer, attributes=None):
             error = type(exception).__name__
             raise
         finally:
-            samples[key].append((time.perf_counter_ns() - started) / 1e6)
-            samples[key.removesuffix('_ms') + '_cpu_ms'].append((time.thread_time_ns() - cpu) / 1e6)
+            duration, cpu_ms = (time.perf_counter_ns() - started) / 1e6, (time.thread_time_ns() - cpu) / 1e6
+            samples[key].append(duration)
+            samples[key.removesuffix('_ms') + '_cpu_ms'].append(cpu_ms)
             totals[key + '_count'] += 1
-            if tracer:
+            if tracer and (not slow_only or duration >= tracer.slow_ms):
                 details = attributes(args, result) if attributes else {}
-                tracer.end(span, error=error, **details)
+                if slow_only:
+                    tracer.completed_sync(key, trace_started, time.monotonic_ns(), cpu_ms,
+                                          parent=parent, error=error, **details)
+                else:
+                    tracer.end(span, error=error, **details)
     setattr(owner, name, classmethod(measured) if isinstance(descriptor, classmethod) else measured)
 
 
@@ -169,14 +179,27 @@ def sql_metadata(statement):
 
 
 class TraceSink:
-    def __init__(self, path, *, max_bytes=128 * 1024**2, queue_limit=2048, append=False):
+    def __init__(self, path, *, max_bytes=128 * 1024**2, queue_limit=2048, append=False,
+                 reserved_bytes=0, reserved_kinds=()):
+        if isinstance(reserved_bytes, bool) or not isinstance(reserved_bytes, int) or not 0 <= reserved_bytes <= max_bytes:
+            raise ValueError('Reserved trace bytes must be an integer within the total byte budget')
         self.path, self.max_bytes = Path(path), max_bytes
+        self.reserved_bytes, self.reserved_kinds = reserved_bytes, frozenset(reserved_kinds)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.queue = queue.Queue(maxsize=queue_limit)
         self.stopping = threading.Event()
         self.append = append
-        self.counts = dict(written_records=0, written_bytes=self.path.stat().st_size if append and self.path.exists() else 0,
-                           dropped_records=0, writer_cpu_ms=0)
+        size = self.path.stat().st_size if append and self.path.exists() else 0
+        reserved = 0
+        if size and reserved_bytes:
+            with self.path.open('rb') as stream:
+                for line in stream:
+                    if json.loads(line).get('kind') in self.reserved_kinds:
+                        reserved += len(line)
+        self.counts = dict(written_records=0, written_bytes=size, ordinary_written_bytes=size - reserved,
+                           reserved_written_bytes=reserved, dropped_records=0, writer_cpu_ms=0)
+        self.dropped_by_kind = {}
+        self.counts_lock = threading.Lock()
         self.worker = threading.Thread(target=self._write, name='load-trace-writer', daemon=True)
         self.worker.start()
 
@@ -184,7 +207,17 @@ class TraceSink:
         try:
             self.queue.put_nowait(record)
         except queue.Full:
+            self._drop(record)
+
+    def _drop(self, record):
+        kind = record.get('kind', 'other')
+        # Diagnostic loss accounting must not create an unbounded key registry.
+        if kind not in {'cpu_sample', 'trace', 'late_span', 'gc', 'loop_stall', 'api_loop_stall',
+                        'loop_stall_trigger', 'probe_failure', 'probe_recovered', 'client_request'}:
+            kind = 'other'
+        with self.counts_lock:
             self.counts['dropped_records'] += 1
+            self.dropped_by_kind[kind] = self.dropped_by_kind.get(kind, 0) + 1
 
     def _write(self):
         with self.path.open('a' if self.append else 'w', buffering=65536) as output:
@@ -198,12 +231,18 @@ class TraceSink:
                 started = time.thread_time_ns()
                 line = json.dumps(record, separators=(',', ':'), default=str) + '\n'
                 size = len(line.encode())
-                if self.counts['written_bytes'] + size <= self.max_bytes:
+                reserved = record.get('kind') in self.reserved_kinds
+                fits = self.counts['written_bytes'] + size <= self.max_bytes
+                if not reserved:
+                    fits = fits and self.counts['ordinary_written_bytes'] + size <= self.max_bytes - self.reserved_bytes
+                if fits:
                     output.write(line)
-                    self.counts['written_bytes'] += size
-                    self.counts['written_records'] += 1
+                    with self.counts_lock:
+                        self.counts['written_bytes'] += size
+                        self.counts['written_records'] += 1
+                        self.counts['reserved_written_bytes' if reserved else 'ordinary_written_bytes'] += size
                 else:
-                    self.counts['dropped_records'] += 1
+                    self._drop(record)
                 self.counts['writer_cpu_ms'] += (time.thread_time_ns() - started) / 1e6
                 self.queue.task_done()
                 if time.monotonic() - last_flush >= 1:
@@ -211,7 +250,10 @@ class TraceSink:
                     last_flush = time.monotonic()
 
     def summary(self):
-        return {**self.counts, 'queue_depth': self.queue.qsize(), 'max_bytes': self.max_bytes,
+        with self.counts_lock:
+            counts = {**self.counts, 'dropped_by_kind': dict(self.dropped_by_kind)}
+        return {**counts, 'queue_depth': self.queue.qsize(), 'max_bytes': self.max_bytes,
+                'reserved_bytes': self.reserved_bytes, 'reserved_kinds': sorted(self.reserved_kinds),
                 'writer_alive': self.worker.is_alive()}
 
     def close(self):
@@ -227,13 +269,17 @@ class TraceRecorder:
         self.active = {}
         self.dropped_spans = 0
 
+    @staticmethod
+    def _new_root(operation, request_id=None):
+        return dict(trace_id=uuid.uuid4().hex, request_id=request_id, operation=operation,
+                    spans=[], finished=False, dropped_spans=0, _children=[], _seen=0)
+
     def begin(self, operation, **attributes):
         parent = self.current.get()
         root = parent['_root'] if parent and not parent['_root']['finished'] else None
         owns = root is None
         if owns:
-            root = dict(trace_id=uuid.uuid4().hex, request_id=attributes.get('request_id'),
-                        operation=operation, spans=[], finished=False, dropped_spans=0)
+            root = self._new_root(operation, attributes.get('request_id'))
         span = dict(span_id=uuid.uuid4().hex[:16], trace_id=root['trace_id'],
                     parent_id=parent['span_id'] if not owns else None, operation=operation,
                     start_ns=time.monotonic_ns(), start_utc=time.time(), thread_id=threading.get_ident(),
@@ -249,27 +295,54 @@ class TraceRecorder:
         public = {key: value for key, value in span.items() if not key.startswith('_')}
         public.update(end_ns=ended, duration_ms=(ended - span['start_ns']) / 1e6,
                       thread_cpu_ms=(time.thread_time_ns() - span['_cpu']) / 1e6, **attributes)
-        root = span['_root']
-        event = None
-        with self.lock:
-            self.active.pop(span['span_id'], None)
-            if root['finished']:
-                if public['duration_ms'] >= self.slow_ms:
-                    event = dict(kind='late_span', request_id=root['request_id'], span=public)
-            elif len(root['spans']) < self.max_children:
-                root['spans'].append(public)
-            else:
-                root['dropped_spans'] += 1
-                self.dropped_spans += 1
-            if span['_owns']:
-                root['finished'] = True
-                if public['duration_ms'] >= self.slow_ms:
-                    event = {key: value for key, value in root.items() if key != 'finished'}
-                    event.update(kind='trace', start_ns=span['start_ns'], end_ns=ended,
-                                 start_utc=span['start_utc'], duration_ms=public['duration_ms'])
+        event = self._finish(span['_root'], public, owns=span['_owns'], active_id=span['span_id'])
         self.current.reset(span['_token'])
         if event:
             self.sink(event)
+
+    def completed_sync(self, operation, started, ended, cpu_ms, *, parent, **attributes):
+        """Rare completed slow leaves; all-call scalar metrics remain separate.
+
+        No active leaf is registered. During a blocked call the watchdog still
+        captures its thread stack and any enclosing instrumented operation.
+        """
+        root = parent['_root'] if parent else self._new_root(operation)
+        public = dict(span_id=uuid.uuid4().hex[:16], trace_id=root['trace_id'],
+                      parent_id=parent['span_id'] if parent else None, operation=operation,
+                      start_ns=started, end_ns=ended, duration_ms=(ended - started) / 1e6,
+                      thread_cpu_ms=cpu_ms, thread_id=threading.get_ident(),
+                      capture_policy='completed_if_slow', **attributes)
+        event = self._finish(root, public, owns=parent is None)
+        if event:
+            self.sink(event)
+
+    def _finish(self, root, public, *, owns, active_id=None):
+        event = None
+        with self.lock:
+            if active_id is not None:
+                self.active.pop(active_id, None)
+            if root['finished']:
+                if public['duration_ms'] >= self.slow_ms:
+                    event = dict(kind='late_span', request_id=root['request_id'], span=public)
+            else:
+                root['_seen'] += 1
+                child = (public['duration_ms'], -root['_seen'], public)
+                if len(root['_children']) < self.max_children:
+                    heapq.heappush(root['_children'], child)
+                else:
+                    # Retain the longest spans, including work occurring late in
+                    # a busy root. Equal durations retain the earlier observation.
+                    heapq.heappushpop(root['_children'], child)
+                    root['dropped_spans'] += 1
+                    self.dropped_spans += 1
+            if owns:
+                root['finished'] = True
+                root['spans'] = [row[2] for row in sorted(root.pop('_children'), key=lambda row: -row[1])]
+                if public['duration_ms'] >= self.slow_ms:
+                    event = {key: value for key, value in root.items() if key != 'finished' and not key.startswith('_')}
+                    event.update(kind='trace', start_ns=public['start_ns'], end_ns=public['end_ns'],
+                                 start_utc=public.get('start_utc'), duration_ms=public['duration_ms'])
+        return event
 
     def active_snapshot(self, limit=None):
         with self.lock:

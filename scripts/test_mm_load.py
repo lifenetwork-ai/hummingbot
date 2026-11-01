@@ -245,6 +245,7 @@ def main():
         ROOT / "scripts/test_mm_load.py", ROOT / "scripts/test_e2e_offline.py", ROOT / "scripts/analyze_mm_load_trace.py",
         ROOT / "scripts/mm_load_budgets.py", ROOT / "scripts/mm_load_faults.py", ROOT / "scripts/mm_load_ledger.py",
         ROOT / "scripts/mm_load_processes.py", ROOT / "test/e2e/offline/load_entrypoint.py",
+        ROOT / "test/e2e/offline/load_trace.py", ROOT / "test/e2e/offline/load_incidents.py",
         ROOT / "test/e2e/offline/load_service.py", ROOT / "test/e2e/offline/load_process_metrics.py")}
     try:
         with tempfile.TemporaryDirectory(prefix="hbot-mm-load-") as directory:
@@ -340,6 +341,11 @@ def main():
                     evidence['incident_policy'] = dict(history_seconds=10, tail_seconds=10, max_records=256,
                                                        max_buffer_bytes_per_role=512 * 1024, max_incidents_per_role=args.incident_max_captures,
                                                        max_disk_bytes_per_role=32 * 1024**2,
+                                                       reserved_event_bytes_per_role=8 * 1024**2,
+                                                       reserved_event_kinds=['probe_failure', 'probe_recovered', 'loop_stall',
+                                                                             'loop_stall_trigger', 'gc'],
+                                                       child_span_selection='longest duration, returned in completion order',
+                                                       slow_only_completed_operations=['outflow_advance_ms'],
                                                        sampling_ms=250, watchdog_poll_ms=50, max_active_spans=16,
                                                        parameters_and_frame_locals=False)
                 trace_directory = report / "trace" if args.trace else None
@@ -347,6 +353,8 @@ def main():
                     trace_directory.mkdir()
                     trace_directory.chmod(0o777)  # Test-only output mount for runtime UID 10001.
                     evidence["trace_policy"] = dict(path=str(trace_directory.relative_to(ROOT)),
+                                                    child_span_selection='longest duration, returned in completion order',
+                                                    slow_only_completed_operations=['outflow_advance_ms'],
                                                     slow_trace_ms=100, loop_stall_ms=200, database_sample_ms=250,
                                                     max_bytes_per_stream=128 * 1024**2, diagnostic_database_connections=1,
                                                     span_cpu_scope="inclusive thread CPU; async spans include interleaved work")
