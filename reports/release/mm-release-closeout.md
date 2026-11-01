@@ -1,7 +1,7 @@
 # Current-image release closeout
 
 Latest follow-up (2026-11-01): **candidate `3f5cbd0f` first rerun fails burst
-latency; an unchanged fresh full rerun is starting**.
+latency; the unchanged second run passes warm/mixed/burst and is in soak**.
 See [the new run](#2026-11-01-latent-fix-candidate-rerun) and
 [separate evidence](mm-latent-fixes-load-evidence.json). All earlier accepted/failed
 results below remain tied to their original images and measurement sources.
@@ -287,3 +287,13 @@ proven. All1,221 frozen source hashes still match.
 A fresh full rerun keeps the same image/manifest, flags, rates, durations and
 budgets. This failure remains in the separate evidence even if the next run
 passes; no source bug or historical cause is declared fixed by a later pass.
+
+
+### Second full rerun — healthy prefixes pass, soak pending
+
+Run `20261101-063816-31af48` uses the same candidate and all original settings.
+Warm300/mixed900/burst90 pass with primary p99 338.91/718.24/285.11ms and zero
+unexpected errors. The cumulative1,290 fills and positions match. Random3600
+soak is now running; faults and matched shipping R2 remain conditional on the
+complete passing full R1. This passing burst does not explain or erase the
+first attempt's latency failure; no runtime/pool/cache change has been made.

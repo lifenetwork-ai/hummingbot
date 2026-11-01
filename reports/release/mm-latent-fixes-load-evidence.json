@@ -1,13 +1,13 @@
 {
-  "status": "rerunning_unchanged_after_preserved_burst_failure",
+  "status": "second_attempt_soak_running_after_warm_mixed_burst_pass",
   "release_accepted": false,
   "image_id": "sha256:3f5cbd0f6862494dbcc7d33d2e2e3b7b1e3b00086794983f1488f9f8ee942ab5",
   "manifest": "sha256:6e54a3481605ad40ef8861294f3887ea63c2116fb246ce1da23617b09e41943a",
   "application_commit": "3da3598bf3db45b04cc671ddedac33ea27ccb882",
   "measurement_commit": "1cc8abaa0e6f346e740ecf527314012540e32897",
   "started_at": "2026-10-31T23:12:42.112657+00:00",
-  "r1_run": null,
-  "r1_passed": false,
+  "r1_run": "build/mm-load/20261101-063816-31af48",
+  "r1_passed": null,
   "r2_passed": null,
   "configuration": {
     "profile": "all",
@@ -127,5 +127,62 @@
         "Soak and fault matrix not executed; R2 intentionally skipped"
       ]
     }
-  ]
+  ],
+  "retry_source_unchanged": true,
+  "current_attempt": {
+    "run": "build/mm-load/20261101-063816-31af48",
+    "passed": null,
+    "release_scope_complete": false,
+    "completed_windows": {
+      "warmup": {
+        "duration_seconds": 300,
+        "read_p95_ms": 64.9661990464665,
+        "read_p99_ms": 338.9066060190089,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "burst_drain_seconds": null,
+        "peak_rss_bytes": 714067968
+      },
+      "mixed": {
+        "duration_seconds": 900,
+        "read_p95_ms": 144.21926601789892,
+        "read_p99_ms": 718.2442999910563,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "burst_drain_seconds": null,
+        "peak_rss_bytes": 742694912
+      },
+      "bursts": {
+        "duration_seconds": 90,
+        "read_p95_ms": 77.80664699384943,
+        "read_p99_ms": 285.11004900792614,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1290,
+          "unique_recorder_fills": 1290,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "burst_drain_seconds": 2.3229451179504395,
+        "peak_rss_bytes": 764162048
+      }
+    },
+    "next_stage": "Random soak 3600 seconds; faults only after healthy gates pass"
+  }
 }
