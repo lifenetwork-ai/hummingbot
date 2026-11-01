@@ -12,7 +12,7 @@ Persistent Demo storage/configuration and exchange accounts are untouched.
   Preserve worker/queue/control priority and explicitly stale fallback rules.
 - [x] A: Run focused and broad API regressions, document the concurrency contract
   and commit the completed phase.
-- [ ] B: Measure startup on realistic 20k/100k/1M executor history, selected scope,
+- [x] B: Measure startup on realistic 20k/100k/1M executor history, selected scope,
   query count and Python peak memory with disposable PostgreSQL. If allocation
   is material, remove unnecessary row hydration with differential/cost tests;
   preserve exact Float-to-Decimal behavior and cursor cleanup. Commit findings.

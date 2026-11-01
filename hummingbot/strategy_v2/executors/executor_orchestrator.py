@@ -6,6 +6,8 @@ from contextlib import closing
 from decimal import Decimal
 from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
+from sqlalchemy.engine import Row
+
 from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.core.data_type.common import PositionAction, PositionMode, PriceType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
@@ -324,7 +326,7 @@ class ExecutorOrchestrator:
                 continue
             self._load_position_from_db(controller_id, position)
 
-    def _update_cached_performance(self, controller_id: str, executor_info: Union[ExecutorInfo, Executors]):
+    def _update_cached_performance(self, controller_id: str, executor_info: Union[ExecutorInfo, Executors, Row]):
         """
         Update the cached performance for a specific controller with an executor's information.
         """

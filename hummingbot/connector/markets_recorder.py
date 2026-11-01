@@ -9,7 +9,8 @@ from shutil import move
 from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
-from sqlalchemy.orm import Query, Session, load_only
+from sqlalchemy.engine import Row
+from sqlalchemy.orm import Query, Session
 
 from hummingbot import data_path
 from hummingbot.client.config.client_config_map import MarketDataCollectionConfigMap
@@ -292,19 +293,18 @@ class MarketsRecorder:
             executors = session.query(Executors).all()
             return [executor.to_executor_info() for executor in executors]
 
-    def iter_executor_performance(self, controller_ids: List[str]) -> Iterator[Executors]:
+    def iter_executor_performance(self, controller_ids: List[str]) -> Iterator[Row]:
         """Stream only historical PnL fields for the selected controllers.
 
         Keep aggregation in the existing orchestrator: SQL SUM on Float columns
-        would change its Float -> Decimal arithmetic. Do not hydrate configuration
-        or order snapshots that performance recovery does not consume.
+        would change its Float -> Decimal arithmetic. Read the same column set
+        and SQL order without allocating a mapped object for every history row.
         """
         if not controller_ids:
             return
         with self._sql_manager.get_new_session() as session:
-            yield from (session.query(Executors)
-                        .options(load_only(Executors.controller_id, Executors.close_type,
-                                           Executors.net_pnl_quote, Executors.filled_amount_quote))
+            yield from (session.query(Executors.id, Executors.close_type, Executors.net_pnl_quote,
+                                      Executors.filled_amount_quote, Executors.controller_id)
                         .filter(Executors.controller_id.in_(controller_ids)).yield_per(1000))
 
     def get_positions_by_ids(self, position_ids: List[str]) -> List[Position]:

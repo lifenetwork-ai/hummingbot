@@ -5,6 +5,14 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-02
 
+- **Ordered reporting/startup work in progress:** per-filter daily refresh
+  admission committed `21ce776c1` (focused61/CLI889/PG23). Lightweight historical
+  executor rows preserve identical SQL/Decimal results while native million-row
+  initialization measures17.84→7.37s and Python scan peak3.43→0.72MiB; native84/
+  PG12 pass after the ORM-allocation Red. SQL review and final-image full R1/R2
+  still follow; these source checks are not new release acceptance. See
+  [plan](../../docs/plans/MM_REPORTING_STARTUP_OPTIMIZATION_TDD_PLAN.md) and
+  [report](../performance/mm-reporting-startup-optimization.md).
 - **Probe diagnostic follow-up complete:** longest bounded child-span retention,
   reserved incident capacity within32MiB, cheaper hot-leaf tracing and ownership/
   fill/checkpoint phase timings. Native61 and packaged smoke pass. A clean rebuilt

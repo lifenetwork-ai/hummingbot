@@ -154,6 +154,30 @@ def test_performance_v2_startup(recording, pg_engine):
     assert pg_engine.pool.checkedout() == 0
 
 
+def test_startup_projection_avoids_orm_hydration_and_lazy_snapshot_reads(recording, pg_engine):
+    recorder = recording[0]
+    seed_executors(pg_engine)
+    hydrated = 0
+
+    def loaded(instance, context):
+        nonlocal hydrated
+        hydrated += 1
+
+    event.listen(Executors, 'load', loaded)
+    try:
+        with queries(pg_engine) as statements:
+            rows = list(recorder.iter_executor_performance([f'selected-{i}' for i in range(20)]))
+            assert len(rows) == 2000
+            assert hydrated == 0, 'Performance recovery must not allocate a mapped executor for every historical row'
+            assert all(set(row._mapping) == {'id', 'close_type', 'net_pnl_quote', 'filled_amount_quote', 'controller_id'} for row in rows)
+            assert all(math.isfinite(row.net_pnl_quote) and math.isfinite(row.filled_amount_quote) for row in rows)
+        assert len(statements) == 1
+        assert 'executors.config' not in statements[0] and 'executors.custom_info' not in statements[0]
+        assert pg_engine.pool.checkedout() == 0
+    finally:
+        event.remove(Executors, 'load', loaded)
+
+
 def test_performance_position_scope_overrides_and_missing_history(recording, pg_engine):
     with pg_engine.begin() as connection:
         for cid in ("selected", "overridden", "unrelated"):

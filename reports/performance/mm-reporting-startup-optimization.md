@@ -39,9 +39,40 @@ Raw logs: `build/reporting-startup-20261102/a-*.log`.
 
 ## B — Historical startup
 
-Measurement pending after phase A commit. Preserve streamed history, exact
-Float-to-Decimal accumulation and cursor cleanup; no persistent aggregate is
-assumed necessary.
+The history iterator now returns lightweight SQLAlchemy rows instead of mapped
+`Executors` instances. It selects the same five columns in the same order,
+emitting byte-identical SQL with the same1,000-row streaming batch. The existing
+orchestrator still performs Float-to-Decimal conversion, ordered Decimal sums,
+position-hold exclusions, close-type counts and finite-value validation.
+No SQL SUM, query/index change, extra cache, checkpoint or schema is introduced.
+
+A diagnostic-only paired experiment uses native Python and disposable PostgreSQL
+14 limited to2 CPU/512MiB. Historical rows include1KiB JSON snapshots, while two
+selected controllers exercise filtered and all-selected scopes. Each path is
+warmed, timed three times, then measured separately with tracemalloc. Timings
+are observations, not CI pass/fail thresholds or full bot cold-start guarantees.
+
+| History / selected | ORM p50 | Row p50 | ORM Python peak | Row Python peak |
+| --- | ---: | ---: | ---: | ---: |
+| 20,000 / 2,000 | 35.70ms | 25.37ms | 3.35MiB | 0.71MiB |
+| 100,000 / 100,000 | 1,551.12ms | 701.12ms | 3.43MiB | 0.71MiB |
+| 1,000,000 / 1,000,000 | 17,842.12ms | 7,372.46ms | 3.43MiB | 0.72MiB |
+
+All three comparisons preserve exactly equal cached performance and exactly
+two startup queries; the selected-column SQL is byte-identical. Million-row
+median executor-history initialization falls about59%, with about79% lower
+Python allocation peak. The peak describes the measured scan, not total process
+RSS. Measurements use a fixed baseline-then-candidate order with separate warmups;
+database/host effects are not isolated into a universal production percentage.
+The million-row diagnostic uses an explicit900s test timeout and180s seed budget;
+production query/I/O/startup deadlines remain unchanged.
+
+The deterministic cost regression first fails on2,000 unnecessary ORM load
+events. The final iterator passes that regression and existing exact-value,
+scope, invalid-history and cursor-cleanup checks. **84 native** and **12
+PostgreSQL** cases pass (268 PG cases deselected). The measured candidate is the
+same lightweight query retained by the source change. Raw comparison/helpers:
+`build/reporting-startup-20261102/b-*` and `startup_benchmark.py`.
 
 ## C — Daily SQL scaling
 
