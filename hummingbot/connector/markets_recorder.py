@@ -17,6 +17,7 @@ from hummingbot.client.config.client_config_map import MarketDataCollectionConfi
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.connector.utils import TradeFillOrderDetails
 from hummingbot.core.data_type.common import PriceType
+from hummingbot.core.data_type.trade_fee import TradeFeeBase
 from hummingbot.core.event.event_forwarder import SourceInfoEventForwarder
 from hummingbot.core.event.events import (
     BuyOrderCompletedEvent,
@@ -525,6 +526,25 @@ class MarketsRecorder:
             order.last_status = status
             order.last_update_timestamp = timestamp
 
+    @staticmethod
+    def _same_trade_fee(recorded, incoming):
+        if recorded == incoming:
+            return True
+        # Keep the raw payload on disk. Reuse fee models for exact Decimal
+        # comparison; unknown payload shapes retain the original strict policy.
+        fields = {'fee_type', 'percent', 'percent_token', 'flat_fees'}
+        try:
+            if set(recorded) != fields or set(incoming) != fields:
+                return False
+            if any(set(token) != {'token', 'amount'}
+                   for fee in (recorded, incoming) for token in fee['flat_fees']):
+                return False
+            fees = [TradeFeeBase.from_json(fee) for fee in (recorded, incoming)]
+            return (all(fee.percent.is_finite() and all(token.amount.is_finite() for token in fee.flat_fees)
+                        for fee in fees) and fees[0] == fees[1])
+        except (KeyError, TypeError, ValueError, ArithmeticError):
+            return False
+
     def _did_fill_order(self,
                         event_tag: int,
                         market: ConnectorBase,
@@ -546,7 +566,7 @@ class MarketsRecorder:
                 if existing_fill is not None:
                     if (existing_fill.symbol != evt.trading_pair or existing_fill.price != evt.price
                             or existing_fill.amount != evt.amount or existing_fill.trade_type != evt.trade_type.name
-                            or existing_fill.trade_fee != evt.trade_fee.to_json()):
+                            or not self._same_trade_fee(existing_fill.trade_fee, evt.trade_fee.to_json())):
                         raise ValueError("Duplicate fill identity has conflicting economic values.")
                     self.save_market_states(self._config_file_path, market, session=session)
                 else:

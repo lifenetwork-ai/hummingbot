@@ -163,6 +163,47 @@ def test_conflicting_duplicate_fill_is_rejected(recording):
     assert not manager.persistence_healthy
 
 
+@pytest.mark.parametrize('percent,amount,replay_percent,replay_amount', [
+    ('0', '0.2', '0.000', '0.2000'),
+    ('0.0010', '0.2000', '0.001', '0.2'),
+])
+def test_duplicate_fill_fee_decimal_format_is_not_an_economic_conflict(
+        recording, percent, amount, replay_percent, replay_amount):
+    recorder, manager, market = recording
+    original = AddedToCostTradeFee(percent=Decimal(percent), flat_fees=[TokenAmount('USDT', Decimal(amount))])
+    replay = AddedToCostTradeFee(percent=Decimal(replay_percent), flat_fees=[TokenAmount('USDT', Decimal(replay_amount))])
+    with patch('hummingbot.core.order_submission_guard.fill_committed') as committed:
+        recorder._did_fill_order(MarketEvent.OrderFilled.value, market, fill(trade_fee=original))
+        recorder._did_fill_order(MarketEvent.OrderFilled.value, market, fill(trade_fee=replay))
+    assert manager.persistence_healthy
+    assert committed.call_count == 2
+    assert committed.call_args_list[0] == committed.call_args_list[1]
+    with manager.get_new_session() as session:
+        assert session.query(TradeFill).count() == 1
+        assert session.query(OrderStatus).count() == 1
+        stored = session.query(TradeFill).one()
+        assert stored.trade_fee == original.to_json()
+        assert stored.amount == Decimal('0.012345')
+
+
+@pytest.mark.parametrize('fee', [
+    AddedToCostTradeFee(flat_fees=[TokenAmount('USDT', Decimal('0.20001'))]),
+    AddedToCostTradeFee(flat_fees=[TokenAmount('BTC', Decimal('0.2'))]),
+    AddedToCostTradeFee(percent=Decimal('0.01'), flat_fees=[TokenAmount('USDT', Decimal('0.2'))]),
+])
+def test_duplicate_fill_with_different_economic_fee_still_closes_persistence(recording, fee):
+    recorder, manager, market = recording
+    recorder._did_fill_order(MarketEvent.OrderFilled.value, market, fill())
+    with patch('hummingbot.core.order_submission_guard.fill_committed') as committed:
+        with pytest.raises(ValueError, match='conflicting'):
+            recorder._did_fill_order(MarketEvent.OrderFilled.value, market, fill(trade_fee=fee))
+    committed.assert_not_called()
+    assert not manager.persistence_healthy
+    with manager.get_new_session() as session:
+        assert session.query(TradeFill).count() == 1
+        assert session.query(TradeFill).one().trade_fee == fill().trade_fee.to_json()
+
+
 def test_precision_partial_fill_replay_and_exact_daily_totals(recording):
     from hummingbot.model.admin_reporting import daily
 

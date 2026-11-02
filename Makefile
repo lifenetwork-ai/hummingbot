@@ -63,6 +63,7 @@ test-cloudrun-regression:
 	$(PYTHON) -m pytest -q test/hummingbot/client/test_performance.py
 	$(PYTHON) -m pytest -q test/hummingbot/cli test/hummingbot/model test/hummingbot/client/test_runner.py \
 		test/hummingbot/connector/test_markets_recorder.py \
+		test/hummingbot/connector/test_trade_fee_replay.py \
 		test/hummingbot/connector/test_recorder_history_retention.py \
 		test/hummingbot/connector/exchange/okx test/hummingbot/connector/derivative/okx_perpetual \
 		test/hummingbot/core/test_trading_core.py test/hummingbot/core/web_assistant \

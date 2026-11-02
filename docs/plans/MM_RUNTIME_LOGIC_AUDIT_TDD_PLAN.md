@@ -8,7 +8,7 @@ Date: 2026-11-02 (Asia/Saigon). Follow the completed
 - [x] Red/Green external durable HALT while core/startup remains active. Cleanup
   resting quotes/startup before a halted snapshot; failed cleanup must require
   process recovery rather than publish success. Preserve existing stop/recovery.
-- [ ] Red/Green equivalent duplicate fill fees with different Decimal text.
+- [x] Red/Green equivalent duplicate fill fees with different Decimal text.
   Reuse existing fee models, preserve the first raw payload, reject real fee
   changes and never acknowledge a failed commit.
 - [ ] Run broad native/PostgreSQL checks and relevant image lifecycle/recovery
