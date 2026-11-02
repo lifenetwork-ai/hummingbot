@@ -77,3 +77,27 @@ def test_one_event_overlapping_two_incidents_keeps_independent_intersection_flag
     episodes = {r['failure_ns']: r for r in analyze_incidents(tmp_path, 'probe')['episodes']}
     assert episodes[2_000_000_000]['trading_activity']['engine_events'][0]['intersects_probe_transition'] is True
     assert episodes[5_000_000_000]['trading_activity']['engine_events'][0]['intersects_probe_transition'] is False
+
+
+def test_empty_quote_samples_have_no_order_age_and_do_not_prove_continuous_absence(tmp_path):
+    rows = [snapshot(n) for n in [1_500_000_000, 3_000_000_000, 4_500_000_000]]
+    for row in rows:
+        row['orders'] = []
+    fixture(tmp_path, [cycle(4_100_000_000, 1_000_000_000)], rows)
+    data = analyze_incidents(tmp_path, 'probe')['episodes'][0]['trading_activity']
+    assert data['observed_empty_venue_samples'] == 3
+    assert data['max_empty_sample_span_ms'] == 3000
+    assert data['min_observed_live_orders'] == 0
+    assert data['max_observed_live_order_age_ms'] is None
+    assert data['continuous_quoting_proven'] is False
+
+
+def test_observer_gap_cannot_join_two_empty_sample_groups(tmp_path):
+    rows = [snapshot(n) for n in [1_000_000_000, 2_000_000_000, 5_000_000_000, 6_000_000_000]]
+    for row in rows:
+        row['orders'] = []
+    fixture(tmp_path, [cycle(4_100_000_000, 1_000_000_000)], rows)
+    data = analyze_incidents(tmp_path, 'probe')['episodes'][0]['trading_activity']
+    assert data['max_empty_sample_span_ms'] == 1000
+    assert data['max_venue_sample_gap_ms'] == 3000
+    assert data['status'] == 'partial'

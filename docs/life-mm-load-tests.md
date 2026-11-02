@@ -317,7 +317,11 @@ gaps/durations, instance identity and readiness, plus OKX spot/perpetual connect
 submit/cancel call-to-return wall time. Errors, cancellation and false returns
 stay distinct. A completed tick does not prove quote admission; connector return
 does not prove terminal cancellation, and its timing excludes work before that
-connector method was entered. No arguments, balances or credentials are logged.
+connector method was entered. Only order/controller/connector identity, readiness
+and timing are recorded; request payloads, balances and credentials are omitted.
+Runtime counters/maxima cover process lifetime through the latest export,
+including startup and command preparation. Per-incident timestamps provide the
+separate context window; missing completion events are not zero-duration calls.
 
 An independent task in the load-client container samples simulator live quotes
 once per second, even while the engine is paused. Age starts at simulated venue
