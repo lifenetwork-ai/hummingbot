@@ -82,6 +82,7 @@ def test_connector_block_logs_reason_without_network_advice(caplog, error_type, 
 ])
 def test_executor_classifies_logs_without_changing_failure_bookkeeping(caplog, slot, role, retry_increment, kind, level):
     executor = PositionExecutor.__new__(PositionExecutor)
+    executor._shutdown_orders_changed = MagicMock()
     executor._open_order = executor._close_order = executor._take_profit_limit_order = None
     tracked = TrackedOrder('order-1')
     setattr(executor, slot, tracked)

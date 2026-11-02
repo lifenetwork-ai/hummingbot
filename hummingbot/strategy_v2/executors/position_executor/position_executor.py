@@ -60,6 +60,7 @@ class PositionExecutor(ExecutorBase):
         self._trailing_stop_trigger_pct: Optional[Decimal] = None
 
         self._total_executed_amount_backup: Decimal = Decimal("0")
+        self._shutdown_orders_changed = asyncio.Event()
 
     @property
     def is_perpetual(self) -> bool:
@@ -354,7 +355,36 @@ class PositionExecutor(ExecutorBase):
                 self._current_retries += 1
         else:
             self.cancel_open_orders()
-        await self._sleep(5.0)
+            await self._wait_for_shutdown_orders()
+            return
+        if self.status != RunnableStatus.TERMINATED:
+            await self._sleep(5.0)
+
+    async def _wait_for_shutdown_orders(self):
+        """Keep the existing retry deadline; terminal callbacks can end idle waiting.
+
+        A single ACK cannot release this barrier while another order is pending.
+        No private request is retried inside the wait and no terminal state is inferred.
+        """
+        if self.all_orders_completed():
+            return
+        deadline = asyncio.create_task(self._sleep(5.0), name="position-shutdown-deadline")
+        changed = None
+        try:
+            while not self.all_orders_completed():
+                self._shutdown_orders_changed.clear()
+                changed = asyncio.create_task(self._shutdown_orders_changed.wait(), name="position-shutdown-notify")
+                done, _ = await asyncio.wait((deadline, changed), return_when=asyncio.FIRST_COMPLETED)
+                if deadline in done:
+                    await deadline
+                    break
+                await changed
+        finally:
+            tasks = [task for task in (deadline, changed) if task is not None]
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     def open_and_close_volume_match(self):
         if self.open_filled_amount == Decimal("0"):
@@ -678,6 +708,7 @@ class PositionExecutor(ExecutorBase):
         This method is responsible for processing the order completed event. Here we will check if the id is one of the
         tracked orders and update the state
         """
+        self._notify_shutdown_order_change(event.order_id)
         self._total_executed_amount_backup += event.base_asset_amount
         self.update_tracked_orders_with_order_id(event.order_id)
 
@@ -690,6 +721,7 @@ class PositionExecutor(ExecutorBase):
         """
         This method is responsible for processing the order canceled event
         """
+        self._notify_shutdown_order_change(event.order_id)
         if self._close_order and event.order_id == self._close_order.order_id:
             self._failed_orders.append(self._close_order)
             self._close_order = None
@@ -705,6 +737,7 @@ class PositionExecutor(ExecutorBase):
         This method is responsible for processing the order failed event. Here we will add the InFlightOrder to the
         failed orders list.
         """
+        self._notify_shutdown_order_change(event.order_id)
         if self._open_order and event.order_id == self._open_order.order_id:
             self._failed_orders.append(self._open_order)
             self._open_order = None
@@ -719,6 +752,12 @@ class PositionExecutor(ExecutorBase):
             self._failed_orders.append(self._take_profit_limit_order)
             self._take_profit_limit_order = None
             self._log_order_failure("Take profit", event)
+
+    def _notify_shutdown_order_change(self, order_id: str):
+        # These synchronous callbacks finish bookkeeping before a waiter can run.
+        if any(order and order.order_id == order_id for order in
+               (self._open_order, self._close_order, self._take_profit_limit_order)):
+            self._shutdown_orders_changed.set()
 
     def _log_order_failure(self, role: str, event: MarketOrderFailureEvent):
         from hummingbot.core.order_submission_guard import submission_block_log_context
