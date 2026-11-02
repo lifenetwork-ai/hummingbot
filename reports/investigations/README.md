@@ -2,7 +2,10 @@
 
 [All reports](../README.md) · [Current release](../release/mm-release-closeout.md)
 
-The latest residual-probe follow-up removes a duplicate observer read and
+The latest logic audit fixes durable-HALT cleanup and equivalent-fee replay,
+with broad source and targeted image recovery checks. Candidate `95cde31c` has
+no new full-release/hour/Demo gate; older full-gate images predate these fixes.
+The preceding residual-probe follow-up removes a duplicate observer read and
 completes targeted candidate validation; full release scope remains below.
 The status-publication follow-up confirms and fixes one blocking path, with
 full local image gates complete. The controlled comparison is the preceding
@@ -12,6 +15,7 @@ current release acceptance is recorded separately in the release closeout.
 
 | Report | Evidence and scope |
 | --- | --- |
+| [Runtime logic audit](mm-runtime-logic-audit.md), [evidence](mm-runtime-logic-audit-evidence.json) | Two confirmed runtime defects fixed with Red/Green; native2,310 plus11 subtests/PG296/Swagger, two targeted E2E groups and external HALT/restart pass on95cde31c. No new full-release/load/Demo claim. |
 | [Further residual probes](mm-engine-residual-probes.md), [evidence](mm-engine-residual-probes-evidence.json) | Observer queries3→2, real HTTP Red/Green, native/PG and MM lifecycle pass. Candidate18422eca passes300s diagnostic; no full-release or all-probe resolution claim, executor runtime unchanged. |
 | [Status-publication responsiveness](mm-engine-status-publication.md) | Real DB/HTTP legacy Red and candidate Green; final native/PG, rebuilt image and three E2E groups pass. Same-base 600s probes are 2 vs 2; full R1/R2 pass on e2d393b1 with residual probes15/6. Ownership/executor/recorder leads remain, unique cause open. |
 | [Controlled engine-probe comparison](mm-engine-probe-controlled.md), [evidence](mm-engine-probe-controlled-evidence.json) | All54 prior episodes reviewed; matched600s ordinary/scalar/rich controls pass with1/1/4 recovered probes and no API errors. Current-image read-only Demo preflight passes; no new shipping fix or unique historical cause claimed. |

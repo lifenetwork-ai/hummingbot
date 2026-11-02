@@ -2,6 +2,11 @@
 
 [All reports](../README.md) · [Latest local release](../investigations/mm-engine-status-publication.md)
 
+**New confirmed defects after the historical gates:** [runtime logic audit](../investigations/mm-runtime-logic-audit.md)
+fixes durable-HALT cleanup and equivalent-fee replay. Candidate `95cde31c` passes
+broad source and targeted image checks; its full release/load/soak gate has not
+been rerun. The full-gate images below predate these fixes.
+
 Start with the current closeout. Earlier image-specific attempts retain their
 original failures and scope; they are not additional open release gates.
 

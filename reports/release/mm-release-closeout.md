@@ -1,5 +1,10 @@
 # Current-image release closeout
 
+**Later logic audit:** [durable-HALT cleanup and fee-replay fixes](../investigations/mm-runtime-logic-audit.md)
+are packaged in candidate `95cde31c`. Broad source and targeted image checks pass;
+no new full release/load/soak is claimed. The historical full-gate images below
+predate these fixes and should not be interpreted as current defect clearance.
+
 Latest local-image follow-up: [`e2d393b1` status-publication fix and full R1/R2](../investigations/mm-engine-status-publication.md).
 Residual probes remain; connected Demo is not rerun on this image.
 

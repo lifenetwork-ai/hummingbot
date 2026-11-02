@@ -11,7 +11,12 @@ Date: 2026-11-02 (Asia/Saigon). Follow the completed
 - [x] Red/Green equivalent duplicate fill fees with different Decimal text.
   Reuse existing fee models, preserve the first raw payload, reject real fee
   changes and never acknowledge a failed commit.
-- [ ] Run broad native/PostgreSQL checks and relevant image lifecycle/recovery
+- [x] Run broad native/PostgreSQL checks and relevant image lifecycle/recovery
   tests; record actual scope without borrowing older artifact acceptance.
-- [ ] Publish findings/evidence, update checklists/progress and commit phases;
+- [x] Publish findings/evidence, update checklists/progress and commit phases;
   clean owned resources. Do not mutate Demo/account/config or deploy.
+
+[Result and scope](../../reports/investigations/mm-runtime-logic-audit.md):
+2,310 native tests plus 11 subtests, 296 PostgreSQL tests, Swagger, two targeted
+E2E groups and packaged external HALT/restart pass. Candidate `95cde31c` has no
+new full-release/load/sixty-minute soak or connected Demo acceptance.

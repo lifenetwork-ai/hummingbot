@@ -4,6 +4,14 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Runtime logic audit](investigations/mm-runtime-logic-audit.md),
+  [evidence](investigations/mm-runtime-logic-audit-evidence.json), 2026-11-02:
+  fixes durable HALT leaving active core/resting orders and equivalent Decimal
+  fee text rejecting duplicate fills. Native 2,310 plus 11 subtests, PG 296,
+  Swagger, two targeted E2E groups and packaged external HALT/restart pass.
+  Candidate `95cde31c` has no new full-release/hour/Demo acceptance; earlier
+  full-gate images predate these confirmed fixes.
+
 - [Further residual-probe investigation](investigations/mm-engine-residual-probes.md),
   [evidence](investigations/mm-engine-residual-probes-evidence.json), 2026-11-02:
   redundant observer owner read removed, real PG/HTTP Red/Green and broad source

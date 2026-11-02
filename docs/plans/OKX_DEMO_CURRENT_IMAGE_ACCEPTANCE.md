@@ -1,5 +1,11 @@
 # Current-image OKX Demo acceptance
 
+**Later local logic fixes:** [runtime audit](../../reports/investigations/mm-runtime-logic-audit.md)
+closes durable-HALT cleanup and equivalent-fee replay defects on candidate
+`95cde31c`, with broad source and targeted simulated lifecycle/recovery checks.
+No new full release/load/soak or connected Demo acceptance is claimed for it.
+Earlier images and completed checklists below predate these fixes.
+
 Latest local image acceptance: [`e2d393b1` status-publication follow-up](../../reports/investigations/mm-engine-status-publication.md).
 Native/PostgreSQL/Swagger, three E2E groups, full R1 and matched shipping R2 pass.
 Transient probes remain; there is no new-image connected Demo session or upgrade.

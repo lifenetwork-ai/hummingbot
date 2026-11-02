@@ -2,8 +2,10 @@
 
 Date: 2026-11-02 (Asia/Saigon).
 [Plan](../../docs/plans/MM_RUNTIME_LOGIC_AUDIT_TDD_PLAN.md).
-Source fixes are being verified. This report does not relabel previous image
-acceptance or claim all possible defects are eliminated.
+Two confirmed runtime defects are fixed with Red/Green regressions. Broad source
+checks and scoped image lifecycle/recovery checks pass. [Portable evidence](mm-runtime-logic-audit-evidence.json).
+This report does not relabel previous image acceptance or claim all possible
+defects are eliminated.
 
 ## Confirmed defect A: durable HALT left the core active
 
@@ -79,7 +81,39 @@ acknowledge a fill. Six targeted PostgreSQL cases pass after the fee fix.
   identity/backend-lock check. No exchange mutation or send authority moves into
   the background observer.
 
-Broad native/PostgreSQL and relevant image lifecycle checks follow the two
-focused fixes. No API/YAML/env, migration, risk limits or cache change is needed.
-Raw attempts: `build/logic-audit-20261102/`. Demo account/config/volume and Cloud
-Run deployment are outside this follow-up.
+## Final verification and artifact scope
+
+Final source `7b727628f` passes **2,310 native tests plus 11 subtests, 296 real
+PostgreSQL tests and Swagger generation**. Passing suites retain their reported
+dependency/deprecation/resource warnings. Fix commits are `3f8a9395c` and
+`87e1d594b` for HALT, and `7b727628f` for fee replay.
+
+Candidate `hummingbot-cloudrun:logic-audit`, image `95cde31c` / manifest
+`24ea415a`, packages that source. It preserves the dependency layers of prior
+diagnostic candidate `18422eca`; the two changed packaged modules are service.py
+and markets_recorder.py. All 1,155 packaged source/config hashes still match
+after verification. The raw helper metadata calls the base an accepted image;
+that means its earlier targeted diagnostic checks, **not full-release acceptance**.
+
+On the packaged service, disposable PostgreSQL and exchange simulator, eight
+live maker quotes exist before an externally injected durable HALT. Cleanup
+leaves zero live quotes in 1.055 seconds including polling. Switch returns 409
+without changing the control version; the HALT reason is retained before restart.
+An explicit restart increases owner generation, retains HALT, leaves no pending
+intents and accepts no additional orders. Liveness remains 200. The unchanged
+container start timestamp does not independently prove unchanged child-engine
+PID, and the local cleanup time is not a production cancellation SLA.
+
+Two standard packaged E2E groups also pass on this exact image: spot
+fill/partial-fill/replay, ACK/ownership/DB recovery; and LIFE MM's three profiles
+across spot/perpetual/both, Stop/restart and DB recovery. These groups include
+runtime smoke. This is targeted lifecycle acceptance, **not all E2E scenarios
+or a new full R1/R2/load/sixty-minute soak**. No connected Demo or deployment is
+performed. The older full-gate image `e2d393b1` predates both fixes; its historical
+passes remain valid only for those recorded runs and do not close these defects.
+Historical residual-probe attribution is unchanged by this logic audit.
+
+No API/YAML/env, migration, risk-limit or cache change is needed. Owned test
+containers and the temporary registry tag are removed; the candidate and prior
+images remain. Original Demo volume/account/config and unrelated containers are
+untouched. Raw attempts: `build/logic-audit-20261102/`.

@@ -5,6 +5,20 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-02
 
+- **Runtime logic audit complete:** durable HALT now drains the active core and
+  resting quotes before completed halted publication; prior-HALT cold recovery
+  retains reconciliation with new-risk admission closed. Equivalent Decimal
+  fee text no longer causes a false conflicting replay; real fee changes still
+  reject and the original raw payload is preserved. Commits `3f8a9395c`,
+  `87e1d594b`, `7b727628f`; final native 2,310 plus 11 subtests, PG 296 and Swagger
+  pass. Candidate `95cde31c` passes two targeted E2E groups and external HALT:
+  eight quotes canceled, switch rejected, planned restart retains HALT with no
+  new orders. No new full-release/hour/Demo gate; old full-gate images predate
+  these defects' fixes. Owned resources cleaned; original Demo unchanged.
+  [Plan](../../docs/plans/MM_RUNTIME_LOGIC_AUDIT_TDD_PLAN.md),
+  [report](../investigations/mm-runtime-logic-audit.md),
+  [evidence](../investigations/mm-runtime-logic-audit-evidence.json).
+
 - **Further residual-probe investigation complete:** `717c51727` removes one
   discarded owner read per existing-owner observer iteration (real PG 3→2).
   Injected 120ms ownership reads reproduce a 300ms HTTP timeout on accepted
