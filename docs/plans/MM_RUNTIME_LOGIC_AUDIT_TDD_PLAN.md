@@ -114,8 +114,10 @@ Guard/control-cycle gaps remain. Candidate has no new full R1/R2/hour/Demo gate.
 Pin `660bd38b` by manifest and freeze measurement/runtime sources. Retain every
 failed attempt; keep the existing durations, resources, error and latency budgets.
 
-- [ ] Complete full R1: warm300/mixed900/burst90/Random-soak3600 and six fault groups.
-- [ ] Independently verify R1 and run matched ordinary-entrypoint R2 warm300/mixed900.
+- [x] Complete full R1: warm300/mixed900/burst90/Random-soak3600 and six fault groups.
+- [x] Independently verify R1:58 continuous minute samples, maximum gap65.75s,
+  unchanged source/artifact, all three profiles and4,885 reconciled synthetic fills.
+- [ ] Complete matched ordinary-entrypoint R2 warm300/mixed900 and verify it independently.
 - [x] Current-image Demo read-only REST/public-private WS/account/instrument review;
   read recovery from a read-only copy of the stopped original volume. No pending
   orders/HALT/mutations; stored perpetual quantities match the venue.
@@ -128,6 +130,10 @@ failed attempt; keep the existing durations, resources, error and latency budget
 - [ ] Positive new-fill/original-fee processing on this image remains unverified:
   the controlled Demo protocol has zero new fills,407 canceled orders. Historical
   six fills and simulator fills do not close this connected positive-fill item.
+  After qualified load/restoration, reuse the previously approved temporary40USDT
+  per-market, one-level/0.0003-base-spread preset for a bounded1200s natural-maker
+  observation and filled restart; retain fee/volatility/risk guards and restore
+  the unchanged canonical catalogue. No forced fills or automatic HALT reset.
 - [ ] Publish scoped evidence, update acceptance/progress, clean temporary resources
   and commit. No live trading, HALT reset, database repair or Cloud Run deployment.
 
@@ -140,4 +146,7 @@ all nine fixed cases,600s Random rollover, active spot/both restart and independ
 handover or new fill is claimed. First full R1 attempt fails burst read p99
 1.153s/auxiliary1.126s; warm/mixed pass, no unexpected API errors and1,290
 synthetic fills reconcile. Retain that failure; unchanged retry runs with Demo
-containers temporarily stopped. Full R1/R2 checkboxes remain open until verified.
+containers temporarily stopped. R1 now passes completely: soak p99103ms, no
+unexpected API errors,14.18MiB retained growth against64MiB,58 continuous samples
+and all six fault groups. R2 is still running; full combined qualification and
+the positive-fill observation remain open until their own checks finish.
