@@ -2,13 +2,31 @@
 
 Latest local image acceptance: [`39198499` reporting/startup optimization](../../reports/performance/mm-reporting-startup-optimization.md).
 Native/PostgreSQL/Swagger, three E2E groups, full R1 and matched shipping R2 pass.
-This image has no new connected Demo acceptance or upgrade in this scope.
+A later [read-only Demo preflight](../../reports/investigations/mm-engine-probe-controlled.md#d--demo-read-only-preflight)
+passes on this image; it has no new active-session acceptance or service upgrade.
 
-Latest completed connected scope: [`a190b024` release and stopped Demo upgrade](../../reports/release/mm-submission-log-release.md).
+Latest completed connected trading/upgrade scope: [`a190b024` release and stopped Demo upgrade](../../reports/release/mm-submission-log-release.md).
 That service was left trading-stopped at verification time. Subsequent Docker
 cleanup removed the old image/container; the persistent Demo DB volume remains.
 Historical connected and natural-fill checklists below retain their original
 image/date scope; the new local gate does not relabel them.
+
+## Current-image read-only preflight — 2026-11-02
+
+- [x] Validate both Demo credential sets, account mode, authenticated REST,
+  public/private WS, instruments, balances, pending orders and held positions
+  with SDK code inside accepted image `39198499`; send no mutations.
+- [x] Read recovery from an isolated copy of the absent service's original
+  volume, with original mounted read-only. Verify stopped/acknowledged/noHALT,
+  no pending commands/mutations, unchanged historical ledger and exact perpetual
+  base quantities. Verify original volume/private config hashes unchanged.
+- [x] Publish scoped evidence, remove task-owned copies/containers and preserve
+  the distinction from active-session or running-service recovery acceptance.
+
+[Result/evidence](../../reports/investigations/mm-engine-probe-controlled.md).
+No original service restoration, order/session/account write, migration, repair
+or active MM session is included. Earlier connected acceptance below retains
+its original image/date scope.
 
 ## Latent-fix candidate connected Demo follow-up — 2026-11-01
 

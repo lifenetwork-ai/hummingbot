@@ -2,12 +2,14 @@
 
 [All reports](../README.md) · [Current release](../release/mm-release-closeout.md)
 
-The focused historical-cause review is the latest attribution summary.
+The controlled engine-probe follow-up is the latest scoped probe comparison;
+older historical causes keep their attribution limits.
 Older reports preserve their diagnostic checkpoints and failed runs;
 current release acceptance is recorded separately in the release closeout.
 
 | Report | Evidence and scope |
 | --- | --- |
+| [Controlled engine-probe comparison](mm-engine-probe-controlled.md), [evidence](mm-engine-probe-controlled-evidence.json) | All54 prior episodes reviewed; matched600s ordinary/scalar/rich controls pass with1/1/4 recovered probes and no API errors. Current-image read-only Demo preflight passes; no new shipping fix or unique historical cause claimed. |
 | [Engine probe diagnostics](mm-engine-probe-latency.md), [evidence](mm-engine-probe-latency-evidence.json) | Longest-span retention, reserved incident capacity and cheaper hot-leaf instrumentation;61 tests, smoke and300s probe pass. One transient probe recovers; no unique runtime cause or new full release is claimed. |
 | [Focused historical-cause review](mm-historical-cause-review.md), [evidence](mm-historical-cause-evidence.json) | Test CPU/heartbeat timestamp defect reproduced and fixed;119 tests and packaged old/new comparison pass. Old H1/H2/H3 causes remain unproven; accepted R1/R2 unchanged. |
 | [Measurement follow-up](mm-measurement-remediation.md), [evidence](mm-measurement-remediation-evidence.json) | On-loop observer cost corrected; measured disk-cache retention contract declared before new gate. Native114, bounded probes, full R1 and matched shipping R2 pass. |

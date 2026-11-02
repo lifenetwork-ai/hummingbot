@@ -3,8 +3,9 @@
 Date: 2026-11-02 (Asia/Saigon).
 
 Prioritize trading responsiveness. Reuse the current engine, ownership fencing,
-recorder and offline load harness. The accepted application image is `a190b024`;
-its release result remains unchanged by diagnostic changes.
+recorder and offline load harness. At the first diagnostic checkpoint, the accepted application image was
+`a190b024`; its release result remains unchanged. The later controlled follow-up
+below uses accepted local image `39198499`.
 
 - [x] Review existing probe incidents and identify confirmed evidence gaps.
 - [x] Red/Green bounded retention of slow spans after a root reaches its child
@@ -39,24 +40,31 @@ Earlier diagnostic and release evidence above retains its original scope.
 - [x] A: Analyze all54 recovered probe transitions in the existing R1 healthy
   envelope, distinguish measured windows from their gaps and retain attribution
   limits, GC/stall context and data-loss counters. Commit the evidence review.
-- [ ] B: Reuse the existing shipping-control harness for matched600s diagnostic
+- [x] B: Reuse the existing shipping-control harness for matched600s diagnostic
   runs: ordinary entrypoint, scalar measurement wrapper, then wrapper plus GC
   and bounded incidents. Preserve image, fixed profile, fixture hashes,100k
   history, rates, CPU/memory, TTL, pool and all healthy/error/ledger budgets.
   Diagnostic variants must never qualify as shipping R2 or full acceptance.
-- [ ] C: Evaluate the comparison; reproduce any confirmed shipping defect with
+- [x] C: Evaluate the comparison; reproduce any confirmed shipping defect with
   Red/Green before a runtime fix. Rerun a full release gate only if shipping
   runtime changes. If no defect is reproduced, publish the bounded result and
   remaining uncertainty rather than speculate or relax health deadlines.
-- [ ] D: Run current-image OKX Demo preflight with authenticated REST/public and
+- [x] D: Run current-image OKX Demo preflight with authenticated REST/public and
   private WS reads, balances, orders/positions and available recovery state.
   Preserve private configuration and original Demo volume; no trading commands,
   account changes, migrations or direct maintenance writes. State unavailable
   local recovery separately if the old container/DB is absent.
-- [ ] Publish scoped evidence/report, update current status/checklists, commit
+- [x] Publish scoped evidence/report, update current status/checklists, commit
   and remove only task-owned transient resources/awake assertions.
 
 Follow-up: [report](../../reports/investigations/mm-engine-probe-controlled.md),
 [evidence](../../reports/investigations/mm-engine-probe-controlled-evidence.json).
 No probe timeout/grace, ownership, order authority, quote/risk rule or cache/pool
 limit is changed merely to make a diagnostic pass.
+
+Completed:69 selected regressions; three matched600s diagnostics pass with
+0 API errors and reconciled ledgers. Probe episodes are1/1/4 (ordinary/scalar/
+GC+incident). Current-image read-only Demo REST/WS/recovery preflight passes;
+original volume/private config are unchanged. No new shipping defect/runtime
+fix or hour rerun is claimed. Unique cause and quote-downtime attribution remain
+explicit limits in the report, rather than unfinished implementation steps.

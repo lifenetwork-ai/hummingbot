@@ -871,5 +871,532 @@
     "max_gc_ms": 319.934334,
     "max_stall_ms": 1157.939917,
     "scope": "Includes gaps between healthy windows; excludes planned post-soak fault cases"
-  }
+  },
+  "controls": {
+    "none": {
+      "run": "build/service-supervision/production-control-20261102-073029-7da124",
+      "passed": true,
+      "image_id": "sha256:3919849922f670f249fad45a77600c9d100959826a37ec22926b980c409544c9",
+      "seconds": 600,
+      "fixture_sha256": {
+        "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+        "load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+        "exchange.py": "52fc186aa3cc081ac478bfe12d495641784b97d2bd4b668de8f8625b429a4d83",
+        "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "load_service.py": "4056e8f56466f1063cc356087418a05b72e194c59a0e1e5404581801c96423be",
+        "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+        "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+        "load_trace.py": "0ce2cd42390ec0340c12f46273d8e158b110b0ac6bf4a5be1c7a27d2007400d7",
+        "load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+        "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+        "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+        "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+        "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+        "load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+        "load_client.py": "54e77fe15c96e9efce065b45315aea7ff2f70eae36322128ef69daa4475f3b53"
+      },
+      "p95_ms": 51.46902200004888,
+      "p99_ms": 246.79890499999146,
+      "unexpected_errors": 0,
+      "violations": [],
+      "ledger": {
+        "unique_exchange_fills": 600,
+        "unique_recorder_fills": 600,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "supervision": {
+        "child_probe_failed": 1,
+        "child_probe_recovered": 1
+      },
+      "recovered_episodes": 1,
+      "roles": {
+        "engine": 1
+      },
+      "max_recovery_seconds": 1.033,
+      "resources": {
+        "before": {
+          "processes": {
+            "supervisor": {
+              "pid": 1,
+              "fds": 5,
+              "VmHWM": 134529024,
+              "VmRSS": 134529024,
+              "Threads": 8
+            },
+            "engine": {
+              "pid": 38,
+              "fds": 31,
+              "VmHWM": 423297024,
+              "VmRSS": 423297024,
+              "Threads": 10
+            },
+            "api": {
+              "pid": 39,
+              "fds": 10,
+              "VmHWM": 296726528,
+              "VmRSS": 296726528,
+              "Threads": 10
+            }
+          },
+          "cpu": {
+            "usage_usec": 47991542,
+            "user_usec": 45402969,
+            "system_usec": 2588572,
+            "nr_periods": 429,
+            "nr_throttled": 81,
+            "throttled_usec": 8385797,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          },
+          "memory": {
+            "current_bytes": 924729344,
+            "peak_bytes": 934105088
+          }
+        },
+        "after": {
+          "processes": {
+            "supervisor": {
+              "pid": 1,
+              "fds": 5,
+              "VmHWM": 134922240,
+              "VmRSS": 134922240,
+              "Threads": 8
+            },
+            "engine": {
+              "pid": 38,
+              "fds": 30,
+              "VmHWM": 426528768,
+              "VmRSS": 426528768,
+              "Threads": 10
+            },
+            "api": {
+              "pid": 39,
+              "fds": 11,
+              "VmHWM": 304852992,
+              "VmRSS": 304852992,
+              "Threads": 11
+            }
+          },
+          "cpu": {
+            "usage_usec": 242692828,
+            "user_usec": 228431923,
+            "system_usec": 14260905,
+            "nr_periods": 6440,
+            "nr_throttled": 94,
+            "throttled_usec": 8984065,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          },
+          "memory": {
+            "current_bytes": 935841792,
+            "peak_bytes": 935849984
+          }
+        }
+      },
+      "raw_result_sha256": "31fa26ad89a0e68bca75f1ebd1639374655ee9a877265fe7a738f07ade7c78a9",
+      "cpu_core_equivalent_estimate": 0.3245021433333333,
+      "process_pids_stable": true,
+      "postgres_log_version": "14.15",
+      "postgres_log_sha256": "ab93c541c1c2582456e6753607762361e0eb82401952586df46d9de3fb9c1ca5"
+    },
+    "metrics": {
+      "run": "build/service-supervision/production-control-20261102-074131-7eb006",
+      "passed": true,
+      "image_id": "sha256:3919849922f670f249fad45a77600c9d100959826a37ec22926b980c409544c9",
+      "seconds": 600,
+      "fixture_sha256": {
+        "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+        "load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+        "exchange.py": "52fc186aa3cc081ac478bfe12d495641784b97d2bd4b668de8f8625b429a4d83",
+        "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "load_service.py": "4056e8f56466f1063cc356087418a05b72e194c59a0e1e5404581801c96423be",
+        "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+        "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+        "load_trace.py": "0ce2cd42390ec0340c12f46273d8e158b110b0ac6bf4a5be1c7a27d2007400d7",
+        "load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+        "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+        "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+        "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+        "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+        "load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+        "load_client.py": "54e77fe15c96e9efce065b45315aea7ff2f70eae36322128ef69daa4475f3b53"
+      },
+      "p95_ms": 51.98209000013776,
+      "p99_ms": 360.0771320000149,
+      "unexpected_errors": 0,
+      "violations": [],
+      "ledger": {
+        "unique_exchange_fills": 600,
+        "unique_recorder_fills": 600,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "supervision": {
+        "child_probe_failed": 1,
+        "child_probe_recovered": 1
+      },
+      "recovered_episodes": 1,
+      "roles": {
+        "engine": 1
+      },
+      "max_recovery_seconds": 2.827,
+      "resources": {
+        "before": {
+          "processes": {
+            "supervisor": {
+              "pid": 1,
+              "fds": 5,
+              "VmHWM": 132022272,
+              "VmRSS": 132022272,
+              "Threads": 8
+            },
+            "engine": {
+              "pid": 32,
+              "fds": 31,
+              "VmHWM": 427798528,
+              "VmRSS": 427798528,
+              "Threads": 12
+            },
+            "api": {
+              "pid": 33,
+              "fds": 10,
+              "VmHWM": 302997504,
+              "VmRSS": 302997504,
+              "Threads": 11
+            }
+          },
+          "cpu": {
+            "usage_usec": 46073290,
+            "user_usec": 43796165,
+            "system_usec": 2277125,
+            "nr_periods": 472,
+            "nr_throttled": 73,
+            "throttled_usec": 8740373,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          },
+          "memory": {
+            "current_bytes": 705351680,
+            "peak_bytes": 714399744
+          }
+        },
+        "after": {
+          "processes": {
+            "supervisor": {
+              "pid": 1,
+              "fds": 5,
+              "VmHWM": 132415488,
+              "VmRSS": 132415488,
+              "Threads": 8
+            },
+            "engine": {
+              "pid": 32,
+              "fds": 30,
+              "VmHWM": 436199424,
+              "VmRSS": 436199424,
+              "Threads": 12
+            },
+            "api": {
+              "pid": 33,
+              "fds": 11,
+              "VmHWM": 318595072,
+              "VmRSS": 318595072,
+              "Threads": 12
+            }
+          },
+          "cpu": {
+            "usage_usec": 254784389,
+            "user_usec": 240332986,
+            "system_usec": 14451403,
+            "nr_periods": 6483,
+            "nr_throttled": 100,
+            "throttled_usec": 10294054,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          },
+          "memory": {
+            "current_bytes": 727318528,
+            "peak_bytes": 727326720
+          }
+        }
+      },
+      "raw_result_sha256": "ecd62d2374f8ef1606b097427a58d1abc131949524f33d513954394f0731f14a",
+      "cpu_core_equivalent_estimate": 0.34785183166666667,
+      "process_pids_stable": true,
+      "postgres_log_version": "14.15",
+      "postgres_log_sha256": "92a26f663cc3b6b6c69c1b91ee0c6e3c19664565009be111214dcdd6f73a2515"
+    },
+    "incidents": {
+      "run": "build/service-supervision/production-control-20261102-075233-100d62",
+      "passed": true,
+      "image_id": "sha256:3919849922f670f249fad45a77600c9d100959826a37ec22926b980c409544c9",
+      "seconds": 600,
+      "fixture_sha256": {
+        "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+        "load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+        "exchange.py": "52fc186aa3cc081ac478bfe12d495641784b97d2bd4b668de8f8625b429a4d83",
+        "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "load_service.py": "4056e8f56466f1063cc356087418a05b72e194c59a0e1e5404581801c96423be",
+        "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+        "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+        "load_trace.py": "0ce2cd42390ec0340c12f46273d8e158b110b0ac6bf4a5be1c7a27d2007400d7",
+        "load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+        "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+        "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+        "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+        "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+        "load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+        "load_client.py": "54e77fe15c96e9efce065b45315aea7ff2f70eae36322128ef69daa4475f3b53"
+      },
+      "p95_ms": 57.550303000198255,
+      "p99_ms": 383.2579550000901,
+      "unexpected_errors": 0,
+      "violations": [],
+      "ledger": {
+        "unique_exchange_fills": 600,
+        "unique_recorder_fills": 600,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "supervision": {
+        "child_probe_failed": 4,
+        "child_probe_recovered": 4
+      },
+      "recovered_episodes": 4,
+      "roles": {
+        "engine": 4
+      },
+      "max_recovery_seconds": 1.054,
+      "resources": {
+        "before": {
+          "processes": {
+            "supervisor": {
+              "pid": 1,
+              "fds": 5,
+              "VmHWM": 132276224,
+              "VmRSS": 132276224,
+              "Threads": 8
+            },
+            "engine": {
+              "pid": 31,
+              "fds": 32,
+              "VmHWM": 426950656,
+              "VmRSS": 426950656,
+              "Threads": 14
+            },
+            "api": {
+              "pid": 32,
+              "fds": 11,
+              "VmHWM": 303304704,
+              "VmRSS": 303304704,
+              "Threads": 13
+            }
+          },
+          "cpu": {
+            "usage_usec": 50116081,
+            "user_usec": 47521087,
+            "system_usec": 2594993,
+            "nr_periods": 459,
+            "nr_throttled": 87,
+            "throttled_usec": 9483988,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          },
+          "memory": {
+            "current_bytes": 705974272,
+            "peak_bytes": 714149888
+          }
+        },
+        "after": {
+          "processes": {
+            "supervisor": {
+              "pid": 1,
+              "fds": 5,
+              "VmHWM": 132669440,
+              "VmRSS": 132669440,
+              "Threads": 8
+            },
+            "engine": {
+              "pid": 31,
+              "fds": 31,
+              "VmHWM": 434950144,
+              "VmRSS": 434950144,
+              "Threads": 14
+            },
+            "api": {
+              "pid": 32,
+              "fds": 12,
+              "VmHWM": 323084288,
+              "VmRSS": 322760704,
+              "Threads": 14
+            }
+          },
+          "cpu": {
+            "usage_usec": 303615122,
+            "user_usec": 283244342,
+            "system_usec": 20370779,
+            "nr_periods": 6471,
+            "nr_throttled": 112,
+            "throttled_usec": 10256898,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          },
+          "memory": {
+            "current_bytes": 735399936,
+            "peak_bytes": 735408128
+          }
+        }
+      },
+      "raw_result_sha256": "1175634d91cb7652045e72f8f963750b311c292ea25928631568882cd0cf0f56",
+      "cpu_core_equivalent_estimate": 0.4224984016666667,
+      "process_pids_stable": true,
+      "postgres_log_version": "14.15",
+      "postgres_log_sha256": "82c1d80a335d4748ea4d428ea635cb8de819f9efca3af3f99e0e008c635c796d"
+    }
+  },
+  "conditions": {
+    "image_id": "sha256:3919849922f670f249fad45a77600c9d100959826a37ec22926b980c409544c9",
+    "measurement_commit": "9cdb1bc89af47de8dfe88a6b3759de5d56f7fe46",
+    "source_unchanged": true,
+    "source_files": 1286,
+    "source_freeze_sha256": "64ccacd0b462ec038c78bc4ce5319b186dcac0d97968a1fc489f0c6ba3327c3a",
+    "duration_seconds": 600,
+    "order": [
+      "none",
+      "metrics",
+      "incidents"
+    ],
+    "replicates_per_mode": 1,
+    "profile": "fixed follow_market, both markets",
+    "historical_fills": 100000,
+    "cache_ttl_seconds": 15,
+    "application_cpu": 2,
+    "application_memory_bytes": 2147483648,
+    "postgres_cpu": 2,
+    "postgres_memory_bytes": 536870912,
+    "scope": "Diagnostic controls only, not full R2/release acceptance; fixed order and one local emulated-host repeat per mode"
+  },
+  "fresh_incident_summary": {
+    "probe_failures": 4,
+    "selected_episodes": 4,
+    "retained_gc_intersects_failure": false,
+    "trace_sha256": {
+      "api-incidents.jsonl": "7dd931ad31312ff8a2f1bf22b89cb7c12cf4a936153ec43c5ca38784328a509c",
+      "engine-incidents.jsonl": "f63875e249c81f9c516891608f32e230b3b80fb67b9d358faff5b5bccaac6e96"
+    },
+    "raw_path": "build/service-supervision/production-control-20261102-075233-100d62/probe-incident-analysis.json",
+    "interpretation": "Temporal overlap does not establish causation. Transition intervals are supervisor observations, not measured quote downtime. Context includes up to one second before failure; intersects_transition distinguishes preceding work. Captured stacks/spans describe their own sampling times. Missing records and bounded incident/file/queue limits prevent complete attribution; an unpaired failure uses at most 15s context."
+  },
+  "demo_readonly": {
+    "passed": true,
+    "image_id": "sha256:3919849922f670f249fad45a77600c9d100959826a37ec22926b980c409544c9",
+    "observed_at": "2026-11-02T01:05:12.214801+00:00",
+    "environment": "demo",
+    "same_account_for_both_keys": true,
+    "account": [
+      {
+        "acctLv": "2",
+        "posMode": "long_short_mode",
+        "perm": "read_only,trade"
+      },
+      {
+        "acctLv": "2",
+        "posMode": "long_short_mode",
+        "perm": "read_only,trade"
+      }
+    ],
+    "public_ws_pairs": [
+      "AVAX-USDT",
+      "BTC-USDT",
+      "BTC-USDT-SWAP",
+      "ETH-USDT"
+    ],
+    "private_websocket": [
+      {
+        "market": "SPOT",
+        "login": true,
+        "readonly_order_subscription": true
+      },
+      {
+        "market": "SWAP",
+        "login": true,
+        "readonly_order_subscription": true
+      }
+    ],
+    "pending_orders": 0,
+    "balances_observed": [
+      "BTC",
+      "USDT",
+      "ETH"
+    ],
+    "recovery_readiness": {
+      "stopped": true,
+      "commands_acknowledged": true,
+      "no_halt": true,
+      "no_pending_mutations": true,
+      "no_pending_commands": true
+    },
+    "database_counts": {
+      "orders": 850,
+      "fills": 6,
+      "positions": 3,
+      "funding_bills": 21,
+      "pending_commands": 0
+    },
+    "original_volume_unchanged": true,
+    "original_volume_sha256": "f164e5d6ec4c0a2a9b820a827fc6f2e6aa7ea22fa404b28fe49c64fef1aab73b",
+    "matches_last_stopped_ledger": true,
+    "private_config_unchanged": true,
+    "perpetual_base_quantities": [
+      {
+        "instrument": "BTC-USDT-SWAP",
+        "side": "long",
+        "amount": "0.0084"
+      },
+      {
+        "instrument": "BTC-USDT-SWAP",
+        "side": "short",
+        "amount": "0.0027"
+      }
+    ],
+    "perpetual_quantity_matches_database": true,
+    "exchange_quantity_and_average_price_unchanged_from_previous_preflight": true,
+    "cost_basis_scope": "Original DB breakeven/cost basis preserved; exchange avgPx and strategy breakeven are distinct observations, no new cost-basis equivalence claimed",
+    "order_mutations": 0,
+    "account_mutations": 0,
+    "original_database_mutations": 0,
+    "migrations": 0,
+    "service_running": false,
+    "scope": "Current-image SDK reads plus isolated read-only recovery clone; no service restart or trading admission",
+    "helper_sha256": {
+      "demo_preflight.py": "4484e297e3c33c35f5c6bad755bd3459a17014baf46e215faa98dff281254358",
+      "run_demo.py": "de3dffb44b2e9ca98eb33cd1e467b70305b4cdfffbd5875d927d8a5329901b53",
+      "read_demo_volume.py": "41eebb9120f4c3b6716318303190300a66a3a26107f5b6fede65a207823b0bb9"
+    }
+  },
+  "shipping_runtime_changed": false,
+  "validation": {
+    "red_failed": 6,
+    "red_existing_passed": 13,
+    "green_passed": 69,
+    "controls_passed": 3,
+    "control_budgets_independently_recomputed": true,
+    "all_fixture_hashes_match": true,
+    "current_image_readonly_demo_passed": true
+  },
+  "interpretation": [
+    "Probe timeouts are reproduced once in the ordinary entrypoint; they cannot all be attributed to tracing.",
+    "The rich incident/GC condition records four recovered episodes versus one each in ordinary/scalar conditions; one fixed-order repeat is not unique causal proof.",
+    "All healthy budgets, independent fill/fee/position comparisons and PID checks pass; no new sustained service failure or confirmed shipping logic defect is established.",
+    "Retained fresh incident GC events do not intersect failure intervals; this does not prove absence of all GC contribution.",
+    "Preserve existing probe/IO deadlines, grace, authority, risk checks, cache and pool; no speculative runtime fix or new hour gate is justified by these observations.",
+    "Short diagnostic controls and read-only Demo checks do not replace full-hour release or active Demo trading acceptance."
+  ]
 }

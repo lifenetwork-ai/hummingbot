@@ -4,6 +4,14 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Controlled engine-probe follow-up](investigations/mm-engine-probe-controlled.md),
+  [evidence](investigations/mm-engine-probe-controlled-evidence.json), 2026-11-02:
+  all54 historical recovered episodes reviewed. Three matched600s controls pass
+  with1/1/4 recovered probes (ordinary/scalar/GC+incident), p99 247/360/383ms,
+  zero errors and exact fill/position checks. No unique cause or new shipping
+  defect is established. Current-image Demo REST/WS and read-only recovery-copy
+  checks pass; original volume/config unchanged, no service/trading start.
+
 - [Reporting/startup optimization and final image gates](performance/mm-reporting-startup-optimization.md),
   [evidence](performance/mm-reporting-startup-evidence.json), 2026-11-02:
   image `39198499`, native2,265 plus11 subtests/PG282/Swagger and three E2E

@@ -5,12 +5,20 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-02
 
-- **Controlled probe follow-up in progress:** complete review finds54 recovered
-  transitions (53 inside R1 windows,1 between windows); bounded GC/stall/phase
-  context does not isolate one cause. Three matched600s controls and current-image
-  read-only Demo preflight follow. Shipping image/deadlines stay unchanged.
+- **Controlled probe follow-up and read-only Demo preflight complete:** all54
+  recovered R1 transitions reviewed (53 inside windows,1 between). Same-image
+  ordinary/scalar/GC+incident600s controls all pass, with probe episodes1/1/4,
+  API p99 247/360/383ms, zero errors,600 matched fills/positions each and stable
+  PIDs. The rich condition measures higher CPU; the ordinary path also has a
+  transient timeout, so unique cause remains unproven. No shipping
+  runtime or health/risk/DB limit is changed. Diagnostic harness `9cdb1bc89`
+  passes69 selected tests after six Reds. Current-image Demo REST/public+private
+  WS reads pass, no open orders; isolated recovery copy is stopped/acked/noHALT,
+  and quantities/last ledger match. Original volume and private config hashes
+  are unchanged. No service restoration or active trading is performed.
   [Plan](../../docs/plans/MM_ENGINE_PROBE_LATENCY_TDD_PLAN.md),
-  [report](../investigations/mm-engine-probe-controlled.md).
+  [report](../investigations/mm-engine-probe-controlled.md),
+  [evidence](../investigations/mm-engine-probe-controlled-evidence.json).
 
 - **Ordered reporting/startup optimization and final local gates complete:**
   A `21ce776c1` coalesces bounded daily refreshes by filter; B `c7cad9896`
