@@ -14,9 +14,16 @@ retains its completed image-specific acceptance and residual 15/6 probe episodes
 - [x] Profile real executor reports and changing-price/PnL semantics. Change
   executor code only if a repeatable material cost justifies it; reuse existing
   per-report snapshots rather than introduce persistent valuation caches.
-- [ ] Run a bounded controlled image diagnostic if source changes; publish
+- [x] Run a bounded controlled image diagnostic if source changes; publish
   findings/evidence, scope limits and commits; clean owned test resources.
 
 This is a targeted investigation and source/diagnostic validation. It does not
 relabel `e2d393b1` or its completed hour gate as acceptance of changed source.
 A new full release claim requires the unchanged final-image release gates.
+
+Outcome: source `717c51727`, diagnostic image `18422eca`; native 2,284 plus 11
+subtests, full PG 285 plus focused HTTP/query 2, Swagger, MM lifecycle E2E and
+300s ordinary-entrypoint load pass. API p99 61.20ms, zero API errors, 300 matched
+fills/fees/positions; zero engine and one recovered API probe in this window.
+Executor report runtime remains unchanged; no authority/valuation cache added.
+[Report/evidence](../../reports/investigations/mm-engine-residual-probes.md).

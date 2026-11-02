@@ -1,0 +1,418 @@
+{
+  "scope": "Residual-probe investigation, one observer round-trip reduction, source QA, one image lifecycle group and 300s ordinary-entrypoint diagnostic",
+  "new_full_release_acceptance": false,
+  "all_residual_probe_causes_resolved": false,
+  "source_commit": "717c51727abe6cba74ae0d1b8552a23f90d179ef",
+  "image": {
+    "image_id": "sha256:18422eca75d1744785ee5232d2ea3a99daecbcae773e0854a40df1858aecabce",
+    "source_commit": "717c51727abe6cba74ae0d1b8552a23f90d179ef",
+    "base_image_id": "sha256:e2d393b1ed7839e17cc6db6f42fd3bba1fde04fe00557a15a1972d716889df06",
+    "tag": "hummingbot-cloudrun:observer-check",
+    "method": "Single Python-module derivative of the accepted image; no dependency rebuild.",
+    "scope": "Diagnostic candidate, not a new full release acceptance",
+    "base_layers_preserved": true,
+    "packaged_hashes_match": true,
+    "import_check": {
+      "path": "/home/hummingbot/hummingbot/cli/service.py",
+      "dedup": true
+    },
+    "image_size_bytes": 1368968834
+  },
+  "package_manifest_sha256": "854838e1d658a5df4f8fa02be7f8b36e062267442edde701f4bdd101dc2a5fb2",
+  "package_files_verified": 1155,
+  "service_sha256": "904f21a4b8e30bba88f6c725aed9869446d9bb2232fca7526a337d1a3c7d7bd5",
+  "validation": {
+    "native_passed": 2284,
+    "native_subtests": 11,
+    "postgres_broad_passed": 285,
+    "postgres_focused_passed": 2,
+    "focused_scope": "One repeated query-count case plus one added HTTP case; 286 unique PG cases covered",
+    "swagger": true
+  },
+  "proofs": {
+    "accepted_http_red_exit_code": 1,
+    "candidate_http_query_green_exit_code": 0,
+    "final_standalone_report_profile_exit_code": 0
+  },
+  "ownership_query_scope": {
+    "before": 3,
+    "after": 2,
+    "meaning": "Stopped observer with existing owner, entry plus final recovery reads; one fewer per iteration, not all SQL reduced by one third",
+    "authority_cached": false,
+    "per_order_and_transport_fences_unchanged": true
+  },
+  "profile": {
+    "scope": "Real executor/DTO/PnL code with in-process deterministic connector data.\nNo network, recorder, live account or inference about production throughput.\n",
+    "cases": [
+      {
+        "executors": 12,
+        "filled": false,
+        "fills_per_order": 1,
+        "reports": 1000,
+        "median_ms": 0.167541,
+        "p99_ms": 0.214292,
+        "max_ms": 0.406666,
+        "price_reads_per_report": 0.0,
+        "fresh_mark_pnl_before": "0",
+        "fresh_mark_pnl_after": "0"
+      },
+      {
+        "executors": 12,
+        "filled": true,
+        "fills_per_order": 1,
+        "reports": 1000,
+        "median_ms": 0.634625,
+        "p99_ms": 0.818041,
+        "max_ms": 1.1795,
+        "price_reads_per_report": 36.0,
+        "fresh_mark_pnl_before": "9.000000000",
+        "fresh_mark_pnl_after": "19.000000000"
+      },
+      {
+        "executors": 48,
+        "filled": true,
+        "fills_per_order": 1,
+        "reports": 1000,
+        "median_ms": 2.467625,
+        "p99_ms": 16.965083,
+        "max_ms": 51.099084,
+        "price_reads_per_report": 144.0,
+        "fresh_mark_pnl_before": "9.000000000",
+        "fresh_mark_pnl_after": "19.000000000"
+      },
+      {
+        "executors": 12,
+        "filled": true,
+        "fills_per_order": 22,
+        "reports": 1000,
+        "median_ms": 2.305959,
+        "p99_ms": 3.211,
+        "max_ms": 5.780709,
+        "price_reads_per_report": 36.0,
+        "fresh_mark_pnl_before": "198.000000000",
+        "fresh_mark_pnl_after": "418.000000000"
+      }
+    ]
+  },
+  "retained_report_distributions": {
+    "first": {
+      "count": 1475,
+      "p50": 2.314375,
+      "p95": 4.228333,
+      "p99": 5.780292,
+      "max": 20.238167
+    },
+    "last": {
+      "count": 5253,
+      "p50": 2.326042,
+      "p95": 4.325375,
+      "p99": 6.433,
+      "max": 470.45725
+    }
+  },
+  "report_tail_context": {
+    "report_spans_retained": 3,
+    "gc_events_retained": 12,
+    "largest_gc": [
+      {
+        "kind": "gc",
+        "at": 1793590635.2581787,
+        "start_ns": 6983149248090,
+        "duration_ms": 208.750875,
+        "thread_id": 140737476621504,
+        "generation": 2,
+        "collected": 38573,
+        "at_ns": 6983414096632,
+        "capturing_pid": 32,
+        "capturing_role": "engine"
+      },
+      {
+        "kind": "gc",
+        "at": 1793589229.4656,
+        "start_ns": 5577380561074,
+        "duration_ms": 201.796084,
+        "thread_id": 140737476621504,
+        "generation": 2,
+        "collected": 37702,
+        "at_ns": 5577638121824,
+        "capturing_pid": 32,
+        "capturing_role": "engine"
+      },
+      {
+        "kind": "gc",
+        "at": 1793589796.592819,
+        "start_ns": 6144686790999,
+        "duration_ms": 29.563875,
+        "thread_id": 140736043382464,
+        "generation": 0,
+        "collected": 0,
+        "at_ns": 6144721517708,
+        "capturing_pid": 32,
+        "capturing_role": "engine"
+      }
+    ],
+    "largest_reports": [
+      {
+        "span": {
+          "span_id": "72193ed7b9e74d9c",
+          "trace_id": "d1ce661dd7974c5db89f714d8c7f8291",
+          "parent_id": "efb8a090696343ce",
+          "operation": "executor_reports_ms",
+          "start_ns": 6049132058748,
+          "start_utc": 1793589701.0099945,
+          "thread_id": 140737476621504,
+          "end_ns": 6049602542956,
+          "duration_ms": 470.484208,
+          "thread_cpu_ms": 376.449332,
+          "error": null,
+          "backend_pid": null
+        },
+        "gc_intersections": [],
+        "full_gc_intersections": []
+      },
+      {
+        "span": {
+          "span_id": "2cd29e9f8284455b",
+          "trace_id": "0d71c0d4bb394de491d6d3f75c9742e3",
+          "parent_id": "8248c61c971c4aad",
+          "operation": "executor_reports_ms",
+          "start_ns": 5623386407429,
+          "start_utc": 1793589275.269426,
+          "thread_id": 140737476621504,
+          "end_ns": 5623811351054,
+          "duration_ms": 424.943625,
+          "thread_cpu_ms": 239.516499,
+          "error": null,
+          "backend_pid": null
+        },
+        "gc_intersections": [],
+        "full_gc_intersections": []
+      },
+      {
+        "span": {
+          "span_id": "e8e22c9661464ece",
+          "trace_id": "fdffbddba203485697890cca89d4441e",
+          "parent_id": "d74ee80ff7314bd3",
+          "operation": "executor_reports_ms",
+          "start_ns": 7168240576633,
+          "start_utc": 1793590820.1388874,
+          "thread_id": 140737476621504,
+          "end_ns": 7168598941592,
+          "duration_ms": 358.364959,
+          "thread_cpu_ms": 144.468584,
+          "error": null,
+          "backend_pid": null
+        },
+        "gc_intersections": [],
+        "full_gc_intersections": []
+      }
+    ]
+  },
+  "e2e": {
+    "image": "hummingbot-cloudrun:observer-check",
+    "scenarios": {
+      "life-mm": {
+        "result": "build/e2e-offline/20261102-131435-732e0f/result.json",
+        "passed": true,
+        "image_id": "sha256:18422eca75d1744785ee5232d2ea3a99daecbcae773e0854a40df1858aecabce",
+        "manifest": "sha256:7143a62b3ba048fdf27551ab4cb27e0552bb48f87af30e057ea03de4b8e288b4",
+        "error": null,
+        "exit_code": 0
+      }
+    },
+    "scope": "One targeted LIFE MM lifecycle simulator group; no full release or soak claim"
+  },
+  "probe": {
+    "run": "build/service-supervision/production-control-20261102-131912-dd6950",
+    "passed": true,
+    "duration_seconds": 300,
+    "read_p95_ms": 49.30438500014134,
+    "read_p99_ms": 61.204434000046604,
+    "unexpected_errors": 0,
+    "violations": [],
+    "ledger": {
+      "unique_exchange_fills": 300,
+      "unique_recorder_fills": 300,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "supervision": {
+      "child_probe_failed:api": 1,
+      "child_probe_recovered:api": 1
+    },
+    "recovery_messages": [
+      "Service child event=child_probe_recovered role=api exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.065 max_probe_gap_seconds=1.439 probe_status=None probe_elapsed_ms=389.272 max_probe_elapsed_ms=389.272"
+    ],
+    "resources": {
+      "before": {
+        "processes": {
+          "supervisor": {
+            "pid": 1,
+            "fds": 5,
+            "VmHWM": 135598080,
+            "VmRSS": 135598080,
+            "Threads": 8
+          },
+          "engine": {
+            "pid": 31,
+            "fds": 31,
+            "VmHWM": 426799104,
+            "VmRSS": 426799104,
+            "Threads": 11
+          },
+          "api": {
+            "pid": 32,
+            "fds": 10,
+            "VmHWM": 299921408,
+            "VmRSS": 299921408,
+            "Threads": 10
+          }
+        },
+        "cpu": {
+          "usage_usec": 44037219,
+          "user_usec": 42034889,
+          "system_usec": 2002329,
+          "nr_periods": 435,
+          "nr_throttled": 64,
+          "throttled_usec": 8406633,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        },
+        "memory": {
+          "current_bytes": 696590336,
+          "peak_bytes": 705683456
+        }
+      },
+      "after": {
+        "processes": {
+          "supervisor": {
+            "pid": 1,
+            "fds": 5,
+            "VmHWM": 135598080,
+            "VmRSS": 135598080,
+            "Threads": 8
+          },
+          "engine": {
+            "pid": 31,
+            "fds": 30,
+            "VmHWM": 428769280,
+            "VmRSS": 428769280,
+            "Threads": 11
+          },
+          "api": {
+            "pid": 32,
+            "fds": 11,
+            "VmHWM": 306999296,
+            "VmRSS": 306999296,
+            "Threads": 11
+          }
+        },
+        "cpu": {
+          "usage_usec": 136578367,
+          "user_usec": 129142617,
+          "system_usec": 7435749,
+          "nr_periods": 3446,
+          "nr_throttled": 66,
+          "throttled_usec": 8496265,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        },
+        "memory": {
+          "current_bytes": 705789952,
+          "peak_bytes": 705798144
+        }
+      }
+    },
+    "peak_rss_bytes": 705798144,
+    "baseline_acceptance_eligible": false,
+    "fixture_sha256": {
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+      "exchange.py": "52fc186aa3cc081ac478bfe12d495641784b97d2bd4b668de8f8625b429a4d83",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "4056e8f56466f1063cc356087418a05b72e194c59a0e1e5404581801c96423be",
+      "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+      "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+      "load_trace.py": "0ce2cd42390ec0340c12f46273d8e158b110b0ac6bf4a5be1c7a27d2007400d7",
+      "load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+      "load_client.py": "54e77fe15c96e9efce065b45315aea7ff2f70eae36322128ef69daa4475f3b53"
+    }
+  },
+  "pipeline": {
+    "status": "completed",
+    "stage": "complete",
+    "started_at": "2026-11-02T06:13:30.093092+00:00",
+    "runner_pid": 2700,
+    "caffeinate_pid": 2703,
+    "build": {
+      "exit_code": 0
+    },
+    "e2e": {
+      "exit_code": 0
+    },
+    "probe": {
+      "exit_code": 0
+    },
+    "finished_at": "2026-11-02T06:25:08.977095+00:00"
+  },
+  "source_frozen": true,
+  "cleanup": {
+    "owned_test_containers_remaining": [],
+    "retained_accepted_image": "sha256:e2d393b1ed7839e17cc6db6f42fd3bba1fde04fe00557a15a1972d716889df06",
+    "retained_diagnostic_image": "sha256:18422eca75d1744785ee5232d2ea3a99daecbcae773e0854a40df1858aecabce",
+    "temporary_tags_removed": [
+      "127.0.0.1:58899/hummingbot:offline"
+    ],
+    "original_demo_volume_present": true,
+    "original_demo_volume_mounted": false,
+    "unrelated_resources_preserved": [
+      "onchain-handler-app-1",
+      "onchain-handler-db-1"
+    ]
+  },
+  "log_sha256": {
+    "build/engine-residual-20261102/build-runner.log": "4836ec20b003273ff0aa4685d11006bb58333797dba68804731eacb174dacfa3",
+    "build/engine-residual-20261102/commit-source.log": "2818f5aea7de91a436a557f341084cb461d88478056cdf29eb6997023e979f28",
+    "build/engine-residual-20261102/e2e-life-mm.log": "0e4979f0d8f1db45492bcf52fd6d8a2e8c0ea40da8cceee600f4a2c13aa06dc4",
+    "build/engine-residual-20261102/e2e-runner.log": "ef062ee58c03c655265594c1f35ba6455770c462824456074f39d0f572640c64",
+    "build/engine-residual-20261102/image-runner.log": "7fbd2ba9b02bc02ce11eb5736ea79614e347f0fc2f314bbc14090efb21712070",
+    "build/engine-residual-20261102/monitor-helper-initial.log": "e17fc39d6b3fbbee1c900163620583c6fc34bceac4949174b5c5eb31ae020690",
+    "build/engine-residual-20261102/native.log": "b713afcfcf566ce3eed876bd9548797211c4f9a7bdea066de0f9d1c90e102a8f",
+    "build/engine-residual-20261102/ownership-green.log": "77f9ee460bd6fd42c3d76929cc71d8e2267606a70ef625dd40f52a750129d927",
+    "build/engine-residual-20261102/ownership-http-green.log": "2044471b002ad39ebd02f7703d9d598e4ad98d076746669593e5d656700ab5d1",
+    "build/engine-residual-20261102/ownership-http-red.log": "661e9f7c288dd0451556a0dcb9b90b127499e55f235887a65d2b3d5226c04427",
+    "build/engine-residual-20261102/ownership-postgres-green.log": "43b5b0553c16643438b55ce4e96ee3a66cf369b2d6260bee54b3caa43109f6c6",
+    "build/engine-residual-20261102/ownership-postgres-red.log": "557b48bf0d724bc5c4a577a983cc4e711a2d56082771e2f147fc26f1db538dbe",
+    "build/engine-residual-20261102/ownership-red-corrected.log": "c94bdb0b16f300d6f10a5c9be84e8f6ba667223eb6c1ae5012de8df1327187fe",
+    "build/engine-residual-20261102/ownership-red.log": "08dc662dec2cead08161d1771f0a07f20000720dd3fb86c188a3cb3325aab730",
+    "build/engine-residual-20261102/postgres.log": "338f987cedd22608eff52e8d9f9d8aecfb5c213ba1c80555d5ffdbb929071038",
+    "build/engine-residual-20261102/precommit.log": "2a1654572454c72544ba6b38a1e8a0f0ed53a588390443346f4e206bcec1dff6",
+    "build/engine-residual-20261102/preliminary-report-profile.log": "29ebde4262f56d41d60a2fb8ea93e258fbafd82c59ea5341a5bba4c8667ccca2",
+    "build/engine-residual-20261102/probe-runner.log": "de6a34d6d091ec72ce851a9d8d7d9bf0a42c1630537b855060c22f39e0f11580",
+    "build/engine-residual-20261102/probe.log": "1d1e63680c5d2b8fa0060c31e12f74fab216eee0effbae4ebdfd57637c55de64",
+    "build/engine-residual-20261102/proofs.log": "771fde7047a75da15c3ba36dd87d5100c0e13df926f896257c5c8c741c51a404",
+    "build/engine-residual-20261102/report-profile-initial.log": "6bdc4b37c8f5a87576960a7ff7d02d0b341375f4f1aa551841abcffeb613f40b",
+    "build/engine-residual-20261102/report-profile-tracked-order-initial.log": "cdd7741ebf0e4c3ae80465e3537a38ed09ad5beabb76d6d9cca07f36f0ca594e",
+    "build/engine-residual-20261102/report-profile.log": "6b899aca90a2b40de3951eb68cf9885b012994eaa4ee5517f046583a8c74ca9a",
+    "build/engine-residual-20261102/swagger.log": "3e38a232de7da785c02fbaadc20de432bb439ca80a7ccbd717aaef9a19523edb"
+  },
+  "raw_result_sha256": {
+    "build/service-supervision/production-control-20261102-131912-dd6950/result.json": "ff9d3384bd296a4425c4a85ff345a8ecbf3c8c5d90f99547f45e393906c7a9ff",
+    "build/e2e-offline/20261102-131435-732e0f/result.json": "db7a58204e57f95ad0caf27dba6fb0a42304f2d74d849ef97846e3d6e27218f3"
+  },
+  "limits": [
+    "Controlled injected DB delay establishes a sufficient cause, not attribution of all earlier recovered probes.",
+    "Native deterministic connector profile omits actual connector/network/recorder and does not reproduce production throughput.",
+    "No executor runtime or price cache change is justified from these measurements.",
+    "A 300s candidate run cannot be compared as an equal-duration repetition of prior600s/hour probes or replace unchanged full R1/R2.",
+    "One API probe timeout recovers in the candidate window; all probe tails are not fixed.",
+    "Accepted e2d393b1 and its full gates remain separate; no new Demo or Cloud Run deployment."
+  ]
+}

@@ -5,6 +5,19 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-02
 
+- **Further residual-probe investigation complete:** `717c51727` removes one
+  discarded owner read per existing-owner observer iteration (real PG 3→2).
+  Injected 120ms ownership reads reproduce a 300ms HTTP timeout on accepted
+  source; candidate returns 200. Native 2,284 plus 11 subtests, PG 285 plus two
+  focused cases, Swagger and image MM lifecycle pass. Candidate `18422eca`
+  passes a 300s ordinary diagnostic: p99 61ms, zero API errors and 300 matched
+  fills/positions; zero engine and one recovered API probe, stable PIDs.
+  Executor profiles do not justify new caches; runtime remains unchanged there.
+  This is targeted validation, not new full R1/R2/hour or Demo acceptance.
+  [Plan](../../docs/plans/MM_ENGINE_RESIDUAL_PROBE_INVESTIGATION.md),
+  [report](../investigations/mm-engine-residual-probes.md),
+  [evidence](../investigations/mm-engine-residual-probes-evidence.json).
+
 - **Status-publication responsiveness fix and local gates complete:** retained stacks
   identify synchronous publication on the engine loop. Legacy-source PostgreSQL
   replay with 400ms publication delay reproduces a 300ms private-probe timeout;
@@ -42,7 +55,7 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   removes ORM hydration while preserving exact SQL/Decimal results (native
   million-row scan17.84→7.37s, Python peak3.43→0.72MiB); C `9db4ff56a`
   limits daily-report parallel workers locally after constrained OOM controls.
-  Image `39198499` passes native2,265 plus11 subtests, PostgreSQL282, Swagger,
+  Image `39198499` passes native2,265 plus 11 subtests, PostgreSQL282, Swagger,
   three image E2E groups, full unchanged R1 and matched shipping R2. Soak p99
   is553ms with zero API errors, retention +14.03MiB and4,886 reconciled fills/
   positions; all six faults pass. Shipping mixed p99 is81ms with zero errors.
@@ -102,7 +115,7 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   See [results/checklist](../release/mm-release-closeout.md#2026-11-01-latent-fix-candidate-rerun)
   and [portable evidence](../release/mm-latent-fixes-load-evidence.json).
 - **Latest latent-bug remediation:** B1–B4 completed and committed separately.
-  Native2,208 plus11 subtests, PostgreSQL279, Swagger and3 targeted E2E groups
+  Native2,208 plus 11 subtests, PostgreSQL279, Swagger and3 targeted E2E groups
   pass on candidate `3f5cbd0f` (application commit `3da3598bf`). Additional8
   PostgreSQL cases preserve the original object while verifying replacement
   identity. Fixes cover pre-intent rollback, shared future-fee coverage, retryable
@@ -1873,7 +1886,7 @@ is unchanged by this test-isolation correction; candidate image build/PG continu
 R7 source `ddcade369` builds ordinary Dockerfile image `715a11f3…`,
 1,367,434,554 bytes, amd64/UID10001. Ten packaged module fingerprints match;
 5,000 post-startup cycles are reclaimed inside the shipping runtime without
-re-freezing. Corrected full native passes2,030 tests plus11 subtests. Full PG,
+re-freezing. Corrected full native passes2,030 tests plus 11 subtests. Full PG,
 full16 E2E and actual-role crash/hang replay continue. Long/hour/control are not
 accepted; all retained burst/trace failures remain visible.
 

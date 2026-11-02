@@ -4,6 +4,13 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Further residual-probe investigation](investigations/mm-engine-residual-probes.md),
+  [evidence](investigations/mm-engine-residual-probes-evidence.json), 2026-11-02:
+  redundant observer owner read removed, real PG/HTTP Red/Green and broad source
+  checks pass. Candidate `18422eca` passes MM lifecycle and a 300s ordinary load
+  (p99 61ms, 300 matched fills/positions, zero engine/one recovered API probe).
+  No executor cache introduced; no new full release/hour/Demo acceptance.
+
 - [Engine status-publication follow-up](investigations/mm-engine-status-publication.md),
   2026-11-02: a real PostgreSQL/HTTP Red/Green proves one avoidable on-loop wait;
   source, rebuilt image smoke and three E2E groups pass. Same-base 600s controls
