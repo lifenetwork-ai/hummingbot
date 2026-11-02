@@ -26,6 +26,9 @@ def correlate_activity(directory, episodes, low, high, *, enabled):
     venue_path = directory / 'incidents/venue-activity.jsonl'
     if venue_path.exists():
         paths.append(venue_path)
+    mm_path = directory / 'incidents/mm-activity.jsonl'
+    if mm_path.exists():
+        paths.append(mm_path)
     states = []
     for episode in episodes:
         states.append(dict(episode=episode, start=max(low, episode['failure_ns'] - 2_000_000_000),

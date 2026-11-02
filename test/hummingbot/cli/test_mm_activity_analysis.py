@@ -101,3 +101,22 @@ def test_observer_gap_cannot_join_two_empty_sample_groups(tmp_path):
     assert data['max_empty_sample_span_ms'] == 1000
     assert data['max_venue_sample_gap_ms'] == 3000
     assert data['status'] == 'partial'
+
+
+def test_whole_probe_activity_stream_is_used_when_no_incident_copy_exists(tmp_path):
+    fixture(tmp_path, [], [snapshot(1_500_000_000), snapshot(4_500_000_000)])
+    row = {**cycle(4_100_000_000, 1_000_000_000), 'capturing_role': 'engine'}
+    path = tmp_path / 'incidents/mm-activity.jsonl'
+    path.write_text(json.dumps(row) + '\n')
+    result = analyze_incidents(tmp_path, 'probe')
+    assert result['episodes'][0]['trading_activity']['engine_events'][0]['operation'] == 'strategy.tick'
+    assert 'mm-activity.jsonl' in result['activity_sha256']
+
+
+def test_missing_venue_summary_is_not_replaced_with_engine_stream_summary(tmp_path):
+    fixture(tmp_path, [])
+    summary = {'written_records': 3, 'writer_alive': False}
+    (tmp_path / 'incidents/mm-activity-summary.json').write_text(json.dumps(summary))
+    result = analyze_incidents(tmp_path, 'probe')['trading_activity_diagnostics']
+    assert result['venue_observer'] is None
+    assert result['engine_activity_stream'] == summary

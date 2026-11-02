@@ -348,6 +348,15 @@ These simulator timestamps do not measure remote OKX latency, real matching,
 market-price validity or profitability. An injected engine pause is a separately
 classified fault diagnostic and must never be reported as a healthy acceptance.
 
+The quote-replacement follow-up additionally keeps `incidents/mm-activity.jsonl`
+for the whole bounded probe: an8MiB archive with a128-record queue and explicit
+loss summary. It records nonempty stop proposals (refresh, spread invalidation,
+readiness/inventory and early stop) and executor shutdown spans with initial
+tracked order identities and final terminal-state checks. This allows examining
+quote gaps even when no private health probe fails. Proposal markers are decisions,
+not proof that the corresponding request reached the venue. This extra archive
+is enabled only by `--mm-activity`; ordinary shipping/load defaults are unchanged.
+
 ## Quick CPU replay before long-run acceptance
 
 `python scripts/benchmark_admin_serialization.py --baseline <previous-admin-models.py> --output <result.json>`

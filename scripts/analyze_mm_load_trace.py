@@ -264,13 +264,17 @@ def analyze_incidents(directory, window, *, limit=10):
     loss = {role: {key: values.get(key) for key in ('trace', 'incident_capture', 'metrics_export_skipped')}
             for role, values in data.get('runtime', {}).get('role_metrics', {}).items()}
     correlate_activity(directory, selected, low, high, enabled=result.get('mm_activity_diagnostics', False))
+    venue_summary = directory / 'incidents/venue-activity-summary.json'
+    engine_summary = directory / 'incidents/mm-activity-summary.json'
     activity_paths = [path for path in (directory / 'incidents/venue-activity.jsonl',
+                                        directory / 'incidents/mm-activity.jsonl',
+                                        directory / 'incidents/mm-activity-summary.json',
                                         directory / 'incidents/venue-activity-summary.json') if path.exists()]
     return dict(window=window, image_id=result['image_id'], probe_failures_in_window=len(episodes),
                 episodes=selected, runtime_loss_counters=loss,
                 trading_activity_diagnostics=dict(enabled=result.get('mm_activity_diagnostics', False),
-                                                  venue_observer=json.loads(activity_paths[-1].read_text())
-                                                  if activity_paths and activity_paths[-1].suffix == '.json' else None),
+                                                  venue_observer=json.loads(venue_summary.read_text()) if venue_summary.exists() else None,
+                                                  engine_activity_stream=json.loads(engine_summary.read_text()) if engine_summary.exists() else None),
                 trace_sha256={path.name: hashlib.file_digest(path.open('rb'), 'sha256').hexdigest() for path in paths},
                 activity_sha256={path.name: hashlib.file_digest(path.open('rb'), 'sha256').hexdigest() for path in activity_paths},
                 interpretation='Temporal overlap does not establish causation. Transition intervals are supervisor observations, '

@@ -6,7 +6,8 @@ import time
 import weakref
 from collections import deque
 
-OPERATIONS = ('strategy.tick', 'controller.cycle', 'order.submit', 'order.cancel')
+OPERATIONS = ('strategy.tick', 'controller.cycle', 'order.submit', 'order.cancel',
+              'executor.shutdown', 'controller.stop_proposal')
 
 
 class ActivityRecorder:
@@ -70,12 +71,15 @@ class ActivityRecorder:
                     capacity=self.recent.maxlen)
 
 
-def instrument_cycle(owner, name, operation, recorder, *, asynchronous=False, details=None):
+def instrument_cycle(owner, name, operation, recorder, *, asynchronous=False, details=None, start_details=None):
     original = getattr(owner, name)
 
-    def fields(actor):
+    def fields(actor, getter=details):
         try:
-            return details(actor) if details else {}
+            value = getter(actor) if getter else {}
+            if not isinstance(value, dict):
+                raise TypeError('Activity metadata must be a mapping')
+            return value
         except Exception as error:
             recorder.metadata_errors += 1
             return dict(measurement_error=type(error).__name__)
@@ -83,7 +87,7 @@ def instrument_cycle(owner, name, operation, recorder, *, asynchronous=False, de
     if asynchronous:
         @functools.wraps(original)
         async def measured(actor, *args, **kwargs):
-            token = recorder.start(actor, operation)
+            token = recorder.start(actor, operation, **fields(actor, start_details))
             result, error = None, None
             try:
                 result = await original(actor, *args, **kwargs)
@@ -96,7 +100,7 @@ def instrument_cycle(owner, name, operation, recorder, *, asynchronous=False, de
     else:
         @functools.wraps(original)
         def measured(actor, *args, **kwargs):
-            token = recorder.start(actor, operation)
+            token = recorder.start(actor, operation, **fields(actor, start_details))
             result, error = None, None
             try:
                 result = original(actor, *args, **kwargs)
@@ -106,6 +110,26 @@ def instrument_cycle(owner, name, operation, recorder, *, asynchronous=False, de
                 raise
             finally:
                 recorder.finish(token, result=result, error=error, **fields(actor))
+    setattr(owner, name, measured)
+
+
+def instrument_stop_actions(owner, name, source, recorder):
+    """Record nonempty proposals only; do not repeat guard/order evaluation."""
+    original = getattr(owner, name)
+
+    @functools.wraps(original)
+    def measured(actor, *args, **kwargs):
+        result = original(actor, *args, **kwargs)
+        if result:
+            try:
+                token = recorder.start(actor, 'controller.stop_proposal', source=source,
+                                       controller_id=actor.config.id,
+                                       executor_ids=[action.executor_id for action in result[:24]],
+                                       executor_ids_truncated=len(result) > 24)
+                recorder.finish(token)
+            except Exception:
+                recorder.metadata_errors += 1
+        return result
     setattr(owner, name, measured)
 
 

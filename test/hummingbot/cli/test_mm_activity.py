@@ -184,3 +184,57 @@ async def test_malformed_venue_reply_is_explicit_error_instead_of_dead_sampler(v
     sampler = activity.VenueSampler(read, lambda _: None)
     await sampler.sample()
     assert sampler.summary()['errors'] == 1
+
+
+@pytest.mark.asyncio
+async def test_shutdown_cycle_keeps_pre_cancel_identity_for_later_correlation():
+    rows = []
+    recorder = activity.ActivityRecorder(rows.append)
+
+    class Runner:
+        order_id = 'before'
+
+        async def shutdown(self):
+            self.order_id = None
+    activity.instrument_cycle(Runner, 'shutdown', 'executor.shutdown', recorder, asynchronous=True,
+                              start_details=lambda actor: dict(order_ids=[actor.order_id]))
+    await Runner().shutdown()
+    assert rows[0]['order_ids'] == rows[1]['order_ids'] == ['before']
+
+
+def test_stop_proposals_record_actual_executor_ids_without_changing_actions():
+    rows = []
+    recorder = activity.ActivityRecorder(rows.append)
+    actions = [type('Action', (), {'executor_id': 'executor-one'})()]
+
+    class Controller:
+        config = type('Config', (), {'id': 'spot'})()
+
+        def stops(self):
+            return actions
+    activity.instrument_stop_actions(Controller, 'stops', 'refresh', recorder)
+    assert Controller().stops() is actions
+    assert rows[-1]['source'] == 'refresh' and rows[-1]['executor_ids'] == ['executor-one']
+
+
+def test_empty_stop_proposal_does_not_emit_extra_hot_loop_records():
+    rows = []
+    recorder = activity.ActivityRecorder(rows.append)
+
+    class Controller:
+        def stops(self):
+            return []
+    activity.instrument_stop_actions(Controller, 'stops', 'refresh', recorder)
+    assert Controller().stops() == [] and rows == []
+
+
+def test_stop_proposal_metadata_failure_preserves_original_result():
+    recorder = activity.ActivityRecorder(lambda _: None)
+    actions = [object()]
+
+    class Controller:
+        def stops(self):
+            return actions
+    activity.instrument_stop_actions(Controller, 'stops', 'refresh', recorder)
+    assert Controller().stops() is actions
+    assert recorder.summary()['metadata_errors'] == 1

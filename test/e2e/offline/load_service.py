@@ -122,16 +122,25 @@ def emit_trace(record):
 
 
 mm_activity = None
+mm_activity_sink = None
 if os.environ.get('HBOT_MM_ACTIVITY_DIAGNOSTICS') == '1' and process_role == 'engine':
-    from load_mm_activity import ActivityRecorder, instrument_cycle, instrument_order
+    from load_mm_activity import ActivityRecorder, instrument_cycle, instrument_order, instrument_stop_actions
 
     from controllers.market_making.life_mm import LifeMMController
     from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
     from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
+    from hummingbot.strategy_v2.executors.position_executor.position_executor import PositionExecutor
 
     if incidents is None:
         raise ValueError('MM activity requires bounded incident capture')
-    mm_activity = ActivityRecorder(emit_trace)
+    mm_activity_sink = TraceSink(Path(incident_directory) / 'mm-activity.jsonl',
+                                 max_bytes=8 * 1024**2, queue_limit=128, append=True)
+
+    def emit_mm_activity(record):
+        emit_trace(record)
+        mm_activity_sink.emit({**record, 'capturing_role': process_role, 'capturing_pid': os.getpid()})
+
+    mm_activity = ActivityRecorder(emit_mm_activity)
     instrument_cycle(StrategyV2Base, 'tick', 'strategy.tick', mm_activity,
                      details=lambda actor: dict(ready_to_trade=bool(actor.ready_to_trade)))
     instrument_cycle(LifeMMController, 'control_task', 'controller.cycle', mm_activity, asynchronous=True,
@@ -141,6 +150,20 @@ if os.environ.get('HBOT_MM_ACTIVITY_DIAGNOSTICS') == '1' and process_role == 'en
     for connector in (OkxExchange, OkxPerpetualDerivative):
         instrument_order(connector, '_place_order', 'order.submit', mm_activity)
         instrument_order(connector, '_place_cancel', 'order.cancel', mm_activity)
+
+    def shutdown_context(actor):
+        orders = (actor._open_order, actor._close_order, actor._take_profit_limit_order)
+        return dict(executor_id=actor.config.id, order_ids=[order.order_id for order in orders if order],
+                    all_orders_completed=actor.all_orders_completed())
+
+    instrument_cycle(PositionExecutor, 'control_shutdown_process', 'executor.shutdown', mm_activity, asynchronous=True,
+                     start_details=shutdown_context,
+                     details=lambda actor: dict(status=actor.status.name, all_orders_completed=actor.all_orders_completed()))
+    for method, reason in (('stop_quote_actions', 'readiness_or_inventory'),
+                           ('_defense_refresh_actions', 'spread_quote_invalid'),
+                           ('executors_to_refresh', 'executor_refresh'),
+                           ('executors_to_early_stop', 'executor_early_stop')):
+        instrument_stop_actions(LifeMMController, method, reason, mm_activity)
 
 
 def save_incident_summary():
@@ -326,6 +349,7 @@ async def probe(host):
                 data['full_gc_events'] = list(full_gc_probe.events)
             if mm_activity is not None:
                 data['mm_activity'] = mm_activity.summary()
+                data['mm_activity_sink'] = mm_activity_sink.summary()
             if tracer:
                 data["trace"] = {**(trace_sink.summary() if trace_sink else incident_sink.summary()),
                                  "dropped_spans": tracer.dropped_spans, "slow_trace_threshold_ms": tracer.slow_ms,
@@ -477,6 +501,9 @@ def instrument_run(original):
             if incidents:
                 incident_sink.close()
                 save_incident_summary()
+            if mm_activity_sink:
+                mm_activity_sink.close()
+                (Path(incident_directory) / 'mm-activity-summary.json').write_text(json.dumps(mm_activity_sink.summary()))
     return run
 
 
