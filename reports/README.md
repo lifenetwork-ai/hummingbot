@@ -4,13 +4,20 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Runtime logic final-image load rerun](release/mm-runtime-logic-release.md),
+  [evidence](release/mm-runtime-logic-release-evidence.json), 2026-11-02:
+  unchanged full R1 and matched shipping R2 pass on `95cde31c`. Soak p99 465ms,
+  zero API errors, +12.69MiB retained, 4,885 matched fills/positions and all six
+  faults; R2 mixed p99 65ms. Recovered probes remain R1 38 engine/two API and
+  R2 two engine; no unique cause or new connected Demo/deployment claim.
+
 - [Runtime logic audit](investigations/mm-runtime-logic-audit.md),
   [evidence](investigations/mm-runtime-logic-audit-evidence.json), 2026-11-02:
   fixes durable HALT leaving active core/resting orders and equivalent Decimal
   fee text rejecting duplicate fills. Native 2,310 plus 11 subtests, PG 296,
   Swagger, two targeted E2E groups and packaged external HALT/restart pass.
-  Candidate `95cde31c` has no new full-release/hour/Demo acceptance; earlier
-  full-gate images predate these confirmed fixes.
+  Those targeted checks preceded the separate full load rerun above; neither
+  task includes new connected Demo acceptance.
 
 - [Further residual-probe investigation](investigations/mm-engine-residual-probes.md),
   [evidence](investigations/mm-engine-residual-probes-evidence.json), 2026-11-02:

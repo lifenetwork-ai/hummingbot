@@ -3,8 +3,9 @@
 [All reports](../README.md) · [Current release](../release/mm-release-closeout.md)
 
 The latest logic audit fixes durable-HALT cleanup and equivalent-fee replay,
-with broad source and targeted image recovery checks. Candidate `95cde31c` has
-no new full-release/hour/Demo gate; older full-gate images predate these fixes.
+with broad source and targeted image recovery checks. The subsequent
+[same-image load rerun](../release/mm-runtime-logic-release.md) passes full R1
+and matched R2 on `95cde31c`; no new connected Demo acceptance is claimed.
 The preceding residual-probe follow-up removes a duplicate observer read and
 completes targeted candidate validation; full release scope remains below.
 The status-publication follow-up confirms and fixes one blocking path, with

@@ -1,11 +1,12 @@
 # Current-image release closeout
 
-**Later logic audit:** [durable-HALT cleanup and fee-replay fixes](../investigations/mm-runtime-logic-audit.md)
-are packaged in candidate `95cde31c`. Broad source and targeted image checks pass;
-no new full release/load/soak is claimed. The historical full-gate images below
-predate these fixes and should not be interpreted as current defect clearance.
+**Latest local load acceptance:** [durable-HALT cleanup and fee-replay image `95cde31c`](mm-runtime-logic-release.md)
+passes unchanged full R1 and matched R2 after broad source and targeted image
+checks. Soak p99 465ms, +12.69MiB retained, 4,885 matched fills/positions and six
+faults; shipping mixed p99 65ms. Recovered probes remain explicit; no new
+connected Demo/deployment. Historical full-gate images below predate these fixes.
 
-Latest local-image follow-up: [`e2d393b1` status-publication fix and full R1/R2](../investigations/mm-engine-status-publication.md).
+Preceding local-image follow-up: [`e2d393b1` status-publication fix and full R1/R2](../investigations/mm-engine-status-publication.md).
 Residual probes remain; connected Demo is not rerun on this image.
 
 Latest connected stopped-Demo follow-up: [`a190b024` full R1/R2 and stopped Demo upgrade](mm-submission-log-release.md).

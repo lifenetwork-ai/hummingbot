@@ -7,6 +7,11 @@ checks and scoped image lifecycle/recovery checks pass. [Portable evidence](mm-r
 This report does not relabel previous image acceptance or claim all possible
 defects are eliminated.
 
+Subsequent [same-image load rerun](../release/mm-runtime-logic-release.md)
+completes full unchanged R1 and matched shipping R2. The targeted audit scope
+below remains distinct; connected Demo/deployment and residual-probe attribution
+are not closed by that later local acceptance.
+
 ## Confirmed defect A: durable HALT left the core active
 
 The observer's final ownership read could detect durable recovery_state.halt,

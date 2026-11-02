@@ -5,6 +5,17 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-02
 
+- **Runtime logic final-image load rerun complete:** unchanged full R1 and
+  matched ordinary-entrypoint R2 pass on `95cde31c` / manifest `24ea415a`, with
+  independent source/image/fixture/resource checks. Soak p99 465ms, zero API
+  errors, +12.69MiB retained, 4,885 matched fills/positions, all three Random
+  profiles and all six fault groups. R2 mixed p99 65ms and 1,200 matched fills.
+  Stable healthy PIDs do not mean zero stalls: R1 has 38 engine/two API probe
+  recoveries, R2 two engine; unique cause remains unproven. Original Demo and
+  unrelated resources unchanged; owned containers and temporary tag cleaned.
+  No connected Demo or deployment. [Report](../release/mm-runtime-logic-release.md),
+  [evidence](../release/mm-runtime-logic-release-evidence.json).
+
 - **Runtime logic audit complete:** durable HALT now drains the active core and
   resting quotes before completed halted publication; prior-HALT cold recovery
   retains reconciliation with new-risk admission closed. Equivalent Decimal
@@ -13,8 +24,9 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   `87e1d594b`, `7b727628f`; final native 2,310 plus 11 subtests, PG 296 and Swagger
   pass. Candidate `95cde31c` passes two targeted E2E groups and external HALT:
   eight quotes canceled, switch rejected, planned restart retains HALT with no
-  new orders. No new full-release/hour/Demo gate; old full-gate images predate
-  these defects' fixes. Owned resources cleaned; original Demo unchanged.
+  new orders. At that audit checkpoint full load/hour/Demo was outside scope;
+  the separate load rerun above now passes, with no new connected Demo.
+  Owned resources cleaned; original Demo unchanged.
   [Plan](../../docs/plans/MM_RUNTIME_LOGIC_AUDIT_TDD_PLAN.md),
   [report](../investigations/mm-runtime-logic-audit.md),
   [evidence](../investigations/mm-runtime-logic-audit-evidence.json).

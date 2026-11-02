@@ -1,12 +1,14 @@
 # Current-image OKX Demo acceptance
 
 **Later local logic fixes:** [runtime audit](../../reports/investigations/mm-runtime-logic-audit.md)
-closes durable-HALT cleanup and equivalent-fee replay defects on candidate
-`95cde31c`, with broad source and targeted simulated lifecycle/recovery checks.
-No new full release/load/soak or connected Demo acceptance is claimed for it.
-Earlier images and completed checklists below predate these fixes.
+closes durable-HALT cleanup and equivalent-fee replay defects on `95cde31c`,
+with broad source and targeted simulated lifecycle/recovery checks. Its separate
+[full R1 and matched R2 rerun](../../reports/release/mm-runtime-logic-release.md)
+now passes, including the 60-minute soak. Recovered probes remain explicit;
+there is no new connected Demo acceptance or upgrade. Earlier images and
+completed Demo checklists below predate these fixes.
 
-Latest local image acceptance: [`e2d393b1` status-publication follow-up](../../reports/investigations/mm-engine-status-publication.md).
+Preceding local image acceptance: [`e2d393b1` status-publication follow-up](../../reports/investigations/mm-engine-status-publication.md).
 Native/PostgreSQL/Swagger, three E2E groups, full R1 and matched shipping R2 pass.
 Transient probes remain; there is no new-image connected Demo session or upgrade.
 The preceding image `39198499` has a separate [read-only Demo preflight](../../reports/investigations/mm-engine-probe-controlled.md#d--demo-read-only-preflight)
