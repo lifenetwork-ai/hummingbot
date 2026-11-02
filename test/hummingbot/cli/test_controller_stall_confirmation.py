@@ -28,7 +28,7 @@ def running_host(monkeypatch):
     item.owner.shutdown_requested = False
     item.stop_core = AsyncMock(return_value=True)
     item.poll_reconciliation = AsyncMock()
-    item.poll_funding, item.poll_outflow, item.publish_status = MagicMock(), MagicMock(), MagicMock()
+    item.poll_funding, item.poll_outflow, item.publish_status = MagicMock(), MagicMock(), AsyncMock()
     monkeypatch.setattr("hummingbot.core.order_submission_guard.install_guard", lambda owner: None)
     monkeypatch.setattr("hummingbot.core.mm_liquidity.capture_liquidity", lambda host: None)
     return item, controller

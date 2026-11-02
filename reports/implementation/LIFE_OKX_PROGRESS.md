@@ -5,6 +5,16 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-02
 
+- **Status-publication responsiveness fix in verification:** retained stacks
+  identify synchronous publication on the engine loop. Legacy-source PostgreSQL
+  replay with 400ms publication delay reproduces a 300ms private-probe timeout;
+  candidate passes the same HTTP/CAS checks. Snapshot stays on-loop, unchanged
+  fenced SQL runs in one physical worker, cancellation/shutdown drain precedes
+  owner release. Final source passes native 2,279 plus 11 subtests, PostgreSQL
+  284 and Swagger. Image/load checks are pending; this is not new artifact
+  acceptance. [Plan](../../docs/plans/MM_ENGINE_STATUS_PUBLICATION_TDD_PLAN.md),
+  [report](../investigations/mm-engine-status-publication.md).
+
 - **Controlled probe follow-up and read-only Demo preflight complete:** all54
   recovered R1 transitions reviewed (53 inside windows,1 between). Same-image
   ordinary/scalar/GC+incident600s controls all pass, with probe episodes1/1/4,

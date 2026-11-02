@@ -97,3 +97,109 @@ def test_critical_publication_failure_still_rolls_back_and_propagates(publicatio
         publish(store, owner, status)
     assert store.read()["acknowledged_version"] == 0
     assert AdminStore(store).command_by_id("stop-command")["status"] == "accepted"
+
+
+def test_background_publication_cannot_acknowledge_superseding_stop(publication, monkeypatch):
+    import asyncio
+    import threading
+    from unittest.mock import MagicMock
+
+    from hummingbot.cli.service import ServiceHost
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+
+    store, owner, status = publication
+    entered, release = threading.Event(), threading.Event()
+    original = owner.store.publish
+
+    def delayed(**fields):
+        entered.set()
+        assert release.wait(3)
+        return original(**fields)
+
+    monkeypatch.setattr(owner.store, 'publish', delayed)
+
+    async def exercise():
+        host = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
+                           asyncio.Event(), MagicMock())
+        host.owner = owner
+        host.snapshot = lambda: dict(status)
+        task = asyncio.create_task(host.publish_status(1))
+        try:
+            assert await asyncio.to_thread(entered.wait, 2)
+            store.control(expected_version=1, desired_state='stopped')
+            release.set()
+            await task
+            row = store.read()
+            assert row['control_version'] == 2 and row['acknowledged_version'] == 0
+            assert AdminStore(store).command_by_id('stop-command')['status'] == 'accepted'
+            assert host._daily_next_write_at == 0
+            await host.publish_status(2)
+            assert store.read()['acknowledged_version'] == 2
+            assert AdminStore(store).command_by_id('stop-command')['status'] == 'superseded'
+        finally:
+            release.set()
+            await asyncio.gather(task, return_exceptions=True)
+
+    asyncio.run(exercise())
+
+
+def test_delayed_status_query_does_not_timeout_private_health(publication):
+    import asyncio
+    import threading
+    import time
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, MagicMock
+    from urllib.request import urlopen
+
+    from aiohttp import web
+    from aiohttp.test_utils import TestServer
+    from sqlalchemy import event
+
+    from hummingbot.cli.service import ServiceHost
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+
+    store, owner, status = publication
+    entered, probe_ready = threading.Event(), threading.Event()
+
+    def delay_publication(connection, cursor, statement, params, context, many):
+        if not entered.is_set() and statement.startswith('SELECT bot_state.status, bot_state.mm_session'):
+            entered.set()
+            connection.exec_driver_sql('SELECT pg_sleep(0.4)')
+
+    event.listen(store.engine, 'before_cursor_execute', delay_publication)
+
+    async def exercise():
+        host = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
+                           asyncio.Event(), MagicMock())
+        host.owner = owner
+        host.hb = SimpleNamespace(trading_core=SimpleNamespace(strategy=None, connector_manager=SimpleNamespace(connectors={})))
+        host.snapshot = lambda: dict(status)
+        host.applied_version = 1
+        host.bootstrapped = True
+        host.observer_progress_at = time.monotonic()
+        host.poll_reconciliation = AsyncMock()
+        host.poll_funding = host.poll_outflow = MagicMock()
+        app = web.Application()
+        app.router.add_get('/live', host.health)
+        async with TestServer(app) as server:
+            def probe():
+                probe_ready.set()
+                assert entered.wait(2)
+                try:
+                    with urlopen(str(server.make_url('/live')), timeout=.3) as response:
+                        return response.status
+                except OSError as error:
+                    return type(error).__name__
+            request = asyncio.create_task(asyncio.to_thread(probe))
+            assert await asyncio.to_thread(probe_ready.wait, 2)
+            await host.observe_once()
+            assert await request == 200
+            assert entered.is_set()
+            assert store.read()['acknowledged_version'] == 1
+
+    try:
+        asyncio.run(exercise())
+    finally:
+        event.remove(store.engine, 'before_cursor_execute', delay_publication)
+        from hummingbot.core.order_submission_guard import install_guard
+        install_guard(None)

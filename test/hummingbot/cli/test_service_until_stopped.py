@@ -51,7 +51,7 @@ async def test_random_rollover_waits_for_startup_reconciliation_but_overall_expi
     if not pending:
         await service.start_task
     service.store.update_mm_session.side_effect = ControlConflict('End test after observing the scheduled advance')
-    service.publish_status = MagicMock()
+    service.publish_status = AsyncMock()
     service.poll_reconciliation = AsyncMock()
     service.poll_funding = service.poll_outflow = MagicMock()
     service.stop_core = AsyncMock(return_value=True)

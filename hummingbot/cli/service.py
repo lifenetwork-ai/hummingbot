@@ -87,6 +87,10 @@ class ServiceHost:
         self._daily_signature = None
         self._daily_next_write_at = 0
         self._daily_retry_at = 0
+        self._publication_task = None
+        self._publication_context = None
+        self._publication_lock = asyncio.Lock()
+        self._publication_closing = False
         self.reconciliation_task = None
         self.next_check_poll = 0
         from hummingbot.cli.funding_observer import FundingObserver
@@ -673,7 +677,7 @@ class ServiceHost:
         except Exception as error:
             self.mm_liquidity_state = self.liquidity_observer = None
             self.availability.fail("liquidity", "liquidity_observation_unavailable", error)
-        self.publish_status(version)
+        await self.publish_status(version)
         await self.poll_reconciliation()
         self.poll_funding()
         self.poll_outflow()
@@ -706,8 +710,9 @@ class ServiceHost:
                     "spot_outflow", "spot_outflow_observation_unavailable", error, retry=True)
         self.outflow_task = asyncio.create_task(observe())
 
-    def publish_status(self, version):
-        """Publish control every tick; optional daily checkpoints at most once/minute."""
+    def _prepare_status_publication(self, version):
+        # Connector/strategy state is loop-owned. Only the detached JSON payload
+        # and immutable ownership identity may cross to the database worker.
         status = json.loads(json.dumps(self.snapshot(), default=str))
         now = time.monotonic()
         try:
@@ -726,9 +731,13 @@ class ServiceHost:
             signature = None
         due = (not status.get("reporting_unavailable") and now >= self._daily_retry_at
                and (now >= self._daily_next_write_at or signature != self._daily_signature))
-        published = self.owner.store.publish(
-            owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation,
-            version=version, status=status, revision=self.revision, save_balances=due)
+        fields = dict(owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation,
+                      version=version, status=status, revision=self.revision, save_balances=due)
+        return fields, now, signature, due
+
+    def _complete_status_publication(self, published, context):
+        fields, now, signature, due = context
+        status = fields['status']
         if published and due:
             if status.get("daily_snapshot_error"):
                 delay = self.availability.fail("daily_balances", "daily_snapshot_unavailable", retry=True)
@@ -737,6 +746,45 @@ class ServiceHost:
                 self.availability.clear("daily_balances")
                 self._daily_signature = signature
                 self._daily_next_write_at, self._daily_retry_at = now + 60, 0
+
+    @staticmethod
+    def _publication_finished(task):
+        if not task.cancelled():
+            task.exception()  # A disconnected/cancelled waiter must not lose an exception.
+
+    async def _drain_publication(self):
+        task, context = self._publication_task, self._publication_context
+        if task is None:
+            return
+        try:
+            published = await asyncio.shield(task)
+        except asyncio.CancelledError:
+            # A waiter may be cancelled in the same loop turn as completion.
+            # Keep even a completed task so shutdown can observe its result or
+            # failure before releasing ownership.
+            raise
+        except BaseException:
+            if task.done() and self._publication_task is task:
+                self._publication_task = self._publication_context = None
+            raise
+        if self._publication_task is task:
+            self._publication_task = self._publication_context = None
+            self._complete_status_publication(published, context)
+
+    async def publish_status(self, version):
+        # Reuse the existing thread executor, with one physical publication at a
+        # time. Cancellation does not release its slot or the process's owner.
+        async with self._publication_lock:
+            if self._publication_closing:
+                return
+            await self._drain_publication()
+            if self._publication_closing:
+                return
+            context = self._prepare_status_publication(version)
+            self._publication_context = context
+            self._publication_task = asyncio.create_task(asyncio.to_thread(self.owner.store.publish, **context[0]))
+            self._publication_task.add_done_callback(self._publication_finished)
+            await self._drain_publication()
 
     def poll_funding(self):
         self.funding.poll(self.engine, self.owner, self.hb.trading_core)
@@ -805,6 +853,7 @@ class ServiceHost:
     async def close(self):
         from hummingbot.core.order_submission_guard import install_guard
         self.running, self.phase = False, "stopping"
+        self._publication_closing = True
         if self.owner is not None:
             self.owner.begin_shutdown()
         await self.funding.close()
@@ -815,6 +864,7 @@ class ServiceHost:
             # Any cleanup error keeps the lock until OS process teardown. The
             # deadline must remain armed when this returns False.
             try:
+                await self._drain_publication()
                 if not await self.stop_core():
                     return False
                 row = self.owner.check_owner()
