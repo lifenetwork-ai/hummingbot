@@ -203,3 +203,111 @@ def test_delayed_status_query_does_not_timeout_private_health(publication):
         event.remove(store.engine, 'before_cursor_execute', delay_publication)
         from hummingbot.core.order_submission_guard import install_guard
         install_guard(None)
+
+
+def test_observer_reuses_no_authority_and_avoids_duplicate_acquired_owner_query(publication, monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, MagicMock
+
+    from sqlalchemy import event
+
+    from hummingbot.cli.service import ServiceHost
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+    from hummingbot.core.order_submission_guard import SessionSubmissionBlocked, install_guard
+
+    store, owner, status = publication
+    queries = []
+
+    def record(connection, cursor, statement, params, context, many):
+        if statement.strip().startswith('SELECT b.bot_id') and 'pg_locks' in statement:
+            queries.append(statement)
+
+    event.listen(store.engine, 'before_cursor_execute', record)
+    monkeypatch.setattr('hummingbot.core.mm_liquidity.capture_liquidity', lambda host: None)
+
+    async def exercise():
+        host = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
+                           asyncio.Event(), MagicMock())
+        host.owner = owner
+        host.hb = SimpleNamespace(trading_core=SimpleNamespace(strategy=None, connector_manager=SimpleNamespace(connectors={})))
+        host.applied_version = 1
+        host.poll_reconciliation = AsyncMock()
+        host.poll_funding = host.poll_outflow = MagicMock()
+        host.publish_status = AsyncMock()
+        await host.observe_once()
+        assert len(queries) == 2  # Entry read and final recovery read; neither is a cached authority.
+        store.control(expected_version=1, desired_state='stopped')
+        owner.version, owner.config_file_path = 1, None
+        owner.allow_new_orders = True
+        with pytest.raises(SessionSubmissionBlocked):
+            owner.check_owner(new_risk=True)
+        assert not owner.lost
+        assert len(queries) == 3
+
+    try:
+        asyncio.run(exercise())
+    finally:
+        event.remove(store.engine, 'before_cursor_execute', record)
+        install_guard(None)
+
+
+def test_observer_ownership_round_trips_fit_private_probe_deadline(publication, monkeypatch):
+    import asyncio
+    import threading
+    import time
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, MagicMock
+    from urllib.request import urlopen
+
+    from aiohttp import web
+    from aiohttp.test_utils import TestServer
+    from sqlalchemy import event
+
+    from hummingbot.cli.service import ServiceHost
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+    from hummingbot.core.order_submission_guard import install_guard
+
+    store, owner, status = publication
+    entered, client_ready = threading.Event(), threading.Event()
+
+    def delay_checks(connection, cursor, statement, params, context, many):
+        if statement.strip().startswith('SELECT b.bot_id') and 'pg_locks' in statement:
+            entered.set()
+            connection.exec_driver_sql('SELECT pg_sleep(0.12)')
+
+    event.listen(store.engine, 'before_cursor_execute', delay_checks)
+    monkeypatch.setattr('hummingbot.core.mm_liquidity.capture_liquidity', lambda host: None)
+
+    async def exercise():
+        host = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
+                           asyncio.Event(), MagicMock())
+        host.owner = owner
+        host.hb = SimpleNamespace(trading_core=SimpleNamespace(strategy=None, connector_manager=SimpleNamespace(connectors={})))
+        host.applied_version = 1
+        host.bootstrapped = True
+        host.observer_progress_at = time.monotonic()
+        host.poll_reconciliation = AsyncMock()
+        host.poll_funding = host.poll_outflow = MagicMock()
+        host.publish_status = AsyncMock()
+        app = web.Application()
+        app.router.add_get('/live', host.health)
+        async with TestServer(app) as server:
+            def probe():
+                client_ready.set()
+                assert entered.wait(2)
+                try:
+                    with urlopen(str(server.make_url('/live')), timeout=.3) as response:
+                        return response.status
+                except OSError as error:
+                    return type(error).__name__
+            request = asyncio.create_task(asyncio.to_thread(probe))
+            assert await asyncio.to_thread(client_ready.wait, 2)
+            await host.observe_once()
+            assert await request == 200
+
+    try:
+        asyncio.run(exercise())
+    finally:
+        event.remove(store.engine, 'before_cursor_execute', delay_checks)
+        install_guard(None)

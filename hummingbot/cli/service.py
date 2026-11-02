@@ -545,7 +545,10 @@ class ServiceHost:
     async def observe_once(self):
         from hummingbot.core.order_submission_guard import install_guard
         from hummingbot.model.bot_state_store import ControlConflict
-        if not self.owner.try_acquire():
+
+        # Existing owners are checked immediately below. try_acquire also checks
+        # them, so calling both repeats the same synchronous DB round trip.
+        if self.owner.connection is None and not self.owner.try_acquire():
             self.phase = "standby"
             return
         install_guard(self.owner)

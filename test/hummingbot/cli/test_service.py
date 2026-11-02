@@ -20,6 +20,7 @@ async def test_nonowner_never_constructs_strategy_or_publishes_owner_status():
     settings = RuntimeSettings.from_environment({"DATABASE_URL": "postgresql://unused/test"})
     host = ServiceHost(settings, asyncio.Event(), MagicMock())
     host.owner = MagicMock()
+    host.owner.connection = None
     host.owner.try_acquire.return_value = False
     host.start_strategy = AsyncMock()
     await host.observe_once()
