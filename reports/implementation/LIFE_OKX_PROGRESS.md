@@ -5,6 +5,20 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-02
 
+- **Trading-continuity instrumentation complete:** test-only `--mm-activity`
+  reuses bounded incident capture for strategy/controller cadence, connector
+  submit/cancel returns and independent simulator quote age/terminal samples.
+  Final CLI946 passes. Unpaused180s diagnostic passes existing budgets (p99357ms,
+  zero API errors,180 synthetic fills/positions matched). A separate confirmed
+  2.272s engine pause yields2.657s tick/3.164s controller gaps; three independent
+  samples retain12 live quotes while PID stays fixed. Three groups of seven
+  empty quote samples in the unpaused window remain an explicit guard/executor
+  coverage follow-up, not proven downtime or a confirmed runtime defect. Prior
+  images were manually deleted; rebuilt diagnostic4ef2c50a matches 1,155 reviewed
+  runtime/config files but inherits no full R1/R2/hour/Demo acceptance. Owned
+  resources cleaned; original Demo unchanged. [Report](../investigations/mm-trading-continuity.md),
+  [evidence](../investigations/mm-trading-continuity-evidence.json).
+
 - **Runtime logic final-image load rerun complete:** unchanged full R1 and
   matched ordinary-entrypoint R2 pass on `95cde31c` / manifest `24ea415a`, with
   independent source/image/fixture/resource checks. Soak p99 465ms, zero API

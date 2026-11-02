@@ -4,6 +4,14 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [MM execution and quote observations](investigations/mm-trading-continuity.md),
+  [evidence](investigations/mm-trading-continuity-evidence.json), 2026-11-02:
+  opt-in bounded diagnostics;946 CLI tests and180s offline probe pass. A separate
+  confirmed2.272s engine pause is detected by tick/controller gaps and independent
+  live-quote samples. Three groups of empty quote samples in the unpaused run
+  remain an explicit operational follow-up. Rebuilt diagnostic `4ef2c50a` has
+  matching reviewed runtime/config source, not inherited full-release/Demo acceptance.
+
 - [Runtime logic final-image load rerun](release/mm-runtime-logic-release.md),
   [evidence](release/mm-runtime-logic-release-evidence.json), 2026-11-02:
   unchanged full R1 and matched shipping R2 pass on `95cde31c`. Soak p99 465ms,

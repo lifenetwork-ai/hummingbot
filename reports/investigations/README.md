@@ -2,6 +2,11 @@
 
 [All reports](../README.md) · [Current release](../release/mm-release-closeout.md)
 
+The newest [trading-continuity diagnostic](mm-trading-continuity.md) adds MM
+cycle/order timings and independent venue samples. It validates detection of a
+controlled engine pause; unpaused empty quote samples remain a policy/coverage
+follow-up. The rebuilt diagnostic artifact does not inherit older release gates.
+
 The latest logic audit fixes durable-HALT cleanup and equivalent-fee replay,
 with broad source and targeted image recovery checks. The subsequent
 [same-image load rerun](../release/mm-runtime-logic-release.md) passes full R1
@@ -16,6 +21,7 @@ current release acceptance is recorded separately in the release closeout.
 
 | Report | Evidence and scope |
 | --- | --- |
+| [MM trading continuity](mm-trading-continuity.md), [evidence](mm-trading-continuity-evidence.json) |946 CLI tests,180s offline probe and a separate2.272s engine-pause diagnostic. Independent samples persist while engine pauses; empty quote clusters remain an explicit follow-up. New4ef2c50a is diagnostic only. |
 | [Runtime logic audit](mm-runtime-logic-audit.md), [evidence](mm-runtime-logic-audit-evidence.json) | Two confirmed runtime defects fixed with Red/Green; native2,310 plus11 subtests/PG296/Swagger, two targeted E2E groups and external HALT/restart pass on95cde31c. No new full-release/load/Demo claim. |
 | [Further residual probes](mm-engine-residual-probes.md), [evidence](mm-engine-residual-probes-evidence.json) | Observer queries3→2, real HTTP Red/Green, native/PG and MM lifecycle pass. Candidate18422eca passes300s diagnostic; no full-release or all-probe resolution claim, executor runtime unchanged. |
 | [Status-publication responsiveness](mm-engine-status-publication.md) | Real DB/HTTP legacy Red and candidate Green; final native/PG, rebuilt image and three E2E groups pass. Same-base 600s probes are 2 vs 2; full R1/R2 pass on e2d393b1 with residual probes15/6. Ownership/executor/recorder leads remain, unique cause open. |

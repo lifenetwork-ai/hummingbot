@@ -54,7 +54,7 @@ recorder and packaged service. Keep production decisions and health budgets inta
   while the engine cannot advance; bound live tracking, history, disk and loss counts.
 - [x] Correlate those observations with probe incidents, expose missing/evicted
   evidence and sampling gaps; old runs must report not instrumented, never zero downtime.
-- [ ] Verify opt-in packaging plus a bounded offline diagnostic with verified
+- [x] Verify opt-in packaging plus a bounded offline diagnostic with verified
   packaged application bytes, publish evidence/limits, clean owned resources and
   commit. The prior image disappeared from Docker before measurement; a rebuilt
   artifact must retain its own identity and cannot inherit that image's gates. Injected pauses
@@ -64,3 +64,17 @@ Order age means time resting at the simulator, not proof of stale pricing. Tick
 completion does not prove quote admission. Connector RTT does not prove exchange
 terminal cancellation. No new production API/env, Demo session or deployment is
 part of this diagnostic phase; actual OKX/network latency remains unverified.
+
+[Result/evidence](../../reports/investigations/mm-trading-continuity.md):946 CLI
+tests pass. New diagnostic image `4ef2c50a` matches 1,155 reviewed runtime/config
+files; it does not inherit the deleted `95cde31c` artifact's release gates.
+Unpaused180s and separately classified90s injection diagnostics complete. The
+confirmed2.272s engine pause produces tick/controller gaps and independent live
+quote-age samples while retaining the same engine PID. Old runs remain uninstrumented.
+
+### Operational follow-up revealed by the new measurements
+
+- [ ] Correlate the three groups of seven unpaused empty quote samples with
+  existing guard/admission/executor reasons; declare acceptable replacement and
+  protective-stop gaps before claiming uninterrupted two-sided quote coverage.
+  This is not a confirmed runtime defect or closed production-availability gate.
