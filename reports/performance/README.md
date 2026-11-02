@@ -7,7 +7,7 @@ Compare runs only within their declared image, fixture and measurement scope.
 
 | Report | Evidence and scope |
 | --- | --- |
-| [Reporting/startup optimization](mm-reporting-startup-optimization.md), [evidence](mm-reporting-startup-evidence.json) | Per-filter bounded daily coalescing, exact lightweight historical rows and transaction-local report resource bound; final image/load pending |
+| [Reporting/startup optimization](mm-reporting-startup-optimization.md), [evidence](mm-reporting-startup-evidence.json) | Per-filter bounded daily coalescing, exact lightweight historical rows and transaction-local report resource bound; image39198499 full R1 and matched shipping R2 pass; soak p99 553ms, zero errors and +14.03MiB retained. R1 recovered probes/causal limits remain explicit |
 | [Long-running memory](mm-memory-retention-review.md), [evidence](mm-memory-retention-evidence.json) | Red/Green retention fixes, component heap experiment and scoped image lifecycle/RSS diagnostics |
 | [Full-image soak retest](life-mm-soak-retest.md) | [Gate evidence](life-mm-soak-retest-evidence.json); sixty-minute gate passed; further reproduction closed by user decision |
 | [Load and soak results](life-mm-load-tests.md) | [Original acceptance JSON](life-mm-load-acceptance.json) |

@@ -19,12 +19,19 @@ Persistent Demo storage/configuration and exchange accounts are untouched.
 - [x] C: Reassess existing daily SQL measurements and current 100k/1M behavior.
   Retain a change only with exact-result equality and repeatable improvement;
   otherwise retain bounded reporting and document the scaling decision. Commit.
-- [ ] Final: Freeze application/measurement source, package the final runtime,
+- [x] Final: Freeze application/measurement source, package the final runtime,
   run native/PostgreSQL/Swagger and targeted image regressions, then unchanged
   full R1 (including60-minute soak and recovery cases) and matched shipping R2.
-- [ ] Publish exact results, preserve failures/remaining attribution limits,
+- [x] Publish exact results, preserve failures/remaining attribution limits,
   update progress/checklists and commit. No historical pass certifies a new image.
 
 Healthy latency/error/resource/retention thresholds and order recovery remain
 unchanged. Do not introduce Redis, an incremental ledger or weaker authority
 checks without evidence. Short measurements do not replace the final hour gate.
+
+Completed on image `39198499`, source `9db4ff56a`: native2,265 plus11 subtests,
+PostgreSQL282, Swagger, three same-digest E2E groups, full unchanged R1 and
+matched shipping R2 pass. See [report](../../reports/performance/mm-reporting-startup-optimization.md)
+and [evidence](../../reports/performance/mm-reporting-startup-evidence.json).
+R1 probe episodes and incomplete attribution remain explicit; completing this
+plan does not assert zero transient stalls or a new connected Demo acceptance.

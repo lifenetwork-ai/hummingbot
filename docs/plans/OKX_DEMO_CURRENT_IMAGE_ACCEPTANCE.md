@@ -1,9 +1,14 @@
 # Current-image OKX Demo acceptance
 
-Latest completed scope: [`a190b024` release and stopped Demo upgrade](../../reports/release/mm-submission-log-release.md).
-Packaged smoke, three targeted E2E groups, full R1 and matched R2 pass; the
-canonical service is trading-stopped on this image. Earlier active Demo and
-natural-fill results below retain their original image scope.
+Latest local image acceptance: [`39198499` reporting/startup optimization](../../reports/performance/mm-reporting-startup-optimization.md).
+Native/PostgreSQL/Swagger, three E2E groups, full R1 and matched shipping R2 pass.
+This image has no new connected Demo acceptance or upgrade in this scope.
+
+Latest completed connected scope: [`a190b024` release and stopped Demo upgrade](../../reports/release/mm-submission-log-release.md).
+That service was left trading-stopped at verification time. Subsequent Docker
+cleanup removed the old image/container; the persistent Demo DB volume remains.
+Historical connected and natural-fill checklists below retain their original
+image/date scope; the new local gate does not relabel them.
 
 ## Latent-fix candidate connected Demo follow-up — 2026-11-01
 

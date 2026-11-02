@@ -1,12 +1,13 @@
 # Release verification
 
-[All reports](../README.md) · [Latest release](mm-submission-log-release.md)
+[All reports](../README.md) · [Latest local release](../performance/mm-reporting-startup-optimization.md)
 
 Start with the current closeout. Earlier image-specific attempts retain their
 original failures and scope; they are not additional open release gates.
 
 | Report | Evidence and scope |
 | --- | --- |
+| [Reporting/startup release](../performance/mm-reporting-startup-optimization.md), [evidence](../performance/mm-reporting-startup-evidence.json) | Image39198499: native/PG/Swagger/three E2E groups, full R1 and matched shipping R2 pass; soak p99 553ms, zero errors, +14.03MiB retained and4,886 matched fills. R1 recovered probes and historical causal limits remain explicit; no new connected Demo upgrade. |
 | [Submission-log release](mm-submission-log-release.md), [evidence](mm-submission-log-release-evidence.json) | Image a190b024: packaged smoke/targeted E2E, full R1 and matched R2 pass; soak p99 643ms, zero API errors, retention +14.39MiB and4,885 matched fills. Stopped Demo upgrade preserves config/history. Earlier causal gaps retained. |
 | [Prior-image closeout](mm-release-closeout.md), [evidence](mm-release-closeout-evidence.json) | Image5973410d full R1/R2 passes;4,884 fills match, soak p99 717ms and zero errors. Includes separately scoped3f5cbd0f follow-up; earlier failures and unresolved causes preserved. |
 | [Runtime supervision](mm-service-supervision.md) | Local acceptance complete: final image/regression/E2E/lifecycle, hour/load/faults and matched ordinary-entrypoint control pass; prior failures retained |

@@ -4,6 +4,14 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Reporting/startup optimization and final image gates](performance/mm-reporting-startup-optimization.md),
+  [evidence](performance/mm-reporting-startup-evidence.json), 2026-11-02:
+  image `39198499`, native2,265 plus11 subtests/PG282/Swagger and three E2E
+  groups pass, followed by full R1 and matched shipping R2. Soak p99 is553ms,
+  zero API errors, retention +14.03MiB and4,886 reconciled fills/positions;
+  shipping mixed p99 is81ms. Instrumented R1 has54 recovered probe episodes,
+  shipping R2 has0; no unique cause is claimed. No new Demo/cloud deployment.
+
 - [Probe diagnostics follow-up](investigations/mm-engine-probe-latency.md), 2026-11-02:
   61 native tests, clean-image smoke and300s diagnostic pass (p99 158ms, zero
   errors,300 matching fills). Native hot-leaf trace overhead is556→87ms per50k
@@ -11,7 +19,7 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
   open. Docker cleanup removed the previous Demo container/image; its persistent
   DB volume remains. The new diagnostic image is not promoted to Demo/release.
 
-- [Latest packaged release and stopped Demo upgrade](release/mm-submission-log-release.md):
+- [Prior packaged release and stopped Demo upgrade](release/mm-submission-log-release.md):
   `a190b024` passes packaged logging smoke, three targeted E2E groups, full R1
   (including60-minute soak and six faults) and matched R2. Soak p99 is643ms,
   zero unexpected API errors, retention grows14.39MiB;4,885 fills/positions match.

@@ -5,16 +5,21 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-02
 
-- **Ordered reporting/startup work in progress:** per-filter daily refresh
-  admission committed `21ce776c1` (focused61/CLI889/PG23). Lightweight historical
-  executor rows preserve identical SQL/Decimal results while native million-row
-  initialization measures17.84→7.37s and Python scan peak3.43→0.72MiB; native84/
-  PG12 pass after the ORM-allocation Red. SQL review retains formulas and adds
-  transaction-local serial reporting after constrained million-row OOM controls;
-  Red2/Green17 and actual-source million-row cancellation/probes pass. Final-image
-  full R1/R2 still follow; these source checks are not new release acceptance. See
-  [plan](../../docs/plans/MM_REPORTING_STARTUP_OPTIMIZATION_TDD_PLAN.md) and
-  [report](../performance/mm-reporting-startup-optimization.md).
+- **Ordered reporting/startup optimization and final local gates complete:**
+  A `21ce776c1` coalesces bounded daily refreshes by filter; B `c7cad9896`
+  removes ORM hydration while preserving exact SQL/Decimal results (native
+  million-row scan17.84→7.37s, Python peak3.43→0.72MiB); C `9db4ff56a`
+  limits daily-report parallel workers locally after constrained OOM controls.
+  Image `39198499` passes native2,265 plus11 subtests, PostgreSQL282, Swagger,
+  three image E2E groups, full unchanged R1 and matched shipping R2. Soak p99
+  is553ms with zero API errors, retention +14.03MiB and4,886 reconciled fills/
+  positions; all six faults pass. Shipping mixed p99 is81ms with zero errors.
+  R1 has54 recovered engine probes (max2.623s), shipping R2 has0; attribution
+  remains open. Random soak covers two profiles; all three have E2E coverage.
+  This is local acceptance, with no new Demo/cloud deployment; persistent Demo
+  storage is untouched. [Plan](../../docs/plans/MM_REPORTING_STARTUP_OPTIMIZATION_TDD_PLAN.md),
+  [report](../performance/mm-reporting-startup-optimization.md),
+  [evidence](../performance/mm-reporting-startup-evidence.json).
 - **Probe diagnostic follow-up complete:** longest bounded child-span retention,
   reserved incident capacity within32MiB, cheaper hot-leaf tracing and ownership/
   fill/checkpoint phase timings. Native61 and packaged smoke pass. A clean rebuilt
