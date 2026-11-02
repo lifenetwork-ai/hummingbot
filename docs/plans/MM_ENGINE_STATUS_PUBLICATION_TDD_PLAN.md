@@ -15,10 +15,12 @@ Baseline accepted image `39198499`, application source `9db4ff56a`.
 - [x] Run broad native/PostgreSQL/Swagger regressions; commit the runtime phase.
   Final source: 2,279 native tests plus 11 subtests, 284 PostgreSQL tests and
   Swagger pass.
-- [ ] Rebuild the exact source using the Dockerfile (previous image was externally
+- [x] Rebuild the exact source using the Dockerfile (previous image was externally
   removed), verify hashes/imports,
   run targeted E2E and a matched 600s ordinary-entrypoint diagnostic. Compare
-  against retained baseline, without claiming all probe causes are fixed.
+  against the same-base legacy counterfactual, without claiming all probe
+  causes are fixed. Three targeted E2E groups and both 600s controls pass;
+  engine probe recoveries remain 2 vs 2, with zero API errors in both.
 - [ ] Freeze the final source and run unchanged full R1 plus matched shipping R2
   after shorter checks pass. Preserve every failure and original gate budgets.
 - [ ] Publish scoped report/evidence, update current status/checklists, commit

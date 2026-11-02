@@ -4,6 +4,12 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Engine status-publication follow-up](investigations/mm-engine-status-publication.md),
+  2026-11-02: a real PostgreSQL/HTTP Red/Green proves one avoidable on-loop wait;
+  source, rebuilt image smoke and three E2E groups pass. Same-base 600s controls
+  both pass, but recovered probes remain 2 vs 2. Full R1/R2 are running; no new
+  release acceptance or unique historical-cause claim.
+
 - [Controlled engine-probe follow-up](investigations/mm-engine-probe-controlled.md),
   [evidence](investigations/mm-engine-probe-controlled-evidence.json), 2026-11-02:
   all54 historical recovered episodes reviewed. Three matched600s controls pass

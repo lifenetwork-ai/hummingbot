@@ -11,8 +11,11 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   candidate passes the same HTTP/CAS checks. Snapshot stays on-loop, unchanged
   fenced SQL runs in one physical worker, cancellation/shutdown drain precedes
   owner release. Final source passes native 2,279 plus 11 subtests, PostgreSQL
-  284 and Swagger. Image/load checks are pending; this is not new artifact
-  acceptance. [Plan](../../docs/plans/MM_ENGINE_STATUS_PUBLICATION_TDD_PLAN.md),
+  284 and Swagger. Rebuilt image `e2d393b1` passes hashes/smoke/three E2E
+  groups. Same-base legacy/candidate 600s controls both pass with 2 recovered
+  engine probes each, zero API errors and 600 reconciled fills/positions. API
+  p99 is 302/65ms in this pair, without proof of global probe resolution. Full
+  R1/R2 are running; this is not new release acceptance. [Plan](../../docs/plans/MM_ENGINE_STATUS_PUBLICATION_TDD_PLAN.md),
   [report](../investigations/mm-engine-status-publication.md).
 
 - **Controlled probe follow-up and read-only Demo preflight complete:** all54

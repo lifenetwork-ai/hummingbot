@@ -1,7 +1,7 @@
 # Engine status-publication responsiveness
 
-Date: 2026-11-02 (Asia/Saigon). Source verification in progress; the new runtime
-has not yet received image/load acceptance. Baseline image `39198499` retains
+Date: 2026-11-02 (Asia/Saigon). Source, image smoke/E2E and paired diagnostics
+complete; full final-image gates are running, so no new release acceptance yet. Baseline image `39198499` retains
 its completed release scope. [Plan](../../docs/plans/MM_ENGINE_STATUS_PUBLICATION_TDD_PLAN.md).
 
 ## Confirmed path
@@ -48,17 +48,50 @@ now verifies that shutdown still sees the failure and retains ownership.
 Eight focused publication cases and the existing service tests
 pass after the change; targeted PostgreSQL 40 and real HTTP/CAS 2 cases pass.
 The final native regression passes 2,279 tests plus 11 subtests. The final-source PostgreSQL regression passes all 284 cases, including the
-HTTP/CAS additions (the driver also receives explicit file arguments, but its
-normal directory collection still runs the complete suite). Swagger passes. Four failures
+HTTP/CAS additions. Swagger passes. Four failures
 in the first broader CLI attempt were synchronous test doubles for the newly
 async method; converting those doubles to AsyncMock preserves their original
 HALT/send-gate assertions. The failed run remains retained.
 
-The prior accepted local image was externally removed. Packaging will use the
-current full Dockerfile and existing dependency cache; it cannot be described as
-a derivative of the missing image. Verify packaged source hashes and imports,
-then targeted image cases, matched 600s ordinary diagnostic and unchanged full
-R1/R2 before making any new artifact-acceptance claim.
+The prior accepted local image was externally removed. A full current Dockerfile build with existing dependency cache produces image
+`e2d393b1` (1,368,913,677 bytes), source `a67233dc9`. All application/config hashes,
+actual import path and commit metadata match. Runtime smoke and targeted
+spot-outflow, funding and LIFE MM groups pass on the same artifact. Config ships
+under `conf/`, which the initial verification helper mapped incorrectly; the
+next helper exceeded Docker's argument size. A stdin-based verifier fixes both
+without rebuilding the image. The initial counterfactual launcher also treats a
+bare image ID in FROM as a registry name; a verified local tag fixes that before
+any measurement. Every failed launcher/verification log is retained separately;
+none is classified as an application runtime failure.
+
+## Same-base diagnostic pair
+
+The counterfactual derives from this rebuilt image with exactly the legacy
+`e20530257` service.py restored. All shared dependency layers and other packaged
+application/config hashes match. Its label explicitly identifies a hybrid
+counterfactual, never a release source. Fixed-order legacy then candidate runs
+use byte-identical fixtures, 100k historical fills, both markets, ordinary
+shipping entrypoint, 2 CPU/2GiB application and the original DB/rate/TTL budgets.
+Synthetic metadata supplies fixture references only: passed=false and diagnostic
+scope prevent borrowing the old image's acceptance.
+
+| 600s condition | API p95 | API p99 | API errors | Recovered engine probes | Independent fills |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Legacy publication | 52.97ms | 302.45ms | 0 | 2 | 600 |
+| Off-loop publication | 50.79ms | 65.03ms | 0 | 2 | 600 |
+
+Both pass all diagnostic budgets, exact original-fee/fill/position reconciliation,
+and preserve sampled supervisor/engine/API PIDs. Probe count does **not** improve
+in this pair. A lower API p99 is a one-pass observation, not proof of probe
+resolution or a universally faster API. The deterministic 400ms DB/300ms HTTP
+Red/Green establishes the specific blocking cause; it does not establish that
+this cause generated any particular historical or paired timeout. Reported
+supervisor recovery intervals are not quote downtime. Local emulation, fixed
+order and no repeated sampling limit broader inference.
+
+Raw pair metadata and summaries: `build/engine-publication-20261102/probe-*.json`.
+The unchanged full R1 and matched shipping R2 are running after these shorter
+checks; the 600s pair cannot close either release gate.
 
 ## Scope limits
 
