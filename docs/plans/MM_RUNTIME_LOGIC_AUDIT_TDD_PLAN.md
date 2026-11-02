@@ -117,7 +117,7 @@ failed attempt; keep the existing durations, resources, error and latency budget
 - [x] Complete full R1: warm300/mixed900/burst90/Random-soak3600 and six fault groups.
 - [x] Independently verify R1:58 continuous minute samples, maximum gap65.75s,
   unchanged source/artifact, all three profiles and4,885 reconciled synthetic fills.
-- [ ] Complete matched ordinary-entrypoint R2 warm300/mixed900 and verify it independently.
+- [x] Complete matched ordinary-entrypoint R2 warm300/mixed900 and verify it independently.
 - [x] Current-image Demo read-only REST/public-private WS/account/instrument review;
   read recovery from a read-only copy of the stopped original volume. No pending
   orders/HALT/mutations; stored perpetual quantities match the venue.
@@ -127,14 +127,14 @@ failed attempt; keep the existing durations, resources, error and latency budget
   restart and Stop; independently verify actual Demo orders and terminal cancellation.
 - [x] Reconcile new fills/original fees/positions and repeated reads; preserve historical
   fills. Zero new fills cannot count as positive-fill acceptance. Leave trading stopped.
-- [ ] Positive new-fill/original-fee processing on this image remains unverified:
-  the controlled Demo protocol has zero new fills,407 canceled orders. Historical
-  six fills and simulator fills do not close this connected positive-fill item.
-  After qualified load/restoration, reuse the previously approved temporary40USDT
-  per-market, one-level/0.0003-base-spread preset for a bounded1200s natural-maker
-  observation and filled restart; retain fee/volatility/risk guards and restore
-  the unchanged canonical catalogue. No forced fills or automatic HALT reset.
-- [ ] Publish scoped evidence, update acceptance/progress, clean temporary resources
+- [x] Verify positive current-image natural fills/original fees and filled restart.
+  The initial nine-case protocol remains zero-fill/407 canceled orders. A separate
+  approved40USDT-per-market, one-level/0.0003-base-spread, bounded1200s observation
+  produces five maker fills: one spot/four perpetual. Exact quantities/fees,
+  active filled restart, three dedup readbacks and all11 unique rows pass.
+  Keep every guard; restore the unchanged200/400 catalogue and canonical service
+  trading-stopped. No forced fills, database repair or automatic HALT reset.
+- [x] Publish scoped evidence, update acceptance/progress, clean temporary resources
   and commit. No live trading, HALT reset, database repair or Cloud Run deployment.
 
 Raw load progress: `build/quote-recovery-release-20261102/`;
@@ -142,11 +142,16 @@ connected evidence: `build/quote-recovery-demo-20261102/`.
 
 [Connected Demo protocol](../../reports/demo/okx-demo-quote-recovery.md) passes
 all nine fixed cases,600s Random rollover, active spot/both restart and independent
-407-order terminal review. Random draws sideways again; no different-profile
-handover or new fill is claimed. First full R1 attempt fails burst read p99
+407-order terminal review. Random draws sideways again; that phase does not claim
+a different-profile handover or new fill. First full R1 attempt fails burst read p99
 1.153s/auxiliary1.126s; warm/mixed pass, no unexpected API errors and1,290
 synthetic fills reconcile. Retain that failure; unchanged retry runs with Demo
 containers temporarily stopped. R1 now passes completely: soak p99103ms, no
 unexpected API errors,14.18MiB retained growth against64MiB,58 continuous samples
-and all six fault groups. R2 is still running; full combined qualification and
-the positive-fill observation remain open until their own checks finish.
+and all six fault groups. R2 warm/mixed p9964ms, zero errors and1,200 matched
+synthetic fills pass independently. Subsequent actual Demo fills/fees/filled
+restart also pass; the current5-fill proof is separate from the earlier six.
+[Full result/evidence](../../reports/release/mm-quote-recovery-release.md),
+[Demo/fill proof](../../reports/demo/okx-demo-quote-recovery.md#bounded-natural-maker-fill-follow-up--2026-11-03).
+All requested local test items here are complete. Production coverage SLO and
+residual-probe/historical causal limits above remain explicit.

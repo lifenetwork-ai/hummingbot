@@ -1,8 +1,9 @@
 # Quote-recovery image connected OKX Demo verification
 
 2026-11-02 (Asia/Saigon). **The connected order/session/restart protocol passes.**
-There are **zero new natural fills**, so positive new-fill/fee processing is not
-newly accepted. [Evidence](okx-demo-quote-recovery-evidence.json),
+The nine-case phase has **zero new natural fills**; the separately scoped
+[current-image natural-fill follow-up below](#bounded-natural-maker-fill-follow-up--2026-11-03)
+subsequently verifies five new fills and active filled restart. [Evidence](okx-demo-quote-recovery-evidence.json),
 [plan](../../docs/plans/MM_RUNTIME_LOGIC_AUDIT_TDD_PLAN.md#quote-recovery-image-full-load-and-connected-demo--requested-2026-11-02).
 
 Image `660bd38b`, manifest `fefa2546`, contains the terminal-confirmed executor
@@ -63,7 +64,7 @@ which is allowed; it does not prove a different-profile Random handover on Demo.
 A separate active `both` restart recovers quotes with pinned session/anchors/
 deadline/generation and durable exposure. Stop leaves no pending exchange orders.
 
-## Independent final state and limits
+## Nine-case checkpoint: independent state and limits
 
 No natural fill occurs. Historical fill content and three repeated reads are
 unchanged. BTC spot cash delta is exactly zero; perpetual base exposure remains
@@ -79,9 +80,58 @@ The first load attempt ran concurrently on the same host and failed burst p99
 at1.153s/1.126s with no unexpected API errors. Concurrent Demo is a context factor,
 not an established cause. After this independent Demo review, app and DB
 containers are temporarily stopped for an unchanged isolated load retry.
-Final service restoration is a separate checkpoint, not implied by this report.
+The subsequent natural-fill section below records final service restoration.
 
 Raw evidence: `build/quote-recovery-demo-20261102/`. Private backup/environment
 stay under the existing private configuration directory. No credentials are
 published. This is BTC Demo verification, not LIFE listing, live trading or
 Cloud Run acceptance.
+
+## Bounded natural maker-fill follow-up — 2026-11-03
+
+**Positive current-image fill/fee and filled-restart acceptance passes.**
+[Natural-fill evidence](okx-demo-quote-recovery-natural-fill-evidence.json),
+[completed full R1/R2](../release/mm-quote-recovery-release.md). The original
+nine-case JSON above remains unchanged and retains its zero-fill scope.
+
+After load gates and the stopped-service review pass, the previously approved
+private temporary preset sets40USDT working allocation per market, one level
+per side and base half-spread0.0003. The existing fee floor, volatility policy,
+risk limits, controller IDs and seeds remain unchanged. Only the five approved
+quote-allocation/spread fields change in a private copy. The original catalogue
+and environment stay untouched; a fresh private DB backup precedes the trial.
+The observation is bounded at1,200s with a1,800s timed session and ends early
+once both markets fill. Matching is natural; all23 independently read venue
+orders are post-only: five filled and18 canceled. No taker or forced matching.
+
+| Market / action | Maker fills | Total base quantity BTC | Original fee USDT |
+| --- | ---: | ---: | ---: |
+| Spot SELL | 1 | 0.00025828 | 0.0159994748672 |
+| Perpetual OPEN BUY | 3 | 0.0005 | 0.0077364080 |
+| Perpetual OPEN SELL | 1 | 0.0001 | 0.0015482106 |
+
+Every trade ID, price, base/contract conversion and original fee currency/amount
+matches authenticated OKX REST. All five report maker execution. The spot amount
+retains eight decimals exactly. Three repeated DB/REST/API readbacks retain five
+unique new rows; the original six rows are unchanged. These fee totals exclude
+funding and inventory PnL and do not establish profitability.
+
+Active filled restart passes with session ID, generation, anchors and deadline
+pinned. Final Stop and canonical restart preserve all11 unique fills and exact
+new rows. Perpetual base is0.0089 BTC long /0.0028 BTC short, matching OKX; spot
+cash is0.99974770628 BTC, exactly matching the fee-net fill delta. No HALT or
+manual DB repair/reset occurs. Temporary-service logs contain INFO172/WARNING11
+and zero ERROR/CRITICAL; independent final review confirms no pending orders
+or mutations and a live canonical owner.
+
+Independent API reads after restoration verify the completed test's pinned
+catalogue remains40/40 while the current catalogue for new sessions is restored
+to200USDT spot /400USDT perpetual. No pre-start API catalogue capture is claimed;
+during-trial market observations independently report allocation40 for both.
+The temporary container is removed and the same canonical660bd38b container is
+running with **trading stopped**, original private file hashes unchanged.
+
+This covers one spot SELL and four perpetual OPEN fills, rather than every
+direction/fee-currency combination. It is BTC Demo verification, not LIFE
+listing, real-money trading or uninterrupted quote-coverage proof. Raw evidence:
+`build/quote-recovery-natural-20261102/`.

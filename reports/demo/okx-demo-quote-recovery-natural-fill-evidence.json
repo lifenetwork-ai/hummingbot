@@ -1,0 +1,361 @@
+{
+  "published_at": "2026-11-02T17:26:25.277548+00:00",
+  "scope": "Current-image natural maker fills on OKX Demo, active filled restart, exact original fees, deduplication and original-catalogue restoration; no live account or deployment.",
+  "image_id": "sha256:660bd38be0014fc83ffcade00e0909b07e4c0402abbb0c566e3041796429f32a",
+  "manifest": "sha256:fefa25467cc6c79c34187bb88dc8ed493461f746aeb9e6822a4fc50f6e4d5007",
+  "passed": true,
+  "started_at": "2026-11-02T17:12:28.646335+00:00",
+  "finished_at": "2026-11-02T17:16:17.873687+00:00",
+  "approved_temporary_policy": {
+    "original_profile_sha256": "f76e43b842a5cc1c2bbe6f736f1a7c1e6a4f7aeb3543e1a28a15f7e583271232",
+    "original_env_sha256": "8d68414214cbb68c59e64096b7fb1899b9a64b938634f74cc20a7d928248ee84",
+    "temporary_profile_sha256": "9d469c177ff53127568ebc12df0d56e06191a3c980c6d81b3a75ca3bab3b8e9e",
+    "allowed_changes": [
+      "total_amount_quote",
+      "buy_spreads",
+      "sell_spreads",
+      "buy_amounts_pct",
+      "sell_amounts_pct"
+    ],
+    "unchanged_risk_policy": true,
+    "unchanged_controller_ids": true,
+    "unchanged_initial_positions": true,
+    "allocation_quote_each_market": "40",
+    "base_spread": ".0003",
+    "observation_seconds": 1200,
+    "restore_original_after_test": true,
+    "backup_sha256": "6890943adf812c74ad4ead2d871786c09ad55850e65b01bdd5cb021267e3a61a"
+  },
+  "observation_bound_seconds": 1200,
+  "ended_early_after_both_markets_filled": true,
+  "forced_fills": false,
+  "halt_resets": false,
+  "database_repairs": false,
+  "fill_comparisons": [
+    {
+      "market": "okx",
+      "order_id": "93027a12dac34fBCSBCUT41fa9119ee5",
+      "trade_id": "1418453193",
+      "quantity_base": "0.00025828",
+      "price": "77432.8",
+      "fee_currency": "USDT",
+      "venue_signed_fee": "-0.0159994748672",
+      "recorded_fee": "0.0159994748672",
+      "maker": true,
+      "matched": true,
+      "direction": "SELL",
+      "position_action": "NIL"
+    },
+    {
+      "market": "okx_perpetual",
+      "order_id": "93027a12dac34fBCBBCUT66350fb9a74",
+      "trade_id": "4570995793",
+      "quantity_base": "0.0002",
+      "price": "77364.08",
+      "fee_currency": "USDT",
+      "venue_signed_fee": "-0.0030945632",
+      "recorded_fee": "0.0030945632",
+      "maker": true,
+      "matched": true,
+      "direction": "BUY",
+      "position_action": "OPEN"
+    },
+    {
+      "market": "okx_perpetual",
+      "order_id": "93027a12dac34fBCBBCUTa8c5307c9fe",
+      "trade_id": "4570995693",
+      "quantity_base": "0.0002",
+      "price": "77364.08",
+      "fee_currency": "USDT",
+      "venue_signed_fee": "-0.0030945632",
+      "recorded_fee": "0.0030945632",
+      "maker": true,
+      "matched": true,
+      "direction": "BUY",
+      "position_action": "OPEN"
+    },
+    {
+      "market": "okx_perpetual",
+      "order_id": "93027a12dac34fBCBBCUT06c42bd9261",
+      "trade_id": "4570995336",
+      "quantity_base": "0.0001",
+      "price": "77364.08",
+      "fee_currency": "USDT",
+      "venue_signed_fee": "-0.0015472816",
+      "recorded_fee": "0.0015472816",
+      "maker": true,
+      "matched": true,
+      "direction": "BUY",
+      "position_action": "OPEN"
+    },
+    {
+      "market": "okx_perpetual",
+      "order_id": "93027a12dac34fBCSBCUTcd97640eab9",
+      "trade_id": "4570994579",
+      "quantity_base": "0.0001",
+      "price": "77410.53",
+      "fee_currency": "USDT",
+      "venue_signed_fee": "-0.0015482106",
+      "recorded_fee": "0.0015482106",
+      "maker": true,
+      "matched": true,
+      "direction": "SELL",
+      "position_action": "OPEN"
+    }
+  ],
+  "aggregates": [
+    {
+      "market": "okx",
+      "direction": "SELL",
+      "fee_currency": "USDT",
+      "fills": 1,
+      "base_amount": "0.00025828",
+      "original_fee": "0.0159994748672"
+    },
+    {
+      "market": "okx_perpetual",
+      "direction": "BUY",
+      "fee_currency": "USDT",
+      "fills": 3,
+      "base_amount": "0.0005",
+      "original_fee": "0.0077364080"
+    },
+    {
+      "market": "okx_perpetual",
+      "direction": "SELL",
+      "fee_currency": "USDT",
+      "fills": 1,
+      "base_amount": "0.0001",
+      "original_fee": "0.0015482106"
+    }
+  ],
+  "active_restart": {
+    "passed": true,
+    "pinned_session_anchor_deadline": true,
+    "prior_trade_ids_retained_once": true,
+    "fills_after": [
+      {
+        "market": "okx",
+        "order_id": "93027a12dac34fBCSBCUT41fa9119ee5",
+        "exchange_trade_id": "1418453193",
+        "amount": "0.00025828",
+        "price": "77432.8",
+        "trade_type": "SELL",
+        "position": "NIL",
+        "trade_fee": {
+          "fee_type": "DeductedFromReturns",
+          "percent": "0",
+          "percent_token": "USDT",
+          "flat_fees": [
+            {
+              "token": "USDT",
+              "amount": "0.0159994748672"
+            }
+          ]
+        }
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUT06c42bd9261",
+        "exchange_trade_id": "4570995336",
+        "amount": "0.0001",
+        "price": "77364.08",
+        "trade_type": "BUY",
+        "position": "OPEN",
+        "trade_fee": {
+          "fee_type": "AddedToCost",
+          "percent": "0",
+          "percent_token": "USDT",
+          "flat_fees": [
+            {
+              "token": "USDT",
+              "amount": "0.0015472816"
+            }
+          ]
+        }
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUT66350fb9a74",
+        "exchange_trade_id": "4570995793",
+        "amount": "0.0002",
+        "price": "77364.08",
+        "trade_type": "BUY",
+        "position": "OPEN",
+        "trade_fee": {
+          "fee_type": "AddedToCost",
+          "percent": "0",
+          "percent_token": "USDT",
+          "flat_fees": [
+            {
+              "token": "USDT",
+              "amount": "0.0030945632"
+            }
+          ]
+        }
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUTa8c5307c9fe",
+        "exchange_trade_id": "4570995693",
+        "amount": "0.0002",
+        "price": "77364.08",
+        "trade_type": "BUY",
+        "position": "OPEN",
+        "trade_fee": {
+          "fee_type": "AddedToCost",
+          "percent": "0",
+          "percent_token": "USDT",
+          "flat_fees": [
+            {
+              "token": "USDT",
+              "amount": "0.0030945632"
+            }
+          ]
+        }
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUTcd97640eab9",
+        "exchange_trade_id": "4570994579",
+        "amount": "0.0001",
+        "price": "77410.53",
+        "trade_type": "SELL",
+        "position": "OPEN",
+        "trade_fee": {
+          "fee_type": "AddedToCost",
+          "percent": "0",
+          "percent_token": "USDT",
+          "flat_fees": [
+            {
+              "token": "USDT",
+              "amount": "0.0015482106"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "repeated_readbacks": [
+    {
+      "unique_local_rows": 5,
+      "exchange_fills": 5,
+      "unchanged": true
+    },
+    {
+      "unique_local_rows": 5,
+      "exchange_fills": 5,
+      "unchanged": true
+    },
+    {
+      "unique_local_rows": 5,
+      "exchange_fills": 5,
+      "unchanged": true
+    }
+  ],
+  "history_unchanged": true,
+  "final_verification": {
+    "passed": true,
+    "read_only": true,
+    "at": "2026-11-02T17:20:09.731640+00:00",
+    "order_mutations": 0,
+    "account_mutations": 0,
+    "db_mutations": 0,
+    "catalogues": {
+      "current_for_new_sessions": {
+        "spot": "200",
+        "perpetual": "400"
+      },
+      "pinned_completed_test_session": {
+        "spot": "40",
+        "perpetual": "40"
+      },
+      "current_hash": "4edfba0b53fb05e9c41acd6281b1a042e9f2c4388e3a082d82b9cc967e275435",
+      "pinned_hash": "2602a548be75e480a22281782b9cf03de268344c431221510a66a854f911132d",
+      "verification_time": "after restoration; no pre-start API capture claimed"
+    },
+    "image_id": "sha256:660bd38be0014fc83ffcade00e0909b07e4c0402abbb0c566e3041796429f32a",
+    "canonical_container_running": true,
+    "trading_stopped": true,
+    "owner_available": true,
+    "no_halt": true,
+    "no_pending_mutations": true,
+    "no_pending_orders": true,
+    "baseline_fills": 6,
+    "new_fills": 5,
+    "final_unique_fills": 11,
+    "new_counts_by_market": {
+      "okx": 1,
+      "okx_perpetual": 4
+    },
+    "original_history_unchanged": true,
+    "new_fill_rows_exact_after_canonical_restart": true,
+    "perpetual_base": {
+      "BUY": "0.0089",
+      "SELL": "0.0028"
+    },
+    "spot_cash_btc": "0.99974770628",
+    "log_severities": {
+      "INFO": 172,
+      "WARNING": 11
+    },
+    "unclassified_errors": [],
+    "original_private_config_unchanged": true
+  },
+  "commands": [
+    {
+      "action": "start",
+      "elapsed_seconds": 8.159390333807096,
+      "status": "succeeded"
+    },
+    {
+      "action": "stop",
+      "elapsed_seconds": 1.0586011668201536,
+      "status": "succeeded"
+    }
+  ],
+  "catalogue_capture_scope": "Independent final API reads verify pinned40/40 and restored200/400; no pre-start API catalogue capture is claimed. During-trial market observations also report effective allocation40 for both.",
+  "constraints": {
+    "original_private_config_unchanged": true,
+    "no_forced_fills": true,
+    "no_market_or_self_matching_orders": true,
+    "no_halt_reset": true,
+    "no_database_repair": true,
+    "live_account": false,
+    "cloud_deployment": false
+  },
+  "limits": [
+    "One spot SELL and four perpetual OPEN maker executions do not cover every direction/fee-currency combination.",
+    "Demo matching does not establish LIFE listing liquidity, real-money profitability or uninterrupted quoting.",
+    "The earlier nine-case protocol still had zero new fills; its immutable JSON is not relabelled."
+  ],
+  "raw_sha256": {
+    "build/quote-recovery-natural-20261102/config-review.json": "0e042cd144cbccf4dfeea89dee7d41b714ccdd798c17d03f044b5c9a00443f7b",
+    "build/quote-recovery-natural-20261102/observation.json": "8b0377024c6fb8ee0c847234c322f126dd29a2d4ba7fe1ac57028a893657c808",
+    "build/quote-recovery-natural-20261102/runtime.json": "8d2296eba56c32cf87f848d8f7fbcabd6d14cf296c14a44cf50dd15c9c768e12",
+    "build/quote-recovery-natural-20261102/progress.json": "fea9018bf00749ea78b0600ac619e7e094dfcd4f347920e0b0bd5f01f9037e68",
+    "build/quote-recovery-natural-20261102/final-verification.json": "d67324d25ed0faef189bbaf9a757aeab370f47f26d09585d55cc3bb1e3fced27",
+    "build/quote-recovery-natural-20261102/service.log": "862bf898137076db343a2c86016e6bd70dea56a1015630504c47b0194ba7935b",
+    "build/quote-recovery-natural-20261102/observation.log": "16d4ee03993f04afcfcdbbef841a802010b70733e5ed9209ff4acb8515beb7c9",
+    "build/quote-recovery-natural-20261102/canonical-final.log": "dccd122209a68c15dc414d46dffc07fa130a0f53aee0f2679ed96bce689bfb74",
+    "build/quote-recovery-natural-20261102/final-verification.log": "d67324d25ed0faef189bbaf9a757aeab370f47f26d09585d55cc3bb1e3fced27",
+    "build/quote-recovery-natural-20261102/terminal-review.json": "cb068ad69b55638fc2caf3abf74d468f2a8b099237723d5ac6a545e8efb09d6f",
+    "build/quote-recovery-natural-20261102/terminal-review.log": "265042e6bb07b0cc5db94784cfd424ecf49b11a3f90cc5db932faba083e02105",
+    "build/quote-recovery-natural-20261102/history-whole-row-verification.json": "236749cc41e0d57208d0903ca95cc1737a9124fe9ff7034ea55f24b0558851c5"
+  },
+  "terminal_order_review": {
+    "passed": true,
+    "environment": "demo",
+    "account_mutations": 0,
+    "order_mutations": 0,
+    "confirmed_orders": 23,
+    "statuses": {
+      "filled": 5,
+      "canceled": 18
+    },
+    "cases": [],
+    "all_venue_orders_post_only": true,
+    "original_amount_price_exact": true
+  },
+  "whole_original_rows_unchanged": true
+}

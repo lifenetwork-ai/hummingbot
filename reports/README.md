@@ -4,13 +4,20 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
-- [Current quote-recovery image connected Demo](demo/okx-demo-quote-recovery.md),
-  [evidence](demo/okx-demo-quote-recovery-evidence.json), 2026-11-02:
-  nine fixed spot/perpetual/both cases,600s Random rollover and active spot/both
-  restart pass on660bd38b.407 actual Demo post-only orders independently confirmed
-  canceled; original six fills/economic state unchanged, no new natural fill.
-  Separate full-load retry is ongoing after retained burst p99 failure;
-  Demo containers temporarily stopped to isolate that retry.
+- [Current-image full load and Demo](release/mm-quote-recovery-release.md),
+  [load evidence](release/mm-quote-recovery-release-evidence.json), 2026-11-03:
+  image660bd38b passes full R1 plus matched shipping R2. Soak p99103ms,
+  +14.18MiB retained,4,885 synthetic fills/fees/positions matched and all six
+  faults; shipping mixed p9964ms. First burst failure remains retained;
+  recovered probes R1 25engine/3API and R2 oneengine remain explicit.
+
+- [Current-image connected Demo](demo/okx-demo-quote-recovery.md),
+  [natural-fill evidence](demo/okx-demo-quote-recovery-natural-fill-evidence.json):
+  nine fixed cases,600s Random rollover and active spot/both restart pass.
+  The first phase has407 canceled orders/zero new fills; a later bounded preset
+  verifies five natural maker fills (one spot/four perpetual), exact fees,
+  filled restart and11 unique retained rows. Current catalogue200/400 restored;
+  canonical service running with trading stopped, no pending orders/HALT.
 
 - [Quote replacement after terminal confirmation](investigations/mm-quote-recovery.md),
   [evidence](investigations/mm-quote-recovery-evidence.json), 2026-11-02:
@@ -18,7 +25,7 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
   Native2,356 plus11 subtests, PG296, Swagger and three packaged E2E groups pass.
   Matched180s diagnostics: median post-terminal wait4,993→99ms, longest empty-point
   span6.023→2.006s;180 synthetic fills reconcile per run. Guard gaps and quote SLO
-  remain explicit; candidate660bd38b has no new full R1/R2/hour/Demo acceptance.
+  remain explicit; this checkpoint precedes the subsequent full/load/Demo scope above.
 
 - [MM execution and quote observations](investigations/mm-trading-continuity.md),
   [evidence](investigations/mm-trading-continuity-evidence.json), 2026-11-02:
@@ -88,7 +95,7 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
   Demo is upgraded while stopped with unchanged history/config. Earlier burst
   cause remains open; no new active Demo session or natural fill is claimed.
 
-- [Latest active-session Demo verification](demo/okx-demo-latent-fixes.md): `3f5cbd0f` passes nine
+- [Prior active-session Demo verification](demo/okx-demo-latent-fixes.md): `3f5cbd0f` passes nine
   fixed cases, Random rollover and spot/both active restart. 381 post-only orders
   independently confirmed canceled; balances/positions/history match. No new fill,
   so earlier positive-fill evidence is not relabelled. Service is trading-stopped.

@@ -1,22 +1,27 @@
 # LIFE / OKX implementation progress
 
-Updated: 2026-11-02 (Asia/Saigon).
+Updated: 2026-11-03 (Asia/Saigon).
 Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
 
-## Current status — 2026-11-02
+## Current status — 2026-11-03
 
-- **Quote-recovery connected Demo protocol passes; full-load retry in progress:**
-  image660bd38b runs all nine fixed cases, configured600s Random step and active
-  spot/both restart.407 orders independently confirmed canceled, mapped by session;
-  both sides present in each fixed case, no ERROR/CRITICAL, no HALT/pending orders.
-  No new natural fills: six historical fills/economic state remain unchanged;
-  positive new-fill processing is not newly verified. Private DB backup retained,
-  original YAML/env unchanged. First full R1 warm/mixed pass; burst fails API p99
-  1.153s/auxiliary1.126s with zero errors and1,290 matching simulated fills.
-  Failure retained; unchanged retry isolates load from paused Demo containers.
-  Full R1/R2 and final service restoration remain open.
+- **Quote-recovery full load and connected fill verification complete:** image660bd38b
+  passes full unchanged R1 and matched shipping R2, independently verified.
+  Soak p99103ms, zero healthy API errors,14.18MiB retained growth,58 continuous
+  samples,4,885 matched synthetic fills/fees/positions, all three profiles/six
+  faults. R2 mixed p9964ms. First burst1.153s/auxiliary1.126s remains failed;
+  unique cause unproven. R1 probe recoveries25engine/3API and R2 oneengine stay
+  explicit; no unplanned healthy child replacement or uninterrupted-quote claim.
+  Demo nine cases/600s Random/restarts produce407 canceled orders, then an
+  approved40USDT-per-market preset produces five natural maker fills (one spot,
+  four perpetual). Exact original fees, filled active restart, three dedup reads,
+  original six rows and final11 unique fills pass. Perpetual0.0089 long/.0028
+  short matches OKX. Catalogue200/400 restored; canonical660 service running,
+  trading stopped, no pending orders/mutations/HALT. Private files/history/backups
+  preserved; no DB repair/reset/live/cloud deployment. Temporary resources cleaned.
+  [Load report](../release/mm-quote-recovery-release.md),
   [Demo report](../demo/okx-demo-quote-recovery.md),
-  [evidence](../demo/okx-demo-quote-recovery-evidence.json).
+  [fill evidence](../demo/okx-demo-quote-recovery-natural-fill-evidence.json).
 
 - **Terminal-confirmed quote replacement fixed:** `eee18456c` removes the
   executor's idle five-second cancellation wait once all tracked orders complete,
@@ -27,8 +32,8 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   post-terminal wait4,993→99ms and longest empty-point span6.023→2.006s;
   each reconciles180 synthetic fills/original fees/positions with zero API errors.
   Guard/control-cycle gaps and production coverage SLO remain explicit.
-  Candidate660bd38b changes one runtime module over4ef2c50a and has no new full
-  R1/R2/hour/Demo acceptance. Test resources cleaned; original Demo untouched.
+  At this checkpoint660bd38b changes one runtime module over4ef2c50a; its later
+  full R1/R2/hour/Demo verification is recorded above. Test resources cleaned; original Demo untouched.
   [Report](../investigations/mm-quote-recovery.md),
   [evidence](../investigations/mm-quote-recovery-evidence.json).
 

@@ -2,21 +2,23 @@
 
 **Latest local candidate:** [quote replacement follow-up](../../reports/investigations/mm-quote-recovery.md)
 fixes the terminal-confirmed executor wait on `660bd38b`. Broad source checks,
-three packaged E2E groups and matched180s diagnostics pass. This candidate has
-no new full R1/R2/hour acceptance at this checkpoint; the connected scope below
-is verified separately. Protective quote gaps and
-the production coverage SLO remain explicit. The prior accepted `95cde31c`
+three packaged E2E groups and matched180s diagnostics pass, followed by
+[full R1 and matched shipping R2](../../reports/release/mm-quote-recovery-release.md).
+Protective quote gaps, residual probes and the production coverage SLO remain
+explicit. The prior accepted `95cde31c`
 artifact was subsequently deleted by the operator; its historical gates below
 are not transferred to rebuilt or modified images.
 
 **New connected scope on660bd38b:** [Demo verification](../../reports/demo/okx-demo-quote-recovery.md)
 passes nine fixed cases, actual600s Random rollover, active spot/both restart
-and407 independently confirmed canceled orders. Zero new natural fills: positive
-new-fill/fee processing remains unverified on this image. Historical six fills
-retain their original scope. Demo containers are temporarily stopped during
-the separate full-load retry; no live account or deployment is included.
+and407 independently confirmed canceled orders. A subsequent bounded approved
+preset verifies five natural maker fills (one spot/four perpetual), exact fees,
+deduplication and active filled restart on this same image. Original six fills
+remain unchanged; final11 rows are unique. Canonical service is restored with
+original200/400 catalogue, trading stopped, no pending orders/mutations/HALT.
+No live account or deployment is included.
 
-**Later local logic fixes:** [runtime audit](../../reports/investigations/mm-runtime-logic-audit.md)
+**Preceding local logic fixes:** [runtime audit](../../reports/investigations/mm-runtime-logic-audit.md)
 closes durable-HALT cleanup and equivalent-fee replay defects on `95cde31c`,
 with broad source and targeted simulated lifecycle/recovery checks. Its separate
 [full R1 and matched R2 rerun](../../reports/release/mm-runtime-logic-release.md)
@@ -30,13 +32,31 @@ Transient probes remain; there is no new-image connected Demo session or upgrade
 The preceding image `39198499` has a separate [read-only Demo preflight](../../reports/investigations/mm-engine-probe-controlled.md#d--demo-read-only-preflight)
 which passes on that earlier image; it has no new active-session acceptance or service upgrade.
 
-Latest completed connected trading/upgrade scope: [`a190b024` release and stopped Demo upgrade](../../reports/release/mm-submission-log-release.md).
+Earlier connected trading/upgrade scope: [`a190b024` release and stopped Demo upgrade](../../reports/release/mm-submission-log-release.md).
 That service was left trading-stopped at verification time. Subsequent Docker
 cleanup removed the old image/container; the persistent Demo DB volume remains.
 Historical connected and natural-fill checklists below retain their original
 image/date scope; the new local gate does not relabel them.
 
-## Current-image read-only preflight — 2026-11-02
+## Quote-recovery current-image completion — 2026-11-03
+
+- [x] Full unchanged R1 including one-hour soak/six faults, and matched shipping R2;
+  independent image/source/17-fixture/resource verification.
+- [x] Current-image read-only Demo preflight and private DB backup; restore absent
+  stopped service with original configuration/history intact.
+- [x] Nine profile/mode cases, actual600s Random step and active spot/both restart;
+  independently confirm407 canceled post-only orders.
+- [x] Separate bounded maker-only40USDT-per-market trial: one spot and four perpetual
+  natural fills, original fees/quantity precision, active filled restart and dedup.
+- [x] Final11 unique fill rows, unchanged original six; positions/cash match OKX;
+  original200/400 catalogue and canonical container restored, trading stopped.
+- [x] Publish scoped reports/evidence, retain first failed burst and probe limits,
+  clean owned temporary resources and commit. No live trading or cloud deployment.
+
+[Full local report](../../reports/release/mm-quote-recovery-release.md),
+[connected Demo/fill report](../../reports/demo/okx-demo-quote-recovery.md).
+
+## Earlier read-only preflight on39198499 — 2026-11-02
 
 - [x] Validate both Demo credential sets, account mode, authenticated REST,
   public/private WS, instruments, balances, pending orders and held positions

@@ -1,12 +1,13 @@
 # Incident investigations
 
-[All reports](../README.md) · [Current release](../release/mm-release-closeout.md)
+[All reports](../README.md) · [Current release](../release/mm-quote-recovery-release.md)
 
 The newest [quote-replacement follow-up](mm-quote-recovery.md) fixes the idle
 five-second wait after terminal confirmation. Broad source checks, three
 packaged E2E groups and matched180s diagnostics pass; median post-terminal wait
 falls4,993→99ms. Protective gaps and production quote-coverage policy remain;
-candidate660bd38b has no new full-hour/Demo acceptance.
+the subsequent [full R1/R2 and connected Demo follow-up](../release/mm-quote-recovery-release.md)
+qualifies660bd38b under its stated scope.
 
 The preceding [trading-continuity diagnostic](mm-trading-continuity.md) adds MM
 cycle/order timings and independent venue samples. It validates detection of a

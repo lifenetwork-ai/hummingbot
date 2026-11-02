@@ -5,6 +5,11 @@ locally verified. Protective stops and control-cycle replacement gaps remain.**
 [Evidence](mm-quote-recovery-evidence.json),
 [plan](../../docs/plans/MM_RUNTIME_LOGIC_AUDIT_TDD_PLAN.md#quote-replacement-follow-up--2026-11-02).
 
+Subsequent [full R1/R2 and connected Demo verification](../release/mm-quote-recovery-release.md)
+passes on this same image, including five new natural maker fills and filled
+restart. Results below retain their earlier targeted-diagnostic scope.
+
+
 ## Cause and scope
 
 `PositionExecutor.control_shutdown_process()` previously slept five seconds
