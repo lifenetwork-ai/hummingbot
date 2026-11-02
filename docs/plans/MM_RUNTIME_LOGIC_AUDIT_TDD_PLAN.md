@@ -108,3 +108,36 @@ plus11 subtests, PG296, Swagger and three packaged E2E groups pass. Matched180s
 diagnostics on4ef2c50a/660bd38b pass: median post-terminal wait4,993→99ms;
 longest empty-point span6.023→2.006s,180 synthetic fills reconcile per run.
 Guard/control-cycle gaps remain. Candidate has no new full R1/R2/hour/Demo gate.
+
+## Quote-recovery image full load and connected Demo — requested 2026-11-02
+
+Pin `660bd38b` by manifest and freeze measurement/runtime sources. Retain every
+failed attempt; keep the existing durations, resources, error and latency budgets.
+
+- [ ] Complete full R1: warm300/mixed900/burst90/Random-soak3600 and six fault groups.
+- [ ] Independently verify R1 and run matched ordinary-entrypoint R2 warm300/mixed900.
+- [x] Current-image Demo read-only REST/public-private WS/account/instrument review;
+  read recovery from a read-only copy of the stopped original volume. No pending
+  orders/HALT/mutations; stored perpetual quantities match the venue.
+- [x] Back up the existing Demo database privately, restore the absent local service
+  on this image and verify stopped startup without changing private trading config.
+- [x] Run three profiles on spot/perpetual/both, real600s Random rollover, active
+  restart and Stop; independently verify actual Demo orders and terminal cancellation.
+- [x] Reconcile new fills/original fees/positions and repeated reads; preserve historical
+  fills. Zero new fills cannot count as positive-fill acceptance. Leave trading stopped.
+- [ ] Positive new-fill/original-fee processing on this image remains unverified:
+  the controlled Demo protocol has zero new fills,407 canceled orders. Historical
+  six fills and simulator fills do not close this connected positive-fill item.
+- [ ] Publish scoped evidence, update acceptance/progress, clean temporary resources
+  and commit. No live trading, HALT reset, database repair or Cloud Run deployment.
+
+Raw load progress: `build/quote-recovery-release-20261102/`;
+connected evidence: `build/quote-recovery-demo-20261102/`.
+
+[Connected Demo protocol](../../reports/demo/okx-demo-quote-recovery.md) passes
+all nine fixed cases,600s Random rollover, active spot/both restart and independent
+407-order terminal review. Random draws sideways again; no different-profile
+handover or new fill is claimed. First full R1 attempt fails burst read p99
+1.153s/auxiliary1.126s; warm/mixed pass, no unexpected API errors and1,290
+synthetic fills reconcile. Retain that failure; unchanged retry runs with Demo
+containers temporarily stopped. Full R1/R2 checkboxes remain open until verified.

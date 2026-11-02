@@ -4,6 +4,14 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Current quote-recovery image connected Demo](demo/okx-demo-quote-recovery.md),
+  [evidence](demo/okx-demo-quote-recovery-evidence.json), 2026-11-02:
+  nine fixed spot/perpetual/both cases,600s Random rollover and active spot/both
+  restart pass on660bd38b.407 actual Demo post-only orders independently confirmed
+  canceled; original six fills/economic state unchanged, no new natural fill.
+  Separate full-load retry is ongoing after retained burst p99 failure;
+  Demo containers temporarily stopped to isolate that retry.
+
 - [Quote replacement after terminal confirmation](investigations/mm-quote-recovery.md),
   [evidence](investigations/mm-quote-recovery-evidence.json), 2026-11-02:
   fixed five-second executor idle wait removed after all tracked orders complete.

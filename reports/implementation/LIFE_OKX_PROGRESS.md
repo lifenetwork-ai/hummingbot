@@ -5,6 +5,19 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-02
 
+- **Quote-recovery connected Demo protocol passes; full-load retry in progress:**
+  image660bd38b runs all nine fixed cases, configured600s Random step and active
+  spot/both restart.407 orders independently confirmed canceled, mapped by session;
+  both sides present in each fixed case, no ERROR/CRITICAL, no HALT/pending orders.
+  No new natural fills: six historical fills/economic state remain unchanged;
+  positive new-fill processing is not newly verified. Private DB backup retained,
+  original YAML/env unchanged. First full R1 warm/mixed pass; burst fails API p99
+  1.153s/auxiliary1.126s with zero errors and1,290 matching simulated fills.
+  Failure retained; unchanged retry isolates load from paused Demo containers.
+  Full R1/R2 and final service restoration remain open.
+  [Demo report](../demo/okx-demo-quote-recovery.md),
+  [evidence](../demo/okx-demo-quote-recovery-evidence.json).
+
 - **Terminal-confirmed quote replacement fixed:** `eee18456c` removes the
   executor's idle five-second cancellation wait once all tracked orders complete,
   preserving the no-ACK deadline, partial-fill holdings and existing safety gates.

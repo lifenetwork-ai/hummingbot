@@ -1,0 +1,534 @@
+{
+  "date": "2026-11-02",
+  "scope": "Current-image connected OKX Demo: nine fixed cases, Random rollover, active spot/both restart, independent terminal-order and economic-state review. No new natural fills; separate load acceptance.",
+  "image_id": "sha256:660bd38be0014fc83ffcade00e0909b07e4c0402abbb0c566e3041796429f32a",
+  "manifest": "sha256:fefa25467cc6c79c34187bb88dc8ed493461f746aeb9e6822a4fc50f6e4d5007",
+  "preflight": {
+    "passed": true,
+    "same_account_for_both_keys": true,
+    "account": [
+      {
+        "acctLv": "2",
+        "posMode": "long_short_mode",
+        "perm": "read_only,trade"
+      },
+      {
+        "acctLv": "2",
+        "posMode": "long_short_mode",
+        "perm": "read_only,trade"
+      }
+    ],
+    "public_websocket_instruments": [
+      "AVAX-USDT",
+      "BTC-USDT",
+      "BTC-USDT-SWAP",
+      "ETH-USDT"
+    ],
+    "private_websocket": [
+      {
+        "market": "SPOT",
+        "login": true,
+        "readonly_order_subscription": true
+      },
+      {
+        "market": "SWAP",
+        "login": true,
+        "readonly_order_subscription": true
+      }
+    ],
+    "position_units_matched": true,
+    "baseline_counts": {
+      "orders": 850,
+      "fills": 6,
+      "positions": 3,
+      "funding_bills": 21,
+      "pending_commands": 0
+    },
+    "read_only_clone_original_unchanged": true
+  },
+  "stopped_restore": {
+    "passed": true,
+    "backup_retained_privately": true,
+    "backup_sha256": "a2ceb72a711f6a252ae325f817eb434ae18e78e474317d2add18a97229ab2dd0",
+    "ledger_unchanged": true,
+    "private_env_sha256": "8d68414214cbb68c59e64096b7fb1899b9a64b938634f74cc20a7d928248ee84",
+    "private_profile_sha256": "f76e43b842a5cc1c2bbe6f736f1a7c1e6a4f7aeb3543e1a28a15f7e583271232",
+    "prior_container_absent": true
+  },
+  "started_at": "2026-11-02T14:56:21.530741+00:00",
+  "finished_at": "2026-11-02T15:20:14.381636+00:00",
+  "cases": [
+    {
+      "mode": "spot",
+      "profile": "follow_market",
+      "orders": 52,
+      "markets": {
+        "BTC-USDT": {
+          "buy": 31,
+          "sell": 21
+        }
+      }
+    },
+    {
+      "mode": "spot",
+      "profile": "sideways",
+      "orders": 12,
+      "markets": {
+        "BTC-USDT": {
+          "buy": 6,
+          "sell": 6
+        }
+      }
+    },
+    {
+      "mode": "spot",
+      "profile": "follow_token",
+      "orders": 30,
+      "markets": {
+        "BTC-USDT": {
+          "buy": 6,
+          "sell": 24
+        }
+      }
+    },
+    {
+      "mode": "perpetual",
+      "profile": "follow_market",
+      "orders": 34,
+      "markets": {
+        "BTC-USDT-SWAP": {
+          "buy": 10,
+          "sell": 24
+        }
+      }
+    },
+    {
+      "mode": "perpetual",
+      "profile": "sideways",
+      "orders": 10,
+      "markets": {
+        "BTC-USDT-SWAP": {
+          "buy": 4,
+          "sell": 6
+        }
+      }
+    },
+    {
+      "mode": "perpetual",
+      "profile": "follow_token",
+      "orders": 24,
+      "markets": {
+        "BTC-USDT-SWAP": {
+          "buy": 12,
+          "sell": 12
+        }
+      }
+    },
+    {
+      "mode": "both",
+      "profile": "follow_market",
+      "orders": 45,
+      "markets": {
+        "BTC-USDT": {
+          "buy": 15,
+          "sell": 6
+        },
+        "BTC-USDT-SWAP": {
+          "buy": 18,
+          "sell": 6
+        }
+      }
+    },
+    {
+      "mode": "both",
+      "profile": "sideways",
+      "orders": 22,
+      "markets": {
+        "BTC-USDT": {
+          "buy": 6,
+          "sell": 6
+        },
+        "BTC-USDT-SWAP": {
+          "buy": 4,
+          "sell": 6
+        }
+      }
+    },
+    {
+      "mode": "both",
+      "profile": "follow_token",
+      "orders": 112,
+      "markets": {
+        "BTC-USDT": {
+          "buy": 30,
+          "sell": 27
+        },
+        "BTC-USDT-SWAP": {
+          "buy": 22,
+          "sell": 33
+        }
+      }
+    }
+  ],
+  "random": {
+    "session_id": "6bc80d8b-d3f2-404c-a13c-c95740ac3c48",
+    "initial_step": 0,
+    "initial_profile": "sideways",
+    "started_at": "2026-11-02T15:00:24.051023Z",
+    "expires_at": "2026-11-02T15:15:24.051023Z",
+    "anchors": {
+      "demo_btc_spot": {
+        "life": "77895.45",
+        "sources": {}
+      }
+    },
+    "active_restart_preserves_session_anchor_clock": true,
+    "step_advanced": true,
+    "step_after": 1,
+    "profile_after": "sideways",
+    "stop_cancels_quotes": true
+  },
+  "both_restart": {
+    "passed": true,
+    "session_pinned": true,
+    "positions_before": {
+      "BUY": "0.0084",
+      "SELL": "0.0027"
+    },
+    "positions_after": {
+      "BUY": "0.0084",
+      "SELL": "0.0027"
+    }
+  },
+  "commands": [
+    {
+      "action": "start",
+      "elapsed_seconds": 9.271862416993827,
+      "status": "succeeded"
+    },
+    {
+      "action": "stop",
+      "elapsed_seconds": 4.053521665977314,
+      "status": "succeeded"
+    },
+    {
+      "action": "start",
+      "elapsed_seconds": 7.05789366690442,
+      "status": "succeeded"
+    },
+    {
+      "action": "stop",
+      "elapsed_seconds": 4.0456709591671824,
+      "status": "succeeded"
+    },
+    {
+      "action": "start",
+      "elapsed_seconds": 8.08017245796509,
+      "status": "succeeded"
+    },
+    {
+      "action": "stop",
+      "elapsed_seconds": 2.0373889170587063,
+      "status": "succeeded"
+    },
+    {
+      "action": "start",
+      "elapsed_seconds": 7.0540693749208,
+      "status": "succeeded"
+    },
+    {
+      "action": "stop",
+      "elapsed_seconds": 4.118286459008232,
+      "status": "succeeded"
+    },
+    {
+      "action": "start",
+      "elapsed_seconds": 11.147338750073686,
+      "status": "succeeded"
+    },
+    {
+      "action": "stop",
+      "elapsed_seconds": 1.0324055419769138,
+      "status": "succeeded"
+    },
+    {
+      "action": "start",
+      "elapsed_seconds": 9.09972829092294,
+      "status": "succeeded"
+    },
+    {
+      "action": "stop",
+      "elapsed_seconds": 3.0420844580512494,
+      "status": "succeeded"
+    },
+    {
+      "action": "start",
+      "elapsed_seconds": 11.112840791931376,
+      "status": "succeeded"
+    },
+    {
+      "action": "stop",
+      "elapsed_seconds": 4.048325999872759,
+      "status": "succeeded"
+    },
+    {
+      "action": "start",
+      "elapsed_seconds": 8.069819000083953,
+      "status": "succeeded"
+    },
+    {
+      "action": "stop",
+      "elapsed_seconds": 7.106725333025679,
+      "status": "succeeded"
+    },
+    {
+      "action": "start",
+      "elapsed_seconds": 8.210164749994874,
+      "status": "succeeded"
+    },
+    {
+      "action": "stop",
+      "elapsed_seconds": 5.095596833154559,
+      "status": "succeeded"
+    },
+    {
+      "action": "start",
+      "elapsed_seconds": 8.183238832978532,
+      "status": "succeeded"
+    },
+    {
+      "action": "stop",
+      "elapsed_seconds": 6.147460832959041,
+      "status": "succeeded"
+    }
+  ],
+  "terminal_review": {
+    "passed": true,
+    "environment": "demo",
+    "account_mutations": 0,
+    "order_mutations": 0,
+    "confirmed_orders": 407,
+    "statuses": {
+      "canceled": 407
+    },
+    "cases": [
+      {
+        "mode": "spot",
+        "profile": "follow_market",
+        "orders": 52,
+        "markets": {
+          "BTC-USDT": {
+            "buy": 31,
+            "sell": 21
+          }
+        }
+      },
+      {
+        "mode": "spot",
+        "profile": "sideways",
+        "orders": 12,
+        "markets": {
+          "BTC-USDT": {
+            "buy": 6,
+            "sell": 6
+          }
+        }
+      },
+      {
+        "mode": "spot",
+        "profile": "follow_token",
+        "orders": 30,
+        "markets": {
+          "BTC-USDT": {
+            "buy": 6,
+            "sell": 24
+          }
+        }
+      },
+      {
+        "mode": "perpetual",
+        "profile": "follow_market",
+        "orders": 34,
+        "markets": {
+          "BTC-USDT-SWAP": {
+            "buy": 10,
+            "sell": 24
+          }
+        }
+      },
+      {
+        "mode": "perpetual",
+        "profile": "sideways",
+        "orders": 10,
+        "markets": {
+          "BTC-USDT-SWAP": {
+            "buy": 4,
+            "sell": 6
+          }
+        }
+      },
+      {
+        "mode": "perpetual",
+        "profile": "follow_token",
+        "orders": 24,
+        "markets": {
+          "BTC-USDT-SWAP": {
+            "buy": 12,
+            "sell": 12
+          }
+        }
+      },
+      {
+        "mode": "both",
+        "profile": "follow_market",
+        "orders": 45,
+        "markets": {
+          "BTC-USDT": {
+            "buy": 15,
+            "sell": 6
+          },
+          "BTC-USDT-SWAP": {
+            "buy": 18,
+            "sell": 6
+          }
+        }
+      },
+      {
+        "mode": "both",
+        "profile": "sideways",
+        "orders": 22,
+        "markets": {
+          "BTC-USDT": {
+            "buy": 6,
+            "sell": 6
+          },
+          "BTC-USDT-SWAP": {
+            "buy": 4,
+            "sell": 6
+          }
+        }
+      },
+      {
+        "mode": "both",
+        "profile": "follow_token",
+        "orders": 112,
+        "markets": {
+          "BTC-USDT": {
+            "buy": 30,
+            "sell": 27
+          },
+          "BTC-USDT-SWAP": {
+            "buy": 22,
+            "sell": 33
+          }
+        }
+      }
+    ],
+    "case_attribution": {
+      "method": "unique structured creation session_id; cross-check available durable executor config.mm_session_id",
+      "all_orders_mapped": 407,
+      "durable_executor_crosschecks": 75,
+      "unknown_or_conflicting_associations": 0,
+      "all_cases_expected_markets_and_sides": true
+    }
+  },
+  "final_review": {
+    "passed": true,
+    "read_only": true,
+    "checked_at": "2026-11-02T15:21:30.490982+00:00",
+    "image_id": "sha256:660bd38be0014fc83ffcade00e0909b07e4c0402abbb0c566e3041796429f32a",
+    "new_fill_comparisons": [],
+    "new_fill_count": 0,
+    "positive_new_fill_evidence": false,
+    "spot_cash_btc": "1.00000598628",
+    "spot_cash_delta": "0",
+    "spot_cash_matched": true,
+    "perpetual_base": {
+      "BUY": "0.0084",
+      "SELL": "0.0027"
+    },
+    "perpetual_positions_matched": true,
+    "perpetual_rows": [
+      {
+        "side": "BUY",
+        "amount": "0.0084",
+        "breakeven_price": "78549.67821428571428571428571",
+        "cum_fees_quote": "0.0047181294"
+      },
+      {
+        "side": "SELL",
+        "amount": "0.0027",
+        "breakeven_price": "78571.72222222222222222222222",
+        "cum_fees_quote": "0.007868270"
+      }
+    ],
+    "repeated_reads": [
+      {
+        "unchanged": true,
+        "new_unique_rows": 0,
+        "prior_fill_history_unchanged": true
+      },
+      {
+        "unchanged": true,
+        "new_unique_rows": 0,
+        "prior_fill_history_unchanged": true
+      },
+      {
+        "unchanged": true,
+        "new_unique_rows": 0,
+        "prior_fill_history_unchanged": true
+      }
+    ],
+    "prior_fill_history_unchanged": true,
+    "no_new_fill_economic_state_unchanged": true,
+    "final_stopped": true,
+    "no_pending_orders": true,
+    "no_halt": true,
+    "no_pending_mutations": true,
+    "private_files_unchanged": true,
+    "prior_container_absent": true,
+    "health": {
+      "/startup": 200,
+      "/live": 200,
+      "/ready": 503
+    }
+  },
+  "log_review": {
+    "passed": true,
+    "severity_counts": {
+      "INFO": 1547,
+      "WARNING": 53
+    },
+    "non_json_lines": 0,
+    "classified": [],
+    "unclassified": []
+  },
+  "operational_state": "Protocol ended trading-stopped and healthy; Demo app/DB temporarily stopped during the separate unchanged load retry; final restoration will be recorded separately.",
+  "constraints": {
+    "no_forced_fills": true,
+    "no_halt_reset": true,
+    "no_database_repair": true,
+    "private_config_unchanged": true,
+    "no_live_account": true,
+    "no_cloud_deployment": true
+  },
+  "limitations": [
+    "All 407 orders were canceled, not filled: no new positive-fill/original-fee processing acceptance on this image.",
+    "Six historical fills retain their original image scope; repeated unchanged reads are not new-fill deduplication proof.",
+    "Random advanced step0->1 while drawing sideways again; repeated draws are permitted. This is not proof of a different-profile handover on Demo.",
+    "Snapshot order counts do not establish continuous two-sided quoting.",
+    "BTC-USDT Demo is not LIFE listing or real-money/live/CloudRun acceptance."
+  ],
+  "raw_sha256": {
+    "build/quote-recovery-demo-20261102/preflight.json": "9f144cb1c3c4c4b67d3831c66f2bdf7654eb9d443545a5def1c319f73773650a",
+    "build/quote-recovery-demo-20261102/demo-recovery-readonly.json": "9fff679f1f4d3c96394af6077501e61fb2e4422838048936bf1eb2c8ce403d8b",
+    "build/quote-recovery-demo-20261102/upgrade-review.json": "030c3342c882c39a3363cb61999a4b971fae93db6b330af08f20f21724d0ab44",
+    "build/quote-recovery-demo-20261102/acceptance.json": "8ab72fff7f9e6ef82fa9b6cc5784ef0e957072c9600896f283577f52c4caf8c5",
+    "build/quote-recovery-demo-20261102/terminal-review.json": "5437deb8a3e2a5aa570d1fe2544e107d1dd48b5ab647cd9dcfd9a502312a9984",
+    "build/quote-recovery-demo-20261102/final-review.json": "8dc7b6746c525105c80e971784e502e9f92ae7150d3c138bb3a85cbaf208c06b",
+    "build/quote-recovery-demo-20261102/log-review.json": "5a122fbce1a8670768eb8716b048a45b62f1efba6451824cc0ee93f9a1fe26ae",
+    "build/quote-recovery-demo-20261102/service.log": "2cf1cbd5c215f4f34dff62a12621ba3a9faaf29118288417a5b8ef7d25e4946f",
+    "build/quote-recovery-demo-20261102/executor-session-map.json": "ecb9a7c6a1b748dbc1c2dc4476c88c448ff2ddbd6e8b444a834899abb123d272",
+    "build/quote-recovery-demo-20261102/finish-progress.json": "82e15162d1a86c90bd71427f09a3263e1bb47054becd26617af8177a9e9a9c71"
+  }
+}
