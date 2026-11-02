@@ -444,6 +444,83 @@ def test_clean_shutdown_checkpoints_before_cleanup_and_closes_runtime_marker(own
     assert not checkpoint["_is_stop_triggered"] and checkpoint["max_global_pnl"] == "42.5"
 
 
+@pytest.mark.parametrize('late', [False, True])
+@pytest.mark.parametrize('cleanup_succeeds', [False, True])
+def test_observer_durable_halt_drains_orders_and_preserves_recovery(owned, monkeypatch, late, cleanup_succeeds):
+    from hummingbot.cli.service import ServiceHost
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+
+    core = reconciliation_core(owned)
+    core._strategy_running = core._is_running = True
+    order = intent(owned)
+    order.current_state = OrderState.OPEN
+    with owned.manager.get_new_session() as session, session.begin():
+        session.get(Order, order.client_order_id).creation_pending = False
+    original = owned.owner.check_owner
+    reads = 0
+
+    def checked(*args, **kwargs):
+        nonlocal reads
+        reads += 1
+        if reads == (2 if late else 1):
+            with owned.engine.begin() as connection:
+                connection.execute(text("UPDATE bot_state SET recovery_state = recovery_state || CAST(:halt AS jsonb)"),
+                                   {'halt': json.dumps({'halt': True, 'reason': 'external-halt'})})
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(owned.owner, 'check_owner', checked)
+    monkeypatch.setattr('hummingbot.core.mm_liquidity.capture_liquidity', lambda host: None)
+    owned.owner._refresh_orders = AsyncMock()
+
+    async def cancel_all(timeout):
+        order.current_state = OrderState.CANCELED
+        return []
+
+    owned.market.cancel_all = AsyncMock(side_effect=cancel_all)
+
+    async def shutdown(**kwargs):
+        assert not owned.owner.allow_new_orders
+        assert owned.store.read()['recovery_state']['shutdown_incomplete']
+        if not cleanup_succeeds:
+            return False
+        await owned.market.cancel_all(5)
+        await core.after_order_cancellation()
+        core._strategy_running = core._is_running = False
+        core.strategy = None
+        core.connector_manager.connectors = {}
+        return True
+
+    core.shutdown = AsyncMock(side_effect=shutdown)
+    host = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
+                       asyncio.Event(), MagicMock())
+    host.owner = owned.owner
+    host.hb = SimpleNamespace(trading_core=core)
+    host.running, host.phase, host.applied_version = True, 'running', 1
+    host.confirmed_runtime_problem = AsyncMock(return_value=None)
+    host.poll_reconciliation = AsyncMock()
+    host.poll_funding = host.poll_outflow = MagicMock()
+    host.snapshot = lambda: dict(running=host.running, engine=dict(
+        strategy_running=core._strategy_running, clock_running=core._is_running), reporting={'accounts': []})
+    if cleanup_succeeds:
+        owned.loop.run_until_complete(host.observe_once())
+        assert order.current_state == OrderState.CANCELED
+        owned.market.cancel_all.assert_awaited_once()
+        owned.owner._refresh_orders.assert_awaited_once()
+        assert owned.store.read()['status']['running'] is False
+        assert owned.store.read()['status']['engine']['strategy_running'] is False
+    else:
+        with pytest.raises(RuntimeError, match='cleanup'):
+            owned.loop.run_until_complete(host.observe_once())
+        assert order.current_state == OrderState.OPEN
+        assert owned.store.read()['status'] is None
+    recovery = owned.store.read()['recovery_state']
+    assert recovery['halt'] and recovery['reason'] == 'external-halt'
+    assert bool(recovery.get('shutdown_incomplete')) is not cleanup_succeeds
+    assert not owned.owner.allow_new_orders
+    successor = BotOwnership(owned.engine, 'hummingbot')
+    assert not successor.try_acquire()
+
+
 def test_incomplete_shutdown_preserves_owner_and_durable_halt(owned):
     core = reconciliation_core(owned)
 

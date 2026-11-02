@@ -673,6 +673,12 @@ class ServiceHost:
                     raise RuntimeError("Degraded runtime cleanup did not complete.")
         if (self.owner.check_owner()["recovery_state"] or {}).get("halt"):
             self.running, self.phase, self.error = False, "halted", "RecoveryRequired"
+            # A durable HALT may arrive after the entry read or while startup
+            # is pending. Blocking new submissions does not cancel resting orders.
+            if (self.start_task is not None or core.strategy is not None
+                    or core.connector_manager.connectors or getattr(core, "_is_running", False)):
+                if not await self.stop_core():
+                    raise RuntimeError("Durable HALT cleanup did not complete; process recovery is required.")
         from hummingbot.core.mm_liquidity import capture_liquidity
         try:
             self.mm_liquidity_state = capture_liquidity(self)
