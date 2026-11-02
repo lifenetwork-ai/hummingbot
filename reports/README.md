@@ -7,8 +7,10 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 - [Engine status-publication follow-up](investigations/mm-engine-status-publication.md),
   2026-11-02: a real PostgreSQL/HTTP Red/Green proves one avoidable on-loop wait;
   source, rebuilt image smoke and three E2E groups pass. Same-base 600s controls
-  both pass, but recovered probes remain 2 vs 2. Full R1/R2 are running; no new
-  release acceptance or unique historical-cause claim.
+  both pass, but recovered probes remain 2 vs 2. Full unchanged R1 and matched
+  shipping R2 independently pass on `e2d393b1`: soak p99 113ms, +13.18MiB retained,
+  4,886 matched fills/positions and six faults; shipping mixed p99 72ms. Residual
+  probes are 15/6 with no restart; unique cause stays open. No new Demo/deploy.
 
 - [Controlled engine-probe follow-up](investigations/mm-engine-probe-controlled.md),
   [evidence](investigations/mm-engine-probe-controlled-evidence.json), 2026-11-02:

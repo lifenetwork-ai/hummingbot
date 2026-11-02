@@ -1,9 +1,10 @@
 # Current-image OKX Demo acceptance
 
-Latest local image acceptance: [`39198499` reporting/startup optimization](../../reports/performance/mm-reporting-startup-optimization.md).
+Latest local image acceptance: [`e2d393b1` status-publication follow-up](../../reports/investigations/mm-engine-status-publication.md).
 Native/PostgreSQL/Swagger, three E2E groups, full R1 and matched shipping R2 pass.
-A later [read-only Demo preflight](../../reports/investigations/mm-engine-probe-controlled.md#d--demo-read-only-preflight)
-passes on this image; it has no new active-session acceptance or service upgrade.
+Transient probes remain; there is no new-image connected Demo session or upgrade.
+The preceding image `39198499` has a separate [read-only Demo preflight](../../reports/investigations/mm-engine-probe-controlled.md#d--demo-read-only-preflight)
+which passes on that earlier image; it has no new active-session acceptance or service upgrade.
 
 Latest completed connected trading/upgrade scope: [`a190b024` release and stopped Demo upgrade](../../reports/release/mm-submission-log-release.md).
 That service was left trading-stopped at verification time. Subsequent Docker

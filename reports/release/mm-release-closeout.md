@@ -1,6 +1,9 @@
 # Current-image release closeout
 
-Latest packaged follow-up: [`a190b024` full R1/R2 and stopped Demo upgrade](mm-submission-log-release.md).
+Latest local-image follow-up: [`e2d393b1` status-publication fix and full R1/R2](../investigations/mm-engine-status-publication.md).
+Residual probes remain; connected Demo is not rerun on this image.
+
+Latest connected stopped-Demo follow-up: [`a190b024` full R1/R2 and stopped Demo upgrade](mm-submission-log-release.md).
 The results below keep their original image scopes and are not relabelled.
 
 Earlier follow-up (2026-11-01): **candidate `3f5cbd0f` first rerun fails burst

@@ -5,7 +5,7 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-02
 
-- **Status-publication responsiveness fix in verification:** retained stacks
+- **Status-publication responsiveness fix and local gates complete:** retained stacks
   identify synchronous publication on the engine loop. Legacy-source PostgreSQL
   replay with 400ms publication delay reproduces a 300ms private-probe timeout;
   candidate passes the same HTTP/CAS checks. Snapshot stays on-loop, unchanged
@@ -15,7 +15,11 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   groups. Same-base legacy/candidate 600s controls both pass with 2 recovered
   engine probes each, zero API errors and 600 reconciled fills/positions. API
   p99 is 302/65ms in this pair, without proof of global probe resolution. Full
-  R1/R2 are running; this is not new release acceptance. [Plan](../../docs/plans/MM_ENGINE_STATUS_PUBLICATION_TDD_PLAN.md),
+  unchanged R1 and matched shipping R2 independently pass: soak p99 113ms, zero
+  API errors, +13.18MiB retained, 4,886 reconciled fills/positions and six faults;
+  shipping mixed p99 72ms. Healthy probe recoveries remain 15/6, all recovered
+  with no restart; ownership/recorder/executor samples provide further leads,
+  without unique attribution. New-image Demo/deployment is not performed. [Plan](../../docs/plans/MM_ENGINE_STATUS_PUBLICATION_TDD_PLAN.md),
   [report](../investigations/mm-engine-status-publication.md).
 
 - **Controlled probe follow-up and read-only Demo preflight complete:** all54
