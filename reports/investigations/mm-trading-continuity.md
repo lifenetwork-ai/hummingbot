@@ -6,6 +6,11 @@ complete; uninterrupted two-sided quote availability is not certified.**
 [plan](../../docs/plans/MM_RUNTIME_LOGIC_AUDIT_TDD_PLAN.md#trading-continuity-diagnostics--requested-2026-11-02),
 [commands and definitions](../../docs/life-mm-load-tests.md#mm-activity-and-independent-quote-observations).
 
+Subsequent [quote-replacement investigation](mm-quote-recovery.md) confirms and
+fixes an avoidable five-second shutdown wait after terminal confirmation;
+matched short diagnostics improve the measured gaps. Protective pauses and a
+production coverage SLO remain separate. Results below retain their original scope.
+
 ## What was added
 
 The opt-in `--mm-activity` diagnostic reuses the existing load wrapper, incident
@@ -100,8 +105,9 @@ define uninterrupted resting-quote coverage. There is no established new runtime
 defect or complete cause attribution here. **Before claiming continuous quoting,
 correlate these clusters with existing guard/admission/executor decisions and
 declare the acceptable replacement/guard gap.** Preserve safety stops; do not
-disable guards simply to make quote counts positive. This remains an explicit
-follow-up in the plan.
+disable guards simply to make quote counts positive. This was an explicit
+follow-up at this checkpoint; the subsequent investigation linked above fixes
+the executor wait while preserving the quote-policy limitation.
 
 ## Artifact and scope
 

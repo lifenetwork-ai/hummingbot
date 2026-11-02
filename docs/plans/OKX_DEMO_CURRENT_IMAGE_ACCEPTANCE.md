@@ -1,5 +1,13 @@
 # Current-image OKX Demo acceptance
 
+**Latest local candidate:** [quote replacement follow-up](../../reports/investigations/mm-quote-recovery.md)
+fixes the terminal-confirmed executor wait on `660bd38b`. Broad source checks,
+three packaged E2E groups and matched180s diagnostics pass. This candidate has
+no new full R1/R2/hour or connected Demo acceptance; protective quote gaps and
+the production coverage SLO remain explicit. The prior accepted `95cde31c`
+artifact was subsequently deleted by the operator; its historical gates below
+are not transferred to rebuilt or modified images.
+
 **Later local logic fixes:** [runtime audit](../../reports/investigations/mm-runtime-logic-audit.md)
 closes durable-HALT cleanup and equivalent-fee replay defects on `95cde31c`,
 with broad source and targeted simulated lifecycle/recovery checks. Its separate

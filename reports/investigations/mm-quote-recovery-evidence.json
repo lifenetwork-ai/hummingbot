@@ -1,0 +1,390 @@
+{
+  "date": "2026-11-02",
+  "scope": "Local terminal-order shutdown wakeup: TDD, targeted packaged lifecycle, matched 180s diagnostics; no full R1/R2/hour/Demo/CloudRun acceptance",
+  "runtime_commit": "eee18456c57d3d05c4ca6452ed871ce3296544f8",
+  "measurement_commit": "ffc32f7ec5b9bd9d24ad195a006987baabefde25",
+  "image": {
+    "image_id": "sha256:660bd38be0014fc83ffcade00e0909b07e4c0402abbb0c566e3041796429f32a",
+    "source_commit": "ffc32f7ec5b9bd9d24ad195a006987baabefde25",
+    "tag": "hummingbot-cloudrun:quote-recovery",
+    "base_image_id": "sha256:4ef2c50add2a3c96fd27e0c6e88b3be0e6a7965ee4411352f47523471735c8fb",
+    "base_layers_preserved": true,
+    "changed_reviewed_modules": [
+      "hummingbot/strategy_v2/executors/position_executor/position_executor.py"
+    ],
+    "verified_source_files": 1155,
+    "import_check": {
+      "path": "/home/hummingbot/hummingbot/strategy_v2/executors/position_executor/position_executor.py",
+      "event_wait": true
+    },
+    "image_size_bytes": 1368965789,
+    "scope": "Candidate functional/diagnostic artifact, not new full R1/R2/hour or Demo acceptance."
+  },
+  "image_source_map_sha256": "ccb458423b4ee61cdd3d8114e7bad65bd9dcdbb6cb8b1ba1cdfaf3ee9c46cc60",
+  "source_freeze": {
+    "files": 1288,
+    "unchanged_after_measurement": true,
+    "sha256": "f30a6a73070729a7a6b8b616341e4c82847699a57d1b16520f72e5d2d49a65c1"
+  },
+  "checks": {
+    "native_passed": 2356,
+    "native_subtests": 11,
+    "postgres_passed": 296,
+    "swagger_exit_code": 0,
+    "legacy_red": {
+      "failed": 5,
+      "passed": 3,
+      "deselected": 1,
+      "scope": "Committed legacy module replay; excludes prototype-specific notification failure test"
+    },
+    "targeted_e2e": {
+      "image": "hummingbot-cloudrun:quote-recovery",
+      "scenarios": {
+        "v2-spot": {
+          "result": "build/e2e-offline/20261102-212632-10fa69/result.json",
+          "passed": true,
+          "image_id": "sha256:660bd38be0014fc83ffcade00e0909b07e4c0402abbb0c566e3041796429f32a",
+          "manifest": "sha256:fefa25467cc6c79c34187bb88dc8ed493461f746aeb9e6822a4fc50f6e4d5007",
+          "error": null,
+          "exit_code": 0
+        },
+        "v2-perpetual": {
+          "result": "build/e2e-offline/20261102-212753-9a5b2b/result.json",
+          "passed": true,
+          "image_id": "sha256:660bd38be0014fc83ffcade00e0909b07e4c0402abbb0c566e3041796429f32a",
+          "manifest": "sha256:fefa25467cc6c79c34187bb88dc8ed493461f746aeb9e6822a4fc50f6e4d5007",
+          "error": null,
+          "exit_code": 0
+        },
+        "life-mm": {
+          "result": "build/e2e-offline/20261102-212914-23d439/result.json",
+          "passed": true,
+          "image_id": "sha256:660bd38be0014fc83ffcade00e0909b07e4c0402abbb0c566e3041796429f32a",
+          "manifest": "sha256:fefa25467cc6c79c34187bb88dc8ed493461f746aeb9e6822a4fc50f6e4d5007",
+          "error": null,
+          "exit_code": 0
+        }
+      },
+      "scope": "Three targeted V2 spot/perpetual and LIFE MM lifecycle groups; no full release or soak claim"
+    }
+  },
+  "comparison": {
+    "baseline": {
+      "run": "build/mm-load/20261102-213351-88ecb6",
+      "image_id": "sha256:4ef2c50add2a3c96fd27e0c6e88b3be0e6a7965ee4411352f47523471735c8fb",
+      "passed": true,
+      "diagnostic": true,
+      "release_scope_complete": false,
+      "api_p99_ms": 89.76691699990624,
+      "unexpected_errors": 0,
+      "ledger": {
+        "unique_exchange_fills": 180,
+        "unique_recorder_fills": 180,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "quote_observer": {
+        "samples": 180,
+        "errors": 0,
+        "clock_errors": 0,
+        "sink_errors": 0,
+        "max_sample_gap_ms": 1091.528167,
+        "nominal_sample_interval_ms": 1000,
+        "clock": "shared Linux-kernel monotonic clock",
+        "sink": {
+          "written_records": 180,
+          "written_bytes": 923540,
+          "ordinary_written_bytes": 923540,
+          "reserved_written_bytes": 0,
+          "dropped_records": 0,
+          "writer_cpu_ms": 34.682711999999995,
+          "dropped_by_kind": {},
+          "queue_depth": 0,
+          "max_bytes": 16777216,
+          "reserved_bytes": 0,
+          "reserved_kinds": [],
+          "writer_alive": false
+        }
+      },
+      "sample_summary": {
+        "observed_empty_venue_samples": 14,
+        "min_observed_live_orders": 0,
+        "max_empty_sample_span_ms": 6022.748627,
+        "empty_group_max_gap_ms": 1500
+      },
+      "empty_groups": [
+        {
+          "first_seconds": 60.277218819,
+          "last_seconds": 66.296316905,
+          "samples": 7,
+          "span_ms": 6019.098086,
+          "bracket_width_ms": 8023.129837,
+          "stop_sources": {
+            "executor_refresh": 2
+          },
+          "proposal_executor_count": 12,
+          "shutdowns_matched": 12,
+          "max_after_terminal_ms": 5001.881502
+        },
+        {
+          "first_seconds": 129.513989142,
+          "last_seconds": 135.536737769,
+          "samples": 7,
+          "span_ms": 6022.748627,
+          "bracket_width_ms": 8032.902128,
+          "stop_sources": {
+            "executor_refresh": 2
+          },
+          "proposal_executor_count": 12,
+          "shutdowns_matched": 12,
+          "max_after_terminal_ms": 5003.398919
+        }
+      ],
+      "shutdown_after_terminal_ms": {
+        "count": 24,
+        "median": 4993.269169,
+        "max": 5003.398919
+      },
+      "guard_events": [],
+      "lifecycle_sink": {
+        "scope": "last_window_runtime_export_no_final_close_summary",
+        "stats": {
+          "written_records": 1388,
+          "written_bytes": 429484,
+          "ordinary_written_bytes": 429484,
+          "reserved_written_bytes": 0,
+          "dropped_records": 0,
+          "writer_cpu_ms": 48.785982,
+          "dropped_by_kind": {},
+          "queue_depth": 0,
+          "max_bytes": 8388608,
+          "reserved_bytes": 0,
+          "reserved_kinds": [],
+          "writer_alive": true
+        }
+      },
+      "raw_result_sha256": "5d59c823ce30d92cf80355d4e3a40ba97ca5b0fe439dd239f5c850b1788e0e94",
+      "mm_stream_sha256": "824facb3386e3a9fb96dba3b3c3d0b0a7074f35fb4f3df6e8a89c5084f620e8d",
+      "venue_stream_sha256": "987e426665163c93722ec12d3fea94393d24c15177f5834c4b00242680c3d18e",
+      "probe_events_in_window": {
+        "engine_probe_failure": 3,
+        "engine_probe_recovered": 3
+      },
+      "mm_metadata": {
+        "events_evicted": 1132,
+        "sink_errors": 0,
+        "metadata_errors": 0,
+        "capacity": 256
+      },
+      "matched_shutdown_rows": 24,
+      "fixture_sha256_digest": "e2b1dfd4143bd78c3dc95df8fdc6a9327e64b73aa9a0c56978d7559b6e94d4d7",
+      "bot_limits": {
+        "cpus": 2,
+        "memory_bytes": 2147483648
+      },
+      "history_orders": 100000,
+      "history_fills": 100000,
+      "emulation": true
+    },
+    "candidate": {
+      "run": "build/mm-load/20261102-213756-2d03e0",
+      "image_id": "sha256:660bd38be0014fc83ffcade00e0909b07e4c0402abbb0c566e3041796429f32a",
+      "passed": true,
+      "diagnostic": true,
+      "release_scope_complete": false,
+      "api_p99_ms": 127.30946799979392,
+      "unexpected_errors": 0,
+      "ledger": {
+        "unique_exchange_fills": 180,
+        "unique_recorder_fills": 180,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "quote_observer": {
+        "samples": 179,
+        "errors": 0,
+        "clock_errors": 0,
+        "sink_errors": 0,
+        "max_sample_gap_ms": 1639.922917,
+        "nominal_sample_interval_ms": 1000,
+        "clock": "shared Linux-kernel monotonic clock",
+        "sink": {
+          "written_records": 179,
+          "written_bytes": 1036452,
+          "ordinary_written_bytes": 1036452,
+          "reserved_written_bytes": 0,
+          "dropped_records": 0,
+          "writer_cpu_ms": 34.232281999999984,
+          "dropped_by_kind": {},
+          "queue_depth": 0,
+          "max_bytes": 16777216,
+          "reserved_bytes": 0,
+          "reserved_kinds": [],
+          "writer_alive": false
+        }
+      },
+      "sample_summary": {
+        "observed_empty_venue_samples": 7,
+        "min_observed_live_orders": 0,
+        "max_empty_sample_span_ms": 2006.313209,
+        "empty_group_max_gap_ms": 1500
+      },
+      "empty_groups": [
+        {
+          "first_seconds": 59.877698944,
+          "last_seconds": 60.880694361,
+          "samples": 2,
+          "span_ms": 1002.995417,
+          "bracket_width_ms": 3014.120543,
+          "stop_sources": {
+            "executor_refresh": 2
+          },
+          "proposal_executor_count": 12,
+          "shutdowns_matched": 12,
+          "max_after_terminal_ms": 187.807333
+        },
+        {
+          "first_seconds": 89.996392041,
+          "last_seconds": 91.008652667,
+          "samples": 2,
+          "span_ms": 1012.260626,
+          "bracket_width_ms": 3015.428418,
+          "stop_sources": {
+            "readiness_or_inventory": 2
+          },
+          "proposal_executor_count": 12,
+          "shutdowns_matched": 12,
+          "max_after_terminal_ms": 99.869084
+        },
+        {
+          "first_seconds": 154.233764862,
+          "last_seconds": 156.240078071,
+          "samples": 3,
+          "span_ms": 2006.313209,
+          "bracket_width_ms": 4013.393169,
+          "stop_sources": {
+            "executor_refresh": 2
+          },
+          "proposal_executor_count": 12,
+          "shutdowns_matched": 12,
+          "max_after_terminal_ms": 225.15775
+        }
+      ],
+      "shutdown_after_terminal_ms": {
+        "count": 48,
+        "median": 98.7066255,
+        "max": 225.15775
+      },
+      "guard_events": [
+        {
+          "seconds": 89.39941883087158,
+          "scope": "life_spot",
+          "reason": "market_liquidity_unqualified"
+        },
+        {
+          "seconds": 90.40541887283325,
+          "scope": "life_spot",
+          "reason": "normal"
+        }
+      ],
+      "lifecycle_sink": {
+        "scope": "last_window_runtime_export_no_final_close_summary",
+        "stats": {
+          "written_records": 1564,
+          "written_bytes": 496881,
+          "ordinary_written_bytes": 496881,
+          "reserved_written_bytes": 0,
+          "dropped_records": 0,
+          "writer_cpu_ms": 53.64521100000001,
+          "dropped_by_kind": {},
+          "queue_depth": 0,
+          "max_bytes": 8388608,
+          "reserved_bytes": 0,
+          "reserved_kinds": [],
+          "writer_alive": true
+        }
+      },
+      "raw_result_sha256": "8b71109645ff100f663b10e21b8ae598a85c09fcef4e1c4acbd1f1691245d558",
+      "mm_stream_sha256": "5996f6165666b8904cac01f649f7b251079933a23c19fc7975d129e9cad275d1",
+      "venue_stream_sha256": "c12542738ee2e97c3ffd029209261558dd5e119031781149591f447fc4b974c6",
+      "probe_events_in_window": {
+        "engine_probe_failure": 1,
+        "engine_probe_recovered": 1
+      },
+      "mm_metadata": {
+        "events_evicted": 1308,
+        "sink_errors": 0,
+        "metadata_errors": 0,
+        "capacity": 256
+      },
+      "matched_shutdown_rows": 48,
+      "fixture_sha256_digest": "e2b1dfd4143bd78c3dc95df8fdc6a9327e64b73aa9a0c56978d7559b6e94d4d7",
+      "bot_limits": {
+        "cpus": 2,
+        "memory_bytes": 2147483648
+      },
+      "history_orders": 100000,
+      "history_fills": 100000,
+      "emulation": true
+    }
+  },
+  "retained_attempts": [
+    "Missing registry:2 after operator Docker deletion: E2E launcher failed before scenario evidence; restored registry, repeated ordered sequence",
+    "Initial broad native run: bare __new__ logging fixture lacked new constructor event; fixture corrected",
+    "Prototype unrelated-event notification and notification-task exception tests caught implementation issues before final commit"
+  ],
+  "limits": [
+    "Sequential fixed-order single pair under amd64 emulation on arm64, not randomized performance trial",
+    "Quote samples are point observations; empty span is not exact continuous absence duration or two-sided quote coverage",
+    "Post-terminal join uses local simulator terminal timestamps, includes stream delivery and scheduling, not actual OKX SLA",
+    "Whole-probe lifecycle sink final-close summary absent: loss/queue counters are from last window runtime export, not guaranteed teardown flush",
+    "Rolling recent MM ring evictions are explicit; independent whole-probe file retained and all matched joins based on available complete start/end spans",
+    "Historical three-group run lacks these new executor spans; refresh attribution there is consistent with repeated direct refresh capture, not backfilled event identity",
+    "Protective stops, downstream control ticks, network failures and ownership/recovery decisions can still interrupt quotes"
+  ],
+  "raw_sha256": {
+    "build/mm-quote-recovery-20261102/pipeline.json": "285d1701e257585c6e0988100885a5d90c1c726b356cb491a265c74326aea4e6",
+    "build/mm-quote-recovery-20261102/pair-analysis.json": "291faf08fef860643f21f13191727da7e39544004676cfd1b12888a934073482",
+    "build/mm-quote-recovery-20261102/image-verification.json": "ee161fb0160ae98c285b22b23cc4761204aa8a39485f5d723c21ace8ecebc964",
+    "build/mm-quote-recovery-20261102/e2e-verification.json": "265eec151bb31c4665537fd015eb1d2bbcf8b942affdcf084f36e2056031b10b",
+    "build/mm-quote-recovery-20261102/native-release.log": "5d1782d49e6377945a60e95d1d3bd2aa08e86b206cb54317a99be3cc9ad1cb03",
+    "build/mm-quote-recovery-20261102/postgres-final.log": "81c163383a6b9d68e9b938e095bf76ea3af47b9a4f8e13259a02018768ad7f27",
+    "build/mm-quote-recovery-20261102/swagger.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build/mm-quote-recovery-20261102/legacy-valid-final-red.log": "9a0358e74b3be576fdcde490fde543b3478805e68a1c3519d6bd8158f3688bc7",
+    "build/mm-quote-recovery-20261102/notification-red.log": "b5c93f1d451bc8d0bd85ed46624f07495ccb5e59cef483b85ff8d21dea0b28a8",
+    "build/mm-quote-recovery-20261102/hooks-final.log": "360c0680ffeedd2aacf06436710a7f51de37e1ca622b4794c532fd6d2b37fbda",
+    "build/mm-quote-recovery-20261102/pipeline-registry-missing.json": "7abd8cf5ee46bce71a119ca863e9587602a484a57c901a75c067d6d6874234ed",
+    "build/e2e-offline/20261102-212632-10fa69/result.json": "1a5fba38d2c1dc17ece9949b39e022befae7ff6af25a98b5b33ff437fa752e9f",
+    "build/e2e-offline/20261102-212753-9a5b2b/result.json": "efa178a7a6ac34ded66c9297760339662aa96bf2c5c3d9c88284bf2ec0bbaca3",
+    "build/e2e-offline/20261102-212914-23d439/result.json": "d8e41ff3a54671818aa5b78d017d4bc31623640b1834adb1d7075a8138637638"
+  },
+  "cleanup": {
+    "containers": [
+      "onchain-handler-app-1 Exited (0) 23 months ago",
+      "onchain-handler-db-1 Exited (0) 3 weeks ago"
+    ],
+    "networks": [
+      "blockscout-net",
+      "bridge",
+      "hbot-e2e-086e3f2ac5-network",
+      "host",
+      "hummingbot-okx-demo",
+      "hummingbot-okx-demo-e6",
+      "none",
+      "onchain-handler_onchain-handler-network"
+    ],
+    "volumes": [
+      "hummingbot-okx-demo-data",
+      "onchain-handler_pgdata"
+    ],
+    "images": [
+      "hummingbot-cloudrun:quote-recovery 660bd38be001",
+      "hummingbot-cloudrun:mm-continuity 4ef2c50add2a",
+      "onchain-handler-app:latest 06c1441c032f",
+      "postgres:14-alpine 4cdc92183734",
+      "registry:2 33eeff39e0aa"
+    ]
+  }
+}

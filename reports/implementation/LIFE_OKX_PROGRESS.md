@@ -5,6 +5,20 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-02
 
+- **Terminal-confirmed quote replacement fixed:** `eee18456c` removes the
+  executor's idle five-second cancellation wait once all tracked orders complete,
+  preserving the no-ACK deadline, partial-fill holdings and existing safety gates.
+  `ffc32f7ec` adds bounded whole-probe executor/stop-proposal correlation.
+  Native2,356 plus11 subtests, PG296, Swagger and packaged V2 spot/perpetual/MM
+  lifecycle pass. Matched180s baseline/candidate diagnostics show median
+  post-terminal wait4,993→99ms and longest empty-point span6.023→2.006s;
+  each reconciles180 synthetic fills/original fees/positions with zero API errors.
+  Guard/control-cycle gaps and production coverage SLO remain explicit.
+  Candidate660bd38b changes one runtime module over4ef2c50a and has no new full
+  R1/R2/hour/Demo acceptance. Test resources cleaned; original Demo untouched.
+  [Report](../investigations/mm-quote-recovery.md),
+  [evidence](../investigations/mm-quote-recovery-evidence.json).
+
 - **Trading-continuity instrumentation complete:** test-only `--mm-activity`
   reuses bounded incident capture for strategy/controller cadence, connector
   submit/cancel returns and independent simulator quote age/terminal samples.
@@ -12,8 +26,8 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   zero API errors,180 synthetic fills/positions matched). A separate confirmed
   2.272s engine pause yields2.657s tick/3.164s controller gaps; three independent
   samples retain12 live quotes while PID stays fixed. Three groups of seven
-  empty quote samples in the unpaused window remain an explicit guard/executor
-  coverage follow-up, not proven downtime or a confirmed runtime defect. Prior
+  empty quote samples in the unpaused window prompted the subsequent executor
+  fix above; production coverage policy remains open. Prior
   images were manually deleted; rebuilt diagnostic4ef2c50a matches 1,155 reviewed
   runtime/config files but inherits no full R1/R2/hour/Demo acceptance. Owned
   resources cleaned; original Demo unchanged. [Report](../investigations/mm-trading-continuity.md),

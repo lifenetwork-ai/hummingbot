@@ -4,12 +4,20 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Quote replacement after terminal confirmation](investigations/mm-quote-recovery.md),
+  [evidence](investigations/mm-quote-recovery-evidence.json), 2026-11-02:
+  fixed five-second executor idle wait removed after all tracked orders complete.
+  Native2,356 plus11 subtests, PG296, Swagger and three packaged E2E groups pass.
+  Matched180s diagnostics: median post-terminal wait4,993→99ms, longest empty-point
+  span6.023→2.006s;180 synthetic fills reconcile per run. Guard gaps and quote SLO
+  remain explicit; candidate660bd38b has no new full R1/R2/hour/Demo acceptance.
+
 - [MM execution and quote observations](investigations/mm-trading-continuity.md),
   [evidence](investigations/mm-trading-continuity-evidence.json), 2026-11-02:
   opt-in bounded diagnostics;946 CLI tests and180s offline probe pass. A separate
   confirmed2.272s engine pause is detected by tick/controller gaps and independent
-  live-quote samples. Three groups of empty quote samples in the unpaused run
-  remain an explicit operational follow-up. Rebuilt diagnostic `4ef2c50a` has
+  live-quote samples. Its empty-sample follow-up is investigated above; production
+  quote-coverage policy remains open. Rebuilt diagnostic `4ef2c50a` has
   matching reviewed runtime/config source, not inherited full-release/Demo acceptance.
 
 - [Runtime logic final-image load rerun](release/mm-runtime-logic-release.md),

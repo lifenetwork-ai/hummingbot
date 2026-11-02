@@ -74,10 +74,14 @@ quote-age samples while retaining the same engine PID. Old runs remain uninstrum
 
 ### Operational follow-up revealed by the new measurements
 
-- [ ] Correlate the three groups of seven unpaused empty quote samples with
-  existing guard/admission/executor reasons; declare acceptable replacement and
-  protective-stop gaps before claiming uninterrupted two-sided quote coverage.
-  This is not a confirmed runtime defect or closed production-availability gate.
+- [x] Investigate the three groups of seven unpaused empty quote samples using
+  guard/admission/executor evidence. The historical final group includes a
+  liquidity guard; scheduled refresh is directly captured in the later baseline.
+  Red/Green and matched terminal-order joins confirm the avoidable five-second
+  shutdown wait. Historical executor spans were absent; do not invent old IDs.
+- [ ] Declare a production quote-coverage SLO separating normal replacement
+  gaps from permitted protective pauses before claiming uninterrupted two-sided
+  coverage. Guard policy is unchanged; local improvement does not certify this SLO.
 
 ## Quote replacement follow-up — 2026-11-02
 
@@ -89,12 +93,18 @@ quote-age samples while retaining the same engine PID. Old runs remain uninstrum
   be terminal, preserve held partial fills and drain wait tasks on cancellation.
 - [x] Retain bounded whole-probe executor/stop-proposal timing so replacement
   intervals can be inspected even when no health-probe incident occurs.
-- [ ] Run appropriate native/PostgreSQL checks and relevant packaged E2E;
+- [x] Run appropriate native/PostgreSQL checks and relevant packaged E2E;
   compare unchanged-baseline/candidate bounded diagnostics with matching fixtures.
-- [ ] Publish measured attribution, remaining guard/pipeline gaps and artifact
+- [x] Publish measured attribution, remaining guard/pipeline gaps and artifact
   scope; clean owned resources and commit. Never remove a protective stop to
   satisfy quote-count targets or inherit a prior artifact's release acceptance.
 
 The structural acceptance is removal of fixed idle waiting once existing terminal
 state is known, not a global guarantee of uninterrupted quoting. A production
 coverage SLO remains dependent on the approved strategy and protective-stop policy.
+
+[Result/evidence](../../reports/investigations/mm-quote-recovery.md): native2,356
+plus11 subtests, PG296, Swagger and three packaged E2E groups pass. Matched180s
+diagnostics on4ef2c50a/660bd38b pass: median post-terminal wait4,993→99ms;
+longest empty-point span6.023→2.006s,180 synthetic fills reconcile per run.
+Guard/control-cycle gaps remain. Candidate has no new full R1/R2/hour/Demo gate.
