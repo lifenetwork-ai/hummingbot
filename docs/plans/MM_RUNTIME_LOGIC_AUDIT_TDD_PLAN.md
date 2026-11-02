@@ -39,3 +39,28 @@ and matched R2 pass on the same image. Soak p99 465ms, zero unexpected API
 errors, +12.69MiB retained, 4,885 matched fills/positions and all six faults.
 R2 mixed p99 65ms. Recovered probes remain explicit: R1 38 engine/two API,
 R2 two engine; no unique cause or connected Demo/deployment claim.
+
+## Trading-continuity diagnostics — requested 2026-11-02
+
+Process liveness and a passing API/load gate do not prove continuous MM work.
+Add opt-in, bounded test instrumentation using the existing simulator, incident
+recorder and packaged service. Keep production decisions and health budgets intact.
+
+- [x] Red/Green strategy tick/controller-cycle start gaps and execution durations;
+  retain instance identity, readiness and errors without retaining runners.
+- [x] Red/Green connector submit/cancel call-to-return timing, distinguishing
+  exceptions/cancellation/false returns from acknowledgments or terminal venue state.
+- [x] Independently sample simulator live-order age and terminal cancel observations
+  while the engine cannot advance; bound live tracking, history, disk and loss counts.
+- [x] Correlate those observations with probe incidents, expose missing/evicted
+  evidence and sampling gaps; old runs must report not instrumented, never zero downtime.
+- [ ] Verify opt-in packaging plus a bounded offline diagnostic with verified
+  packaged application bytes, publish evidence/limits, clean owned resources and
+  commit. The prior image disappeared from Docker before measurement; a rebuilt
+  artifact must retain its own identity and cannot inherit that image's gates. Injected pauses
+  are classified separately and never promoted to a healthy load acceptance.
+
+Order age means time resting at the simulator, not proof of stale pricing. Tick
+completion does not prove quote admission. Connector RTT does not prove exchange
+terminal cancellation. No new production API/env, Demo session or deployment is
+part of this diagnostic phase; actual OKX/network latency remains unverified.

@@ -121,6 +121,28 @@ def emit_trace(record):
         incidents.emit(record)
 
 
+mm_activity = None
+if os.environ.get('HBOT_MM_ACTIVITY_DIAGNOSTICS') == '1' and process_role == 'engine':
+    from load_mm_activity import ActivityRecorder, instrument_cycle, instrument_order
+
+    from controllers.market_making.life_mm import LifeMMController
+    from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
+    from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
+
+    if incidents is None:
+        raise ValueError('MM activity requires bounded incident capture')
+    mm_activity = ActivityRecorder(emit_trace)
+    instrument_cycle(StrategyV2Base, 'tick', 'strategy.tick', mm_activity,
+                     details=lambda actor: dict(ready_to_trade=bool(actor.ready_to_trade)))
+    instrument_cycle(LifeMMController, 'control_task', 'controller.cycle', mm_activity, asynchronous=True,
+                     details=lambda actor: dict(controller_id=actor.config.id,
+                                                data_ready=bool((actor.processed_data or {}).get('ready')),
+                                                session_admitted=bool(actor._session_admitted)))
+    for connector in (OkxExchange, OkxPerpetualDerivative):
+        instrument_order(connector, '_place_order', 'order.submit', mm_activity)
+        instrument_order(connector, '_place_cancel', 'order.cancel', mm_activity)
+
+
 def save_incident_summary():
     destination = Path(incident_directory) / (process_role + '-incident-summary.json')
     temporary = destination.with_suffix('.new')
@@ -302,6 +324,8 @@ async def probe(host):
                         pool_size=host.engine.pool.size() if host.engine else None)
             if full_gc_probe is not None:
                 data['full_gc_events'] = list(full_gc_probe.events)
+            if mm_activity is not None:
+                data['mm_activity'] = mm_activity.summary()
             if tracer:
                 data["trace"] = {**(trace_sink.summary() if trace_sink else incident_sink.summary()),
                                  "dropped_spans": tracer.dropped_spans, "slow_trace_threshold_ms": tracer.slow_ms,

@@ -114,6 +114,7 @@ class Exchange:
         self.market_update_count = 0
         self.market_rate_changed = asyncio.Event()
         self.market_diagnostics = None
+        self.quote_activity = None
 
     def event(self, order, fill=None):
         message = copy.deepcopy(self.fixtures["order_event"])
@@ -274,6 +275,9 @@ class Exchange:
 
     async def handle(self, request):
         path, method = request.path, request.method
+        if path == '/quote-activity':
+            return (web.json_response(self.quote_activity.snapshot()) if self.quote_activity else
+                    web.json_response({'error': 'quote_activity_not_enabled'}, status=404))
         if path.startswith("/ws/"):
             return await self.websocket(request)
         if path == "/market-metrics":
@@ -376,14 +380,19 @@ class Exchange:
             order = {**data, "ordId": str(len(self.accepted) + 1), "state": "live", "accFillSz": "0",
                      "uTime": millis(), "cTime": millis(), "tradeId": "", "fillSz": "0", "fillPx": "0"}
             self.orders[client_id] = order
+            if self.quote_activity:
+                self.quote_activity.accept(order)
             self.accepted.append(copy.deepcopy(order))
             if self.cancel_before_ack:
                 order.update(state="canceled", uTime=millis())
+                if self.quote_activity:
+                    self.quote_activity.terminal(client_id, 'canceled')
                 await self.broadcast(self.event(order))
             await self.release.wait()
             await self.broadcast(self.event(order))
             return self.ok([{"clOrdId": client_id, "ordId": order["ordId"], "sCode": "0", "sMsg": ""}])
         if path in ("/api/v5/trade/cancel-order", "/api/v5/trade/cancel-batch-orders"):
+            received_ns = time.monotonic_ns()
             if self.cancel_delay_seconds:
                 await asyncio.sleep(self.cancel_delay_seconds)
             result = []
@@ -393,11 +402,14 @@ class Exchange:
                     result.append({"clOrdId": item["clOrdId"], "ordId": "", "sCode": "51400", "sMsg": "Order does not exist"})
                     continue
                 spec = self.fill_on_cancel.pop(order['clOrdId'], None)
+                was_live = order['state'] in ('live', 'partially_filled')
                 if spec and order['state'] in ('live', 'partially_filled'):
                     await self.control({'fill': spec, 'duplicate': True})
                 if order["state"] != "filled":
                     order.setdefault('cancel_terminal_ms', millis())
                     order.update(state="canceled", uTime=millis())
+                    if self.quote_activity and was_live:
+                        self.quote_activity.terminal(order['clOrdId'], 'canceled', request_ns=received_ns)
                 await self.broadcast(self.event(order))
                 result.append({"clOrdId": order["clOrdId"], "ordId": order["ordId"], "sCode": "0", "sMsg": ""})
             return self.ok(result)
@@ -413,6 +425,14 @@ class Exchange:
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
 
     async def control(self, data):
+        if 'mm_activity' in data and bool(data['mm_activity']) != bool(self.quote_activity):
+            if self.orders:
+                return web.json_response({'error': 'configure_activity_before_orders'}, status=409)
+            try:
+                from .load_mm_activity import VenueQuotes
+            except ImportError:  # Standalone fixture inside the isolated container.
+                from load_mm_activity import VenueQuotes
+            self.quote_activity = VenueQuotes() if data['mm_activity'] else None
         if 'market_diagnostics' in data:
             self.market_diagnostics = MarketDiagnostics() if data['market_diagnostics'] else None
         if 'fill_on_cancel' in data:
@@ -480,6 +500,8 @@ class Exchange:
             total = Decimal(order["accFillSz"]) + amount
             assert total <= Decimal(order["sz"])
             order.update(accFillSz=str(total), state="filled" if total == Decimal(order["sz"]) else "partially_filled", uTime=millis())
+            if self.quote_activity and order['state'] == 'filled':
+                self.quote_activity.terminal(order['clOrdId'], 'filled')
             perpetual = order["instId"].endswith("-SWAP")
             fill = {"instType": "SWAP" if perpetual else "SPOT", "instId": order["instId"], "tradeId": str(len(self.fills) + 1),
                     "clOrdId": order["clOrdId"], "ordId": order["ordId"], "fillPx": order["px"],

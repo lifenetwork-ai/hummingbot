@@ -445,6 +445,38 @@ async def main(args):
         print(json.dumps({key: value for key, value in result.items() if key not in ("per_minute", "per_route", "errors")}))
 
 
+run_load = main
+
+
+async def main(args):
+    if not getattr(args, 'mm_activity', False):
+        return await run_load(args)
+    from load_mm_activity import VenueSampler
+
+    directory = Path(os.environ['HBOT_MM_ACTIVITY_DIRECTORY'])
+    sink = TraceSink(directory / 'venue-activity.jsonl', append=True, max_bytes=16 * 1024**2, queue_limit=128)
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=2)) as observer:
+        async def read():
+            async with observer.get('http://exchange:8080/quote-activity') as response:
+                response.raise_for_status()
+                return await response.json()
+        sampler = VenueSampler(read, sink.emit)
+        task = asyncio.create_task(sampler.run())
+        try:
+            return await run_load(args)
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            await asyncio.to_thread(sink.close)
+            summary = {**sampler.summary(), 'sink': sink.summary()}
+            (directory / 'venue-activity-summary.json').write_text(json.dumps(summary, indent=2))
+            destination = Path(args.output)
+            if destination.exists():
+                result = json.loads(destination.read_text())
+                result['mm_activity_observer'] = summary
+                destination.write_text(json.dumps(result, indent=2))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--duration", type=int, required=True)
@@ -453,6 +485,7 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="/tmp/load-result.json")
     parser.add_argument("--burst", action="store_true")
     parser.add_argument('--market-diagnostics', action='store_true', help='Bounded simulator burst scheduling/send diagnostics')
+    parser.add_argument('--mm-activity', action='store_true', help='Independent bounded simulator quote-age sampling')
     parser.add_argument("--fills", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--controls", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--random-soak", action="store_true", help="Stop injecting synthetic fills in the five-second scheduled handover window; rates remain recorded")

@@ -62,7 +62,7 @@ def assets_for(path):
 
     import yaml
     path.chmod(0o755)
-    for name in ("exchange.py", "load_service.py", "load_entrypoint.py", "load_process_metrics.py", "load_trace.py", "load_incidents.py", "load_health.py", "load_client.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
+    for name in ("exchange.py", "load_service.py", "load_mm_activity.py", "load_entrypoint.py", "load_process_metrics.py", "load_trace.py", "load_incidents.py", "load_health.py", "load_client.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
         (path / name).write_bytes((ROOT / "test/e2e/offline" / name).read_bytes())
     (path / "pmm-revised.yml").write_bytes((path / "pmm.yml").read_bytes())
     write_fixtures(path / "fixtures.json")
@@ -192,6 +192,7 @@ def main():
     parser.add_argument('--incident-max-captures', type=capture_limit, default=32, help='Test-only incident count within 1..128; keep independent RAM/disk caps')
     parser.add_argument('--gc-diagnostics', action='store_true', help='Minimal bounded full-GC timing in the test wrapper; no GC policy changes')
     parser.add_argument('--market-diagnostics', action='store_true', help='Opt-in bounded simulator burst scheduling/send metrics')
+    parser.add_argument('--mm-activity', action='store_true', help='Bounded probe-only MM cycles/order RTT and independent venue quote-age observations')
     parser.add_argument("--strict-guards", action="store_true", help="Explicit strict-guard fixture; production defaults remain disabled")
     parser.add_argument("--drawdown", action="store_true", help="Explicit drawdown limits; production defaults remain disabled")
     parser.add_argument("--spot-outflow", action="store_true", help="Explicit outflow policy, bound on an empty DB before historical seeding")
@@ -202,6 +203,8 @@ def main():
     parser.add_argument("--keep-going", action="store_true", help="Continue healthy windows after budget violations; final result still fails")
     parser.add_argument("--operations", action="store_true", help="Add three operator-history/configuration reads/s to the existing read mix")
     args = parser.parse_args()
+    if args.mm_activity and (args.profile != 'probe' or not args.incident_diagnostics):
+        parser.error('MM activity requires --profile probe and --incident-diagnostics; it is diagnostic, not release acceptance')
     if args.trace and args.incident_diagnostics:
         parser.error('Use either full tracing or incident diagnostics to keep their overhead distinct')
     if args.incident_max_captures != 32 and not args.incident_diagnostics:
@@ -236,6 +239,7 @@ def main():
                     tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap, inventory_skew=args.inventory_skew,
                     gc_diagnostics=args.gc_diagnostics,
                     market_diagnostics=args.market_diagnostics,
+                    mm_activity_diagnostics=args.mm_activity,
                     incident_diagnostics=args.incident_diagnostics,
                     incident_max_captures=args.incident_max_captures,
                     release_scope_complete=False,
@@ -321,6 +325,9 @@ def main():
                                ADMIN_STATISTICS_CACHE_TTL_SECONDS=str(args.daily_cache_ttl_seconds))
             try:
                 harness.setup()
+                if args.mm_activity:
+                    harness.control(mm_activity=True)
+                    harness.env['HBOT_MM_ACTIVITY_DIAGNOSTICS'] = '1'
                 if args.strict_guards:
                     harness.control(include_own_orders=True)
                 pg_image = json.loads(docker("inspect", harness.pg).stdout)[0]["Image"]
@@ -395,6 +402,9 @@ def main():
                 client = harness.prefix + "-load-client"
                 client_mounts = ["--mount", f"type=bind,source={trace_directory},target=/trace-output"] if args.trace else []
                 client_env = {"HBOT_LOAD_TRACE_DIRECTORY": "/trace-output", "HBOT_LOAD_TRACE_DATABASE_URL": harness.env["DATABASE_URL"]} if args.trace else None
+                if args.mm_activity:
+                    client_mounts += ['--mount', f'type=bind,source={incident_directory},target=/activity-output']
+                    client_env = {**(client_env or {}), 'HBOT_MM_ACTIVITY_DIRECTORY': '/activity-output'}
                 harness.run_container(client, ["--platform", "linux/amd64", "--cpus", "1", "--memory", "512m", "--memory-swap", "512m", "--read-only",
                                                "--tmpfs", "/tmp:rw,nosuid,size=128m", "--mount", f"type=bind,source={assets},target=/test-assets,readonly", *client_mounts],
                                       env=client_env, command=["python", "-c", "import time; time.sleep(20000)"])
@@ -412,6 +422,8 @@ def main():
                     options = (("--random-soak",) if name == "soak" else ()) + (("--operations",) if args.operations else ())
                     if args.market_diagnostics:
                         options += ('--market-diagnostics',)
+                    if args.mm_activity:
+                        options += ('--mm-activity',)
                     data = run_window(harness, bot, client, name, duration, report, burst=name == "bursts", options=options)
                     data["command_seconds"] = data["control_results"].get("command_seconds", controls)
                     data["ledger"] = verify_ledger(harness, port)

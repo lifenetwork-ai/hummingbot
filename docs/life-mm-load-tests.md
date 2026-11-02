@@ -295,6 +295,55 @@ Observed transition time is not quote downtime, and overlap is not causation.
 Inspect loss counters before drawing conclusions. A short probe does not replace
 the full release/hour gate. See the [verified follow-up](../reports/investigations/mm-engine-probe-latency.md).
 
+## MM activity and independent quote observations
+
+Process/PID continuity does not prove continuous MM execution. For a bounded
+offline diagnostic, opt in without changing the shipping service or health rules:
+
+```sh
+python scripts/test_mm_load.py --image <image> --profile probe --probe-seconds 180 \
+  --enhancements --volatility-defense --operations --incident-diagnostics \
+  --incident-max-captures 128 --mm-activity
+python scripts/analyze_mm_load_trace.py build/mm-load/<run> --window probe --incidents
+```
+
+`--mm-activity` requires the probe profile and incident capture. It is test-only,
+disabled by default, and never qualifies as a new full release/load acceptance.
+There is no new production `.env` or API setting. Existing shipping R1/R2 results
+keep their original image and fixture scope.
+
+The existing test wrapper records strategy tick and LIFE controller-cycle start
+gaps/durations, instance identity and readiness, plus OKX spot/perpetual connector
+submit/cancel call-to-return wall time. Errors, cancellation and false returns
+stay distinct. A completed tick does not prove quote admission; connector return
+does not prove terminal cancellation, and its timing excludes work before that
+connector method was entered. No arguments, balances or credentials are logged.
+
+An independent task in the load-client container samples simulator live quotes
+once per second, even while the engine is paused. Age starts at simulated venue
+acceptance, using the shared Linux-kernel monotonic clock; request/response bounds
+validate clock alignment. Filled/canceled quotes leave the active set. Simulator
+cancel request-to-terminal timing is recorded separately from connector RTT.
+Resting age alone does not mean a price is stale or a refresh is overdue.
+
+Tracking holds at most256 live identities and256 terminal events; overflow and
+terminal-history eviction counters are explicit. Client output is bounded to16MiB
+with a128-record queue; engine activity uses256 recent scalar events and weak
+runner references, alongside the existing bounded incident recorder. Samples and
+their errors are excluded from the original API latency population and add one
+simulator read per second. This added measurement work must be stated when
+comparing diagnostic runs. Diagnostic I/O/readiness-observation failures do not
+change original trading-call returns or exceptions.
+
+Incident analysis includes engine activity for both engine and API probe episodes,
+with bracketing venue samples, sample gaps, call outcomes and terminal observations.
+Events are deduplicated and capped per episode; missing clocks/tracking/samples
+and retained loss counters remain visible. Old runs return `not_instrumented`,
+not zero MM downtime. Discrete observations cannot prove uninterrupted quoting.
+These simulator timestamps do not measure remote OKX latency, real matching,
+market-price validity or profitability. An injected engine pause is a separately
+classified fault diagnostic and must never be reported as a healthy acceptance.
+
 ## Quick CPU replay before long-run acceptance
 
 `python scripts/benchmark_admin_serialization.py --baseline <previous-admin-models.py> --output <result.json>`

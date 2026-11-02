@@ -6,6 +6,11 @@ from collections import Counter
 from itertools import chain
 from pathlib import Path
 
+try:
+    from .mm_activity_analysis import correlate_activity
+except ImportError:  # Direct CLI execution from scripts/.
+    from mm_activity_analysis import correlate_activity
+
 
 def records(path):
     with path.open() as stream:
@@ -258,9 +263,16 @@ def analyze_incidents(directory, window, *, limit=10):
                      'lag_ms', 'at_ns')
     loss = {role: {key: values.get(key) for key in ('trace', 'incident_capture', 'metrics_export_skipped')}
             for role, values in data.get('runtime', {}).get('role_metrics', {}).items()}
+    correlate_activity(directory, selected, low, high, enabled=result.get('mm_activity_diagnostics', False))
+    activity_paths = [path for path in (directory / 'incidents/venue-activity.jsonl',
+                                        directory / 'incidents/venue-activity-summary.json') if path.exists()]
     return dict(window=window, image_id=result['image_id'], probe_failures_in_window=len(episodes),
                 episodes=selected, runtime_loss_counters=loss,
+                trading_activity_diagnostics=dict(enabled=result.get('mm_activity_diagnostics', False),
+                                                  venue_observer=json.loads(activity_paths[-1].read_text())
+                                                  if activity_paths and activity_paths[-1].suffix == '.json' else None),
                 trace_sha256={path.name: hashlib.file_digest(path.open('rb'), 'sha256').hexdigest() for path in paths},
+                activity_sha256={path.name: hashlib.file_digest(path.open('rb'), 'sha256').hexdigest() for path in activity_paths},
                 interpretation='Temporal overlap does not establish causation. Transition intervals are supervisor observations, '
                 'not measured quote downtime. Context includes up to one second before failure; intersects_transition '
                 'distinguishes preceding work. Captured stacks/spans describe their own sampling times. Missing records and '
