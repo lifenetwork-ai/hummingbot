@@ -672,13 +672,22 @@ class ServiceHost:
                 if not await self.stop_core():
                     raise RuntimeError("Degraded runtime cleanup did not complete.")
         if (self.owner.check_owner()["recovery_state"] or {}).get("halt"):
-            self.running, self.phase, self.error = False, "halted", "RecoveryRequired"
-            # A durable HALT may arrive after the entry read or while startup
-            # is pending. Blocking new submissions does not cancel resting orders.
-            if (self.start_task is not None or core.strategy is not None
-                    or core.connector_manager.connectors or getattr(core, "_is_running", False)):
-                if not await self.stop_core():
-                    raise RuntimeError("Durable HALT cleanup did not complete; process recovery is required.")
+            self.owner.allow_new_orders = False
+            recovering_prior_halt = (self.start_task is not None and not self.start_task.done()
+                                     and self.owner.reconciling is True
+                                     and bool((row["recovery_state"] or {}).get("halt")))
+            self.running, self.error = False, "RecoveryRequired"
+            if recovering_prior_halt:
+                # Cold recovery must cancel restored exchange orders before its
+                # prior-HALT rejection. It has no permission to add new risk.
+                self.phase = "starting"
+            else:
+                self.phase = "halted"
+                # Blocking new submissions does not cancel resting orders.
+                if (self.start_task is not None or core.strategy is not None
+                        or core.connector_manager.connectors or getattr(core, "_is_running", False)):
+                    if not await self.stop_core():
+                        raise RuntimeError("Durable HALT cleanup did not complete; process recovery is required.")
         from hummingbot.core.mm_liquidity import capture_liquidity
         try:
             self.mm_liquidity_state = capture_liquidity(self)

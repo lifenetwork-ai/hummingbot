@@ -15,15 +15,15 @@ Once the local running flag was cleared, the usual running-only cleanup branches
 could be skipped on subsequent iterations. This affects both an earlier HALT and
 one arriving after the entry read; it is not caused by the latest query reduction.
 
-Seven native regression cases cover early/late HALT with accurate/stale running
+Eight native regression cases cover early/late HALT with accurate/stale running
 flags, cleanup failure, pending startup and an already-idle halted service.
-The original six actionable cases all fail before the fix; all seven pass after
-using the existing stop_core/shutdown_core path before publication. Failed cleanup
+The original six actionable cases fail before the fix; the first seven pass
+after using the existing stop_core/shutdown_core path before publication. Failed cleanup
 raises for process recovery without publishing a clean observation; no new owner
 release or automatic HALT reset is introduced. An already-idle HALT does not
 repeat cleanup.
 
-Four real PostgreSQL cases exercise early/late HALT and successful/failed cleanup,
+Five real PostgreSQL cases exercise early/late HALT and successful/failed cleanup,
 with existing owner locks, a recorded resting order, cancellation and terminal
 readback through the existing shutdown path. Success publishes halted only after
 cleanup, retains the original HALT/reason and blocks a successor from acquiring
@@ -35,10 +35,21 @@ a bind parameter corrects that fixture. An idle-case test insertion initially
 landed inside a nested helper; the corrected test module collects and passes.
 Those retained helper failures are not application-runtime defects.
 
+The first HALT patch introduced a cold-recovery problem before packaging: it
+could cancel startup before existing reconciliation cancelled restored orders.
+A separate Red reproduces that intermediate-source regression. The correction
+keeps startup reconciling a previously observed HALT with admission closed,
+reports starting rather than completed HALT cleanup, and uses the existing
+reconciliation deadline/readback. After prior-HALT rejection completes, core
+cleanup runs and halted is published. This brings the focused set to eight
+native and five real-PG cases. No new-risk permission or automatic recovery reset
+is granted. The earlier six failing legacy cases and the prototype-only cold
+recovery failure retain distinct attribution.
+
 ## Confirmed defect B: fee text caused a false conflicting-fill replay
 
 Recorder duplicate identity checks compared raw trade_fee JSON. Equivalent
-Decimal values such as0.2/0.2000 or0.001/0.0010 differed as strings, causing an
+Decimal values such as 0.2/0.2000 or 0.001/0.0010 differed as strings, causing an
 otherwise identical replay to raise and close recorder persistence. This is a
 representation mismatch, not evidence of an actual exchange accounting change.
 

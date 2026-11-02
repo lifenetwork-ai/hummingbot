@@ -521,6 +521,78 @@ def test_observer_durable_halt_drains_orders_and_preserves_recovery(owned, monke
     assert not successor.try_acquire()
 
 
+def test_observer_prior_halt_finishes_restored_order_reconciliation(owned, monkeypatch):
+    from hummingbot.cli.service import ServiceHost
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+
+    core = reconciliation_core(owned)
+    core._strategy_running, core._is_running = False, True
+    order = intent(owned)
+    order.current_state = OrderState.OPEN
+    with owned.manager.get_new_session() as session, session.begin():
+        session.get(Order, order.client_order_id).creation_pending = False
+    owned.owner.require_recovery('prior-halt')
+    owned.owner.reconciling = True
+    release = asyncio.Event()
+
+    async def open_orders(connector):
+        await release.wait()
+        return [{'clOrdId': order.client_order_id}]
+
+    async def cancel_all(timeout):
+        order.current_state = OrderState.CANCELED
+        return []
+
+    owned.owner._open_orders = AsyncMock(side_effect=open_orders)
+    owned.owner._refresh_orders = AsyncMock()
+    owned.market.cancel_all = AsyncMock(side_effect=cancel_all)
+
+    async def startup():
+        with pytest.raises(SubmissionBlocked, match='prior unresolved'):
+            await owned.owner.reconcile(core)
+        return False
+
+    async def shutdown(**kwargs):
+        await core.after_order_cancellation()
+        core.strategy = None
+        core.connector_manager.connectors = {}
+        core._is_running = False
+        return True
+
+    core.shutdown = AsyncMock(side_effect=shutdown)
+    host = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
+                       asyncio.Event(), MagicMock())
+    host.owner, host.hb, host.applied_version = owned.owner, SimpleNamespace(trading_core=core), 1
+    host.poll_reconciliation = AsyncMock()
+    host.poll_funding = host.poll_outflow = MagicMock()
+    host.snapshot = lambda: dict(phase=host.phase, running=host.running, engine=dict(
+        strategy_running=core._strategy_running, clock_running=core._is_running), reporting={'accounts': []})
+    monkeypatch.setattr('hummingbot.core.mm_liquidity.capture_liquidity', lambda value: None)
+
+    async def exercise():
+        task = asyncio.create_task(startup())
+        host.start_task = task
+        try:
+            await asyncio.sleep(0)
+            await host.observe_once()
+            assert not task.done() and host.phase == 'starting'
+            assert owned.store.read()['status']['phase'] == 'starting'
+            assert order.current_state == OrderState.OPEN and not owned.owner.allow_new_orders
+            release.set()
+            assert await task is False
+            await host.observe_once()
+            assert order.current_state == OrderState.CANCELED and not task.cancelled()
+            owned.market.cancel_all.assert_awaited_once()
+            core.shutdown.assert_awaited_once()
+            assert owned.store.read()['status']['phase'] == 'halted'
+            assert owned.store.read()['recovery_state']['halt']
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    owned.loop.run_until_complete(exercise())
+
+
 def test_incomplete_shutdown_preserves_owner_and_durable_halt(owned):
     core = reconciliation_core(owned)
 
