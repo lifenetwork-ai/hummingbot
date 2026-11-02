@@ -1,0 +1,875 @@
+{
+  "source": "build/mm-load/20261102-052812-326f41",
+  "windows": {
+    "warmup": {
+      "count": 1,
+      "all_episodes_selected": true,
+      "episodes": [
+        {
+          "role": "engine",
+          "failure_ns": 4213476822126,
+          "recovery_ns": 4214590925376,
+          "seconds": 1.11410325,
+          "operations": [
+            "recorder_ms",
+            "fill_store_ms",
+            "market_checkpoint_ms",
+            "pool_checkout_ms"
+          ],
+          "max_span_ms": 210.546334,
+          "gc_ms": [],
+          "stall_ms": [
+            564.356584
+          ]
+        }
+      ],
+      "overlapping_operations": {
+        "recorder_ms": 1,
+        "fill_store_ms": 1,
+        "market_checkpoint_ms": 1,
+        "pool_checkout_ms": 1
+      },
+      "max_span_ms": {
+        "recorder_ms": 210.546334,
+        "fill_store_ms": 83.113083,
+        "market_checkpoint_ms": 52.595208,
+        "pool_checkout_ms": 37.076292
+      },
+      "trace_sha256": {
+        "api-incidents.jsonl": "a67bc64004309296a6f22265bcfe552afc8118e272d5d04132fb2ae389de2a4b",
+        "engine-incidents.jsonl": "9ed8ab1476002a092aff38b036c521f84f266d37e7cb74c4ed95bc9950c577e5"
+      }
+    },
+    "mixed": {
+      "count": 9,
+      "all_episodes_selected": true,
+      "episodes": [
+        {
+          "role": "engine",
+          "failure_ns": 4606519424763,
+          "recovery_ns": 4608977027015,
+          "seconds": 2.457602252,
+          "operations": [
+            "recorder_ms",
+            "recorder_ms",
+            "fill_store_ms",
+            "ownership_check_ms"
+          ],
+          "max_span_ms": 202.907583,
+          "gc_ms": [
+            14.467833
+          ],
+          "stall_ms": [
+            822.741125,
+            711.778875,
+            595.239542,
+            477.908542,
+            353.53825
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 4956564204673,
+          "recovery_ns": 4958961155965,
+          "seconds": 2.396951292,
+          "operations": [
+            "service.collect_funding",
+            "service.observe_once",
+            "service.observe_once",
+            "recorder_ms",
+            "recorder_ms"
+          ],
+          "max_span_ms": 1067.683792,
+          "gc_ms": [],
+          "stall_ms": [
+            850.763959,
+            727.231584,
+            601.642625,
+            574.506541,
+            492.59950000000003
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 5391483797454,
+          "recovery_ns": 5392796208788,
+          "seconds": 1.312411334,
+          "operations": [
+            "service.observe_once",
+            "service.collect_funding",
+            "ownership_check_ms",
+            "sql",
+            "ownership_check_ms"
+          ],
+          "max_span_ms": 249.672375,
+          "gc_ms": [
+            319.934334
+          ],
+          "stall_ms": [
+            264.801208
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 4580069763793,
+          "recovery_ns": 4581252850169,
+          "seconds": 1.183086376,
+          "operations": [
+            "service.observe_once"
+          ],
+          "max_span_ms": 140.636459,
+          "gc_ms": [
+            34.01425
+          ],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 4768949162962,
+          "recovery_ns": 4770127866712,
+          "seconds": 1.17870375,
+          "operations": [
+            "service.observe_once",
+            "ownership_check_ms",
+            "sql"
+          ],
+          "max_span_ms": 164.51425,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 5282400650862,
+          "recovery_ns": 5283501826863,
+          "seconds": 1.101176001,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 4881472390388,
+          "recovery_ns": 4882536207097,
+          "seconds": 1.063816709,
+          "operations": [
+            "service.collect_funding",
+            "commit_ms",
+            "sql"
+          ],
+          "max_span_ms": 107.293458,
+          "gc_ms": [],
+          "stall_ms": [
+            369.409541
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 4546780764944,
+          "recovery_ns": 4547830234445,
+          "seconds": 1.049469501,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 4952078499712,
+          "recovery_ns": 4953122273921,
+          "seconds": 1.043774209,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        }
+      ],
+      "overlapping_operations": {
+        "recorder_ms": 4,
+        "fill_store_ms": 1,
+        "ownership_check_ms": 4,
+        "service.collect_funding": 3,
+        "service.observe_once": 5,
+        "sql": 3,
+        "commit_ms": 1
+      },
+      "max_span_ms": {
+        "recorder_ms": 202.907583,
+        "fill_store_ms": 87.78425,
+        "ownership_check_ms": 72.5,
+        "service.collect_funding": 1067.683792,
+        "service.observe_once": 249.672375,
+        "sql": 40.40775,
+        "commit_ms": 15.857125
+      },
+      "trace_sha256": {
+        "api-incidents.jsonl": "a67bc64004309296a6f22265bcfe552afc8118e272d5d04132fb2ae389de2a4b",
+        "engine-incidents.jsonl": "9ed8ab1476002a092aff38b036c521f84f266d37e7cb74c4ed95bc9950c577e5"
+      }
+    },
+    "bursts": {
+      "count": 4,
+      "all_episodes_selected": true,
+      "episodes": [
+        {
+          "role": "engine",
+          "failure_ns": 5463601610361,
+          "recovery_ns": 5464792917487,
+          "seconds": 1.191307126,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": [
+            657.888709,
+            547.002459,
+            434.727125,
+            322.766042
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 5466152494863,
+          "recovery_ns": 5467241487822,
+          "seconds": 1.088992959,
+          "operations": [
+            "service.collect_funding",
+            "service.observe_once",
+            "pool_checkout_ms",
+            "db_ping_ms",
+            "pool_checkout_ms"
+          ],
+          "max_span_ms": 408.277667,
+          "gc_ms": [],
+          "stall_ms": [
+            908.915875,
+            791.052709,
+            669.967834,
+            557.29625,
+            438.321333
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 5474182378075,
+          "recovery_ns": 5475228355242,
+          "seconds": 1.045977167,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": [
+            645.644708,
+            523.55225,
+            390.739208
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 5489201725124,
+          "recovery_ns": 5490247445833,
+          "seconds": 1.045720709,
+          "operations": [
+            "service.observe_once",
+            "spread_compose_ms"
+          ],
+          "max_span_ms": 322.235208,
+          "gc_ms": [],
+          "stall_ms": [
+            465.34583299999997
+          ]
+        }
+      ],
+      "overlapping_operations": {
+        "service.collect_funding": 1,
+        "service.observe_once": 2,
+        "pool_checkout_ms": 2,
+        "db_ping_ms": 1,
+        "spread_compose_ms": 1
+      },
+      "max_span_ms": {
+        "service.collect_funding": 408.277667,
+        "service.observe_once": 322.235208,
+        "pool_checkout_ms": 24.969291,
+        "db_ping_ms": 24.591041,
+        "spread_compose_ms": 33.60475
+      },
+      "trace_sha256": {
+        "api-incidents.jsonl": "a67bc64004309296a6f22265bcfe552afc8118e272d5d04132fb2ae389de2a4b",
+        "engine-incidents.jsonl": "9ed8ab1476002a092aff38b036c521f84f266d37e7cb74c4ed95bc9950c577e5"
+      }
+    },
+    "soak": {
+      "count": 39,
+      "all_episodes_selected": true,
+      "episodes": [
+        {
+          "role": "engine",
+          "failure_ns": 8729515921469,
+          "recovery_ns": 8732140464387,
+          "seconds": 2.624542918,
+          "operations": [
+            "service.observe_once",
+            "recorder_ms",
+            "recorder_ms",
+            "fill_store_ms"
+          ],
+          "max_span_ms": 336.238459,
+          "gc_ms": [],
+          "stall_ms": [
+            353.977625,
+            334.2825,
+            330.155084,
+            261.033583,
+            256.666166
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 6959843240332,
+          "recovery_ns": 6962426628416,
+          "seconds": 2.583388084,
+          "operations": [
+            "service.observe_once",
+            "service.collect_funding",
+            "recorder_ms"
+          ],
+          "max_span_ms": 457.684667,
+          "gc_ms": [],
+          "stall_ms": [
+            447.816625,
+            290.133417
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7130940632578,
+          "recovery_ns": 7133427497662,
+          "seconds": 2.486865084,
+          "operations": [
+            "service.observe_once",
+            "service.collect_funding",
+            "ownership_check_ms"
+          ],
+          "max_span_ms": 573.621,
+          "gc_ms": [],
+          "stall_ms": [
+            513.964375,
+            372.012209,
+            204.161
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7692611289624,
+          "recovery_ns": 7693852851125,
+          "seconds": 1.241561501,
+          "operations": [
+            "recorder_ms",
+            "fill_store_ms",
+            "recorder_ms",
+            "fill_store_ms"
+          ],
+          "max_span_ms": 1304.515334,
+          "gc_ms": [
+            16.067583
+          ],
+          "stall_ms": [
+            256.290459
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 6401807781746,
+          "recovery_ns": 6403012521413,
+          "seconds": 1.204739667,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": [
+            450.696167,
+            342.181917,
+            218.656542
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 6668697549574,
+          "recovery_ns": 6669874073908,
+          "seconds": 1.176524334,
+          "operations": [
+            "service.observe_once",
+            "ownership_check_ms",
+            "sql",
+            "sql",
+            "pool_checkout_ms"
+          ],
+          "max_span_ms": 442.525917,
+          "gc_ms": [],
+          "stall_ms": [
+            400.904375
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7669903189364,
+          "recovery_ns": 7671063256365,
+          "seconds": 1.160067001,
+          "operations": [
+            "service.observe_once"
+          ],
+          "max_span_ms": 140.848375,
+          "gc_ms": [],
+          "stall_ms": [
+            230.3605
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 8186731339016,
+          "recovery_ns": 8187883996141,
+          "seconds": 1.152657125,
+          "operations": [
+            "service.observe_once",
+            "response_serialization_ms",
+            "sql",
+            "pool_checkout_ms",
+            "db_ping_ms"
+          ],
+          "max_span_ms": 414.861917,
+          "gc_ms": [],
+          "stall_ms": [
+            403.669292
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7729738182517,
+          "recovery_ns": 7730881834767,
+          "seconds": 1.14365225,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 6600988066503,
+          "recovery_ns": 6602122797044,
+          "seconds": 1.134730541,
+          "operations": [
+            "service.observe_once",
+            "service.collect_funding",
+            "ownership_check_ms"
+          ],
+          "max_span_ms": 567.653209,
+          "gc_ms": [],
+          "stall_ms": [
+            1061.639084,
+            923.274917,
+            822.698333
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7637652319558,
+          "recovery_ns": 7638786635142,
+          "seconds": 1.134315584,
+          "operations": [
+            "service.collect_funding",
+            "recorder_ms",
+            "service.observe_once",
+            "service.observe_once"
+          ],
+          "max_span_ms": 162.849709,
+          "gc_ms": [],
+          "stall_ms": [
+            231.73037599999998
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 5997791549480,
+          "recovery_ns": 5998912469688,
+          "seconds": 1.120920208,
+          "operations": [
+            "service.observe_once",
+            "sql",
+            "service.observe_once"
+          ],
+          "max_span_ms": 482.146667,
+          "gc_ms": [
+            32.1515
+          ],
+          "stall_ms": [
+            411.444958
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 8406107044280,
+          "recovery_ns": 8407205821364,
+          "seconds": 1.098777084,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 8173505486093,
+          "recovery_ns": 8174595133343,
+          "seconds": 1.08964725,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 8634488756592,
+          "recovery_ns": 8635577657718,
+          "seconds": 1.088901126,
+          "operations": [
+            "service.observe_once",
+            "ownership_check_ms",
+            "commit_ms",
+            "ownership_check_ms",
+            "sql"
+          ],
+          "max_span_ms": 187.404167,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 6000270402606,
+          "recovery_ns": 6001349852273,
+          "seconds": 1.079449667,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 5727278290315,
+          "recovery_ns": 5728356805357,
+          "seconds": 1.078515042,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7134834216204,
+          "recovery_ns": 7135910768830,
+          "seconds": 1.076552626,
+          "operations": [
+            "service.observe_once"
+          ],
+          "max_span_ms": 204.123708,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 5813013826688,
+          "recovery_ns": 5814085917105,
+          "seconds": 1.072090417,
+          "operations": [
+            "service.observe_once",
+            "recorder_ms",
+            "ownership_check_ms",
+            "fill_store_ms",
+            "sql"
+          ],
+          "max_span_ms": 244.515292,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 8705155650457,
+          "recovery_ns": 8706220434458,
+          "seconds": 1.064784001,
+          "operations": [
+            "service.observe_once",
+            "service.observe_once",
+            "ownership_check_ms"
+          ],
+          "max_span_ms": 478.846792,
+          "gc_ms": [],
+          "stall_ms": [
+            258.644917
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7107369891983,
+          "recovery_ns": 7108434666734,
+          "seconds": 1.064774751,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 8288131697727,
+          "recovery_ns": 8289187941019,
+          "seconds": 1.056243292,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7463092321895,
+          "recovery_ns": 7464145944021,
+          "seconds": 1.053622126,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7993908490636,
+          "recovery_ns": 7994961501803,
+          "seconds": 1.053011167,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 5590040318836,
+          "recovery_ns": 5591092589128,
+          "seconds": 1.052270292,
+          "operations": [
+            "service.collect_funding"
+          ],
+          "max_span_ms": 730.840125,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 6072832387429,
+          "recovery_ns": 6073884521430,
+          "seconds": 1.052134001,
+          "operations": [
+            "service.collect_funding",
+            "recorder_ms",
+            "sql",
+            "sql"
+          ],
+          "max_span_ms": 1238.206709,
+          "gc_ms": [],
+          "stall_ms": [
+            775.901626,
+            666.826792
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7325651301041,
+          "recovery_ns": 7326701776708,
+          "seconds": 1.050475667,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": [
+            335.124542
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 6122707377577,
+          "recovery_ns": 6123755376327,
+          "seconds": 1.04799875,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": [
+            354.572667
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 8298895417732,
+          "recovery_ns": 8299942803608,
+          "seconds": 1.047385876,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 6310925981497,
+          "recovery_ns": 6311973263706,
+          "seconds": 1.047282209,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7162978454384,
+          "recovery_ns": 7164024373134,
+          "seconds": 1.04591875,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7924985817688,
+          "recovery_ns": 7926028704355,
+          "seconds": 1.042886667,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7007615859437,
+          "recovery_ns": 7008655491187,
+          "seconds": 1.03963175,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": [
+            329.498875
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7650727689398,
+          "recovery_ns": 7651763087107,
+          "seconds": 1.035397709,
+          "operations": [
+            "recorder_ms",
+            "fill_store_ms"
+          ],
+          "max_span_ms": 235.47425,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7147998886627,
+          "recovery_ns": 7149029522461,
+          "seconds": 1.030635834,
+          "operations": [
+            "market_checkpoint_ms",
+            "service.collect_funding",
+            "sql",
+            "pool_checkout_ms"
+          ],
+          "max_span_ms": 180.4185,
+          "gc_ms": [],
+          "stall_ms": [
+            397.826292
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7076488735386,
+          "recovery_ns": 7077516963636,
+          "seconds": 1.02822825,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7273805640601,
+          "recovery_ns": 7274830166352,
+          "seconds": 1.024525751,
+          "operations": [],
+          "max_span_ms": null,
+          "gc_ms": [],
+          "stall_ms": []
+        },
+        {
+          "role": "engine",
+          "failure_ns": 6324875283295,
+          "recovery_ns": 6325898643004,
+          "seconds": 1.023359709,
+          "operations": [
+            "service.observe_once"
+          ],
+          "max_span_ms": 370.925542,
+          "gc_ms": [],
+          "stall_ms": [
+            210.24366700000002
+          ]
+        },
+        {
+          "role": "engine",
+          "failure_ns": 7099747983188,
+          "recovery_ns": 7100769056188,
+          "seconds": 1.021073,
+          "operations": [
+            "service.collect_funding",
+            "service.observe_once",
+            "ownership_check_ms",
+            "sql",
+            "service.observe_once"
+          ],
+          "max_span_ms": 298.383292,
+          "gc_ms": [],
+          "stall_ms": []
+        }
+      ],
+      "overlapping_operations": {
+        "service.observe_once": 19,
+        "recorder_ms": 9,
+        "fill_store_ms": 5,
+        "service.collect_funding": 8,
+        "ownership_check_ms": 8,
+        "sql": 10,
+        "pool_checkout_ms": 3,
+        "response_serialization_ms": 1,
+        "db_ping_ms": 1,
+        "commit_ms": 1,
+        "market_checkpoint_ms": 1
+      },
+      "max_span_ms": {
+        "service.observe_once": 573.621,
+        "recorder_ms": 1304.515334,
+        "fill_store_ms": 1250.796167,
+        "service.collect_funding": 1238.206709,
+        "ownership_check_ms": 248.943666,
+        "sql": 588.761584,
+        "pool_checkout_ms": 59.178583,
+        "response_serialization_ms": 111.544209,
+        "db_ping_ms": 15.226042,
+        "commit_ms": 22.004791,
+        "market_checkpoint_ms": 180.4185
+      },
+      "trace_sha256": {
+        "api-incidents.jsonl": "a67bc64004309296a6f22265bcfe552afc8118e272d5d04132fb2ae389de2a4b",
+        "engine-incidents.jsonl": "9ed8ab1476002a092aff38b036c521f84f266d37e7cb74c4ed95bc9950c577e5"
+      }
+    }
+  },
+  "method": "Existing analyzer over all window probe episodes; bounded top-five context per episode, not causal attribution",
+  "healthy_envelope": {
+    "count": 54,
+    "selected": 54,
+    "between_window_count": 1,
+    "all_recovered": true,
+    "max_gc_ms": 319.934334,
+    "max_stall_ms": 1157.939917,
+    "scope": "Includes gaps between healthy windows; excludes planned post-soak fault cases"
+  }
+}

@@ -5,6 +5,13 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-02
 
+- **Controlled probe follow-up in progress:** complete review finds54 recovered
+  transitions (53 inside R1 windows,1 between windows); bounded GC/stall/phase
+  context does not isolate one cause. Three matched600s controls and current-image
+  read-only Demo preflight follow. Shipping image/deadlines stay unchanged.
+  [Plan](../../docs/plans/MM_ENGINE_PROBE_LATENCY_TDD_PLAN.md),
+  [report](../investigations/mm-engine-probe-controlled.md).
+
 - **Ordered reporting/startup optimization and final local gates complete:**
   A `21ce776c1` coalesces bounded daily refreshes by filter; B `c7cad9896`
   removes ORM hydration while preserving exact SQL/Decimal results (native

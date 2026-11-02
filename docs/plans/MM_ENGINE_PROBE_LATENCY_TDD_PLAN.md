@@ -30,3 +30,33 @@ Selected native61, packaged smoke and300s probe pass (p99 157.84ms, zero errors,
 300 matching fills/fees/positions). One transient probe failure recovers; its
 unique cause remains open. Runtime logic is unchanged. External Docker cleanup
 removed the previous bot container/image; the Demo DB volume remains untouched.
+
+## Controlled follow-up after reporting/startup release — 2026-11-02
+
+Baseline: accepted local image `39198499`, application source `9db4ff56a`.
+Earlier diagnostic and release evidence above retains its original scope.
+
+- [x] A: Analyze all54 recovered probe transitions in the existing R1 healthy
+  envelope, distinguish measured windows from their gaps and retain attribution
+  limits, GC/stall context and data-loss counters. Commit the evidence review.
+- [ ] B: Reuse the existing shipping-control harness for matched600s diagnostic
+  runs: ordinary entrypoint, scalar measurement wrapper, then wrapper plus GC
+  and bounded incidents. Preserve image, fixed profile, fixture hashes,100k
+  history, rates, CPU/memory, TTL, pool and all healthy/error/ledger budgets.
+  Diagnostic variants must never qualify as shipping R2 or full acceptance.
+- [ ] C: Evaluate the comparison; reproduce any confirmed shipping defect with
+  Red/Green before a runtime fix. Rerun a full release gate only if shipping
+  runtime changes. If no defect is reproduced, publish the bounded result and
+  remaining uncertainty rather than speculate or relax health deadlines.
+- [ ] D: Run current-image OKX Demo preflight with authenticated REST/public and
+  private WS reads, balances, orders/positions and available recovery state.
+  Preserve private configuration and original Demo volume; no trading commands,
+  account changes, migrations or direct maintenance writes. State unavailable
+  local recovery separately if the old container/DB is absent.
+- [ ] Publish scoped evidence/report, update current status/checklists, commit
+  and remove only task-owned transient resources/awake assertions.
+
+Follow-up: [report](../../reports/investigations/mm-engine-probe-controlled.md),
+[evidence](../../reports/investigations/mm-engine-probe-controlled-evidence.json).
+No probe timeout/grace, ownership, order authority, quote/risk rule or cache/pool
+limit is changed merely to make a diagnostic pass.
