@@ -1,7 +1,8 @@
-"""Matched ordinary-entrypoint control; isolated exchange/DB, no timing wrapper.
+"""Matched shipping control with explicit short diagnostic instrumentation.
 
-Reuse a completed load run's effective catalogue and client/exchange fixtures.
-Internal instrumentation counters are unavailable: this is not full acceptance.
+Reuse a completed load run's catalogue and client/exchange fixtures. The default
+shipping entrypoint has no timing wrapper; instrumented modes require a bounded
+diagnostic probe and cannot qualify as R2 or full release acceptance.
 """
 import argparse
 import hashlib
@@ -37,6 +38,16 @@ def control_windows(*, probe_seconds=None, include_burst=False):
     return [('warmup', 300), ('mixed', 900)] + ([('bursts', 90)] if include_burst else [])
 
 
+def instrumentation_options(mode, *, probe_seconds):
+    """Diagnostic layers never change the ordinary shipping acceptance path."""
+    if mode not in ('none', 'metrics', 'incidents'):
+        raise ValueError('Unknown diagnostic instrumentation')
+    if mode != 'none' and probe_seconds is None:
+        raise ValueError('Instrumentation requires explicit --probe-seconds diagnostic scope')
+    return dict(instrumented=mode != 'none', gc_diagnostics=mode == 'incidents',
+                incident_diagnostics=mode == 'incidents')
+
+
 def acceptance_eligible(baseline, *, probe_seconds=None):
     return (probe_seconds is None and baseline.get('passed') is True and baseline.get('profile') == 'all' and
             baseline.get('release_scope_complete') is True and baseline.get('diagnostic') is False)
@@ -68,10 +79,13 @@ def main():
     parser.add_argument('--diagnostic-baseline', action='store_true', help='Explicit investigation of a failed baseline; never release acceptance')
     parser.add_argument('--include-burst', action='store_true', help='Add the same ninety-second burst after warm300/mixed900')
     parser.add_argument('--probe-seconds', type=int, help='Bounded 30..900s diagnostic only; never the R2 shipping control')
+    parser.add_argument('--instrumentation', choices=('none', 'metrics', 'incidents'), default='none',
+                        help='Diagnostic probe only: scalar wrapper, or wrapper plus bounded GC/incidents')
     parser.add_argument('--keep-going', action='store_true', help='Retain later diagnostic windows after a budget failure; overall result still fails')
     args = parser.parse_args()
     try:
         windows = control_windows(probe_seconds=args.probe_seconds, include_burst=args.include_burst)
+        instrumentation = instrumentation_options(args.instrumentation, probe_seconds=args.probe_seconds)
     except ValueError as error:
         parser.error(str(error))
     args.baseline = args.baseline.resolve()
@@ -84,6 +98,7 @@ def main():
                     baseline_passed=baseline_passed,
                     baseline_acceptance_eligible=acceptance_eligible(baseline, probe_seconds=args.probe_seconds),
                     probe_seconds=args.probe_seconds,
+                    instrumentation=args.instrumentation,
                     include_burst=args.include_burst, continue_after_budget_failure=args.keep_going,
                     baseline=str(args.baseline.relative_to(ROOT)), bot_limits=baseline['bot_limits'],
                     daily_cache_ttl_seconds=baseline['daily_cache_ttl_seconds'], passed=False, windows={},
@@ -104,8 +119,18 @@ def main():
                 harness.control(include_own_orders=True)
                 docker('update', '--cpus', '1', '--memory', '512m', '--memory-swap', '512m', harness.simulator)
                 docker('update', '--cpus', '2', '--memory', '512m', '--memory-swap', '512m', harness.pg)
-                bot, port = harness.start('load-bot', cpus=baseline['bot_limits']['cpus'], network_alias='bot')
-                assert json.loads(docker('inspect', bot).stdout)[0]['Config']['Cmd'] == ['python', '-m', 'hummingbot.cli.service']
+                incident_directory = report / 'incidents' if instrumentation['incident_diagnostics'] else None
+                if incident_directory:
+                    incident_directory.mkdir()
+                    incident_directory.chmod(0o777)
+                    harness.env['HBOT_LOAD_INCIDENT_MAX_CAPTURES'] = '128'
+                if instrumentation['gc_diagnostics']:
+                    harness.env['HBOT_LOAD_GC_DIAGNOSTICS'] = '1'
+                bot, port = harness.start('load-bot', cpus=baseline['bot_limits']['cpus'], network_alias='bot',
+                                          instrumented=instrumentation['instrumented'], incident_directory=incident_directory)
+                expected_command = (['python', '/test-assets/load_entrypoint.py'] if instrumentation['instrumented'] else
+                                    ['python', '-m', 'hummingbot.cli.service'])
+                assert json.loads(docker('inspect', bot).stdout)[0]['Config']['Cmd'] == expected_command
                 docker('update', '--memory', '2g', '--memory-swap', '2g', bot)
                 command(harness, port, 'start', market_mode='spot', selection='fixed', profile_id='sideways', duration_seconds=600)
                 poll(lambda: bool(harness.state()['recovery_state'].get('spot_outflow', {}).get('binding')),
@@ -149,6 +174,9 @@ def main():
                     row = summarize_window(row, phase=status['phase'], memory=after['memory'], setup_commands=controls,
                                            ledger=verify_ledger(harness, port, require_running=False))
                     row['resources'] = dict(before=before, after=after)
+                    if instrumentation['instrumented']:
+                        from scripts.test_mm_load import read_metrics
+                        row['instrumented_runtime'] = read_metrics(harness, bot)
                     evidence['windows'][name] = row
                     (report / 'result.json').write_text(json.dumps(evidence, indent=2) + '\n')
                     print(name, {key: row[key] for key in ('read_p95_ms', 'read_p99_ms', 'unexpected_errors', 'violations')}, flush=True)

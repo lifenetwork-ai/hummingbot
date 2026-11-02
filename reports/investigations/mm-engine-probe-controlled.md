@@ -37,10 +37,20 @@ original release artifact.
 
 ## B — Matched diagnostic controls
 
-Pending. Reuse one existing harness and one fixed profile/fixture across three
-600s modes: ordinary shipping, scalar wrapper only, wrapper plus GC/incidents.
-These are short diagnostics and cannot replace shipping R2 or full release
-acceptance. Shipping code and deadlines remain unchanged.
+The existing shipping-control script now accepts an explicit diagnostic-only
+instrumentation mode. Default R2 remains the ordinary command; selecting scalar
+metrics or metrics+GC/incidents requires a bounded `--probe-seconds` run. The
+existing acceptance predicate rejects every such short run. Actual container
+commands are checked and incident/GC settings are explicit. No shipping module,
+image, deadline, quote/risk rule or pool/cache setting changes.
+
+Six initial Red cases fail for missing independent instrumentation choices and
+rejection of instrumented full-R2 scope (13 existing cases pass). The final69
+control/budget/analyzer/incident regressions pass. One invocation used an
+incorrect analyzer-test filename; its launcher log is retained separately and
+is not a runtime failure. Matched600s measurements follow on the accepted image,
+with identical fixed profile, fixture hashes, history, resources and traffic.
+These diagnostics do not replace full shipping/release gates.
 
 ## C — Interpretation / runtime fixes
 

@@ -90,3 +90,29 @@ def test_passing_short_or_diagnostic_baseline_cannot_qualify_r2():
                    {'release_scope_complete': False}, {'release_scope_complete': None}):
         assert not acceptance_eligible({**complete, **change})
     assert not acceptance_eligible({})
+
+
+@pytest.mark.parametrize('mode,instrumented,gc,incidents', [
+    ('none', False, False, False), ('metrics', True, False, False), ('incidents', True, True, True),
+])
+def test_matched_instrumentation_has_explicit_independent_layers(mode, instrumented, gc, incidents):
+    from scripts import test_mm_production_control as control
+    assert control.instrumentation_options(mode, probe_seconds=600) == dict(
+        instrumented=instrumented, gc_diagnostics=gc, incident_diagnostics=incidents)
+    baseline = dict(passed=True, profile='all', release_scope_complete=True, diagnostic=False)
+    assert not control.acceptance_eligible(baseline, probe_seconds=600)
+
+
+@pytest.mark.parametrize('mode', ['metrics', 'incidents'])
+def test_instrumentation_cannot_change_shipping_r2(mode):
+    from scripts import test_mm_production_control as control
+    with pytest.raises(ValueError, match='probe-seconds'):
+        control.instrumentation_options(mode, probe_seconds=None)
+
+
+def test_default_shipping_control_keeps_no_wrapper_or_diagnostic_gc():
+    from scripts import test_mm_production_control as control
+    assert control.instrumentation_options('none', probe_seconds=None) == dict(
+        instrumented=False, gc_diagnostics=False, incident_diagnostics=False)
+    with pytest.raises(ValueError):
+        control.instrumentation_options('unknown', probe_seconds=600)
