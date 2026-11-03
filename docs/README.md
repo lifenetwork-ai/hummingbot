@@ -26,6 +26,7 @@ under the ignored `build/` directory.
 - [MM volatility defense — TDD plan](plans/MM_VOLATILITY_DEFENSE_TDD_PLAN.md) — V0–V5 complete, including final-image hour/fault gates and bounded OKX Demo compatibility
 - [Pre-listing economic stress plan](plans/LIFE_MM_ECONOMIC_STRESS_PLAN.md)
 - [Operations API and configuration ownership plan](plans/ADMIN_OPERATIONS_API_TDD_PLAN.md)
+- [Checkpoint and background-poll optimization](plans/MM_CHECKPOINT_POLL_OPTIMIZATION_TDD_PLAN.md)
 - [Working-order activity and diagnostics plan](plans/MM_QUOTE_ACTIVITY_TDD_PLAN.md)
 - [Until-stopped MM sessions plan](plans/MM_UNTIL_STOPPED_TDD_PLAN.md)
 - [MM memory retention review plan](plans/MM_MEMORY_RETENTION_REVIEW.md)

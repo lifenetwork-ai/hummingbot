@@ -34,6 +34,10 @@ cache, new service or Redis dependency.
 
 ## Completion
 
-- [ ] Run the combined relevant native/PostgreSQL checks, update progress and
+- [x] Run the combined relevant native/PostgreSQL checks, update progress and
   publish an optimization report. New source does not inherit prior image/load/
   Demo acceptance; do not trade, repair Demo data or reset HALT for this task.
+
+Completed source checks: 2,357 native tests plus 11 subtests, 307 PostgreSQL
+tests and Swagger pass. [Report/evidence](../../reports/performance/mm-checkpoint-poll-optimization.md).
+No new image/load/Demo gate was requested or claimed for this optimization.

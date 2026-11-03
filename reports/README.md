@@ -4,6 +4,13 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Checkpoint and background-poll source optimization](performance/mm-checkpoint-poll-optimization.md),
+  [SQL evidence](performance/mm-checkpoint-poll-evidence.json), 2026-11-03:
+  atomic position batches, no idle reconciliation control-row lock, funding
+  discovery with existing-index seeks. Native2,357 plus11 subtests, PG307 and
+  Swagger pass. This source follow-up has no new image/load/Demo acceptance;
+  prior660 measurements below remain scoped to the preceding image.
+
 - [Current-image full load and Demo](release/mm-quote-recovery-release.md),
   [load evidence](release/mm-quote-recovery-release-evidence.json), 2026-11-03:
   image660bd38b passes full R1 plus matched shipping R2. Soak p99103ms,

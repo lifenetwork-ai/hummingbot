@@ -110,8 +110,8 @@ def test_storage_retains_disabled_market_exposure():
     item.positions_held["life_perpetual"] = [held()]
     with patch.object(MarketsRecorder, "get_instance") as recorder:
         item.store_all_positions()
-    recorder.return_value.update_or_store_position.assert_called_once()
-    saved = recorder.return_value.update_or_store_position.call_args.args[0]
+    recorder.return_value.update_or_store_positions.assert_called_once()
+    saved = recorder.return_value.update_or_store_positions.call_args.args[0][0]
     assert saved.amount == Decimal("2") and saved.connector_name == "okx_perpetual"
 
 

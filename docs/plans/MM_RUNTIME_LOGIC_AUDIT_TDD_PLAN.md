@@ -155,3 +155,18 @@ restart also pass; the current5-fill proof is separate from the earlier six.
 [Demo/fill proof](../../reports/demo/okx-demo-quote-recovery.md#bounded-natural-maker-fill-follow-up--2026-11-03).
 All requested local test items here are complete. Production coverage SLO and
 residual-probe/historical causal limits above remain explicit.
+
+## Subsequent source optimization — 2026-11-03
+
+- [x] Batch terminal position checkpoints without weakening owner fencing,
+  exact fees/amounts or retained exposure after a failed commit.
+- [x] Avoid bot_state row locks for empty reconciliation polls; revalidate queued
+  candidates and owner generation under the original lock order.
+- [x] Measure and optimize funding pair discovery with the existing order index,
+  preserving unknown pairs and late-imported earlier history without a cache.
+- [x] Validate source: native2,357 plus11 subtests, PostgreSQL307 and Swagger.
+
+[Follow-up plan](MM_CHECKPOINT_POLL_OPTIMIZATION_TDD_PLAN.md),
+[report/evidence](../../reports/performance/mm-checkpoint-poll-optimization.md).
+Recorder IO remains synchronous. These source changes do not inherit the prior
+660bd38b packaged/hour/Demo acceptance or close the residual-probe causal limits.

@@ -77,3 +77,42 @@ funding cases and 24 native funding-observer/sync cases. Each discovery still
 costs one SQL round trip; its work now tracks pair count and index access rather
 than every historical order. Full raw setup/plans remain under
 build/checkpoint-poll-optimization-20261103/; the disposable database is removed.
+
+## Implementation commits and acceptance boundary
+
+- 9814756d1: atomic batched terminal position checkpoints.
+- a37240127: non-locking empty reconciliation polls, with locked claim revalidation.
+- bdf7ce0a5: funding discovery through the existing composite order index.
+
+The broad native run initially finds two remaining mocks asserting the old
+single-position call. They are updated to assert one batch and the same exact
+quantities/fees/disabled-market exposure; no runtime behavior is changed for
+these failures. The original failed log is retained under build/.
+
+No Demo credentials, trading intent, database contents, HALT or deployed service
+is changed. The bot image/containers from the prior acceptance are absent from
+the observed local Docker inventory; only owned disposable PostgreSQL test
+resources are created. The prior 660bd38b hour/load/Demo evidence remains scoped
+to that image. No new image, packaged E2E, soak, connected Demo or deployment is
+claimed by this source-level optimization.
+
+Combined native verification: make test-cloudrun-regression passes all four
+groups (178 + 11 + 1,534 + 634 = 2,357 tests, plus 11 subtests); Swagger contract
+check also passes. Native/PG source checks are distinct from packaged/load gates.
+
+Full PostgreSQL verification also passes: 307 tests in384.32s, on a fresh
+disposable database. Its container is removed by the runner. Final command logs:
+build/checkpoint-poll-optimization-20261103/native-regression.log and
+build/checkpoint-poll-optimization-20261103/postgres-regression.log.
+
+Commands (using the repository's native hummingbot Python environment):
+
+```sh
+make test-cloudrun-regression PYTHON=/path/to/hummingbot/bin/python
+python scripts/test_postgres.py
+python -m hummingbot.cli.swagger --check
+```
+
+Remaining boundary: recorder IO is still synchronous, and no new measured API
+p99/trading-throughput, indefinite-memory, uninterrupted-quote or historical
+probe-root-cause conclusion follows from these changes.

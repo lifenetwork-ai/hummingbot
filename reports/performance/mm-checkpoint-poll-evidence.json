@@ -494,5 +494,26 @@
     "fixture_load_and_vacuum_only_extended_io_deadline": true,
     "end_to_end_runtime_speedup_claim": false,
     "new_image_load_or_demo_acceptance": false
-  }
+  },
+  "fixture_sql": "INSERT INTO orders (id,config_file_path,strategy,market,symbol,base_asset,quote_asset,\n                creation_timestamp,order_type,amount,leverage,price,last_status,last_update_timestamp)\n            SELECT 'perf-'||g,'fixture.yml','life_mm',CASE WHEN g%5=0 THEN 'okx' ELSE 'okx_perpetual' END,\n                CASE WHEN g%5=0 THEN 'SPOTONLY-USDT' ELSE (ARRAY['BTC-USDT','ETH-USDT','AVAX-USDT','SOL-USDT'])[1+g%4] END,\n                'FIXTURE','USDT',1700000000000+g,'LIMIT_MAKER',.00025828,1,100,'OrderCancelled',1700000000000+g\n            FROM generate_series(1,1000000) g",
+  "migration_script_sha256": {
+    "001_create_core_tables.sql": "2fb9d2667763787818e218b19086cfbd92abcbda513e7aac13a707af48fab8cc",
+    "002_create_strategy_tables.sql": "7e1538d02af9f8a6ed6d28168accd11e816dce7d339f1eca258e5bff7ee0b256",
+    "003_create_auxiliary_tables.sql": "56919e2e157f6acefa42f2f912f31e6b738b9232e71d2c716e1ab7ebd4f64053",
+    "004_create_bot_state.sql": "7473d4125ad6aadca0b0ab6b6afd849a6b1471eebcf75bef77981502f7f19206",
+    "005_add_runtime_indexes.sql": "3141fa20662940043e14f7c7404d479ee05b5252fda4c7ee27056998bc072b14",
+    "006_add_order_recovery.sql": "b6ec22b48ba2b70e53c0e31caf44ce73540ff9b5fe28989c1cf82989a93353ac",
+    "007_add_recovery_state.sql": "919504d7a68fc7f82f5d3c88ee73d54c49ab0eb4ddddd9270325eb62e2d3398d",
+    "008_add_mm_session.sql": "9bd5138aa0117b9c3744170826a42be00875ce26b129d2c8b46082dcfe44de0e",
+    "008_add_recovery_lookup_indexes.sql": "418919055edf5f8a06f993dd4f16c099b555c7702d5bdbc560c7ef6d0b69dc8f",
+    "009_create_admin_commands.sql": "d6d4a9fa9d14d171e9b2af356c5ca3c7a11de3d80d24544a433bb44e1a353706",
+    "010_create_daily_balance_snapshots.sql": "b181b6c93fcc47a9a81959433804c76f909b4fe6d451c1a35b2f5bc29ecc7a6b",
+    "011_add_admin_check_result.sql": "e13cac5e07cb1a7b24493fc0470d2d5e1b024ecbba5e4426d05027ccf80fd78a",
+    "012_add_admin_history_indexes.sql": "70a8f9f867974c2fdd4fbbcdfcc96464594c53f0d9fb3af95cd7036e7058cdc1",
+    "013_preserve_decimal_precision.sql": "9b259c32fa9a25e05d049194f7130ac9a283b9f3a0894f58039a6f80945711c0",
+    "014_create_funding_bills.sql": "53e0b92d06650b15661fdd9b99e8942409147e11619bbc21c1b48c33fd8429b2",
+    "016_create_mm_events.sql": "c47e142219204819ddb52ca37e1b535616aaf32787df87f08f47a89583e67ff2",
+    "017_add_session_discovery_index.sql": "2eef395325fd160096ae95e8e6466b6b0183ca021cc86e6b501bec7f2fea3821"
+  },
+  "production_funding_source_sha256": "af893bfc356fa7c585b650bac25100f9631e9b0dfb02a8c53aa6643b98b06229"
 }

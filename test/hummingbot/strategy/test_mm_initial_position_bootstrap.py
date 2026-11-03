@@ -97,7 +97,8 @@ async def test_failed_reconciliation_cleanup_preserves_durable_exposure_and_fees
     with pytest.raises(SubmissionBlocked):
         BotOwnership._verify_positions(SimpleNamespace(strategy=strategy), connector)
     await restored.stop(keep_position=True)
-    stored = [c.args[0] for c in recorder.update_or_store_position.call_args_list]
+    recorder.update_or_store_positions.assert_called_once()
+    stored = recorder.update_or_store_positions.call_args.args[0]
     assert {p.side: p.amount for p in stored} == {'BUY': Decimal('.0084'), 'SELL': Decimal('.0027')}
     assert sum((p.cum_fees_quote for p in stored), Decimal(0)) == Decimal('.0125863994')
 
