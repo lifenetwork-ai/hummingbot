@@ -53,15 +53,25 @@ Those source checks do not claim new image/load/Demo acceptance.
   rebuild in the image item below. The superseded6d9f9f01
   image's three passing E2E groups do not qualify the corrected source. The paused
   pipeline intentionally stops at source-freeze before starting R1.
-- [ ] Build and hash-verify a current-source amd64 image; run packaged smoke and
+- [x] Build and hash-verify a current-source amd64 image; run packaged smoke and
   focused MM checkpoint/stop/restart scenarios before full load.
 - [ ] Run unchanged full R1 (warmup/mixed/burst/60-minute soak/six fault groups),
   independently verify accounting, memory, process and continuity evidence.
 - [ ] Run and independently verify matched ordinary-entrypoint R2.
-- [ ] Read-only Demo preflight and inspect the missing-volume recovery gap.
+- [x] Read-only Demo preflight and inspect the missing-volume recovery gap.
   An older backup is not current ledger proof; do not repair history or clear HALT
   without explicit operator review of a concrete proposal.
+- [x] Obtain operator approval for the documented reconstruction after its isolated
+  dry run: preserve1,257 orders/six original fills, backfill23 terminal orders/five
+  actual fills, recompute three aggregates; disclose unavailable executor/session
+  events. No HALT reset or history deletion. Execute only after verified load.
 - [ ] Verify current-image Demo profiles, modes, Random, Stop/restart and exact
   fills/fees/positions where history permits; report incomplete scope honestly.
 - [ ] Publish evidence, close verified checklist items, clean owned resources and
   commit. Preserve prior failed results and unrelated Docker resources.
+
+Current artifact:5b2aaaa7, source8252d797e,1,156 packaged hashes/smoke and three
+focused E2E groups pass. Full R1 is running under
+build/checkpoint-poll-release-20261103/attempt-2/; actual Demo is queued behind
+R1/R2 to preserve host isolation. Read-only final-image REST/public+private WS
+preflight passes. [Approved recovery proposal](../../reports/demo/checkpoint-poll-recovery-proposal.md).
