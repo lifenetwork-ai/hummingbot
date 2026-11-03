@@ -62,6 +62,28 @@ image/date scope; the new local gate does not relabel them.
 
 [Current report](../../reports/release/mm-controller-persistence-release.md).
 
+### Reporting/probe/guard follow-up — requested 2026-11-04
+
+- [x] Reproduce repeated original-fee decoding in the timed-out fill aggregate:
+  PostgreSQL executes 600 fee-array parses for 200 zero-conversion fills.
+- [x] Compute conversion counts once in the existing daily aggregate and verify
+  200 parses with exact fee semantics, including foreign quote assets/missing fees.
+- [x] Compare before/after on constrained PostgreSQL with 100k/1M repeated and
+  diverse fees; reject candidates that regress the declared workloads.
+- [x] Independently reproduce AVAX freshness loss on the actual Demo `books`
+  channel: maximum receive gap 10.96s during a 180s read-only observation.
+  This is not attribution of every historical guard wait.
+- [x] Run final-source native2,442 +11 subtests and isolated PostgreSQL345;
+  preserve the initial fee-query timeout during a concurrent build.
+- [ ] Build/verify a fresh image and run packaged E2E plus a traced MM/probe
+  diagnostic.
+- [ ] Investigate actual public/private book and reference freshness during a
+  bounded Demo run; change guards only for a reproduced defect with Red/Green.
+- [ ] Obtain current-image positive spot-fill evidence and verify filled restart;
+  retain a bounded maker-only trial if there is no natural fill.
+- [ ] Repeat the unchanged 60-minute zero-degraded-response gate after shorter
+  checks, independently verify restoration, and publish all scoped results.
+
 ## Quote-recovery current-image completion — 2026-11-03
 
 - [x] Full unchanged R1 including one-hour soak/six faults, and matched shipping R2;

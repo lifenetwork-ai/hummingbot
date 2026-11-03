@@ -5,6 +5,17 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-04
 
+- **Daily conversion/availability follow-up in progress:** real-PG Red/Green
+  reduces original-fee array decoding600→200 for200 zero-conversion fills.
+  All four paired100k/1M workloads return equal values; main diverse/zero query
+  medians2.25→1.03s and26.37→12.25s. Ordinary workload measurements do not regress
+  in these samples; million-row reads remain beyond the2s runtime budget.
+  Direct Demo `books` observation reproduces an AVAX receive gap10.96s, beyond
+  current freshness10s. It does not attribute every guard/probe incident.
+  Native2,442 +11 subtests and isolated PG345 pass. Fresh-image E2E/load/Demo
+  are pending; no guard or
+  runtime timeout is weakened. [Report/evidence](../performance/mm-daily-conversion-followup.md).
+
 - **Controller/persistence image tests:** image `f1a7eead` passes nine connected
   Demo cases, Random rollover and active restarts; three natural perpetual fills
   match original fees/quantity, while no spot fill occurred. The 600s diagnostic

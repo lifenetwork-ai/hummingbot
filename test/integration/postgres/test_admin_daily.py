@@ -199,6 +199,26 @@ def test_daily_fee_record_fields_preserve_numeric_and_string_amounts_exactly(dai
                                 rebates=Decimal("1e-28"), net=Decimal("2.12345678901234567890123456779"))]
 
 
+def test_daily_shared_conversion_count_keeps_unknown_zero_and_foreign_quote_semantics(daily_store):
+    from sqlalchemy import update
+    timestamp = millis("2026-01-01T12:00:00+00:00")
+    cases = [("paid", "1.125", Decimal("1.125")), ("rebate", "-0.25", Decimal("-0.25")),
+             ("free", "0", Decimal("0")), ("legacy", "1", Decimal("0")),
+             ("missing", "1", None), ("foreign", "9", Decimal("9"))]
+    for identity, original, converted in cases:
+        add_fill(daily_store.engine, identity, "okx", timestamp, original, converted)
+    with daily_store.engine.begin() as connection:
+        connection.execute(update(Order).where(Order.id == "foreign").values(symbol="LIFE-BTC", quote_asset="BTC"))
+        connection.execute(update(TradeFill).where(TradeFill.exchange_trade_id == "foreign").values(symbol="LIFE-BTC", quote_asset="BTC"))
+    day = daily_store.daily(start_day="2026-01-01", end_day="2026-01-02", reporting_timezone="UTC", market="spot")["markets"][0]["days"][0]
+    assert day["fill_count"] == 6
+    assert (day["converted_fill_count"], day["unconverted_fill_count"]) == (3, 3)
+    assert day["fee_in_usdt"] == Decimal("0.875")
+    assert type(day["converted_fill_count"]) is int and type(day["unconverted_fill_count"]) is int
+    # Unconverted nonzero fees remain in the original-currency breakdown.
+    assert day["fees"] == [dict(currency="USDT", paid=Decimal("12.125"), rebates=Decimal("0.25"), net=Decimal("11.875"))]
+
+
 def test_snapshot_batch_filters_ineligible_rows_and_keeps_latest_duplicate(daily_store):
     from sqlalchemy import select
 

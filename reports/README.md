@@ -4,6 +4,12 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Daily conversion/availability follow-up](performance/mm-daily-conversion-followup.md),
+  [evidence](performance/mm-daily-conversion-followup-evidence.json): fee-array
+  decoding600→200 for200 zero-conversion fills; four paired SQL workloads return
+  exactly equal results. Read-only Demo observation reproduces AVAX freshness
+  loss. Native2,442 +11 subtests and isolated PostgreSQL345 pass; new-image qualification is pending.
+
 - [Controller/persistence image verification](release/mm-controller-persistence-release.md),
   [evidence](release/mm-controller-persistence-release-evidence.json): Demo
   matrix9/9 and three perpetual natural fills checked; no spot fill. The standalone

@@ -1,0 +1,831 @@
+{
+  "date": "2026-11-04",
+  "timezone": "Asia/Saigon",
+  "status": "source regressions pass; new-image qualification pending",
+  "baseline_commit": "6a43eff25a98b76086ad3a4bd7c7d18580885af4",
+  "postgres_image": {
+    "Id": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+    "Architecture": "arm64",
+    "Os": "linux"
+  },
+  "postgres_cpus": 2,
+  "postgres_memory_bytes": 536870912,
+  "production_statement_timeout_ms": 2000,
+  "diagnostic_statement_timeout_ms": 90000,
+  "diagnostic_fixture_setup_timeout_ms": 300000,
+  "cases": [
+    {
+      "count": 100000,
+      "payload": "repeated",
+      "exact_equality": true,
+      "duration_ms": {
+        "before": [
+          726.851,
+          803.348,
+          775.819,
+          954.752,
+          770.98
+        ],
+        "after": [
+          734.064,
+          773.78,
+          784.239,
+          802.611,
+          653.385
+        ]
+      },
+      "main_query_ms": {
+        "before": [
+          301.701,
+          323.851,
+          323.595,
+          346.487,
+          390.174
+        ],
+        "after": [
+          279.125,
+          331.533,
+          358.394,
+          301.264,
+          275.276
+        ]
+      },
+      "median_ms": {
+        "before": 775.819,
+        "after": 773.78
+      },
+      "main_query_median_ms": {
+        "before": 323.851,
+        "after": 301.264
+      },
+      "main_plans": {
+        "before": {
+          "execution_ms": 306.362,
+          "planning_ms": 0.53,
+          "root_temp_written_blocks": 1536,
+          "fee_array_function_loops": 0,
+          "nodes": [
+            {
+              "Node Type": "Aggregate",
+              "Strategy": "Sorted",
+              "Actual Rows": 2,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Sort",
+              "Actual Rows": 100000,
+              "Actual Loops": 1,
+              "Sort Method": "external merge",
+              "Sort Space Used": 12248,
+              "Sort Space Type": "Disk"
+            },
+            {
+              "Node Type": "Seq Scan",
+              "Actual Rows": 100000,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 0,
+              "Actual Loops": 0
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 0,
+              "Actual Loops": 0
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 0,
+              "Actual Loops": 0
+            }
+          ]
+        },
+        "after": {
+          "execution_ms": 301.468,
+          "planning_ms": 0.706,
+          "root_temp_written_blocks": 1536,
+          "fee_array_function_loops": 0,
+          "nodes": [
+            {
+              "Node Type": "Subquery Scan",
+              "Actual Rows": 2,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Aggregate",
+              "Strategy": "Sorted",
+              "Actual Rows": 2,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Sort",
+              "Actual Rows": 100000,
+              "Actual Loops": 1,
+              "Sort Method": "external merge",
+              "Sort Space Used": 12248,
+              "Sort Space Type": "Disk"
+            },
+            {
+              "Node Type": "Seq Scan",
+              "Actual Rows": 100000,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 0,
+              "Actual Loops": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "count": 100000,
+      "payload": "diverse_zero_conversion",
+      "exact_equality": true,
+      "duration_ms": {
+        "before": [
+          3180.912,
+          3067.328,
+          2835.714,
+          2744.414,
+          3041.332
+        ],
+        "after": [
+          1775.47,
+          2248.953,
+          1899.287,
+          1739.09,
+          2560.567
+        ]
+      },
+      "main_query_ms": {
+        "before": [
+          2319.614,
+          2299.869,
+          2102.409,
+          1879.763,
+          2250.705
+        ],
+        "after": [
+          897.298,
+          1603.164,
+          1026.899,
+          1063.387,
+          1019.701
+        ]
+      },
+      "median_ms": {
+        "before": 3041.332,
+        "after": 1899.287
+      },
+      "main_query_median_ms": {
+        "before": 2250.705,
+        "after": 1026.899
+      },
+      "main_plans": {
+        "before": {
+          "execution_ms": 2008.556,
+          "planning_ms": 0.728,
+          "root_temp_written_blocks": 3012,
+          "fee_array_function_loops": 300000,
+          "nodes": [
+            {
+              "Node Type": "Aggregate",
+              "Strategy": "Sorted",
+              "Actual Rows": 2,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Sort",
+              "Actual Rows": 100000,
+              "Actual Loops": 1,
+              "Sort Method": "external merge",
+              "Sort Space Used": 24016,
+              "Sort Space Type": "Disk"
+            },
+            {
+              "Node Type": "Seq Scan",
+              "Actual Rows": 100000,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 1,
+              "Actual Loops": 100000
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 1,
+              "Actual Loops": 100000
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 1,
+              "Actual Loops": 100000
+            }
+          ]
+        },
+        "after": {
+          "execution_ms": 1108.394,
+          "planning_ms": 0.525,
+          "root_temp_written_blocks": 3012,
+          "fee_array_function_loops": 100000,
+          "nodes": [
+            {
+              "Node Type": "Subquery Scan",
+              "Actual Rows": 2,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Aggregate",
+              "Strategy": "Sorted",
+              "Actual Rows": 2,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Sort",
+              "Actual Rows": 100000,
+              "Actual Loops": 1,
+              "Sort Method": "external merge",
+              "Sort Space Used": 24016,
+              "Sort Space Type": "Disk"
+            },
+            {
+              "Node Type": "Seq Scan",
+              "Actual Rows": 100000,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 1,
+              "Actual Loops": 100000
+            }
+          ]
+        }
+      }
+    },
+    {
+      "count": 1000000,
+      "payload": "repeated",
+      "exact_equality": true,
+      "duration_ms": {
+        "before": [
+          8080.835,
+          8448.787,
+          8667.563,
+          7514.706,
+          8744.147
+        ],
+        "after": [
+          10729.899,
+          7164.327,
+          8036.319,
+          6812.887,
+          7642.992
+        ]
+      },
+      "main_query_ms": {
+        "before": [
+          2756.563,
+          3061.42,
+          2470.367,
+          2764.673,
+          3772.51
+        ],
+        "after": [
+          2870.429,
+          3013.745,
+          2222.096,
+          2733.734,
+          2243.672
+        ]
+      },
+      "median_ms": {
+        "before": 8448.787,
+        "after": 7642.992
+      },
+      "main_query_median_ms": {
+        "before": 2764.673,
+        "after": 2733.734
+      },
+      "main_plans": {
+        "before": {
+          "execution_ms": 2739.89,
+          "planning_ms": 0.725,
+          "root_temp_written_blocks": 0,
+          "fee_array_function_loops": 0,
+          "nodes": [
+            {
+              "Node Type": "Sort",
+              "Actual Rows": 2,
+              "Actual Loops": 1,
+              "Sort Method": "quicksort",
+              "Sort Space Used": 25,
+              "Sort Space Type": "Memory"
+            },
+            {
+              "Node Type": "Aggregate",
+              "Strategy": "Hashed",
+              "Actual Rows": 2,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Seq Scan",
+              "Actual Rows": 1000000,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 0,
+              "Actual Loops": 0
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 0,
+              "Actual Loops": 0
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 0,
+              "Actual Loops": 0
+            }
+          ]
+        },
+        "after": {
+          "execution_ms": 3295.299,
+          "planning_ms": 0.808,
+          "root_temp_written_blocks": 0,
+          "fee_array_function_loops": 0,
+          "nodes": [
+            {
+              "Node Type": "Sort",
+              "Actual Rows": 2,
+              "Actual Loops": 1,
+              "Sort Method": "quicksort",
+              "Sort Space Used": 25,
+              "Sort Space Type": "Memory"
+            },
+            {
+              "Node Type": "Subquery Scan",
+              "Actual Rows": 2,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Aggregate",
+              "Strategy": "Hashed",
+              "Actual Rows": 2,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Seq Scan",
+              "Actual Rows": 1000000,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 0,
+              "Actual Loops": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "count": 1000000,
+      "payload": "diverse_zero_conversion",
+      "exact_equality": true,
+      "duration_ms": {
+        "before": [
+          37493.25,
+          36764.148,
+          35408.617
+        ],
+        "after": [
+          23625.693,
+          25239.65,
+          21866.218
+        ]
+      },
+      "main_query_ms": {
+        "before": [
+          26371.546,
+          26459.677,
+          25299.844
+        ],
+        "after": [
+          12246.166,
+          14426.055,
+          11516.893
+        ]
+      },
+      "median_ms": {
+        "before": 36764.148,
+        "after": 23625.693
+      },
+      "main_query_median_ms": {
+        "before": 26371.546,
+        "after": 12246.166
+      },
+      "main_plans": {
+        "before": {
+          "execution_ms": 38846.083,
+          "planning_ms": 0.553,
+          "root_temp_written_blocks": 71004,
+          "fee_array_function_loops": 3000000,
+          "nodes": [
+            {
+              "Node Type": "Aggregate",
+              "Strategy": "Sorted",
+              "Actual Rows": 2,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Sort",
+              "Actual Rows": 1000000,
+              "Actual Loops": 1,
+              "Sort Method": "external merge",
+              "Sort Space Used": 236280,
+              "Sort Space Type": "Disk"
+            },
+            {
+              "Node Type": "Seq Scan",
+              "Actual Rows": 1000000,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 1,
+              "Actual Loops": 1000000
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 1,
+              "Actual Loops": 1000000
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 1,
+              "Actual Loops": 1000000
+            }
+          ]
+        },
+        "after": {
+          "execution_ms": 12446.861,
+          "planning_ms": 2.759,
+          "root_temp_written_blocks": 71004,
+          "fee_array_function_loops": 1000000,
+          "nodes": [
+            {
+              "Node Type": "Subquery Scan",
+              "Actual Rows": 2,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Aggregate",
+              "Strategy": "Sorted",
+              "Actual Rows": 2,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Sort",
+              "Actual Rows": 1000000,
+              "Actual Loops": 1,
+              "Sort Method": "external merge",
+              "Sort Space Used": 236280,
+              "Sort Space Type": "Disk"
+            },
+            {
+              "Node Type": "Seq Scan",
+              "Actual Rows": 1000000,
+              "Actual Loops": 1
+            },
+            {
+              "Node Type": "Function Scan",
+              "Actual Rows": 1,
+              "Actual Loops": 1000000
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "public_books": {
+    "started_at": "2026-11-03T23:03:24.856236+00:00",
+    "environment": "demo",
+    "channel": "books",
+    "seconds": 180,
+    "account_reads": 0,
+    "mutations": 0,
+    "samples": 359,
+    "pairs": {
+      "AVAX-USDT": {
+        "messages": 88,
+        "empty_updates": 0,
+        "stale_samples": 6,
+        "max_server_age_seconds": 11.712639093399048,
+        "max_receive_gap_seconds": 10.964340209960938
+      },
+      "ETH-USDT": {
+        "messages": 401,
+        "empty_updates": 0,
+        "stale_samples": 0,
+        "max_server_age_seconds": 1.768009901046753,
+        "max_receive_gap_seconds": 1.5468518733978271
+      },
+      "BTC-USDT": {
+        "messages": 563,
+        "empty_updates": 0,
+        "stale_samples": 0,
+        "max_server_age_seconds": 5.778594970703125,
+        "max_receive_gap_seconds": 5.50009298324585
+      }
+    },
+    "public_clock": {
+      "rtt_seconds": 0.23505592346191406,
+      "offset_lower_seconds": -0.006764888763427734,
+      "offset_upper_seconds": 0.22829103469848633
+    },
+    "recent": {
+      "BTC-USDT": [
+        {
+          "at": 1793747183.612483,
+          "server_at": 1793747183.608,
+          "action": "update",
+          "seq_id": 118570585,
+          "previous_seq_id": 118570555
+        },
+        {
+          "at": 1793747183.912117,
+          "server_at": 1793747183.908,
+          "action": "update",
+          "seq_id": 118570601,
+          "previous_seq_id": 118570585
+        },
+        {
+          "at": 1793747184.112688,
+          "server_at": 1793747184.108,
+          "action": "update",
+          "seq_id": 118570623,
+          "previous_seq_id": 118570601
+        },
+        {
+          "at": 1793747184.212074,
+          "server_at": 1793747184.208,
+          "action": "update",
+          "seq_id": 118570631,
+          "previous_seq_id": 118570623
+        },
+        {
+          "at": 1793747184.3130019,
+          "server_at": 1793747184.308,
+          "action": "update",
+          "seq_id": 118570637,
+          "previous_seq_id": 118570631
+        },
+        {
+          "at": 1793747184.511863,
+          "server_at": 1793747184.508,
+          "action": "update",
+          "seq_id": 118570649,
+          "previous_seq_id": 118570637
+        },
+        {
+          "at": 1793747184.613,
+          "server_at": 1793747184.608,
+          "action": "update",
+          "seq_id": 118570666,
+          "previous_seq_id": 118570649
+        },
+        {
+          "at": 1793747184.811594,
+          "server_at": 1793747184.808,
+          "action": "update",
+          "seq_id": 118570668,
+          "previous_seq_id": 118570666
+        },
+        {
+          "at": 1793747184.912676,
+          "server_at": 1793747184.908,
+          "action": "update",
+          "seq_id": 118570672,
+          "previous_seq_id": 118570668
+        },
+        {
+          "at": 1793747185.1125991,
+          "server_at": 1793747185.108,
+          "action": "update",
+          "seq_id": 118570687,
+          "previous_seq_id": 118570672
+        },
+        {
+          "at": 1793747185.3120441,
+          "server_at": 1793747185.308,
+          "action": "update",
+          "seq_id": 118570688,
+          "previous_seq_id": 118570687
+        },
+        {
+          "at": 1793747185.61219,
+          "server_at": 1793747185.608,
+          "action": "update",
+          "seq_id": 118570702,
+          "previous_seq_id": 118570688
+        }
+      ],
+      "ETH-USDT": [
+        {
+          "at": 1793747181.209187,
+          "server_at": 1793747181.205,
+          "action": "update",
+          "seq_id": 70715531,
+          "previous_seq_id": 70715530
+        },
+        {
+          "at": 1793747181.6121118,
+          "server_at": 1793747181.605,
+          "action": "update",
+          "seq_id": 70715542,
+          "previous_seq_id": 70715531
+        },
+        {
+          "at": 1793747182.006658,
+          "server_at": 1793747182.005,
+          "action": "update",
+          "seq_id": 70715543,
+          "previous_seq_id": 70715542
+        },
+        {
+          "at": 1793747182.306819,
+          "server_at": 1793747182.305,
+          "action": "update",
+          "seq_id": 70715544,
+          "previous_seq_id": 70715543
+        },
+        {
+          "at": 1793747182.607497,
+          "server_at": 1793747182.605,
+          "action": "update",
+          "seq_id": 70715551,
+          "previous_seq_id": 70715544
+        },
+        {
+          "at": 1793747183.2073731,
+          "server_at": 1793747183.205,
+          "action": "update",
+          "seq_id": 70715552,
+          "previous_seq_id": 70715551
+        },
+        {
+          "at": 1793747183.4075541,
+          "server_at": 1793747183.405,
+          "action": "update",
+          "seq_id": 70715553,
+          "previous_seq_id": 70715552
+        },
+        {
+          "at": 1793747183.607292,
+          "server_at": 1793747183.605,
+          "action": "update",
+          "seq_id": 70715564,
+          "previous_seq_id": 70715553
+        },
+        {
+          "at": 1793747184.307014,
+          "server_at": 1793747184.305,
+          "action": "update",
+          "seq_id": 70715565,
+          "previous_seq_id": 70715564
+        },
+        {
+          "at": 1793747184.607476,
+          "server_at": 1793747184.605,
+          "action": "update",
+          "seq_id": 70715574,
+          "previous_seq_id": 70715565
+        },
+        {
+          "at": 1793747185.406647,
+          "server_at": 1793747185.405,
+          "action": "update",
+          "seq_id": 70715575,
+          "previous_seq_id": 70715574
+        },
+        {
+          "at": 1793747185.606814,
+          "server_at": 1793747185.605,
+          "action": "update",
+          "seq_id": 70715586,
+          "previous_seq_id": 70715575
+        }
+      ],
+      "AVAX-USDT": [
+        {
+          "at": 1793747153.906952,
+          "server_at": 1793747153.905,
+          "action": "update",
+          "seq_id": 76119350,
+          "previous_seq_id": 76119326
+        },
+        {
+          "at": 1793747154.906804,
+          "server_at": 1793747154.905,
+          "action": "update",
+          "seq_id": 76119370,
+          "previous_seq_id": 76119350
+        },
+        {
+          "at": 1793747155.943221,
+          "server_at": 1793747155.905,
+          "action": "update",
+          "seq_id": 76119390,
+          "previous_seq_id": 76119370
+        },
+        {
+          "at": 1793747157.906712,
+          "server_at": 1793747157.905,
+          "action": "update",
+          "seq_id": 76119410,
+          "previous_seq_id": 76119390
+        },
+        {
+          "at": 1793747160.909709,
+          "server_at": 1793747160.905,
+          "action": "update",
+          "seq_id": 76119431,
+          "previous_seq_id": 76119410
+        },
+        {
+          "at": 1793747161.907017,
+          "server_at": 1793747161.905,
+          "action": "update",
+          "seq_id": 76119471,
+          "previous_seq_id": 76119431
+        },
+        {
+          "at": 1793747163.907518,
+          "server_at": 1793747163.905,
+          "action": "update",
+          "seq_id": 76119472,
+          "previous_seq_id": 76119471
+        },
+        {
+          "at": 1793747170.995931,
+          "server_at": 1793747170.905,
+          "action": "update",
+          "seq_id": 76119492,
+          "previous_seq_id": 76119472
+        },
+        {
+          "at": 1793747171.906966,
+          "server_at": 1793747171.905,
+          "action": "update",
+          "seq_id": 76119512,
+          "previous_seq_id": 76119492
+        },
+        {
+          "at": 1793747172.9427788,
+          "server_at": 1793747172.905,
+          "action": "update",
+          "seq_id": 76119532,
+          "previous_seq_id": 76119512
+        },
+        {
+          "at": 1793747183.907119,
+          "server_at": 1793747183.905,
+          "action": "update",
+          "seq_id": 76119558,
+          "previous_seq_id": 76119532
+        },
+        {
+          "at": 1793747184.906763,
+          "server_at": 1793747184.905,
+          "action": "update",
+          "seq_id": 76119559,
+          "previous_seq_id": 76119558
+        }
+      ]
+    },
+    "finished_at": "2026-11-03T23:06:25.720252+00:00"
+  },
+  "source_sha256": {
+    "hummingbot/model/admin_reporting.py": "ccfddf212543c022ac2733a732de2477c4acfe6a69d1d212964d6e0a936e4238",
+    "test/integration/postgres/test_admin_daily.py": "46cc345307eab99afbb07a4b8635ea8e66dad707079d816b90e09554c3b3abf2",
+    "test/integration/postgres/test_admin_reporting_optimization.py": "2ab82a0d1fb0bf47e2ddc5bf973af4092c58d4e2abfe59b44f7017ffb8100350"
+  },
+  "limitations": [
+    "Five paired samples after warmup for 100k cases and million repeated; three for million diverse.",
+    "One host; diagnostic timings are not production latency guarantees.",
+    "The old timeout fixture has nonzero conversions; fee parse reduction alone does not prove its historical cause.",
+    "Million-row full-history reporting still exceeds the unchanged runtime deadline.",
+    "Direct public-stream observation reproduces freshness loss; it cannot attribute every historical guard wait."
+  ],
+  "source_checks": {
+    "native_passed": 2442,
+    "native_subtests_passed": 11,
+    "postgres_passed": 345,
+    "initial_postgres_failure": "One 2s original-fee SQL timeout with concurrent C++ build; interrupted after 49 other passes",
+    "clean_postgres_log": "build/reporting-followup-20261104/source-postgres-clean.log"
+  }
+}

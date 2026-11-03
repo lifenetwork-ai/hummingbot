@@ -13,6 +13,47 @@ from hummingbot.model.db_migration.postgres.runner import bootstrap_postgres
 from scripts.test_mm_load import seed_history
 
 
+def test_daily_conversion_checks_original_flat_fees_once_per_fill(pg_engine):
+    """Legacy zero conversions must not reparse each fee array per aggregate."""
+    bootstrap_postgres(pg_engine, auto_migrate=True)
+
+    class Seeder:
+        def sql(self, sql):
+            with pg_engine.begin() as connection:
+                connection.execute(text(sql))
+
+    count = 200
+    seed_history(Seeder(), count)
+    with pg_engine.begin() as connection:
+        connection.execute(text("UPDATE trade_fills SET trade_fee_in_quote=0"))
+    captured = []
+
+    def capture(connection, cursor, statement, params, *args):
+        if "AS fill_count" in statement:
+            captured.append((statement, params))
+
+    event.listen(pg_engine, "before_cursor_execute", capture)
+    try:
+        result = daily(pg_engine, reporting_timezone="UTC")
+    finally:
+        event.remove(pg_engine, "before_cursor_execute", capture)
+    days = [day for market in result["markets"] for day in market["days"]]
+    assert sum(day["unconverted_fill_count"] for day in days) == count
+    assert all(day["converted_fill_count"] == 0 and day["fee_in_usdt"] is None for day in days)
+    assert sum(day["fees"][0]["net"] for day in days) == Decimal("0.0002")
+    assert len(captured) == 1
+    statement, params = captured[0]
+    with pg_engine.begin() as connection:
+        connection.exec_driver_sql("SET LOCAL jit=off; SET LOCAL max_parallel_workers_per_gather=0")
+        plan = connection.exec_driver_sql("EXPLAIN (ANALYZE, FORMAT JSON) " + statement, params).scalar_one()[0]["Plan"]
+
+    def flat_fee_parses(node):
+        own = node.get("Actual Loops", 0) if node.get("Function Name") == "json_array_elements" else 0
+        return own + sum(flat_fee_parses(child) for child in node.get("Plans", []))
+
+    assert flat_fee_parses(plan) <= count
+
+
 def test_reporting_large_history_measurement(pg_engine):
     bootstrap_postgres(pg_engine, auto_migrate=True)
 

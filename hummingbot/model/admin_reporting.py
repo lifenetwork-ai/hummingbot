@@ -89,19 +89,28 @@ def daily(engine, *, start_day=None, end_day=None, reporting_timezone, market="a
         checkpoint = observation["funding_sync"] or {}
         start, end, start_ms, end_ms = day_range(start_day, end_day, reporting_timezone, now)
         params = dict(markets=[MARKETS[key] for key in selected], start_ms=start_ms, end_ms=end_ms, tz=reporting_timezone, pair=pair, funding_account=checkpoint.get("account_id"), funding_environment=checkpoint.get("environment"))
-        fills = connection.execute(text("WITH scoped AS (" + FILL_SCOPE + """), converted AS (
-            SELECT *, (trade_fee_in_quote IS NOT NULL AND quote_asset = 'USDT'
-                AND NOT (trade_fee_in_quote = 0 AND has_original_fee)) AS valid_conversion FROM scoped)
+        # Only zero conversions need original-fee inspection. Compute that
+        # count once, then project all three outputs from bounded daily totals;
+        # inlining valid_conversion into three FILTERs repeats the fee subplan.
+        fills = connection.execute(text("WITH scoped AS (" + FILL_SCOPE + """), totals AS (
             SELECT market, day, COUNT(*) AS fill_count, MAX(timestamp) AS last_event_ms,
                 SUM(CASE WHEN trade_type='BUY' THEN amount ELSE 0 END) AS buy_volume_base,
                 SUM(CASE WHEN trade_type='SELL' THEN amount ELSE 0 END) AS sell_volume_base,
                 SUM(CASE WHEN trade_type='BUY' THEN price*amount ELSE 0 END) AS buy_volume_quote,
                 SUM(CASE WHEN trade_type='SELL' THEN price*amount ELSE 0 END) AS sell_volume_quote,
-                COUNT(*) FILTER (WHERE valid_conversion) AS converted_fill_count,
-                COUNT(*) FILTER (WHERE NOT valid_conversion) AS unconverted_fill_count,
+                COUNT(*) FILTER (WHERE quote_asset = 'USDT' AND trade_fee_in_quote <> 0) AS nonzero_count,
+                COUNT(*) FILTER (WHERE quote_asset = 'USDT' AND trade_fee_in_quote = 0
+                    AND NOT has_original_fee) AS zero_count,
                 COUNT(*) FILTER (WHERE COALESCE((trade_fee->>'percent')::numeric,0) <> 0) AS percentage_fee_fill_count,
-                SUM(trade_fee_in_quote) FILTER (WHERE valid_conversion) AS fee_in_usdt
-            FROM converted GROUP BY market, day ORDER BY market, day
+                SUM(trade_fee_in_quote) FILTER (WHERE quote_asset = 'USDT') AS fee_in_usdt
+            FROM scoped GROUP BY market, day
+        ) SELECT market, day, fill_count, last_event_ms,
+            buy_volume_base, sell_volume_base, buy_volume_quote, sell_volume_quote,
+            nonzero_count + zero_count AS converted_fill_count,
+            fill_count - nonzero_count - zero_count AS unconverted_fill_count,
+            percentage_fee_fill_count,
+            CASE WHEN nonzero_count + zero_count > 0 THEN fee_in_usdt END AS fee_in_usdt
+        FROM totals ORDER BY market, day
         """), params).mappings().all()
         # Decode each fee into native fields once, retaining PostgreSQL NUMERIC
         # rather than repeating JSON extraction/casts for each aggregate.
