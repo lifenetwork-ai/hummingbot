@@ -610,12 +610,13 @@ class LifeMMController(pmm_simple.PMMSimpleController):
     async def control_task(self):
         # Run freshness/cancellation even when the generic provider becomes unready.
         await self.update_processed_data()
+        report_ready = self.executors_update_event.is_set()
         if (self._control_error or not self._session_admitted or not self.market_data_provider.ready or not self.processed_data["ready"]
-                or not self.exposure_within_caps()):
+                or (not report_ready and not self.exposure_within_caps())):
             self._reset_quote_diagnostics()
             self._quote_reason(self._quote_readiness_reason() or 'inventory_limit')
             await self.send_actions(self.stop_quote_actions())
-        elif self.executors_update_event.is_set():
+        elif report_ready:
             await self.send_actions(self.determine_executor_actions())
         # Publish cancellation requests before the synchronous, owner-fenced
         # transition write. A failed/pending write never reopens admission.
@@ -633,14 +634,24 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         return actions
 
     def determine_executor_actions(self):
-        if not self._session_admitted or not self.processed_data.get("ready") or not self.exposure_within_caps():
+        exposure, within_caps = None, False
+        if self._session_admitted and self.processed_data.get("ready"):
+            try:
+                exposure = self._exposure()
+                within_caps = self._within_caps(*exposure)
+            except (ValueError, ArithmeticError, TypeError):
+                pass
+        if not within_caps:
             self._reset_quote_diagnostics()
             self._quote_reason(self._quote_readiness_reason() or 'inventory_limit')
             return self.stop_quote_actions()
         refresh = self._defense_refresh_actions()
         if refresh or (self._spread_policy.defense is not None and self._stops_requested):
             return refresh
-        return super().determine_executor_actions()
+        # Preserve the upstream create-then-stop ordering. Pass a local snapshot
+        # only along this synchronous proposal call; public/send gates stay fresh
+        # and no snapshot survives the queue await in control_task.
+        return self._create_actions_proposal(exposure) + self.stop_actions_proposal()
 
     def _defense_refresh_actions(self):
         if self._spread_policy.defense is None:
@@ -668,6 +679,10 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
         if self.config.connector_name == "okx":
             long = Decimal(str(connector.get_balance(self.config.trading_pair.split("-")[0])))
+            # Validate the account observation before positive entry reservations
+            # can mask an invalid negative cash balance.
+            if not long.is_finite() or long < 0:
+                raise ValueError("Invalid account exposure")
             short = Decimal("0")
         else:
             positions = [position for position in connector.account_positions.values()
@@ -701,12 +716,15 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             return False
 
     def create_actions_proposal(self):
+        return self._create_actions_proposal()
+
+    def _create_actions_proposal(self, exposure=None):
         self._reset_quote_diagnostics()
         if not self._session_admitted or not self.processed_data.get("ready") or not self.market_data_provider.ready:
             self._quote_reason(self._quote_readiness_reason() or 'readiness_unavailable')
             return []
         try:
-            long, short = self._exposure()
+            long, short = self._exposure() if exposure is None else exposure
             if not self._within_caps(long, short):
                 self._quote_reason('inventory_limit')
                 return []

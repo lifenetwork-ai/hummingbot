@@ -5,6 +5,15 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-03
 
+- **Controller/persistence optimization P1 complete, P2 measurement next:** exposure
+  calculations3→1 within each synchronous decision, with fresh public gates and
+  no retained snapshot across awaits. Boundary tests also fix an inherited
+  negative spot balance masked by positive BUY reservations; native and real-PG
+  post-throttle Reds reproduce it. Relevant native457 +2 subtests and PG11 pass.
+  No observed Demo incident or new image/load acceptance is claimed.
+  [Plan](../../docs/plans/MM_CONTROLLER_PERSISTENCE_OPTIMIZATION_TDD_PLAN.md),
+  [report](../performance/mm-controller-persistence-optimization.md).
+
 - **Quote-wait diagnostics implemented:** typed per-side stage/source/sampled
   age/English guidance and safe fresh proposal error class in existing status/
   liquidity views; warning logs include BUY/SELL stages. Pending local state is

@@ -96,6 +96,7 @@ test-cloudrun-regression:
 		test/hummingbot/core/test_mm_quote_wait.py \
 		test/hummingbot/core/utils/test_read_retry.py \
 		test/hummingbot/strategy_v2/controllers/test_life_mm.py \
+		test/hummingbot/strategy_v2/controllers/test_life_mm_exposure_decision.py \
 		test/hummingbot/strategy_v2/controllers/test_inventory_cap_lifecycle.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_withdrawal_lifecycle.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_diagnostics.py \

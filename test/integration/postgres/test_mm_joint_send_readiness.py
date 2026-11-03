@@ -85,7 +85,7 @@ async def send(rest, identity, *, cancel=False):
 
 
 @pytest.mark.parametrize('change', [
-    'spot_inventory', 'long_inventory', 'short_inventory', 'gross_inventory',
+    'spot_inventory', 'negative_spot_inventory', 'long_inventory', 'short_inventory', 'gross_inventory',
     'peer_provider_unready', 'peer_account_unconfirmed', 'peer_stale', 'peer_generation',
 ])
 def test_queued_spot_order_cannot_cross_wire_after_either_market_loses_readiness(owned, change):
@@ -99,6 +99,12 @@ def test_queued_spot_order_cannot_cross_wire_after_either_market_loses_readiness
         async def execute_task(self, limit_id):
             if change == 'spot_inventory':
                 observe_account(owned.market, 'okx', (1701, 0))
+            elif change == 'negative_spot_inventory':
+                observe_account(owned.market, 'okx', (-1, 0))
+                controllers[0].executors_info = [SimpleNamespace(
+                    is_active=True, is_trading=False,
+                    config=SimpleNamespace(side=TradeType.BUY, amount=Decimal('30'),
+                                           entry_price=Decimal('.1'), leverage=1))]
             elif change == 'long_inventory':
                 observe_account(peer, 'okx_perpetual', (1701, 200))
             elif change == 'short_inventory':
@@ -144,6 +150,7 @@ def test_queued_spot_order_cannot_cross_wire_after_either_market_loses_readiness
     assert 'blocked' not in owned.owner.sent_intents
 
     observe_account(owned.market, 'okx', (500, 0))
+    controllers[0].executors_info = []
     observe_account(peer, 'okx_perpetual', (300, 200))
     perpetual.market_data_provider.ready = True
     perpetual.market_data_provider.get_order_book.return_value = initial_book
