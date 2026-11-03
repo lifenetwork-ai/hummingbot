@@ -348,9 +348,9 @@ def test_performance_fenced_fill_transaction(owned, pg_engine):
             record()
         measurements["indexed" if indexed else "unindexed"] = {**measure(record, samples=25),
                                                                "statements": len(statements)}
-    # One bounded identity lookup now excludes never-admitted queued creates
-    # from PG checkpoints. It is a single IN query, not one query per order.
-    assert measurements["indexed"]["statements"] == measurements["unindexed"]["statements"] == 12
+    # The scoped identity/pending union excludes never-admitted queued creates
+    # and retains lost-ack identities in one statement, independent of order count.
+    assert measurements["indexed"]["statements"] == measurements["unindexed"]["statements"] == 11
     with pg_engine.connect() as connection:
         assert connection.execute(text("SELECT count(*) FROM trade_fills")).scalar() == counter
         assert connection.execute(select(func.sum(TradeFill.amount))).scalar() == counter * Decimal(".0001")

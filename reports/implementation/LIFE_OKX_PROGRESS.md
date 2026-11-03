@@ -1,18 +1,20 @@
 # LIFE / OKX implementation progress
 
-Updated: 2026-11-03 (Asia/Saigon).
+Updated: 2026-11-04 (Asia/Saigon).
 Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
 
-## Current status — 2026-11-03
+## Current status — 2026-11-04
 
-- **Controller/persistence optimization P1 complete, P2 measurement next:** exposure
-  calculations3→1 within each synchronous decision, with fresh public gates and
-  no retained snapshot across awaits. Boundary tests also fix an inherited
-  negative spot balance masked by positive BUY reservations; native and real-PG
-  post-throttle Reds reproduce it. Relevant native457 +2 subtests and PG11 pass.
-  No observed Demo incident or new image/load acceptance is claimed.
+- **Controller/persistence optimization complete:** synchronous exposure reads3→1;
+  scoped PG snapshot filter queries2→1, total measured cohort SQL7.1% lower with
+  identical snapshot hashes/JSON sizes. Mixed wall-time samples do not establish
+  a general speedup. Fix raw negative spot balance hidden by BUY reservations;
+  fresh send fences remain mandatory. Profiled readiness does not justify another
+  cache. Native2,442 +11 subtests; PG342 passes in the full run plus a corrected
+  old SQL-budget assertion in an 11-case focused rerun (343 distinct cases across
+  runs); Swagger/style pass. No new image/load/Demo acceptance is claimed.
   [Plan](../../docs/plans/MM_CONTROLLER_PERSISTENCE_OPTIMIZATION_TDD_PLAN.md),
-  [report](../performance/mm-controller-persistence-optimization.md).
+  [report/evidence](../performance/mm-controller-persistence-optimization.md).
 
 - **Quote-wait diagnostics implemented:** typed per-side stage/source/sampled
   age/English guidance and safe fresh proposal error class in existing status/

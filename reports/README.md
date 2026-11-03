@@ -4,6 +4,13 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Controller/persistence optimization](performance/mm-controller-persistence-optimization.md),
+  [evidence](performance/mm-controller-persistence-evidence.json): synchronous
+  exposure reads3→1; scoped snapshot filter queries2→1, 7.1% fewer cohort SQL
+  statements with identical snapshot output. Raw negative spot observations can
+  no longer be masked by BUY reservations. Wall-time samples are mixed; source
+  verification and image/load qualification are kept separate in the report.
+
 - [Source quote-wait diagnostics](investigations/mm-quote-wait-diagnostics.md),
   [evidence](investigations/mm-quote-wait-diagnostics-evidence.json): per-side
   wait evidence, sampled age and English guidance; native2,429 +11 subtests,
