@@ -9,6 +9,7 @@ from shutil import move
 from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
+from sqlalchemy import tuple_
 from sqlalchemy.engine import Row
 from sqlalchemy.orm import Query, Session
 
@@ -244,28 +245,33 @@ class MarketsRecorder:
             session.commit()
 
     def update_or_store_position(self, position: Position):
+        self.update_or_store_positions([position])
+
+    def update_or_store_positions(self, positions: List[Position]):
+        """Commit a complete hold snapshot with one lookup and recorder fence.
+
+        Preserve existing row identities and last-snapshot-wins behavior for
+        repeated natural keys, including the legacy single-position entrypoint.
+        The caller retains in-memory exposure until the entire commit succeeds.
+        """
+        if not positions:
+            return
+        keys = ('controller_id', 'connector_name', 'trading_pair', 'side')
+        snapshots = {tuple(getattr(position, key) for key in keys): position for position in positions}
         with self._sql_manager.get_new_session() as session:
-            # Check if a position already exists for this controller, connector, trading pair, and side
-            existing_position = session.query(Position).filter(
-                Position.controller_id == position.controller_id,
-                Position.connector_name == position.connector_name,
-                Position.trading_pair == position.trading_pair,
-                Position.side == position.side
-            ).first()
-
-            if existing_position:
-                # Update the existing position
-                existing_position.timestamp = position.timestamp
-                existing_position.volume_traded_quote = position.volume_traded_quote
-                existing_position.amount = position.amount
-                existing_position.breakeven_price = position.breakeven_price
-                existing_position.unrealized_pnl_quote = position.unrealized_pnl_quote
-                existing_position.realized_pnl_quote = position.realized_pnl_quote
-                existing_position.cum_fees_quote = position.cum_fees_quote
-            else:
-                # Insert new position
-                session.add(position)
-
+            existing = {}
+            for row in session.query(Position).filter(tuple_(*(getattr(Position, key) for key in keys))
+                                                      .in_(list(snapshots))).all():
+                existing.setdefault(tuple(getattr(row, key) for key in keys), row)
+            fields = ('timestamp', 'volume_traded_quote', 'amount', 'breakeven_price',
+                      'unrealized_pnl_quote', 'realized_pnl_quote', 'cum_fees_quote')
+            for key, position in snapshots.items():
+                row = existing.get(key)
+                if row is None:
+                    session.add(position)
+                else:
+                    for field in fields:
+                        setattr(row, field, getattr(position, field))
             session.commit()
 
     def store_controller_config(self, controller_config: ControllerConfigBase):

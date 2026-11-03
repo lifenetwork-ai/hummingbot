@@ -1,0 +1,39 @@
+# Checkpoint and background-poll optimization
+
+Scope: reuse the recorder, owner fencing and existing PostgreSQL schema. Preserve
+terminal-fill proof, Decimal precision, HALT and recovery behavior. No authority
+cache, new service or Redis dependency.
+
+## P1 — Position checkpoint batch
+
+- [x] Red: require one lookup/transaction for multiple position snapshots; test
+  exact values, repeated keys, rollback, stale ownership and retained in-memory
+  exposure after failure.
+- [x] Batch recorder writes and submit the complete orchestrator snapshot once.
+  Keep connector reads and ownership-connection access on the engine loop.
+- [x] Green: native recorder/executor/terminal-proof and real PostgreSQL tests.
+- [x] Record evidence and commit. Batching does not claim to remove all synchronous
+  recorder IO or explain historical probe latency.
+
+## P2 — Idle reconciliation polling
+
+- [ ] Red: an empty queue must not lock bot_state; verify completed/stale candidates,
+  owner changes and concurrent claims cannot weaken the existing transaction.
+- [ ] Add a non-locking candidate probe; recheck under the existing owner/control
+  lock before claiming work, keeping the current lock order.
+- [ ] Green: PostgreSQL concurrency/ownership tests and API/service regressions.
+- [ ] Record evidence and commit.
+
+## P3 — Funding discovery measurement
+
+- [ ] Measure the existing history aggregate with EXPLAIN ANALYZE on a disposable
+  large PostgreSQL dataset; preserve raw evidence under build/.
+- [ ] Change the query only if measured cost warrants it; preserve historical
+  pair discovery and earliest timestamps, including newly imported old orders.
+- [ ] Run relevant regressions, document limitations and commit results.
+
+## Completion
+
+- [ ] Run the combined relevant native/PostgreSQL checks, update progress and
+  publish an optimization report. New source does not inherit prior image/load/
+  Demo acceptance; do not trade, repair Demo data or reset HALT for this task.

@@ -65,6 +65,28 @@ def fill(order, identity, amount):
 
 
 @pytest.mark.asyncio
+async def test_checkpoint_batch_failure_keeps_exposure_for_retry(monkeypatch):
+    orchestrator, executor, order, recorder = setup_checkpoint(monkeypatch)
+    fill(order, 'last-fill', '.000258280000000001')
+
+    async def terminal_proof(orders):
+        order.current_state = OrderState.CANCELED
+        return {'entry': order.to_json()}
+
+    recorder.update_or_store_positions.side_effect = OSError('checkpoint write failed')
+    with pytest.raises(OSError, match='checkpoint write failed'):
+        await orchestrator.stop(keep_position=True, before_position_checkpoint=terminal_proof)
+    assert orchestrator.positions_held['maker'][0].net_amount_base == Decimal('.000258280000000001')
+    assert orchestrator.active_executors['maker'] == [executor]
+    recorder.store_or_update_executors.assert_not_called()
+    recorder.update_or_store_positions.side_effect = None
+    await orchestrator.stop(keep_position=True, before_position_checkpoint=terminal_proof)
+    saved = recorder.update_or_store_positions.call_args.args[0]
+    assert len(saved) == 1 and saved[0].amount == Decimal('.000258280000000001')
+    assert not orchestrator.positions_held and not orchestrator.active_executors
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('initial', ['0', '.011'])
 async def test_terminal_fill_is_included_once_before_position_store(monkeypatch, initial):
     orchestrator, executor, order, recorder = setup_checkpoint(monkeypatch)
@@ -74,7 +96,7 @@ async def test_terminal_fill_is_included_once_before_position_store(monkeypatch,
     async def terminal_proof(covered_ids):
         assert set(covered_ids) == {'entry'}
         assert executor.terminated.is_set()
-        recorder.update_or_store_position.assert_not_called()
+        recorder.update_or_store_positions.assert_not_called()
         fill(order, 'late', '.001')
         fill(order, 'late', '.001')  # Duplicate ACK/trade ID is not new exposure.
         order.current_state = OrderState.CANCELED
@@ -84,8 +106,8 @@ async def test_terminal_fill_is_included_once_before_position_store(monkeypatch,
         return {'entry': order.to_json()}
 
     await orchestrator.stop(keep_position=True, before_position_checkpoint=terminal_proof)
-    recorder.update_or_store_position.assert_called_once()
-    held = recorder.update_or_store_position.call_args.args[0]
+    recorder.update_or_store_positions.assert_called_once()
+    held = recorder.update_or_store_positions.call_args.args[0][0]
     assert held.amount == Decimal(initial) + Decimal('.001')
     assert held.cum_fees_quote == Decimal('.000001') * (2 if Decimal(initial) else 1)
     assert len(executor._held_position_orders) == 1
@@ -102,7 +124,7 @@ async def test_failed_terminal_proof_keeps_candidates_without_persisting_partial
 
     with pytest.raises(OSError, match='terminal read'):
         await orchestrator.stop(keep_position=True, before_position_checkpoint=unavailable)
-    recorder.update_or_store_position.assert_not_called()
+    recorder.update_or_store_positions.assert_not_called()
     assert orchestrator.active_executors['maker'] == [executor]
 
     async def retry(covered_ids):
@@ -111,7 +133,7 @@ async def test_failed_terminal_proof_keeps_candidates_without_persisting_partial
         return {'entry': order.to_json()}
 
     await orchestrator.stop(keep_position=True, before_position_checkpoint=retry)
-    assert recorder.update_or_store_position.call_args.args[0].amount == Decimal('.001')
+    assert recorder.update_or_store_positions.call_args.args[0][0].amount == Decimal('.001')
 
 
 @pytest.mark.asyncio
@@ -127,7 +149,7 @@ async def test_short_entry_retains_late_fill_and_hedge_side(monkeypatch):
         return {'entry': order.to_json()}
 
     await orchestrator.stop(keep_position=True, before_position_checkpoint=terminal_proof)
-    saved = recorder.update_or_store_position.call_args.args[0]
+    saved = recorder.update_or_store_positions.call_args.args[0][0]
     assert saved.amount == Decimal('.012') and saved.side == 'SELL'
     assert saved.cum_fees_quote == Decimal('.000002')
 
@@ -158,4 +180,4 @@ async def test_invalid_terminal_proof_cannot_commit_a_position(monkeypatch, inva
     # Even a report tick after rejection must not aggregate/persist bad data.
     orchestrator._update_positions_from_done_executors()
     assert not orchestrator.positions_held.get('maker')
-    recorder.update_or_store_position.assert_not_called()
+    recorder.update_or_store_positions.assert_not_called()

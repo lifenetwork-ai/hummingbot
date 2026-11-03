@@ -398,7 +398,7 @@ class TestExecutorOrchestrator(unittest.TestCase):
         hold.avg_entry_price = Decimal("200")
         self.orchestrator.positions_held = {"controller": [hold]}
         self.orchestrator.store_all_positions()
-        record = recorder.return_value.update_or_store_position.call_args.args[0]
+        record = recorder.return_value.update_or_store_positions.call_args.args[0][0]
         self.assertEqual(1700000000250, record.timestamp)
         self.assertEqual(Decimal("1"), record.amount)
         self.assertEqual({}, self.orchestrator.positions_held)
@@ -939,7 +939,7 @@ class TestExecutorOrchestrator(unittest.TestCase):
                          {TradeType.BUY: Decimal("0.005"), TradeType.SELL: Decimal("-0.005")})
         with patch.object(MarketsRecorder, "get_instance") as recorder:
             self.orchestrator.store_all_positions()
-            records = [call.args[0] for call in recorder.return_value.update_or_store_position.call_args_list]
+            records = recorder.return_value.update_or_store_positions.call_args.args[0]
         self.assertEqual({row.side: row.amount for row in records}, {"BUY": Decimal("0.005"), "SELL": Decimal("0.005")})
         self.orchestrator.positions_held = {"life_perpetual": []}
         for row in records:

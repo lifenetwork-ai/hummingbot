@@ -590,6 +590,7 @@ class ExecutorOrchestrator:
         Store or update all positions in the database.
         """
         markets_recorder = MarketsRecorder.get_instance()
+        snapshots = []
         for controller_id, positions_list in self.positions_held.items():
             if controller_id is None:
                 self.logger().warning(f"Skipping {len(positions_list)} position(s) with no controller_id")
@@ -632,9 +633,12 @@ class ExecutorOrchestrator:
                     realized_pnl_quote=position_summary.realized_pnl_quote,
                     cum_fees_quote=position_summary.cum_fees_quote,
                 )
-                # Store or update the position in the database
-                markets_recorder.update_or_store_position(position_record)
+                snapshots.append(position_record)
 
+        # Validate/prepare every loop-owned mark before any write. One failed
+        # batch must leave all holds resident for recovery, rather than commit
+        # a prefix of the checkpoint or clear exposure before its acknowledgment.
+        markets_recorder.update_or_store_positions(snapshots)
         # Clear all positions after storing (avoid modifying list while iterating)
         self.positions_held.clear()
 
