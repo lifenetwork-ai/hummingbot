@@ -719,7 +719,16 @@ matched ordinary-entrypoint acceptance control is not run from that baseline.
 
 ## 2026-11-03 follow-up: expired submission at Random rollover
 
-- [ ] Reconcile the retained Demo HALT and pending spot intent with complete venue evidence and operator-reviewed maintenance before new trading. See [incident](../../reports/demo/okx-expired-submission-investigation.md).
-- [ ] Requalify the corrected image; repeat Demo Random, perpetual, both, natural fills and restart checks. Passing offline load on e9845e3f does not qualify the corrected source.
+- [x] Reconcile the retained Demo HALT and pending spot intent with venue evidence and operator-reviewed maintenance before new trading. See [incident](../../reports/demo/okx-expired-submission-investigation.md).
+- [x] Requalify the expiry-corrected image `7dca3ce9`; repeat nine Demo cases,
+  Random, perpetual/both and restart. Verify seven natural fills at REST order
+  aggregate level. Passing offline load on e9845e3f does not qualify later source.
+- [ ] Verify each new natural trade ID and individual fee through REST fills;
+  current endpoints returned older records. Preserve the original failed
+  observation and passing aggregate/account checks separately.
 
-- [ ] Review the independently discovered stop-checkpoint latch and the [checkpoint recovery proposal](../../reports/demo/okx-checkpoint-stop-recovery-proposal.md); do not silently reset a possible drawdown stop.
+- [x] Review the independently discovered stop-checkpoint latch and apply the
+  [separately approved proposal](../../reports/demo/okx-checkpoint-stop-recovery-proposal.md).
+- [x] Fix shutdown retry checkpointing with TDD; package `51d4d879` and verify
+  stopped upgrade/restart without changing ledger hashes. The later image has
+  targeted coverage; full-load/active Demo scope remains tied to `7dca3ce9`.

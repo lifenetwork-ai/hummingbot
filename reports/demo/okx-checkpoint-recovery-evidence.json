@@ -1,0 +1,202 @@
+{
+  "at": "2026-11-03T09:35:34.837839+00:00",
+  "source_fix_commit": "06ab51b17",
+  "current_image": {
+    "image_id": "sha256:51d4d879d0f0532b825072483f7ba7cfbb95d80fa31742e34b6fa846e10df83e",
+    "source_commit": "06ab51b1718037086dc248d00e6bde1d3a9ef98c",
+    "verified_source_files": 1156,
+    "architecture": "amd64"
+  },
+  "native_tests": 2371,
+  "native_subtests": 11,
+  "postgres_tests": 321,
+  "swagger_passed": true,
+  "packaged_e2e": {
+    "status": "completed",
+    "image_id": "sha256:51d4d879d0f0532b825072483f7ba7cfbb95d80fa31742e34b6fa846e10df83e",
+    "source_commit": "06ab51b1718037086dc248d00e6bde1d3a9ef98c",
+    "e2e": {
+      "v2-spot": {
+        "passed": true,
+        "result": "build/e2e-offline/20261103-161714-ce0570/result.json",
+        "sha256": "33fdf57f3810e391c74ff095dcf05ff92316ca30ce3dc1a9a90014c9a4f34c34"
+      },
+      "v2-perpetual": {
+        "passed": true,
+        "result": "build/e2e-offline/20261103-161835-90e554/result.json",
+        "sha256": "b446d30591e821599abfa066e8627753b6a6d450263727851201a27032ea03b5"
+      },
+      "life-mm": {
+        "passed": true,
+        "result": "build/e2e-offline/20261103-161959-d43d1a/result.json",
+        "sha256": "9243034b47c012a8652917749f94c98eb39cdf873e7579b04a3510c932404133"
+      }
+    },
+    "scope": "Packaged smoke and stop/restart E2E only; no full load claim for this later source.",
+    "manifest": "127.0.0.1:58147/hummingbot@sha256:813813d135e9b83b36c54eced7458fc916a8b102230b101a3c4aa6f76e5c576f",
+    "stage": "complete"
+  },
+  "stopped_upgrade": {
+    "passed": true,
+    "image_id": "sha256:51d4d879d0f0532b825072483f7ba7cfbb95d80fa31742e34b6fa846e10df83e",
+    "source_commit": "06ab51b1718037086dc248d00e6bde1d3a9ef98c",
+    "scope": "Stopped local Demo upgrade/restart; no new trading sessions or full load on this later source. Earlier active Demo and full load belong to 7dca3ce9.",
+    "previous_image": "sha256:7dca3ce9feddc4c5c9a15aa3b2d52bdd73469eeecb901eef6c9f939b9a16c900",
+    "history_hashes_unchanged": true,
+    "hashes": {
+      "orders": "e995dc8e7b3775af02b5bcc4169bdbaa",
+      "trade_fills": "0f05dff14045be996e7722bae6325e18",
+      "positions": "e63ee76b1c6d3053a25ba06ad5a42184",
+      "executors": "1b3b544e1105f14dd9e99081304efe14"
+    },
+    "private_files_unchanged": true,
+    "no_halt": true,
+    "trading_stopped": true,
+    "first_health": {
+      "/startup": 200,
+      "/live": 200,
+      "/ready": 503
+    },
+    "restart_health": {
+      "/startup": 200,
+      "/live": 200,
+      "/ready": 503
+    },
+    "backup_before_sha256": "a3f7c5eb486d5dcf4269f3f4cbf2835be3d56f8b86efd84c91c8f39ffe9d371c",
+    "backup_after_sha256": "4ffa99615268d8bc1b440e72545bd027c614a6e7c5e47c618c3f50a5055c942d",
+    "at": "2026-11-03T09:34:36.356512+00:00"
+  },
+  "active_demo": {
+    "image_id": "sha256:7dca3ce9feddc4c5c9a15aa3b2d52bdd73469eeecb901eef6c9f939b9a16c900",
+    "protocol_passed": true,
+    "independent_review_completed": true,
+    "case_count": 9,
+    "random": {
+      "active_restart_preserves_session_anchor_clock": true,
+      "step_advanced": true,
+      "step_after": 1,
+      "stop_cancels_quotes": true
+    },
+    "both_restart": {
+      "passed": true,
+      "session_pinned": true,
+      "positions_before": {
+        "BUY": "0.0089",
+        "SELL": "0.0028"
+      },
+      "positions_after": {
+        "BUY": "0.0089",
+        "SELL": "0.0028"
+      }
+    },
+    "confirmed_terminal_orders": 636,
+    "case_sides_verified": true,
+    "new_fills": 0,
+    "classified_error_log_lines": 6,
+    "unclassified_error_log_lines": 0
+  },
+  "natural_followup": {
+    "aggregate_proof_passed": true,
+    "per_trade_rest_proof_complete": false,
+    "scope": "Independent REST order aggregates and current account; per-trade fills/history endpoints returned older rows and cannot independently confirm each new trade ID. Original observation failure remains preserved.",
+    "order_comparisons": [
+      {
+        "order_id": "93027a12dac34fBCBBCUT259e8a8ae0f",
+        "market": "okx_perpetual",
+        "partial_trade_rows": 1,
+        "amount_base": "0.0001",
+        "average_price": "76811.4",
+        "original_fee_currency": "USDT",
+        "recorded_fee": "0.001536228",
+        "venue_signed_fee": "-0.001536228",
+        "matched": true
+      },
+      {
+        "order_id": "93027a12dac34fBCBBCUT2564cea5ec6",
+        "market": "okx_perpetual",
+        "partial_trade_rows": 2,
+        "amount_base": "0.0002",
+        "average_price": "76811.4",
+        "original_fee_currency": "USDT",
+        "recorded_fee": "0.003072456",
+        "venue_signed_fee": "-0.003072456",
+        "matched": true
+      },
+      {
+        "order_id": "93027a12dac34fBCBBCUTa0c976c29c6",
+        "market": "okx_perpetual",
+        "partial_trade_rows": 1,
+        "amount_base": "0.0002",
+        "average_price": "76811.4",
+        "original_fee_currency": "USDT",
+        "recorded_fee": "0.003072456",
+        "venue_signed_fee": "-0.003072456",
+        "matched": true
+      },
+      {
+        "order_id": "93027a12dac34fBCBBCUTf04fdc657cf",
+        "market": "okx_perpetual",
+        "partial_trade_rows": 1,
+        "amount_base": "0.0002",
+        "average_price": "76811.4",
+        "original_fee_currency": "USDT",
+        "recorded_fee": "0.003072456",
+        "venue_signed_fee": "-0.003072456",
+        "matched": true
+      },
+      {
+        "order_id": "93027a12dac34fBCSBCUTb4745791f4a",
+        "market": "okx_perpetual",
+        "partial_trade_rows": 1,
+        "amount_base": "0.0002",
+        "average_price": "76857.52",
+        "original_fee_currency": "USDT",
+        "recorded_fee": "0.0030743008",
+        "venue_signed_fee": "-0.0030743008",
+        "matched": true
+      },
+      {
+        "order_id": "93027a12dac34fBCSBCUTe2d0619dde3",
+        "market": "okx",
+        "partial_trade_rows": 1,
+        "amount_base": "0.00026003",
+        "average_price": "76912.2",
+        "original_fee_currency": "USDT",
+        "recorded_fee": "0.0159995834928",
+        "venue_signed_fee": "-0.0159995834928",
+        "matched": true
+      }
+    ],
+    "new_trade_rows": 7,
+    "baseline_rows": 11,
+    "final_unique_rows": 18,
+    "history_unchanged": true,
+    "three_stable_reads": true,
+    "spot_net": "-0.00026412",
+    "spot_single_id_preserved": true,
+    "spot_btc_cash": "0.99948767628",
+    "perpetual_base": {
+      "BUY": "0.0096",
+      "SELL": "0.0030"
+    },
+    "no_pending_orders": true,
+    "active_filled_restart": true,
+    "canonical_restored": true,
+    "at": "2026-11-03T09:33:20.159232+00:00"
+  },
+  "limits": [
+    "Full load and active nine-case Demo belong to image 7dca3ce9; current 51d4d879 has the later cleanup-checkpoint fix and targeted/stopped-restart evidence.",
+    "Original bounded natural observation failed because per-trade REST fills endpoints did not return new fills; supplemental REST order-aggregate proof passes, individual trade-ID REST verification remains incomplete.",
+    "Post-backup executor/session-event history from the earlier volume reconstruction is incomplete.",
+    "No production or Cloud Run deployment; finite local tests do not guarantee perpetual availability."
+  ],
+  "local_evidence_sha256": {
+    "build/checkpoint-poll-release-20261103/cleanup-checkpoint-native-regression.log": "a43759dd663127bb9a74a14869e127c972fa4e6a88588e74f0f5651abd59bfd6",
+    "build/checkpoint-poll-release-20261103/cleanup-checkpoint-pg-regression.log": "67f496e897ca8776932f20fa9591a906c4abf8346dc461bdd87cab6ab5d64677",
+    "build/checkpoint-expiry-demo-20261103/acceptance.json": "990c76db4562032598121e05defbb52516457487f955a4e4c34b3ead51a598d7",
+    "build/checkpoint-expiry-demo-20261103/terminal-review.json": "5e6ea6468c1d7224817e7d3e60aef6238bb9d8a4bfcbbaa9ef29567145b6fd3b",
+    "build/checkpoint-expiry-demo-20261103/final-review.json": "2b3b37bd202e5fc8f39f0df4f7fec0b0ff2a7a38353543b5a44d3a1168220dc8",
+    "build/checkpoint-expiry-natural-20261103/observation.json": "c9747d1113041664a2f6c5323107e50f5910de18ab12bdf4c52b44def8b31a83",
+    "build/checkpoint-expiry-natural-20261103/aggregate-independent-verification.json": "9ac6f31a778fdc4543c7eef4023c373fdfff9bfe2896999a47ab26d294e1a6c0"
+  }
+}

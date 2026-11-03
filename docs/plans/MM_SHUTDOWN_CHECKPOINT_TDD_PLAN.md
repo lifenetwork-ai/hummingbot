@@ -15,9 +15,13 @@ leaving a retained checkpoint that blocked a reviewed recovery restart.
   drawdown breach and independent controller-stop state.
 - [x] Complete native/PostgreSQL/Swagger regressions: 2,371 native tests plus
   11 subtests, 321 PostgreSQL tests; commit the source fix.
-- [ ] Package and verify the fixed runtime, run relevant packaged stop/restart
+- [x] Package and verify the fixed runtime, run relevant packaged stop/restart
   cases and a stopped Demo upgrade/restart. Report image-specific load scope;
   earlier full load must not be relabelled as testing this later source.
+
+Completed on image `51d4d879`, source `06ab51b17`: three packaged E2E groups,
+stopped Demo upgrade/restart and unchanged order/fill/position/executor hashes.
+See the [recovery report](../../reports/demo/okx-checkpoint-recovery.md).
 
 The separately approved Demo checkpoint reset changes historical data only for
 that reviewed incident; the source fix does not automatically reset stored HALT

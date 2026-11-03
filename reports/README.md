@@ -4,6 +4,14 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Shutdown checkpoint fix and reviewed Demo recovery](demo/okx-checkpoint-recovery.md),
+  [evidence](demo/okx-checkpoint-recovery-evidence.json): source `06ab51b17`,
+  native2,371 +11 subtests, PG321, Swagger and three packaged E2E groups pass.
+  Current local image `51d4d879` passes stopped upgrade/restart with unchanged
+  ledger hashes, no HALT and trading stopped. Prior `7dca3ce9` passes nine active
+  Demo cases/Random/restart. Seven natural fills match independent REST order
+  aggregates/account state; individual REST trade-ID proof remains incomplete.
+
 - [Expiry-fix offline load](release/mm-okx-expiry-load.md) and
   [evidence](release/mm-okx-expiry-load-evidence.json): image `7dca3ce9`
   passed the full local R1, isolated repeat warmup/mixed and clean R2. The
@@ -11,8 +19,8 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
   recovered probes and the separately repeated windows.
 - [Demo expiry incident](demo/okx-expired-submission-investigation.md) and
   [review proposal](demo/okx-expiry-incident-recovery-proposal.md): the prior
-  image failed at Random rollover. Demo is stopped with HALT and one unresolved
-  intent; no exchange orders are pending. No maintenance has been applied.
+  image failed at Random rollover. Exact intent repair and separate checkpoint
+  reset were subsequently approved and applied; current recovery status is above.
 
 - [Checkpoint and background-poll source optimization](performance/mm-checkpoint-poll-optimization.md),
   [SQL evidence](performance/mm-checkpoint-poll-evidence.json), 2026-11-03:
@@ -34,7 +42,7 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
   The first phase has407 canceled orders/zero new fills; a later bounded preset
   verifies five natural maker fills (one spot/four perpetual), exact fees,
   filled restart and11 unique retained rows. Current catalogue200/400 restored;
-  at the time. Current Demo state is the halted incident described above.
+  at the time. Current Demo state is described in the recovery report above.
 
 - [Quote replacement after terminal confirmation](investigations/mm-quote-recovery.md),
   [evidence](investigations/mm-quote-recovery-evidence.json), 2026-11-02:

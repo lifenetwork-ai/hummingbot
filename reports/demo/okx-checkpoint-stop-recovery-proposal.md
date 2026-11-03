@@ -20,7 +20,7 @@ include resetting this checkpoint.
 
 A fresh read-only OKX Demo preflight found no pending orders and matched the
 previously reconciled BTC cash and perpetual quantities. A private backup was
-taken after stopping the bot. The proposed transaction, **not applied**, acquires
+taken after stopping the bot. The reviewed transaction (subsequently applied, as recorded below) acquires
 the existing owner advisory lock and checks stopped/acknowledged/no-owner, HALT,
 no pending creates/account mutations, exact recovery-state fingerprint and
 unchanged hashes of orders, fills, positions, order statuses and market states.

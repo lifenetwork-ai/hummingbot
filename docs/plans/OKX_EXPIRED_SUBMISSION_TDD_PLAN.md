@@ -18,10 +18,13 @@ and no match in the recent fill page; the latter is not exhaustive history proof
 - [x] Run native, PostgreSQL and Swagger regressions; record source test scope.
 - [ ] Capture/reproduce the actual OKX response shape in an isolated read-safe or
   controlled Demo scenario. Do not infer that the real response contained an ID.
-- [ ] Fully reconcile the Demo intent and account against the venue, prepare and
+- [x] Fully reconcile the Demo intent and account against the venue, prepare and
   obtain explicit operator review of any specific maintenance/HALT recovery.
   Never use an old database-reconstruction approval for this separate change.
 - [x] Requalify a new image offline and run full R1, an isolated repeat of the
   affected warmup/mixed and a clean independent R2; document overlapping dry runs.
-- [ ] Complete real Demo acceptance after reviewed recovery; preserve the earlier
-  passing image's load and failed Demo evidence separately.
+- [x] Complete the nine-case Demo matrix, Random, Stop and restart after reviewed
+  recovery on `7dca3ce9`; preserve image-specific load and failed evidence.
+- [ ] Complete per-trade REST proof for the seven new natural fills. Independent
+  REST order aggregates, fees, account balances/positions and 18 unique stored
+  rows match, but fills/history endpoints returned no new trade rows.

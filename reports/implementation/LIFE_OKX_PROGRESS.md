@@ -5,17 +5,30 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-03
 
+- **Shutdown retry fix complete:** `06ab51b17` preserves the pre-cleanup risk-stop
+  latch. Native2,371 +11 subtests, PG321, Swagger and three packaged E2E groups
+  pass. Current local image `51d4d879` passes stopped upgrade/restart with unchanged
+  order/fill/position/executor hashes, no HALT and trading stopped.
+  [Report](../demo/okx-checkpoint-recovery.md).
+- **Reviewed Demo recovery applied:** the exact intent and separate stop-latch
+  changes were explicitly approved, backed up and guarded. The `7dca3ce9` active
+  matrix passes nine cases, Random rollover and spot/both restart. Seven natural
+  fills match independent REST order totals, fees and account state; 18 unique
+  fill rows are stable. Individual REST trade-ID proof remains open because
+  fills/history endpoints did not return the new records. No full-load or
+  active-session acceptance is attributed to later source `51d4d879`.
+
 - **Latest offline image:** `7dca3ce9` includes the expired-submission fix;
   native, PG319, Swagger and packaged E2E pass. Full R1, a separately repeated
   warmup/mixed, and clean R2 pass. R1's original warmup and an interrupted R2
   overlapped brief disposable-DB dry runs; the report preserves that scope,
   probe recoveries and clean repeat measurements. [Load report](../release/mm-okx-expiry-load.md).
-- **Demo remains blocked:** prior image `e9845e3f` encountered an expired order
+- **Historical Demo block, subsequently recovered:** prior image `e9845e3f` encountered an expired order
   at Random rollover and retained a pending intent/HALT. Demo bot is stopped;
   no open exchange orders were found. [Incident](../demo/okx-expired-submission-investigation.md)
   and [review proposal](../demo/okx-expiry-incident-recovery-proposal.md).
-  Original response identity fields and post-fix connected Demo acceptance
-  remain unverified; no maintenance has been applied.
+  Original expiry-response identity fields remain unverified; subsequent
+  reviewed recovery and connected-test scope are recorded above.
 
 - **Checkpoint/background-poll source optimization complete:** 9814756d1 batches
   terminal position snapshots in one fenced transaction; a37240127 avoids

@@ -12,7 +12,7 @@ and pre-existing fill rows are unchanged. These observations and the logged
 expiry message support review but the original 50036 payload itself was not
 retained; absence in exchange responses is not proof of every possible history.
 
-Proposed local Demo-only transaction, **not yet applied**:
+Reviewed local Demo-only transaction (subsequently applied; see status below):
 
 1. With the bot stopped, lock the existing advisory ownership key and verify
    stopped/acknowledged/no-owner/HALT state, one pending `OrderFailure` spot
@@ -41,3 +41,10 @@ which requires an explicit operator-reviewed database maintenance change after
 reconciliation; the prior approval applied only to the earlier reconstruction.
 The missing executor/session-event history from that earlier backup remains a
 known audit limitation.
+
+## Reviewed operation applied
+
+The operator approved this exact guarded SQL, which was applied after a fresh
+read-only account check and private backup. The subsequent first strategy start
+was blocked by a separate retained stop checkpoint; that checkpoint was handled
+under another explicit approval. See [current verified recovery](okx-checkpoint-recovery.md).

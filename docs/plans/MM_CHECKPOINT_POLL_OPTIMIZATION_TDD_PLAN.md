@@ -69,9 +69,11 @@ Those source checks do not claim new image/load/Demo acceptance.
   dry run: preserve1,257 orders/six original fills, backfill23 terminal orders/five
   actual fills, recompute three aggregates; disclose unavailable executor/session
   events. No HALT reset or history deletion. Execute only after verified load.
-- [ ] Verify current-image Demo profiles, modes, Random, Stop/restart and exact
-  fills/fees/positions where history permits; report incomplete scope honestly.
-- [ ] Publish evidence, close verified checklist items, clean owned resources and
+- [x] Verify Demo profiles, modes, Random, Stop/restart and aggregate order
+  quantity/fees/positions where history permits; report incomplete scope honestly.
+- [ ] Finish individual REST trade-ID verification for seven new natural fills;
+  current independent order-aggregate proof does not close this boundary.
+- [x] Publish evidence, close verified checklist items, clean owned resources and
   commit. Preserve prior failed results and unrelated Docker resources.
 
 Previous artifact 5b2aaaa7, source 8252d797e: packaged hashes, smoke, three
@@ -81,3 +83,5 @@ reproduced; it is not a completed R1. Demo is gated on acceptance of the fixed
 image. The corrected image e9845e3f, source d68d74e07, passes full local R1/R2;
 see the [load report](../../reports/release/mm-checkpoint-poll-load.md).
 [Approved recovery proposal](../../reports/demo/checkpoint-poll-recovery-proposal.md).
+
+Later recovery and fix status: [checkpoint recovery report](../../reports/demo/okx-checkpoint-recovery.md).

@@ -33,3 +33,11 @@ position reconciliation first, under [the recovery procedure](../../docs/postgre
 The previously approved backup reconstruction does not authorize this later
 incident's maintenance. The original Demo archive is incomplete for executor
 and session-event history between backup and reconstruction.
+
+## Subsequent recovery
+
+The operator separately approved the exact intent repair and stop-checkpoint
+reset. Both were applied with fresh readback, backup and DB guards. Current
+status and remaining REST trade-level proof are in the
+[checkpoint recovery report](okx-checkpoint-recovery.md); the stopped/HALT state
+described above is the historical incident state.
