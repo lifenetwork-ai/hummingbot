@@ -5,6 +5,16 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-03
 
+- **Quote-wait diagnostics implemented:** typed per-side stage/source/sampled
+  age/English guidance and safe fresh proposal error class in existing status/
+  liquidity views; warning logs include BUY/SELL stages. Pending local state is
+  not exchange acceptance; unknown remains explicit. Reset/stale/legacy/read-only
+  behavior is tested, with no trading-authority or risk-rule change. Canonical
+  native2,429 +11 subtests, final focused44, relevant PG19 and Swagger pass.
+  Previously added lifecycle tests are now wired into Makefile regression too.
+  Accepted51d4d879 is unchanged; this new source has no rebuilt-image/load/Demo
+  acceptance. [Report/evidence](../investigations/mm-quote-wait-diagnostics.md).
+
 - **Further safety lifecycle/send-gate coverage added:**36 new cases cover
   protective withdrawal despite a pending report gate, late/unfilled cancellation,
   data recovery versus explicit session revocation, and real-PG post-throttle joint

@@ -1,4 +1,5 @@
 """Sampled own-quote coverage, reusing tracker/status data with no exchange IO."""
+import asyncio
 import logging
 import math
 import time
@@ -16,9 +17,16 @@ def own_quotes(connector, pair, *, max_orders):
     if len(orders) > max_orders:
         raise ValueError("liquidity_order_limit")
     sides = {TradeType.BUY: [], TradeType.SELL: []}
+    pending = {side.name: dict(submission_pending=0, cancel_confirmation=0) for side in sides}
     with_fills = 0
     for order in orders:
-        if order.trading_pair != pair or not order.order_type.is_limit_type() or not order.exchange_order_id or order.current_state not in (OrderState.OPEN, OrderState.PARTIALLY_FILLED):
+        if order.trading_pair != pair or not order.order_type.is_limit_type():
+            continue
+        if order.current_state == OrderState.PENDING_CREATE:
+            pending[order.trade_type.name]['submission_pending'] += 1
+        elif order.current_state == OrderState.PENDING_CANCEL:
+            pending[order.trade_type.name]['cancel_confirmation'] += 1
+        if not order.exchange_order_id or order.current_state not in (OrderState.OPEN, OrderState.PARTIALLY_FILLED):
             continue
         price, amount, filled = (Decimal(str(value)) for value in (order.price, order.amount, order.executed_amount_base))
         if any(not value.is_finite() for value in (price, amount, filled)) or price <= 0 or not 0 <= filled <= amount:
@@ -35,7 +43,8 @@ def own_quotes(connector, pair, *, max_orders):
                 ask_notional=sum((p * a for p, a, _ in asks), Decimal('0')),
                 spread_bps=(ask - bid) / ((ask + bid) / 2) * 10000 if bid is not None and ask is not None else None,
                 two_sided=bool(bids and asks), bid_ids=[item[2] for item in bids], ask_ids=[item[2] for item in asks],
-                buy_order_count=len(bids), sell_order_count=len(asks), working_orders_with_fills=with_fills)
+                buy_order_count=len(bids), sell_order_count=len(asks), working_orders_with_fills=with_fills,
+                pending_orders=pending)
 
 
 class LiquidityObserver:
@@ -50,9 +59,14 @@ class LiquidityObserver:
         prior = self._warning_logs.get(market)
         if activity['warning_active']:
             if prior is None or monotonic_now - prior >= 60:
-                logging.getLogger(__name__).warning('No working MM quotes observed market=%s seconds=%.1f',
+                stages = {side: (value.get('diagnosis') or {}).get('stage', 'unknown')
+                          for side, value in activity['sides'].items()}
+                logging.getLogger(__name__).warning('No working MM quotes observed market=%s seconds=%.1f BUY_stage=%s SELL_stage=%s',
                                                     market, activity['no_quote_seconds'],
+                                                    stages.get('BUY', 'unknown'), stages.get('SELL', 'unknown'),
                                                     extra={'event': 'mm_no_quotes_warning', 'scope': f'quote_activity:{market}',
+                                                           'buy_wait_stage': stages.get('BUY', 'unknown'),
+                                                           'sell_wait_stage': stages.get('SELL', 'unknown'),
                                                            'session_id': self.frame.get('session_id'), 'reason_code': 'no_active_quotes'})
                 self._warning_logs[market] = monotonic_now
         elif prior is not None:
@@ -102,7 +116,8 @@ class LiquidityObserver:
                                       monitoring=started is not None and session.get('status') == 'running' and ended is None,
                                       warning_seconds=warning_seconds)
             self._log_warning(market, activity, monotonic_now)
-            current[market] = {**{key: value for key, value in observation.items() if key not in ('bid_ids', 'ask_ids', 'proposal')},
+            current[market] = {**{key: value for key, value in observation.items()
+                                  if key not in ('bid_ids', 'ask_ids', 'proposal', 'pending_orders', 'awaiting_executor_report')},
                                'quote_activity': activity,
                                **totals, 'elapsed_seconds': elapsed, 'unknown_seconds': max(0, elapsed - totals['observed_seconds']),
                                'two_sided_fraction_of_elapsed': totals['two_sided_seconds'] / elapsed if elapsed else None}
@@ -131,6 +146,8 @@ def capture_liquidity(host):
                      best_bid=None, best_ask=None, bid_notional=None, ask_notional=None, spread_bps=None, two_sided=False,
                      connector=name, pair=controller.config.trading_pair, bid_ids=[], ask_ids=[])
         value['proposal'] = getattr(controller, 'quote_diagnostics', None)
+        event = getattr(controller, 'executors_update_event', None)
+        value['awaiting_executor_report'] = not event.is_set() if isinstance(event, asyncio.Event) else None
         try:
             provider = controller.market_data_provider
             connector = provider.get_connector_with_fallback(name)
@@ -185,6 +202,8 @@ def _liquidity_view(row, *, session_id=None, market='all'):
             value['quote_activity'].update(state='idle', label='Session is not placing orders',
                                            detail='Check outstanding orders and positions separately.',
                                            warning_active=False, no_quote_seconds=0)
+            for side in value['quote_activity']['sides'].values():
+                side['diagnosis'] = None
         selected[key] = value
     snapshot['markets'] = selected
     return snapshot

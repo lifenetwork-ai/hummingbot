@@ -1,5 +1,5 @@
 import json
-from test.hummingbot.cli.test_admin_quote_activity import quote_state
+from test.hummingbot.cli.test_admin_quote_activity import quote_state, wait_state
 from types import SimpleNamespace
 
 import pytest
@@ -15,10 +15,11 @@ from hummingbot.model.db_migration.postgres.runner import bootstrap_postgres
 
 
 @pytest.mark.asyncio
-async def test_persisted_quote_warning_is_read_only_and_stale_owner_revokes_it(pg_engine, monkeypatch):
+@pytest.mark.parametrize('with_wait', [False, True])
+async def test_persisted_quote_warning_is_read_only_and_stale_owner_revokes_it(pg_engine, monkeypatch, with_wait):
     from datetime import datetime, timezone
 
-    catalogue, row = await quote_state()
+    catalogue, row = await (wait_state() if with_wait else quote_state())
     monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
     bootstrap_postgres(pg_engine, auto_migrate=True)
     store = BotStateStore(pg_engine, 'hummingbot')
@@ -60,6 +61,9 @@ async def test_persisted_quote_warning_is_read_only_and_stale_owner_revokes_it(p
             activity = body['quote_activity']['spot'] if path == '/status' else body['markets']['spot']['quote_activity']
             assert activity['warning_active'] and activity['no_quote_seconds'] == 6, activity
             assert activity['proposal_observed_at'].endswith('Z')
+            diagnosis = activity['sides']['BUY']['diagnosis']
+            assert diagnosis['stage'] == ('submission_pending' if with_wait else 'trading_conditions')
+            assert diagnosis['observed_seconds'] == 6
         with pg_engine.connect() as connection:
             after = connection.execute(select(BotState)).mappings().one()
         assert dict(before) == dict(after)
@@ -68,3 +72,4 @@ async def test_persisted_quote_warning_is_read_only_and_stale_owner_revokes_it(p
         body = await (await client.get(ADMIN_PREFIX + '/status')).json()
         assert body['quote_activity']['spot']['state'] == 'unavailable'
         assert not body['quote_activity']['spot']['warning_active']
+        assert body['quote_activity']['spot']['sides']['BUY']['diagnosis'] is None

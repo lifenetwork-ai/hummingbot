@@ -85,3 +85,18 @@ async def test_upstream_active_level_and_cooldown_rules_remain_authoritative():
                         close_type=CloseType.STOP_LOSS, close_timestamp=995, config=sell)]
     assert controller.create_actions_proposal() == []
     assert controller.quote_diagnostics['reasons'] == {'BUY': ['active_executor'], 'SELL': ['cooldown']}
+
+
+@pytest.mark.asyncio
+async def test_proposal_error_records_class_only_and_clears_on_recovery(monkeypatch):
+    import json
+
+    controller, _ = make_controller(configuration())
+    await controller.update_processed_data()
+    with monkeypatch.context() as context:
+        context.setattr(controller, 'get_price_and_amount', MagicMock(side_effect=ValueError('SECRET=not-public')))
+        assert controller.create_actions_proposal() == []
+        assert controller.quote_diagnostics['error_type'] == 'ValueError'
+        assert 'SECRET' not in json.dumps(controller.quote_diagnostics)
+    assert controller.create_actions_proposal()
+    assert controller.quote_diagnostics.get('error_type') is None

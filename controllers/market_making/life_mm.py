@@ -757,8 +757,9 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 accepted.append(action)
                 self._quote_diagnostics['proposed'][config.side.name] += 1
             return accepted
-        except (ValueError, ArithmeticError, TypeError):
+        except (ValueError, ArithmeticError, TypeError) as error:
             self._quote_diagnostics['proposed'] = {'BUY': 0, 'SELL': 0}
+            self._quote_diagnostics['error_type'] = type(error).__name__
             self._quote_reason('proposal_evaluation_unavailable')
             return []
 

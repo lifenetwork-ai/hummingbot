@@ -300,6 +300,28 @@ Proposal diagnostics expire after five seconds. Their original UTC
 `quote_reason_unavailable` instead of repeating an old balance denial as current.
 Fresh controller readiness reasons remain useful during guard/data waits.
 
+Each missing side may also carry an optional `diagnosis` (old stored snapshots
+return null). Render `next_action` as English operator guidance alongside existing
+`reason_codes`; it never authorizes a restart, changes YAML or bypasses a guard.
+Show that guidance by default; keep `stage`, `source` and `error_type` in an
+expandable technical-details panel for maintainers.
+
+| Diagnosis field | Meaning |
+|---|---|
+| `stage` | `submission_pending`, `cancel_confirmation`, `executor_report`, `executor_activity`, `cooldown`, `proposal_confirmation`, `trading_conditions` or `unknown` |
+| `source` | Local `order_tracker`, `executor_event`, `controller_observation`, or explicitly `unavailable` evidence |
+| `observed_seconds` | Consecutive sampled time in the same stage/reason, including a missing side when the other side works; not individual order age or measured downtime |
+| `next_action` | English guidance, escalating persistent unresolved pipeline waits to contacting support at the existing monitoring threshold |
+| `error_type` | Fresh proposal exception class only, such as `ValueError`; null when absent, outdated or invalid. Exception messages are never included |
+
+Local pending creation does not prove that transport started or OKX accepted an
+order. A pending executor report does not identify a particular failed task.
+`unknown` is retained when there is no reliable stage evidence; do not invent a
+root cause. Working/idle/unavailable sides have no active diagnosis. Gaps, owner/
+generation changes, restart, invalid samples, stage/reason changes and observed
+recovery reset the sampled age. Repeated API reads do not advance it. Stop and
+stale-owner projections clear diagnosis rather than repeat an old wait as current.
+
 `MM_NO_QUOTE_WARNING_SECONDS` is a process environment setting, default **120**;
 valid values are `0` (disable warnings) or 5–86,400 seconds. It cannot be changed
 by the command API. It controls monitoring only. During a running, started session,
@@ -315,6 +337,9 @@ At the threshold, `warning_active=true` and the existing service logger emits
 `scope`. Repeated warnings are limited to once per minute per market. Clearing the
 warning emits **INFO** `mm_no_quotes_warning_cleared`; its `reason_code` may be
 `unavailable` or `idle`, so this log alone does not prove that orders returned.
+The warning message includes bounded `BUY_stage` and `SELL_stage` values, also
+available as JSON log fields `buy_wait_stage` and `sell_wait_stage`. No additional
+order scan, exchange request or API database query is added for these diagnostics.
 These are API/log signals, not email/Slack notifications or automatic repair.
 
 All diagnostic paths reuse existing quote decisions and the order tracker. They

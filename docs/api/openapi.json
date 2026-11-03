@@ -4309,6 +4309,18 @@
             "title": "Detail",
             "type": "string"
           },
+          "diagnosis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuoteWaitDiagnosisOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Read-only local evidence for a missing side; null for working, idle, stale or legacy observations. Pending does not prove exchange admission."
+          },
           "order_count": {
             "anyOf": [
               {
@@ -4361,6 +4373,69 @@
           "detail"
         ],
         "title": "QuoteSideActivity",
+        "type": "object"
+      },
+      "QuoteWaitDiagnosisOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "error_type": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fresh proposal exception class only; never exception text or a guessed root cause.",
+            "title": "Error Type"
+          },
+          "next_action": {
+            "description": "English operator guidance; does not grant or change trading authority.",
+            "title": "Next Action",
+            "type": "string"
+          },
+          "observed_seconds": {
+            "description": "Consecutive sampled time in this stage, not order age, wire latency or measured downtime. Resets on observation boundaries.",
+            "minimum": 0,
+            "title": "Observed Seconds",
+            "type": "number"
+          },
+          "source": {
+            "enum": [
+              "order_tracker",
+              "executor_event",
+              "controller_observation",
+              "unavailable"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "stage": {
+            "enum": [
+              "cancel_confirmation",
+              "submission_pending",
+              "executor_report",
+              "executor_activity",
+              "cooldown",
+              "proposal_confirmation",
+              "trading_conditions",
+              "unknown"
+            ],
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "source",
+          "observed_seconds",
+          "next_action"
+        ],
+        "title": "QuoteWaitDiagnosis",
         "type": "object"
       },
       "RandomSelectionOutput": {

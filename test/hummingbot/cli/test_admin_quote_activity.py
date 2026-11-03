@@ -60,3 +60,44 @@ async def test_stale_owner_and_stop_never_keep_a_current_no_quote_alarm():
         status = await (await http.get(ADMIN_PREFIX + '/status')).json()
         assert not status['quote_activity']['spot']['warning_active']
         assert status['operator']['state'] == 'stopping'
+
+
+async def wait_state():
+    catalogue, row = await quote_state()
+    observer = LiquidityObserver()
+    for at in (1000, 1003, 1006):
+        value = observation(empty=True)
+        value['pending_orders'] = {'BUY': dict(submission_pending=1), 'SELL': dict(cancel_confirmation=1)}
+        row['status']['mm_liquidity'] = observer.observe(
+            dict(session_id=row['mm_session']['id'], generation=row['mm_session']['generation'],
+                 profile_id='sideways', started_at=1000, status='running'), {'spot': value},
+            now=at, monotonic_now=at, owner_generation=1, warning_seconds=5)
+    return catalogue, row
+
+
+@pytest.mark.asyncio
+async def test_wait_diagnosis_is_identical_in_status_and_liquidity_and_reads_do_not_advance_age():
+    catalogue, row = await wait_state()
+    async with api(catalogue, row) as http:
+        first = await (await http.get(ADMIN_PREFIX + '/status')).json()
+        second = await (await http.get(ADMIN_PREFIX + '/status')).json()
+        liquidity = await (await http.get(ADMIN_PREFIX + '/statistics/liquidity')).json()
+        assert first['quote_activity'] == second['quote_activity']
+        assert first['quote_activity']['spot'] == liquidity['markets']['spot']['quote_activity']
+        sides = first['quote_activity']['spot']['sides']
+        assert sides['BUY']['diagnosis']['stage'] == 'submission_pending'
+        assert sides['SELL']['diagnosis']['stage'] == 'cancel_confirmation'
+        assert sides['BUY']['diagnosis']['observed_seconds'] == 6
+        assert 'support' in sides['BUY']['diagnosis']['next_action'].lower()
+
+
+@pytest.mark.asyncio
+async def test_legacy_stored_activity_without_diagnosis_remains_readable():
+    catalogue, row = await quote_state()
+    for side in row['status']['mm_liquidity']['markets']['spot']['quote_activity']['sides'].values():
+        side.pop('diagnosis', None)
+    async with api(catalogue, row) as http:
+        response = await http.get(ADMIN_PREFIX + '/status')
+        assert response.status == 200
+        body = await response.json()
+        assert body['quote_activity']['spot']['sides']['BUY']['diagnosis'] is None

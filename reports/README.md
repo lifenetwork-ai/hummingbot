@@ -4,6 +4,12 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Source quote-wait diagnostics](investigations/mm-quote-wait-diagnostics.md),
+  [evidence](investigations/mm-quote-wait-diagnostics-evidence.json): per-side
+  wait evidence, sampled age and English guidance; native2,429 +11 subtests,
+  focused44, relevant PG19 and Swagger pass. Prior accepted image is unchanged;
+  new runtime fields require rebuilding, with no new image/load/Demo claim.
+
 - [Guard/recovery coverage](investigations/mm-guard-recovery-coverage.md),
   [evidence](investigations/mm-guard-recovery-coverage-evidence.json):36 added
   native/PG cases, related native541 +2 subtests, full PG329 and focused PG10 pass

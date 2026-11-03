@@ -313,12 +313,25 @@ class SpreadPolicyStatus(APIModel):
     stale: bool = False
 
 
+class QuoteWaitDiagnosis(APIModel):
+    stage: Literal['cancel_confirmation', 'submission_pending', 'executor_report', 'executor_activity',
+                   'cooldown', 'proposal_confirmation', 'trading_conditions', 'unknown']
+    source: Literal['order_tracker', 'executor_event', 'controller_observation', 'unavailable']
+    observed_seconds: float = Field(ge=0, allow_inf_nan=False,
+                                    description='Consecutive sampled time in this stage, not order age, wire latency or measured downtime. Resets on observation boundaries.')
+    next_action: str = Field(description='English operator guidance; does not grant or change trading authority.')
+    error_type: Optional[str] = Field(default=None, max_length=80, pattern=r'^[A-Za-z_][A-Za-z0-9_]*$',
+                                      description='Fresh proposal exception class only; never exception text or a guessed root cause.')
+
+
 class QuoteSideActivity(APIModel):
     state: Literal['working', 'blocked', 'pending', 'unavailable', 'idle']
     order_count: Optional[int] = Field(ge=0)
     proposed_count: Optional[int] = Field(ge=0, description='Last controller proposals, not exchange-accepted orders; null when outdated.')
     reason_codes: List[str]
     detail: str
+    diagnosis: Optional[QuoteWaitDiagnosis] = Field(default=None,
+                                                    description='Read-only local evidence for a missing side; null for working, idle, stale or legacy observations. Pending does not prove exchange admission.')
 
 
 class QuoteActivity(APIModel):
