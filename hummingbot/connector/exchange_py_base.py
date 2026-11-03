@@ -469,7 +469,7 @@ class ExchangePyBase(ExchangeBase, ABC):
             raise
         except Exception as ex:
             from hummingbot.core.order_submission_guard import order_failed
-            order_failed(self, order)
+            order_failed(self, order, ex)
             self._on_order_failure(
                 order_id=order_id,
                 trading_pair=trading_pair,

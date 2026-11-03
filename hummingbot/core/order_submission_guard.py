@@ -107,9 +107,12 @@ def completed_rest(context) -> None:
         context[0].transport_finished()
 
 
-def order_failed(connector, order) -> None:
+def order_failed(connector, order, exception=None) -> None:
     if postgres_requested() and _guard is not None:
-        _guard.order_failed(connector, order)
+        if exception is None:
+            _guard.order_failed(connector, order)
+        else:
+            _guard.order_failed(connector, order, exception)
 
 
 def fill_committed(row) -> None:

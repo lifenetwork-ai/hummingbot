@@ -457,9 +457,11 @@ class MarketsRecorder:
             self._add_order_status(session, record, timestamp, record.last_status)
             self.save_market_states(self._config_file_path, market, session)
 
-    def reject_unsent_order(self, market: ConnectorBase, order_id: str) -> None:
+    def reject_unsent_order(self, market: ConnectorBase, order_id: str, *, require_existing: bool = False) -> None:
         with self._sql_manager.get_new_session() as session, session.begin():
             order = session.get(Order, order_id)
+            if order is None and require_existing:
+                raise ValueError("Rejected order has no durable submission intent.")
             if order is not None:
                 if (not order.creation_pending or order.exchange_order_id
                         or order.market != market.display_name or order.config_file_path != self._config_file_path):

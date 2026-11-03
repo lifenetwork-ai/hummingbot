@@ -832,3 +832,69 @@ def test_shutdown_does_not_clear_runtime_marker_on_cancel_ack_without_terminal_s
     owned.owner._refresh_orders.assert_awaited()
     recovery = owned.store.read()["recovery_state"]
     assert recovery["runtime_active"] and recovery["halt"]
+
+
+def test_correlated_expired_submission_is_durably_rejected_without_halt(owned):
+    from hummingbot.connector.okx_order_status import OKXExpiredOrderRejection
+
+    order = intent(owned)
+    rest, _ = assistant()
+    owned.loop.run_until_complete(send(rest))
+    owned.owner.order_failed(owned.market, order, OKXExpiredOrderRejection('order-1'))
+    with owned.manager.get_new_session() as session:
+        assert not session.get(Order, 'order-1').creation_pending
+        assert 'order-1' not in session.query(MarketState).one().saved_state
+    assert not (owned.owner.store.read()['recovery_state'] or {}).get('halt')
+    owned.owner._check_intents(owned.recorder)
+
+
+def test_mismatched_expired_response_remains_unresolved_and_halted(owned):
+    from hummingbot.connector.okx_order_status import OKXExpiredOrderRejection
+
+    order = intent(owned)
+    rest, _ = assistant()
+    owned.loop.run_until_complete(send(rest))
+    owned.owner.order_failed(owned.market, order, OKXExpiredOrderRejection('other'))
+    with owned.manager.get_new_session() as session:
+        assert session.get(Order, 'order-1').creation_pending
+    assert owned.owner.store.read()['recovery_state']['halt']
+
+
+@pytest.mark.parametrize('replace_order', [False, True])
+def test_shutdown_skips_only_exact_object_with_durable_exchange_expiry_proof(owned, replace_order):
+    from hummingbot.connector.okx_order_status import OKXExpiredOrderRejection
+
+    core = reconciliation_core(owned)
+    order = intent(owned)
+    rest, _ = assistant()
+    owned.loop.run_until_complete(send(rest))
+    owned.owner.order_failed(owned.market, order, OKXExpiredOrderRejection('order-1'))
+    order.current_state = OrderState.FAILED
+    if replace_order:
+        core.retained_executor_orders = [order]
+        order = InFlightOrder.from_json(order.to_json())
+        owned.market.in_flight_orders[order.client_order_id] = order
+    owned.owner._refresh_orders = AsyncMock()
+
+    async def shutdown(**kwargs):
+        owned.market.in_flight_orders.clear()
+        await core.after_order_cancellation()
+        return True
+
+    core.shutdown = AsyncMock(side_effect=shutdown)
+    owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
+    assert owned.owner._refresh_orders.await_count == int(replace_order)
+
+
+def test_expired_rejection_with_failed_durable_write_stays_unresolved(owned):
+    from hummingbot.connector.okx_order_status import OKXExpiredOrderRejection
+
+    order = intent(owned)
+    rest, _ = assistant()
+    owned.loop.run_until_complete(send(rest))
+    with patch.object(owned.recorder, 'reject_unsent_order', side_effect=RuntimeError('db unavailable')):
+        owned.owner.order_failed(owned.market, order, OKXExpiredOrderRejection('order-1'))
+    with owned.manager.get_new_session() as session:
+        assert session.get(Order, 'order-1').creation_pending
+    assert 'order-1' in owned.owner.sent_intents
+    assert owned.owner.store.read()['recovery_state']['halt']

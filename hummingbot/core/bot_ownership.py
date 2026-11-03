@@ -52,6 +52,7 @@ class BotOwnership:
         # Proof follows the actual rejected order object, including references
         # captured by shutdown, without retaining retired IDs indefinitely.
         self.unsent_rejections = weakref.WeakValueDictionary()
+        self.expired_rejections = weakref.WeakValueDictionary()
         self.submission_tasks = set()
         self.transport_tasks = {}
         self.account_lock = asyncio.Lock()
@@ -255,7 +256,23 @@ class BotOwnership:
             self.submission_tasks.add(task)
             task.add_done_callback(self.submission_tasks.discard)
 
-    def order_failed(self, connector, order):
+    def order_failed(self, connector, order, exception=None):
+        from hummingbot.connector.okx_order_status import OKXExpiredOrderRejection
+        if (isinstance(exception, OKXExpiredOrderRejection)
+                and exception.client_order_id == order.client_order_id
+                and connector is not None and connector.name in SUPPORTED_CONNECTORS
+                and order.client_order_id in self.sent_intents and not order.exchange_order_id):
+            try:
+                self.check_owner()
+                from hummingbot.connector.markets_recorder import MarketsRecorder
+                recorder = MarketsRecorder._shared_instance
+                recorder.reject_unsent_order(connector, order.client_order_id, require_existing=True)
+                self.expired_rejections[order.client_order_id] = order
+                self.sent_intents.discard(order.client_order_id)
+                self._release_unsent_admission(order.client_order_id)
+            except Exception:
+                self.require_recovery("An exchange-rejected order could not be resolved durably.")
+            return
         if order.client_order_id not in self.sent_intents and not order.exchange_order_id:
             # This hook runs only in this process's create coroutine. Retain
             # positive no-transport evidence even if a later cancel-not-found
@@ -736,7 +753,8 @@ class BotOwnership:
                     # failed, never-transported order cannot exist remotely;
                     # asking OKX for it yields an empty not-found response.
                     # Sent/uncertain failures still require exchange readback.
-                    if (order.is_done and self.unsent_rejections.get(order.client_order_id) is order and not order.exchange_order_id
+                    if (order.is_done and (self.unsent_rejections.get(order.client_order_id) is order
+                                           or self.expired_rejections.get(order.client_order_id) is order) and not order.exchange_order_id
                             and order.client_order_id not in self.sent_intents):
                         continue
                     await self._refresh_orders(connector, [order])

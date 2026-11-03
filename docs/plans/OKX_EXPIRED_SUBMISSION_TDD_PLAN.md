@@ -1,0 +1,25 @@
+# OKX expired submission and recovery: TDD follow-up
+
+Demo image `e9845e3f` stopped during Random rollover on 2026-11-03. OKX
+returned an expiry rejection message while a request reached the step deadline;
+shutdown then received order-not-found, and the unresolved intent blocked startup.
+The service is stopped with HALT and zero open Demo orders. The original response
+payload was not retained, so the exact returned identity fields are unconfirmed.
+An independent read found one pending local intent, OKX 51603 for that client ID,
+and no match in the recent fill page; the latter is not exhaustive history proof.
+
+- [x] Capture the failing run and preserve a private post-test database backup.
+- [x] Red/Green: only an explicit OKX 50036 response correlated to the exact
+  client ID, with no exchange order ID, may prove this request was rejected.
+  Both connectors propagate the typed outcome; ambiguous responses remain blocked.
+- [x] On fenced, durable rejection remove the pending intent and retain bounded,
+  object-specific proof for shutdown; keep HALT on failed persistence or any
+  uncertain outcome. Test mismatches and object replacement with real PostgreSQL.
+- [x] Run native, PostgreSQL and Swagger regressions; record source test scope.
+- [ ] Capture/reproduce the actual OKX response shape in an isolated read-safe or
+  controlled Demo scenario. Do not infer that the real response contained an ID.
+- [ ] Fully reconcile the Demo intent and account against the venue, prepare and
+  obtain explicit operator review of any specific maintenance/HALT recovery.
+  Never use an old database-reconstruction approval for this separate change.
+- [ ] Requalify a new image and rerun the requested load and Demo acceptance;
+  preserve the earlier passing image's load and failed Demo evidence separately.

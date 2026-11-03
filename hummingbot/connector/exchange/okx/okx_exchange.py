@@ -10,7 +10,7 @@ from hummingbot.connector.exchange.okx.okx_api_user_stream_data_source import Ok
 from hummingbot.connector.exchange.okx.okx_auth import OkxAuth
 from hummingbot.connector.exchange_base import s_decimal_NaN
 from hummingbot.connector.exchange_py_base import ExchangePyBase
-from hummingbot.connector.okx_order_status import OKXOrderNotFoundError, order_status_data
+from hummingbot.connector.okx_order_status import OKXOrderNotFoundError, check_order_submission, order_status_data
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.connector.utils import combine_to_hb_trading_pair
 from hummingbot.core.data_type.common import OrderType, TradeType
@@ -215,6 +215,8 @@ class OkxExchange(ExchangePyBase):
         )
         data = exchange_order_id["data"][0]
         if data["sCode"] != "0":
+            if str(data["sCode"]) == "50036":
+                check_order_submission(exchange_order_id, order_id)
             raise IOError(f"Error submitting order {order_id}: {data['sMsg']}")
         return str(data["ordId"]), self.current_timestamp
 
