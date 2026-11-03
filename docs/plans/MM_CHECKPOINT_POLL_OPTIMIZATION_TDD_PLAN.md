@@ -53,7 +53,11 @@ Those source checks do not claim new image/load/Demo acceptance.
   rebuild in the image item below. The superseded6d9f9f01
   image's three passing E2E groups do not qualify the corrected source. The paused
   pipeline intentionally stops at source-freeze before starting R1.
-- [x] Build and hash-verify a current-source amd64 image; run packaged smoke and
+- [x] Red/Green: reject existing ambiguous OKX spot position rows when loading
+  startup holds, before valuation or quoting; preserve all rows and allow scoped
+  reads for unrelated controllers. Targeted real-PostgreSQL tests pass; full
+  native regression and Swagger pass. Requalify the image after this safety fix.
+- [ ] Build and hash-verify a current-source amd64 image; run packaged smoke and
   focused MM checkpoint/stop/restart scenarios before full load.
 - [ ] Run unchanged full R1 (warmup/mixed/burst/60-minute soak/six fault groups),
   independently verify accounting, memory, process and continuity evidence.
@@ -70,8 +74,8 @@ Those source checks do not claim new image/load/Demo acceptance.
 - [ ] Publish evidence, close verified checklist items, clean owned resources and
   commit. Preserve prior failed results and unrelated Docker resources.
 
-Current artifact:5b2aaaa7, source8252d797e,1,156 packaged hashes/smoke and three
-focused E2E groups pass. Full R1 is running under
-build/checkpoint-poll-release-20261103/attempt-2/; actual Demo is queued behind
-R1/R2 to preserve host isolation. Read-only final-image REST/public+private WS
-preflight passes. [Approved recovery proposal](../../reports/demo/checkpoint-poll-recovery-proposal.md).
+Previous artifact 5b2aaaa7, source 8252d797e: packaged hashes, smoke, three
+focused E2E groups and the warmup/mixed/burst windows passed. Its soak was
+deliberately stopped at approximately 32 minutes after a startup ambiguity was
+reproduced; it is not a completed R1. Demo is gated on acceptance of the fixed
+image. [Approved recovery proposal](../../reports/demo/checkpoint-poll-recovery-proposal.md).

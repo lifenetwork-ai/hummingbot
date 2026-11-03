@@ -123,8 +123,9 @@ def test_ambiguous_existing_spot_holds_require_review_before_any_batch_write(own
     pending.connector_name = 'okx'
     with pytest.raises(ValueError, match='[Aa]mbiguous spot'):
         owned.recorder.update_or_store_positions([snapshot('perp', 'BUY', '.0089'), pending])
-    rows = owned.recorder.get_all_positions()
-    assert len(rows) == 2 and {p.id for p in rows} == {'spot-buy', 'spot-sell'}
+    with owned.engine.connect() as connection:
+        ids = set(connection.execute(text('SELECT id FROM positions')).scalars())
+    assert ids == {'spot-buy', 'spot-sell'}
 
 
 def test_opposite_spot_snapshots_in_one_batch_are_rejected(owned):
@@ -133,3 +134,32 @@ def test_opposite_spot_snapshots_in_one_batch_are_rejected(owned):
     with pytest.raises(ValueError, match='[Aa]mbiguous spot'):
         owned.recorder.update_or_store_positions([first, second])
     assert owned.recorder.get_all_positions() == []
+
+
+def test_duplicate_spot_holds_block_loading_before_strategy_starts(owned):
+    from sqlalchemy.orm import Session
+
+    first, second = snapshot('spot-buy', 'BUY', '.00025419'), snapshot('spot-sell', 'SELL', '.00000409')
+    first.connector_name = second.connector_name = 'okx'
+    with Session(owned.engine) as session, session.begin():
+        session.add_all([first, second])
+    # Managed strategy initialization loads this method before quote admission.
+    # A database containing the old side-flip artifact must never be treated as
+    # two valid spot positions or silently repaired during recovery.
+    with pytest.raises(ValueError, match='[Aa]mbiguous spot'):
+        owned.recorder.get_all_positions(controller_ids=['maker'])
+    with owned.engine.connect() as connection:
+        assert set(connection.execute(text('SELECT id FROM positions')).scalars()) == {'spot-buy', 'spot-sell'}
+
+
+def test_duplicate_spot_in_another_controller_does_not_poison_a_filtered_read(owned):
+    from sqlalchemy.orm import Session
+
+    first, second = snapshot('spot-buy', 'BUY', '.00025419'), snapshot('spot-sell', 'SELL', '.00000409')
+    first.connector_name = second.connector_name = 'okx'
+    separate = snapshot('other', 'BUY', '.0089')
+    separate.controller_id = 'other-controller'
+    with Session(owned.engine) as session, session.begin():
+        session.add_all([first, second, separate])
+    rows = owned.recorder.get_all_positions(controller_ids=['other-controller'])
+    assert len(rows) == 1 and rows[0].id == 'other'

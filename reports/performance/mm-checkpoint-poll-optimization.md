@@ -139,3 +139,19 @@ reset is added. Reverse flips, zero net, repeated writes and restored signed
 exposure pass; full source checks repeat successfully: native2,357 +11 subtests,
 PostgreSQL312. Old image6d9f9f01 passes three E2E groups but is intentionally
 superseded before R1 starts, so it cannot qualify the corrective source's load.
+
+## Startup protection for ambiguous existing spot rows
+
+The writer's rejection alone cannot protect a restart if an older database
+already contains both spot directions: the orchestrator can load both rows
+before any subsequent checkpoint write. A native diagnostic reproduced two
+restored holds with valuation reported ready. A real-PostgreSQL regression
+first failed because the read admitted these rows; it now rejects the ambiguous
+controller/connector/pair before returning startup positions. A filtered read
+for a different controller remains available. No rows are modified or removed,
+and perpetual hedge sides remain separate. The deleted Demo volume cannot be
+inspected to establish whether it actually contained this condition.
+
+The 5b2aaaa7 image passed packaged E2E and R1 warmup, mixed and burst windows;
+its soak was intentionally interrupted around minute 32 to requalify the startup
+fix. These partial results are not a completed load gate.

@@ -355,7 +355,15 @@ class MarketsRecorder:
             query = session.query(Position)
             if controller_ids is not None:
                 query = query.filter(Position.controller_id.in_(controller_ids))
-            return query.all()
+            positions = query.all()
+            spot_scopes = set()
+            for position in positions:
+                if position.connector_name == 'okx':
+                    scope = (position.controller_id, position.connector_name, position.trading_pair)
+                    if scope in spot_scopes:
+                        raise ValueError('Ambiguous spot position history requires reconciliation')
+                    spot_scopes.add(scope)
+            return positions
 
     def has_uncovered_positions(self, controller_ids: List[str]) -> bool:
         """One startup coverage check; retained foreign exposure must not vanish."""
