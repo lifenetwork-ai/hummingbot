@@ -21,5 +21,7 @@ and no match in the recent fill page; the latter is not exhaustive history proof
 - [ ] Fully reconcile the Demo intent and account against the venue, prepare and
   obtain explicit operator review of any specific maintenance/HALT recovery.
   Never use an old database-reconstruction approval for this separate change.
-- [ ] Requalify a new image and rerun the requested load and Demo acceptance;
-  preserve the earlier passing image's load and failed Demo evidence separately.
+- [x] Requalify a new image offline and run full R1, an isolated repeat of the
+  affected warmup/mixed and a clean independent R2; document overlapping dry runs.
+- [ ] Complete real Demo acceptance after reviewed recovery; preserve the earlier
+  passing image's load and failed Demo evidence separately.

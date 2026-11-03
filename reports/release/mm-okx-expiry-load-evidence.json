@@ -1,0 +1,630 @@
+{
+  "published_at": "2026-11-03T08:37:10.720259+00:00",
+  "scope": "Current-source local offline full R1 plus matched shipping R2; actual Demo reported separately.",
+  "image": {
+    "image_id": "sha256:7dca3ce9feddc4c5c9a15aa3b2d52bdd73469eeecb901eef6c9f939b9a16c900",
+    "tag": "hummingbot-cloudrun:checkpoint-poll",
+    "architecture": "amd64",
+    "image_bytes": 1378105587,
+    "source_commit": "5c31730ce23d121723b9f960ae19c5d632cb649c",
+    "base_image_id": "sha256:c7bf1796c1da6d3e592e9f6df072dd678249c57d18419de410ba35e3a110a955",
+    "base_source_commit": "53d1dc7a18059f37b3acf21ed2a81b6f501a754c",
+    "compiled_inputs_unchanged": true,
+    "verified_source_files": 1156,
+    "scope": "Corrected runtime overlay verified against source. Offline tests passed; Demo acceptance remains open."
+  },
+  "manifest": "sha256:8412464364c3ca5995d19c65e793f45d4eea6aa516ab2c985a831830afb57713",
+  "r1": {
+    "run": "build/mm-load/20261103-131604-b652be",
+    "passed": true,
+    "image_id": "sha256:7dca3ce9feddc4c5c9a15aa3b2d52bdd73469eeecb901eef6c9f939b9a16c900",
+    "raw_result_sha256": "b372c31384fe7b7247c79d3bd0a0a5ad8dacfccd946218c48d32a63d21a8f03d",
+    "raw_diagnostic_flag": false,
+    "raw_release_scope_complete": true,
+    "windows": {
+      "warmup": {
+        "duration_seconds": 300,
+        "read_p95_ms": 52.50059399622842,
+        "read_p99_ms": 90.43364899844164,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 714424320,
+        "memory_retention": null,
+        "profile_running_coverage": null,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 76,
+          "LIFE-USDT-SWAP:buy": 75,
+          "LIFE-USDT:sell": 75,
+          "LIFE-USDT-SWAP:sell": 74
+        }
+      },
+      "mixed": {
+        "duration_seconds": 900,
+        "read_p95_ms": 55.826654002885334,
+        "read_p99_ms": 95.3199389987276,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 733122560,
+        "memory_retention": null,
+        "profile_running_coverage": null,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 225,
+          "LIFE-USDT-SWAP:buy": 227,
+          "LIFE-USDT:sell": 222,
+          "LIFE-USDT-SWAP:sell": 226
+        }
+      },
+      "bursts": {
+        "duration_seconds": 90,
+        "read_p95_ms": 57.209975999285234,
+        "read_p99_ms": 90.04501299932599,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1290,
+          "unique_recorder_fills": 1290,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 753123328,
+        "memory_retention": null,
+        "profile_running_coverage": null,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 23,
+          "LIFE-USDT-SWAP:buy": 23,
+          "LIFE-USDT:sell": 23,
+          "LIFE-USDT-SWAP:sell": 21
+        }
+      },
+      "soak": {
+        "duration_seconds": 3600,
+        "read_p95_ms": 58.747440998558886,
+        "read_p99_ms": 110.87907899855054,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 4886,
+          "unique_recorder_fills": 4886,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 756023296,
+        "memory_retention": {
+          "basis": "cgroup_current_minus_file_plus_shmem",
+          "early_median_bytes": 728227840,
+          "late_median_bytes": 742789120,
+          "growth_bytes": 14561280,
+          "budget_bytes": 67108864,
+          "raw_cgroup_growth_bytes": 20803584
+        },
+        "profile_running_coverage": [
+          {
+            "profile": "follow_token",
+            "step": 0,
+            "running_overlap_seconds": 599.1661326885223
+          },
+          {
+            "profile": "follow_token",
+            "step": 1,
+            "running_overlap_seconds": 593.8907580375671
+          },
+          {
+            "profile": "follow_token",
+            "step": 2,
+            "running_overlap_seconds": 595.7241399288177
+          },
+          {
+            "profile": "sideways",
+            "step": 3,
+            "running_overlap_seconds": 595.7674169540405
+          },
+          {
+            "profile": "follow_token",
+            "step": 4,
+            "running_overlap_seconds": 596.0854020118713
+          },
+          {
+            "profile": "follow_market",
+            "step": 5,
+            "running_overlap_seconds": 594.0478720664978
+          }
+        ],
+        "fill_counts_by_market_side": {
+          "LIFE-USDT-SWAP:buy": 888,
+          "LIFE-USDT:sell": 900,
+          "LIFE-USDT-SWAP:sell": 894,
+          "LIFE-USDT:buy": 914
+        }
+      }
+    },
+    "healthy_supervision": {
+      "scope": "First healthy window start through final declared end, including inter-window gaps; excludes setup/final drain/deliberate faults. Reported recovery interval is not quote downtime.",
+      "low_utc": 1793686612.342884,
+      "high_utc": 1793691526.0057113,
+      "counts": {
+        "child_probe_failed:engine": 13,
+        "child_probe_recovered:engine": 13
+      },
+      "recovered_episodes": [
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T06:17:55.964Z",
+          "reported_failure_seconds": 1.011
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T06:37:01.931Z",
+          "reported_failure_seconds": 1.013
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T06:37:50.948Z",
+          "reported_failure_seconds": 1.046
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T06:47:40.154Z",
+          "reported_failure_seconds": 1.129
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T06:49:56.406Z",
+          "reported_failure_seconds": 1.019
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T06:52:03.928Z",
+          "reported_failure_seconds": 1.051
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T06:53:07.572Z",
+          "reported_failure_seconds": 1.008
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T07:07:22.315Z",
+          "reported_failure_seconds": 1.05
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T07:09:55.571Z",
+          "reported_failure_seconds": 1.029
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T07:17:41.634Z",
+          "reported_failure_seconds": 1.061
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T07:22:02.243Z",
+          "reported_failure_seconds": 1.008
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T07:33:07.576Z",
+          "reported_failure_seconds": 1.044
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T07:37:23.347Z",
+          "reported_failure_seconds": 1.078
+        }
+      ]
+    },
+    "faults": {
+      "feed": {
+        "classification": "injected_fault_excluded_from_healthy_latency",
+        "duration_seconds": 45,
+        "unexpected_errors": 0,
+        "statuses": {
+          "200": 900
+        },
+        "control_results": {},
+        "defense": null
+      },
+      "volatility-defense": {
+        "classification": "injected_fault_excluded_from_healthy_latency",
+        "duration_seconds": 90,
+        "unexpected_errors": 0,
+        "statuses": {
+          "200": 1800
+        },
+        "control_results": {},
+        "defense": {
+          "stimulus_to_terminal_cancel_ms": {
+            "LIFE-USDT": 3375.93896484375,
+            "LIFE-USDT-SWAP": 3422.93896484375
+          },
+          "latency_scope": "Conservative upper bound: input precedes controller restriction; first terminal proof, not duplicate acknowledgment time",
+          "working_at_joint_pause": {
+            "LIFE-USDT": 0,
+            "LIFE-USDT-SWAP": 6
+          },
+          "joint_pause_to_terminal_cancel_ms": {
+            "LIFE-USDT": null,
+            "LIFE-USDT-SWAP": 40.0
+          },
+          "reduced_allocation_verified": true,
+          "pause_checkpoint_count": 2,
+          "no_submissions_during_stale_pause": true,
+          "positions_preserved": true,
+          "recovery_seconds": 12.769689749926329
+        }
+      },
+      "owner-restart": {
+        "classification": "injected_fault_excluded_from_healthy_latency",
+        "duration_seconds": 45,
+        "unexpected_errors": 251,
+        "statuses": {
+          "200": 672,
+          "503": 23
+        },
+        "control_results": {},
+        "defense": null
+      },
+      "queued-expiry": {
+        "classification": "injected_fault_excluded_from_healthy_latency",
+        "duration_seconds": 75,
+        "unexpected_errors": 0,
+        "statuses": {
+          "200": 1500
+        },
+        "control_results": {},
+        "defense": null
+      },
+      "database-delay": {
+        "classification": "injected_fault_excluded_from_healthy_latency",
+        "duration_seconds": 45,
+        "unexpected_errors": 268,
+        "statuses": {
+          "200": 657,
+          "503": 29
+        },
+        "control_results": {},
+        "defense": null
+      },
+      "database-failure": {
+        "classification": "injected_fault_excluded_from_healthy_latency",
+        "duration_seconds": 45,
+        "unexpected_errors": 229,
+        "statuses": {
+          "200": 692,
+          "503": 32
+        },
+        "control_results": {},
+        "defense": null
+      }
+    },
+    "soak_observation": {
+      "samples": 58,
+      "max_gap_seconds": 65.54281687736511,
+      "memory_retention": {
+        "basis": "cgroup_current_minus_file_plus_shmem",
+        "early_median_bytes": 728227840,
+        "late_median_bytes": 742789120,
+        "growth_bytes": 14561280,
+        "budget_bytes": 67108864,
+        "raw_cgroup_growth_bytes": 20803584
+      },
+      "process_pids": {
+        "supervisor": [
+          1
+        ],
+        "engine": [
+          30
+        ],
+        "api": [
+          31
+        ]
+      },
+      "role_growth": {
+        "supervisor": {
+          "VmRSS": 0,
+          "Threads": 0,
+          "fds": 0
+        },
+        "engine": {
+          "VmRSS": 8945664,
+          "Threads": 1,
+          "fds": 1
+        },
+        "api": {
+          "VmRSS": 5971968,
+          "Threads": 0,
+          "fds": 1
+        }
+      }
+    },
+    "observability": {
+      "engine": {
+        "trace": {
+          "written_records": 2003,
+          "written_bytes": 5526474,
+          "ordinary_written_bytes": 5401681,
+          "reserved_written_bytes": 124793,
+          "dropped_records": 0,
+          "writer_cpu_ms": 172.902311,
+          "dropped_by_kind": {},
+          "queue_depth": 0,
+          "max_bytes": 33554432,
+          "reserved_bytes": 8388608,
+          "reserved_kinds": [
+            "gc",
+            "loop_stall",
+            "loop_stall_trigger",
+            "probe_failure",
+            "probe_recovered"
+          ],
+          "writer_alive": true,
+          "dropped_spans": 173877,
+          "slow_trace_threshold_ms": 100,
+          "gc_trace": {
+            "pending_events": 0,
+            "max_events": 128,
+            "dropped_events": 0
+          }
+        },
+        "incident_capture": {
+          "incidents": 24,
+          "evicted_records": 18987,
+          "oversize_records": 0,
+          "suppressed_incidents": 0,
+          "buffered_records": 40,
+          "buffered_bytes": 116739,
+          "max_records": 256,
+          "max_bytes": 524288,
+          "history_seconds": 10.0,
+          "tail_seconds": 10.0,
+          "max_incidents": 128
+        },
+        "metrics_export_skipped": 0
+      },
+      "api": {
+        "trace": {
+          "written_records": 1128,
+          "written_bytes": 3863661,
+          "ordinary_written_bytes": 3855680,
+          "reserved_written_bytes": 7981,
+          "dropped_records": 0,
+          "writer_cpu_ms": 114.74883399999995,
+          "dropped_by_kind": {},
+          "queue_depth": 0,
+          "max_bytes": 33554432,
+          "reserved_bytes": 8388608,
+          "reserved_kinds": [
+            "gc",
+            "loop_stall",
+            "loop_stall_trigger",
+            "probe_failure",
+            "probe_recovered"
+          ],
+          "writer_alive": true,
+          "dropped_spans": 14868,
+          "slow_trace_threshold_ms": 100,
+          "gc_trace": {
+            "pending_events": 0,
+            "max_events": 128,
+            "dropped_events": 0
+          }
+        },
+        "incident_capture": {
+          "incidents": 13,
+          "evicted_records": 19578,
+          "oversize_records": 0,
+          "suppressed_incidents": 0,
+          "buffered_records": 39,
+          "buffered_bytes": 142485,
+          "max_records": 256,
+          "max_bytes": 524288,
+          "history_seconds": 10.0,
+          "tail_seconds": 10.0,
+          "max_incidents": 128
+        },
+        "metrics_export_skipped": 0
+      }
+    }
+  },
+  "r2": {
+    "run": "build/service-supervision/production-control-20261103-151418-17fc80",
+    "passed": true,
+    "image_id": "sha256:7dca3ce9feddc4c5c9a15aa3b2d52bdd73469eeecb901eef6c9f939b9a16c900",
+    "raw_result_sha256": "44a4544ebfa79ef3f2f711c10b2872c6f399e30d9e15a281b1323ee751f0a4ba",
+    "raw_diagnostic_flag": true,
+    "raw_release_scope_complete": false,
+    "windows": {
+      "warmup": {
+        "duration_seconds": 300,
+        "read_p95_ms": 51.418630999251036,
+        "read_p99_ms": 79.94521399814403,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 709447680,
+        "memory_retention": null,
+        "profile_running_coverage": null,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 76,
+          "LIFE-USDT-SWAP:buy": 74,
+          "LIFE-USDT:sell": 75,
+          "LIFE-USDT-SWAP:sell": 75
+        }
+      },
+      "mixed": {
+        "duration_seconds": 900,
+        "read_p95_ms": 53.639277000911534,
+        "read_p99_ms": 75.30144400152494,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 717828096,
+        "memory_retention": null,
+        "profile_running_coverage": null,
+        "fill_counts_by_market_side": {
+          "LIFE-USDT:buy": 228,
+          "LIFE-USDT-SWAP:buy": 223,
+          "LIFE-USDT:sell": 224,
+          "LIFE-USDT-SWAP:sell": 225
+        }
+      }
+    },
+    "healthy_supervision": {
+      "scope": "First healthy window start through final declared end, including inter-window gaps; excludes setup/final drain/deliberate faults. Reported recovery interval is not quote downtime.",
+      "low_utc": 1793693707.868512,
+      "high_utc": 1793694912.8300152,
+      "counts": {
+        "child_probe_failed:engine": 3,
+        "child_probe_recovered:engine": 3
+      },
+      "recovered_episodes": [
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T08:16:15.057Z",
+          "reported_failure_seconds": 1.023
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T08:19:26.185Z",
+          "reported_failure_seconds": 1.044
+        },
+        {
+          "role": "engine",
+          "at_utc": "2026-11-03T08:23:41.126Z",
+          "reported_failure_seconds": 1.022
+        }
+      ]
+    },
+    "baseline_acceptance_eligible": true,
+    "observability": {}
+  },
+  "source_freeze": {
+    "files": 1223,
+    "unchanged": true,
+    "measurement_commit": "5c31730ce23d121723b9f960ae19c5d632cb649c",
+    "sha256": "fc5ef6441779064fa90a0388c24989e75ddf4c1962e0a770f5e2a38f4a826747"
+  },
+  "shared_fixture_count": 17,
+  "e2e": {
+    "e2e-v2-spot": {
+      "run": "build/e2e-offline/20261103-130836-a29a7e",
+      "exit_code": 0,
+      "passed": true,
+      "release_scope_complete": false,
+      "error": null
+    },
+    "e2e-v2-perpetual": {
+      "run": "build/e2e-offline/20261103-130957-00dd95",
+      "exit_code": 0,
+      "passed": true,
+      "release_scope_complete": false,
+      "error": null
+    },
+    "e2e-life-mm": {
+      "run": "build/e2e-offline/20261103-131119-23d5a9",
+      "exit_code": 0,
+      "passed": true,
+      "release_scope_complete": false,
+      "error": null
+    }
+  },
+  "commands": {
+    "r1_command": [
+      "/opt/homebrew/Caskroom/miniforge/base/envs/hummingbot/bin/python",
+      "scripts/test_mm_load.py",
+      "--image",
+      "127.0.0.1:60175/hummingbot@sha256:8412464364c3ca5995d19c65e793f45d4eea6aa516ab2c985a831830afb57713",
+      "--profile",
+      "all",
+      "--enhancements",
+      "--volatility-defense",
+      "--operations",
+      "--gc-diagnostics",
+      "--market-diagnostics",
+      "--incident-diagnostics",
+      "--incident-max-captures",
+      "128",
+      "--cpus",
+      "2",
+      "--daily-cache-ttl-seconds",
+      "15"
+    ],
+    "r2_command": [
+      "/opt/homebrew/Caskroom/miniforge/base/envs/hummingbot/bin/python",
+      "scripts/test_mm_production_control.py",
+      "--baseline",
+      "/Users/deeznuts/hummingbot/build/mm-load/20261103-131604-b652be"
+    ]
+  },
+  "limits": [
+    "Local one-hour evidence cannot guarantee uninterrupted quotes or unlimited-duration memory stability.",
+    "Recovered probes are not exact quote downtime; report their counts and intervals without asserting a unique cause.",
+    "Prior6d9 image was deliberately superseded before R1 after the spot net reversal bug was found.",
+    "No live account or Cloud Run deployment.",
+    "Full R1 warmup overlapped a short dry-run clone; separately repeated warmup/mixed without that job. The initially interrupted R2 is not acceptance."
+  ],
+  "contamination": "A disposable PostgreSQL clone overlapped the first R1 warmup and the initial interrupted R2 warmup; subsequent isolated warmup/mixed and clean R2 results are recorded separately.",
+  "isolated_warmup_mixed": {
+    "run": "build/mm-load/20261103-145309-55e50f",
+    "passed": true,
+    "shared_fixture_count": 17,
+    "windows": {
+      "warmup": {
+        "duration_seconds": 300,
+        "read_p95_ms": 51.47932399995625,
+        "read_p99_ms": 95.49781999885454,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        }
+      },
+      "mixed": {
+        "duration_seconds": 900,
+        "read_p95_ms": 56.534610001108376,
+        "read_p99_ms": 119.84139799824334,
+        "unexpected_errors": 0,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        }
+      }
+    }
+  }
+}
