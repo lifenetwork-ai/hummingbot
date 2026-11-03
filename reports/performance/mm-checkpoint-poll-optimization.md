@@ -44,3 +44,36 @@ also completes while a separate transaction holds that row, under a 150ms lock
 deadline. Candidate-completed and owner-changed races return no claim; current
 owners can still reclaim applying work. This removes idle lock contention rather
 than promising a particular HTTP/probe latency reduction.
+
+## Funding history discovery
+
+The previous GROUP BY/MIN query revisited every perpetual order each poll.
+The replacement performs index-boundary seeks: select the first symbol/earliest
+timestamp, then select the first row strictly past that symbol, until exhausted.
+It reuses idx_orders_market_symbol_creation_timestamp, in one fresh SQL
+statement. There is no pair allowlist, time cutoff, cache, migration or new index.
+Historical pairs outside YAML and newly imported older timestamps remain visible.
+
+[EXPLAIN evidence](mm-checkpoint-poll-evidence.json) records PostgreSQL14.15,
+native arm64, 2 CPUs/512MiB, the full migrated schema and one million generated
+orders (800,000 perpetual, four perpetual pairs). After VACUUM ANALYZE, five
+sequential EXPLAIN ANALYZE/BUFFERS samples per query give:
+
+| Query | Execution median | Range | Last-plan leaf row visits | Shared hit/read blocks |
+| --- | --- | --- | --- | --- |
+| Previous aggregate | 170.867ms | 132.307–373.513ms | 800,001 | 6,229 / 16,010 |
+| Index-boundary discovery | 0.115ms | 0.105–0.166ms | 9 | 19 / 0 |
+
+Both queries return exactly the same four symbol/minimum-timestamp rows. The
+measured candidate matches the production SQL after whitespace normalization.
+These are server execution measurements, with the candidate measured after the
+legacy samples, not randomized cold-cache or end-to-end engine/API comparisons.
+Only fixture loading/VACUUM use extended test IO budgets; no runtime limit changes.
+
+The row-visit regression fails Red at 4,000 visits on a 5,000-order fixture;
+Green requires fewer than100 (not a timing-sensitive threshold). Empty/spot-only,
+unconfigured-pair and late-import tests also pass. Relevant checks: 14 PostgreSQL
+funding cases and 24 native funding-observer/sync cases. Each discovery still
+costs one SQL round trip; its work now tracks pair count and index access rather
+than every historical order. Full raw setup/plans remain under
+build/checkpoint-poll-optimization-20261103/; the disposable database is removed.

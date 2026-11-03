@@ -32,13 +32,26 @@ class FundingBillStore:
             return (state or {}).get("funding_sync", {})
 
     def scope(self):
-        """One bounded aggregate, independent of number of configured pairs."""
-        from sqlalchemy import func
+        """Discover each historical pair with an existing-index boundary seek.
 
-        from hummingbot.model.order import Order
+        (market, symbol, creation_timestamp) orders each pair's earliest order
+        first. Advancing strictly past the preceding symbol avoids rescanning
+        all orders on every poll, while still seeing unconfigured pairs and
+        newly imported earlier history in one fresh SQL statement/snapshot.
+        """
         with self.engine.connect() as c:
-            rows = c.execute(select(Order.symbol, func.min(Order.creation_timestamp)).where(
-                Order.market == "okx_perpetual").group_by(Order.symbol)).all()
+            rows = c.execute(text("""
+                WITH RECURSIVE scope AS (
+                    (SELECT symbol, creation_timestamp FROM orders WHERE market='okx_perpetual'
+                     ORDER BY symbol, creation_timestamp LIMIT 1)
+                    UNION ALL
+                    SELECT next_pair.* FROM scope CROSS JOIN LATERAL (
+                        SELECT symbol, creation_timestamp FROM orders
+                        WHERE market='okx_perpetual' AND symbol > scope.symbol
+                        ORDER BY symbol, creation_timestamp LIMIT 1
+                    ) next_pair
+                ) SELECT symbol, creation_timestamp FROM scope
+            """)).all()
         return {row[0] for row in rows}, min((row[1] for row in rows), default=None)
 
     def commit(self, owner_uuid, generation, bills, checkpoint):

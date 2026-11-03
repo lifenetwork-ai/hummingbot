@@ -26,11 +26,11 @@ cache, new service or Redis dependency.
 
 ## P3 — Funding discovery measurement
 
-- [ ] Measure the existing history aggregate with EXPLAIN ANALYZE on a disposable
+- [x] Measure the existing history aggregate with EXPLAIN ANALYZE on a disposable
   large PostgreSQL dataset; preserve raw evidence under build/.
-- [ ] Change the query only if measured cost warrants it; preserve historical
+- [x] Change the query only if measured cost warrants it; preserve historical
   pair discovery and earliest timestamps, including newly imported old orders.
-- [ ] Run relevant regressions, document limitations and commit results.
+- [x] Run relevant regressions, document limitations and commit results.
 
 ## Completion
 
