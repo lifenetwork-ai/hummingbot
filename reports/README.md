@@ -4,27 +4,37 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Expiry-fix offline load](release/mm-okx-expiry-load.md) and
+  [evidence](release/mm-okx-expiry-load-evidence.json): image `7dca3ce9`
+  passed the full local R1, isolated repeat warmup/mixed and clean R2. The
+  original R1 warmup overlapped a short clone dry run; see the report for scope,
+  recovered probes and the separately repeated windows.
+- [Demo expiry incident](demo/okx-expired-submission-investigation.md) and
+  [review proposal](demo/okx-expiry-incident-recovery-proposal.md): the prior
+  image failed at Random rollover. Demo is stopped with HALT and one unresolved
+  intent; no exchange orders are pending. No maintenance has been applied.
+
 - [Checkpoint and background-poll source optimization](performance/mm-checkpoint-poll-optimization.md),
   [SQL evidence](performance/mm-checkpoint-poll-evidence.json), 2026-11-03:
   atomic position batches, no idle reconciliation control-row lock, funding
-  discovery with existing-index seeks. Native2,357 plus11 subtests, PG307 and
-  Swagger pass. This source follow-up has no new image/load/Demo acceptance;
-  prior660 measurements below remain scoped to the preceding image.
+  discovery with existing-index seeks. Source and later image/load results are
+  detailed in the linked reports above; prior660 measurements remain scoped to
+  the preceding image.
 
-- [Current-image full load and Demo](release/mm-quote-recovery-release.md),
+- [Earlier image full load and Demo](release/mm-quote-recovery-release.md),
   [load evidence](release/mm-quote-recovery-release-evidence.json), 2026-11-03:
   image660bd38b passes full R1 plus matched shipping R2. Soak p99103ms,
   +14.18MiB retained,4,885 synthetic fills/fees/positions matched and all six
   faults; shipping mixed p9964ms. First burst failure remains retained;
   recovered probes R1 25engine/3API and R2 oneengine remain explicit.
 
-- [Current-image connected Demo](demo/okx-demo-quote-recovery.md),
+- [Earlier connected Demo](demo/okx-demo-quote-recovery.md),
   [natural-fill evidence](demo/okx-demo-quote-recovery-natural-fill-evidence.json):
   nine fixed cases,600s Random rollover and active spot/both restart pass.
   The first phase has407 canceled orders/zero new fills; a later bounded preset
   verifies five natural maker fills (one spot/four perpetual), exact fees,
   filled restart and11 unique retained rows. Current catalogue200/400 restored;
-  canonical service running with trading stopped, no pending orders/HALT.
+  at the time. Current Demo state is the halted incident described above.
 
 - [Quote replacement after terminal confirmation](investigations/mm-quote-recovery.md),
   [evidence](investigations/mm-quote-recovery-evidence.json), 2026-11-02:

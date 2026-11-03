@@ -1,8 +1,11 @@
 # Release verification
 
-[All reports](../README.md) · [Latest local load gates](mm-quote-recovery-release.md)
+[All reports](../README.md) · [Latest local load gates](mm-okx-expiry-load.md)
 
-The [quote-recovery release](mm-quote-recovery-release.md) qualifies660bd38b
+The [expiry-fix load report](mm-okx-expiry-load.md) covers image `7dca3ce9`,
+including the interrupted/overlapping controls and clean repeat measurements.
+Its connected Demo acceptance remains open. The earlier
+[quote-recovery release](mm-quote-recovery-release.md) qualifies660bd38b
 with full R1 and matched R2; its connected Demo follow-up includes five natural
 maker fills, exact fees and filled restart. First failed burst and recovered
 probe episodes remain explicit. No live account or Cloud Run deployment.
@@ -12,6 +15,8 @@ original failures and scope; they are not additional open release gates.
 
 | Report | Evidence and scope |
 | --- | --- |
+| [Expiry-fix offline load](mm-okx-expiry-load.md), [evidence](mm-okx-expiry-load-evidence.json) | Image `7dca3ce9`: full R1, separately repeated warmup/mixed and clean R2; the original warmup overlapped a clone dry run. Demo remains open. |
+| [Checkpoint-poll offline load](mm-checkpoint-poll-load.md), [evidence](mm-checkpoint-poll-load-evidence.json) | Earlier image `e9845e3f`: full R1/R2 passed; its Demo failed at Random rollover. |
 | [Quote-recovery release](mm-quote-recovery-release.md), [evidence](mm-quote-recovery-release-evidence.json) | Image660bd38b full R1/R2 pass: soak p99103ms, +14.18MiB retained,4,885 synthetic fills, six faults, shipping mixed64ms. Actual Demo five new maker fills/fees and filled restart pass separately. First failure/residual probes retained; canonical trading stopped. |
 | [Runtime logic load rerun](mm-runtime-logic-release.md), [evidence](mm-runtime-logic-release-evidence.json) | Image95cde31c full R1/R2 pass: soak p99 465ms, retention +12.69MiB, 4,885 matched fills/positions, all three Random profiles and six faults; shipping mixed p99 65ms. Probe recoveries R1 38 engine/two API, R2 two engine; no new connected Demo. |
 | [Status-publication release](../investigations/mm-engine-status-publication.md), [evidence](../investigations/mm-engine-status-publication-evidence.json) | Image e2d393b1: source regressions/three E2E groups, full R1 and matched shipping R2 pass; soak p99 113ms, retention +13.18MiB and4,886 matched fills/positions. Residual probes15/6 recover without restart; causal limits remain. No new connected Demo upgrade. |

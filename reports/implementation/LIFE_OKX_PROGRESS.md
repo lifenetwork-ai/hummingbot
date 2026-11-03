@@ -5,17 +5,27 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-03
 
+- **Latest offline image:** `7dca3ce9` includes the expired-submission fix;
+  native, PG319, Swagger and packaged E2E pass. Full R1, a separately repeated
+  warmup/mixed, and clean R2 pass. R1's original warmup and an interrupted R2
+  overlapped brief disposable-DB dry runs; the report preserves that scope,
+  probe recoveries and clean repeat measurements. [Load report](../release/mm-okx-expiry-load.md).
+- **Demo remains blocked:** prior image `e9845e3f` encountered an expired order
+  at Random rollover and retained a pending intent/HALT. Demo bot is stopped;
+  no open exchange orders were found. [Incident](../demo/okx-expired-submission-investigation.md)
+  and [review proposal](../demo/okx-expiry-incident-recovery-proposal.md).
+  Original response identity fields and post-fix connected Demo acceptance
+  remain unverified; no maintenance has been applied.
+
 - **Checkpoint/background-poll source optimization complete:** 9814756d1 batches
   terminal position snapshots in one fenced transaction; a37240127 avoids
   bot_state locks on empty reconciliation polls while preserving locked owner/
   receipt revalidation; bdf7ce0a5 uses the existing order index for fresh funding
   pair discovery. On one million fixture orders, query execution median is
   170.867→0.115ms with exact results (query-only, not API/trading latency).
-  Final native2,357 plus11 subtests, PostgreSQL307 and Swagger pass. No new
-  cache/env/schema/service. Recorder IO remains synchronous. No new image/load/
-  Demo acceptance or probe root-cause closure; prior660 evidence below is historical
-  for the preceding source. Observed prior bot images/containers are absent;
-  owned disposable PG resources are cleaned, private Demo data untouched.
+  Final native2,357 plus11 subtests, PostgreSQL307 and Swagger passed at that
+  checkpoint. No new cache/env/schema/service. Recorder IO remains synchronous;
+  later image/load and Demo results are scoped above. Probe root cause remains open.
   [Plan](../../docs/plans/MM_CHECKPOINT_POLL_OPTIMIZATION_TDD_PLAN.md),
   [report/evidence](../performance/mm-checkpoint-poll-optimization.md).
 
