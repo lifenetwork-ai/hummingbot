@@ -1,0 +1,86 @@
+{
+  "published_at": "2026-11-03T16:11:55.535678+00:00",
+  "base_commit": "e986507ab",
+  "scope": "Additional component/PostgreSQL regression tests; no production change or new image/load/Demo acceptance",
+  "new_cases": {
+    "native": 26,
+    "postgres": 10,
+    "total": 36
+  },
+  "verification": {
+    "native_related": {
+      "passed": 541,
+      "subtests_passed": 2,
+      "warnings": 8
+    },
+    "postgres_full": {
+      "passed": 329,
+      "warnings": 36
+    },
+    "postgres_focused": {
+      "passed": 10,
+      "warnings": 6,
+      "overlap_with_full": 8,
+      "additional_after_full_collection": 2
+    },
+    "postgres_distinct_cases_across_runs": 331,
+    "style_passed": true
+  },
+  "mutants": {
+    "automatic_readmission": {
+      "exit_code": 1,
+      "tests": 26,
+      "failures": 26,
+      "errors": 0
+    },
+    "close_instead_of_hold": {
+      "exit_code": 1,
+      "tests": 26,
+      "failures": 26,
+      "errors": 0
+    },
+    "wait_for_report_to_cancel": {
+      "exit_code": 1,
+      "tests": 26,
+      "failures": 26,
+      "errors": 0
+    },
+    "skip_final_joint_check": {
+      "exit_code": 1,
+      "tests": 8,
+      "failures": 8,
+      "errors": 0
+    },
+    "block_cancel_during_restriction": {
+      "exit_code": 1,
+      "tests": 8,
+      "failures": 8,
+      "errors": 0
+    }
+  },
+  "expected_mutation_failures": 94,
+  "production_changed": [],
+  "source_sha256": {
+    "test/hummingbot/strategy_v2/controllers/test_inventory_cap_lifecycle.py": "ea3211b13def02a7eba2441de58c1de40d0692e0b81b5011f37fa900de42244a",
+    "test/hummingbot/strategy_v2/controllers/test_quote_withdrawal_lifecycle.py": "7810cf8168d1b9214769e81516868ada538e70f932cafab29aca08c6aae5b2df",
+    "test/integration/postgres/test_mm_joint_send_readiness.py": "fef04cf1ca5e60958ec274714e437544d08951deeeba08f996d7a9baf451ff0a"
+  },
+  "raw_directory": "build/mm-coverage-followup-20261103",
+  "raw_sha256": {
+    "native-lifecycle-green.log": "369f672bfbb34f0b60190fed917bd56a217c1de678999052678d6d9575a8ac60",
+    "native-final.log": "d943d936a2aa21e3e4c6499ad71369ce5295c3e9a4359cd631a6bbaceb7f0ddd",
+    "postgres-regression.log": "3b0dabb623cd8c6c475b01729420b5687b241625bbd18e75d55afd2e5db7e827",
+    "pg-positive.log": "77acbf47b9fc49576925e638503e7dcb60c298b0d7787f886c09e875371dd758",
+    "style-final.log": "360c0680ffeedd2aacf06436710a7f51de37e1ca622b4794c532fd6d2b37fbda",
+    "native-mutation-summary.json": "9b36a0eb4d7ecf72d32c1c0fde2ef6dd01c76016020de21cf495f484720e611b",
+    "pg-mutation-summary.json": "d56daff60b2e997e992426777ed45b00b51d90934ebf7aae911a23fa3d11641f",
+    "coverage_mutations.py": "eebdc9c517a8970ada50fcae16b64a5426b38febf0c539223050b673e279bc40"
+  },
+  "limitations": [
+    "Native recorder persistence, account observations and strategy I/O are mocked; replacement proposals do not prove exchange admission.",
+    "PostgreSQL tests use a disposable database and real ownership/recorder/ServiceHost/RESTAssistant, with HTTP transport mocked.",
+    "Full PostgreSQL329 was collected before two more cases were added; focused10 includes those two plus eight overlapping cases.",
+    "Initial fixture bring-up errors involved missing reference metadata and wrong timestamp units; no shipping defect was identified.",
+    "No real OKX trades, load/soak run, image rebuild, production database maintenance or deployment."
+  ]
+}

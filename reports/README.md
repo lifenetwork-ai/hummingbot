@@ -4,6 +4,12 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Guard/recovery coverage](investigations/mm-guard-recovery-coverage.md),
+  [evidence](investigations/mm-guard-recovery-coverage-evidence.json):36 added
+  native/PG cases, related native541 +2 subtests, full PG329 and focused PG10 pass
+  under their stated collection scopes. No production logic change or new
+  image/load/Demo claim.
+
 - [Final-image probe/MM correlation](investigations/mm-checkpoint-probe-correlation.md),
   [evidence](investigations/mm-checkpoint-probe-correlation-evidence.json): 600s
   diagnostic on `51d4d879`, API p99 71.41ms and 600 matched synthetic fills.

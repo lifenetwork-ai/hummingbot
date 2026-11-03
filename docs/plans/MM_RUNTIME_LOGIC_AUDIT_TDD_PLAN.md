@@ -3,6 +3,32 @@
 Date: 2026-11-02 (Asia/Saigon). Follow the completed
 [residual probe investigation](MM_ENGINE_RESIDUAL_PROBE_INVESTIGATION.md).
 
+## Further withdrawal and send-gate coverage — requested 2026-11-03
+
+- [x] Reuse the native lifecycle harness to connect protective cancellation,
+  delayed terminal events, partial/late fills and session revocation for spot
+  BUY/SELL and perpetual long/short. Data recovery must not undo explicit Stop
+  authority; cancellation must not wait for the normal executor-report gate.
+- [x] Cover unfilled cancellation without a phantom held position or automatic
+  market exit, and require explicit matching session admission for new proposals.
+- [x] Exercise real PostgreSQL ownership/recorder and ServiceHost joint readiness
+  after throttle: spot inventory, perpetual long/short/gross exposure, peer data,
+  provider, account confirmation and controller generation. Assert no physical
+  send while blocked, durable local rejection, cancellation permission and recovery.
+- [x] Cover recorder failure and process shutdown after durable intent but before
+  transport; preserve unresolved intents/HALT when durable rejection fails, and
+  retain the process shutdown fence despite a stale readiness toggle.
+- [x] Run related native/PostgreSQL regressions and isolated fault mutants,
+  document actual scope, update progress and commit. Production code is unchanged
+  unless a confirmed defect requires its own Red/Green fix.
+
+[Report/evidence](../../reports/investigations/mm-guard-recovery-coverage.md):
+36 added cases (26 native,10 PostgreSQL). Final related native regression541 plus
+two subtests passes; full PG329 passes, and the focused10-case module separately
+covers two cases added after full-suite collection. Five in-memory mutants cause
+94 expected failures and zero setup errors. No production defect or new image/
+load/Demo acceptance is claimed.
+
 ## Inventory hard-cap lifecycle coverage — requested 2026-11-03
 
 - [x] Exercise real controller stop actions through the orchestrator and position

@@ -2,7 +2,13 @@
 
 [All reports](../README.md) · [Current release](../release/mm-checkpoint-final-release.md)
 
-The latest [final-image probe/MM correlation](mm-checkpoint-probe-correlation.md)
+The latest [guard/recovery coverage review](mm-guard-recovery-coverage.md) adds36
+native/PG cases for withdrawal, explicit Stop authority and post-throttle safety.
+Related native541 +2 subtests, full PG329 and the focused PG10 module pass;
+overlapping scopes and94 expected mutation failures are explicit. Production
+code and the accepted image remain unchanged.
+
+The preceding [final-image probe/MM correlation](mm-checkpoint-probe-correlation.md)
 reviews all21 retained historical R1 episodes and passes a new600s diagnostic
 on `51d4d879`. Both new probe episodes retain trading progress; no new runtime
 defect or threshold change is justified. Historical MM timing remains unavailable.
@@ -33,6 +39,7 @@ current release acceptance is recorded separately in the release closeout.
 
 | Report | Evidence and scope |
 | --- | --- |
+| [Guard/recovery coverage](mm-guard-recovery-coverage.md), [evidence](mm-guard-recovery-coverage-evidence.json) |36 added cases; native541 +2 subtests/full PG329/focused PG10 pass with stated overlap. Five mutants yield94 expected failures; no production change or new runtime acceptance. |
 | [Final-image probe/MM correlation](mm-checkpoint-probe-correlation.md), [evidence](mm-checkpoint-probe-correlation-evidence.json) | Same-image600s passes, p99 71.41ms/600 matched synthetic fills. Two probe episodes retain tick/controller/submission progress; no runtime patch or threshold change, historical MM timing unavailable. |
 | [Quote replacement](mm-quote-recovery.md), [evidence](mm-quote-recovery-evidence.json) | Fixed terminal-confirmed idle wait; native2,356 plus11 subtests/PG296/Swagger, three image E2E groups and matched180s diagnostics pass. Median4,993→99ms; protective gaps remain, no new full-hour/Demo gate. |
 | [MM trading continuity](mm-trading-continuity.md), [evidence](mm-trading-continuity-evidence.json) |946 CLI tests,180s offline probe and a separate2.272s engine-pause diagnostic. Independent samples persist while engine pauses; empty quote clusters remain an explicit follow-up. New4ef2c50a is diagnostic only. |

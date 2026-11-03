@@ -5,6 +5,17 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-03
 
+- **Further safety lifecycle/send-gate coverage added:**36 new cases cover
+  protective withdrawal despite a pending report gate, late/unfilled cancellation,
+  data recovery versus explicit session revocation, and real-PG post-throttle joint
+  spot/perpetual readiness. Recorder failure preserves unresolved intent/HALT;
+  shutdown stays latched while owned cancellation remains possible. Related
+  native541 +2 subtests and full PG329 pass; a focused10-case PG run also covers
+  the two cases added after full-suite collection (eight overlap). Five isolated
+  mutants cause94 expected failures, no setup errors. No new production defect
+  or runtime/config change; no image build, load gate or connected trade.
+  [Report/evidence](../investigations/mm-guard-recovery-coverage.md).
+
 - **Inventory hard-cap lifecycle coverage added:** eight native component cases
   connect real controller/orchestrator/executor behavior for spot base and
   perpetual long/short/gross caps. They cover partial/late fills, delayed cancel,
