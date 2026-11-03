@@ -17,7 +17,7 @@ Proposed local Demo-only transaction, **not yet applied**:
 1. With the bot stopped, lock the existing advisory ownership key and verify
    stopped/acknowledged/no-owner/HALT state, one pending `OrderFailure` spot
    intent without an exchange ID, and exact fingerprints of all other orders,
-   trade fills, positions and order statuses.
+   trade fills, positions, order statuses, market tracking state and recovery state.
 2. Set `creation_pending=false` only for that intent and remove only its saved
    in-flight tracking entry. Preserve the order itself and every fill/position.
 3. Clear this incident's `halt`, `runtime_active`, `shutdown_incomplete` and
@@ -34,7 +34,7 @@ rejected replay. The clone contained 11 existing fills and three positions after
 repair; the canonical database has not been modified. Reviewed SQL and the dry
 run's SHA-256 are in `build/checkpoint-poll-release-20261103/` as
 `reviewed-expiry-incident.sql` and `expiry-incident-dryrun.json`. SQL hash:
-`5f3a81fb3cea1a36b98722c0e93dbfe106bdd319b156561995b397283a37b6f3`.
+`471c61187bbb0e8a9be5425024bb651c0453e7e4e02490b2da33169ee85dfb9d`.
 
 The required review comes from [PostgreSQL operations](../../docs/postgres-runtime.md),
 which requires an explicit operator-reviewed database maintenance change after
