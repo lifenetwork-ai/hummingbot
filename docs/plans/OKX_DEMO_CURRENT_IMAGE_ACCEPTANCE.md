@@ -38,6 +38,30 @@ cleanup removed the old image/container; the persistent Demo DB volume remains.
 Historical connected and natural-fill checklists below retain their original
 image/date scope; the new local gate does not relabel them.
 
+## Controller/persistence image verification — 2026-11-04
+
+- [x] Build image `f1a7eead` from `4a38bbf09`, verify changed source hashes, and
+  perform read-only REST/WS and database/account preflight.
+- [x] Run the 600-second instrumented probe and matched 300-second old/new
+  comparison. The first probe **fails p99**; preserve this outcome and report
+  bounded MM/probe evidence without claiming an established cause.
+- [x] Run nine connected Demo profile/mode cases, Random step, active spot/both
+  restart, Stop and independent order/account/position checks.
+- [x] Independently match three natural perpetual fills and restore the original
+  stopped service/configuration after the approved bounded maker preset.
+- [ ] Obtain a current-image natural **spot** fill and verify its quantity/fee;
+  filled-active restart across both markets is not yet proven by this run.
+- [x] Run the standalone 60-minute same-image soak, identify the degraded
+  reporting cause, and independently verify restored account/DB state. The soak
+  **fails** its zero-degraded-response gate: one two-second PostgreSQL aggregate
+  timeout produces 13 explicitly stale daily responses. It is not a full release.
+- [ ] Obtain a clean 60-minute zero-degraded-response run if the unchanged gate
+  is required; investigate a bounded reporting-specific approach before tuning.
+- [ ] Investigate the retained p99 episode and repeated Demo guard waits; do not
+  weaken the guards or assert uninterrupted quoting based on sampled data.
+
+[Current report](../../reports/release/mm-controller-persistence-release.md).
+
 ## Quote-recovery current-image completion — 2026-11-03
 
 - [x] Full unchanged R1 including one-hour soak/six faults, and matched shipping R2;

@@ -4,6 +4,13 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Controller/persistence image verification](release/mm-controller-persistence-release.md),
+  [evidence](release/mm-controller-persistence-release-evidence.json): Demo
+  matrix9/9 and three perpetual natural fills checked; no spot fill. The standalone
+  60-minute soak fails the zero-degraded-reporting gate after one 2s PostgreSQL
+  timeout causes13 stale responses. 3,594 synthetic fills/fees/positions match;
+  memory growth28.23 MiB. Probe/guard availability limits remain documented.
+
 - [Controller/persistence optimization](performance/mm-controller-persistence-optimization.md),
   [evidence](performance/mm-controller-persistence-evidence.json): synchronous
   exposure reads3→1; scoped snapshot filter queries2→1, 7.1% fewer cohort SQL

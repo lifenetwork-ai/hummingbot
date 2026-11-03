@@ -5,6 +5,19 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-04
 
+- **Controller/persistence image tests:** image `f1a7eead` passes nine connected
+  Demo cases, Random rollover and active restarts; three natural perpetual fills
+  match original fees/quantity, while no spot fill occurred. The 600s diagnostic
+  fails p99 (2,933 ms); matched300s old/new pass with p99 139/124 ms, not a root
+  cause. The standalone60-minute soak fails on13 stale daily responses after one
+  2s PostgreSQL aggregation timeout; p99 617 ms,3,594 fills/fees/positions match,
+  memory growth28.23 MiB. Five fills occurred during the 4.53s stale interval;
+  no claim of uninterrupted engine progress. Demo restored stopped/no HALT,
+  exact pre-soak backup hashes and venue positions verified. Reference freshness
+  and guard waits remain visible; no new production or full-release claim.
+  [Report/evidence](../release/mm-controller-persistence-release.md).
+
+
 - **Controller/persistence optimization complete:** synchronous exposure reads3→1;
   scoped PG snapshot filter queries2→1, total measured cohort SQL7.1% lower with
   identical snapshot hashes/JSON sizes. Mixed wall-time samples do not establish
