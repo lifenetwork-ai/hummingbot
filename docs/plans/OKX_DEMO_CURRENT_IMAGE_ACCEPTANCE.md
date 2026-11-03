@@ -721,3 +721,5 @@ matched ordinary-entrypoint acceptance control is not run from that baseline.
 
 - [ ] Reconcile the retained Demo HALT and pending spot intent with complete venue evidence and operator-reviewed maintenance before new trading. See [incident](../../reports/demo/okx-expired-submission-investigation.md).
 - [ ] Requalify the corrected image; repeat Demo Random, perpetual, both, natural fills and restart checks. Passing offline load on e9845e3f does not qualify the corrected source.
+
+- [ ] Review the independently discovered stop-checkpoint latch and the [checkpoint recovery proposal](../../reports/demo/okx-checkpoint-stop-recovery-proposal.md); do not silently reset a possible drawdown stop.
