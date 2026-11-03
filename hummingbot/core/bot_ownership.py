@@ -723,6 +723,9 @@ class BotOwnership:
             scope = getattr(getattr(strategy, "config", None), "mm_drawdown_scope", None)
             if isinstance(scope, dict) and scope and getattr(strategy, "_mm_drawdown_bound", False):
                 checkpoint.update(strategy.mm_drawdown_checkpoint())
+            if "_is_stop_triggered" in checkpoint:
+                from hummingbot.core.mm_drawdown import checkpoint_stop_triggered
+                checkpoint["_is_stop_triggered"] = checkpoint_stop_triggered(strategy)
 
         def begin_shutdown(state):
             state.update(halt=True, shutdown_incomplete=True)

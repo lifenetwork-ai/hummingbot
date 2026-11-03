@@ -898,3 +898,22 @@ def test_expired_rejection_with_failed_durable_write_stays_unresolved(owned):
         assert session.get(Order, 'order-1').creation_pending
     assert 'order-1' in owned.owner.sent_intents
     assert owned.owner.store.read()['recovery_state']['halt']
+
+
+@pytest.mark.parametrize('risk_stop_before_cleanup', [False, True])
+def test_retried_shutdown_preserves_stop_latch_from_before_cleanup(owned, risk_stop_before_cleanup):
+    core = reconciliation_core(owned)
+    core.strategy._is_stop_triggered = risk_stop_before_cleanup
+
+    async def incomplete(**kwargs):
+        if not hasattr(core.strategy, '_stop_triggered_before_cleanup'):
+            core.strategy._stop_triggered_before_cleanup = core.strategy._is_stop_triggered
+        core.strategy._is_stop_triggered = True
+        return False
+
+    core.shutdown = AsyncMock(side_effect=incomplete)
+    assert not owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
+    assert not owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
+    state = owned.store.read()['recovery_state']
+    assert state['halt'] and state['shutdown_incomplete']
+    assert state['strategy_checkpoints']['test.yml']['_is_stop_triggered'] is risk_stop_before_cleanup

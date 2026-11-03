@@ -9,7 +9,7 @@ from hummingbot.client.hummingbot_application import HummingbotApplication
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.event.events import MarketOrderFailureEvent
 from hummingbot.core.listing_bootstrap import BootstrapMarketPolicy
-from hummingbot.core.mm_drawdown import MMDrawdownMarket, drawdown_policy
+from hummingbot.core.mm_drawdown import MMDrawdownMarket, checkpoint_stop_triggered, drawdown_policy
 from hummingbot.core.spot_outflow import SpotOutflowPolicy
 from hummingbot.core.utils.read_retry import retry_delay, transient_read
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base, StrategyV2ConfigBase
@@ -110,7 +110,7 @@ class V2WithControllers(StrategyV2Base):
                     max_global_pnl=str(self.max_global_pnl),
                     max_pnl_by_controller={identity: str(self.max_pnl_by_controller.get(identity, Decimal("0")))
                                            for identity in self.config.mm_drawdown_scope},
-                    _is_stop_triggered=self._is_stop_triggered,
+                    _is_stop_triggered=checkpoint_stop_triggered(self),
                     drawdown_exited_controllers=list(self.drawdown_exited_controllers),
                     mm_drawdown_breach=self._mm_drawdown_breach)
 

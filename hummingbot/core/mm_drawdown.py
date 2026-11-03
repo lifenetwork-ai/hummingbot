@@ -24,6 +24,16 @@ def drawdown_policy(scope, global_limit, controller_limit):
                        for identity, market in sorted(scope.items())})
 
 
+def checkpoint_stop_triggered(strategy):
+    """Persist the risk latch observed before lifecycle cleanup sets its stop flag."""
+    before_cleanup = getattr(strategy, "_stop_triggered_before_cleanup", None)
+    if getattr(strategy, "_mm_drawdown_breach", None):
+        return True
+    if isinstance(before_cleanup, bool):
+        return before_cleanup
+    return bool(getattr(strategy, "_is_stop_triggered", False))
+
+
 def checkpoint_drawdown_status(checkpoint):
     policy = checkpoint.get("mm_drawdown_policy")
     if not isinstance(policy, dict):

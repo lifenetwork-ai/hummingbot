@@ -491,6 +491,23 @@ class TestStrategyV2Base(IsolatedAsyncioWrapperTestCase):
                                       side=TradeType.SELL, entry_price=Decimal("100"), amount=Decimal("1"),
                                       triple_barrier_config=TripleBarrierConfig())
 
+    async def test_failed_cleanup_does_not_become_a_risk_stop_on_retry(self):
+        self.strategy._is_stop_triggered = False
+        self.strategy.executor_orchestrator.stop = AsyncMock(side_effect=RuntimeError('terminal read failed'))
+        for _ in range(2):
+            with self.assertRaisesRegex(RuntimeError, 'terminal read failed'):
+                await self.strategy.on_stop()
+            self.assertTrue(self.strategy._is_stop_triggered)
+            self.assertIs(self.strategy._stop_triggered_before_cleanup, False)
+
+    async def test_failed_cleanup_retains_an_existing_risk_stop(self):
+        self.strategy._is_stop_triggered = True
+        self.strategy.executor_orchestrator.stop = AsyncMock(side_effect=RuntimeError('terminal read failed'))
+        for _ in range(2):
+            with self.assertRaisesRegex(RuntimeError, 'terminal read failed'):
+                await self.strategy.on_stop()
+            self.assertIs(self.strategy._stop_triggered_before_cleanup, True)
+
 
 class StrategyV2BaseBasicTest(unittest.TestCase):
     """Legacy tests for basic StrategyV2Base functionality"""

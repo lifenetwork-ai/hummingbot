@@ -286,6 +286,7 @@ class StrategyV2Base(StrategyPyBase):
         self.controller_reports_error = None
         self.market_data_provider = MarketDataProvider(connectors)
         self._is_stop_triggered = False
+        self._stop_triggered_before_cleanup = None
         self.mqtt_enabled = False
         self._pub: Optional[ETopicPublisher] = None
 
@@ -342,6 +343,8 @@ class StrategyV2Base(StrategyPyBase):
         """
         Called when the strategy is stopped. Shuts down controllers, executors, and market data provider.
         """
+        if self._stop_triggered_before_cleanup is None:
+            self._stop_triggered_before_cleanup = self._is_stop_triggered
         self._is_stop_triggered = True
 
         # Stop controllers FIRST to prevent new executor actions

@@ -210,3 +210,20 @@ def test_stopped_drawdown_status_preserves_peak_and_breach_without_inventing_cur
     broken["max_global_pnl"] = "NaN"
     data = DrawdownStatus.model_validate(checkpoint_drawdown_status(broken)).model_dump(mode="json")
     assert data["global_peak_quote"] is None and data["reason_code"] == "drawdown_checkpoint_invalid"
+
+
+@pytest.mark.parametrize('before_cleanup,breach,expected', [
+    (False, None, False), (True, None, True),
+    (False, {'reason_code': 'drawdown_global_limit'}, True),
+])
+def test_checkpoint_preserves_risk_stop_without_cleanup_stop(before_cleanup, breach, expected):
+    item = runner()
+    item._stop_triggered_before_cleanup = before_cleanup
+    item._is_stop_triggered = True
+    item._mm_drawdown_breach = breach
+    # A previously stopped individual controller remains recorded separately.
+    item.drawdown_exited_controllers = ['life_spot']
+    checkpoint = item.mm_drawdown_checkpoint()
+    assert checkpoint['_is_stop_triggered'] is expected
+    assert checkpoint['drawdown_exited_controllers'] == ['life_spot']
+    assert checkpoint['mm_drawdown_breach'] == breach
