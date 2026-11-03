@@ -4,13 +4,21 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Final checkpoint image release](release/mm-checkpoint-final-release.md),
+  [evidence](release/mm-checkpoint-final-release-evidence.json): current `51d4d879`
+  passes its own full R1/R2, with soak p99 235 ms, +14.14 MiB retained memory,
+  4,885 matched synthetic fills and six fault groups. Later read-only REST
+  matches all seven natural fill IDs, quantities, prices and original fees.
+  Residual probes remain R1 20 engine/one API, R2 15 engine, all recovered.
+  Local service is restored idle with no HALT and unchanged ledger hashes.
+
 - [Shutdown checkpoint fix and reviewed Demo recovery](demo/okx-checkpoint-recovery.md),
   [evidence](demo/okx-checkpoint-recovery-evidence.json): source `06ab51b17`,
   native2,371 +11 subtests, PG321, Swagger and three packaged E2E groups pass.
   Current local image `51d4d879` passes stopped upgrade/restart with unchanged
   ledger hashes, no HALT and trading stopped. Prior `7dca3ce9` passes nine active
   Demo cases/Random/restart. Seven natural fills match independent REST order
-  aggregates/account state; individual REST trade-ID proof remains incomplete.
+  aggregates/account state; subsequent per-trade REST proof is complete above.
 
 - [Expiry-fix offline load](release/mm-okx-expiry-load.md) and
   [evidence](release/mm-okx-expiry-load-evidence.json): image `7dca3ce9`

@@ -1,10 +1,13 @@
 # Release verification
 
-[All reports](../README.md) · [Latest local load gates](mm-okx-expiry-load.md)
+[All reports](../README.md) · [Latest local load gates](mm-checkpoint-final-release.md)
 
-The [expiry-fix load report](mm-okx-expiry-load.md) covers image `7dca3ce9`,
+The [final checkpoint image](mm-checkpoint-final-release.md) qualifies `51d4d879`
+with full R1/R2; later REST reads also verify all seven new natural fills.
+The earlier [expiry-fix load report](mm-okx-expiry-load.md) covers image `7dca3ce9`,
 including the interrupted/overlapping controls and clean repeat measurements.
-Its connected Demo acceptance remains open. The earlier
+Its subsequent connected recovery and later REST proof are recorded in the final
+release above. The earlier
 [quote-recovery release](mm-quote-recovery-release.md) qualifies660bd38b
 with full R1 and matched R2; its connected Demo follow-up includes five natural
 maker fills, exact fees and filled restart. First failed burst and recovered
@@ -15,6 +18,7 @@ original failures and scope; they are not additional open release gates.
 
 | Report | Evidence and scope |
 | --- | --- |
+| [Final checkpoint image](mm-checkpoint-final-release.md), [evidence](mm-checkpoint-final-release-evidence.json) | Image `51d4d879`: full R1/R2 and six faults pass; soak p99 235 ms, retention +14.14 MiB, 4,885 synthetic fills match. Later REST verifies all seven natural fills; residual probe recoveries remain explicit. |
 | [Expiry-fix offline load](mm-okx-expiry-load.md), [evidence](mm-okx-expiry-load-evidence.json) | Image `7dca3ce9`: full R1, separately repeated warmup/mixed and clean R2; the original warmup overlapped a clone dry run. Demo remains open. |
 | [Checkpoint-poll offline load](mm-checkpoint-poll-load.md), [evidence](mm-checkpoint-poll-load-evidence.json) | Earlier image `e9845e3f`: full R1/R2 passed; its Demo failed at Random rollover. |
 | [Quote-recovery release](mm-quote-recovery-release.md), [evidence](mm-quote-recovery-release-evidence.json) | Image660bd38b full R1/R2 pass: soak p99103ms, +14.18MiB retained,4,885 synthetic fills, six faults, shipping mixed64ms. Actual Demo five new maker fills/fees and filled restart pass separately. First failure/residual probes retained; canonical trading stopped. |

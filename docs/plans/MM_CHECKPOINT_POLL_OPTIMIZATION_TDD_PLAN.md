@@ -71,8 +71,8 @@ Those source checks do not claim new image/load/Demo acceptance.
   events. No HALT reset or history deletion. Execute only after verified load.
 - [x] Verify Demo profiles, modes, Random, Stop/restart and aggregate order
   quantity/fees/positions where history permits; report incomplete scope honestly.
-- [ ] Finish individual REST trade-ID verification for seven new natural fills;
-  current independent order-aggregate proof does not close this boundary.
+- [x] Finish individual REST trade-ID verification for seven new natural fills;
+  a later read matches all IDs, quantities, prices, maker sides and original fees.
 - [x] Publish evidence, close verified checklist items, clean owned resources and
   commit. Preserve prior failed results and unrelated Docker resources.
 
@@ -85,3 +85,5 @@ see the [load report](../../reports/release/mm-checkpoint-poll-load.md).
 [Approved recovery proposal](../../reports/demo/checkpoint-poll-recovery-proposal.md).
 
 Later recovery and fix status: [checkpoint recovery report](../../reports/demo/okx-checkpoint-recovery.md).
+Final `51d4d879` full R1/R2 and REST fill proof:
+[release report](../../reports/release/mm-checkpoint-final-release.md).

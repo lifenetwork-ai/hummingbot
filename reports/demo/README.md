@@ -1,13 +1,13 @@
 # OKX Demo verification
 
-[All reports](../README.md) · [Latest local load](../release/mm-okx-expiry-load.md)
+[All reports](../README.md) · [Latest local load](../release/mm-checkpoint-final-release.md)
 
 Read-only checks, controlled sessions, natural fills and funding observations.
 Results belong to the specific image/account environment recorded in each file.
 
 | Report | Evidence and scope |
 | --- | --- |
-| [Checkpoint fix and recovery](okx-checkpoint-recovery.md), [evidence](okx-checkpoint-recovery-evidence.json) | Current `51d4d879`: targeted packaged/stopped-restart proof. Prior `7dca3ce9`: nine active cases/Random/restart and seven natural fills with order-aggregate proof; individual REST trade-ID proof remains incomplete. |
+| [Checkpoint fix and recovery](okx-checkpoint-recovery.md), [evidence](okx-checkpoint-recovery-evidence.json) | Current `51d4d879`: targeted packaged/stopped-restart proof. Prior `7dca3ce9`: nine active cases/Random/restart and seven natural fills with order-aggregate proof; later [REST proof](../release/mm-checkpoint-final-release.md) matches all seven trade IDs and fees. |
 | [Expiry incident](okx-expired-submission-investigation.md), [review proposal](okx-expiry-incident-recovery-proposal.md) | Image `e9845e3f` failed at Random rollover; separately approved intent/checkpoint repairs were subsequently applied. |
 | [Quote-recovery image Demo](okx-demo-quote-recovery.md), [evidence](okx-demo-quote-recovery-evidence.json) | Image660bd38b: nine cases/Random/restart,407 canceled orders; subsequent [five natural maker fills](okx-demo-quote-recovery-natural-fill-evidence.json), exact fees and filled active restart. Eleven unique fills retained; original catalogue restored, canonical trading stopped. |
 | [Latent-fix image Demo](okx-demo-latent-fixes.md), [evidence](okx-demo-latent-fixes-evidence.json) | Image3f5cbd0f: nine cases, Random step and spot/both active restart, 381 exact canceled post-only orders and unchanged historical fills; no new natural fill |

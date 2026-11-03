@@ -1,5 +1,7 @@
 # Shutdown checkpoint fix and reviewed Demo recovery
 
+Current follow-up: [final image full release and seven-fill REST proof](../release/mm-checkpoint-final-release.md) now pass. The observations below preserve the earlier partial-verification stage.
+
 The shutdown retry defect is fixed in `06ab51b17`: V2 cleanup sets its stop flag
 before awaiting terminal shutdown; if cleanup fails, a subsequent shutdown used
 to persist that lifecycle flag as a pre-existing risk stop. A real-PostgreSQL

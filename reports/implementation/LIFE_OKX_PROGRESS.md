@@ -5,6 +5,14 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-03
 
+- **Final image load and REST fill proof complete:** `51d4d879` passes full R1
+  and matched shipping R2 on unchanged source/fixtures. Soak p99 235 ms,
+  +14.14 MiB retention, 4,885 matched synthetic fills and six faults. Recovered
+  probes remain R1 20 engine/one API and R2 15 engine; no unique cause is claimed.
+  Later read-only REST independently matches all seven new maker fill IDs,
+  quantities, prices and original-currency fees. Idle local service is restored,
+  no HALT, unchanged ledger hashes. [Final release](../release/mm-checkpoint-final-release.md).
+
 - **Shutdown retry fix complete:** `06ab51b17` preserves the pre-cleanup risk-stop
   latch. Native2,371 +11 subtests, PG321, Swagger and three packaged E2E groups
   pass. Current local image `51d4d879` passes stopped upgrade/restart with unchanged
@@ -14,11 +22,11 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   changes were explicitly approved, backed up and guarded. The `7dca3ce9` active
   matrix passes nine cases, Random rollover and spot/both restart. Seven natural
   fills match independent REST order totals, fees and account state; 18 unique
-  fill rows are stable. Individual REST trade-ID proof remains open because
-  fills/history endpoints did not return the new records. No full-load or
-  active-session acceptance is attributed to later source `51d4d879`.
+  fill rows are stable. The earlier REST gap and final-image full-load gap
+  are subsequently closed above. Active nine-case Demo remains scoped to
+  `7dca3ce9`; the final image has its own full offline load and stopped restart.
 
-- **Latest offline image:** `7dca3ce9` includes the expired-submission fix;
+- **Earlier expiry-fix image:** `7dca3ce9` includes the expired-submission fix;
   native, PG319, Swagger and packaged E2E pass. Full R1, a separately repeated
   warmup/mixed, and clean R2 pass. R1's original warmup and an interrupted R2
   overlapped brief disposable-DB dry runs; the report preserves that scope,

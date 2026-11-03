@@ -723,12 +723,15 @@ matched ordinary-entrypoint acceptance control is not run from that baseline.
 - [x] Requalify the expiry-corrected image `7dca3ce9`; repeat nine Demo cases,
   Random, perpetual/both and restart. Verify seven natural fills at REST order
   aggregate level. Passing offline load on e9845e3f does not qualify later source.
-- [ ] Verify each new natural trade ID and individual fee through REST fills;
-  current endpoints returned older records. Preserve the original failed
+- [x] Verify each new natural trade ID and individual fee through REST fills;
+  a later read matches all seven new fills. Preserve the original failed
   observation and passing aggregate/account checks separately.
 
 - [x] Review the independently discovered stop-checkpoint latch and apply the
   [separately approved proposal](../../reports/demo/okx-checkpoint-stop-recovery-proposal.md).
 - [x] Fix shutdown retry checkpointing with TDD; package `51d4d879` and verify
-  stopped upgrade/restart without changing ledger hashes. The later image has
-  targeted coverage; full-load/active Demo scope remains tied to `7dca3ce9`.
+  stopped upgrade/restart without changing ledger hashes. Initial targeted
+  qualification was subsequently extended by the final load item below.
+- [x] Run and independently verify new full R1/R2 on final `51d4d879`; all
+  windows/faults pass and the idle Demo is restored. Active nine-case Demo
+  remains scoped to `7dca3ce9`; see [final release](../../reports/release/mm-checkpoint-final-release.md).

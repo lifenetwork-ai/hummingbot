@@ -25,6 +25,9 @@ and no match in the recent fill page; the latter is not exhaustive history proof
   affected warmup/mixed and a clean independent R2; document overlapping dry runs.
 - [x] Complete the nine-case Demo matrix, Random, Stop and restart after reviewed
   recovery on `7dca3ce9`; preserve image-specific load and failed evidence.
-- [ ] Complete per-trade REST proof for the seven new natural fills. Independent
-  REST order aggregates, fees, account balances/positions and 18 unique stored
-  rows match, but fills/history endpoints returned no new trade rows.
+- [x] Complete per-trade REST proof for the seven new natural fills. A later
+  read returns all seven maker fills; IDs, quantities, prices, sides and original
+  fees match. Preserve the earlier failed query/observation separately.
+
+Final checkpoint-fix image `51d4d879` also passes its own full R1/R2:
+[release report](../../reports/release/mm-checkpoint-final-release.md).

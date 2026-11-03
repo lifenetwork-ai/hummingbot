@@ -23,6 +23,11 @@ Completed on image `51d4d879`, source `06ab51b17`: three packaged E2E groups,
 stopped Demo upgrade/restart and unchanged order/fill/position/executor hashes.
 See the [recovery report](../../reports/demo/okx-checkpoint-recovery.md).
 
+- [x] Run full unchanged R1 and independent ordinary-entrypoint R2 on final
+  image `51d4d879`; all healthy windows and six fault groups pass. Recheck the
+  seven natural fills through read-only REST, restore the idle service and
+  verify unchanged ledger hashes. [Final release](../../reports/release/mm-checkpoint-final-release.md).
+
 The separately approved Demo checkpoint reset changes historical data only for
 that reviewed incident; the source fix does not automatically reset stored HALT
 or existing strategy-stop checkpoints. See the [review proposal](../../reports/demo/okx-checkpoint-stop-recovery-proposal.md).
