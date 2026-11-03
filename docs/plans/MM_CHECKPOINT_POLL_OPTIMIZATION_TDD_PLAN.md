@@ -57,11 +57,11 @@ Those source checks do not claim new image/load/Demo acceptance.
   startup holds, before valuation or quoting; preserve all rows and allow scoped
   reads for unrelated controllers. Targeted real-PostgreSQL tests pass; full
   native regression and Swagger pass. Requalify the image after this safety fix.
-- [ ] Build and hash-verify a current-source amd64 image; run packaged smoke and
+- [x] Build and hash-verify a current-source amd64 image; run packaged smoke and
   focused MM checkpoint/stop/restart scenarios before full load.
-- [ ] Run unchanged full R1 (warmup/mixed/burst/60-minute soak/six fault groups),
+- [x] Run unchanged full R1 (warmup/mixed/burst/60-minute soak/six fault groups),
   independently verify accounting, memory, process and continuity evidence.
-- [ ] Run and independently verify matched ordinary-entrypoint R2.
+- [x] Run and independently verify matched ordinary-entrypoint R2.
 - [x] Read-only Demo preflight and inspect the missing-volume recovery gap.
   An older backup is not current ledger proof; do not repair history or clear HALT
   without explicit operator review of a concrete proposal.
@@ -78,4 +78,6 @@ Previous artifact 5b2aaaa7, source 8252d797e: packaged hashes, smoke, three
 focused E2E groups and the warmup/mixed/burst windows passed. Its soak was
 deliberately stopped at approximately 32 minutes after a startup ambiguity was
 reproduced; it is not a completed R1. Demo is gated on acceptance of the fixed
-image. [Approved recovery proposal](../../reports/demo/checkpoint-poll-recovery-proposal.md).
+image. The corrected image e9845e3f, source d68d74e07, passes full local R1/R2;
+see the [load report](../../reports/release/mm-checkpoint-poll-load.md).
+[Approved recovery proposal](../../reports/demo/checkpoint-poll-recovery-proposal.md).
