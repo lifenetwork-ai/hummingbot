@@ -716,3 +716,8 @@ matched ordinary-entrypoint acceptance control is not run from that baseline.
 - [x] Verify unchanged Demo image/control/four ledger fingerprints and clean
   temporary test containers. Publish the outcomes and remaining limits in the
   [follow-up report](../../reports/investigations/mm-burst-followup.md).
+
+## 2026-11-03 follow-up: expired submission at Random rollover
+
+- [ ] Reconcile the retained Demo HALT and pending spot intent with complete venue evidence and operator-reviewed maintenance before new trading. See [incident](../../reports/demo/okx-expired-submission-investigation.md).
+- [ ] Requalify the corrected image; repeat Demo Random, perpetual, both, natural fills and restart checks. Passing offline load on e9845e3f does not qualify the corrected source.
