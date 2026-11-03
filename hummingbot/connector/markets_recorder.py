@@ -9,7 +9,7 @@ from shutil import move
 from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
-from sqlalchemy import tuple_
+from sqlalchemy import or_, tuple_
 from sqlalchemy.engine import Row
 from sqlalchemy.orm import Query, Session
 
@@ -257,13 +257,37 @@ class MarketsRecorder:
         if not positions:
             return
         keys = ('controller_id', 'connector_name', 'trading_pair', 'side')
-        snapshots = {tuple(getattr(position, key) for key in keys): position for position in positions}
+
+        def identity(position):
+            # Reviewed OKX spot holds are a single net position. Direction is
+            # mutable when a sell crosses the managed net through zero; it is
+            # still part of identity for independent perpetual hedge legs.
+            return tuple(getattr(position, key) for key in keys[:3]) + (
+                None if position.connector_name == 'okx' else position.side,)
+
+        snapshots = {}
+        for position in positions:
+            key = identity(position)
+            if key in snapshots and snapshots[key].side != position.side:
+                raise ValueError('Ambiguous spot position snapshots require reconciliation')
+            snapshots[key] = position
+        spot = [key[:3] for key in snapshots if key[1] == 'okx']
+        other = [key for key in snapshots if key[1] != 'okx']
+        predicates = []
+        if spot:
+            predicates.append(tuple_(*(getattr(Position, key) for key in keys[:3])).in_(spot))
+        if other:
+            predicates.append(tuple_(*(getattr(Position, key) for key in keys)).in_(other))
         with self._sql_manager.get_new_session() as session:
             existing = {}
-            for row in session.query(Position).filter(tuple_(*(getattr(Position, key) for key in keys))
-                                                      .in_(list(snapshots))).all():
-                existing.setdefault(tuple(getattr(row, key) for key in keys), row)
-            fields = ('timestamp', 'volume_traded_quote', 'amount', 'breakeven_price',
+            for row in session.query(Position).filter(or_(*predicates)).all():
+                key = identity(row)
+                if row.connector_name == 'okx' and key in existing:
+                    # Never repair old duplicate aggregates by picking one or
+                    # deleting exposure/history during ordinary startup.
+                    raise ValueError('Ambiguous spot position history requires reconciliation')
+                existing.setdefault(key, row)
+            fields = ('side', 'timestamp', 'volume_traded_quote', 'amount', 'breakeven_price',
                       'unrealized_pnl_quote', 'realized_pnl_quote', 'cum_fees_quote')
             for key, position in snapshots.items():
                 row = existing.get(key)

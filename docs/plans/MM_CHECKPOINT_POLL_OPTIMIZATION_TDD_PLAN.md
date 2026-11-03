@@ -40,4 +40,28 @@ cache, new service or Redis dependency.
 
 Completed source checks: 2,357 native tests plus 11 subtests, 307 PostgreSQL
 tests and Swagger pass. [Report/evidence](../../reports/performance/mm-checkpoint-poll-optimization.md).
-No new image/load/Demo gate was requested or claimed for this optimization.
+Those source checks do not claim new image/load/Demo acceptance.
+
+## Follow-up image/load/Demo rerun — requested 2026-11-03
+
+- [x] Before full load, reproduce inherited OKX spot direction reversal retaining
+  an obsolete opposite aggregate (three real-PG Reds). Treat spot direction as
+  mutable identity, preserving the existing row ID; keep perpetual hedge keys.
+  Refuse ambiguous historical/input spot aggregates without deleting/repairing
+  exposure. Verify exact reverse/zero/replay/restart and existing batch fences.
+- [x] Validate and commit the corrective source (native2,357 +11 subtests, PG312);
+  rebuild in the image item below. The superseded6d9f9f01
+  image's three passing E2E groups do not qualify the corrected source. The paused
+  pipeline intentionally stops at source-freeze before starting R1.
+- [ ] Build and hash-verify a current-source amd64 image; run packaged smoke and
+  focused MM checkpoint/stop/restart scenarios before full load.
+- [ ] Run unchanged full R1 (warmup/mixed/burst/60-minute soak/six fault groups),
+  independently verify accounting, memory, process and continuity evidence.
+- [ ] Run and independently verify matched ordinary-entrypoint R2.
+- [ ] Read-only Demo preflight and inspect the missing-volume recovery gap.
+  An older backup is not current ledger proof; do not repair history or clear HALT
+  without explicit operator review of a concrete proposal.
+- [ ] Verify current-image Demo profiles, modes, Random, Stop/restart and exact
+  fills/fees/positions where history permits; report incomplete scope honestly.
+- [ ] Publish evidence, close verified checklist items, clean owned resources and
+  commit. Preserve prior failed results and unrelated Docker resources.

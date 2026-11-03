@@ -116,3 +116,26 @@ python -m hummingbot.cli.swagger --check
 Remaining boundary: recorder IO is still synchronous, and no new measured API
 p99/trading-throughput, indefinite-memory, uninterrupted-quote or historical
 probe-root-cause conclusion follows from these changes.
+
+## Pre-load follow-up: OKX spot net direction is mutable
+
+During the requested load/Demo rerun, the original local Demo volume is found
+deleted. Its latest backup has six fills/1,257 orders and a spot BUY hold of
+0.00025419BTC; the following independently verified maker SELL is0.00025828BTC.
+That crosses the managed spot net to SELL0.00000409BTC. An isolated reproduction
+shows the inherited four-column lookup can insert that SELL while retaining the
+old BUY, causing a restarted orchestrator to load extra exposure. This behavior
+predates batching. The deleted original database cannot be inspected for the
+actual post-fill spot rows; prior venue/fill/perpetual proofs are not presented
+as full spot-net-reversal acceptance.
+
+Three new PostgreSQL tests fail Red on the batched pre-fix writer. OKX spot
+identity now uses controller/connector/pair, updates direction in the existing
+row and preserves its ID. Perpetual hedge legs retain their separate side keys.
+Opposite input snapshots or multiple existing spot aggregates are rejected
+before writing any batch member, requiring reviewed reconciliation instead of
+silently discarding history/exposure. No automatic data repair, deletion or HALT
+reset is added. Reverse flips, zero net, repeated writes and restored signed
+exposure pass; full source checks repeat successfully: native2,357 +11 subtests,
+PostgreSQL312. Old image6d9f9f01 passes three E2E groups but is intentionally
+superseded before R1 starts, so it cannot qualify the corrective source's load.

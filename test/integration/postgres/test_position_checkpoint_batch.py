@@ -84,3 +84,52 @@ def test_empty_batch_has_no_connection_checkout(owned):
     finally:
         event.remove(owned.engine, 'checkout', checkout)
     assert checkouts == []
+
+
+@pytest.mark.parametrize('before,after,amount,net', [
+    ('BUY', 'SELL', '.00000409', '-.00000409'),
+    ('SELL', 'BUY', '.00025419', '.00025419'),
+    ('SELL', 'BUY', '0', '0'),
+])
+def test_spot_side_reversal_reuses_one_net_hold_and_restart_exposure(owned, before, after, amount, net):
+    from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
+    first = snapshot('spot-net', before, '.00025419')
+    first.connector_name = 'okx'
+    owned.recorder.update_or_store_position(first)
+    flipped = snapshot('unused-new-id', after, amount)
+    flipped.connector_name = 'okx'
+    owned.recorder.update_or_store_positions([flipped])
+    owned.recorder.update_or_store_positions([flipped])  # An acknowledged replay cannot add a second hold.
+    rows = owned.recorder.get_all_positions()
+    assert len(rows) == 1 and rows[0].id == 'spot-net'
+    assert rows[0].side == after and rows[0].amount == Decimal(amount)
+    restored = object.__new__(ExecutorOrchestrator)
+    restored.positions_held = {'maker': []}
+    restored._load_position_from_db('maker', rows[0])
+    assert len(restored.positions_held['maker']) == 1
+    assert restored.positions_held['maker'][0].net_amount_base == Decimal(net)
+
+
+def test_ambiguous_existing_spot_holds_require_review_before_any_batch_write(owned):
+    from sqlalchemy.orm import Session
+
+    # Simulate the inherited side-flip artifact. The writer must not silently
+    # select/discard one of two historical aggregates to make recovery pass.
+    first, second = snapshot('spot-buy', 'BUY', '.00025419'), snapshot('spot-sell', 'SELL', '.00000409')
+    first.connector_name = second.connector_name = 'okx'
+    with Session(owned.engine) as s, s.begin():
+        s.add_all([first, second])
+    pending = snapshot('spot-next', 'SELL', '.00000409')
+    pending.connector_name = 'okx'
+    with pytest.raises(ValueError, match='[Aa]mbiguous spot'):
+        owned.recorder.update_or_store_positions([snapshot('perp', 'BUY', '.0089'), pending])
+    rows = owned.recorder.get_all_positions()
+    assert len(rows) == 2 and {p.id for p in rows} == {'spot-buy', 'spot-sell'}
+
+
+def test_opposite_spot_snapshots_in_one_batch_are_rejected(owned):
+    first, second = snapshot('a', 'BUY', '.00025419'), snapshot('b', 'SELL', '.00000409')
+    first.connector_name = second.connector_name = 'okx'
+    with pytest.raises(ValueError, match='[Aa]mbiguous spot'):
+        owned.recorder.update_or_store_positions([first, second])
+    assert owned.recorder.get_all_positions() == []
