@@ -3,6 +3,26 @@
 Date: 2026-11-02 (Asia/Saigon). Follow the completed
 [residual probe investigation](MM_ENGINE_RESIDUAL_PROBE_INVESTIGATION.md).
 
+## Current-image probe/MM correlation — requested 2026-11-03
+
+- [x] Review the final checkpoint release's probe incidents and identify which
+  trading measurements were actually retained; preserve missing-evidence limits.
+- [x] Run a bounded current-image diagnostic with existing tick/controller,
+  submit/cancel and independent venue-quote instrumentation. Keep the 100k-history
+  fixture, production guards and probe/restart thresholds unchanged.
+- [x] Correlate every captured in-window probe episode with trading progress,
+  order timing, quote samples and available SQL/GC/loop evidence. Distinguish
+  timing overlap from a demonstrated cause and samples from continuous coverage.
+- [x] Use Red/Green for any confirmed runtime defect; otherwise document why no
+  speculative patch or threshold change is justified. Publish evidence, restore
+  the idle Demo service without ledger changes, update progress and commit.
+
+[Result/evidence](../../reports/investigations/mm-checkpoint-probe-correlation.md):
+same-image 600s diagnostic passes, API p99 71.41ms and 600 matched synthetic
+fills. Both recovered probe episodes retain ticks, controller cycles and
+successful submissions; no new runtime defect is demonstrated. Historical
+MM timing remains unavailable; thresholds and production source are unchanged.
+
 - [x] Review ownership/control/session, shutdown, fill replay and optional
   background-observer boundaries. Report confirmed defects separately from risks.
 - [x] Red/Green external durable HALT while core/startup remains active. Cleanup

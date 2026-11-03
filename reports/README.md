@@ -4,6 +4,12 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- [Final-image probe/MM correlation](investigations/mm-checkpoint-probe-correlation.md),
+  [evidence](investigations/mm-checkpoint-probe-correlation-evidence.json): 600s
+  diagnostic on `51d4d879`, API p99 71.41ms and 600 matched synthetic fills.
+  Both probe episodes retain tick/controller/order progress; no new runtime
+  defect or threshold change. Historical MM timing remains unavailable.
+
 - [Final checkpoint image release](release/mm-checkpoint-final-release.md),
   [evidence](release/mm-checkpoint-final-release-evidence.json): current `51d4d879`
   passes its own full R1/R2, with soak p99 235 ms, +14.14 MiB retained memory,

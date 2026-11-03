@@ -1,0 +1,1450 @@
+{
+  "image_id": "sha256:51d4d879d0f0532b825072483f7ba7cfbb95d80fa31742e34b6fa846e10df83e",
+  "scope": "600-second diagnostic on the final immutable image; simulator trades, not connected OKX or new full release acceptance",
+  "raw_directory": "build/mm-load/20261103-185650-95efa2",
+  "window": {
+    "window_start_ns": 37190143250065,
+    "window_end_ns": 37790143250065,
+    "duration_seconds": 600,
+    "read_p99_ms": 71.41496399708558,
+    "violations": [],
+    "ledger": {
+      "unique_exchange_fills": 600,
+      "unique_recorder_fills": 600,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "mm_activity_observer": {
+      "samples": 598,
+      "errors": 0,
+      "clock_errors": 0,
+      "sink_errors": 0,
+      "max_sample_gap_ms": 1053.177792,
+      "nominal_sample_interval_ms": 1000,
+      "clock": "shared Linux-kernel monotonic clock",
+      "sink": {
+        "written_records": 598,
+        "written_bytes": 8871200,
+        "ordinary_written_bytes": 8871200,
+        "reserved_written_bytes": 0,
+        "dropped_records": 0,
+        "writer_cpu_ms": 178.9678039999998,
+        "dropped_by_kind": {},
+        "queue_depth": 0,
+        "max_bytes": 16777216,
+        "reserved_bytes": 0,
+        "reserved_kinds": [],
+        "writer_alive": false
+      }
+    }
+  },
+  "operations": {
+    "controller.cycle": {
+      "start_gaps_ms": {
+        "count": 1185,
+        "p50": 1008.225084,
+        "p99": 1044.523834,
+        "max": 1164.363126
+      },
+      "completed_duration_ms": {
+        "count": 1187,
+        "p50": 5.372208,
+        "p99": 13.159333,
+        "max": 48.320167
+      },
+      "outcomes": {
+        "returned": 1187
+      }
+    },
+    "controller.stop_proposal": {
+      "completed_duration_ms": {
+        "count": 30,
+        "p50": 0.081083,
+        "p99": 0.370375,
+        "max": 0.370375
+      },
+      "outcomes": {
+        "returned": 30
+      }
+    },
+    "executor.shutdown": {
+      "start_gaps_ms": {
+        "count": 138,
+        "p50": 1110.497209,
+        "p99": 1559.481126,
+        "max": 1563.676459
+      },
+      "completed_duration_ms": {
+        "count": 276,
+        "p50": 1.250167,
+        "p99": 551.71175,
+        "max": 561.40075
+      },
+      "outcomes": {
+        "returned": 276
+      }
+    },
+    "order.cancel": {
+      "completed_duration_ms": {
+        "count": 138,
+        "p50": 14.217,
+        "p99": 231.282,
+        "max": 513.981917
+      },
+      "outcomes": {
+        "returned": 138
+      }
+    },
+    "order.submit": {
+      "completed_duration_ms": {
+        "count": 138,
+        "p50": 89.128542,
+        "p99": 184.246126,
+        "max": 227.003251
+      },
+      "outcomes": {
+        "returned": 138
+      }
+    },
+    "strategy.tick": {
+      "start_gaps_ms": {
+        "count": 599,
+        "p50": 1000.007,
+        "p99": 1075.532042,
+        "max": 1230.1015
+      },
+      "completed_duration_ms": {
+        "count": 600,
+        "p50": 4.361459,
+        "p99": 40.435667,
+        "max": 81.318042
+      },
+      "outcomes": {
+        "returned": 600
+      }
+    }
+  },
+  "venue": {
+    "observed_empty_venue_samples": 12,
+    "min_observed_live_orders": 0,
+    "max_empty_sample_span_ms": 1004.20575,
+    "empty_group_max_gap_ms": 1500,
+    "samples": 597,
+    "max_sample_gap_ms": 1050.792584
+  },
+  "episodes": [
+    {
+      "role": "engine",
+      "failure_ns": 37379367385485,
+      "recovery_ns": 37380409116235,
+      "observed_transition_seconds": 1.04173075,
+      "seconds_from_window_start": 189.22413542,
+      "failed_probe_elapsed_ms": 301.666,
+      "estimated_failed_request_start_ns": 37379065719485,
+      "estimated_request_start_limit": "Marker publication follows probe completion; subtraction estimates request start and has unmeasured publication/rounding delay.",
+      "request_through_recovery_mm": {
+        "strategy.tick": {
+          "start_gaps_ms": {
+            "count": 3,
+            "p50": 998.731167,
+            "p99": 1039.286292,
+            "max": 1039.286292
+          },
+          "duration_ms": {
+            "count": 2,
+            "p50": 5.823875,
+            "p99": 32.780708,
+            "max": 32.780708
+          },
+          "outcomes": {
+            "returned": 2
+          }
+        },
+        "controller.cycle": {
+          "start_gaps_ms": {
+            "count": 4,
+            "p50": 1010.053626,
+            "p99": 1021.9515,
+            "max": 1021.9515
+          },
+          "duration_ms": {
+            "count": 2,
+            "p50": 5.905666,
+            "p99": 7.04625,
+            "max": 7.04625
+          },
+          "outcomes": {
+            "returned": 2
+          }
+        },
+        "order.submit": {
+          "duration_ms": {
+            "count": 9,
+            "p50": 95.841125,
+            "p99": 227.003251,
+            "max": 227.003251
+          },
+          "outcomes": {
+            "returned": 9
+          }
+        },
+        "order.cancel": {
+          "duration_ms": {
+            "count": 0,
+            "p50": null,
+            "p99": null,
+            "max": null
+          },
+          "outcomes": {}
+        }
+      },
+      "quote_context_points": [
+        {
+          "relative_to_failure_ms": -1484.479876,
+          "live_orders": 3
+        },
+        {
+          "relative_to_failure_ms": -480.821251,
+          "live_orders": 3
+        },
+        {
+          "relative_to_failure_ms": 526.331375,
+          "live_orders": 11
+        },
+        {
+          "relative_to_failure_ms": 1530.474167,
+          "live_orders": 12
+        },
+        {
+          "relative_to_failure_ms": 2532.892626,
+          "live_orders": 9
+        }
+      ],
+      "activity": {
+        "status": "observed",
+        "context_start_ns": 37377367385485,
+        "context_end_ns": 37382409116235,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "invalid_venue_clock_samples": 0,
+        "venue_tracking_incomplete": false,
+        "has_venue_sample_before_failure": true,
+        "has_venue_sample_after_recovery": true,
+        "max_venue_sample_gap_ms": 1007.152626,
+        "observed_empty_venue_samples": 0,
+        "min_observed_live_orders": 3,
+        "max_empty_sample_span_ms": null,
+        "empty_group_max_gap_ms": 1500,
+        "max_strategy_tick_start_gap_ms": 998.731167,
+        "max_controller_cycle_start_gap_ms": 1021.9515,
+        "max_observed_live_order_age_ms": 59586.79986,
+        "continuous_quoting_proven": false,
+        "order_call_returns": [
+          {
+            "operation": "order.submit",
+            "connector": "okx_perpetual",
+            "order_id": "93027a12dac34fBCSLEUT560d351778b",
+            "start_ns": 37379292651068,
+            "at_ns": 37379458264318,
+            "duration_ms": 165.61325,
+            "outcome": "returned"
+          },
+          {
+            "operation": "order.submit",
+            "connector": "okx",
+            "order_id": "93027a12dac34fBCBLEUT02b6e3763c8",
+            "start_ns": 37379824086151,
+            "at_ns": 37379916338235,
+            "duration_ms": 92.252084,
+            "outcome": "returned"
+          },
+          {
+            "operation": "order.submit",
+            "connector": "okx",
+            "order_id": "93027a12dac34fBCBLEUTb4adcdfc472",
+            "start_ns": 37379864037568,
+            "at_ns": 37379916551193,
+            "duration_ms": 52.513625,
+            "outcome": "returned"
+          },
+          {
+            "operation": "order.submit",
+            "connector": "okx",
+            "order_id": "93027a12dac34fBCBLEUT39fecc755e1",
+            "start_ns": 37379904092235,
+            "at_ns": 37379951874235,
+            "duration_ms": 47.782,
+            "outcome": "returned"
+          }
+        ],
+        "terminal_count": 6,
+        "tick_durations_ms": {
+          "count": 1,
+          "p50": 5.823875,
+          "p99": 5.823875,
+          "max": 5.823875
+        },
+        "controller_durations_ms": {
+          "count": 2,
+          "p50": 5.905666,
+          "p99": 7.04625,
+          "max": 7.04625
+        }
+      },
+      "overlapping_spans": [
+        {
+          "operation": "service.observe_once",
+          "start_ns": 37379301994526,
+          "end_ns": 37379476718026,
+          "duration_ms": 174.7235,
+          "thread_cpu_ms": 122.177998,
+          "intersects_transition": true
+        },
+        {
+          "operation": "ownership_check_ms",
+          "start_ns": 37379312735318,
+          "end_ns": 37379314470151,
+          "duration_ms": 1.734833,
+          "thread_cpu_ms": 1.111334,
+          "intersects_transition": false
+        },
+        {
+          "operation": "ownership_check_ms",
+          "start_ns": 37379302033526,
+          "end_ns": 37379303507610,
+          "duration_ms": 1.474084,
+          "thread_cpu_ms": 0.862959,
+          "intersects_transition": false
+        },
+        {
+          "operation": "sql",
+          "start_ns": 37379331369735,
+          "end_ns": 37379332798110,
+          "duration_ms": 1.428375,
+          "thread_cpu_ms": 0.211041,
+          "intersects_transition": false
+        },
+        {
+          "operation": "sql",
+          "start_ns": 37379328559693,
+          "end_ns": 37379329922151,
+          "duration_ms": 1.362458,
+          "thread_cpu_ms": 0.193833,
+          "intersects_transition": false
+        }
+      ],
+      "gc": [],
+      "loop_stalls": []
+    },
+    {
+      "role": "engine",
+      "failure_ns": 37507395719126,
+      "recovery_ns": 37508425267251,
+      "observed_transition_seconds": 1.029548125,
+      "seconds_from_window_start": 317.252469061,
+      "failed_probe_elapsed_ms": 301.499,
+      "estimated_failed_request_start_ns": 37507094220126,
+      "estimated_request_start_limit": "Marker publication follows probe completion; subtraction estimates request start and has unmeasured publication/rounding delay.",
+      "request_through_recovery_mm": {
+        "strategy.tick": {
+          "start_gaps_ms": {
+            "count": 3,
+            "p50": 1001.756667,
+            "p99": 1096.725875,
+            "max": 1096.725875
+          },
+          "duration_ms": {
+            "count": 2,
+            "p50": 3.667417,
+            "p99": 3.725042,
+            "max": 3.725042
+          },
+          "outcomes": {
+            "returned": 2
+          }
+        },
+        "controller.cycle": {
+          "start_gaps_ms": {
+            "count": 5,
+            "p50": 1011.263958,
+            "p99": 1048.7145,
+            "max": 1048.7145
+          },
+          "duration_ms": {
+            "count": 3,
+            "p50": 4.984375,
+            "p99": 7.795375,
+            "max": 7.795375
+          },
+          "outcomes": {
+            "returned": 3
+          }
+        },
+        "order.submit": {
+          "duration_ms": {
+            "count": 6,
+            "p50": 108.0075,
+            "p99": 179.138125,
+            "max": 179.138125
+          },
+          "outcomes": {
+            "returned": 6
+          }
+        },
+        "order.cancel": {
+          "duration_ms": {
+            "count": 0,
+            "p50": null,
+            "p99": null,
+            "max": null
+          },
+          "outcomes": {}
+        }
+      },
+      "quote_context_points": [
+        {
+          "relative_to_failure_ms": -1021.597917,
+          "live_orders": 0
+        },
+        {
+          "relative_to_failure_ms": -17.787541,
+          "live_orders": 12
+        },
+        {
+          "relative_to_failure_ms": 987.093917,
+          "live_orders": 12
+        },
+        {
+          "relative_to_failure_ms": 1990.516625,
+          "live_orders": 12
+        },
+        {
+          "relative_to_failure_ms": 2995.230959,
+          "live_orders": 12
+        }
+      ],
+      "activity": {
+        "status": "observed",
+        "context_start_ns": 37505395719126,
+        "context_end_ns": 37510425267251,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "invalid_venue_clock_samples": 0,
+        "venue_tracking_incomplete": false,
+        "has_venue_sample_before_failure": true,
+        "has_venue_sample_after_recovery": true,
+        "max_venue_sample_gap_ms": 1004.881458,
+        "observed_empty_venue_samples": 1,
+        "min_observed_live_orders": 0,
+        "max_empty_sample_span_ms": 0,
+        "empty_group_max_gap_ms": 1500,
+        "max_strategy_tick_start_gap_ms": 1001.756667,
+        "max_controller_cycle_start_gap_ms": 1048.7145,
+        "max_observed_live_order_age_ms": 3993.471459,
+        "continuous_quoting_proven": false,
+        "order_call_returns": [],
+        "terminal_count": 0,
+        "tick_durations_ms": {
+          "count": 1,
+          "p50": 3.667417,
+          "p99": 3.667417,
+          "max": 3.667417
+        },
+        "controller_durations_ms": {
+          "count": 3,
+          "p50": 4.984375,
+          "p99": 7.795375,
+          "max": 7.795375
+        }
+      },
+      "overlapping_spans": [
+        {
+          "operation": "service.observe_once",
+          "start_ns": 37507274662835,
+          "end_ns": 37507419104543,
+          "duration_ms": 144.441708,
+          "thread_cpu_ms": 105.050038,
+          "intersects_transition": true
+        },
+        {
+          "operation": "pool_checkout_ms",
+          "start_ns": 37507381133251,
+          "end_ns": 37507388255668,
+          "duration_ms": 7.122417,
+          "thread_cpu_ms": 0.538708,
+          "intersects_transition": false
+        },
+        {
+          "operation": "db_ping_ms",
+          "start_ns": 37507381223251,
+          "end_ns": 37507388223126,
+          "duration_ms": 6.999875,
+          "thread_cpu_ms": 0.420292,
+          "intersects_transition": false
+        },
+        {
+          "operation": "ownership_check_ms",
+          "start_ns": 37507274696335,
+          "end_ns": 37507276377543,
+          "duration_ms": 1.681208,
+          "thread_cpu_ms": 0.950667,
+          "intersects_transition": false
+        },
+        {
+          "operation": "ownership_check_ms",
+          "start_ns": 37507286342501,
+          "end_ns": 37507287971043,
+          "duration_ms": 1.628542,
+          "thread_cpu_ms": 0.954751,
+          "intersects_transition": false
+        }
+      ],
+      "gc": [],
+      "loop_stalls": []
+    }
+  ],
+  "loss": {
+    "engine": {
+      "trace": {
+        "written_records": 1520,
+        "written_bytes": 1759193,
+        "ordinary_written_bytes": 1701849,
+        "reserved_written_bytes": 57344,
+        "dropped_records": 0,
+        "writer_cpu_ms": 66.53363300000002,
+        "dropped_by_kind": {},
+        "queue_depth": 0,
+        "max_bytes": 33554432,
+        "reserved_bytes": 8388608,
+        "reserved_kinds": [
+          "gc",
+          "loop_stall",
+          "loop_stall_trigger",
+          "probe_failure",
+          "probe_recovered"
+        ],
+        "writer_alive": true,
+        "dropped_spans": 22057,
+        "slow_trace_threshold_ms": 100,
+        "gc_trace": {
+          "pending_events": 0,
+          "max_events": 128,
+          "dropped_events": 0
+        }
+      },
+      "incident_capture": {
+        "incidents": 6,
+        "evicted_records": 7211,
+        "oversize_records": 0,
+        "suppressed_incidents": 0,
+        "buffered_records": 98,
+        "buffered_bytes": 101666,
+        "max_records": 256,
+        "max_bytes": 524288,
+        "history_seconds": 10.0,
+        "tail_seconds": 10.0,
+        "max_incidents": 128
+      },
+      "metrics_export_skipped": 0
+    },
+    "api": {
+      "trace": {
+        "written_records": 321,
+        "written_bytes": 953527,
+        "ordinary_written_bytes": 951534,
+        "reserved_written_bytes": 1993,
+        "dropped_records": 0,
+        "writer_cpu_ms": 26.620127000000007,
+        "dropped_by_kind": {},
+        "queue_depth": 0,
+        "max_bytes": 33554432,
+        "reserved_bytes": 8388608,
+        "reserved_kinds": [
+          "gc",
+          "loop_stall",
+          "loop_stall_trigger",
+          "probe_failure",
+          "probe_recovered"
+        ],
+        "writer_alive": true,
+        "dropped_spans": 39,
+        "slow_trace_threshold_ms": 100,
+        "gc_trace": {
+          "pending_events": 0,
+          "max_events": 128,
+          "dropped_events": 0
+        }
+      },
+      "incident_capture": {
+        "incidents": 4,
+        "evicted_records": 2410,
+        "oversize_records": 0,
+        "suppressed_incidents": 0,
+        "buffered_records": 38,
+        "buffered_bytes": 129500,
+        "max_records": 256,
+        "max_bytes": 524288,
+        "history_seconds": 10.0,
+        "tail_seconds": 10.0,
+        "max_incidents": 128
+      },
+      "metrics_export_skipped": 0
+    }
+  },
+  "diagnostics": {
+    "enabled": true,
+    "venue_observer": {
+      "samples": 598,
+      "errors": 0,
+      "clock_errors": 0,
+      "sink_errors": 0,
+      "max_sample_gap_ms": 1053.177792,
+      "nominal_sample_interval_ms": 1000,
+      "clock": "shared Linux-kernel monotonic clock",
+      "sink": {
+        "written_records": 598,
+        "written_bytes": 8871200,
+        "ordinary_written_bytes": 8871200,
+        "reserved_written_bytes": 0,
+        "dropped_records": 0,
+        "writer_cpu_ms": 178.9678039999998,
+        "dropped_by_kind": {},
+        "queue_depth": 0,
+        "max_bytes": 16777216,
+        "reserved_bytes": 0,
+        "reserved_kinds": [],
+        "writer_alive": false
+      }
+    },
+    "engine_activity_stream": null
+  },
+  "source_activity_sha256": {
+    "venue-activity.jsonl": "46ee6e02fb222861deed67e52b7701b1987e702b5c271b4fe87f6b149e6c5e60",
+    "mm-activity.jsonl": "c4c8eba2b81fd06652956158269472996943a629b407727a7aff5124b9931ea0",
+    "venue-activity-summary.json": "aa2c697c495ec5853786df14532f19b95e2c168b00e5cf3ce0810a044fa90ca0"
+  },
+  "source_trace_sha256": {
+    "api-incidents.jsonl": "14949c666e722a1ac2eadba3a1bc8a423b0a3077866365fd39542f47262bdc0f",
+    "engine-incidents.jsonl": "83f1453c6caeb729cebca970f21331f1942a0a318c9846930f1a2881403f3394"
+  },
+  "interpretation": "Temporal overlap does not establish causation. Transition intervals are supervisor observations, not measured quote downtime. Context includes up to one second before failure; intersects_transition distinguishes preceding work. Captured stacks/spans describe their own sampling times. Missing records and bounded incident/file/queue limits prevent complete attribution; an unpaired failure uses at most 15s context.",
+  "published_at": "2026-11-03T12:09:15.486082+00:00",
+  "source_commit": "06ab51b1718037086dc248d00e6bde1d3a9ef98c",
+  "manifest": null,
+  "passed": true,
+  "release_scope_complete": false,
+  "history_orders": 100000,
+  "history_fills": 100000,
+  "host_architecture": "arm64",
+  "image_architecture": "amd64",
+  "emulation": true,
+  "source_sha256": {
+    "scripts/test_mm_load.py": "600894ccbe95744bc466559dd01e7b268b0d6faf015d1628651a6a7de0b2294d",
+    "scripts/test_e2e_offline.py": "47dec31c15dc83b731741825a26f9df0afdef817a51cdaf3523f779a05854c08",
+    "scripts/analyze_mm_load_trace.py": "f6ff4e76ddfeb95098064247a9e68a07185f40671769b5bc28cf29da424c9fda",
+    "scripts/mm_load_budgets.py": "e63c9f4741475bae7bd2fd1b69d70ffb8b7b1fdba8fb7c1e4348d96a841694c7",
+    "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
+    "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458",
+    "scripts/mm_load_processes.py": "1b939e85a11b7d374cc17dc2111729b72f0775aad2f5161487110f1f516820fa",
+    "test/e2e/offline/load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+    "test/e2e/offline/load_trace.py": "0ce2cd42390ec0340c12f46273d8e158b110b0ac6bf4a5be1c7a27d2007400d7",
+    "test/e2e/offline/load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+    "test/e2e/offline/load_service.py": "8242c9cff00a0d9f1371297c1d11f886344a16ddf1f0f9d667b9db0768990d7f",
+    "test/e2e/offline/load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4"
+  },
+  "fixture_sha256": {
+    "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+    "load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+    "exchange.py": "8dc6213294680cbe188afa02974417ccde52f2dbcfef6784f4c2c527ab89ec24",
+    "load_mm_activity.py": "a37e4a1a784bc8426e8ca55aa75469e31544ae4208b3e4b38d6a7a405163247a",
+    "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "load_service.py": "8242c9cff00a0d9f1371297c1d11f886344a16ddf1f0f9d667b9db0768990d7f",
+    "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+    "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+    "load_trace.py": "0ce2cd42390ec0340c12f46273d8e158b110b0ac6bf4a5be1c7a27d2007400d7",
+    "load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+    "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+    "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+    "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+    "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+    "load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+    "load_client.py": "77bf2b07b8199c5545bf8cf19001c3e6828f874ca28429d6933d1bff24d4ff84"
+  },
+  "source_hashes_unchanged": true,
+  "distribution_method": "Nearest-rank percentiles for operation arrays. Completed durations require both endpoints in-window; start gaps require previous and current starts in-window. Request-through-recovery correlations include intersecting intervals completed within the following 2s context. Order start gaps are deliberately omitted: refresh spacing is not an engine stall.",
+  "engine_activity_window_export": {
+    "at": 1793707659.066872,
+    "mm_activity_sink": {
+      "written_records": 4862,
+      "written_bytes": 1552210,
+      "ordinary_written_bytes": 1552210,
+      "reserved_written_bytes": 0,
+      "dropped_records": 0,
+      "writer_cpu_ms": 171.59501400000025,
+      "dropped_by_kind": {},
+      "queue_depth": 0,
+      "max_bytes": 8388608,
+      "reserved_bytes": 0,
+      "reserved_kinds": [],
+      "writer_alive": true
+    }
+  },
+  "engine_activity_errors": {
+    "sink_errors": 0,
+    "metadata_errors": 0,
+    "events_evicted": 4606,
+    "capacity": 256
+  },
+  "supervision_events": {
+    "child_started:engine": 1,
+    "child_started:api": 1
+  },
+  "historical_release": {
+    "scope": "Original full-release healthy envelope, including inter-window gaps; original artifacts unchanged",
+    "source_directory": "build/mm-load/20261103-164521-cd0782",
+    "image_id": "sha256:51d4d879d0f0532b825072483f7ba7cfbb95d80fa31742e34b6fa846e10df83e",
+    "roles": {
+      "engine": 20,
+      "api": 1
+    },
+    "episodes": [
+      {
+        "role": "engine",
+        "failure_ns": 34133721536132,
+        "recovery_ns": 34136484879134,
+        "observed_transition_seconds": 2.763343002,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": true,
+        "max_context_loop_stall_ms": 1049.584792,
+        "longest_context_operations": [
+          {
+            "operation": "service.collect_funding",
+            "duration_ms": 1648.739334,
+            "intersects_transition": true
+          },
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 1111.645167,
+            "intersects_transition": true
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 796.879125,
+            "intersects_transition": true
+          },
+          {
+            "operation": "db_ping_ms",
+            "duration_ms": 796.369167,
+            "intersects_transition": true
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 752.027251,
+            "intersects_transition": true
+          }
+        ]
+      },
+      {
+        "role": "api",
+        "failure_ns": 34134044133258,
+        "recovery_ns": 34135443745175,
+        "observed_transition_seconds": 1.399611917,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": null,
+        "longest_context_operations": [
+          {
+            "operation": "http.request",
+            "duration_ms": 1741.497501,
+            "intersects_transition": true
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 1739.478126,
+            "intersects_transition": true
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 1692.785584,
+            "intersects_transition": true
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 1666.156667,
+            "intersects_transition": true
+          },
+          {
+            "operation": "http.request",
+            "duration_ms": 1537.461376,
+            "intersects_transition": true
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 32968737766518,
+        "recovery_ns": 32970010530393,
+        "observed_transition_seconds": 1.272763875,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": true,
+        "max_context_loop_stall_ms": 586.878375,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 273.184416,
+            "intersects_transition": true
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 43.662625,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 19.846417,
+            "intersects_transition": true
+          },
+          {
+            "operation": "commit_ms",
+            "duration_ms": 19.783583,
+            "intersects_transition": true
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 14.250333,
+            "intersects_transition": true
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 33375012374911,
+        "recovery_ns": 33376090134370,
+        "observed_transition_seconds": 1.077759459,
+        "gc_intersects_transition": true,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": null,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 487.721542,
+            "intersects_transition": true
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 200.097625,
+            "intersects_transition": true
+          },
+          {
+            "operation": "db_ping_ms",
+            "duration_ms": 199.342917,
+            "intersects_transition": false
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 93.679334,
+            "intersects_transition": true
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 6.553708,
+            "intersects_transition": false
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 32952512802885,
+        "recovery_ns": 32953587926594,
+        "observed_transition_seconds": 1.075123709,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": 360.432209,
+        "longest_context_operations": [
+          {
+            "operation": "recorder_ms",
+            "duration_ms": 908.72675,
+            "intersects_transition": false
+          },
+          {
+            "operation": "fill_store_ms",
+            "duration_ms": 845.826959,
+            "intersects_transition": false
+          },
+          {
+            "operation": "market_checkpoint_ms",
+            "duration_ms": 720.146334,
+            "intersects_transition": false
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 483.481167,
+            "intersects_transition": false
+          },
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 168.491792,
+            "intersects_transition": true
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 34092700498614,
+        "recovery_ns": 34093771936156,
+        "observed_transition_seconds": 1.071437542,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": null,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 121.061792,
+            "intersects_transition": true
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 9.316084,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 6.392417,
+            "intersects_transition": true
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 3.787708,
+            "intersects_transition": true
+          },
+          {
+            "operation": "db_ping_ms",
+            "duration_ms": 3.644291,
+            "intersects_transition": true
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 29353391484744,
+        "recovery_ns": 29354453297494,
+        "observed_transition_seconds": 1.06181275,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": null,
+        "longest_context_operations": [
+          {
+            "operation": "candle_sample_ms",
+            "duration_ms": 339.941541,
+            "intersects_transition": false
+          },
+          {
+            "operation": "natr_ms",
+            "duration_ms": 285.730958,
+            "intersects_transition": false
+          },
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 131.407,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 13.26225,
+            "intersects_transition": true
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 8.59,
+            "intersects_transition": true
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 29436511935615,
+        "recovery_ns": 29437568842407,
+        "observed_transition_seconds": 1.056906792,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": null,
+        "longest_context_operations": [
+          {
+            "operation": "recorder_ms",
+            "duration_ms": 213.656417,
+            "intersects_transition": false
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 139.383083,
+            "intersects_transition": false
+          },
+          {
+            "operation": "db_ping_ms",
+            "duration_ms": 138.65075,
+            "intersects_transition": false
+          },
+          {
+            "operation": "fill_store_ms",
+            "duration_ms": 43.642375,
+            "intersects_transition": false
+          },
+          {
+            "operation": "market_checkpoint_ms",
+            "duration_ms": 28.437334,
+            "intersects_transition": false
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 32866282849387,
+        "recovery_ns": 32867336318137,
+        "observed_transition_seconds": 1.05346875,
+        "gc_intersects_transition": true,
+        "loop_stall_intersects_transition": true,
+        "max_context_loop_stall_ms": 436.331834,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 660.917125,
+            "intersects_transition": true
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 346.116583,
+            "intersects_transition": false
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 201.76625,
+            "intersects_transition": false
+          },
+          {
+            "operation": "commit_ms",
+            "duration_ms": 142.462084,
+            "intersects_transition": false
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 76.607291,
+            "intersects_transition": true
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 33100576749494,
+        "recovery_ns": 33101629668661,
+        "observed_transition_seconds": 1.052919167,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": null,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 218.648,
+            "intersects_transition": true
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 32.175167,
+            "intersects_transition": false
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 13.851292,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 10.827541,
+            "intersects_transition": true
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 9.064875,
+            "intersects_transition": true
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 30514741594318,
+        "recovery_ns": 30515792883402,
+        "observed_transition_seconds": 1.051289084,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": 329.934417,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 126.265167,
+            "intersects_transition": true
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 3.785458,
+            "intersects_transition": false
+          },
+          {
+            "operation": "db_ping_ms",
+            "duration_ms": 3.662292,
+            "intersects_transition": false
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 1.609166,
+            "intersects_transition": false
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 1.365166,
+            "intersects_transition": false
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 33248666643562,
+        "recovery_ns": 33249717777646,
+        "observed_transition_seconds": 1.051134084,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": null,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 385.832292,
+            "intersects_transition": true
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 222.472417,
+            "intersects_transition": false
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 178.611916,
+            "intersects_transition": false
+          },
+          {
+            "operation": "commit_ms",
+            "duration_ms": 42.904084,
+            "intersects_transition": false
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 38.317375,
+            "intersects_transition": true
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 33537047312694,
+        "recovery_ns": 33538095465527,
+        "observed_transition_seconds": 1.048152833,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": null,
+        "longest_context_operations": []
+      },
+      {
+        "role": "engine",
+        "failure_ns": 29493174850808,
+        "recovery_ns": 29494221719725,
+        "observed_transition_seconds": 1.046868917,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": 313.756583,
+        "longest_context_operations": []
+      },
+      {
+        "role": "engine",
+        "failure_ns": 32838018046999,
+        "recovery_ns": 32839059168875,
+        "observed_transition_seconds": 1.041121876,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": 1392.986084,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 1702.631876,
+            "intersects_transition": true
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 37.839458,
+            "intersects_transition": false
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 27.914583,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 20.517292,
+            "intersects_transition": false
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 18.720083,
+            "intersects_transition": false
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 33409840397552,
+        "recovery_ns": 33410880272011,
+        "observed_transition_seconds": 1.039874459,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": true,
+        "max_context_loop_stall_ms": 482.931792,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 906.508167,
+            "intersects_transition": true
+          },
+          {
+            "operation": "market_checkpoint_ms",
+            "duration_ms": 178.4195,
+            "intersects_transition": true
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 131.138334,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 89.275208,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 6.20325,
+            "intersects_transition": false
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 30940660665096,
+        "recovery_ns": 30941698025930,
+        "observed_transition_seconds": 1.037360834,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": true,
+        "max_context_loop_stall_ms": 346.744084,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 178.681459,
+            "intersects_transition": true
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 2.3245,
+            "intersects_transition": true
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 2.126417,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 1.682959,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 1.541417,
+            "intersects_transition": true
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 31633923536826,
+        "recovery_ns": 31634955365076,
+        "observed_transition_seconds": 1.03182825,
+        "gc_intersects_transition": true,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": null,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 619.985584,
+            "intersects_transition": true
+          },
+          {
+            "operation": "recorder_ms",
+            "duration_ms": 426.976083,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 236.054708,
+            "intersects_transition": true
+          },
+          {
+            "operation": "candle_sample_ms",
+            "duration_ms": 105.913958,
+            "intersects_transition": false
+          },
+          {
+            "operation": "natr_ms",
+            "duration_ms": 103.558667,
+            "intersects_transition": false
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 30320356585395,
+        "recovery_ns": 30321388393646,
+        "observed_transition_seconds": 1.031808251,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": 218.42258299999997,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 171.987792,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 25.843209,
+            "intersects_transition": true
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 15.251458,
+            "intersects_transition": true
+          },
+          {
+            "operation": "db_ping_ms",
+            "duration_ms": 15.088958,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 4.692667,
+            "intersects_transition": true
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 33025975425252,
+        "recovery_ns": 33027000968878,
+        "observed_transition_seconds": 1.025543626,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": 312.570917,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 159.667458,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 4.115041,
+            "intersects_transition": true
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 1.704667,
+            "intersects_transition": false
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 1.629042,
+            "intersects_transition": false
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 1.592125,
+            "intersects_transition": true
+          }
+        ]
+      },
+      {
+        "role": "engine",
+        "failure_ns": 31891243678319,
+        "recovery_ns": 31892264059653,
+        "observed_transition_seconds": 1.020381334,
+        "gc_intersects_transition": false,
+        "loop_stall_intersects_transition": false,
+        "max_context_loop_stall_ms": 521.428501,
+        "longest_context_operations": [
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 261.587376,
+            "intersects_transition": true
+          },
+          {
+            "operation": "pool_checkout_ms",
+            "duration_ms": 14.292375,
+            "intersects_transition": true
+          },
+          {
+            "operation": "db_ping_ms",
+            "duration_ms": 13.041125,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 7.973667,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 5.614084,
+            "intersects_transition": true
+          }
+        ]
+      }
+    ],
+    "trace_sha256": {
+      "api-incidents.jsonl": "9be7723ff72e6f3e830d9c09cc114098bae80e0d78cd55b651927acd757b130e",
+      "engine-incidents.jsonl": "6309556d87583c3b844a95dad015a5e28b851c5ee1f93dab104234d3f25b0041"
+    },
+    "all_activity_not_instrumented": true
+  },
+  "demo_restored": {
+    "passed": true,
+    "image_id": "sha256:51d4d879d0f0532b825072483f7ba7cfbb95d80fa31742e34b6fa846e10df83e",
+    "health": {
+      "/startup": 200,
+      "/live": 200,
+      "/ready": 503
+    },
+    "trading_stopped": true,
+    "owner_available": true,
+    "no_halt": true,
+    "no_pending_mutations": true,
+    "order_fill_position_executor_hashes_unchanged": true,
+    "at": "2026-11-03T12:08:35.447920+00:00"
+  },
+  "command": "python scripts/test_mm_load.py --image hummingbot-cloudrun:checkpoint-poll --profile probe --probe-seconds 600 --enhancements --volatility-defense --operations --gc-diagnostics --market-diagnostics --incident-diagnostics --incident-max-captures 128 --mm-activity --cpus 2 --daily-cache-ttl-seconds 15",
+  "raw_result_sha256": "129c3292bb1cccde5ad3bf7104d356ddabf81e8e96cb7f3fe52e1e157882ce59",
+  "supervision_log_sha256": "e969e5c1d9550a72a42b07196aa37d34122c2ae6e3dde77206b108d30f981b5e",
+  "limitations": [
+    "Opt-in rich instrumentation on local amd64 emulation; not an ordinary-entrypoint matched experiment or connected OKX measurement.",
+    "Historical full release lacks MM activity; a later short run cannot recover missing tick/order observations.",
+    "Independent samples are discrete; no continuous or two-sided quote-availability guarantee.",
+    "No final engine mm-activity-summary file; in-window runtime export reports zero sink/metadata errors/drops and queue depth zero, but teardown flush completeness is not certified.",
+    "Marker minus elapsed_ms only estimates failed request start; publication and rounding delay is unmeasured.",
+    "Bounded trace selection and temporal overlap do not establish a unique cause. No runtime fix or new full release is claimed."
+  ]
+}

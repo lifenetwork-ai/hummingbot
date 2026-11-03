@@ -23,6 +23,11 @@ R1 has 20 engine/one API, maximum reported interval 2.761 s; R2 has 15 engine,
 maximum interval 1.279 s. No healthy-window child restart is recorded. A probe
 interval is not measured quote downtime, and no unique cause is established.
 
+The subsequent [same-image MM correlation diagnostic](../investigations/mm-checkpoint-probe-correlation.md)
+captures two recovered probes with continuing tick/controller/order progress.
+It adds trading measurements for that600s run; it cannot reconstruct missing
+MM activity in these historical release episodes.
+
 All 1,156 packaged runtime/config hashes match, and 1,223 runtime/fixture files
 remain unchanged through measurement. Prior source regression results (2,371
 native tests plus 11 subtests, 321 PostgreSQL tests and Swagger) still apply to

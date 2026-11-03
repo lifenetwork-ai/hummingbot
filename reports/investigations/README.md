@@ -1,8 +1,13 @@
 # Incident investigations
 
-[All reports](../README.md) · [Current release](../release/mm-quote-recovery-release.md)
+[All reports](../README.md) · [Current release](../release/mm-checkpoint-final-release.md)
 
-The newest [quote-replacement follow-up](mm-quote-recovery.md) fixes the idle
+The latest [final-image probe/MM correlation](mm-checkpoint-probe-correlation.md)
+reviews all21 retained historical R1 episodes and passes a new600s diagnostic
+on `51d4d879`. Both new probe episodes retain trading progress; no new runtime
+defect or threshold change is justified. Historical MM timing remains unavailable.
+
+The earlier [quote-replacement follow-up](mm-quote-recovery.md) fixes the idle
 five-second wait after terminal confirmation. Broad source checks, three
 packaged E2E groups and matched180s diagnostics pass; median post-terminal wait
 falls4,993→99ms. Protective gaps and production quote-coverage policy remain;
@@ -14,7 +19,7 @@ cycle/order timings and independent venue samples. It validates detection of a
 controlled engine pause; its empty-sample investigation is followed up above.
 The rebuilt diagnostic artifact does not inherit older release gates.
 
-The latest logic audit fixes durable-HALT cleanup and equivalent-fee replay,
+The earlier logic audit fixes durable-HALT cleanup and equivalent-fee replay,
 with broad source and targeted image recovery checks. The subsequent
 [same-image load rerun](../release/mm-runtime-logic-release.md) passes full R1
 and matched R2 on `95cde31c`; no new connected Demo acceptance is claimed.
@@ -28,6 +33,7 @@ current release acceptance is recorded separately in the release closeout.
 
 | Report | Evidence and scope |
 | --- | --- |
+| [Final-image probe/MM correlation](mm-checkpoint-probe-correlation.md), [evidence](mm-checkpoint-probe-correlation-evidence.json) | Same-image600s passes, p99 71.41ms/600 matched synthetic fills. Two probe episodes retain tick/controller/submission progress; no runtime patch or threshold change, historical MM timing unavailable. |
 | [Quote replacement](mm-quote-recovery.md), [evidence](mm-quote-recovery-evidence.json) | Fixed terminal-confirmed idle wait; native2,356 plus11 subtests/PG296/Swagger, three image E2E groups and matched180s diagnostics pass. Median4,993→99ms; protective gaps remain, no new full-hour/Demo gate. |
 | [MM trading continuity](mm-trading-continuity.md), [evidence](mm-trading-continuity-evidence.json) |946 CLI tests,180s offline probe and a separate2.272s engine-pause diagnostic. Independent samples persist while engine pauses; empty quote clusters remain an explicit follow-up. New4ef2c50a is diagnostic only. |
 | [Runtime logic audit](mm-runtime-logic-audit.md), [evidence](mm-runtime-logic-audit-evidence.json) | Two confirmed runtime defects fixed with Red/Green; native2,310 plus11 subtests/PG296/Swagger, two targeted E2E groups and external HALT/restart pass on95cde31c. No new full-release/load/Demo claim. |

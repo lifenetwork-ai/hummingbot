@@ -5,6 +5,15 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-03
 
+- **Final-image probe/MM correlation complete:** the same `51d4d879` image passes
+  a bounded600s rich diagnostic: API p99 71.41ms, zero unexpected API errors,
+  600 matched synthetic fills. Two recovered engine probe episodes retain tick/
+  controller progress and successful submissions; intersecting tick gaps are
+  1.039/1.097s. All21 historical R1 episodes are reviewed, but lack detailed MM
+  measurements. No new runtime defect or unique historical cause is established;
+  no source/threshold change. Idle Demo restored, ledger hashes unchanged.
+  [Report/evidence](../investigations/mm-checkpoint-probe-correlation.md).
+
 - **Final image load and REST fill proof complete:** `51d4d879` passes full R1
   and matched shipping R2 on unchanged source/fixtures. Soak p99 235 ms,
   +14.14 MiB retention, 4,885 matched synthetic fills and six faults. Recovered
