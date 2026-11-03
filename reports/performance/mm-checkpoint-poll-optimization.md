@@ -27,3 +27,20 @@ loop. Moving that IO to a worker requires a separately reviewed fence/lifecycle
 change: the current hook calls the dedicated owner connection, which must not be
 shared across threads. These tests do not establish a millisecond speedup, a
 historical probe root cause or new image/load/Demo acceptance.
+
+## Idle reconciliation polling
+
+The previous one-second idle poll first acquired FOR UPDATE on bot_state, then
+read the receipt queue. It now issues a single non-locking eligible-ID probe.
+Actual work still locks bot_state first, verifies owner/generation and re-reads
+the eligible receipt in that transaction. An arriving request missed by the probe
+waits for the normal next poll. There is no cache or authority shortcut.
+
+Three new cases fail Red on the old implementation; the stale-owner/reclaim
+case already passes and remains a compatibility check. Green: 54 PostgreSQL
+reconciliation/ownership tests and 42 native observer/publication/reconciliation
+tests pass. An empty queue requires one SQL query and no control-row lock; it
+also completes while a separate transaction holds that row, under a 150ms lock
+deadline. Candidate-completed and owner-changed races return no claim; current
+owners can still reclaim applying work. This removes idle lock contention rather
+than promising a particular HTTP/probe latency reduction.

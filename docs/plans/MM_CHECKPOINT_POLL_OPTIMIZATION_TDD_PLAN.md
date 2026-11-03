@@ -17,12 +17,12 @@ cache, new service or Redis dependency.
 
 ## P2 — Idle reconciliation polling
 
-- [ ] Red: an empty queue must not lock bot_state; verify completed/stale candidates,
+- [x] Red: an empty queue must not lock bot_state; verify completed/stale candidates,
   owner changes and concurrent claims cannot weaken the existing transaction.
-- [ ] Add a non-locking candidate probe; recheck under the existing owner/control
+- [x] Add a non-locking candidate probe; recheck under the existing owner/control
   lock before claiming work, keeping the current lock order.
-- [ ] Green: PostgreSQL concurrency/ownership tests and API/service regressions.
-- [ ] Record evidence and commit.
+- [x] Green: PostgreSQL concurrency/ownership tests and API/service regressions.
+- [x] Record evidence and commit.
 
 ## P3 — Funding discovery measurement
 

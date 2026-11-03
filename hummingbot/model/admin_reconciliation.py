@@ -55,6 +55,16 @@ def request_check(store, key, payload):
 
 def claim_check(store, owner_uuid, generation):
     with store.engine.begin() as connection:
+        # Most polls have no work. Avoid taking the shared trading-control row's
+        # exclusive lock just to discover an empty queue. This is only a hint:
+        # claims still acquire bot_state first and re-read the eligible receipt
+        # below, so completion/owner changes between these reads cannot claim
+        # stale work or invert the existing control/receipt lock order.
+        candidate = connection.execute(select(AdminCommand.id).where(
+            AdminCommand.bot_id == store.bot_id, AdminCommand.action == "reconciliation_check",
+            AdminCommand.status.in_(("accepted", "applying"))).limit(1)).first()
+        if candidate is None:
+            return None
         state = _state(connection, store.bot_id)
         if not _owner(state, owner_uuid, generation):
             return None

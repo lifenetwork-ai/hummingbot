@@ -74,3 +74,76 @@ def test_funding_checkpoint_does_not_invalidate_trading_reconciliation(checks):
         connection.execute(update(BotState).where(BotState.bot_id == store.bot_id).values(
             recovery_state={"funding_sync": {"covered_until_ms": 1800000120000}, "halt": True}))
     assert store.reconciliation_scope(request, 0)["fingerprint"] != before["fingerprint"]
+
+
+def test_empty_check_queue_does_not_lock_control_row(checks):
+    from sqlalchemy import event, select
+
+    from hummingbot.model.bot_state import BotState
+    store, owner = checks
+    statements = []
+
+    def observe(connection, cursor, statement, parameters, context, many):
+        statements.append(statement)
+
+    event.listen(store.engine, 'before_cursor_execute', observe)
+    try:
+        assert store.claim_check(owner.owner_uuid, owner.generation) is None
+    finally:
+        event.remove(store.engine, 'before_cursor_execute', observe)
+    assert len(statements) == 1
+    assert 'admin_commands' in statements[0] and 'FOR UPDATE' not in statements[0]
+    # The idle path must also remain usable while a control transaction owns
+    # the bot row. A tight SQL deadline turns accidental lock waits into failure.
+    with store.engine.begin() as blocker:
+        blocker.execute(select(BotState.bot_id).where(BotState.bot_id == store.bot_id).with_for_update())
+
+        def deadline(connection):
+            connection.exec_driver_sql("SET LOCAL lock_timeout = '150ms'")
+
+        event.listen(store.engine, 'begin', deadline)
+        try:
+            assert store.claim_check(owner.owner_uuid, owner.generation) is None
+        finally:
+            event.remove(store.engine, 'begin', deadline)
+
+
+@pytest.mark.parametrize('change', ['completed', 'owner_changed'])
+def test_check_candidate_is_revalidated_after_unlocked_probe(checks, change):
+    from sqlalchemy import event, update
+
+    from hummingbot.model.admin_command import AdminCommand
+    from hummingbot.model.bot_state import BotState
+    store, owner = checks
+    receipt = store.request_check('race-check', {'market': 'spot'})
+    changed = []
+
+    def between_probe_and_claim(connection, cursor, statement, parameters, context, many):
+        if changed or not statement.startswith('SELECT admin_commands.id ') or 'FOR UPDATE' in statement:
+            return
+        changed.append(True)
+        with store.engine.begin() as concurrent:
+            if change == 'completed':
+                concurrent.execute(update(AdminCommand).where(AdminCommand.id == receipt['id']).values(status='succeeded'))
+            else:
+                concurrent.execute(update(BotState).where(BotState.bot_id == store.bot_id).values(owner_generation=owner.generation + 1))
+
+    event.listen(store.engine, 'after_cursor_execute', between_probe_and_claim)
+    try:
+        assert store.claim_check(owner.owner_uuid, owner.generation) is None
+    finally:
+        event.remove(store.engine, 'after_cursor_execute', between_probe_and_claim)
+    assert changed == [True]
+    assert store.command_by_id(receipt['id'])['status'] == ('succeeded' if change == 'completed' else 'accepted')
+
+
+def test_stale_check_worker_cannot_claim_but_current_owner_can_reclaim(checks):
+    store, owner = checks
+    receipt = store.request_check('reclaim-check', {'market': 'spot'})
+    assert store.claim_check('stale-owner', owner.generation) is None
+    first = store.claim_check(owner.owner_uuid, owner.generation)
+    assert first['id'] == receipt['id'] and first['status'] == 'applying'
+    assert store.claim_check(owner.owner_uuid, owner.generation - 1) is None
+    second = store.claim_check(owner.owner_uuid, owner.generation)
+    assert second['id'] == receipt['id']
+    assert second['result']['lease'] == {'owner_uuid': owner.owner_uuid, 'generation': owner.generation}
