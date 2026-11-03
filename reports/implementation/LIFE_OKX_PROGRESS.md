@@ -5,6 +5,18 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-03
 
+- **Inventory hard-cap lifecycle coverage added:** eight native component cases
+  connect real controller/orchestrator/executor behavior for spot base and
+  perpetual long/short/gross caps. They cover partial/late fills, delayed cancel,
+  pending reservation, exact held exposure/fees, repeat-report deduplication,
+  persistent breach and valid-account recovery. Three isolated in-memory mutants
+  each fail all eight cases; the related435-test suite plus2 subtests passes.
+  Production code is unchanged; account/strategy I/O and persistence are mocked,
+  with no new image/load/Demo claim. Initial fixture bring-up errors were corrected
+  quantizer stubs and perpetual book timestamp units, not shipping defects.
+  [Tests](../../test/hummingbot/strategy_v2/controllers/test_inventory_cap_lifecycle.py),
+  [checklist](../../docs/plans/MM_RUNTIME_LOGIC_AUDIT_TDD_PLAN.md#inventory-hard-cap-lifecycle-coverage--requested-2026-11-03).
+
 - **Final-image probe/MM correlation complete:** the same `51d4d879` image passes
   a bounded600s rich diagnostic: API p99 71.41ms, zero unexpected API errors,
   600 matched synthetic fills. Two recovered engine probe episodes retain tick/

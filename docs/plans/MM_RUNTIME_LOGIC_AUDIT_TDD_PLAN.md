@@ -3,6 +3,30 @@
 Date: 2026-11-02 (Asia/Saigon). Follow the completed
 [residual probe investigation](MM_ENGINE_RESIDUAL_PROBE_INVESTIGATION.md).
 
+## Inventory hard-cap lifecycle coverage — requested 2026-11-03
+
+- [x] Exercise real controller stop actions through the orchestrator and position
+  executor, rather than checking new-order filtering alone: spot base cap and
+  independent perpetual long, short and gross caps.
+- [x] Cover a partial fill before the breach, delayed terminal cancellation,
+  full entry reservation while shutting down, idempotent stop proposals, an
+  optional late 18-decimal fill and duplicate trade ID, and exact held quantity,
+  original quote-currency fees and hedge-side preservation.
+- [x] Require a still-breached account to remain blocked after terminal cancel;
+  permit replacement proposals only after a valid account observation. Verify
+  no automatic market exit, and do not claim simulated strategy I/O as venue ACKs.
+- [x] Verify sensitivity with isolated in-memory mutants for skipped cap stops,
+  omitted pending reservations and unwanted position closure; run surrounding
+  controller/orchestrator/executor regressions, update progress and commit.
+
+[Native component tests](../../test/hummingbot/strategy_v2/controllers/test_inventory_cap_lifecycle.py):
+eight cases pass on unchanged production code. Each of three deliberately broken
+in-memory variants fails all eight cases (24 expected failures, no setup errors).
+Combined related regression: 435 passed plus two subtests. Recorder persistence
+and external account/strategy I/O are mocked; no new PostgreSQL, exchange,
+image/load or connected Demo acceptance is claimed. Raw logs and mutation driver:
+`build/probe-mm-correlation-20261103/inventory-*`.
+
 ## Current-image probe/MM correlation — requested 2026-11-03
 
 - [x] Review the final checkpoint release's probe incidents and identify which
