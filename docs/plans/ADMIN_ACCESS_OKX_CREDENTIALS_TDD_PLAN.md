@@ -1,6 +1,7 @@
 # Admin access and encrypted exchange credentials — TDD plan (OKX first)
 
-Status: requirements reviewed on 2026-11-05 (Asia/Saigon); implementation has
+Status: requirements and implementation boundaries reviewed on 2026-11-05
+(Asia/Saigon); ready to begin the sequential TDD phases below. Implementation has
 **not started**. This document describes proposed behavior. Current endpoints
 and deployment behavior remain documented in [FE integration](../fe-integration.md).
 
@@ -58,8 +59,8 @@ against arbitrary malicious code deployed with the bot's permissions.
 This creates one explicit future exception to the current configuration contract:
 managed **exchange credentials** become API-editable encrypted DB data, starting
 with OKX. Strategy YAML, exchange live/demo routing, auth flags, KEK/provider
-settings and other environment
-settings remain deployment-owned. Existing documentation must not claim these
+settings and other environment settings remain deployment-owned.
+Existing documentation must not claim these
 new endpoints work before implementation and verification finish.
 
 ### Additional exchanges without rebuilding credential management
@@ -85,6 +86,13 @@ input is validated against the existing connector schema and encrypted as a whol
 responses never include saved field values. Unsupported exchange, connector,
 environment or cleanup mode gets a specific error, never an OKX fallback or
 dynamic import based on an arbitrary client-supplied name.
+
+An `is_connect_key` annotation is not sufficient to expose a writable field:
+OKX's schema also marks registration subdomain that way. The adapter must allowlist
+credential fields only and inject deployment routing, site, environment and connector
+identity itself. Reject client routing/config overrides even if their values match
+deployment. Generate input descriptions from schema metadata, never a populated
+global connector configuration or its current values.
 
 Keep the existing service's reviewed OKX allowlist in this phase. A second exchange
 requires connector/ownership/recovery integration and its own offline/Demo acceptance,
@@ -143,6 +151,13 @@ work and timeouts, not a network call to Google for every normal request.
 All flags use the existing strict boolean parser and environment precedence.
 Unknown provider/source values fail validation. Managed source and Google whitelist
 authentication require PostgreSQL.
+
+In `environment` mode, credential status says "Managed by deployment" and all
+credential set/Disconnect/cleanup-key endpoints reject with
+`409 credentials_managed_externally` before encrypting or writing anything. The
+existing Stop API remains available; deleting a DB row cannot revoke an env key.
+Managed lifecycle APIs require `postgres_kms`. Selecting this source on a stopped
+deployment with no saved credentials must still allow admin onboarding and reads.
 
 `EXCHANGE_CREDENTIALS_SOURCE` supersedes the earlier unimplemented plan name
 `OKX_CREDENTIALS_SOURCE`; do not add two competing source switches. Existing
@@ -218,6 +233,36 @@ scope/version metadata with the same key is a conflict. Document that a genuinel
 new credential submission requires a new operation key; do not persist a plaintext
 body or secret-derived request hash to implement retries.
 
+### Receipts and authorization transactions
+
+Reuse the `admin_commands` table, not its trading-only HTTP model. Current
+`CommandResponse`/history accept only start/switch/stop and require a session;
+`record_observation()` infers Stop completion from stopped engine flags, which
+cannot prove Disconnect completion. Use distinct actions `credentials_set`,
+`credentials_disconnect`, `credentials_cleanup_key` and `credentials_cleanup_retry`,
+safe typed payload/result models and a dedicated credential-operation GET below.
+Leave the current trading command/history contract unchanged. A credential receipt
+may have no session and must never enter the ordinary Stop success/supersession path.
+Hash only allowlisted action/scope/expected-version/actor metadata for the table's
+required `request_hash`; never hash submitted credentials. Namespace/validate retry
+identity across action, actor and bot before returning a prior receipt.
+
+Use `accepted`/`applying` until actual completion; a blocked Disconnect remains
+`applying` with `operator_action_required` and a reason in its safe result. A rejected
+Set may be `failed`. Missing evidence is an observation state, not a successful or
+terminal receipt. Persist the active Disconnect ID and affected credential versions
+under the existing bot control/recovery state. All API/CLI Start/switch/replace paths
+must reject while it is active; repeated ordinary Stop cannot supersede, complete or
+discard it. Disconnect works without an MM session, including a newly configured
+stopped bot. Do not call `request_mm_session(stop)` when no session exists.
+
+Serialize role changes and mutation admission with a consistent DB lock order and
+locked account/version checks inside the final transaction. External verification
+and encryption happen before these short locks. A mutation accepted before a role
+removal remains an audited authorized operation: token expiry, logout or subsequent
+role removal do not abandon already accepted cancellation/closure. New mutations,
+including retry or cleanup-key repair, require fresh current permission.
+
 ## Credential lifecycle and availability
 
 Expose requested versus observed state. `configured=true` means an encrypted
@@ -225,10 +270,15 @@ credential bundle is saved and permitted, not that OKX connectivity or recovery
 has succeeded. Status includes safe credential version, validation/runtime state,
 operation ID, changed-at/changed-by and an actionable English reason.
 
-**Set/replace:** initially require the bot to be stopped with acknowledged cleanup
+**Set/replace:** require the bot to be stopped with acknowledged order cleanup
 and no pending exchange mutation; otherwise return `409 bot_must_be_stopped` and
-direct the caller to the existing Stop flow. Encrypt off the event loop before
-the short transaction, then recheck actor, state and expected versions. Atomically
+direct the caller to the existing Stop flow. Validate the candidate with bounded
+read-only account/permission/environment checks before replacing the saved bundle;
+never start strategy loops or change account settings during this check. A rejected
+candidate leaves the prior saved version unchanged and the bot stopped. This is
+rejection before commit, not an automatic fallback after a committed replacement.
+Encrypt off the event loop before the short transaction, then recheck actor, state,
+account binding and expected versions. Atomically
 save the envelope, bump existing control authority, insert the safe receipt and
 audit event. Existing owner lifecycle detaches old authenticated clients and
 reloads the provider; commands cannot use a new version until observation/preflight
@@ -266,6 +316,14 @@ subaccount identity rather than only a common parent account. Spot and perpetual
 credential slots must satisfy the existing same-account contract when used jointly.
 Audit rotation records the old/new credential version and safe account binding,
 never either key. Replacing a credential does not revoke the old API key at OKX.
+
+For OKX, reuse the account-config reader in `okx_account_observations.py`, but use
+a fresh candidate-scoped verified `uid` for authorization; its current best-effort
+reporting cache is not an authorization source. `uid` identifies the request account;
+`mainUid` alone cannot distinguish its subaccounts. Persist the binding independently
+of the encrypted bundle so Disconnect cannot erase it. Different API keys with the
+same verified binding may serve spot/perpetual; do not compare key strings as account
+identity. See [OKX account configuration](https://www.okx.com/docs-v5/en/#trading-account-rest-api-get-account-configuration).
 
 ### Disconnect: cancel orders, close perpetual positions, then remove credentials
 
@@ -317,6 +375,16 @@ operation; do not tear them down through ordinary Stop before close orders settl
 The operation survives bounded request/process lifetimes through its receipt and
 recovery state; it is not a longer unbounded shutdown coroutine.
 
+Dispatch a pending Disconnect in `service.observe_once()` before its ordinary
+control-version change calls `stop_core()`. Handle both `before_order()` admission
+and `authorize_rest()` transport checks, plus durable intent recovery: a final-REST
+exception alone is insufficient. Cleanup authority is the recorded Disconnect,
+not an expired MM session or its maker/quote deadline. Give each close a bounded
+transport deadline and persisted remaining-quantity reservation. SIGTERM still
+fences new sends and retains the existing hard shutdown deadline; a successor first
+reconciles already-sent closes before resuming. Update held-position checkpoints
+through the existing recorder so a restart cannot resurrect already closed exposure.
+
 Verify the adapter's exchange-enforced close/reduce-only semantics for each supported
 position mode; HEDGE must target the correct side. The current generic ONEWAY close
 path can use `PositionAction.OPEN`, so it must not be reused blindly for Disconnect.
@@ -326,6 +394,16 @@ or repeated cleanup cannot over-close or reverse a position. A lost placement AC
 requires intent/order lookup before resubmission; only confirmed remaining quantity
 may get another close intent. Partial closes and late fills resume the same durable
 operation after restart. All network work/retries remain bounded and observable.
+
+Initial acceptance covers the existing LIFE MM configuration: OKX USDT perpetual,
+HEDGE and CROSS. Close long with `side=sell,posSide=long`; close short with
+`side=buy,posSide=short`, using the connector's normal order endpoint and contract
+conversion. This targets the exchange's closing semantics; do not introduce a raw
+close-position request outside tracking. Net/ONEWAY, isolated margin and unsupported
+instruments fail capability checks; implementing those is a later adapter task.
+The parameter `reduceOnly` has different applicability in net mode, so a universal
+flag is not a substitute for side/mode validation. See
+[OKX order parameters](https://www.okx.com/docs-v5/en/#order-book-trading-trade-post-place-order).
 
 The owner may use credentials only for authorized cancellation, position closure
 and necessary cleanup reads during revocation. Keep the encrypted bundle until
@@ -351,6 +429,32 @@ manual intervention; an operator assertion alone cannot mark cleanup complete.
 If credentials were already deleted on the exchange, show an explicit verification
 blocker rather than claiming the orders/positions disappeared. There is no initial
 "force complete" or "skip cleanup" API. Exchange API-key deletion remains manual.
+
+### Recovering a blocked Disconnect
+
+Bound automatic retries per external step and expose their budget/next retry time;
+exhaustion keeps the same operation blocked, not completed. An admin/write operator
+can request "Retry cleanup" on that operation with fresh authorization, expected
+versions and an idempotency key. Reconcile first, then retry only unresolved work.
+It never creates a second Disconnect or blindly resubmits an unknown close.
+
+If an API key has expired or was deleted before cleanup finished, normal Set/replace
+is deliberately blocked. Provide a narrowly scoped "Update key to finish disconnect"
+action for an affected connector. Validate the replacement read-only against the
+persisted exchange/account/environment binding, then atomically record its encrypted
+version, the same Disconnect ID and an audit event. Detach/fence the old consumer;
+use the replacement only for reconciliation/cancel/close while cleanup is active.
+Recheck unknown earlier sends before any further close. No Start, new account binding,
+HALT reset or permission change is implied. A bad candidate leaves existing data intact.
+This uses the existing credential row, not a plaintext secret in the operation receipt.
+
+The selected slot is still erased at completion; a repaired companion slot that was
+not selected for removal remains saved, with trading stopped. State that distinction
+in its confirmation. KMS failure requires fixing the configured provider/key first,
+never an env/plaintext fallback. Manual cancellation/closure on the exchange remains
+possible, but final verification still needs working read access; an operator's
+"done" click cannot prove flat positions. No SQL edits or fresh trading session are
+required for the supported retry/same-account credential-repair paths.
 
 ### Disconnect UX for a non-technical operator
 
@@ -402,6 +506,8 @@ the safe failure reason and "Open {exchange}" guidance. Keep the last observatio
 timestamp and unknown state visible. If a real retry is scheduled, show "Retrying"
 and its time; never loop a spinner indefinitely or ask for a fresh Disconnect
 operation. Manual exchange action is the exception after automatic cleanup fails.
+Offer "Retry cleanup" when its preconditions hold and "Update key to finish
+disconnect" for credential failures; both keep the original Disconnect visible.
 
 ### KMS availability
 
@@ -414,6 +520,23 @@ or Google work out of the engine loop and Stop lane. Do not raise DB pools or
 timeouts to hide blocking. No unbounded queues, extra/shared plaintext credential
 caches or secret-bearing cross-process status messages; authorized connectors
 necessarily retain credentials in their own memory while in use.
+
+Wire the provider into all existing consumers: `Security.api_keys()` lazy loading,
+`initialize_from_environment()` bootstrap, service `validate_selection()`, funding
+discovery/`FundingReader.from_environment()`, preflight and connector initialization.
+Managed mode must never fall back through `_environment_mode` or configured-env
+discovery; invalidate the old in-memory connector configs on version change/removal.
+Test missing credentials on a cold restart with a previously running desired state:
+publish a trading blocker and keep the process/admin alive, not a configuration-error
+restart loop. An unconfigured stopped bot can acquire ownership and accept its first key.
+
+Review supervisor/API/engine settings and `child_environment()` explicitly: the API
+still gets no `HBOT_*` trading keys but now processes submitted credentials and needs
+its configured encryption/validation provider. The engine needs unwrap/read access.
+Do not fetch Google keys, query whitelist state or contact KMS synchronously in the
+supervisor's pre-launch config validation. Use safe health/blocker status for runtime
+dependency failures. Shared Cloud Run identity/local KEK is still a trust boundary;
+separate processes alone do not make API code cryptographically unable to decrypt.
 
 ## Clear errors and operational status — required FE contract
 
@@ -442,6 +565,8 @@ specific cause. FE branches on codes and action metadata, never parsed prose.
 | 409 `last_admin_required` | “Keep at least one active Google administrator.” Use `fix_request` |
 | 409 `bot_must_be_stopped` | “Stop the bot and wait for pending orders to finish cancelling before changing the connection.” Use `refresh_state` |
 | 409 `credential_version_conflict` / `control_conflict` | “The connection or bot state changed. Refresh and review before continuing.” Use `refresh_state` |
+| 409 `credentials_managed_externally` | “This connection is managed by deployment settings.” Use `contact_support`; do not pretend DB changes can revoke an env key |
+| 409 `credential_operation_active` | “A connection change is already in progress. View that operation before continuing.” Use `refresh_state` and link its safe operation ID |
 | 409 `exchange_account_mismatch` | “This key belongs to a different exchange account. Use a key for this bot's account.” Use `fix_request`; never offer a reset-history bypass |
 | 422 `validation_failed` / `exchange_credentials_rejected` | Identify safe field paths or say “The exchange did not accept the connection details. Check the required credentials.” Use `fix_request`; never echo supplied values |
 | 422 `unsupported_exchange` / `unsupported_connector` / `unsupported_cleanup_mode` | Explain the unsupported configured choice and supported alternatives; use `fix_request`, never fall back to another exchange or unsafe closing semantics |
@@ -458,6 +583,9 @@ return a safe explanation and request ID rather than an empty/generic UI message
 Distinguish confirmed invalid credentials from exchange timeout/unavailability:
 a failed network check must not tell the operator that their key is wrong or
 require them to replace it.
+Credential mutations accept bounded JSON only; reject unsupported media types,
+oversized bodies and unknown fields without reflecting input. Apply the existing
+origin policy and explicit Authorization header, not cookies or query-string tokens.
 
 HTTP acceptance and runtime application are different. A `202` receipt means the
 operation was accepted durably, not that credentials work or Disconnect completed.
@@ -567,17 +695,22 @@ All paths below are proposed additions under `/api/v1/admin`, not shipped routes
 | `POST /access/accounts` | Admin | Whitelist verified-email onboarding target and role |
 | `POST /access/accounts/{id}` | Admin | Versioned role/active changes; protect last bound admin |
 | `GET /credentials` | All roles | Deployment-enabled exchanges/connectors and safe input/capability descriptions; no saved credential values |
-| `GET /credentials/{exchange}` | All roles | Status for configured connector slots, cleanup progress and allowed actions; no secret or cryptographic blob |
+| `GET /credentials/{exchange}` | All roles | Status for configured connector slots, cleanup progress, source mode and allowed actions; no secret or cryptographic blob |
 | `POST /credentials/{exchange}/{connector}` | Admin/write | Save complete bundle with expected credential/control versions and idempotency key |
 | `POST /credentials/{exchange}/{connector}/revoke` | Admin/write | Durable receipt for bot-wide cancel/close cleanup and selected credential removal; no exchange key-deletion claim |
+| `GET /credentials/operations/{id}` | All roles | Typed credential receipt, progress, blockers and final result from `admin_commands`; nullable session, no raw secret payload |
+| `POST /credentials/operations/{id}/retry` | Admin/write | Versioned, idempotent request to recheck/resume the same blocked cleanup; cannot skip unknown outcomes |
+| `POST /credentials/{exchange}/{connector}/cleanup-credentials` | Admin/write | Same-account replacement solely to finish an identified active Disconnect; expected operation/credential/control versions required |
 | `GET /audit` | All roles | Stable cursor pagination and filters by UTC range, actor, action, outcome, target and operation ID |
-| Existing `GET /commands/{id}` | Authorized existing scope | Poll safe receipt until runtime application/cleanup completes |
+| Existing `GET /commands/{id}` | Authorized existing scope | Keep the trading-command contract; credential receipts use their typed route above |
 
 `exchange=okx` is the only initial enabled implementation; the resulting existing
 planned OKX URL shape is retained. Path, connector, environment and account scope
 must agree with the deployment and authenticated operation. Disconnect semantics
 are fixed: no client flag can skip cancellation/closure or erase credentials early.
 Do not add a general close-any-account endpoint as part of credential management.
+Register and test the operation routes explicitly; path parsing must not treat
+`operations` as a user-selectable exchange or expose another bot's receipt.
 
 Use the existing bounded pagination pattern: default 100, maximum 500, stable
 `created_at/id` ordering, cursor bound to filters and bot scope. Parameterize filters
@@ -601,8 +734,10 @@ Every implementation phase starts with failing behavioral tests, records Red/Gre
 evidence in `reports/`, updates its checkboxes only after verification, and commits
 with a conventional prefix. Planning checks above do not mark implementation done.
 
-### A1 — Authentication settings, identity and permissions
+### A1 — Storage foundation, authentication settings and permissions
 
+- [ ] Create/test accounts and audit migrations/models before enabling DB-backed
+  authentication; repeat migrations, missing-schema behavior and safe service startup.
 - [ ] Test Basic on/off, populated-but-disabled credentials, wrong/expired Google
   tokens, wrong audience/issuer, non-whitelisted identities and disabled users.
 - [ ] Implement official Google verification and principal propagation; cover every
@@ -614,10 +749,10 @@ with a conventional prefix. Planning checks above do not mark implementation don
 - [ ] Test bounded signing-key retrieval/caching and auth worker saturation without
   blocking engine progress or starving Stop; document legacy env upgrade requirements.
 
-### A2 — Whitelist, roles and audit foundation
+### A2 — Whitelist, roles and audit API
 
-- [ ] Add idempotent PostgreSQL migrations/models for accounts and audit; test repeat
-  migrations, version conflicts and cursor/filter behavior with real PostgreSQL.
+- [ ] Implement whitelist/bootstrap and audit endpoints over A1 models; test version
+  conflicts, transactional role enforcement and cursor/filter behavior with real PostgreSQL.
 - [ ] Test subject binding, role hierarchy, self-demotion and simultaneous last-admin
   removals; an unverified invitation must not satisfy bootstrap readiness.
 - [ ] Implement the audit API and complete actor/outcome coverage, including failures
@@ -644,20 +779,41 @@ with a conventional prefix. Planning checks above do not mark implementation don
 
 ### A4 — Credential API and engine lifecycle
 
+Complete A4a before A4b; record/commit each verified subphase independently.
+Do not advertise or accept Disconnect until the A4b engine workflow is implemented;
+an unprocessable placeholder `202` is not an acceptable intermediate API.
+
+#### A4a — Provider integration, typed receipts and safe replacement
+
 - [ ] Test set/replace only after acknowledged Stop; recheck authorization after slow
   encryption, use safe idempotent receipts and atomically commit credential/audit/control.
+- [ ] Test candidate preflight before commit, wrong-account/invalid-key rejection
+  preserving the old version, persisted `uid` binding and first-key onboarding.
+- [ ] Add typed credential-operation reads over existing receipts without breaking
+  command/history schemas. Cover nullable sessions, cross-actor/action idempotency,
+  no-session Disconnect admission and completion distinct from an ordinary Stop.
 - [ ] Implement managed source into existing connector models; cover service startup,
   CLI preflight, funding observer and reconciliation consumers, with no env fallback.
+- [ ] Test source-mode mutation rejection, all lazy credential consumers and process
+  env/provider wiring; a cold managed-key outage keeps admin alive without a restart loop.
 - [ ] Test exchange-neutral API/storage/audit scope and input descriptions with OKX
   and a fake second adapter; reject unsupported/mismatched connectors and prevent
   cross-exchange account binding, envelope reuse or implicit venue switches.
+  Include connector fields marked `is_connect_key` that are deployment-owned:
+  request values must not override OKX site/routing or leak through metadata.
 - [ ] Test missing/bad credentials keep admin usable; same-account binding, spot-only,
   perpetual/both, wrong environment, and validation failure never auto-resume trading.
 - [ ] Test same-account key rotation retains ledger/positions; different subaccount,
   Demo/live, cross-slot identity mismatch and a second `BOT_ID` in the same DB are
   rejected without resetting balances, history, HALT or account bindings.
+
+#### A4b — Automatic Disconnect and recovery
+
 - [ ] Test revoke against queued sends, delayed ACK/fill/cancel, an absent owner and
   concurrent Start/replace; no new risk after the existing fenced send check.
+- [ ] Test bot-wide serialization across API/CLI control, repeated Stop and both
+  credential slots; accepted cleanup continues after logout/token expiry/role removal,
+  while newly submitted retry/repair requires current permission.
 - [ ] Test automatic cancellation across both markets, recovered/late orders,
   partial fills racing with cancellation, bounded retries and manual fallback.
   Exclude unrelated orders; an empty local tracker or cancel ACK cannot finish cleanup.
@@ -669,12 +825,18 @@ with a conventional prefix. Planning checks above do not mark implementation don
   lost placement ACK, concurrent cleanup, stale owners, unsupported position modes
   and uncloseable residuals. No duplicate close, position reversal, new quote,
   bypassed persistence/HALT or premature credential erasure is permitted.
+- [ ] Cover `before_order`, final REST, expired session, service control dispatch,
+  SIGTERM and close-result checkpoints together; verify confirmed flat exposure
+  cannot reappear as held exposure after restart. Reject unsupported modes explicitly.
 - [ ] Test restart at every accepted/applied/revoking boundary, cleanup timeout and
   revoke during KMS outage; recover tracked closes and cleanup-only credential use,
   then detach all selected-credential consumers. Outcomes remain honest.
 - [ ] Test accepted versus applied/failed/unknown outcomes, lost responses, stale
   owner/credential versions and cleanup requiring intervention. Never show false
   Connected/Disconnected, reset exposure to zero or report completion prematurely.
+- [ ] Test blocked-cleanup retry and same-account cleanup-key repair after key
+  expiry/deletion, including a companion slot, stale versions and unknown prior sends.
+  Retain the original operation/fence and remove only selected credentials at completion.
 - [ ] Verify KMS/auth work stays outside the quote path; loaded authorized clients
   tolerate KMS outage while cold loads and removed credentials remain blocked.
 
@@ -691,6 +853,8 @@ with a conventional prefix. Planning checks above do not mark implementation don
   order cancellation and perpetual closure, fees/execution uncertainty, retained
   spot balances and selected-slot removal. No success while work is unconfirmed;
   show actionable failures and prevent duplicate/conflicting button actions.
+- [ ] Document credential-operation polling, "Retry cleanup" and same-account
+  cleanup-key repair; distinguish them from trading receipts and normal key rotation.
 - [ ] Update annotations and run `make swagger` / `make swagger-check`; schema must
   contain no reveal-secret operation or secret-valued response example.
 - [ ] Document local/GCP setup, rollout/rollback, private ingress/auth headers, env-only
@@ -723,6 +887,26 @@ with a conventional prefix. Planning checks above do not mark implementation don
   explicitly reviewed cutover, retaining prior ledger and recovery evidence.
 - [ ] Complete FE integration notes, evidence and remaining limitations; verify no
   secret enters Git, mark completed phases and commit. Do not deploy production here.
+
+## Implementation-readiness review
+
+The review found design/integration gaps, not newly reproduced runtime defects.
+The decisions above close them at plan level; their implementation tests stay open.
+
+| Gap found in current code / earlier draft | Required decision |
+| --- | --- |
+| Trading receipts require session/start-switch-stop; Stop success only proves stopped engine state | Separate typed credential-operation API over the same table, with explicit cleanup completion |
+| Env-only/lazy credential readers can reload removed keys or fail cold startup | Explicit source-mode contract, all-consumer provider wiring and no fallback/restart loop |
+| Pending Disconnect cannot use normal rotation if its key no longer works | Narrow same-account cleanup-key repair and retry on the original durable operation |
+| Ordinary shutdown preserves positions; both admission and REST gates reject closes after Stop | Scoped Disconnect authority and dispatch before teardown; preserve normal Stop/shutdown semantics |
+| Candidate validation after replacement could destroy a usable saved connection | Read-only validation before commit, versioned transaction rechecks and durable account binding |
+| Generic connector input metadata includes deployment-owned fields | Credential-only field allowlist and tested routing/identity injection |
+| DB-backed auth was scheduled before its schema; role changes can race mutation admission | A1 includes storage foundation; permission checks and mutation commit have defined transaction ordering |
+
+A1 can start now. A4b is the highest-risk subphase and must pass its targeted
+cancel/close/restart tests before its capability is enabled. Actual Google sign-in,
+GCP KMS and reviewed Demo checks need their external resources for A6; their absence
+does not block offline implementation and must not be recorded as a pass.
 
 ## Primary references
 

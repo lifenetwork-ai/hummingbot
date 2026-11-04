@@ -19,6 +19,9 @@ Its [Disconnect flow](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md#disconnect-
 automatically cancels bot orders and closes bot-managed perpetual positions before
 removing selected credentials; spot balances remain. Storage/API/audit support
 future exchange adapters, with OKX the only initial implementation.
+Credential actions will have their own operation receipt/polling route, plus
+retry and same-account key repair for interrupted cleanup; existing trading
+command receipts retain their contract. See the plan before integrating these routes.
 It is **not implemented**; the current Basic Auth and environment-only credential
 contract below still applies.
 
