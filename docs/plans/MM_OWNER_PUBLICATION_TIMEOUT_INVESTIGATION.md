@@ -184,3 +184,33 @@ are unchanged; no new full release/hour/actual-trade acceptance is claimed.
 
 [Diagnostic report](../../reports/investigations/mm-current-probe-correlation.md),
 [evidence](../../reports/investigations/mm-current-probe-correlation-evidence.json).
+
+
+## Spot quote size churn and controller outlier follow-up — 2026-11-04
+
+- [x] Isolate spread, fee floor and size using a deterministic native cash/fill
+  replay with stable reference/spreads/volatility. Tiny fill-driven inventory
+  changes can invalidate original size despite a safe remaining resting amount.
+- [x] Reproduce unnecessary BUY/SELL cancellation with Red tests before changing
+  runtime. Reuse acknowledged in-flight entry data for quote-size validity only;
+  ambiguous metadata retains full config size. No new cache, schema or setting.
+- [x] Verify partial/late-fill quantities, missing/ambiguous entry metadata,
+  genuine spread/fee/reduction breaches and unchanged full allocation/exposure
+  reservations; run surrounding controller/executor lifecycle regressions.
+- [ ] Build a separately identified candidate and verify targeted lifecycle
+  behavior plus a bounded matched diagnostic; retain failures and scope.
+- [ ] Review the retained controller568ms/observer992ms overlap with the new
+  measurements. Attribute only paths actually observed; no speculative deadline,
+  cache/pool or ownership-fence change.
+- [ ] Publish findings/remaining attribution limits, update checklist and commit.
+  Actual Demo remains stopped; no maintenance reset or new trade is authorized.
+
+Source phase: two original-code Red cases reproduce unnecessary BUY/SELL
+cancellation after a small partial fill. The narrow fix reuses one acknowledged,
+identity/side/pair/price-matched in-flight entry remainder for quote validity;
+unknown/ambiguous/pending data retains the original size. Full risk and allocation
+reservations are unchanged. Thirty-six new regression cases and the surrounding
+controller/position-executor/orchestrator/strategy suite pass: **526 tests plus
+two subtests**. Raw Red/Green/replay artifacts: `build/mm-sell-churn-20261104/`.
+Candidate image and measured comparison remain pending; old-image gates do not
+qualify this runtime change.

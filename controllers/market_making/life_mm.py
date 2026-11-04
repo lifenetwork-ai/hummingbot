@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from controllers.market_making import pmm_simple
 from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSide, PriceType, TradeType
+from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.mm_readiness import MM_READINESS_REASONS
 from hummingbot.core.utils.read_retry import retry_delay, transient_read
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
@@ -653,6 +654,30 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         # and no snapshot survives the queue await in control_task.
         return self._create_actions_proposal(exposure) + self.stop_actions_proposal()
 
+    def _resting_quote_amount(self, executor):
+        # Only quote validity uses the acknowledged remainder. Account exposure
+        # and pending allocation must continue reserving the full config amount.
+        config = executor.config
+        try:
+            identities = (getattr(executor, 'custom_info', None) or {}).get('order_ids', [])
+            if not isinstance(identities, (list, tuple)) or not 1 <= len(identities) <= 3:
+                return config.amount
+            connector = self.market_data_provider.get_connector_with_fallback(config.connector_name)
+            orders = [connector.in_flight_orders.get(identity) for identity in dict.fromkeys(identities)]
+            matches = [order for order in orders if order is not None and order.trading_pair == config.trading_pair
+                       and order.trade_type == config.side]
+            if len(matches) == 1:
+                order = matches[0]
+                amount, filled = order.amount, order.executed_amount_base
+                if (order.exchange_order_id and order.current_state in (OrderState.OPEN, OrderState.PARTIALLY_FILLED)
+                        and order.price == config.entry_price and amount.is_finite() and filled.is_finite()
+                        and 0 < filled < amount <= config.amount):
+                    return amount - filled
+        except (AttributeError, ArithmeticError, TypeError, ValueError):
+            pass
+        # Missing, ambiguous or inconsistent entry metadata cannot reduce size.
+        return config.amount
+
     def _defense_refresh_actions(self):
         if self._spread_policy.defense is None:
             return []
@@ -662,7 +687,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         actions = []
         for executor in self.executors_info:
             if executor.is_active and executor.id not in self._stops_requested and not self.spread_quote_valid(
-                    executor.config.side, executor.config.entry_price, executor.config.amount, level_id=executor.config.level_id):
+                    executor.config.side, executor.config.entry_price, self._resting_quote_amount(executor),
+                    level_id=executor.config.level_id):
                 self._stops_requested.add(executor.id)
                 actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=executor.id, keep_position=True))
         return actions
