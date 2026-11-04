@@ -11,6 +11,19 @@ FOR UPDATE timeout and automatic engine restart before the timed window; its
 exclusive cause remains unproven. No new full R1/R2 or active natural-fill
 acceptance is transferred. [Report](../../reports/performance/mm-admin-worker-lanes.md).
 
+**Subsequent offline-preparation hour confirmed:** the unchanged `086454de`
+standalone 3,600s Random soak passes after the host-side preparation correction:
+79,200 HTTP 200/no unexpected errors or stale, p99 260.39/77.27ms, 3,595 exact
+synthetic fills/fees/positions, all three profiles, 58 continuous samples/max gap
+65.50s and +28.15MiB retention. No publication failure or unexpected child restart
+appears even in setup. Eight slow engine-probe episodes recover; local and
+independent simulator witnesses establish some MM progress in each, not every
+tick deadline or uninterrupted two-sided quotes. Stopped actual Demo preserves
+23 fills and four hashes. This confirms the new preparation for a standalone
+hour only; prior full R1/R2/natural-fill scopes are unchanged and historical
+exclusive attribution remains open.
+[Report/evidence](../../reports/investigations/mm-owner-publication-timeout.md#full-hour-confirmation-after-offline-preparation).
+
 **Pre-window timeout investigation:** three new preparations (one traced/two
 untraced) do not reproduce persistence failure/restart. 1,836 PG samples show no
 blocked backend; a same-PID publication COMMIT waits 1.182s on WAL I/O during

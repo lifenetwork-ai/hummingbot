@@ -4,6 +4,18 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Offline preparation standalone hour passes:** unchanged `086454de`,
+  3,600s Random soak, 79,200 HTTP 200/no unexpected errors or stale, p99
+  260.39/77.27ms and 3,595 exact synthetic fills/fees/positions. All three profiles,
+  58 continuous samples/max gap 65.50s and +28.15MiB retention pass unchanged
+  budgets. No publication failure or unexpected child restart, including setup.
+  Eight slow engine-probe episodes recover; all have local fill-processing and
+  independent simulator-fill witnesses, seven also have new accepted orders.
+  Per-tick/continuous two-sided quote coverage is not established. Actual Demo is
+  restored stopped with 23 fills and four hashes intact. This is a standalone
+  hour, not a new full R1/R2 or exclusive historical-cause closure.
+  [Report](investigations/mm-owner-publication-timeout.md#full-hour-confirmation-after-offline-preparation), [evidence](performance/mm-offline-history-soak-evidence.json).
+
 - **Offline history preparation corrected:** commits `7bdb5b6f6` / `2b4011556`
   stop the full test service before bulk seed/CHECKPOINT and require normal
   fenced recovery before load. All six maintained callers share the helper;

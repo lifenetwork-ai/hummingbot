@@ -3,7 +3,8 @@
 2026-11-04. **Follow-up reproduces the same failing publication SELECT and
 SQLSTATE under controlled WAL I/O pressure.** The historical exclusive trigger
 remains unproven; the causal mechanism is now demonstrated below. The offline
-fixture preparation correction is implemented and verified in the final section.
+fixture preparation correction and its subsequent standalone-hour confirmation
+are verified in the final sections. Eight recovered slow probes remain explicit.
 
 The initial three preparation runs do not reproduce the failure. One establishes a separate
 1.182s publication COMMIT wait on PostgreSQL WAL I/O during historical fixture
@@ -284,3 +285,67 @@ trigger remains open.
 [Machine-readable evidence](mm-offline-history-preparation-evidence.json) records
 source/image fingerprints, raw artifact hashes, preparation stages, controlled
 failures, measured results and read-only Demo preservation checks.
+
+
+## Full-hour confirmation after offline preparation
+
+Requested standalone Random soak completed on the unchanged `086454de` image,
+2026-11-04 **10:47:14.268–11:47:14.268 UTC**. Raw result:
+`build/mm-load/20261104-174603-b267d6/`; isolated-run/restoration artifacts:
+`build/mm-offline-history-soak-20261104T104559Z/`. Source remains `581485151`
+with the two committed host-side preparation changes; no shipping code changed.
+
+| Check | Result |
+| --- | --- |
+| Preparation | Full service offline, no app connection/owner lock/pending order; 100,000 orders + 100,000 fills, CHECKPOINT, normal restart and owner generation 1→2. No publication failure or unexpected restart. |
+| Duration and continuity | 3,600s; 58 minute samples, maximum gap 65.50s; sampled engine PID stays 32 and every sample reports running. |
+| HTTP availability | 72,000 primary + 7,200 auxiliary HTTP 200 replies, zero unexpected errors/stale. |
+| Latency | Primary p95/p99 58.13/260.39ms; auxiliary p95/p99 35.22/77.27ms. |
+| Ledger | 3,595 unique simulator fills match recorder quantity/original fees and positions; two identified funding bills, three daily snapshots. |
+| Random coverage | Six steps cover sideways, follow_token and follow_market. Random fill rate retains its original observational scope; no post-window fill catch-up. |
+| Memory retention | Early/late median 700,522,496/730,042,368 bytes; +28.15MiB, below unchanged 64MiB growth budget. This bounds retention for this hour, not indefinitely. |
+| Demo restoration | Stopped, owner available, no HALT/pending mutation/unresolved order; all 23 fills, four table counts and four hashes unchanged. |
+
+The workload/resource/deadline/guard/cache settings match the previous standalone
+hour. No unexpected `service_failed` or `child_restart_scheduled` event appears
+in the entire retained bot log, including preparation. Twelve ERROR records are
+six locally blocked order IDs logged by connector/executor during the initial
+pre-window Stop; none exists in the simulator's accepted-order ledger. They are
+not measured API errors or publication failures and remain in the evidence.
+
+### What the slow probes do and do not establish
+
+**Eight engine-probe timeout episodes recover without restart.** Seven have one
+failed probe each; one has three consecutive failures. The longest supervisor
+observation interval is **3.798s**; maximum reported probe elapsed is
+**338.964ms**, against the unchanged 300ms probe limit. The passing soak does not
+close residual-probe latency or establish a unique cause.
+
+We correlate each supervisor log timestamp minus its reported observation
+duration with existing engine logs and independently retained simulator ledger
+timestamps. All eight derived intervals contain local fill-processing logs
+and independent simulator fills; **seven also contain newly accepted orders**.
+In the 3.798s interval specifically, there are five local fill-processing logs,
+five independent simulator fills and twelve independently accepted new orders.
+This demonstrates that MM performs some work inside that interval rather than
+remaining stopped throughout it. These counts are different event types, not a
+single count of unique fills or completed round trips.
+
+The joins use wall-clock event records and rounded supervisor durations; they
+are not aligned per-tick spans. Local processing may lag the simulator event.
+Existing quotes can fill while an engine is stalled, so simulator fills alone
+would be insufficient; the local processing/new-acceptance witnesses add
+separate evidence. They still do **not** prove every tick/controller deadline,
+full submit/cancel RTT, continuous fresh two-sided quotes or actual OKX behavior.
+The unchanged hour did not enable `--mm-activity`. The existing bounded,
+opt-in activity/independent-venue diagnostic is the appropriate separate test
+for stronger per-cycle claims; no production instrumentation is added here.
+
+The full-hour checklist is closed for this preparation correction. Prior failed
+attempts and measured windows retain their original scopes. `release_scope_complete`
+remains false: no new full R1/R2/fault suite, actual Demo trade, shipping-image
+rebuild, production deployment or exclusive historical-trigger attribution.
+
+[Portable evidence](../performance/mm-offline-history-soak-evidence.json) includes
+preparation stages, unchanged settings/source fingerprints, continuity, all eight
+probe intervals, local/independent simulator witnesses and raw artifact hashes.

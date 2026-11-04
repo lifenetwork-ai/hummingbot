@@ -101,9 +101,44 @@ lifecycle/wiring coverage, not new full-suite results.
 
 Commits `7bdb5b6f6` and `2b4011556` change host-side test preparation only.
 Runtime image, fences, durability and deadlines remain unchanged. Demo is
-restored stopped with all 23 fills and four ledger hashes intact. No new hour,
-actual Demo trade or production deployment is claimed. Historical exclusive
+restored stopped with all 23 fills and four ledger hashes intact. That initial
+short-verification phase did not include a new hour, actual Demo trade or deployment. Historical exclusive
 attribution above remains open.
 
 [Correction report](../../reports/investigations/mm-owner-publication-timeout.md#offline-history-preparation-correction),
 [verification evidence](../../reports/investigations/mm-offline-history-preparation-evidence.json).
+
+## Requested full-hour confirmation
+
+- [x] Run the unchanged standalone 3,600s Random soak on `086454de` using the
+  corrected offline preparation. Retain all preparation and measured-window
+  failures; keep original rates, resource/deadline limits and acceptance budgets.
+- [x] Verify continuous samples, HTTP freshness/errors, fill/fee/position ledger,
+  memory retention and unexpected engine failures/restarts. Restore the stopped
+  actual Demo with unchanged ledger hashes, publish evidence and commit results.
+
+Completed: measured window 2026-11-04 10:47:14.268–11:47:14.268 UTC.
+Runner artifacts: `build/mm-offline-history-soak-20261104T104559Z/`;
+raw result: `build/mm-load/20261104-174603-b267d6/`.
+
+**PASS:** 79,200 HTTP 200 replies, no unexpected errors/stale, primary/auxiliary
+p99 260.39/77.27ms, 3,595 exact synthetic fills/fees/positions, all three Random
+profiles and 58 continuous samples (maximum gap 65.50s). Retention growth is
+28.15MiB against the unchanged 64MiB budget. No unexpected service failure,
+publication failure or child restart appears in the retained logs. Planned
+pre-window shutdown/restart and generation 1→2 are explicitly recorded.
+
+Eight engine-probe timeout episodes recover; the longest observation interval
+is 3.798s and maximum reported probe duration is 338.964ms. All eight derived
+intervals have independent simulator fills plus local engine fill logs; seven
+also have new simulator-accepted orders. This establishes some MM work during
+those intervals, not every tick deadline or continuous two-sided quote coverage.
+Per-tick/activity diagnostics were not enabled in this unchanged acceptance run.
+
+Demo is restored stopped, owner available, no recovery block, all 23 fills and
+four ledger hashes unchanged. Shipping image/settings are unchanged. This closes
+the requested standalone-hour confirmation only; no new full R1/R2, actual Demo
+trade, Cloud Run qualification or exclusive historical attribution is claimed.
+
+[Hour report](../../reports/investigations/mm-owner-publication-timeout.md#full-hour-confirmation-after-offline-preparation),
+[portable evidence](../../reports/performance/mm-offline-history-soak-evidence.json).
