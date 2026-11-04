@@ -170,6 +170,33 @@ def test_later_window_appends_traces_without_overwriting_earlier_evidence(tmp_pa
     assert [json.loads(line)['window'] for line in path.read_text().splitlines()] == ['warmup', 'mixed']
 
 
+@pytest.mark.parametrize('role,filename', [
+    ('engine', 'server.jsonl'), ('api', 'server-api.jsonl'), ('combined', 'server.jsonl')])
+def test_runtime_trace_keeps_failed_process_evidence_across_restart(tmp_path, role, filename):
+    # Execute the factory used by the load-service entrypoint in distinct OS
+    # processes, as the supervisor does after a persistence failure.
+    program = '''
+import json,sys
+from test.e2e.offline.load_trace import runtime_trace_sink
+sink=runtime_trace_sink(sys.argv[1],sys.argv[2])
+sink.emit({'kind':'trace','boot':int(sys.argv[3])})
+sink.close()
+print(json.dumps(sink.summary()))
+'''
+    path = tmp_path / filename
+    for boot in (0, 1):
+        result = subprocess.run([sys.executable, '-c', program, str(tmp_path), role, str(boot)],
+                                capture_output=True, text=True, timeout=5, check=True)
+        assert json.loads(result.stdout)['written_bytes'] == path.stat().st_size
+    assert [row['boot'] for row in map(json.loads, path.read_text().splitlines())] == [0, 1]
+
+
+@pytest.mark.parametrize('directory', [None, ''])
+def test_runtime_trace_remains_opt_in(directory):
+    from test.e2e.offline.load_trace import runtime_trace_sink
+    assert runtime_trace_sink(directory, 'engine') is None
+
+
 def test_request_children_are_bounded_and_loss_is_explicit():
     records = []
     recorder = TraceRecorder(records.append, slow_ms=0, max_children=2)

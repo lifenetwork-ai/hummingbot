@@ -29,6 +29,7 @@ from load_trace import (
     backend_pid,
     instrument_admin_queue,
     instrument_sync,
+    runtime_trace_sink,
     sample_heartbeat,
     sql_metadata,
     stack_snapshot,
@@ -90,7 +91,7 @@ route_queries = defaultdict(lambda: {"calls": 0, "queries": 0, "min": None, "max
 trace_directory = os.environ.get("HBOT_LOAD_TRACE_DIRECTORY")
 incident_directory = os.environ.get('HBOT_LOAD_INCIDENT_DIRECTORY')
 process_role = sys.argv[sys.argv.index('--role') + 1] if '--role' in sys.argv else 'combined'
-trace_sink = TraceSink(Path(trace_directory) / ('server-api.jsonl' if process_role == 'api' else 'server.jsonl')) if trace_directory else None
+trace_sink = runtime_trace_sink(trace_directory, process_role)
 incident_sink = TraceSink(Path(incident_directory) / (process_role + '-incidents.jsonl'),
                           max_bytes=32 * 1024**2, queue_limit=256, append=True,
                           reserved_bytes=8 * 1024**2,

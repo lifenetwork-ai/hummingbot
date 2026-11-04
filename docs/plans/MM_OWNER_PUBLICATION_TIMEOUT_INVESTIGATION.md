@@ -35,3 +35,20 @@ history insertion. No runtime fix is claimed.
   COMMIT is a lead, not closure of this item.
 
 [Report and evidence](../../reports/investigations/mm-owner-publication-timeout.md).
+
+## Follow-up investigation
+
+- [x] Fix the confirmed diagnostic defect that truncated engine/API trace files
+  on supervised restart. Red: three OS-process restart cases lose the first
+  record. Green: 58 related trace/analysis/timing/incident tests pass; opt-in and
+  cumulative file-byte budgets remain unchanged. Only offline instrumentation
+  changes; the trading-service image remains `086454de`.
+- [ ] Repeat the original preparation with server-side slow-statement/error and
+  lock-wait logging, alternating traced and untraced runs. Distinguish the
+  diagnostic collector's 200ms timeout from the runtime publisher's 2s timeout.
+- [ ] Correlate any failed publication with the exact backend, WAL activity,
+  CPU/I/O pressure, blocker transaction and runtime stack. Use a separately
+  labelled WAL-pressure control if the unchanged workload does not reproduce it.
+- [ ] Add Red/Green coverage and a narrow correction for any confirmed defect;
+  retain failed artifacts and report unresolved historical attribution honestly.
+- [ ] Verify stopped Demo/ledger preservation, update evidence and commit.

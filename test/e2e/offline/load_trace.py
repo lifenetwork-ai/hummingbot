@@ -262,6 +262,14 @@ class TraceSink:
         self.worker.join(timeout=10)
 
 
+def runtime_trace_sink(directory, process_role):
+    if not directory:
+        return None
+    # A supervisor restart must preserve the failing process's evidence and
+    # continue charging the same file against the existing byte ceiling.
+    return TraceSink(Path(directory) / ('server-api.jsonl' if process_role == 'api' else 'server.jsonl'), append=True)
+
+
 class TraceRecorder:
     def __init__(self, sink, *, slow_ms=100, max_children=128):
         self.sink, self.slow_ms, self.max_children = sink, slow_ms, max_children
