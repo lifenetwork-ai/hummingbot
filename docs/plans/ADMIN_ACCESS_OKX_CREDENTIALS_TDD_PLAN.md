@@ -230,6 +230,23 @@ is revoked. New risk is denied at the existing final send gates. Requests alread
 sent before the fence may still complete and must be reconciled; receipt acceptance
 does not claim instantaneous cancellation on OKX.
 
+Cancellation is automatic, not an instruction for the operator to cancel normally.
+The owner must discover and cancel every remaining bot-owned order across the
+stopped bot's spot/perpetual markets, including recovered orders and late exchange
+acknowledgements. A cancel request being accepted is not proof of cancellation:
+reconcile each order's terminal outcome and any fills racing with cancellation.
+An empty in-memory order list alone is insufficient. Do not cancel unrelated manual
+orders or another bot's orders; unclear ownership blocks completion with an explicit
+reason. Reuse existing order tracking, cancellation and reconciliation facilities.
+
+Show automatic progress as "Stopping new orders", then "Cancelling pending orders"
+with confirmed remaining/unknown counts and last observation time. Transient errors
+use bounded automatic retries with the next retry time where known. Only unresolved
+cleanup or a failure requiring intervention shows "Pending orders need attention",
+the affected orders and the reason. Manual OKX cancellation is the fallback, not
+the normal Disconnect workflow. Recheck exchange evidence after manual intervention;
+an operator assertion alone must not mark cleanup complete.
+
 The existing owner may use the old in-memory credential only for bounded cancellation
 and necessary cleanup reads. Then detach **all** consumers, including idle funding
 and reconciliation readers; erase the current encrypted bundle/wrapped DEK and
@@ -481,6 +498,9 @@ with a conventional prefix. Planning checks above do not mark implementation don
   rejected without resetting balances, history, HALT or account bindings.
 - [ ] Test revoke against queued sends, delayed ACK/fill/cancel, an absent owner and
   concurrent Start/replace; no new risk after the existing fenced send check.
+- [ ] Test automatic cancellation across both markets, recovered/late orders,
+  partial fills racing with cancellation, bounded retries and manual fallback.
+  Exclude unrelated orders; an empty local tracker or cancel ACK cannot finish cleanup.
 - [ ] Test restart at every accepted/applied/revoking boundary, cleanup timeout and
   revoke during KMS outage; all consumers detach and outcomes remain honest.
 - [ ] Test accepted versus applied/failed/unknown outcomes, lost responses, stale
