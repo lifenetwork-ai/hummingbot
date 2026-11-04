@@ -16,7 +16,11 @@ from aiohttp import BasicAuth, web
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
-from hummingbot.cli.admin_daily_cache import DailyStatisticsCache, transient_reporting_error
+from hummingbot.cli.admin_daily_cache import (
+    DailyStatisticsCache,
+    retryable_statement_timeout,
+    transient_reporting_error,
+)
 from hummingbot.cli.admin_database import AdminDatabaseExecutor, DatabaseBusy
 from hummingbot.cli.admin_errors import error_response, request_id, validation_fields
 from hummingbot.cli.admin_models import (
@@ -450,22 +454,37 @@ class AdminAPI:
             task.exception()  # Retrieve failures even if every HTTP waiter disconnected.
 
     async def _refresh_daily(self, filters):
-        try:
-            row = await self.run_database(self.storage().daily, **filters, reporting_timezone=self.settings.reporting_timezone)
-        except (APIUnavailable, SQLAlchemyError, TimeoutError) as error:
-            if not isinstance(error, APIUnavailable) and not transient_reporting_error(error):
-                raise
-            key = self._daily_cache.key(filters, self.settings.reporting_timezone)
-            body = self._daily_cache.fallback(key)
-            if body is None:
-                raise
-            logging.getLogger(__name__).warning(
-                'Daily statistics refresh unavailable; returning a bounded stale observation type=%s',
-                type(error).__name__, extra={'event': 'admin_daily_stale', 'error_type': type(error).__name__})
-            return body
+        for attempt in range(2):
+            try:
+                row = await self.run_database(self.storage().daily, **filters, reporting_timezone=self.settings.reporting_timezone)
+            except (APIUnavailable, SQLAlchemyError, TimeoutError) as error:
+                if not attempt and not self._daily_closing and retryable_statement_timeout(error):
+                    # daily() has rolled back and returned its physical connection.
+                    # Resubmit a complete snapshot through normal report admission;
+                    # queued controls dispatch first. No deadline/pool is extended.
+                    logging.getLogger(__name__).warning(
+                        'Daily statistics statement timed out; retrying one complete read',
+                        extra={'event': 'admin_daily_retry', 'reason_code': 'statement_timeout', 'scope': 'reporting'})
+                    continue
+                if not isinstance(error, APIUnavailable) and not transient_reporting_error(error):
+                    raise
+                key = self._daily_cache.key(filters, self.settings.reporting_timezone)
+                body = self._daily_cache.fallback(key)
+                if body is None:
+                    raise
+                logging.getLogger(__name__).warning(
+                    'Daily statistics refresh unavailable; returning a bounded stale observation type=%s',
+                    type(error).__name__, extra={'event': 'admin_daily_stale', 'error_type': type(error).__name__})
+                return body
+            else:
+                break
         body = DailyResponse.model_validate(row).model_dump(mode="json")
         key = self._daily_cache.key(filters, self.settings.reporting_timezone)
         self._daily_cache.remember(key, body)
+        if attempt:
+            logging.getLogger(__name__).info(
+                'Daily statistics retry recovered a complete observation',
+                extra={'event': 'admin_daily_retry_recovered', 'scope': 'reporting'})
         return body
 
     @staticmethod

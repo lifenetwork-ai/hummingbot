@@ -1497,5 +1497,98 @@
     "The old unique p99/probe cause and historical inconsistent_own_depth cause remain unproven. Bounded current-image contexts include tick/controller delays and empty venue samples, so continuous quote uptime is not established.",
     "Million-row reporting still exceeds runtime budgets. Full R1/R2 and Cloud Run capacity/production liquidity are outside this completed local follow-up."
   ],
-  "completed_at": "2026-11-04T02:04:24.813605+00:00"
+  "completed_at": "2026-11-04T02:04:24.813605+00:00",
+  "timeout_retry_followup": {
+    "status": "source verified; image qualification pending",
+    "source_checks": {
+      "stage": "passed",
+      "passed": true,
+      "native_passed": 2464,
+      "native_subtests_passed": 11,
+      "postgres_passed": 354,
+      "source_sha256": {
+        "hummingbot/cli/admin_api.py": "26867aae2a0d2d0f2c4b40ba05f209865e2a446fce6d07f83926f2802416664c",
+        "hummingbot/cli/admin_daily_cache.py": "d47f76a71e56e7727817f39cbdc73b0e872117271086242918b1aca2a811372e",
+        "test/hummingbot/cli/test_admin_daily_retry.py": "685709babb5c42a8492d6d462679009f8ad5034dca6092439cf0c287799f2eda",
+        "test/integration/postgres/test_admin_daily_retry.py": "ec3000808ee6ff98fb9aed62f7abdf8d030f7572821aed94cc377dd9111b85e3"
+      },
+      "artifacts": [
+        {
+          "path": "build/original-fee-fix-20261104/native-full.log",
+          "sha256": "a4ec77528f1a0f744090891a590c4f967aa6552433c1df163c04014adfc810eb"
+        },
+        {
+          "path": "build/original-fee-fix-20261104/postgres-full.log",
+          "sha256": "0c6e43a42976adc62db1bc47e49639b801bc9956131a07b9c7561d0fc86ee8a3"
+        },
+        {
+          "path": "build/original-fee-fix-20261104/retry-red.log",
+          "sha256": "10c220607d4043d1834850fe6a15823c3b3aeda1845711cf7cedc3d0f9e88a8e"
+        },
+        {
+          "path": "build/original-fee-fix-20261104/retry-green.log",
+          "sha256": "793d24f1b302586910b3d8a15a660171e2b9f215f88392d00185a068516d43c9"
+        },
+        {
+          "path": "build/original-fee-fix-20261104/retry-native-related.log",
+          "sha256": "820cd5cc006a1aa8d1e43bb6799d13240fe345ecb93b08893a79a11cac34e20b"
+        },
+        {
+          "path": "build/original-fee-fix-20261104/retry-pg-red.log",
+          "sha256": "2d652cb3059c5570d545aecf701c10c92d9580b56c77c4d948b37b007664258e"
+        },
+        {
+          "path": "build/original-fee-fix-20261104/retry-pg-green.log",
+          "sha256": "2ab1b9b00a6f38a798bf234b620bb7499f08df109393de73b055f3baad2d13a5"
+        }
+      ]
+    },
+    "sql_unchanged": true,
+    "no_migration_or_generated_column": true,
+    "no_timeout_or_pool_or_worker_or_ttl_change": true,
+    "retries_maximum": 1,
+    "classification": "Acknowledged PostgreSQL57014 statement timeout with an intact session; no operator cancel, unknown diagnostic, discarded session or shutdown retry",
+    "complete_new_snapshot": true,
+    "normal_executor_read_admission": true,
+    "stale_policy_unchanged_after_two_failures": true,
+    "invalid_fixture_logs_not_used_as_red": [
+      "retry-pg-invalid-fixture-red.log",
+      "retry-pg-invalid-fixture-green.log"
+    ],
+    "sql_experiment_note": "Only100k repeated/diverse exploratory pairs this phase. No robust general SQL benefit accepted.32MB exploratory timings use transaction-local memory; their EXPLAIN snapshots use default4MB and are not matched-plan evidence. Native-array trials use an experimental disposable schema only.",
+    "sql_experiments": [
+      {
+        "path": "build/original-fee-fix-20261104/comparison-grouped-vs-cast.json",
+        "sha256": "966c0c07e309e747675f4f14ec6e9a19acad2cc817b4c4b42efa30006208fbb7"
+      },
+      {
+        "path": "build/original-fee-fix-20261104/comparison-lateral.json",
+        "sha256": "d92de5af2091446c43f13e5262effd743b29142f2b2d4cac55503255ef96f016"
+      },
+      {
+        "path": "build/original-fee-fix-20261104/comparison-projection.json",
+        "sha256": "485fadbfd75416fd90e7cb2517a235fe9d2a9822fe70f09da6d12bb4003210ea"
+      },
+      {
+        "path": "build/original-fee-fix-20261104/comparison-signed-sums.json",
+        "sha256": "9fdcd303a77b1abe7ae7ae650ea83012b39cc1f91793ed7180aa529edb2307be"
+      },
+      {
+        "path": "build/original-fee-fix-20261104/comparison-single-fast-path.json",
+        "sha256": "2a79137669dc19d18d8ef7cb6251db49433744cd53e98370c1f18164619d7283"
+      },
+      {
+        "path": "build/original-fee-fix-20261104/comparison-stats.json",
+        "sha256": "d8d206511c6ac59b40cc13700bcb18d95c34540077c8c69b66a67e4da3660908"
+      },
+      {
+        "path": "build/original-fee-fix-20261104/comparison-workmem.json",
+        "sha256": "5593ccab98335f965ea26de81cb645b8c508e4461584d8e3b710c3c048a589e4"
+      },
+      {
+        "path": "build/original-fee-fix-20261104/comparison.json",
+        "sha256": "1daf295509ea768dce241895f2dda466c9cd3866ad04a2549b9a580f8bb6569a"
+      }
+    ]
+  }
 }

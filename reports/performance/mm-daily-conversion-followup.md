@@ -234,3 +234,38 @@ there is no new Cloud Run/production acceptance or live-account trading.
 
 Raw diagnostics/helpers: `build/reporting-followup-20261104/`. Discarded or
 interrupted experiments are preserved there and are not passing gates.
+
+## Bounded timeout-retry follow-up — 2026-11-04
+
+The requested follow-up keeps SQL and all runtime deadlines unchanged. Exploratory
+payload grouping/casts/projections, local sort-memory increases, scalar paths,
+signed-sum arithmetic and stored-array prototypes do not establish a safe general
+benefit across repeated/diverse fees. No experimental query/schema/cache is kept.
+These discarded measurements are not a shipping improvement or passing gate.
+
+The API retries one complete daily read only after an acknowledged PostgreSQL
+statement-timeout57014 on an intact session. The failed transaction has rolled
+back and released its connection before normal report admission runs again;
+queued controls retain priority. Operator cancellation, other/unknown errors,
+discarded sessions and shutdown do not trigger this retry. Same-key waiters still
+share one flight, including during retry and after a client disconnect. A second
+failure retains the original stale/unavailable behavior, observation time,60s
+age bound and5s cooldown. It never relabels an old observation as fresh.
+
+A recovered request may take longer: the unchanged2s SQL/3s I/O limits apply to
+each attempt, not a new whole-request wall deadline. Both attempts use the same
+bounded two-worker executor; no control/trading write is retried. WARNING logs
+expose the first timeout and INFO follows only a validated recovered observation.
+This repairs transient refresh availability, not the underlying SQL execution
+cost or its unique historical cause. English server diagnostics are recognized
+narrowly; unknown/localized diagnostics retain the existing fallback.
+
+Native Red4 plus six non-retry controls precedes implementation; final related72
+checks pass. Valid real-PG Red2/Green2 uses actual2s server cancellation: a late
+fill appears consistently in both counts and original fees after the new snapshot,
+while two failures retain stale timestamps/cooldown. Initial incorrect from/to
+fixture aliases are corrected and their logs excluded from Red proof. Broad
+native2,464 +11 subtests and PostgreSQL354 pass. Packaged E2E,
+wait/CPU transient and persistent fault tests, stopped Demo upgrade and unchanged
+healthy standalone-hour acceptance remain pending on a rebuilt image. The failed
+50f96001 results above remain failed and are not reclassified.

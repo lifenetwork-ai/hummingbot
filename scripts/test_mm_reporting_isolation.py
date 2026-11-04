@@ -1,7 +1,7 @@
-"""Observe trading progress while one real daily-report statement times out.
+"""Observe trading progress during bounded real daily-report timeouts.
 
 This test uses the existing simulator, PostgreSQL and shipping image. A test-only
-API SQL hook injects one server-side wait or CPU-heavy expansion. Neither case
+API SQL hook injects a server-side wait or CPU-heavy expansion. Neither case
 establishes universal isolation or certifies Cloud Run capacity.
 """
 import argparse
@@ -33,19 +33,26 @@ def wait_running_metrics(harness, bot):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--baseline", type=Path, required=True, help="Retained e526 full-load attempt")
+    parser.add_argument("--baseline", type=Path, required=True, help="Retained verified-image load result directory")
     parser.add_argument("--fault-mode", choices=("wait", "cpu"), default="wait",
                         help="Inject a server wait or CPU-heavy expansion into one daily query")
+    parser.add_argument('--timeouts', type=int, choices=(1, 2), default=1,
+                        help='Inject one timeout, or two to exhaust a bounded read retry')
+    parser.add_argument('--expect-retry', action='store_true',
+                        help='Require a single injected timeout to recover without stale replies')
     parser.add_argument("--supervision-source-overlay", action="store_true",
                         help="Diagnostic only: mount the two local supervision modules over the base image")
     args = parser.parse_args()
+    if args.expect_retry and args.timeouts != 1:
+        parser.error('--expect-retry requires --timeouts=1')
     baseline = json.loads((args.baseline / "result.json").read_text())
     assert baseline["enhancements"] and baseline["volatility_defense"]
     image = baseline["image_id"]
     report = ROOT / "build" / "mm-reporting-isolation" / (time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6])
     report.mkdir(parents=True)
     evidence = {"image_id": image, "scope": __doc__, "fault_mode": args.fault_mode, "passed": False, "release_scope_complete": False,
-                "baseline_passed": baseline.get("passed"), "duration_seconds": 120}
+                "baseline_passed": baseline.get("passed"), "duration_seconds": 120,
+                "injected_timeouts": args.timeouts, "expect_retry": args.expect_retry}
     overlays = [ROOT / "hummingbot/cli" / name for name in ("process_supervision.py", "service_processes.py")] if args.supervision_source_overlay else []
     evidence["supervision_source_overlay_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                                                      for path in overlays}
@@ -71,6 +78,7 @@ def main():
             source = service.read_text()
             injection = (ROOT / "test/e2e/offline/slow_reporting_injection.py").read_text()
             injection = injection.replace('SLOW_REPORT_MODE = "wait"', f'SLOW_REPORT_MODE = "{args.fault_mode}"')
+            injection = injection.replace('SLOW_REPORT_TIMEOUTS = 1', f'SLOW_REPORT_TIMEOUTS = {args.timeouts}')
             assert source.count("service.main()") == 1
             service.write_text(source.replace("service.main()", injection + "\nservice.main()"))
             evidence["injection_sha256"] = hashlib.sha256(injection.encode()).hexdigest()
@@ -159,22 +167,30 @@ def main():
                     observer.join(timeout=10)
                 assert not observer.is_alive(), "Durable-fill observer did not finish"
                 fault = json.loads(docker("exec", bot, "cat", "/tmp/slow-daily-result.json").stdout)
-                stale = [json.loads(line) for line in docker("exec", client, "cat", "/tmp/slow-report-stale.jsonl").stdout.splitlines()]
+                attempts = json.loads(docker('exec', bot, 'cat', '/tmp/slow-daily-attempts.json').stdout)
+                stale = [json.loads(line) for line in docker("exec", client, "cat", "/tmp/slow-report-stale.jsonl", check=False).stdout.splitlines()]
+                evidence['fault_attempts'] = attempts
                 evidence["observation"] = dict(fault=fault, witness=witness, stale=stale,
                                                market_updates_per_second=data["market_updates_per_second"],
                                                fills_per_second=data["fills_per_second"],
                                                unexpected_errors=data["unexpected_errors"], errors=data["errors"])
                 (report / "result.json").write_text(json.dumps(evidence, indent=2) + "\n")
                 assert fault["sqlstate"] == "57014" and fault["finished_at"] > fault["started_at"]
+                assert len(attempts) == args.timeouts
+                assert all(item.get('sqlstate') == '57014' and item['finished_at'] > item['started_at'] for item in attempts)
                 assert witness.get("fills", 0) > 0 and fault["started_at"] <= float(witness["observed_at"]) <= fault["finished_at"], \
                     "No independently observed durable fill while the report query was blocked"
-                assert data["unexpected_errors"] == len(data["errors"]) > 0
+                assert data["unexpected_errors"] == len(data["errors"])
                 assert len(stale) == data["unexpected_errors"]
+                if args.expect_retry:
+                    assert not stale
+                else:
+                    assert stale
                 assert all(item["freshness"] == "stale" and 0 <= item["observation_age_seconds"] < 60
                            and 1 <= item["retry_after_seconds"] <= 5 and item["server_time"] for item in stale)
-                assert len({item["server_time"] for item in stale}) == 1
+                assert len({item["server_time"] for item in stale}) == (0 if args.expect_retry else 1)
                 assert all(item.get("reason") == "daily_statistics_degraded" and item.get("status") == 200
-                           and fault["started_at"] <= item["at"] <= fault["finished_at"] + 8 for item in data["errors"])
+                           and fault["started_at"] <= item["at"] <= attempts[-1]["finished_at"] + 8 for item in data["errors"])
                 assert set(data["statuses"]) == {"200"} and set(data["auxiliary"]["statuses"]) == {"200"}
                 samples = json.loads((report / "slow-report-runtime-minutes.json").read_text())
                 assert samples and all(sample["runtime_phase"] == "running" for sample in samples)
@@ -191,20 +207,28 @@ def main():
                 command(harness, port, "stop")
                 assert all(row["state"] in ("filled", "canceled") for row in harness.ledger()["orders"])
                 unexpected_logs = []
+                retry_events = []
                 for line in docker("logs", bot).stdout.splitlines():
                     try:
                         row = json.loads(line)
                         timestamp = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00")).timestamp()
+                        if row.get('event') in ('admin_daily_retry', 'admin_daily_retry_recovered'):
+                            retry_events.append({key: row.get(key) for key in ('timestamp', 'event', 'severity')})
                         if row.get("severity") in ("ERROR", "CRITICAL") and fault["started_at"] <= timestamp <= fault["finished_at"] + 8:
                             unexpected_logs.append({key: row.get(key) for key in ("timestamp", "severity", "event", "message")})
                     except (ValueError, KeyError, TypeError):
                         continue
                 evidence["unexpected_error_logs_during_fault"] = unexpected_logs
+                evidence['retry_events'] = retry_events
                 assert not unexpected_logs
+                if args.expect_retry:
+                    assert any(row['event'] == 'admin_daily_retry_recovered' for row in retry_events)
                 assert data["fills_per_second"] >= 1 - 1 / data["duration_seconds"]
                 assert data["market_updates_per_second"] >= 100 - 4 / data["duration_seconds"]
                 evidence.update(passed=True, fault=fault, stale_read_count=data["unexpected_errors"],
-                                stale_metadata_bounded=True, stale_original_server_time_preserved=True,
+                                stale_metadata_bounded=True if stale else None,
+                                stale_original_server_time_preserved=True if stale else None,
+                                transient_timeout_recovered_fresh=args.expect_retry,
                                 exchange_fills_during_timeout=len(during), durable_fill_witness=witness, ledger=reconciled,
                                 engine_pid_unchanged=True, ownership_and_session_unchanged=True, no_halt=True,
                                 later_daily_fresh=True, clean_stop=True,

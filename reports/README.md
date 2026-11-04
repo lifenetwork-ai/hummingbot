@@ -4,6 +4,8 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Timeout retry source follow-up:** native2,464 +11 subtests and PG354 pass; one acknowledged daily-read timeout retries a complete snapshot through normal admission. Persistent failure stays explicitly stale. No SQL/schema/deadline change; new-image acceptance pending. [Report/evidence](performance/mm-daily-conversion-followup.md).
+
 - [Daily conversion/availability follow-up](performance/mm-daily-conversion-followup.md),
   [evidence](performance/mm-daily-conversion-followup-evidence.json): fee-array
   decoding600→200 for200 zero-conversion fills; four paired SQL workloads return

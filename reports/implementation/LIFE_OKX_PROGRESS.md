@@ -5,6 +5,8 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-04
 
+- **Bounded reporting retry source verified:** native2,464 +11 subtests and PG354 pass. Real server timeout Red/Green confirms new-snapshot counts/fees and persistent stale fallback. One retry keeps control priority and all deadlines/resources; no experimental SQL/schema accepted. New-image checks/hour are pending. [Report](../performance/mm-daily-conversion-followup.md#bounded-timeout-retry-follow-up--2026-11-04).
+
 - **Current-image follow-up complete; qualification incomplete:** image50f96001
   independently matches one natural spot and one perpetual maker fill through
   REST trade IDs, quantity and original fees. Filled restart keeps the pinned

@@ -676,6 +676,13 @@ aggregation pressure. Display the original observation time; repeated polls may
 return the same observation during that interval. This setting belongs to the
 environment configuration and cannot be changed through the admin API. Current
 balances, positions, controls and trading decisions use their separate paths.
+An acknowledged PostgreSQL statement timeout may retry one complete consistent
+read before responding. The retry uses normal bounded report admission; queued
+controls retain priority. This can lengthen a statistics refresh. Keep the prior
+chart and its observation time visible while loading; do not infer a trading
+stop from the loading indicator. Operator cancellations, discarded sessions and
+other SQL errors do not receive this extra retry. Statement/I/O limits and the
+existing cache TTL remain unchanged.
 On an identifiable transient reporting failure, the endpoint may return HTTP 200
 with `freshness: "stale"`, `observation_age_seconds`, an English `message` and
 `retry_after_seconds` (1–5). This requires a successful matching observation

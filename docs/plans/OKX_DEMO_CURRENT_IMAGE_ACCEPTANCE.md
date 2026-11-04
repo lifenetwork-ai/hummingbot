@@ -116,6 +116,32 @@ investigation above is complete. Preserve the evidence and capture a recurrence
 before proposing a runtime/guard fix. Continuous quote coverage and Cloud Run
 capacity are not established by these local observations.
 
+### Original-currency reporting timeout recovery — requested 2026-11-04
+
+- [x] Retain the exact query and failed-image results as the baseline. Measure
+  repeated/diverse workloads before accepting an optimization. Reject payload
+  grouping, casts/projections, increased local sort memory, scalar fast paths,
+  signed sums and stored-array experiments that do not establish a safe benefit.
+  No experimental SQL, migration, generated column or cache change is retained.
+- [x] Add one retry only for an acknowledged, non-invalidated PostgreSQL
+  statement-timeout error. Re-admit a complete read after rollback through the
+  same bounded executor, allowing queued controls first. Operator cancellation,
+  other errors, discarded sessions and shutdown do not trigger this retry.
+- [x] Demonstrate native Red4/Green20, then72 related checks including a
+  disconnected waiter. Correct the real-PG fixture's public from/to aliases;
+  retain those invalid-fixture logs separately. Valid Red2/Green2 proves a new
+  consistent snapshot, unchanged2s/3s deadlines, exact late-fill fees/counts,
+  stale timestamp/cooldown after two failures and no leaked connection.
+- [x] Run broad native2,464 +11 subtests. SQL, response schema, TTL, worker/pool
+  limits, engine and ledger remain unchanged. Persistent failures still degrade
+  explicitly; a successful retry is a complete new observation, not relabeling.
+- [x] Finish broad PostgreSQL354 checks and source commit. No shipping SQL,
+  schema, TTL, statement/I/O deadline, worker or pool change.
+- [ ] Build/verify the image and run packaged E2E, single-timeout recovery and
+  two-timeout stale fallback under wait/CPU faults, with independent witnesses.
+- [ ] Repeat the unchanged healthy standalone hour after shorter checks;
+  preserve all failures and independently verify stopped Demo restoration.
+
 ## Quote-recovery current-image completion — 2026-11-03
 
 - [x] Full unchanged R1 including one-hour soak/six faults, and matched shipping R2;

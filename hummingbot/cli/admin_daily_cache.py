@@ -14,6 +14,14 @@ MAX_OBSERVATION_AGE_SECONDS = 60
 RETRY_SECONDS = 5
 
 
+def retryable_statement_timeout(error):
+    """Only an acknowledged server statement limit, never cancel/discard/DDL."""
+    return (isinstance(error, DBAPIError) and not error.connection_invalidated
+            and getattr(error.orig, 'pgcode', None) == '57014'
+            and getattr(getattr(error.orig, 'diag', None), 'message_primary', None)
+            == 'canceling statement due to statement timeout')
+
+
 def transient_reporting_error(error):
     if isinstance(error, (TimeoutError, PoolTimeout)):
         return True
