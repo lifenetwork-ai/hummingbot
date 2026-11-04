@@ -1,4 +1,4 @@
-# Admin access and encrypted OKX credentials — TDD implementation plan
+# Admin access and encrypted exchange credentials — TDD plan (OKX first)
 
 Status: requirements reviewed on 2026-11-05 (Asia/Saigon); implementation has
 **not started**. This document describes proposed behavior. Current endpoints
@@ -21,6 +21,10 @@ Redis, broker, signing service or exchange-account administration service.
 - [x] Confirm `local` loads its KEK from environment; `gcp` uses Cloud KMS.
 - [x] Confirm user clarification: revoke disconnects credentials **inside this
   bot**. Deleting the API key on OKX remains an operator action on OKX.
+- [x] Confirm Disconnect automatically cancels all bot-owned pending orders and
+  closes all bot-managed perpetual positions before removing selected credentials.
+- [x] Design storage, API, audit and lifecycle boundaries for additional exchanges;
+  implement only OKX in this phase and reuse existing Hummingbot connectors.
 - [x] Require durable audit history and an authenticated, filterable audit API.
 - [x] Require clear English errors and operator status: what happened, current
   impact on trading, whether recovery is automatic, and the next permitted action.
@@ -46,15 +50,48 @@ against arbitrary malicious code deployed with the bot's permissions.
 | `AdminStore`, `admin_commands`, control-version transactions | Reuse receipts, pagination, locks and Stop workflow; secret requests need a dedicated adapter because generic command payloads are persisted |
 | `Security`, `environment_credentials.py`, connector Pydantic models | Keep existing environment mode; add a managed provider feeding the same in-memory connector models without writing YAML or `.env` |
 | `BotOwnership.authorize_rest`, service lifecycle and recovery | Fence credential changes through existing desired-state/control-version checks; reuse cancellation, reconciliation and restart handling |
+| `TradingCore`, executor close actions and held-position checkpoints | Reuse execution and persistence, but add explicit Disconnect cleanup: the current owner shutdown preserves positions and its submission gate rejects orders after Stop |
 | Funding observer, reconciliation and CLI preflight | Audit all credential consumers; a revoked key must not survive through an environment-only reader or an idle observer |
 | `mm_events` | Keep session history intact; its mandatory session identity makes it unsuitable as the general security audit table |
 | Existing cryptography package, Google libraries | Reuse authenticated encryption; add official Google identity/KMS clients where needed, and update runtime packaging |
 
 This creates one explicit future exception to the current configuration contract:
-managed **OKX credentials** become API-editable encrypted DB data. Strategy YAML,
-exchange live/demo routing, auth flags, KEK/provider settings and other environment
+managed **exchange credentials** become API-editable encrypted DB data, starting
+with OKX. Strategy YAML, exchange live/demo routing, auth flags, KEK/provider
+settings and other environment
 settings remain deployment-owned. Existing documentation must not claim these
 new endpoints work before implementation and verification finish.
+
+### Additional exchanges without rebuilding credential management
+
+Keep the current plan filename for stable links. Shared authentication, roles,
+encryption, audit, receipts and operator flow must not depend on OKX-specific names.
+Use an explicit `exchange_id`, existing Hummingbot `connector_name`, deployment-owned
+environment and verified account/subaccount binding. For the first adapter these
+are `okx` with `okx` or `okx_perpetual`; another exchange is not another key for an
+existing account binding or permission to reuse its ledger.
+
+Reuse connector configuration schemas, order tracking, fills and position models.
+Add only a small adapter boundary for exchange-specific credential validation,
+account identity and confirmation of cancellation/position closure. Each adapter
+must prove the supported position modes and exchange-enforced closing semantics;
+no generic opposite-side order may be assumed safe for every exchange. An exchange
+with incompatible account discovery or cleanup needs its own tested implementation.
+
+The server exposes only deployment-enabled, implemented exchange/connector choices
+and their safe required-input descriptions/capabilities. Forms use those descriptions
+instead of assuming every exchange needs an API key, secret and passphrase. Actual
+input is validated against the existing connector schema and encrypted as a whole;
+responses never include saved field values. Unsupported exchange, connector,
+environment or cleanup mode gets a specific error, never an OKX fallback or
+dynamic import based on an arbitrary client-supplied name.
+
+Keep the existing service's reviewed OKX allowlist in this phase. A second exchange
+requires connector/ownership/recovery integration and its own offline/Demo acceptance,
+not just a new dropdown entry. Test the shared contract with a fake second adapter;
+do not implement speculative live adapters, cross-exchange trading or a plugin system.
+Changing trading venues remains a deployment/YAML and dedicated-ledger decision,
+not an API override of strategy configuration.
 
 ## Authentication, roles and bootstrap shutdown
 
@@ -62,7 +99,7 @@ new endpoints work before implementation and verification finish.
 | --- | --- | --- | --- | --- |
 | Read bot status/history/credential status/audit | Yes | Yes | Yes | Yes |
 | Start/switch/stop and existing operational mutations | Yes | Yes | Yes | No |
-| Set or revoke managed OKX credentials | Yes | Yes | Yes | No |
+| Set or revoke managed credentials for enabled exchanges | Yes | Yes | Yes | No |
 | List/change whitelist, role or account access | Yes | Yes | No | No |
 | Change auth/provider env or strategy YAML through API | No | No | No | No |
 | Read plaintext credentials, KEK or encrypted blobs through API | No | No | No | No |
@@ -97,7 +134,7 @@ work and timeouts, not a network call to Google for every normal request.
 | `ADMIN_API_USERNAME`, `ADMIN_API_PASSWORD` | Existing names; required only when Basic is enabled; never authorize Basic when its flag is false |
 | `ADMIN_GOOGLE_AUTH_ENABLED` | New, default `false`; enable for whitelisted Google users |
 | `ADMIN_GOOGLE_CLIENT_ID` | Required with Google auth; no usable default audience |
-| `OKX_CREDENTIALS_SOURCE` | `environment` by default for existing setups; managed mode is `postgres_kms` |
+| `EXCHANGE_CREDENTIALS_SOURCE` | New shared setting: `environment` by default for existing setups; managed mode is `postgres_kms` |
 | `KMS_PROVIDER` | `local` by default; valid values **only** `local`, `gcp`; used when source is `postgres_kms` |
 | `KMS_LOCAL_SECRET_KEY` | Required in local mode: base64-encoded random 32-byte KEK; no generated/default production key |
 | `KMS_LOCAL_KEY_ID` | Stable non-secret identifier, default `local-v1`; must identify the actual configured KEK |
@@ -106,6 +143,11 @@ work and timeouts, not a network call to Google for every normal request.
 All flags use the existing strict boolean parser and environment precedence.
 Unknown provider/source values fail validation. Managed source and Google whitelist
 authentication require PostgreSQL.
+
+`EXCHANGE_CREDENTIALS_SOURCE` supersedes the earlier unimplemented plan name
+`OKX_CREDENTIALS_SOURCE`; do not add two competing source switches. Existing
+connector-specific environment credential names remain unchanged.
+
 Enabled API must have at least one enabled authentication method. Missing fields
 for a disabled method are not errors. Existing Basic-only deployments/tests must
 explicitly set the new Basic flag before upgrading; do not silently break their
@@ -135,10 +177,10 @@ failure rejects affected requests; it must not itself kill a healthy trading eng
 ## Encrypted storage and provider boundaries
 
 Use envelope encryption with existing `cryptography` primitives: a fresh random
-32-byte data key (DEK) encrypts the complete API-key/secret/passphrase bundle with
+32-byte data key (DEK) encrypts the complete connector credential bundle with
 AES-256-GCM and a fresh nonce. The KEK wraps the DEK. Authenticate format version,
-bot ID, connector, live/demo environment and credential version as associated data
-so moving ciphertext to another scope/version fails authentication.
+bot ID, exchange ID, connector, deployment environment and credential version as
+associated data so moving ciphertext to another scope/version fails authentication.
 
 - `local`: wrap the DEK with the configured KEK using authenticated encryption,
   a separate nonce and purpose-bound associated data. KEK stays in environment,
@@ -158,8 +200,10 @@ so moving ciphertext to another scope/version fails authentication.
   backups are reviewed. A general bulk rewrap/keyring service is out of scope.
 
 Keep new state small: `admin_accounts` (whitelist, bound identity, role, active
-status, version), `okx_credentials` (one current envelope/version per bot,
-connector and environment) and `admin_audit_events` (append-only safe events).
+status, version), `exchange_credentials` (one current envelope/version per bot,
+exchange, connector and environment) and `admin_audit_events` (append-only safe events).
+Use the same scope in uniqueness constraints, receipts, queries, audit filters and
+encryption context; never create a new credential table for each exchange.
 Use existing `admin_commands` for safe receipts; reuse current bot control-version
 fencing rather than introducing another ownership/lease mechanism. Allocate the
 next available migration number when implementing. SQL must be idempotent,
@@ -223,10 +267,18 @@ credential slots must satisfy the existing same-account contract when used joint
 Audit rotation records the old/new credential version and safe account binding,
 never either key. Replacing a credential does not revoke the old API key at OKX.
 
+### Disconnect: cancel orders, close perpetual positions, then remove credentials
+
 **Revoke, as confirmed by the user:** atomically mark the selected credential as
 revoking, request a bot-wide Stop, bump control authority and record the actor and
 receipt. This simple first version stops the joint bot even if only one connector
-is revoked. New risk is denied at the existing final send gates. Requests already
+is revoked. Cleanup includes all bot-owned orders and bot-managed perpetual
+positions in that runtime, including previously held positions, not just the
+currently selected session/market. Only the selected credential slot is erased;
+other configured slots stay saved and the bot stays stopped. Show this scope before
+confirmation, including the effect on perpetual when disconnecting a spot slot.
+Spot balances are retained; Disconnect does not sell spot inventory or withdraw funds.
+New risk is denied at the existing final send gates. Requests already
 sent before the fence may still complete and must be reconciled; receipt acceptance
 does not claim instantaneous cancellation on OKX.
 
@@ -239,27 +291,119 @@ An empty in-memory order list alone is insufficient. Do not cancel unrelated man
 orders or another bot's orders; unclear ownership blocks completion with an explicit
 reason. Reuse existing order tracking, cancellation and reconciliation facilities.
 
-Show automatic progress as "Stopping new orders", then "Cancelling pending orders"
-with confirmed remaining/unknown counts and last observation time. Transient errors
-use bounded automatic retries with the next retry time where known. Only unresolved
-cleanup or a failure requiring intervention shows "Pending orders need attention",
-the affected orders and the reason. Manual OKX cancellation is the fallback, not
-the normal Disconnect workflow. Recheck exchange evidence after manual intervention;
-an operator assertion alone must not mark cleanup complete.
+After pending quote orders and in-flight submissions are resolved, automatically
+close remaining perpetual exposure through the existing connector/tracking/recorder
+path. Use market-close orders in the initial flow; explain that execution can incur
+fees, slippage and realized profit/loss and has no guaranteed execution price or ETA.
+Confirm each order's outcome, persist fills/fees and reconcile the remaining position.
+Close HEDGE long and short separately: net exposure of zero does not mean both are
+closed. Include recovered/held positions, not just live executors. Apply instrument
+size/precision rules; an uncloseable residual is a blocker, not a rounded-to-zero
+success. Do not modify unrelated manual/other-bot exposure. If account positions
+are mixed and bot ownership cannot be established, stop cleanup with a clear reason.
 
-The existing owner may use the old in-memory credential only for bounded cancellation
-and necessary cleanup reads. Then detach **all** consumers, including idle funding
-and reconciliation readers; erase the current encrypted bundle/wrapped DEK and
-mark revoked after observation confirms detachment. Keep safe audit/version records.
+Current `BotOwnership.shutdown_core()` calls `keep_positions=True`, while
+`authorize_rest()` treats placement as new risk and applies normal MM/session and
+post-only checks. Merely changing that boolean will not implement this requirement.
+Keep ordinary Stop, crash/revision shutdown and key rotation semantics unchanged.
+Add an explicit Disconnect cleanup intent under the existing ownership/receipt model:
+only the current owner, matching operation and credential version may place a
+recorded close order for verified remaining exposure. It may bypass the normal
+MM quote/session restriction only for this purpose; it must not reopen general
+submissions, clear unrelated HALTs, bypass persistence checks or use a stale owner.
+Unknown account/position state, lost ownership or unhealthy persistence blocks closure.
+Keep required connectors and the recorder available during the acknowledged cleanup
+operation; do not tear them down through ordinary Stop before close orders settle.
+The operation survives bounded request/process lifetimes through its receipt and
+recovery state; it is not a longer unbounded shutdown coroutine.
+
+Verify the adapter's exchange-enforced close/reduce-only semantics for each supported
+position mode; HEDGE must target the correct side. The current generic ONEWAY close
+path can use `PositionAction.OPEN`, so it must not be reused blindly for Disconnect.
+Implement and test a safe mode-specific mapping before enabling it, or report
+`unsupported_cleanup_mode`. Reserve/reconcile in-flight close quantity so concurrent
+or repeated cleanup cannot over-close or reverse a position. A lost placement ACK
+requires intent/order lookup before resubmission; only confirmed remaining quantity
+may get another close intent. Partial closes and late fills resume the same durable
+operation after restart. All network work/retries remain bounded and observable.
+
+The owner may use credentials only for authorized cancellation, position closure
+and necessary cleanup reads during revocation. Keep the encrypted bundle until
+cleanup is verified so a restarted owner can resume this restricted workflow;
+loading it requires the same operation/scope checks and must not enable normal trading.
+Completion requires fresh exchange evidence of zero bot-owned pending orders and
+zero bot-managed perpetual positions, no unresolved sends, and durable fill/fee/
+position checkpoints. Then detach **all** consumers of the selected credentials,
+including idle funding and reconciliation readers; erase the current encrypted
+bundle/wrapped DEK and mark revoked after observation confirms detachment.
+Keep safe audit/version records.
 Python reference removal is not guaranteed physical memory zeroization, and database
 backups may retain older encrypted rows. No silent reload from `.env` is permitted.
 Revoke admission does not require KMS access.
 
-If cleanup times out, ownership is unavailable, an in-flight order is unresolved
-or restart interrupts revocation, expose `cleanup_pending`/operator action instead
-of reporting completed revocation. Admission remains closed; restart resumes only
-the fenced cleanup workflow. Outstanding exchange orders/positions may need manual
-OKX action. Revoke neither closes perpetual positions nor deletes the key on OKX.
+If cleanup times out, ownership is unavailable, an in-flight order is unresolved,
+positions remain or restart interrupts revocation, expose `cleanup_pending`/operator
+action instead of reporting completed revocation. Admission remains closed; restart resumes only
+the fenced cleanup workflow. Transient errors use bounded automatic retries with
+the next retry time where known. Remaining orders/positions need manual exchange
+action only when automatic cleanup cannot complete. Recheck exchange evidence after
+manual intervention; an operator assertion alone cannot mark cleanup complete.
+If credentials were already deleted on the exchange, show an explicit verification
+blocker rather than claiming the orders/positions disappeared. There is no initial
+"force complete" or "skip cleanup" API. Exchange API-key deletion remains manual.
+
+### Disconnect UX for a non-technical operator
+
+Keep one guided action with a confirmation, a progress view and a final result.
+Do not require the operator to issue separate cancel/close requests. FE implementation
+remains in its own repository; this plan supplies the API contract and English copy.
+
+1. **Review:** show the selected exchange/account/credential slot, the bot-wide
+   effect, pending orders and perpetual long/short quantities with timestamps.
+   Stale/missing values say "Unknown", never zero. The server rechecks actual state;
+   the preview is not an authority snapshot or a guarantee against a late fill.
+2. **Confirm:** title "Disconnect {exchange}?"; text: "This will stop the bot,
+   cancel its pending orders, close its perpetual positions, and remove the selected
+   saved connection. Closing positions may incur fees and realize a profit or loss.
+   Spot balances stay in your exchange account. This does not delete the API key
+   on the exchange." Buttons: "Back" and "Close positions and disconnect"; for a
+   proven spot-only scope with no perpetual exposure, use "Stop and disconnect".
+   Unknown exposure does not get the simplified spot-only confirmation. Confirmation
+   authorizes the complete scoped cleanup, including exposure from late order fills.
+3. **Track:** reuse the durable operation receipt; show the current stage below,
+   remaining work and last confirmed update. Browser refresh/sign-out does not
+   cancel server cleanup. Disable duplicate/conflicting Start/replace/Disconnect
+   actions; a retried original request returns the same operation.
+4. **Finish:** only after verified cleanup and credential removal, show
+   "Disconnected. Bot orders cancelled and perpetual positions closed."
+   For verified spot-only cleanup, omit the perpetual-position sentence.
+   Show the final fill/fee summary, timestamp and audit link. Keep a separate note:
+   "The API key was not deleted on the exchange. Delete it there if no longer needed."
+   This note is not a claim that the key is currently valid. API/service remain up;
+   connecting a key again does not auto-start trading.
+
+The following stage values are a projection of existing receipt/cleanup evidence,
+not another independent state machine. Persist only progress needed for recovery.
+
+| Proposed `cleanup_stage` | English UI label | Required evidence / next step |
+| --- | --- | --- |
+| `blocking_submissions` | Stopping new orders | Durable trading fence; resolve submissions already sent |
+| `cancelling_orders` | Cancelling pending orders | Automatic cancellation and terminal order reconciliation; show remaining/unknown counts |
+| `closing_positions` | Closing perpetual positions | Automatic close orders; show remaining long/short quantity per pair and tracked close-order state |
+| `verifying_cleanup` | Verifying orders and positions | Exchange readback plus committed ledger; late fills/residuals return to the necessary cleanup stage |
+| `removing_credentials` | Removing saved connection | Verified cleanup; detach consumers and erase the selected envelope |
+| `complete` | Disconnected | Cleanup verified and credential removal committed; bot remains stopped |
+
+`connection_status=action_required` retains the blocked stage and uses specific
+reasons such as `order_cancellation_unconfirmed`, `position_close_unconfirmed`,
+`position_ownership_unverified` or `cleanup_credentials_unavailable`. Say "Pending
+orders need attention" or "Open positions need attention", with affected items,
+the safe failure reason and "Open {exchange}" guidance. Keep the last observation
+timestamp and unknown state visible. If a real retry is scheduled, show "Retrying"
+and its time; never loop a spinner indefinitely or ask for a fresh Disconnect
+operation. Manual exchange action is the exception after automatic cleanup fails.
+
+### KMS availability
 
 KMS is used for set/load/unwrap, **not per order, tick, quote or health request**.
 An already loaded, still-authorized connector should continue through a temporary
@@ -298,8 +442,9 @@ specific cause. FE branches on codes and action metadata, never parsed prose.
 | 409 `last_admin_required` | “Keep at least one active Google administrator.” Use `fix_request` |
 | 409 `bot_must_be_stopped` | “Stop the bot and wait for pending orders to finish cancelling before changing the connection.” Use `refresh_state` |
 | 409 `credential_version_conflict` / `control_conflict` | “The connection or bot state changed. Refresh and review before continuing.” Use `refresh_state` |
-| 409 `exchange_account_mismatch` | “This key belongs to a different OKX account. Use a key for this bot's account.” Use `fix_request`; never offer a reset-history bypass |
-| 422 `validation_failed` / `okx_credentials_rejected` | Identify safe field paths or say “OKX did not accept the connection details. Check the API key, secret and passphrase.” Use `fix_request`; never echo supplied values |
+| 409 `exchange_account_mismatch` | “This key belongs to a different exchange account. Use a key for this bot's account.” Use `fix_request`; never offer a reset-history bypass |
+| 422 `validation_failed` / `exchange_credentials_rejected` | Identify safe field paths or say “The exchange did not accept the connection details. Check the required credentials.” Use `fix_request`; never echo supplied values |
+| 422 `unsupported_exchange` / `unsupported_connector` / `unsupported_cleanup_mode` | Explain the unsupported configured choice and supported alternatives; use `fix_request`, never fall back to another exchange or unsafe closing semantics |
 | 429 `security_work_busy` | “The service is busy. Please wait before trying again.” Use `wait` and a bounded retry delay |
 | 503 `kms_unavailable` / `database_unavailable` / `owner_unavailable` | Identify the unavailable dependency in safe language; choose `wait`, `same_request` or `contact_support` according to confirmed outcome and recovery behavior |
 | 503 `credential_decryption_failed` / `kms_permission_denied` | “The saved connection cannot be loaded. Contact support.” Use `contact_support`; no destructive replacement, automatic fallback or blind retry loop |
@@ -337,9 +482,9 @@ fields and operator incidents instead of creating another scheduler/state machin
 | `checking` | Checking connection | Saved bundle is being validated or loaded; show progress and wait |
 | `connected` | Connected | Current credential version is verified/loaded with fresh runtime evidence; show the bot's separate running/stopped/guard state |
 | `failed` | Connection failed | Validation rejected the key/account/environment or loading failed; explain the specific reason and offer the appropriate authorized action |
-| `disconnecting` | Disconnecting | Stop/revoke accepted, new risk fenced, cancellation/detachment underway; show outstanding work |
+| `disconnecting` | Disconnecting | Stop/revoke accepted, new risk fenced, automatic cancellation/position closure/removal underway; show the current cleanup stage |
 | `action_required` | Action required | Cleanup outcome is unresolved or intervention is required; show the blocker and safe next action |
-| `disconnected` | Disconnected | Current bundle removed and all consumers confirmed detached; API remains usable and positions may still be open |
+| `disconnected` | Disconnected | Bot order/position cleanup was verified, selected bundle removed and its consumers detached; show completion time, not a promise about later manual exchange activity |
 | `unavailable` | Status unavailable | Current evidence is missing, stale or belongs to another owner/credential version; show last observation time without asserting Connected or Disconnected |
 
 Each blocked/pending/failed view includes a reason code, clear `detail`/next action,
@@ -359,16 +504,16 @@ users get clear permission guidance rather than buttons which inevitably fail.
 Temporary KMS trouble with an already loaded authorized connection is a dependency
 warning, not a claim that MM stopped. Missing credentials on cold start show an
 available administration service with trading blocked. Revocation cannot display
-Disconnected while cancellation/detachment is pending. Logout, HTTP/network failure
-or a stale observation cannot fabricate a stopped engine, zero pending orders or
+Disconnected while cancellation, position closure or detachment is pending.
+Logout, HTTP/network failure or a stale observation cannot fabricate a stopped engine, zero pending orders or
 closed positions. Surface retained exposure and its freshness using existing
 order/position views; unknown values remain unknown.
 
-Use “Disconnect OKX” for the user-facing action. Its confirmation says it stops
-the bot, cancels its pending orders where confirmed, removes saved credentials,
-leaves positions open and does not delete the API key on OKX. Audit, receipt,
-status and request logs share operation/request IDs and consistent reason codes
-so support can follow one action through request, processing and final outcome.
+Use “Disconnect {exchange}” (initially “Disconnect OKX”) and the guided flow above.
+Audit, receipt, status and request logs share operation/request IDs and consistent
+reason codes so support can follow one action through request, cleanup and final
+outcome. Keep completed cleanup evidence visible after removal; live account
+monitoring using the removed credentials ends, and later account activity is unknown.
 
 ## Audit contract and proposed API
 
@@ -382,10 +527,13 @@ and link their command/session IDs rather than rewriting history.
 
 Each event has a stable ID, UTC database timestamp, bot scope, request/operation
 ID, actor kind and stable ID, verified email snapshot where applicable, role at
-action time, action, target/credential version, outcome, safe reason code and
-allowlisted before/after metadata. Invalid tokens have an unknown/unverified actor;
+action time, action, exchange/connector/environment, target/credential version,
+outcome, safe reason code and allowlisted before/after metadata. Invalid tokens have an unknown/unverified actor;
 never attribute their claimed email to a verified user. Retries and owner takeover
 must not duplicate the same committed state-transition event.
+Disconnect audit links the operator's confirmed scope, meaningful cleanup transitions,
+close-order/fill references and final credential removal. Preserve trading fees and
+positions in the existing ledger; do not duplicate every polling observation in audit.
 
 Successful state changes and their audit event commit in the **same transaction**;
 audit insertion failure aborts the change. Rejected/failed attempts get their own
@@ -418,11 +566,18 @@ All paths below are proposed additions under `/api/v1/admin`, not shipped routes
 | `GET /access/accounts` | Admin | Bounded whitelist list |
 | `POST /access/accounts` | Admin | Whitelist verified-email onboarding target and role |
 | `POST /access/accounts/{id}` | Admin | Versioned role/active changes; protect last bound admin |
-| `GET /credentials/okx` | All roles | Status for configured connector slots; no secret or cryptographic blob |
-| `POST /credentials/okx/{connector}` | Admin/write | Save complete bundle with expected credential/control versions and idempotency key |
-| `POST /credentials/okx/{connector}/revoke` | Admin/write | Durable Stop/revoke receipt; no OKX key-deletion claim |
+| `GET /credentials` | All roles | Deployment-enabled exchanges/connectors and safe input/capability descriptions; no saved credential values |
+| `GET /credentials/{exchange}` | All roles | Status for configured connector slots, cleanup progress and allowed actions; no secret or cryptographic blob |
+| `POST /credentials/{exchange}/{connector}` | Admin/write | Save complete bundle with expected credential/control versions and idempotency key |
+| `POST /credentials/{exchange}/{connector}/revoke` | Admin/write | Durable receipt for bot-wide cancel/close cleanup and selected credential removal; no exchange key-deletion claim |
 | `GET /audit` | All roles | Stable cursor pagination and filters by UTC range, actor, action, outcome, target and operation ID |
 | Existing `GET /commands/{id}` | Authorized existing scope | Poll safe receipt until runtime application/cleanup completes |
+
+`exchange=okx` is the only initial enabled implementation; the resulting existing
+planned OKX URL shape is retained. Path, connector, environment and account scope
+must agree with the deployment and authenticated operation. Disconnect semantics
+are fixed: no client flag can skip cancellation/closure or erase credentials early.
+Do not add a general close-any-account endpoint as part of credential management.
 
 Use the existing bounded pagination pattern: default 100, maximum 500, stable
 `created_at/id` ordering, cursor bound to filters and bot scope. Parameterize filters
@@ -474,8 +629,10 @@ with a conventional prefix. Planning checks above do not mark implementation don
 
 ### A3 — Envelopes and local/GCP providers
 
+- [ ] Test and implement the idempotent `exchange_credentials` migration, scoped
+  uniqueness/version checks and encrypted persistence without exchange-specific tables.
 - [ ] Test encryption/decryption, distinct nonces/DEKs, restart persistence, wrong key,
-  malformed local key, modified ciphertext and wrong bot/connector/environment/version.
+  malformed local key, modified ciphertext and wrong bot/exchange/connector/environment/version.
 - [ ] Implement the small wrap/unwrap provider interface with local and official GCP
   adapters; verify no automatic fallback, regeneration or plaintext persistence.
 - [ ] Test KMS denial/timeout/wrong-key-version and dependency packaging; use fakes for
@@ -491,6 +648,9 @@ with a conventional prefix. Planning checks above do not mark implementation don
   encryption, use safe idempotent receipts and atomically commit credential/audit/control.
 - [ ] Implement managed source into existing connector models; cover service startup,
   CLI preflight, funding observer and reconciliation consumers, with no env fallback.
+- [ ] Test exchange-neutral API/storage/audit scope and input descriptions with OKX
+  and a fake second adapter; reject unsupported/mismatched connectors and prevent
+  cross-exchange account binding, envelope reuse or implicit venue switches.
 - [ ] Test missing/bad credentials keep admin usable; same-account binding, spot-only,
   perpetual/both, wrong environment, and validation failure never auto-resume trading.
 - [ ] Test same-account key rotation retains ledger/positions; different subaccount,
@@ -501,8 +661,17 @@ with a conventional prefix. Planning checks above do not mark implementation don
 - [ ] Test automatic cancellation across both markets, recovered/late orders,
   partial fills racing with cancellation, bounded retries and manual fallback.
   Exclude unrelated orders; an empty local tracker or cancel ACK cannot finish cleanup.
+- [ ] Test Disconnect closes live and recovered/held perpetual positions, HEDGE
+  long and short independently, spot-only/both scopes and a spot-slot disconnect
+  with held perpetual exposure. Preserve spot balances and unrelated exposure;
+  ordinary Stop, crash shutdown and key rotation retain their existing semantics.
+- [ ] Test scoped close authorization through the final REST gate, partial fills,
+  lost placement ACK, concurrent cleanup, stale owners, unsupported position modes
+  and uncloseable residuals. No duplicate close, position reversal, new quote,
+  bypassed persistence/HALT or premature credential erasure is permitted.
 - [ ] Test restart at every accepted/applied/revoking boundary, cleanup timeout and
-  revoke during KMS outage; all consumers detach and outcomes remain honest.
+  revoke during KMS outage; recover tracked closes and cleanup-only credential use,
+  then detach all selected-credential consumers. Outcomes remain honest.
 - [ ] Test accepted versus applied/failed/unknown outcomes, lost responses, stale
   owner/credential versions and cleanup requiring intervention. Never show false
   Connected/Disconnected, reset exposure to zero or report completion prematurely.
@@ -518,8 +687,10 @@ with a conventional prefix. Planning checks above do not mark implementation don
 - [ ] Document the error/status tables, role-aware action availability, safe inline
   validation, retry/receipt handling and request-ID support path. Add OpenAPI examples
   for healthy, stopped, blocked, stale, permission-denied and cleanup-pending cases.
-- [ ] Show that Disconnect stops the bot, may need outstanding-order cleanup, leaves
-  positions open and does not delete the OKX API key; prevent duplicate button actions.
+- [ ] Document the guided Disconnect confirmation/progress/result flow, automatic
+  order cancellation and perpetual closure, fees/execution uncertainty, retained
+  spot balances and selected-slot removal. No success while work is unconfirmed;
+  show actionable failures and prevent duplicate/conflicting button actions.
 - [ ] Update annotations and run `make swagger` / `make swagger-check`; schema must
   contain no reveal-secret operation or secret-valued response example.
 - [ ] Document local/GCP setup, rollout/rollback, private ingress/auth headers, env-only
@@ -530,7 +701,9 @@ with a conventional prefix. Planning checks above do not mark implementation don
 - [ ] Run focused plus required native/regression and PostgreSQL suites on final code;
   exercise authenticated read/write/admin and Basic-disabled cases end to end.
 - [ ] Run offline lifecycle/fault tests using real local encryption and simulated KMS
-  delays/denials: credential change/revoke, owner restart, DB loss and token/role changes.
+  delays/denials: credential change/revoke, automatic cancel/close, owner restart,
+  DB loss and token/role changes. Reconcile terminal orders, fills/fees and flat
+  bot-managed perpetual positions before accepting Disconnect completion.
 - [ ] Verify error, receipt, audit and status correlation end to end, including a
   post-commit response loss and a KMS outage while MM keeps running; all visible
   guidance remains English, secret-free and consistent with observed trading state.
