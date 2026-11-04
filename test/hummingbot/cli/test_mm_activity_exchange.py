@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -22,6 +23,76 @@ def request(path, payload=None):
 def exchange():
     return Exchange(fixtures=dict(order_event={'arg': {'channel': 'orders'}, 'data': [{}]},
                                   balances={'data': [{'details': []}]}))
+
+
+@pytest.mark.asyncio
+async def test_terminal_before_ack_fault_bounds_admissions_until_release():
+    venue = exchange()
+    await venue.control({'hold_ack': True, 'cancel_before_ack': True, 'cancel_before_ack_limit': 2})
+    tasks = []
+    try:
+        for identity in ('one', 'two', 'three'):
+            tasks.append(asyncio.create_task(venue.handle(request('/api/v5/trade/order', dict(
+                clOrdId=identity, instId='LIFE-USDT', side='buy', sz='1', px='.1')))))
+            await asyncio.sleep(0)
+        # Replacement creates must not turn one bounded race into a stream of
+        # cancellations while the caller verifies durable terminal observations.
+        assert len(venue.accepted) == 2
+        assert all(row['state'] == 'canceled' for row in venue.orders.values())
+        assert not any(task.done() for task in tasks)
+    finally:
+        await venue.control({'hold_ack': False, 'cancel_before_ack': False})
+        replies = await asyncio.gather(*tasks)
+    assert all(json.loads(reply.text)['code'] == '0' for reply in replies)
+    assert len(venue.accepted) == 3
+    assert venue.orders['three']['state'] == 'live'
+
+
+@pytest.mark.asyncio
+async def test_unbounded_lost_ack_fault_still_holds_all_accepted_orders():
+    venue = exchange()
+    await venue.control({'hold_ack': True, 'cancel_before_ack': True})
+    tasks = []
+    try:
+        for identity in ('one', 'two', 'three'):
+            tasks.append(asyncio.create_task(venue.handle(request('/api/v5/trade/order', dict(
+                clOrdId=identity, instId='LIFE-USDT', side='buy', sz='1', px='.1')))))
+            await asyncio.sleep(0)
+        assert len(venue.accepted) == 3 and not any(task.done() for task in tasks)
+    finally:
+        await venue.control({'hold_ack': False, 'cancel_before_ack': False})
+        await asyncio.gather(*tasks)
+
+
+@pytest.mark.asyncio
+async def test_bounded_fault_rechecks_expiry_before_accepting_a_waiting_replacement(monkeypatch):
+    monkeypatch.setattr('test.e2e.offline.exchange.millis', lambda: '100')
+    venue = exchange()
+    await venue.control({'hold_ack': True, 'cancel_before_ack': True, 'cancel_before_ack_limit': 1})
+    tasks = []
+    try:
+        for identity in ('accepted', 'replacement'):
+            message = request('/api/v5/trade/order', dict(clOrdId=identity, instId='LIFE-USDT', side='buy', sz='1', px='.1'))
+            message.headers['expTime'] = '150'
+            tasks.append(asyncio.create_task(venue.handle(message)))
+            await asyncio.sleep(0)
+        assert len(venue.accepted) == 1 and not any(task.done() for task in tasks)
+        monkeypatch.setattr('test.e2e.offline.exchange.millis', lambda: '200')
+    finally:
+        await venue.control({'hold_ack': False, 'cancel_before_ack': False})
+        accepted, expired = await asyncio.gather(*tasks)
+    assert json.loads(accepted.text)['code'] == '0'
+    assert json.loads(expired.text)['code'] != '0'
+    assert 'replacement' not in venue.orders and len(venue.accepted) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('limit', [None, False, True, -1, 0, 201, 1.5, '2'])
+async def test_invalid_terminal_fault_bound_does_not_arm_the_hold(limit):
+    venue = exchange()
+    result = await venue.control({'hold_ack': True, 'cancel_before_ack': True, 'cancel_before_ack_limit': limit})
+    assert result.status == 400
+    assert not venue.hold_ack and not venue.cancel_before_ack and venue.release.is_set()
 
 
 @pytest.mark.asyncio

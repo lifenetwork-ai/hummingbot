@@ -75,8 +75,13 @@ image/date scope; the new local gate does not relabel them.
   This is not attribution of every historical guard wait.
 - [x] Run final-source native2,442 +11 subtests and isolated PostgreSQL345;
   preserve the initial fee-query timeout during a concurrent build.
-- [ ] Build/verify a fresh image and run packaged E2E plus a traced MM/probe
-  diagnostic.
+- [x] Build image `50f96001` from source `14feb47dd`, verify seven runtime file
+  hashes and the same197 Python package versions as the preceding image.
+- [x] Add Red/Green bounded terminal-before-ACK test admission and batch-specific
+  persistence proof:65 related native checks (eleven new) and seven new PG cases.
+  Preserve the first packaged failure and a passing unmodified recovery repeat.
+- [ ] Complete packaged E2E with the final bounded fault fixture and the traced
+  MM/probe diagnostic on the verified image.
 - [ ] Investigate actual public/private book and reference freshness during a
   bounded Demo run; change guards only for a reproduced defect with Red/Green.
 - [ ] Obtain current-image positive spot-fill evidence and verify filled restart;

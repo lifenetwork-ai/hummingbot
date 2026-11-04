@@ -1,7 +1,7 @@
 {
   "date": "2026-11-04",
   "timezone": "Asia/Saigon",
-  "status": "source regressions pass; new-image qualification pending",
+  "status": "source and bounded recovery pass; full final-fixture packaged/load/Demo qualification pending",
   "baseline_commit": "6a43eff25a98b76086ad3a4bd7c7d18580885af4",
   "postgres_image": {
     "Id": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
@@ -827,5 +827,50 @@
     "postgres_passed": 345,
     "initial_postgres_failure": "One 2s original-fee SQL timeout with concurrent C++ build; interrupted after 49 other passes",
     "clean_postgres_log": "build/reporting-followup-20261104/source-postgres-clean.log"
+  },
+  "image": {
+    "image_id": "sha256:50f96001df366d350bae6d1db5d195540f7372e7022d4312c3795f3643284cf0",
+    "image_tag": "hummingbot-cloudrun:daily-conversion-14feb47dd",
+    "source_commit": "14feb47dd3d9ba0bf4f6d3cb8758f89c65fa3a94",
+    "size_bytes": 1368945433,
+    "architecture": "amd64",
+    "source_sha256": {
+      "hummingbot/model/admin_reporting.py": "ccfddf212543c022ac2733a732de2477c4acfe6a69d1d212964d6e0a936e4238",
+      "controllers/market_making/life_mm.py": "e8ab7213b0a998c2ff8b0cdbc61463d662b9e58f2476aac79a33fa5ac70ff4b7",
+      "hummingbot/cli/service.py": "2e4a33e1beabb06ed332ab5dc04bf266283593600ec4f87ab090e99215dd1959",
+      "hummingbot/connector/markets_recorder.py": "e175b2dc73ccd37070ae39d0cb95fd282aad896c96914285c404d94e33e652ae",
+      "hummingbot/core/mm_liquidity.py": "c00dc0860d597978ae62271ecea8029b43aa6050ac8d066e9ecee9ee5c1e69d6",
+      "hummingbot/core/mm_quote_activity.py": "56fc4285dc5432c0412c855ec53998ad87d7d778c59b84091865ac0b66a7e397",
+      "docs/api/openapi.json": "9fb8e53b91f1ee7a35ddc3cd082e7ef675b2da2b0223a1844c208d6202b2efdd"
+    },
+    "verified_source_files": 7,
+    "python_package_versions_match": true,
+    "python_package_count": 197,
+    "build": "Dockerfile cloudrun target; prebuilt artifact cache, committed source label, runtime hashes checked",
+    "immutable_reference": "127.0.0.1:58221/hummingbot@sha256:ed31d2ae8f8526ded78cf224c772674737990d8beda1c1f93241f9d361348ab6"
+  },
+  "test_fixture_fix": {
+    "runtime_code_changed": false,
+    "native_targeted_passed": 65,
+    "new_native_cases": 11,
+    "new_postgres_cases_passed": 7,
+    "first_packaged_failure": "build/e2e-offline/20261104-064512-5b91c8/result.json",
+    "unmodified_recovery_repeat": "build/e2e-offline/20261104-065505-b21fc4/result.json",
+    "bounded_recovery_repeat": "build/e2e-offline/20261104-070548-84c89a/result.json",
+    "bounded_proof_ms": 1276.4609375,
+    "release_observed_ms": 2096.717041015625,
+    "physical_batch": {
+      "spot": 4,
+      "perpetual": 4
+    },
+    "native_red": "terminal-fixture-red.log",
+    "postgres_red": "terminal-batch-red.log",
+    "source_sha256": {
+      "scripts/test_e2e_offline.py": "82a690cbd520669279ab703bcb5f32db948f0822c0af4452c65003869d4a418e",
+      "test/e2e/offline/exchange.py": "b0eb90488041e3fa85c7d30ae5b023494d940faa065aaef9553c462752d8c33b",
+      "test/hummingbot/cli/test_mm_activity_exchange.py": "2dc41e24149c1236e58068fbf14b7a354e716a4b1649e034d2f5fe2d01ed1af3",
+      "test/integration/postgres/test_terminal_ack_fixture.py": "2f520d7906bd17c56c7d4851d19f865450f9a0e25a83cd701533a8e152660a85"
+    },
+    "limitation": "The initial failure has no retained live DB snapshot; a unique cause is not established. Healthy budgets, production timeouts/HALT and the application image are unchanged."
   }
 }

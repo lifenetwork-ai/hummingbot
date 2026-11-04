@@ -99,6 +99,7 @@ class Exchange:
         self.subscriptions = []
         self.hold_ack = False
         self.cancel_before_ack = False
+        self.cancel_before_ack_remaining = None
         self.cancel_delay_seconds = 0
         self.fill_on_cancel = {}
         self.release = asyncio.Event()
@@ -371,6 +372,11 @@ class Exchange:
                 return web.json_response({"code": "51603", "msg": "order absent", "data": []})
             return self.ok([order])
         if path == "/api/v5/trade/order" and method == "POST":
+            # A bounded terminal-before-ACK fault admits only its selected
+            # batch. Replacement requests wait before physical acceptance;
+            # unrelated lost-response cases keep their original unbounded hold.
+            if self.cancel_before_ack and self.cancel_before_ack_remaining == 0:
+                await self.release.wait()
             client_id = data["clOrdId"]
             if client_id in self.orders:
                 self.unknown.append({"reason": "duplicate physical submission", "clOrdId": client_id})
@@ -383,7 +389,10 @@ class Exchange:
             if self.quote_activity:
                 self.quote_activity.accept(order)
             self.accepted.append(copy.deepcopy(order))
-            if self.cancel_before_ack:
+            cancel_before_ack = self.cancel_before_ack and self.cancel_before_ack_remaining != 0
+            if cancel_before_ack:
+                if self.cancel_before_ack_remaining is not None:
+                    self.cancel_before_ack_remaining -= 1
                 order.update(state="canceled", uTime=millis())
                 if self.quote_activity:
                     self.quote_activity.terminal(client_id, 'canceled')
@@ -425,6 +434,13 @@ class Exchange:
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
 
     async def control(self, data):
+        if 'cancel_before_ack_limit' in data:
+            limit = data['cancel_before_ack_limit']
+            if type(limit) is not int or not 1 <= limit <= 200:
+                return web.json_response({'error': 'invalid_cancel_before_ack_limit'}, status=400)
+            self.cancel_before_ack_remaining = limit
+        elif 'cancel_before_ack' in data:
+            self.cancel_before_ack_remaining = None
         if 'mm_activity' in data and bool(data['mm_activity']) != bool(self.quote_activity):
             if self.orders:
                 return web.json_response({'error': 'configure_activity_before_orders'}, status=409)

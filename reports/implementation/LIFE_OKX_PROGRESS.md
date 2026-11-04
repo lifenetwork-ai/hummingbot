@@ -5,6 +5,17 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-04
 
+- **Packaged-test fixture follow-up:** image50f96001 matches source14feb47dd and
+  all197 prior Python package versions. Its first E2E reaches the terminal-before-
+  ACK recovery failure; a separate unmodified repeat passes, so no unique runtime
+  defect is established. Red/Green narrows that fault to eight physical admissions
+  and verifies only their durable matching cancel rows, excluding unrelated
+  replacement intents. Related native65 (eleven new) + PG7 pass; bounded recovery
+  E2E passes with4+4 cancels,1.28s proof/2.10s observed release, normal quotes,
+  Random/expiry and intentional DB-fault recovery. Application/HALT/timeouts and
+  healthy budgets stay unchanged; final matrix/probe/Demo/hour remain pending.
+  [Report/evidence](../performance/mm-daily-conversion-followup.md).
+
 - **Daily conversion/availability follow-up in progress:** real-PG Red/Green
   reduces original-fee array decoding600→200 for200 zero-conversion fills.
   All four paired100k/1M workloads return equal values; main diverse/zero query

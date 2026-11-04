@@ -9,6 +9,9 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
   decoding600→200 for200 zero-conversion fills; four paired SQL workloads return
   exactly equal results. Read-only Demo observation reproduces AVAX freshness
   loss. Native2,442 +11 subtests and isolated PostgreSQL345 pass; new-image qualification is pending.
+  A terminal-before-ACK fixture follow-up adds65 targeted native checks (eleven
+  new) and PG7; bounded recovery passes while the full final-fixture matrix,
+  probe, Demo and hour remain pending. Earlier packaged failure is preserved.
 
 - [Controller/persistence image verification](release/mm-controller-persistence-release.md),
   [evidence](release/mm-controller-persistence-release-evidence.json): Demo

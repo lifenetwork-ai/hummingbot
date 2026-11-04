@@ -78,6 +78,26 @@ def poll(check, *, timeout=90, description):
     raise AssertionError(f"Timed out: {description}")
 
 
+def terminal_cancel_batch_recorded(harness, batch):
+    """Prove only the admitted batch; replacement intents may still be pending."""
+    if not batch or len(batch) > 200:
+        return False
+    expected, seen = [], set()
+    for row in batch:
+        identity, exchange_id = row.get('clOrdId'), row.get('ordId')
+        market = {'LIFE-USDT': 'okx', 'LIFE-USDT-SWAP': 'okx_perpetual'}.get(row.get('instId'))
+        if (not isinstance(identity, str) or not re.fullmatch(r'[A-Za-z0-9]{1,64}', identity)
+                or not isinstance(exchange_id, str) or not exchange_id.isdigit() or market is None or identity in seen):
+            return False
+        seen.add(identity)
+        expected.append(f"('{identity}','{exchange_id}','{market}')")
+    return harness.sql("WITH expected(id,exchange_order_id,market) AS (VALUES " + ','.join(expected) + ") "
+                       "SELECT count(*) FROM expected e JOIN orders o ON o.id=e.id "
+                       "AND o.exchange_order_id=e.exchange_order_id AND o.market=e.market "
+                       "WHERE o.config_file_path='life_mm_profiles.yaml' AND NOT o.creation_pending "
+                       "AND o.last_status='OrderCancelled'") == str(len(batch))
+
+
 def http(container, path, data=None, headers=None):
     # Docker internal networks intentionally have no published host ports. Keep
     # the HTTP probe/control client inside the target's network namespace too.
@@ -851,15 +871,23 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         # OKX may cancel a post-only order in the private stream before its
         # positive REST create response. A terminal exchange identity resolves
         # that durable intent without reopening the order or halting the bot.
-        self.control(cancel_before_ack=True, hold_ack=True)
+        # Arm against a stopped runtime so an earlier session cannot consume
+        # the selected fault batch while its replacement orders are draining.
+        self.mm_command(port, "stop")
         before_cancel_race = len(self.ledger()["accepted"])
+        self.control(cancel_before_ack=True, hold_ack=True, cancel_before_ack_limit=8)
+        canceled_batch = None
         try:
-            self.mm_command(port, "switch", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
-            poll(lambda: len(self.ledger()["accepted"]) >= before_cancel_race + 8,
-                 description="both markets observe canceled orders before REST create ACK")
-            poll(lambda: self.sql("SELECT count(*) FROM orders WHERE creation_pending") == "0",
-                 description="positive private cancellation durably resolves create intents")
-            canceled_batch = self.ledger()["accepted"][before_cancel_race:]
+            self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
+
+            def canceled_admissions():
+                batch = self.ledger()["accepted"][before_cancel_race:before_cancel_race + 8]
+                return batch if len(batch) == 8 else None
+            canceled_batch = poll(canceled_admissions, description="both markets observe canceled orders before REST create ACK")
+            assert {row['instId'] for row in canceled_batch} == {'LIFE-USDT', 'LIFE-USDT-SWAP'}, \
+                'The controlled cancel-before-ACK batch must cover both markets'
+            poll(lambda: terminal_cancel_batch_recorded(self, canceled_batch),
+                 description="selected private cancellations durably resolve their create intents")
             canceled_ids = {row["clOrdId"] for row in canceled_batch}
             self.metrics['terminal_create_ack_hold_ms'] = time.time() * 1000 - min(int(row['cTime']) for row in canceled_batch)
         finally:
@@ -867,6 +895,12 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             # Rendering/polling a large FE page while holding ACK can otherwise
             # add a second, unintended five-second transport-timeout/HALT fault.
             self.control(cancel_before_ack=False, hold_ack=False)
+            if canceled_batch:
+                self.metrics['terminal_ack_release_observed_ms'] = time.time() * 1000 - min(int(row['cTime']) for row in canceled_batch)
+        assert self.metrics['terminal_ack_release_observed_ms'] < 5000, \
+            'Terminal-before-ACK fixture exceeded the unchanged transport deadline; this is an additional lost-ACK fault'
+        self.metrics['terminal_cancel_ack_batch'] = [
+            {key: row[key] for key in ('clOrdId', 'ordId', 'instId')} for row in canceled_batch]
         assert not self.state()["recovery_state"].get("halt") and http(port, "/live")[0] == 200
         canceled_views = [row for row in self.admin(port, "/orders?limit=500")[1]["items"] if row["id"] in canceled_ids]
         assert len(canceled_views) >= 8 and all(row["side"] in ("BUY", "SELL") and row["exchange_order_id"]

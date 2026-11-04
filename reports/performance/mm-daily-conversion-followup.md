@@ -1,6 +1,6 @@
 # Daily fee aggregation and remaining availability investigation
 
-2026-11-04 (Asia/Saigon). **Source regressions pass; new-image load and
+2026-11-04 (Asia/Saigon). **Source regressions pass; new-image E2E/load and
 connected Demo acceptance are pending.** Earlier failed results remain in the
 [controller/persistence report](../release/mm-controller-persistence-release.md).
 [Evidence](mm-daily-conversion-followup-evidence.json),
@@ -64,6 +64,30 @@ private/public observation witness is prepared for the next approved Demo trial;
 qualification thresholds and all order guards remain intact.
 
 ## Acceptance still pending
+
+Image `50f96001` is built from source `14feb47dd`. Seven runtime file hashes
+match and all197 Python package versions match the preceding image. Runtime
+ABI/JIT/TLS/SDK/logging smoke passes. The first packaged matrix proceeds through
+nine cases but later times out waiting for quote recovery after the
+terminal-before-create fault. Its simulator logs contain transport timeouts; the
+original failure lacks a captured database snapshot, so its exclusive cause is
+not established. A separate unmodified recovery run passes. That repeat's fault
+is armed for7.6s including startup, while the recorded time from first admission
+to durable proof is1.57s; those measurements must not be conflated.
+
+Two test-harness weaknesses are independently reproduced with Red tests:
+unbounded physical cancellation admission can add replacement batches while ACKs
+are held, and a global `creation_pending=0` condition includes unrelated new
+intents. The final fixture admits a bounded eight-order batch from a stopped
+runtime, verifies matching client/exchange/market identities and durable cancel
+rows only for that batch, then releases ACKs. It checks both markets and an
+unchanged5s transport envelope. Native65 targeted checks (eleven new) and seven
+new real-PG cases pass. A preliminary bounded recovery E2E passes with four spot
+and four perpetual cancellations: proof completes in1.28s and release is observed
+by2.10s, followed by normal quote recovery, Random/expiry and the intentional DB
+outage/recovery case. Existing unbounded lost-ACK faults and all application
+trading/HALT/deadline behavior are unchanged. The complete final-fixture matrix
+is pending; no production defect is inferred solely from the first failure.
 
 Native regression passes 2,442 tests plus eleven subtests. The first full
 PostgreSQL attempt is stopped after the unchanged original-currency fee query
