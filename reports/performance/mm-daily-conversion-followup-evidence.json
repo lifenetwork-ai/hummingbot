@@ -1,7 +1,7 @@
 {
   "date": "2026-11-04",
   "timezone": "Asia/Saigon",
-  "status": "source and bounded recovery pass; full final-fixture packaged/load/Demo qualification pending",
+  "status": "Qualification incomplete: rich probe fails reporting/latency and standalone hour fails zero-degraded responses; source/E2E/controlled faults/positive Demo pass",
   "baseline_commit": "6a43eff25a98b76086ad3a4bd7c7d18580885af4",
   "postgres_image": {
     "Id": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
@@ -872,5 +872,630 @@
       "test/integration/postgres/test_terminal_ack_fixture.py": "2f520d7906bd17c56c7d4851d19f865450f9a0e25a83cd701533a8e152660a85"
     },
     "limitation": "The initial failure has no retained live DB snapshot; a unique cause is not established. Healthy budgets, production timeouts/HALT and the application image are unchanged."
-  }
+  },
+  "source_commit": "14feb47dd3d9ba0bf4f6d3cb8758f89c65fa3a94",
+  "test_fixture_commit": "2e39ad151",
+  "shipping_image": {
+    "image_id": "sha256:50f96001df366d350bae6d1db5d195540f7372e7022d4312c3795f3643284cf0",
+    "image_tag": "hummingbot-cloudrun:daily-conversion-14feb47dd",
+    "source_commit": "14feb47dd3d9ba0bf4f6d3cb8758f89c65fa3a94",
+    "size_bytes": 1368945433,
+    "architecture": "amd64",
+    "source_sha256": {
+      "hummingbot/model/admin_reporting.py": "ccfddf212543c022ac2733a732de2477c4acfe6a69d1d212964d6e0a936e4238",
+      "controllers/market_making/life_mm.py": "e8ab7213b0a998c2ff8b0cdbc61463d662b9e58f2476aac79a33fa5ac70ff4b7",
+      "hummingbot/cli/service.py": "2e4a33e1beabb06ed332ab5dc04bf266283593600ec4f87ab090e99215dd1959",
+      "hummingbot/connector/markets_recorder.py": "e175b2dc73ccd37070ae39d0cb95fd282aad896c96914285c404d94e33e652ae",
+      "hummingbot/core/mm_liquidity.py": "c00dc0860d597978ae62271ecea8029b43aa6050ac8d066e9ecee9ee5c1e69d6",
+      "hummingbot/core/mm_quote_activity.py": "56fc4285dc5432c0412c855ec53998ad87d7d778c59b84091865ac0b66a7e397",
+      "docs/api/openapi.json": "9fb8e53b91f1ee7a35ddc3cd082e7ef675b2da2b0223a1844c208d6202b2efdd"
+    },
+    "verified_source_files": 7,
+    "python_package_versions_match": true,
+    "python_package_count": 197,
+    "build": "Dockerfile cloudrun target; prebuilt artifact cache, committed source label, runtime hashes checked",
+    "immutable_reference": "127.0.0.1:58221/hummingbot@sha256:ed31d2ae8f8526ded78cf224c772674737990d8beda1c1f93241f9d361348ab6"
+  },
+  "packaged_e2e": {
+    "life-mm": {
+      "passed": true,
+      "result_path": "build/e2e-offline/20261104-071247-046d3d/result.json",
+      "path": "build/e2e-offline/20261104-071247-046d3d/result.json",
+      "sha256": "15a38455977d156a2ec7cc3ddb0527941f00cc8c60ad7c59e95104783c0c149b"
+    },
+    "life-mm-recovery": {
+      "passed": true,
+      "result_path": "build/e2e-offline/20261104-071938-7e3c0e/result.json",
+      "path": "build/e2e-offline/20261104-071938-7e3c0e/result.json",
+      "sha256": "ff7eb8cd1a70c81b1099863f9774dd1a65a094439404638ec00646729f1f263c"
+    },
+    "volatility-defense": {
+      "passed": true,
+      "result_path": "build/e2e-offline/20261104-072440-d6addd/result.json",
+      "path": "build/e2e-offline/20261104-072440-d6addd/result.json",
+      "sha256": "b8a594c2595836854d34be3e04b583661a2c4d8dedc4776d1df6e7dd86fff391"
+    }
+  },
+  "short_probe": {
+    "artifact": {
+      "path": "build/mm-load/20261104-072930-5e4e22/result.json",
+      "sha256": "5e619874a2d09d2908f1afbcecef062e9385feb4b0414299dce4dbd003bbbcb2"
+    },
+    "passed": false,
+    "duration_seconds": 600,
+    "primary_http_200": 12000,
+    "auxiliary_http_200": 3000,
+    "p95_ms": 657.2014800040051,
+    "p99_ms": 1138.1557779968716,
+    "auxiliary_p95_ms": 661.8050040124217,
+    "auxiliary_p99_ms": 1072.205312011647,
+    "stale_daily_responses": 13,
+    "violations": [
+      "errors",
+      "auxiliary_read_p95",
+      "auxiliary_read_p99",
+      "read_p95",
+      "read_p99"
+    ],
+    "ledger": {
+      "unique_exchange_fills": 600,
+      "unique_recorder_fills": 600,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "actual_statement_timeouts": 1,
+    "probe_episode_counts": {
+      "engine": 36,
+      "api": 3
+    },
+    "max_logged_observed_probe_failure_seconds": {
+      "engine": 2.519,
+      "api": 1.229
+    },
+    "selected_episode_details": [
+      {
+        "role": "engine",
+        "observed_transition_seconds": 2.533479626,
+        "failure_ns": 82450355456559,
+        "recovery_ns": 82452888936185,
+        "max_strategy_tick_start_gap_ms": 1439.904751,
+        "max_controller_cycle_start_gap_ms": 1966.51696,
+        "min_observed_live_orders": 0,
+        "observed_empty_venue_samples": 2,
+        "max_empty_sample_span_ms": 1013.03475,
+        "continuous_quoting_proven": false,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "overlapping_order_call_returns": 12
+      },
+      {
+        "role": "engine",
+        "observed_transition_seconds": 2.412362835,
+        "failure_ns": 82831960955690,
+        "recovery_ns": 82834373318525,
+        "max_strategy_tick_start_gap_ms": 1012.783667,
+        "max_controller_cycle_start_gap_ms": 1682.871001,
+        "min_observed_live_orders": 0,
+        "observed_empty_venue_samples": 2,
+        "max_empty_sample_span_ms": 1010.9695,
+        "continuous_quoting_proven": false,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "overlapping_order_call_returns": 12
+      },
+      {
+        "role": "engine",
+        "observed_transition_seconds": 2.410152085,
+        "failure_ns": 82769410642662,
+        "recovery_ns": 82771820794747,
+        "max_strategy_tick_start_gap_ms": 999.854001,
+        "max_controller_cycle_start_gap_ms": 1055.849251,
+        "min_observed_live_orders": 0,
+        "observed_empty_venue_samples": 1,
+        "max_empty_sample_span_ms": 0,
+        "continuous_quoting_proven": false,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "overlapping_order_call_returns": 7
+      },
+      {
+        "role": "engine",
+        "observed_transition_seconds": 2.408528543,
+        "failure_ns": 82638560707895,
+        "recovery_ns": 82640969236438,
+        "max_strategy_tick_start_gap_ms": 1150.959084,
+        "max_controller_cycle_start_gap_ms": 1064.164751,
+        "min_observed_live_orders": 0,
+        "observed_empty_venue_samples": 2,
+        "max_empty_sample_span_ms": 1004.550126,
+        "continuous_quoting_proven": false,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "overlapping_order_call_returns": 12
+      },
+      {
+        "role": "engine",
+        "observed_transition_seconds": 1.350478834,
+        "failure_ns": 82581484188952,
+        "recovery_ns": 82582834667786,
+        "max_strategy_tick_start_gap_ms": 946.068333,
+        "max_controller_cycle_start_gap_ms": 1391.107584,
+        "min_observed_live_orders": 11,
+        "observed_empty_venue_samples": 0,
+        "max_empty_sample_span_ms": null,
+        "continuous_quoting_proven": false,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "overlapping_order_call_returns": 0
+      },
+      {
+        "role": "engine",
+        "observed_transition_seconds": 1.256058917,
+        "failure_ns": 82884934966631,
+        "recovery_ns": 82886191025548,
+        "max_strategy_tick_start_gap_ms": 1003.784459,
+        "max_controller_cycle_start_gap_ms": 1024.46025,
+        "min_observed_live_orders": 12,
+        "observed_empty_venue_samples": 0,
+        "max_empty_sample_span_ms": null,
+        "continuous_quoting_proven": false,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "overlapping_order_call_returns": 0
+      },
+      {
+        "role": "api",
+        "observed_transition_seconds": 1.235308501,
+        "failure_ns": 82618035987010,
+        "recovery_ns": 82619271295511,
+        "max_strategy_tick_start_gap_ms": 1397.303042,
+        "max_controller_cycle_start_gap_ms": 1648.787125,
+        "min_observed_live_orders": 12,
+        "observed_empty_venue_samples": 0,
+        "max_empty_sample_span_ms": null,
+        "continuous_quoting_proven": false,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "overlapping_order_call_returns": 0
+      },
+      {
+        "role": "engine",
+        "observed_transition_seconds": 1.230532543,
+        "failure_ns": 82951070709618,
+        "recovery_ns": 82952301242161,
+        "max_strategy_tick_start_gap_ms": 2208.135877,
+        "max_controller_cycle_start_gap_ms": 1630.064501,
+        "min_observed_live_orders": 12,
+        "observed_empty_venue_samples": 0,
+        "max_empty_sample_span_ms": null,
+        "continuous_quoting_proven": false,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "overlapping_order_call_returns": 0
+      },
+      {
+        "role": "engine",
+        "observed_transition_seconds": 1.225425001,
+        "failure_ns": 82469043088067,
+        "recovery_ns": 82470268513068,
+        "max_strategy_tick_start_gap_ms": 1280.803084,
+        "max_controller_cycle_start_gap_ms": 1367.346793,
+        "min_observed_live_orders": 12,
+        "observed_empty_venue_samples": 0,
+        "max_empty_sample_span_ms": null,
+        "continuous_quoting_proven": false,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "overlapping_order_call_returns": 0
+      },
+      {
+        "role": "engine",
+        "observed_transition_seconds": 1.222539209,
+        "failure_ns": 82812624676390,
+        "recovery_ns": 82813847215599,
+        "max_strategy_tick_start_gap_ms": 1639.70825,
+        "max_controller_cycle_start_gap_ms": 1380.490918,
+        "min_observed_live_orders": 12,
+        "observed_empty_venue_samples": 0,
+        "max_empty_sample_span_ms": null,
+        "continuous_quoting_proven": false,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "overlapping_order_call_returns": 0
+      }
+    ],
+    "analysis_artifact": {
+      "path": "build/mm-load/20261104-072930-5e4e22/probe-incident-analysis.json",
+      "sha256": "2f5f5a27b536c9f8bf88aab6f12956f33859f5a814a2cec2d3edef01cf2b8131"
+    },
+    "metadata_artifacts": [
+      {
+        "path": "build/mm-load/20261104-072930-5e4e22/dataset-statistics-after-seed.json",
+        "sha256": "26eea579e3e51d25c0220fbb376e155e27580a41ca09fb42e63f6ef6117d0205"
+      },
+      {
+        "path": "build/mm-load/20261104-072930-5e4e22/dataset-statistics-before-cleanup.json",
+        "sha256": "a118cb8f87f6aae42dd8d10abf5af4f88e3eb55cb428ebbd5d7e84bde783d9a1"
+      }
+    ],
+    "interpretation": "Failed healthy diagnostic, not a passing release gate. Ten selected incident contexts do not prove uninterrupted quoting or uniquely attribute old p99."
+  },
+  "controlled_reporting_faults": {
+    "wait": {
+      "passed": true,
+      "baseline_passed": false,
+      "unmodified_runtime_image": true,
+      "fault": {
+        "started_at": 1793753033.7982552,
+        "finished_at": 1793753035.813873,
+        "sqlstate": "57014"
+      },
+      "exchange_fills_during_timeout": 2,
+      "durable_fill_witness": {
+        "observed_at": 1793753034.642253,
+        "fills": 1
+      },
+      "ledger": {
+        "unique_exchange_fills": 120,
+        "unique_recorder_fills": 120,
+        "positions_matched": true,
+        "identified_funding_bills": 0,
+        "daily_snapshots": 3
+      },
+      "engine_pid_unchanged": true,
+      "ownership_and_session_unchanged": true,
+      "no_halt": true,
+      "later_daily_fresh": true,
+      "clean_stop": true,
+      "limitation": "Server-side wait holds one API connection but does not model CPU-heavy SQL or all Cloud Run workloads.",
+      "artifact": {
+        "path": "build/mm-reporting-isolation/20261104-074238-1aca70/result.json",
+        "sha256": "7a6f722d2102ddcb7692d58d28c12a829070984d32d3e755cc9566605d258ec8"
+      }
+    },
+    "cpu": {
+      "passed": true,
+      "baseline_passed": false,
+      "unmodified_runtime_image": true,
+      "fault": {
+        "started_at": 1793753242.8747892,
+        "finished_at": 1793753244.8804822,
+        "sqlstate": "57014"
+      },
+      "exchange_fills_during_timeout": 2,
+      "durable_fill_witness": {
+        "observed_at": 1793753243.239231,
+        "fills": 1
+      },
+      "ledger": {
+        "unique_exchange_fills": 120,
+        "unique_recorder_fills": 120,
+        "positions_matched": true,
+        "identified_funding_bills": 0,
+        "daily_snapshots": 3
+      },
+      "engine_pid_unchanged": true,
+      "ownership_and_session_unchanged": true,
+      "no_halt": true,
+      "later_daily_fresh": true,
+      "clean_stop": true,
+      "limitation": "Synthetic CPU-heavy SQL does not establish isolation for all queries or Cloud Run workloads.",
+      "artifact": {
+        "path": "build/mm-reporting-isolation/20261104-074604-74df27/result.json",
+        "sha256": "ce112901ae6692513a2261ccb39d55f7becc684a6fbb875e89d11bb3595df5e8"
+      }
+    }
+  },
+  "connected_demo": {
+    "passed": true,
+    "positive_fill_acceptance_complete": true,
+    "baseline_unique_fills": 21,
+    "final_unique_fills": 23,
+    "fill_comparisons": [
+      {
+        "market": "okx",
+        "order_id": "93027a12dac34fBCSBCUT4ed2ff77a76",
+        "trade_id": "1418631148",
+        "quantity_base": "0.00025896",
+        "price": "77231.2",
+        "fee_currency": "USDT",
+        "venue_signed_fee": "-0.0159998332416",
+        "recorded_fee": "0.0159998332416",
+        "maker": true,
+        "matched": true
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUTcfd9382d0fd",
+        "trade_id": "4575029500",
+        "quantity_base": "0.0001",
+        "price": "77179.7",
+        "fee_currency": "USDT",
+        "venue_signed_fee": "-0.001543594",
+        "recorded_fee": "0.001543594",
+        "maker": true,
+        "matched": true
+      }
+    ],
+    "active_restart": {
+      "passed": true,
+      "pinned_session_anchor_deadline": true,
+      "prior_trade_ids_retained_once": true
+    },
+    "original_history_unchanged": true,
+    "restoration": {
+      "passed": true,
+      "canonical_container_same": true,
+      "original_private_files_unchanged": true,
+      "trading_stopped": true,
+      "pending_orders": 0,
+      "filled_trade_rows_preserved_once": true
+    },
+    "terminal_orders": {
+      "total": 37,
+      "states": {
+        "canceled": 35,
+        "filled": 2
+      }
+    },
+    "current_catalogue_for_new_sessions": {
+      "spot": "200",
+      "perpetual": "400"
+    },
+    "completed_pinned_test_catalogue": {
+      "spot": "40",
+      "perpetual": "40"
+    },
+    "original_private_config_unchanged": true,
+    "no_halt": true,
+    "no_pending_mutations": true,
+    "observed_reason_samples": {
+      "admitted": 27
+    },
+    "diagnostic_trigger_records": 0,
+    "no_unclassified_errors": true,
+    "log_severities": {
+      "INFO": 248,
+      "WARNING": 14
+    },
+    "artifacts": [
+      {
+        "path": "build/reporting-followup-20261104/natural/observation.json",
+        "sha256": "3cd850130f4a066b9bd9dd57d73220dc7b4de522f70c8d81da0ed00fa6a8558c"
+      },
+      {
+        "path": "build/reporting-followup-20261104/natural/final-verification.json",
+        "sha256": "a1e79fb70c943edd222574a9c9b65cbca5cfcdeedeff3cb3587ce20c52a6fede"
+      },
+      {
+        "path": "build/reporting-followup-20261104/natural/terminal-review.json",
+        "sha256": "c768184171333b150a6899e83aca0b1b78724d2bbe45fbdddfd0ab10f528af1e"
+      },
+      {
+        "path": "build/reporting-followup-20261104/natural/quote-diagnostics.jsonl",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "build/reporting-followup-20261104/natural/config-review.json",
+        "sha256": "5db724c52b84618597776badc56e812f6d21377a6ada6997004916a5f5cfe6eb"
+      }
+    ]
+  },
+  "hour_soak": {
+    "artifact": {
+      "path": "build/mm-load/20261104-080016-a1e88c/result.json",
+      "sha256": "7e96bf14074c1b8e1f9910742ad4b4c6ec01a2d6820bef9d0b02812fbe6f2fd4"
+    },
+    "passed": false,
+    "duration_seconds": 3600,
+    "violations": [
+      "errors"
+    ],
+    "primary_http_200": 72000,
+    "auxiliary": {
+      "requested_reads": 7200,
+      "completed_reads": 7200,
+      "statuses": {
+        "200": 7200
+      },
+      "read_p95_ms": 472.4691570008872,
+      "read_p99_ms": 947.6116919977358
+    },
+    "read_p95_ms": 485.9206569963135,
+    "read_p99_ms": 991.4243280072697,
+    "stale_daily_responses": 28,
+    "actual_statement_timeouts": 2,
+    "timeout_query": "original_fee_currency_aggregate",
+    "stale_clusters": [
+      {
+        "responses": 14,
+        "first_response_at": 1793754228.4274073,
+        "last_response_at": 1793754233.0818884,
+        "response_span_seconds": 4.6544811725616455,
+        "venue_fills_in_response_span": 4
+      },
+      {
+        "responses": 14,
+        "first_response_at": 1793756711.0351977,
+        "last_response_at": 1793756715.746299,
+        "response_span_seconds": 4.711101293563843,
+        "venue_fills_in_response_span": 5
+      }
+    ],
+    "ledger": {
+      "unique_exchange_fills": 3594,
+      "unique_recorder_fills": 3594,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "memory_retention": {
+      "basis": "cgroup_current_minus_file_plus_shmem",
+      "early_median_bytes": 701505536,
+      "late_median_bytes": 728440832,
+      "growth_bytes": 26935296,
+      "budget_bytes": 67108864,
+      "raw_cgroup_growth_bytes": 26935296
+    },
+    "raw_cgroup_peak_bytes": 736600064,
+    "runtime_samples": 57,
+    "max_runtime_sample_wall_gap_seconds": 65.71517586708069,
+    "per_role_memory": {
+      "supervisor": {
+        "pids": [
+          1
+        ],
+        "rss_growth_median_bytes": 0,
+        "thread_range": [
+          8,
+          8
+        ],
+        "fd_range": [
+          5,
+          6
+        ]
+      },
+      "engine": {
+        "pids": [
+          32
+        ],
+        "rss_growth_median_bytes": 16384000,
+        "thread_range": [
+          11,
+          11
+        ],
+        "fd_range": [
+          28,
+          34
+        ]
+      },
+      "api": {
+        "pids": [
+          33
+        ],
+        "rss_growth_median_bytes": 10735616,
+        "thread_range": [
+          12,
+          12
+        ],
+        "fd_range": [
+          22,
+          22
+        ]
+      }
+    },
+    "recovered_probe_episodes": {
+      "engine": 158,
+      "api": 13
+    },
+    "max_logged_probe_failure_seconds": {
+      "engine": 4.514,
+      "api": 1.534
+    },
+    "child_replacement_or_service_exit_events_during_window": [],
+    "profile_running_coverage": [
+      {
+        "profile": "follow_token",
+        "step": 0,
+        "running_overlap_seconds": 598.4485476016998
+      },
+      {
+        "profile": "sideways",
+        "step": 1,
+        "running_overlap_seconds": 596.3788940906525
+      },
+      {
+        "profile": "follow_token",
+        "step": 2,
+        "running_overlap_seconds": 593.9612431526184
+      },
+      {
+        "profile": "sideways",
+        "step": 3,
+        "running_overlap_seconds": 594.1397511959076
+      },
+      {
+        "profile": "sideways",
+        "step": 4,
+        "running_overlap_seconds": 592.8590440750122
+      },
+      {
+        "profile": "sideways",
+        "step": 5,
+        "running_overlap_seconds": 596.2092490196228
+      }
+    ],
+    "command_seconds": {
+      "start": 9.317658375017345,
+      "switch": 9.770293457899243,
+      "stop": 4.659559458028525
+    },
+    "interpretation": "Only the errors gate fails. Two local original-currency fee aggregation timeouts each yield 14 explicitly stale daily replies; all3594 synthetic fills/fees/positions match. Nine venue fills occur during stale-response spans and are matched later, not proof of commit within those spans or uninterrupted quotes. Random did not select follow_market this hour. Full R1/R2 is not qualified by a standalone soak."
+  },
+  "test_only_helpers": {
+    "build/reporting-followup-20261104/load_dataset_diagnostics.py": "0790c0ff48b44eed765e7776b36bf3437881935c421e8a9305bbb2fb45090914",
+    "build/reporting-followup-20261104/demo-diagnostics/sitecustomize.py": "5e497d041fa59905221ad54f66e5d8fc7ee3b04080a6ca9535094eb8efebc1bc",
+    "build/reporting-followup-20261104/connected_and_soak.py": "a0c72f1ec873ff70590be6c4f72e7d389450646dc5f56754561cdf68a2ef1f97",
+    "build/reporting-followup-20261104/run_short_probe.py": "222b2e1e6de2682c139affaedb60c36f83d684c31cf2cacaa0224d0c8805e1c8",
+    "build/reporting-followup-20261104/run_soak.py": "64554e6109e729c3900481645b438e6c3f19c19bed3e23d06403241e158a1f86",
+    "build/reporting-followup-20261104/upgrade_demo.py": "f1ee20e52f8ca027a800c4b371f38788c8b65ac8c5115569c5b6c711f47824ba"
+  },
+  "test_only_helper_notes": [
+    "Planner-statistics reads occur outside measured windows on disposable databases only. No fixture data, warmup query or runtime deadline change.",
+    "Bounded read-only Demo witness is loaded only in the temporary connected container; it returns original function results unchanged and is removed with that container. No diagnostic trigger records captured; historical own-depth cause remains unproven.",
+    "Failed healthy short probe remains failed. Later independent fault/Demo checks resume only after exact 600-fill ledger agreement, safe restoration, E2E pass and fresh read-only preflight; neither a release promotion nor a changed threshold.",
+    "One initial fault runner invoked system Python without pandas and stopped during fixture import before the measured test or connected trading. Rerun uses the established conda hummingbot environment."
+  ],
+  "post_soak_restoration": {
+    "independent_ledger_verification": {
+      "passed": true,
+      "source": "private pre-soak backup restored into disposable network-isolated PostgreSQL clone",
+      "hashes_match": {
+        "orders": true,
+        "trade_fills": true,
+        "positions": true,
+        "executors": true
+      },
+      "current_hashes": {
+        "orders": "331c3a9fe9978af37faee7f15b656234",
+        "trade_fills": "89b927c2868e7483c105b43c3bc6b751",
+        "positions": "94315e1d770e988c967b43722f74b560",
+        "executors": "bb9e902715eec79b03bc3d98fa6a4494"
+      }
+    },
+    "packaged_read_only_preflight_passed": true,
+    "canonical_image": "sha256:50f96001df366d350bae6d1db5d195540f7372e7022d4312c3795f3643284cf0",
+    "owner_available": true,
+    "trading_stopped": true,
+    "no_halt": true,
+    "no_pending_mutations": true,
+    "no_unresolved_orders": true,
+    "seven_runtime_hashes_still_match": true,
+    "own_sleep_inhibitor_stopped": true,
+    "artifacts": [
+      {
+        "path": "build/reporting-followup-20261104/post-soak-ledger-verification.json",
+        "sha256": "67ab7321d4ff16321d97e13bbb29c1d57c09a07d5e39248e55e11ce6dd329d53"
+      },
+      {
+        "path": "build/reporting-followup-20261104/post-soak-image-preflight.json",
+        "sha256": "30d872324f7c92d0b682663f6a1c89a56d186a3d74b57a88990d25d5674d451c"
+      },
+      {
+        "path": "build/reporting-followup-20261104/post-soak-state.json",
+        "sha256": "377882afb0b0af95ba822bbcec1ab00d51149675baa78ef12ffc3cdf68b28773"
+      },
+      {
+        "path": "build/reporting-followup-20261104/acceptance-progress.json",
+        "sha256": "becd37183f2ae5f45172edc37f445a6c72e35e4ecd7b86eef42cafc462f8a6de"
+      }
+    ]
+  },
+  "open_points": [
+    "A clean zero-degraded current-image gate is not obtained. Probe main aggregate and hour original-fee aggregate each reach the unchanged2s SQL budget; the zero-conversion optimization is not a general timeout cure.",
+    "The old unique p99/probe cause and historical inconsistent_own_depth cause remain unproven. Bounded current-image contexts include tick/controller delays and empty venue samples, so continuous quote uptime is not established.",
+    "Million-row reporting still exceeds runtime budgets. Full R1/R2 and Cloud Run capacity/production liquidity are outside this completed local follow-up."
+  ],
+  "completed_at": "2026-11-04T02:04:24.813605+00:00"
 }

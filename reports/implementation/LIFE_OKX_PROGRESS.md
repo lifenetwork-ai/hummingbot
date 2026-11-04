@@ -5,6 +5,21 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-04
 
+- **Current-image follow-up complete; qualification incomplete:** image50f96001
+  independently matches one natural spot and one perpetual maker fill through
+  REST trade IDs, quantity and original fees. Filled restart keeps the pinned
+  session/anchor/deadline and each row once;21 old fills remain unchanged,
+  final23 unique. All37 orders are terminal; original200/400 catalogue restored,
+  stopped/no pending/no HALT. Rich600s probe fails on13 degraded daily replies
+  and p95/p99 despite exact600-fill ledger agreement. Separate controlled wait
+  and CPU report faults pass with durable fills during each actual timeout and
+  unchanged engine/owner/session. Standalone hour fails only zero-degraded
+  reporting: two original-fee SQL timeouts,28 stale replies. All3,594 fills/fees/
+  positions match, primary p99 991.42ms and25.69MiB retention growth pass.
+  Backup hashes/read-only preflight and stopped/no HALT/pending restoration
+  pass; full R1/R2 is not repeated. Historical p99/own-depth cause remains open.
+  [Scoped report/evidence](../performance/mm-daily-conversion-followup.md).
+
 - **Packaged-test fixture follow-up:** image50f96001 matches source14feb47dd and
   all197 prior Python package versions. Its first E2E reaches the terminal-before-
   ACK recovery failure; a separate unmodified repeat passes, so no unique runtime
@@ -13,7 +28,8 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   replacement intents. Related native65 (eleven new) + PG7 pass; bounded recovery
   E2E passes with4+4 cancels,1.28s proof/2.10s observed release, normal quotes,
   Random/expiry and intentional DB-fault recovery. Application/HALT/timeouts and
-  healthy budgets stay unchanged; final matrix/probe/Demo/hour remain pending.
+  healthy budgets stay unchanged. All three final-fixture packaged groups now
+  pass; the failed rich probe and positive Demo completion are scoped above.
   [Report/evidence](../performance/mm-daily-conversion-followup.md).
 
 - **Daily conversion/availability follow-up in progress:** real-PG Red/Green
@@ -23,8 +39,8 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   in these samples; million-row reads remain beyond the2s runtime budget.
   Direct Demo `books` observation reproduces an AVAX receive gap10.96s, beyond
   current freshness10s. It does not attribute every guard/probe incident.
-  Native2,442 +11 subtests and isolated PG345 pass. Fresh-image E2E/load/Demo
-  are pending; no guard or
+  Native2,442 +11 subtests and isolated PG345 pass; eleven later native fixture
+  cases and seven real-PG fixture cases pass in targeted runs. No guard or
   runtime timeout is weakened. [Report/evidence](../performance/mm-daily-conversion-followup.md).
 
 - **Controller/persistence image tests:** image `f1a7eead` passes nine connected

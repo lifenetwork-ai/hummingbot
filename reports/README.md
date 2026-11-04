@@ -8,10 +8,14 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
   [evidence](performance/mm-daily-conversion-followup-evidence.json): fee-array
   decoding600→200 for200 zero-conversion fills; four paired SQL workloads return
   exactly equal results. Read-only Demo observation reproduces AVAX freshness
-  loss. Native2,442 +11 subtests and isolated PostgreSQL345 pass; new-image qualification is pending.
+  loss. Native2,442 +11 subtests and isolated PostgreSQL345 pass.
   A terminal-before-ACK fixture follow-up adds65 targeted native checks (eleven
-  new) and PG7; bounded recovery passes while the full final-fixture matrix,
-  probe, Demo and hour remain pending. Earlier packaged failure is preserved.
+  new) and PG7; all three final-fixture E2E groups pass. Rich600s probe fails
+  reporting/latency gates, while controlled wait/CPU report faults and connected
+  positive spot/perpetual fills/restart pass. The same-image hour fails only
+  zero-degraded reporting (two fee SQL timeouts,28 stale replies);3,594 fills/
+  fees/positions and25.69MiB retention growth pass. Restoration is independently
+  verified; prior failures and unresolved historical causes remain explicit.
 
 - [Controller/persistence image verification](release/mm-controller-persistence-release.md),
   [evidence](release/mm-controller-persistence-release-evidence.json): Demo

@@ -1,6 +1,15 @@
 # Current-image OKX Demo acceptance
 
-**Latest local candidate:** [quote replacement follow-up](../../reports/investigations/mm-quote-recovery.md)
+**Current local reporting candidate:** `50f96001` from `14feb47dd` has source,
+three packaged E2E groups, two controlled slow-report faults and positive Demo
+spot/perpetual fills with active restart verified. The rich600s probe fails its
+reporting/latency gate; the standalone hour fails only zero-degraded reporting
+(two original-fee SQL timeouts,28 stale replies), while3,594 fills/fees/positions
+and retention checks pass. See the
+[scoped follow-up](../../reports/performance/mm-daily-conversion-followup.md).
+This does not transfer an older image's full R1/R2 acceptance.
+
+**Earlier accepted quote-recovery candidate:** [quote replacement follow-up](../../reports/investigations/mm-quote-recovery.md)
 fixes the terminal-confirmed executor wait on `660bd38b`. Broad source checks,
 three packaged E2E groups and matched180s diagnostics pass, followed by
 [full R1 and matched shipping R2](../../reports/release/mm-quote-recovery-release.md).
@@ -80,14 +89,32 @@ image/date scope; the new local gate does not relabel them.
 - [x] Add Red/Green bounded terminal-before-ACK test admission and batch-specific
   persistence proof:65 related native checks (eleven new) and seven new PG cases.
   Preserve the first packaged failure and a passing unmodified recovery repeat.
-- [ ] Complete packaged E2E with the final bounded fault fixture and the traced
-  MM/probe diagnostic on the verified image.
-- [ ] Investigate actual public/private book and reference freshness during a
-  bounded Demo run; change guards only for a reproduced defect with Red/Green.
-- [ ] Obtain current-image positive spot-fill evidence and verify filled restart;
-  retain a bounded maker-only trial if there is no natural fill.
-- [ ] Repeat the unchanged 60-minute zero-degraded-response gate after shorter
-  checks, independently verify restoration, and publish all scoped results.
+- [x] Complete all three packaged E2E groups with the final bounded fault fixture.
+  Run the rich600s MM/probe diagnostic and preserve its failed reporting/latency
+  verdict:13 degraded daily replies, exact600-fill ledger, recovered probes.
+- [x] Verify controlled reporting wait/CPU timeouts independently: each has a
+  durable fill during the fault, unchanged engine/ownership/session, no HALT,
+  later fresh statistics and exact120-fill ledger agreement.
+- [x] Observe reference/guard state during the bounded Demo run with an armed
+  read-only witness. No new own-depth trigger is captured; no guard change or
+  historical causal closure is claimed.
+- [x] Obtain one current-image natural spot and one perpetual maker fill, match
+  individual REST trade IDs/quantity/original fees and verify active filled
+  restart. Preserve21 prior rows; final23 are unique. Independently confirm
+  all37 orders terminal and restore the original stopped catalogue/container.
+- [x] Run the unchanged standalone60-minute gate and preserve its failed verdict:
+  two original-currency fee aggregate timeouts produce28 stale replies. All3,594
+  fills/fees/positions match; latency and25.69MiB retention growth pass. Verify
+  backup hashes and post-soak read-only preflight, restore stopped/no HALT/pending
+  state, publish scoped evidence and commit. Full R1/R2 is not rerun here.
+- [ ] Obtain a clean current-image zero-degraded-response gate. Further work
+  must target measured statement-specific SQL cost; do not relax the existing
+  deadline/latency budgets or relabel stale replies to close this item.
+
+Historical p99/probe and own-depth attribution remain unproven; the bounded
+investigation above is complete. Preserve the evidence and capture a recurrence
+before proposing a runtime/guard fix. Continuous quote coverage and Cloud Run
+capacity are not established by these local observations.
 
 ## Quote-recovery current-image completion — 2026-11-03
 
