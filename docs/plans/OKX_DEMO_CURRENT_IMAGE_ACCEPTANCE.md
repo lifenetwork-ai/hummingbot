@@ -1,6 +1,17 @@
 # Current-image OKX Demo acceptance
 
-**Current local reporting candidate:** `f4d90bc7` from `d2cdf2a36` retries one
+**Current local API candidate:** `086454de` from `0f4095671` reserves one
+operations and one heavy slot in the existing two-thread executor. Native2,494
++11 subtests, PG355, Swagger, three E2E groups, four controlled report faults,
+300s probe and the unchanged standalone hour pass. Hour primary/auxiliary p99
+is246.24/88.55ms,79,200 HTTP200 replies have no errors/stale,3,595 synthetic
+fills/fees/positions match and retention grows25.96MiB. Stopped Demo restoration
+preserves23 existing fills and four ledger hashes. Preparation has one owner-state
+FOR UPDATE timeout and automatic engine restart before the timed window; its
+exclusive cause remains unproven. No new full R1/R2 or active natural-fill
+acceptance is transferred. [Report](../../reports/performance/mm-admin-worker-lanes.md).
+
+**Preceding retry candidate:** `f4d90bc7` from `d2cdf2a36` retries one
 acknowledged daily-read timeout through the existing bounded executor. Native
 2,464 +11 subtests, PostgreSQL354, three packaged E2E groups and four controlled
 reporting faults pass. Its unchanged standalone hour passes:79,200 HTTP200
@@ -185,10 +196,14 @@ capacity are not established by these local observations.
   existing two-worker/connection limits; controls retain priority.
 - [x] Finish native2,494 +11 subtests, PostgreSQL355 and Swagger checks;
   commit the verified source phase. Thirty new native cases and one PG case.
-- [ ] Verify a rebuilt image, packaged E2E, controlled report faults and the
+- [x] Verify image086454de, three packaged E2E groups, four controlled report faults and the
   unchanged short/hour load gates; retain failures and compare route latency.
-- [ ] Independently verify stopped Demo/configuration/ledger restoration and
+- [x] Independently verify stopped Demo/configuration/ledger restoration and
   publish final evidence. Older image acceptance is not transferred.
+
+The phase is scoped complete. Preserve the pre-window owner-state timeout/
+supervisor recovery as an unresolved causal observation in the linked report;
+the passing measured hour is not a clean-startup or universal availability claim.
 
 ## Quote-recovery current-image completion — 2026-11-03
 

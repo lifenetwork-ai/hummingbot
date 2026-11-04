@@ -40,13 +40,17 @@ API payloads and the trading engine unchanged.
   those heavy reads now run serially.
 - [x] Verify real PostgreSQL capacity and HTTP Stop/receipt availability while
   history is running. Run related and broad native/PG regression checks.
-- [ ] Commit source; rebuild and verify immutable image/runtime hashes. Run
+- [x] Commit source `0f4095671`; rebuild image086454de and verify ten runtime
+  hashes and197 unchanged Python packages. Run
   packaged E2E and controlled slow-report recovery/fallback tests.
-- [ ] Compare the unchanged300s load against the retained previous image result,
+- [x] Compare the unchanged300s load against the retained previous image result,
   preserving all outcomes. Run the unchanged standalone hour on the new image;
   report per-route latency, errors/stale, ledger and retention honestly.
-- [ ] Verify stopped Demo/configuration/ledger restoration; update the current
+- [x] Verify stopped Demo/configuration/ledger restoration; update the current
   acceptance register and publish scoped evidence. Commit verification results.
 
 No result proves uninterrupted quoting or exclusive causality of the historical
 p99 spike. A new lane policy must not inherit an older image's release acceptance.
+The measured hour passes, but preparation includes one2s owner-state FOR UPDATE
+timeout and automatic engine restart. Its blocker/trigger is not captured;
+the report preserves this observation without claiming a restart-free startup.

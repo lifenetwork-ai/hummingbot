@@ -1,7 +1,7 @@
 {
   "date": "2026-11-04",
   "timezone": "Asia/Saigon",
-  "status": "source verified; image qualification pending",
+  "status": "scoped_image_verification_passed",
   "baseline_source": "143111cd1",
   "baseline_image": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
   "physical_workers": 2,
@@ -48,6 +48,1721 @@
       "native-full.log": "4e3c8c0695c44e0cb5edf5b9fe7a88a5bbdc5f9280d4fb38ebf3aae04962f827",
       "postgres-full.log": "4af9b708c28c238529182d93f17ece07f4997e6017eed923ecc2621ff5326ea1",
       "swagger-check.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "source_commit": "0f409567105fd2975a6540b9fcf88ad8f6b583c0",
+  "image": {
+    "image_id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+    "image_tag": "hummingbot-cloudrun:admin-lanes-0f4095671",
+    "source_commit": "0f409567105fd2975a6540b9fcf88ad8f6b583c0",
+    "size_bytes": 1368950745,
+    "architecture": "amd64",
+    "source_sha256": {
+      "hummingbot/cli/admin_api.py": "5a2510e00dc505f5c5082c55145425b5d53c5fa44cf580208a4a4847b4c1c9ef",
+      "hummingbot/cli/admin_database.py": "5e20a8d84812e4899fe0691e4e89565093f64f2ce2b307c7b31ba504dbaf0e06",
+      "hummingbot/cli/admin_daily_cache.py": "d47f76a71e56e7727817f39cbdc73b0e872117271086242918b1aca2a811372e",
+      "hummingbot/model/admin_reporting.py": "ccfddf212543c022ac2733a732de2477c4acfe6a69d1d212964d6e0a936e4238",
+      "controllers/market_making/life_mm.py": "e8ab7213b0a998c2ff8b0cdbc61463d662b9e58f2476aac79a33fa5ac70ff4b7",
+      "hummingbot/cli/service.py": "2e4a33e1beabb06ed332ab5dc04bf266283593600ec4f87ab090e99215dd1959",
+      "hummingbot/connector/markets_recorder.py": "e175b2dc73ccd37070ae39d0cb95fd282aad896c96914285c404d94e33e652ae",
+      "hummingbot/core/mm_liquidity.py": "c00dc0860d597978ae62271ecea8029b43aa6050ac8d066e9ecee9ee5c1e69d6",
+      "hummingbot/core/mm_quote_activity.py": "56fc4285dc5432c0412c855ec53998ad87d7d778c59b84091865ac0b66a7e397",
+      "docs/api/openapi.json": "9fb8e53b91f1ee7a35ddc3cd082e7ef675b2da2b0223a1844c208d6202b2efdd"
+    },
+    "verified_source_files": 10,
+    "python_package_versions_match": true,
+    "python_package_count": 197,
+    "immutable_reference": "127.0.0.1:58187/hummingbot@sha256:f4a5395ace8bf58e75feda96909081d238f3f30f321bacb08d259418ad2501ca"
+  },
+  "packaged_e2e": {
+    "life-mm": {
+      "passed": true,
+      "result_path": "build/e2e-offline/20261104-131747-f94498/result.json",
+      "artifact": {
+        "path": "build/e2e-offline/20261104-131747-f94498/result.json",
+        "sha256": "991218c0aee73cc76a45c68f59b5882c23e82ad3a8973b2be779956d7bf1d59a"
+      }
+    },
+    "life-mm-recovery": {
+      "passed": true,
+      "result_path": "build/e2e-offline/20261104-132243-3dcc99/result.json",
+      "artifact": {
+        "path": "build/e2e-offline/20261104-132243-3dcc99/result.json",
+        "sha256": "8f4955424f6fd347b310f477d3679c36acb10688c7e98aa0ab2f10728320cf5a"
+      }
+    },
+    "volatility-defense": {
+      "passed": true,
+      "result_path": "build/e2e-offline/20261104-132622-438880/result.json",
+      "artifact": {
+        "path": "build/e2e-offline/20261104-132622-438880/result.json",
+        "sha256": "80e56dadcb94524c67058686a384c46391752432494aba71dcc57119f3e0ef76"
+      }
+    }
+  },
+  "controlled_faults": {
+    "wait": {
+      "image_id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+      "scope": "Observe trading progress during bounded real daily-report timeouts.\n\nThis test uses the existing simulator, PostgreSQL and shipping image. A test-only\nAPI SQL hook injects a server-side wait or CPU-heavy expansion. Neither case\nestablishes universal isolation or certifies Cloud Run capacity.\n",
+      "fault_mode": "wait",
+      "passed": true,
+      "release_scope_complete": false,
+      "baseline_passed": true,
+      "duration_seconds": 120,
+      "injected_timeouts": 1,
+      "expect_retry": true,
+      "supervision_source_overlay_sha256": {},
+      "unmodified_runtime_image": true,
+      "injection_sha256": "208737d9e13a4400a0e1cd36319b540df600914199ddaf1dc749accd3dee6122",
+      "fault_attempts": [
+        {
+          "started_at": 1793774228.482395,
+          "finished_at": 1793774230.489498,
+          "sqlstate": "57014"
+        }
+      ],
+      "observation": {
+        "fault": {
+          "started_at": 1793774228.482395,
+          "finished_at": 1793774230.489498,
+          "sqlstate": "57014"
+        },
+        "witness": {
+          "observed_at": 1793774229.621093,
+          "fills": 1
+        },
+        "stale": [],
+        "market_updates_per_second": 99.97178038488458,
+        "fills_per_second": 1.0,
+        "unexpected_errors": 0,
+        "errors": []
+      },
+      "unexpected_error_logs_during_fault": [],
+      "retry_events": [
+        {
+          "timestamp": "2026-11-04T06:37:10.493Z",
+          "event": "admin_daily_retry",
+          "severity": "WARNING"
+        },
+        {
+          "timestamp": "2026-11-04T06:37:11.289Z",
+          "event": "admin_daily_retry_recovered",
+          "severity": "INFO"
+        }
+      ],
+      "fault": {
+        "started_at": 1793774228.482395,
+        "finished_at": 1793774230.489498,
+        "sqlstate": "57014"
+      },
+      "stale_read_count": 0,
+      "stale_metadata_bounded": null,
+      "stale_original_server_time_preserved": null,
+      "transient_timeout_recovered_fresh": true,
+      "exchange_fills_during_timeout": 2,
+      "durable_fill_witness": {
+        "observed_at": 1793774229.621093,
+        "fills": 1
+      },
+      "ledger": {
+        "unique_exchange_fills": 120,
+        "unique_recorder_fills": 120,
+        "positions_matched": true,
+        "identified_funding_bills": 0,
+        "daily_snapshots": 3
+      },
+      "engine_pid_unchanged": true,
+      "ownership_and_session_unchanged": true,
+      "no_halt": true,
+      "later_daily_fresh": true,
+      "clean_stop": true,
+      "observed_market_updates_per_second": 99.97178038488458,
+      "observed_fills_per_second": 1.0,
+      "limitation": "Server-side wait holds one API connection but does not model CPU-heavy SQL or all Cloud Run workloads.",
+      "artifact": {
+        "path": "build/mm-reporting-isolation/20261104-133614-f74545/result.json",
+        "sha256": "2a4f0f7d90b9e52860014342e5b770b6e73c2fdfcb03430e1f07ad825c20c5fb"
+      }
+    },
+    "wait_persistent": {
+      "image_id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+      "scope": "Observe trading progress during bounded real daily-report timeouts.\n\nThis test uses the existing simulator, PostgreSQL and shipping image. A test-only\nAPI SQL hook injects a server-side wait or CPU-heavy expansion. Neither case\nestablishes universal isolation or certifies Cloud Run capacity.\n",
+      "fault_mode": "wait",
+      "passed": true,
+      "release_scope_complete": false,
+      "baseline_passed": true,
+      "duration_seconds": 120,
+      "injected_timeouts": 2,
+      "expect_retry": false,
+      "supervision_source_overlay_sha256": {},
+      "unmodified_runtime_image": true,
+      "injection_sha256": "4a9cfbd25c54e60e9b7c70c2ca609f718fd0f0bf2e4de27fbe402f7f11b694bb",
+      "fault_attempts": [
+        {
+          "started_at": 1793774401.395121,
+          "finished_at": 1793774403.4014912,
+          "sqlstate": "57014"
+        },
+        {
+          "started_at": 1793774403.836437,
+          "finished_at": 1793774405.8406918,
+          "sqlstate": "57014"
+        }
+      ],
+      "observation": {
+        "fault": {
+          "started_at": 1793774401.395121,
+          "finished_at": 1793774403.4014912,
+          "sqlstate": "57014"
+        },
+        "witness": {
+          "observed_at": 1793774403.023764,
+          "fills": 1
+        },
+        "stale": [
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.714961274701636,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.714961274701636,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.714961274701636,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.714961274701636,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.714961274701636,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.714961274701636,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.81674710768857,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.99189510769793,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 21.08045102469623,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 21.17018664968782,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 21.50520969169156,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 22.05517756669724,
+            "retry_after_seconds": 4,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 22.605512649693992,
+            "retry_after_seconds": 4,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 23.156598316694726,
+            "retry_after_seconds": 3,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 23.705497900693445,
+            "retry_after_seconds": 3,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 24.25773631769698,
+            "retry_after_seconds": 2,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 24.807157526694937,
+            "retry_after_seconds": 1,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 25.357095776693313,
+            "retry_after_seconds": 1,
+            "server_time": "2026-11-04T06:39:45.129096Z"
+          }
+        ],
+        "market_updates_per_second": 99.98045280091216,
+        "fills_per_second": 1.0,
+        "unexpected_errors": 18,
+        "errors": [
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774405.8553922,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774405.8567324,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774405.857373,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774405.857842,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774405.8582258,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774405.8586261,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774405.9461367,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774406.121512,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774406.2099688,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774406.299557,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774406.6346855,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774407.1850152,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774407.7349262,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774408.2860816,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774408.8350492,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774409.3875382,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774409.9371755,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774410.4868646,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          }
+        ]
+      },
+      "unexpected_error_logs_during_fault": [],
+      "retry_events": [
+        {
+          "timestamp": "2026-11-04T06:40:03.403Z",
+          "event": "admin_daily_retry",
+          "severity": "WARNING"
+        }
+      ],
+      "fault": {
+        "started_at": 1793774401.395121,
+        "finished_at": 1793774403.4014912,
+        "sqlstate": "57014"
+      },
+      "stale_read_count": 18,
+      "stale_metadata_bounded": true,
+      "stale_original_server_time_preserved": true,
+      "transient_timeout_recovered_fresh": false,
+      "exchange_fills_during_timeout": 2,
+      "durable_fill_witness": {
+        "observed_at": 1793774403.023764,
+        "fills": 1
+      },
+      "ledger": {
+        "unique_exchange_fills": 120,
+        "unique_recorder_fills": 120,
+        "positions_matched": true,
+        "identified_funding_bills": 0,
+        "daily_snapshots": 3
+      },
+      "engine_pid_unchanged": true,
+      "ownership_and_session_unchanged": true,
+      "no_halt": true,
+      "later_daily_fresh": true,
+      "clean_stop": true,
+      "observed_market_updates_per_second": 99.98045280091216,
+      "observed_fills_per_second": 1.0,
+      "limitation": "Server-side wait holds one API connection but does not model CPU-heavy SQL or all Cloud Run workloads.",
+      "artifact": {
+        "path": "build/mm-reporting-isolation/20261104-133908-66ae6a/result.json",
+        "sha256": "81c7b823826afa9f9a053aa1b4e6208dcdab24bdb1196977547fe7858c94c465"
+      }
+    },
+    "cpu": {
+      "image_id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+      "scope": "Observe trading progress during bounded real daily-report timeouts.\n\nThis test uses the existing simulator, PostgreSQL and shipping image. A test-only\nAPI SQL hook injects a server-side wait or CPU-heavy expansion. Neither case\nestablishes universal isolation or certifies Cloud Run capacity.\n",
+      "fault_mode": "cpu",
+      "passed": true,
+      "release_scope_complete": false,
+      "baseline_passed": true,
+      "duration_seconds": 120,
+      "injected_timeouts": 1,
+      "expect_retry": true,
+      "supervision_source_overlay_sha256": {},
+      "unmodified_runtime_image": true,
+      "injection_sha256": "dba7230d685275bb79e9207017e466ebedc13facc3322222c006da0a0bd731d6",
+      "fault_attempts": [
+        {
+          "started_at": 1793774573.921916,
+          "finished_at": 1793774575.9273818,
+          "sqlstate": "57014"
+        }
+      ],
+      "observation": {
+        "fault": {
+          "started_at": 1793774573.921916,
+          "finished_at": 1793774575.9273818,
+          "sqlstate": "57014"
+        },
+        "witness": {
+          "observed_at": 1793774574.603022,
+          "fills": 1
+        },
+        "stale": [],
+        "market_updates_per_second": 99.98179958649189,
+        "fills_per_second": 1.0,
+        "unexpected_errors": 0,
+        "errors": []
+      },
+      "unexpected_error_logs_during_fault": [],
+      "retry_events": [
+        {
+          "timestamp": "2026-11-04T06:42:55.929Z",
+          "event": "admin_daily_retry",
+          "severity": "WARNING"
+        },
+        {
+          "timestamp": "2026-11-04T06:42:56.684Z",
+          "event": "admin_daily_retry_recovered",
+          "severity": "INFO"
+        }
+      ],
+      "fault": {
+        "started_at": 1793774573.921916,
+        "finished_at": 1793774575.9273818,
+        "sqlstate": "57014"
+      },
+      "stale_read_count": 0,
+      "stale_metadata_bounded": null,
+      "stale_original_server_time_preserved": null,
+      "transient_timeout_recovered_fresh": true,
+      "exchange_fills_during_timeout": 2,
+      "durable_fill_witness": {
+        "observed_at": 1793774574.603022,
+        "fills": 1
+      },
+      "ledger": {
+        "unique_exchange_fills": 120,
+        "unique_recorder_fills": 120,
+        "positions_matched": true,
+        "identified_funding_bills": 0,
+        "daily_snapshots": 3
+      },
+      "engine_pid_unchanged": true,
+      "ownership_and_session_unchanged": true,
+      "no_halt": true,
+      "later_daily_fresh": true,
+      "clean_stop": true,
+      "observed_market_updates_per_second": 99.98179958649189,
+      "observed_fills_per_second": 1.0,
+      "limitation": "Synthetic CPU-heavy SQL does not establish isolation for all queries or Cloud Run workloads.",
+      "artifact": {
+        "path": "build/mm-reporting-isolation/20261104-134159-3520ac/result.json",
+        "sha256": "3157060c3b5a2d583919b24f07b81df18e19f15bae4461f3b629b327549d7f6a"
+      }
+    },
+    "cpu_persistent": {
+      "image_id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+      "scope": "Observe trading progress during bounded real daily-report timeouts.\n\nThis test uses the existing simulator, PostgreSQL and shipping image. A test-only\nAPI SQL hook injects a server-side wait or CPU-heavy expansion. Neither case\nestablishes universal isolation or certifies Cloud Run capacity.\n",
+      "fault_mode": "cpu",
+      "passed": true,
+      "release_scope_complete": false,
+      "baseline_passed": true,
+      "duration_seconds": 120,
+      "injected_timeouts": 2,
+      "expect_retry": false,
+      "supervision_source_overlay_sha256": {},
+      "unmodified_runtime_image": true,
+      "injection_sha256": "ebb8a3973175121187f097c079c242c5eb617086ab65288ee6bbe8484ef861c5",
+      "fault_attempts": [
+        {
+          "started_at": 1793774750.555819,
+          "finished_at": 1793774752.5597136,
+          "sqlstate": "57014"
+        },
+        {
+          "started_at": 1793774752.976669,
+          "finished_at": 1793774754.9795678,
+          "sqlstate": "57014"
+        }
+      ],
+      "observation": {
+        "fault": {
+          "started_at": 1793774750.555819,
+          "finished_at": 1793774752.5597136,
+          "sqlstate": "57014"
+        },
+        "witness": {
+          "observed_at": 1793774751.192751,
+          "fills": 1
+        },
+        "stale": [
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.544304847717285,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.544304847717285,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.544304847717285,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.544304847717285,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.544304847717285,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.544304847717285,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.650465965270996,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.803444623947144,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.893662214279175,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 20.99837374687195,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 21.358000993728638,
+            "retry_after_seconds": 5,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 21.90761661529541,
+            "retry_after_seconds": 4,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 22.456932544708252,
+            "retry_after_seconds": 4,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 23.009422779083252,
+            "retry_after_seconds": 3,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 23.55689811706543,
+            "retry_after_seconds": 2,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 24.11231565475464,
+            "retry_after_seconds": 2,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 24.658522706624353,
+            "retry_after_seconds": 1,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          },
+          {
+            "freshness": "stale",
+            "observation_age_seconds": 25.207951040632906,
+            "retry_after_seconds": 1,
+            "server_time": "2026-11-04T06:45:34.438065Z"
+          }
+        ],
+        "market_updates_per_second": 99.97754561026645,
+        "fills_per_second": 1.0,
+        "unexpected_errors": 18,
+        "errors": [
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774754.992195,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774754.993821,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774754.9945233,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774754.9950035,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774754.9957576,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774754.996184,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774755.0891254,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774755.242487,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774755.332362,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774755.4371045,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774755.7970412,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774756.3465743,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774756.896519,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774757.4482744,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774757.9960043,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774758.5512836,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774759.0969443,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          },
+          {
+            "path": "/statistics/daily",
+            "status": 200,
+            "at": 1793774759.6465251,
+            "reason": "daily_statistics_degraded",
+            "server_request_id": null
+          }
+        ]
+      },
+      "unexpected_error_logs_during_fault": [],
+      "retry_events": [
+        {
+          "timestamp": "2026-11-04T06:45:52.561Z",
+          "event": "admin_daily_retry",
+          "severity": "WARNING"
+        }
+      ],
+      "fault": {
+        "started_at": 1793774750.555819,
+        "finished_at": 1793774752.5597136,
+        "sqlstate": "57014"
+      },
+      "stale_read_count": 18,
+      "stale_metadata_bounded": true,
+      "stale_original_server_time_preserved": true,
+      "transient_timeout_recovered_fresh": false,
+      "exchange_fills_during_timeout": 2,
+      "durable_fill_witness": {
+        "observed_at": 1793774751.192751,
+        "fills": 1
+      },
+      "ledger": {
+        "unique_exchange_fills": 120,
+        "unique_recorder_fills": 120,
+        "positions_matched": true,
+        "identified_funding_bills": 0,
+        "daily_snapshots": 3
+      },
+      "engine_pid_unchanged": true,
+      "ownership_and_session_unchanged": true,
+      "no_halt": true,
+      "later_daily_fresh": true,
+      "clean_stop": true,
+      "observed_market_updates_per_second": 99.97754561026645,
+      "observed_fills_per_second": 1.0,
+      "limitation": "Synthetic CPU-heavy SQL does not establish isolation for all queries or Cloud Run workloads.",
+      "artifact": {
+        "path": "build/mm-reporting-isolation/20261104-134454-f30795/result.json",
+        "sha256": "b3f45dc189d27650d1e161698ef8f4c9bc665b0c75255a431a0b76e3e72d4ff5"
+      }
+    }
+  },
+  "short_probe": {
+    "artifact": {
+      "path": "build/mm-load/20261104-133014-cdb5fc/result.json",
+      "sha256": "7591921bb169b32e88efff584bb78afb5cbf57e6ed471013325d514a25f9a8c5"
+    },
+    "image_id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+    "passed": true,
+    "diagnostic": true,
+    "release_scope_complete": false,
+    "tracing": false,
+    "resource_limits": {
+      "bot_limits": {
+        "cpus": 2,
+        "memory_bytes": 2147483648
+      },
+      "postgres_limits": {
+        "cpus": 2,
+        "memory_bytes": 536870912
+      },
+      "history_orders": 100000,
+      "history_fills": 100000,
+      "daily_cache_ttl_seconds": 15,
+      "emulation": true
+    },
+    "fixture_sha256": {
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+      "exchange.py": "b0eb90488041e3fa85c7d30ae5b023494d940faa065aaef9553c462752d8c33b",
+      "load_mm_activity.py": "a37e4a1a784bc8426e8ca55aa75469e31544ae4208b3e4b38d6a7a405163247a",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "8242c9cff00a0d9f1371297c1d11f886344a16ddf1f0f9d667b9db0768990d7f",
+      "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+      "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+      "load_trace.py": "58f260ba2d0a9df934e06891cb73070ee9ef228ebe3ce58e83e08433db931938",
+      "load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+      "load_client.py": "77bf2b07b8199c5545bf8cf19001c3e6828f874ca28429d6933d1bff24d4ff84"
+    },
+    "duration_seconds": 300,
+    "window_start_utc": 1793773866.270528,
+    "requested_reads": 6000,
+    "completed_reads": 6000,
+    "statuses": {
+      "200": 6000
+    },
+    "read_p50_ms": 10.13522400171496,
+    "read_p95_ms": 55.772844003513455,
+    "read_p99_ms": 313.91721800900996,
+    "auxiliary": {
+      "requested_reads": 600,
+      "completed_reads": 600,
+      "statuses": {
+        "200": 600
+      },
+      "read_p95_ms": 35.808151005767286,
+      "read_p99_ms": 69.25563400727697
+    },
+    "unexpected_errors": 0,
+    "errors": [],
+    "violations": [],
+    "ledger": {
+      "unique_exchange_fills": 300,
+      "unique_recorder_fills": 300,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "peak_rss_bytes": 711847936,
+    "command_seconds": {
+      "start": 6.550135082798079,
+      "switch": 6.45322912489064,
+      "stop": 2.2023400000762194
+    },
+    "per_route": {
+      "/status": {
+        "count": 546,
+        "p50": 10.412588002509438,
+        "p95": 17.323222011327744,
+        "p99": 31.752723996760324
+      },
+      "/sessions/{session_id}/events?limit=100": {
+        "count": 300,
+        "p50": 16.668024007230997,
+        "p95": 37.26862699841149,
+        "p99": 93.772464999347
+      },
+      "/orders?limit=1": {
+        "count": 546,
+        "p50": 11.895297007868066,
+        "p95": 21.358176003559493,
+        "p99": 49.521244000061415
+      },
+      "/orders?limit=100": {
+        "count": 546,
+        "p50": 21.82197500951588,
+        "p95": 36.42685399972834,
+        "p99": 73.83145800849888
+      },
+      "/orders?limit=500": {
+        "count": 546,
+        "p50": 52.16986300365534,
+        "p95": 145.95387400186155,
+        "p99": 448.0030440026894
+      },
+      "/fills?limit=100": {
+        "count": 546,
+        "p50": 10.527585007366724,
+        "p95": 32.758308996562846,
+        "p99": 81.26778800215106
+      },
+      "/fills?limit=500": {
+        "count": 545,
+        "p50": 26.8831430003047,
+        "p95": 130.452443001559,
+        "p99": 367.86200299684424
+      },
+      "/balances": {
+        "count": 545,
+        "p50": 6.763885001419112,
+        "p95": 11.701759009156376,
+        "p99": 61.74988599377684
+      },
+      "/positions": {
+        "count": 545,
+        "p50": 6.98679500783328,
+        "p95": 12.542172000394203,
+        "p99": 65.25438900280278
+      },
+      "/performance": {
+        "count": 545,
+        "p50": 7.556242009741254,
+        "p95": 12.61345601233188,
+        "p99": 36.23172000516206
+      },
+      "/reconciliation": {
+        "count": 545,
+        "p50": 8.295785009977408,
+        "p95": 14.814271009527147,
+        "p99": 36.09204500389751
+      },
+      "/statistics/liquidity": {
+        "count": 300,
+        "p50": 13.53789800486993,
+        "p95": 31.596966000506654,
+        "p99": 67.33477499801666
+      },
+      "/statistics/daily": {
+        "count": 545,
+        "p50": 4.4816949957748875,
+        "p95": 70.28447401535232,
+        "p99": 644.5403950056061
+      }
+    },
+    "schedule_lag_p95_ms": 5.824408013722859
+  },
+  "hour_soak": {
+    "artifact": {
+      "path": "build/mm-load/20261104-134831-d0dea6/result.json",
+      "sha256": "a3b702308ef1d840ce3f21bab6f0c831fcf5caef73384468d36f0b15bfc45e5d"
+    },
+    "image_id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+    "passed": true,
+    "diagnostic": false,
+    "release_scope_complete": false,
+    "tracing": false,
+    "resource_limits": {
+      "bot_limits": {
+        "cpus": 2,
+        "memory_bytes": 2147483648
+      },
+      "postgres_limits": {
+        "cpus": 2,
+        "memory_bytes": 536870912
+      },
+      "history_orders": 100000,
+      "history_fills": 100000,
+      "daily_cache_ttl_seconds": 15,
+      "emulation": true
+    },
+    "fixture_sha256": {
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+      "exchange.py": "b0eb90488041e3fa85c7d30ae5b023494d940faa065aaef9553c462752d8c33b",
+      "load_mm_activity.py": "a37e4a1a784bc8426e8ca55aa75469e31544ae4208b3e4b38d6a7a405163247a",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "8242c9cff00a0d9f1371297c1d11f886344a16ddf1f0f9d667b9db0768990d7f",
+      "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+      "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+      "load_trace.py": "58f260ba2d0a9df934e06891cb73070ee9ef228ebe3ce58e83e08433db931938",
+      "load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+      "load_client.py": "77bf2b07b8199c5545bf8cf19001c3e6828f874ca28429d6933d1bff24d4ff84"
+    },
+    "duration_seconds": 3600,
+    "window_start_utc": 1793774973.0089927,
+    "requested_reads": 72000,
+    "completed_reads": 72000,
+    "statuses": {
+      "200": 72000
+    },
+    "read_p50_ms": 11.076390001107939,
+    "read_p95_ms": 59.3222349853022,
+    "read_p99_ms": 246.2409879954066,
+    "auxiliary": {
+      "requested_reads": 7200,
+      "completed_reads": 7200,
+      "statuses": {
+        "200": 7200
+      },
+      "read_p95_ms": 36.708371990243904,
+      "read_p99_ms": 88.55122899694834
+    },
+    "unexpected_errors": 0,
+    "errors": [],
+    "violations": [],
+    "ledger": {
+      "unique_exchange_fills": 3595,
+      "unique_recorder_fills": 3595,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "memory_retention": {
+      "basis": "cgroup_current_minus_file_plus_shmem",
+      "early_median_bytes": 701476864,
+      "late_median_bytes": 728698880,
+      "growth_bytes": 27222016,
+      "budget_bytes": 67108864,
+      "raw_cgroup_growth_bytes": 27222016
+    },
+    "peak_rss_bytes": 731578368,
+    "command_seconds": {
+      "start": 10.122104458045214,
+      "switch": 5.825387292075902,
+      "stop": 1.2268020829651505
+    },
+    "per_route": {
+      "/status": {
+        "count": 6546,
+        "p50": 10.837612993782386,
+        "p95": 20.531094996840693,
+        "p99": 44.9558599939337
+      },
+      "/sessions/{session_id}/events?limit=100": {
+        "count": 3600,
+        "p50": 20.170914998743683,
+        "p95": 39.00903899921104,
+        "p99": 95.84957899642177
+      },
+      "/orders?limit=1": {
+        "count": 6546,
+        "p50": 12.055158003931865,
+        "p95": 22.66904899443034,
+        "p99": 62.176532999728806
+      },
+      "/orders?limit=100": {
+        "count": 6546,
+        "p50": 23.067695001373067,
+        "p95": 36.61579798790626,
+        "p99": 76.93966999067925
+      },
+      "/orders?limit=500": {
+        "count": 6546,
+        "p50": 57.16600999585353,
+        "p95": 111.01295499247499,
+        "p99": 385.5254590016557
+      },
+      "/fills?limit=100": {
+        "count": 6546,
+        "p50": 12.440812002751045,
+        "p95": 24.198808998335153,
+        "p99": 72.04752799589187
+      },
+      "/fills?limit=500": {
+        "count": 6545,
+        "p50": 26.40884299762547,
+        "p95": 71.61285298934672,
+        "p99": 306.7969109833939
+      },
+      "/balances": {
+        "count": 6545,
+        "p50": 6.664705986622721,
+        "p95": 14.302508992841467,
+        "p99": 56.212553987279534
+      },
+      "/positions": {
+        "count": 6545,
+        "p50": 6.799466995289549,
+        "p95": 15.431646999786608,
+        "p99": 41.019771990249865
+      },
+      "/performance": {
+        "count": 6545,
+        "p50": 7.523146996391006,
+        "p95": 16.126660993904807,
+        "p99": 38.891492993570864
+      },
+      "/reconciliation": {
+        "count": 6545,
+        "p50": 8.632958008092828,
+        "p95": 18.75399200071115,
+        "p99": 45.647405000636354
+      },
+      "/statistics/liquidity": {
+        "count": 3600,
+        "p50": 14.188508997904137,
+        "p95": 32.33085099782329,
+        "p99": 79.25845799036324
+      },
+      "/statistics/daily": {
+        "count": 6545,
+        "p50": 4.504887998336926,
+        "p95": 28.690042003290728,
+        "p99": 580.582634996972
+      }
+    },
+    "profile_running_coverage": [
+      {
+        "profile": "follow_token",
+        "step": 0,
+        "running_overlap_seconds": 599.2507343292236
+      },
+      {
+        "profile": "follow_market",
+        "step": 1,
+        "running_overlap_seconds": 595.8889470100403
+      },
+      {
+        "profile": "follow_token",
+        "step": 2,
+        "running_overlap_seconds": 596.1842908859253
+      },
+      {
+        "profile": "follow_token",
+        "step": 3,
+        "running_overlap_seconds": 595.7163569927216
+      },
+      {
+        "profile": "follow_market",
+        "step": 4,
+        "running_overlap_seconds": 594.0677709579468
+      },
+      {
+        "profile": "sideways",
+        "step": 5,
+        "running_overlap_seconds": 595.9801959991455
+      }
+    ],
+    "rate_scope": "observed; random-step admission gaps are intentional; fixed mixed window enforces rates",
+    "schedule_lag_p95_ms": 9.629530992242508
+  },
+  "stopped_upgrade": {
+    "stage": "complete",
+    "status": "passed",
+    "image_id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+    "short_probe_qualified": true,
+    "short_probe_violations": [],
+    "previous_container": "hummingbot-local-demo-before-controller-persistence-20261104064759",
+    "backup_sha256": "8c4b008cf2e1964b719b95f0566829f82c3ab97f62e147857de68813e009d57c",
+    "stopped_restart": true,
+    "ledger_unchanged": true,
+    "no_halt": true,
+    "positions_matched": true
+  },
+  "post_soak_ledger_clone": {
+    "passed": true,
+    "source": "private pre-soak backup restored into disposable network-isolated PostgreSQL clone",
+    "hashes_match": {
+      "orders": true,
+      "trade_fills": true,
+      "positions": true,
+      "executors": true
+    },
+    "current_hashes": {
+      "orders": "331c3a9fe9978af37faee7f15b656234",
+      "trade_fills": "89b927c2868e7483c105b43c3bc6b751",
+      "positions": "94315e1d770e988c967b43722f74b560",
+      "executors": "bb9e902715eec79b03bc3d98fa6a4494"
+    }
+  },
+  "preceding_short_probe": {
+    "artifact": {
+      "path": "build/mm-load/20261104-111021-c59dfe/result.json",
+      "sha256": "02321139d23715178de34b8745c7e3741ad78772e88615e64a295b8dcbdec01a"
+    },
+    "image_id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+    "passed": false,
+    "diagnostic": true,
+    "release_scope_complete": false,
+    "tracing": false,
+    "resource_limits": {
+      "bot_limits": {
+        "cpus": 2,
+        "memory_bytes": 2147483648
+      },
+      "postgres_limits": {
+        "cpus": 2,
+        "memory_bytes": 536870912
+      },
+      "history_orders": 100000,
+      "history_fills": 100000,
+      "daily_cache_ttl_seconds": 15,
+      "emulation": true
+    },
+    "fixture_sha256": {
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+      "exchange.py": "b0eb90488041e3fa85c7d30ae5b023494d940faa065aaef9553c462752d8c33b",
+      "load_mm_activity.py": "a37e4a1a784bc8426e8ca55aa75469e31544ae4208b3e4b38d6a7a405163247a",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "8242c9cff00a0d9f1371297c1d11f886344a16ddf1f0f9d667b9db0768990d7f",
+      "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+      "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+      "load_trace.py": "0ce2cd42390ec0340c12f46273d8e158b110b0ac6bf4a5be1c7a27d2007400d7",
+      "load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+      "load_client.py": "77bf2b07b8199c5545bf8cf19001c3e6828f874ca28429d6933d1bff24d4ff84"
+    },
+    "duration_seconds": 300,
+    "window_start_utc": 1793765512.8975275,
+    "requested_reads": 6000,
+    "completed_reads": 6000,
+    "statuses": {
+      "200": 6000
+    },
+    "read_p50_ms": 12.67983800789807,
+    "read_p95_ms": 469.64908299560193,
+    "read_p99_ms": 1094.269640991115,
+    "auxiliary": {
+      "requested_reads": 600,
+      "completed_reads": 600,
+      "statuses": {
+        "200": 600
+      },
+      "read_p95_ms": 442.96919000044,
+      "read_p99_ms": 1112.1107250073692
+    },
+    "unexpected_errors": 0,
+    "errors": [],
+    "violations": [
+      "auxiliary_read_p99",
+      "read_p99"
+    ],
+    "ledger": {
+      "unique_exchange_fills": 300,
+      "unique_recorder_fills": 300,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "peak_rss_bytes": 708935680,
+    "command_seconds": {
+      "start": 9.657512250123546,
+      "switch": 9.152757667005062,
+      "stop": 2.4947318339254707
+    },
+    "per_route": {
+      "/status": {
+        "count": 546,
+        "p50": 10.860975002287887,
+        "p95": 381.5213850029977,
+        "p99": 966.6646410041722
+      },
+      "/sessions/{session_id}/events?limit=100": {
+        "count": 300,
+        "p50": 16.425840003648773,
+        "p95": 460.1640869950643,
+        "p99": 1112.1107250073692
+      },
+      "/orders?limit=1": {
+        "count": 546,
+        "p50": 12.356453997199424,
+        "p95": 446.56794900947716,
+        "p99": 950.6688069959637
+      },
+      "/orders?limit=100": {
+        "count": 546,
+        "p50": 22.999488006462343,
+        "p95": 470.89533500547986,
+        "p99": 998.7566460040398
+      },
+      "/orders?limit=500": {
+        "count": 546,
+        "p50": 59.02679200517014,
+        "p95": 511.26511600159574,
+        "p99": 1250.1438080071239
+      },
+      "/fills?limit=100": {
+        "count": 546,
+        "p50": 15.86207200307399,
+        "p95": 404.65593300177716,
+        "p99": 1082.8951409930596
+      },
+      "/fills?limit=500": {
+        "count": 545,
+        "p50": 32.49329701066017,
+        "p95": 466.4392900012899,
+        "p99": 1165.0496820075205
+      },
+      "/balances": {
+        "count": 545,
+        "p50": 8.959544007666409,
+        "p95": 418.7220809981227,
+        "p99": 1105.57876600069
+      },
+      "/positions": {
+        "count": 545,
+        "p50": 9.24095799564384,
+        "p95": 442.3323560040444,
+        "p99": 1098.3523780014366
+      },
+      "/performance": {
+        "count": 545,
+        "p50": 9.287056003813632,
+        "p95": 400.89723200071603,
+        "p99": 1068.7375029956456
+      },
+      "/reconciliation": {
+        "count": 545,
+        "p50": 8.812280007987283,
+        "p95": 323.60044300730806,
+        "p99": 1010.2950160071487
+      },
+      "/statistics/liquidity": {
+        "count": 300,
+        "p50": 13.54553499550093,
+        "p95": 419.59070099983364,
+        "p99": 847.6029620069312
+      },
+      "/statistics/daily": {
+        "count": 545,
+        "p50": 5.3536320046987385,
+        "p95": 596.8764240096789,
+        "p99": 1184.1566620132653
+      }
+    },
+    "schedule_lag_p95_ms": 77.3896830069134
+  },
+  "preceding_hour_soak": {
+    "artifact": {
+      "path": "build/mm-load/20261104-113304-a3d17d/result.json",
+      "sha256": "0fa344eaa561f9d037f2dab761ababa906ad8f8ba6f1723b9926d2ba1c515315"
+    },
+    "image_id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+    "passed": true,
+    "diagnostic": false,
+    "release_scope_complete": false,
+    "tracing": false,
+    "resource_limits": {
+      "bot_limits": {
+        "cpus": 2,
+        "memory_bytes": 2147483648
+      },
+      "postgres_limits": {
+        "cpus": 2,
+        "memory_bytes": 536870912
+      },
+      "history_orders": 100000,
+      "history_fills": 100000,
+      "daily_cache_ttl_seconds": 15,
+      "emulation": true
+    },
+    "fixture_sha256": {
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+      "exchange.py": "b0eb90488041e3fa85c7d30ae5b023494d940faa065aaef9553c462752d8c33b",
+      "load_mm_activity.py": "a37e4a1a784bc8426e8ca55aa75469e31544ae4208b3e4b38d6a7a405163247a",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "8242c9cff00a0d9f1371297c1d11f886344a16ddf1f0f9d667b9db0768990d7f",
+      "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+      "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+      "load_trace.py": "0ce2cd42390ec0340c12f46273d8e158b110b0ac6bf4a5be1c7a27d2007400d7",
+      "load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+      "load_client.py": "77bf2b07b8199c5545bf8cf19001c3e6828f874ca28429d6933d1bff24d4ff84"
+    },
+    "duration_seconds": 3600,
+    "window_start_utc": 1793766853.553133,
+    "requested_reads": 72000,
+    "completed_reads": 72000,
+    "statuses": {
+      "200": 72000
+    },
+    "read_p50_ms": 11.712389998137951,
+    "read_p95_ms": 90.31950200733263,
+    "read_p99_ms": 615.6454570009373,
+    "auxiliary": {
+      "requested_reads": 7200,
+      "completed_reads": 7200,
+      "statuses": {
+        "200": 7200
+      },
+      "read_p95_ms": 86.37541100324597,
+      "read_p99_ms": 565.4177840042394
+    },
+    "unexpected_errors": 0,
+    "errors": [],
+    "violations": [],
+    "ledger": {
+      "unique_exchange_fills": 3594,
+      "unique_recorder_fills": 3594,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "memory_retention": {
+      "basis": "cgroup_current_minus_file_plus_shmem",
+      "early_median_bytes": 702504960,
+      "late_median_bytes": 731529216,
+      "growth_bytes": 29024256,
+      "budget_bytes": 67108864,
+      "raw_cgroup_growth_bytes": 29024256
+    },
+    "peak_rss_bytes": 735002624,
+    "command_seconds": {
+      "start": 5.830980667145923,
+      "switch": 6.521836124826223,
+      "stop": 1.2682879578787833
+    },
+    "per_route": {
+      "/status": {
+        "count": 6546,
+        "p50": 10.147135006263852,
+        "p95": 45.773365010973066,
+        "p99": 471.044994003023
+      },
+      "/sessions/{session_id}/events?limit=100": {
+        "count": 3600,
+        "p50": 18.038331007119268,
+        "p95": 88.02812600333709,
+        "p99": 589.7983720060438
+      },
+      "/orders?limit=1": {
+        "count": 6546,
+        "p50": 11.634844006039202,
+        "p95": 43.31247799564153,
+        "p99": 458.9516420091968
+      },
+      "/orders?limit=100": {
+        "count": 6546,
+        "p50": 22.108928009402007,
+        "p95": 75.96041001670528,
+        "p99": 535.1607339980546
+      },
+      "/orders?limit=500": {
+        "count": 6546,
+        "p50": 60.8942830003798,
+        "p95": 167.00201001367532,
+        "p99": 746.0439610003959
+      },
+      "/fills?limit=100": {
+        "count": 6546,
+        "p50": 17.00871800130699,
+        "p95": 86.5570470050443,
+        "p99": 594.40215700306
+      },
+      "/fills?limit=500": {
+        "count": 6545,
+        "p50": 30.788850010139868,
+        "p95": 108.80870700930245,
+        "p99": 645.2311100147199
+      },
+      "/balances": {
+        "count": 6545,
+        "p50": 7.757190003758296,
+        "p95": 85.10269000544213,
+        "p99": 622.4843359959777
+      },
+      "/positions": {
+        "count": 6545,
+        "p50": 8.139055003994144,
+        "p95": 70.06175800052006,
+        "p99": 593.5309670021525
+      },
+      "/performance": {
+        "count": 6545,
+        "p50": 8.265001015388407,
+        "p95": 56.055635010125116,
+        "p99": 545.9015090018511
+      },
+      "/reconciliation": {
+        "count": 6545,
+        "p50": 8.072645010543056,
+        "p95": 32.84736200293992,
+        "p99": 482.40410501603037
+      },
+      "/statistics/liquidity": {
+        "count": 3600,
+        "p50": 12.318567009060644,
+        "p95": 79.18313900881913,
+        "p99": 561.3730089971796
+      },
+      "/statistics/daily": {
+        "count": 6545,
+        "p50": 4.915931000141427,
+        "p95": 253.20581800770015,
+        "p99": 731.6327870066743
+      }
+    },
+    "profile_running_coverage": [
+      {
+        "profile": "follow_token",
+        "step": 0,
+        "running_overlap_seconds": 598.5938799381256
+      },
+      {
+        "profile": "sideways",
+        "step": 1,
+        "running_overlap_seconds": 595.8699388504028
+      },
+      {
+        "profile": "follow_market",
+        "step": 2,
+        "running_overlap_seconds": 592.6907119750977
+      },
+      {
+        "profile": "follow_token",
+        "step": 3,
+        "running_overlap_seconds": 596.7213559150696
+      },
+      {
+        "profile": "follow_token",
+        "step": 4,
+        "running_overlap_seconds": 595.9613468647003
+      },
+      {
+        "profile": "follow_market",
+        "step": 5,
+        "running_overlap_seconds": 593.9595060348511
+      }
+    ],
+    "rate_scope": "observed; random-step admission gaps are intentional; fixed mixed window enforces rates",
+    "schedule_lag_p95_ms": 8.649497001897544
+  },
+  "hour_observations": {
+    "runtime_sample_count": 58,
+    "max_sample_gap_seconds": 65.49991369247437,
+    "event_counts": {
+      "mm_volatility_defense_changed": 40,
+      "child_probe_failed:engine": 10,
+      "child_probe_recovered:engine": 10,
+      "order_submission_blocked": 2
+    },
+    "error_critical_logs": [],
+    "max_logged_recovered_observation_seconds": {
+      "engine": 1.251,
+      "api": 0
+    },
+    "pids": {
+      "supervisor": [
+        1
+      ],
+      "engine": [
+        218
+      ],
+      "api": [
+        33
+      ]
+    },
+    "api_and_engine_role_rss_growth_bytes": {
+      "supervisor": 0,
+      "engine": 16941056,
+      "api": 9506816
+    },
+    "continuously_working_quotes_proven": false
+  },
+  "final_restoration": {
+    "running": false,
+    "desired_state": "stopped",
+    "owner_available": true,
+    "recovery": {
+      "halted": false,
+      "pending_mutations": false,
+      "next_action": "none",
+      "detail": "No recovery block is recorded.",
+      "reset_available": false
+    },
+    "unresolved_orders": [],
+    "counts": {
+      "orders": 3513,
+      "trade_fills": 23,
+      "positions": 3,
+      "executors": 2848
+    },
+    "image_id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+    "preflight": {
+      "passed": true,
+      "image_id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+      "private_config_unchanged": true,
+      "order_mutations": 0,
+      "account_mutations": 0,
+      "db_mutations": 0
+    }
+  },
+  "final_runtime_hashes": {
+    "passed": true,
+    "image_id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+    "verified_file_count": 10,
+    "source_sha256": {
+      "hummingbot/cli/admin_api.py": "5a2510e00dc505f5c5082c55145425b5d53c5fa44cf580208a4a4847b4c1c9ef",
+      "hummingbot/cli/admin_database.py": "5e20a8d84812e4899fe0691e4e89565093f64f2ce2b307c7b31ba504dbaf0e06",
+      "hummingbot/cli/admin_daily_cache.py": "d47f76a71e56e7727817f39cbdc73b0e872117271086242918b1aca2a811372e",
+      "hummingbot/model/admin_reporting.py": "ccfddf212543c022ac2733a732de2477c4acfe6a69d1d212964d6e0a936e4238",
+      "controllers/market_making/life_mm.py": "e8ab7213b0a998c2ff8b0cdbc61463d662b9e58f2476aac79a33fa5ac70ff4b7",
+      "hummingbot/cli/service.py": "2e4a33e1beabb06ed332ab5dc04bf266283593600ec4f87ab090e99215dd1959",
+      "hummingbot/connector/markets_recorder.py": "e175b2dc73ccd37070ae39d0cb95fd282aad896c96914285c404d94e33e652ae",
+      "hummingbot/core/mm_liquidity.py": "c00dc0860d597978ae62271ecea8029b43aa6050ac8d066e9ecee9ee5c1e69d6",
+      "hummingbot/core/mm_quote_activity.py": "56fc4285dc5432c0412c855ec53998ad87d7d778c59b84091865ac0b66a7e397",
+      "docs/api/openapi.json": "9fb8e53b91f1ee7a35ddc3cd082e7ef675b2da2b0223a1844c208d6202b2efdd"
+    }
+  },
+  "limitations": [
+    "This source/image follow-up is not a new full R1/R2, Cloud Run or production acceptance.",
+    "No active connected-Demo trading or new natural fills are performed on this image.",
+    "The preceding failed f4 short probe is retained as failed; new results never reclassify it.",
+    "Before/after windows run sequentially on a changing host; latency differences are not an exclusive causal benchmark.",
+    "Reserved worker/admission capacity does not guarantee latency under shared CPU, database, transport or operations-lane delays.",
+    "Matching the load ledger and recovered probes do not prove continuously working quotes or absence of every long-term memory leak.",
+    "Preparation contains one actual owner-state FOR UPDATE timeout and automatic engine restart before the timed hour. Its blocker/trigger is unproven; passing the hour does not reclassify startup as clean."
+  ],
+  "pre_window_observation": {
+    "measured_window_start_utc_epoch": 1793774973.0089927,
+    "timed_out_at_utc": "2026-11-04T06:48:59.915Z",
+    "statement": "owner-fenced SELECT bot_state.status, bot_state.mm_session ... FOR UPDATE",
+    "server_error": "canceling statement due to statement timeout",
+    "statement_timeout_ms": 2000,
+    "service_event": "critical_persistence_failure",
+    "engine_restart_at_utc": "2026-11-04T06:49:00.954Z",
+    "engine_bootstrap_complete_at_utc": "2026-11-04T06:49:06.543Z",
+    "outside_measured_window": true,
+    "automatic_recovery_observed": true,
+    "blocking_backend_or_wait_trace_retained": false,
+    "exclusive_cause_unproven": true,
+    "not_attributed_exclusively_to_fixture_lanes_or_okx": true,
+    "log_artifacts": {
+      "build/mm-load/20261104-134831-d0dea6/hbot-e2e-89c5c59927-pg.log": "06a77be97afea44c256007d1aea6d412fd23675f796e7fb500214506f4ebd049",
+      "build/mm-load/20261104-134831-d0dea6/hbot-e2e-89c5c59927-load-bot.log": "4d23bce766896963cba0485ae47c9ac61b5d773581f28ca718592aec8fab9b4d"
     }
   }
 }

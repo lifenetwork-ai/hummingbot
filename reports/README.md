@@ -4,11 +4,13 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
-- **Admin worker-lane source follow-up in progress:** one operations and one
-  heavy slot reuse the existing two workers. Heavy admission is capped at10;
-  default-sized pages remain operational. Native Red/Green covers routing,
-  reserved admission, controls, cancellation and progress. Broad checks and a
-  rebuilt image/load qualification are pending. [Report](performance/mm-admin-worker-lanes.md).
+- **Admin worker lanes verified on086454de:** native2,494 +11 subtests, PG355,
+  Swagger, three E2E groups, four report-fault cases,300s probe and unchanged
+  hour pass. Hour p99 246.24/88.55ms,79,200 HTTP200/no stale,3,595 exact synthetic
+  fills and25.96MiB retained growth. Stopped Demo/hash/config restoration passes.
+  One owner-state timeout/restart occurs before the measured window; its exclusive
+  cause remains unproven. No new full R1/R2/production acceptance.
+  [Report/evidence](performance/mm-admin-worker-lanes.md).
 
 - **Timeout retry image follow-up:** imagef4d90bc7 matches source d2cdf2a36;
   native2,464 +11 subtests, PG354, three E2E groups and four controlled report
