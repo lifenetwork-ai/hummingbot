@@ -4,6 +4,18 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Partial-fill quote-size bug fixed:** source `905bff7e3`, candidate354fec1e.
+  Two Red BUY/SELL cases;528 native plus two subtests (38 new cases), LIFE lifecycle
+  and volatility-defense E2E pass. Quote validity reuses acknowledged in-flight
+  remainder; full allocation/exposure reservation and guards are unchanged.
+  Matched-settings600s diagnostic passes13,200 HTTP200/no errors or stale and600
+  exact synthetic fills. Observed spread-invalid executor references120→35,
+  successful submit/cancel calls219→141 each; spot two-sided samples494/597→574/597.
+  Controller jitter/probe and quote gaps remain; timing maxima do not all improve.
+  Actual Demo stays stopped on086454de with23 fills/four hashes intact. New
+  candidate full/hour release gates are not inherited.
+  [Report](performance/mm-partial-quote-size.md), [evidence](performance/mm-partial-quote-size-evidence.json).
+
 - **Current-image MM/probe diagnostic:** unchanged `086454de`, bounded600s
   fixed follow_market/both with existing activity/incident/venue instruments;
   13,200 HTTP 200/no errors or stale, p99 347.99/118.91ms and 600 exact synthetic

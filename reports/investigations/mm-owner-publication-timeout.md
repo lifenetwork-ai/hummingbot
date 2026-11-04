@@ -360,3 +360,13 @@ quotes remain observed. Whole-window controller jitter, replacement/guard gaps
 and repeated spot SELL invalidation remain visible. This adds direct evidence
 for that captured case, not per-tick reconstruction of the eight prior Random
 incidents or closure of historical unique cause. No shipping code/settings change.
+
+
+## Later confirmed quote-size defect
+
+A subsequent deterministic native replay identifies original-size versus
+acknowledged-remainder validation as one avoidable quote-cancellation mechanism.
+[Source905bff7e3 and candidate354fec1e](../performance/mm-partial-quote-size.md)
+pass safety/lifecycle checks and a matched-settings short comparison. This is
+separate from the earlier WAL/publication mechanism; it does not establish the
+unique cause of historical probe/controller outliers or transfer old release gates.

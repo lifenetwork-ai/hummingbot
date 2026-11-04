@@ -1,0 +1,1217 @@
+{
+  "date": "2026-11-04T16:16:48.365281+00:00",
+  "runtime_source_commit": "905bff7e3e7ac7903c084dae20391a4ebcef1c51",
+  "fix": "Compare acknowledged resting entry remainder for quote validity; preserve full original allocation/exposure reservation.",
+  "source_checks": {
+    "initial_red_failures": 2,
+    "initial_red_other_passes": 20,
+    "new_tests_final": 38,
+    "native_regression_passed": 528,
+    "native_subtests_passed": 2,
+    "post_measurement_checks": true
+  },
+  "candidate_image": {
+    "source_commit": "905bff7e3e7ac7903c084dae20391a4ebcef1c51",
+    "parent_image": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+    "parent_tag": "hummingbot-cloudrun:admin-lanes-0f4095671",
+    "candidate_tag": "hummingbot-cloudrun:quote-remaining-905bff7e3",
+    "runtime_sha256": "0169f19fe6066ff37fbe1cca05db991051ec0cd0415250a024ab9f33b3ad7ee1",
+    "build_mode": "Reviewed one-Python-file derived candidate; canonical Dockerfile not rebuilt",
+    "image_id": "sha256:354fec1e500524a8e38e512da636ccfdde0dfdf2a1a905ea78862fb29ad6d34c",
+    "image_size_bytes": 1369011279,
+    "application_file_count": 1316,
+    "changed_application_files": [
+      "controllers/market_making/life_mm.py"
+    ],
+    "parent_layers_preserved": true,
+    "manifest_sha256": "fcc8d5cc8eab8c2b202b70ec6a539cdd47ab77d393c6a13cfa8e9114041a365c"
+  },
+  "targeted_e2e": {
+    "life-mm": {
+      "image_id": "sha256:354fec1e500524a8e38e512da636ccfdde0dfdf2a1a905ea78862fb29ad6d34c",
+      "registry_manifest_digest": "sha256:bf681e5ccb3008902083481cdc7c99c88b795ad5d69116fdbf2a9c5db32001ba",
+      "passed": true,
+      "release_scope_complete": false,
+      "scenarios": {
+        "life-mm": {
+          "passed": true,
+          "metrics": {
+            "mm-first_startup_s": 18.166,
+            "first_shutdown_s": 1.63,
+            "mm-restart_startup_s": 18.965,
+            "terminal_create_ack_hold_ms": 679.842041015625,
+            "terminal_ack_release_observed_ms": 1059.133056640625,
+            "terminal_cancel_ack_batch": [
+              {
+                "clOrdId": "93027a12dac34fBCBLEUTa5c22981140",
+                "ordId": "83",
+                "instId": "LIFE-USDT"
+              },
+              {
+                "clOrdId": "93027a12dac34fBCBLEUTe6e0e6cbffa",
+                "ordId": "84",
+                "instId": "LIFE-USDT"
+              },
+              {
+                "clOrdId": "93027a12dac34fBCSLEUTa1e9bc01c2a",
+                "ordId": "85",
+                "instId": "LIFE-USDT"
+              },
+              {
+                "clOrdId": "93027a12dac34fBCSLEUT8d29d2f5751",
+                "ordId": "86",
+                "instId": "LIFE-USDT"
+              },
+              {
+                "clOrdId": "93027a12dac34fBCBLEUTa470b0d6bac",
+                "ordId": "87",
+                "instId": "LIFE-USDT-SWAP"
+              },
+              {
+                "clOrdId": "93027a12dac34fBCBLEUTabd0a7fe874",
+                "ordId": "88",
+                "instId": "LIFE-USDT-SWAP"
+              },
+              {
+                "clOrdId": "93027a12dac34fBCSLEUT27aa6980d98",
+                "ordId": "89",
+                "instId": "LIFE-USDT-SWAP"
+              },
+              {
+                "clOrdId": "93027a12dac34fBCSLEUT21fca66966c",
+                "ordId": "90",
+                "instId": "LIFE-USDT-SWAP"
+              }
+            ],
+            "admin_operations_contract": true,
+            "terminal_cancel_ack_before_create": true,
+            "hbot-e2e-ff2721164c-mm-restart_failed_engine_reaped": 31,
+            "restart_shutdown_s": 0.768,
+            "mm-db-restart_startup_s": 19.813,
+            "matrix": [
+              {
+                "mode": "spot",
+                "profile": "follow_market",
+                "count": 4
+              },
+              {
+                "mode": "spot",
+                "profile": "sideways",
+                "count": 4
+              },
+              {
+                "mode": "spot",
+                "profile": "follow_token",
+                "count": 4
+              },
+              {
+                "mode": "perpetual",
+                "profile": "follow_market",
+                "count": 4
+              },
+              {
+                "mode": "perpetual",
+                "profile": "sideways",
+                "count": 4
+              },
+              {
+                "mode": "perpetual",
+                "profile": "follow_token",
+                "count": 4
+              },
+              {
+                "mode": "both",
+                "profile": "follow_market",
+                "count": 8
+              },
+              {
+                "mode": "both",
+                "profile": "sideways",
+                "count": 8
+              },
+              {
+                "mode": "both",
+                "profile": "follow_token",
+                "count": 8
+              }
+            ],
+            "cli_mm_stop": true,
+            "legacy_replaces_mm": true,
+            "exact_quote_levels": true,
+            "restart_anchors": true,
+            "weighted_reference": true,
+            "stale_both": true,
+            "fills": 2,
+            "random_steps": true,
+            "expiry": true,
+            "expiry_funding": true,
+            "reconciliation": "matched",
+            "db_fault_halt": true
+          }
+        }
+      }
+    },
+    "volatility-defense": {
+      "image_id": "sha256:354fec1e500524a8e38e512da636ccfdde0dfdf2a1a905ea78862fb29ad6d34c",
+      "registry_manifest_digest": "sha256:bf681e5ccb3008902083481cdc7c99c88b795ad5d69116fdbf2a9c5db32001ba",
+      "passed": true,
+      "release_scope_complete": false,
+      "scenarios": {
+        "volatility-defense": {
+          "passed": true,
+          "metrics": {
+            "volatility-defense_startup_s": 19.204,
+            "volatility-defense-restart_startup_s": 18.651,
+            "volatility_defense": {
+              "baseline_quote": "199.99899132772911",
+              "reduced_quote": "99.99991478013780",
+              "three_levels": true,
+              "delayed_cancel_seconds": 2,
+              "partial_fills": 2,
+              "paused_random_deadline_preserved": true,
+              "pause_survives_restart_and_start": true,
+              "held_positions_preserved": true,
+              "recovery_seconds": 7.003224750049412,
+              "market_modes": [
+                "spot",
+                "perpetual",
+                "both"
+              ],
+              "effective_config_sha256": "ac019875d563ab261869e6d5e0d2876e65786406233bd43d53d60141ffaf599a"
+            }
+          }
+        }
+      }
+    }
+  },
+  "settings_matched": {
+    "bot_limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648
+    },
+    "postgres_limits": {
+      "cpus": 2,
+      "memory_bytes": 536870912
+    },
+    "simulator_limits": {
+      "cpus": 1,
+      "memory_bytes": 536870912
+    },
+    "client_limits": {
+      "cpus": 1,
+      "memory_bytes": 536870912
+    },
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "funding_sync_interval_seconds": 5,
+    "memory_retention_policy": {
+      "basis": "cgroup_current_minus_file_plus_shmem",
+      "growth_budget_bytes": 67108864,
+      "absolute_peak_budget_bytes": 1610612736
+    },
+    "enhancements": true,
+    "volatility_defense": true,
+    "operations_reads_per_second": 0,
+    "incident_diagnostics": true,
+    "gc_diagnostics": true,
+    "market_diagnostics": true,
+    "mm_activity_diagnostics": true,
+    "daily_cache_ttl_seconds": 15
+  },
+  "fixture_hashes_equal": true,
+  "measurement_source_hashes_equal": true,
+  "baseline": {
+    "directory": "build/mm-load/20261104-190227-81e4bb",
+    "image": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+    "duration_seconds": 600,
+    "read_p95_ms": 56.409691998851486,
+    "read_p99_ms": 347.9908129957039,
+    "auxiliary_p99_ms": 118.90826300077606,
+    "unexpected_errors": 0,
+    "measured_http_200": 13200,
+    "ledger": {
+      "unique_exchange_fills": 600,
+      "unique_recorder_fills": 600,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "quote_samples": 597,
+    "two_sided_samples": {
+      "spot": 494,
+      "perpetual": 574,
+      "both": 490
+    },
+    "stop_proposal_counts": {
+      "life_spot:executor_refresh": 7,
+      "life_perpetual:executor_refresh": 9,
+      "life_spot:readiness_or_inventory": 2,
+      "life_perpetual:readiness_or_inventory": 2,
+      "life_spot:spread_quote_invalid": 40
+    },
+    "stop_proposal_executor_counts": {
+      "life_spot:executor_refresh": 36,
+      "life_perpetual:executor_refresh": 54,
+      "life_spot:readiness_or_inventory": 9,
+      "life_perpetual:readiness_or_inventory": 12,
+      "life_spot:spread_quote_invalid": 120
+    },
+    "activity_sink": {
+      "written_records": 5534,
+      "written_bytes": 1824943,
+      "ordinary_written_bytes": 1824943,
+      "reserved_written_bytes": 0,
+      "dropped_records": 0,
+      "writer_cpu_ms": 226.27032700000066,
+      "dropped_by_kind": {},
+      "queue_depth": 0,
+      "max_bytes": 8388608,
+      "reserved_bytes": 0,
+      "reserved_kinds": [],
+      "writer_alive": true
+    },
+    "venue_observer": {
+      "samples": 598,
+      "errors": 0,
+      "clock_errors": 0,
+      "sink_errors": 0,
+      "max_sample_gap_ms": 1114.443875,
+      "nominal_sample_interval_ms": 1000,
+      "clock": "shared Linux-kernel monotonic clock",
+      "sink": {
+        "written_records": 598,
+        "written_bytes": 10980606,
+        "ordinary_written_bytes": 10980606,
+        "reserved_written_bytes": 0,
+        "dropped_records": 0,
+        "writer_cpu_ms": 231.22200399999997,
+        "dropped_by_kind": {},
+        "queue_depth": 0,
+        "max_bytes": 16777216,
+        "reserved_bytes": 0,
+        "reserved_kinds": [],
+        "writer_alive": false
+      }
+    },
+    "successful_submits": 219,
+    "successful_cancels": 219
+  },
+  "candidate": {
+    "directory": "build/mm-load/20261104-230000-16d899",
+    "image": "sha256:354fec1e500524a8e38e512da636ccfdde0dfdf2a1a905ea78862fb29ad6d34c",
+    "duration_seconds": 600,
+    "read_p95_ms": 54.29089401150122,
+    "read_p99_ms": 279.9681800242979,
+    "auxiliary_p99_ms": 92.68293500645086,
+    "unexpected_errors": 0,
+    "measured_http_200": 13200,
+    "ledger": {
+      "unique_exchange_fills": 600,
+      "unique_recorder_fills": 600,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "quote_samples": 597,
+    "two_sided_samples": {
+      "spot": 574,
+      "perpetual": 576,
+      "both": 566
+    },
+    "stop_proposal_counts": {
+      "life_spot:executor_refresh": 11,
+      "life_perpetual:executor_refresh": 9,
+      "life_spot:spread_quote_invalid": 19
+    },
+    "stop_proposal_executor_counts": {
+      "life_spot:executor_refresh": 52,
+      "life_perpetual:executor_refresh": 54,
+      "life_spot:spread_quote_invalid": 35
+    },
+    "activity_sink": {
+      "written_records": 4878,
+      "written_bytes": 1576220,
+      "ordinary_written_bytes": 1576220,
+      "reserved_written_bytes": 0,
+      "dropped_records": 0,
+      "writer_cpu_ms": 215.15655899999956,
+      "dropped_by_kind": {},
+      "queue_depth": 0,
+      "max_bytes": 8388608,
+      "reserved_bytes": 0,
+      "reserved_kinds": [],
+      "writer_alive": true
+    },
+    "venue_observer": {
+      "samples": 598,
+      "errors": 0,
+      "clock_errors": 0,
+      "sink_errors": 0,
+      "max_sample_gap_ms": 1047.043501,
+      "nominal_sample_interval_ms": 1000,
+      "clock": "shared Linux-kernel monotonic clock",
+      "sink": {
+        "written_records": 598,
+        "written_bytes": 7255549,
+        "ordinary_written_bytes": 7255549,
+        "reserved_written_bytes": 0,
+        "dropped_records": 0,
+        "writer_cpu_ms": 168.536414,
+        "dropped_by_kind": {},
+        "queue_depth": 0,
+        "max_bytes": 16777216,
+        "reserved_bytes": 0,
+        "reserved_kinds": [],
+        "writer_alive": false
+      }
+    },
+    "successful_submits": 141,
+    "successful_cancels": 141
+  },
+  "baseline_mm_timing": {
+    "controller.cycle": {
+      "start_gaps_ms": {
+        "count": 1182,
+        "p50": 1008.680709,
+        "p99": 1104.459918,
+        "max": 1570.781041
+      },
+      "completed_duration_ms": {
+        "count": 1184,
+        "p50": 5.705292,
+        "p99": 27.153958,
+        "max": 568.53225
+      },
+      "outcomes": {
+        "returned": 1184
+      }
+    },
+    "controller.stop_proposal": {
+      "start_gaps_ms": {
+        "count": 58,
+        "p50": 4039.575293,
+        "p99": 63898.253238,
+        "max": 63898.253238
+      },
+      "completed_duration_ms": {
+        "count": 60,
+        "p50": 0.090083,
+        "p99": 0.582208,
+        "max": 0.582208
+      },
+      "outcomes": {
+        "returned": 60
+      }
+    },
+    "executor.shutdown": {
+      "start_gaps_ms": {
+        "count": 219,
+        "p50": 1103.376,
+        "p99": 1241.903501,
+        "max": 1390.948418
+      },
+      "completed_duration_ms": {
+        "count": 444,
+        "p50": 0.98375,
+        "p99": 218.283584,
+        "max": 388.462167
+      },
+      "outcomes": {
+        "returned": 444
+      }
+    },
+    "order.cancel": {
+      "start_gaps_ms": {
+        "count": 217,
+        "p50": 3.742833,
+        "p99": 63716.084779,
+        "max": 65725.717821
+      },
+      "completed_duration_ms": {
+        "count": 219,
+        "p50": 13.470708,
+        "p99": 116.076292,
+        "max": 136.21775
+      },
+      "outcomes": {
+        "returned": 219
+      }
+    },
+    "order.submit": {
+      "start_gaps_ms": {
+        "count": 218,
+        "p50": 34.150125,
+        "p99": 63570.236903,
+        "max": 64596.986446
+      },
+      "completed_duration_ms": {
+        "count": 220,
+        "p50": 78.0625,
+        "p99": 285.117125,
+        "max": 443.204875
+      },
+      "outcomes": {
+        "returned": 219,
+        "MarketReadinessBlocked": 1
+      }
+    },
+    "strategy.tick": {
+      "start_gaps_ms": {
+        "count": 599,
+        "p50": 1000.034125,
+        "p99": 1106.505208,
+        "max": 1237.523042
+      },
+      "completed_duration_ms": {
+        "count": 600,
+        "p50": 4.430042,
+        "p99": 60.695625,
+        "max": 89.473125
+      },
+      "outcomes": {
+        "returned": 600
+      }
+    }
+  },
+  "candidate_mm_timing": {
+    "controller.cycle": {
+      "start_gaps_ms": {
+        "count": 1182,
+        "p50": 1008.4995,
+        "p99": 1125.035626,
+        "max": 1264.311793
+      },
+      "completed_duration_ms": {
+        "count": 1184,
+        "p50": 5.508208,
+        "p99": 22.619334,
+        "max": 262.852792
+      },
+      "outcomes": {
+        "returned": 1184
+      }
+    },
+    "controller.stop_proposal": {
+      "start_gaps_ms": {
+        "count": 37,
+        "p50": 4057.395794,
+        "p99": 64944.01803,
+        "max": 64944.01803
+      },
+      "completed_duration_ms": {
+        "count": 39,
+        "p50": 0.072958,
+        "p99": 0.290042,
+        "max": 0.290042
+      },
+      "outcomes": {
+        "returned": 39
+      }
+    },
+    "executor.shutdown": {
+      "start_gaps_ms": {
+        "count": 141,
+        "p50": 1124.620334,
+        "p99": 1348.487876,
+        "max": 1348.523834
+      },
+      "completed_duration_ms": {
+        "count": 282,
+        "p50": 0.894417,
+        "p99": 225.188334,
+        "max": 244.159334
+      },
+      "outcomes": {
+        "returned": 282
+      }
+    },
+    "order.cancel": {
+      "start_gaps_ms": {
+        "count": 139,
+        "p50": 3.112333,
+        "p99": 64575.738738,
+        "max": 64931.925447
+      },
+      "completed_duration_ms": {
+        "count": 141,
+        "p50": 15.48875,
+        "p99": 112.768583,
+        "max": 177.96275
+      },
+      "outcomes": {
+        "returned": 141
+      }
+    },
+    "order.submit": {
+      "start_gaps_ms": {
+        "count": 139,
+        "p50": 32.387917,
+        "p99": 64563.677612,
+        "max": 64699.497238
+      },
+      "completed_duration_ms": {
+        "count": 141,
+        "p50": 79.221166,
+        "p99": 222.103501,
+        "max": 257.609333
+      },
+      "outcomes": {
+        "returned": 141
+      }
+    },
+    "strategy.tick": {
+      "start_gaps_ms": {
+        "count": 599,
+        "p50": 999.948251,
+        "p99": 1027.296334,
+        "max": 1163.407376
+      },
+      "completed_duration_ms": {
+        "count": 600,
+        "p50": 4.659791,
+        "p99": 47.021083,
+        "max": 180.539
+      },
+      "outcomes": {
+        "returned": 600
+      }
+    }
+  },
+  "candidate_probe_episodes": [
+    {
+      "role": "engine",
+      "failure_ns": 138630528356242,
+      "recovery_ns": 138631574432451,
+      "observed_transition_seconds": 1.046076209,
+      "seconds_from_window_start": 509.124754608,
+      "failed_probe_elapsed_ms": 303.738,
+      "estimated_failed_request_start_ns": 138630224618242,
+      "estimated_request_start_limit": "Marker publication follows probe completion; subtraction estimates request start and has unmeasured publication/rounding delay.",
+      "request_through_recovery_mm": {
+        "strategy.tick": {
+          "start_gaps_ms": {
+            "count": 2,
+            "p50": 883.168334,
+            "p99": 1117.156209,
+            "max": 1117.156209
+          },
+          "duration_ms": {
+            "count": 1,
+            "p50": 92.820042,
+            "p99": 92.820042,
+            "max": 92.820042
+          },
+          "outcomes": {
+            "returned": 1
+          }
+        },
+        "controller.cycle": {
+          "start_gaps_ms": {
+            "count": 4,
+            "p50": 1010.097334,
+            "p99": 1258.929042,
+            "max": 1258.929042
+          },
+          "duration_ms": {
+            "count": 2,
+            "p50": 7.494292,
+            "p99": 9.142375,
+            "max": 9.142375
+          },
+          "outcomes": {
+            "returned": 2
+          }
+        },
+        "order.submit": {
+          "start_gaps_ms": {
+            "count": 2,
+            "p50": 4290.678961,
+            "p99": 64563.677612,
+            "max": 64563.677612
+          },
+          "duration_ms": {
+            "count": 0,
+            "p50": null,
+            "p99": null,
+            "max": null
+          },
+          "outcomes": {}
+        },
+        "order.cancel": {
+          "start_gaps_ms": {
+            "count": 1,
+            "p50": 1352.512625,
+            "p99": 1352.512625,
+            "max": 1352.512625
+          },
+          "duration_ms": {
+            "count": 1,
+            "p50": 100.602375,
+            "p99": 100.602375,
+            "max": 100.602375
+          },
+          "outcomes": {
+            "returned": 1
+          }
+        }
+      },
+      "quote_context_points": [
+        {
+          "relative_to_failure_ms": -1947.337667,
+          "live_orders": 12
+        },
+        {
+          "relative_to_failure_ms": -942.606417,
+          "live_orders": 1
+        },
+        {
+          "relative_to_failure_ms": 62.457917,
+          "live_orders": 1
+        },
+        {
+          "relative_to_failure_ms": 1071.322292,
+          "live_orders": 0
+        },
+        {
+          "relative_to_failure_ms": 2075.826168,
+          "live_orders": 6
+        }
+      ],
+      "activity": {
+        "status": "observed",
+        "context_start_ns": 138628528356242,
+        "context_end_ns": 138633574432451,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "invalid_venue_clock_samples": 0,
+        "venue_tracking_incomplete": false,
+        "has_venue_sample_before_failure": true,
+        "has_venue_sample_after_recovery": true,
+        "max_venue_sample_gap_ms": 1008.864375,
+        "observed_empty_venue_samples": 1,
+        "min_observed_live_orders": 0,
+        "max_empty_sample_span_ms": 0,
+        "empty_group_max_gap_ms": 1500,
+        "max_strategy_tick_start_gap_ms": 1117.156209,
+        "max_controller_cycle_start_gap_ms": 1258.929042,
+        "max_observed_live_order_age_ms": 61760.861611,
+        "continuous_quoting_proven": false,
+        "order_call_returns": [
+          {
+            "operation": "order.cancel",
+            "connector": "okx",
+            "order_id": "93027a12dac34fBCSLEUT7dfb9eaa135",
+            "start_ns": 138630841261367,
+            "at_ns": 138630941863742,
+            "duration_ms": 100.602375,
+            "outcome": "returned"
+          }
+        ],
+        "terminal_count": 12,
+        "tick_durations_ms": {
+          "count": 1,
+          "p50": 92.820042,
+          "p99": 92.820042,
+          "max": 92.820042
+        },
+        "controller_durations_ms": {
+          "count": 2,
+          "p50": 7.494292,
+          "p99": 9.142375,
+          "max": 9.142375
+        }
+      },
+      "overlapping_spans": [
+        {
+          "operation": "service.observe_once",
+          "start_ns": 138630758118534,
+          "end_ns": 138630944118826,
+          "duration_ms": 186.000292,
+          "thread_cpu_ms": 117.049335,
+          "intersects_transition": true
+        },
+        {
+          "operation": "ownership_check_ms",
+          "start_ns": 138630758231826,
+          "end_ns": 138630792813284,
+          "duration_ms": 34.581458,
+          "thread_cpu_ms": 2.279542,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "start_ns": 138630758719242,
+          "end_ns": 138630778512159,
+          "duration_ms": 19.792917,
+          "thread_cpu_ms": 0.842125,
+          "intersects_transition": true
+        },
+        {
+          "operation": "commit_ms",
+          "start_ns": 138630779075034,
+          "end_ns": 138630792713576,
+          "duration_ms": 13.638542,
+          "thread_cpu_ms": 0.304166,
+          "intersects_transition": true
+        },
+        {
+          "operation": "pool_checkout_ms",
+          "start_ns": 138630845654409,
+          "end_ns": 138630850258617,
+          "duration_ms": 4.604208,
+          "thread_cpu_ms": 0.538042,
+          "intersects_transition": true
+        }
+      ],
+      "gc": [],
+      "loop_stalls": [
+        {
+          "at_ns": 138630622234409,
+          "lag_ms": 372.118792,
+          "intersects_transition": true,
+          "active_operations": [
+            "recorder_ms",
+            "market_checkpoint_ms",
+            "sql"
+          ],
+          "loop_stack": [
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 533,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1683,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1837,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1958,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ]
+        },
+        {
+          "at_ns": 138630488548409,
+          "lag_ms": 238.432792,
+          "intersects_transition": false,
+          "active_operations": [
+            "recorder_ms",
+            "sql"
+          ],
+          "loop_stack": [
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 533,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1683,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1837,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1958,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "role": "engine",
+      "failure_ns": 138696728367731,
+      "recovery_ns": 138697764634315,
+      "observed_transition_seconds": 1.036266584,
+      "seconds_from_window_start": 575.324766097,
+      "failed_probe_elapsed_ms": 301.146,
+      "estimated_failed_request_start_ns": 138696427221731,
+      "estimated_request_start_limit": "Marker publication follows probe completion; subtraction estimates request start and has unmeasured publication/rounding delay.",
+      "request_through_recovery_mm": {
+        "strategy.tick": {
+          "start_gaps_ms": {
+            "count": 3,
+            "p50": 992.199626,
+            "p99": 1005.084084,
+            "max": 1005.084084
+          },
+          "duration_ms": {
+            "count": 2,
+            "p50": 3.334792,
+            "p99": 5.945125,
+            "max": 5.945125
+          },
+          "outcomes": {
+            "returned": 2
+          }
+        },
+        "controller.cycle": {
+          "start_gaps_ms": {
+            "count": 5,
+            "p50": 1008.372417,
+            "p99": 1076.4085,
+            "max": 1076.4085
+          },
+          "duration_ms": {
+            "count": 3,
+            "p50": 5.168917,
+            "p99": 6.015416,
+            "max": 6.015416
+          },
+          "outcomes": {
+            "returned": 3
+          }
+        },
+        "order.submit": {
+          "start_gaps_ms": {
+            "count": 6,
+            "p50": 30.078333,
+            "p99": 63483.525196,
+            "max": 63483.525196
+          },
+          "duration_ms": {
+            "count": 6,
+            "p50": 85.869542,
+            "p99": 176.122625,
+            "max": 176.122625
+          },
+          "outcomes": {
+            "returned": 6
+          }
+        },
+        "order.cancel": {
+          "start_gaps_ms": {
+            "count": 1,
+            "p50": 5031.822794,
+            "p99": 5031.822794,
+            "max": 5031.822794
+          },
+          "duration_ms": {
+            "count": 0,
+            "p50": null,
+            "p99": null,
+            "max": null
+          },
+          "outcomes": {}
+        }
+      },
+      "quote_context_points": [
+        {
+          "relative_to_failure_ms": -1808.162334,
+          "live_orders": 0
+        },
+        {
+          "relative_to_failure_ms": -804.640209,
+          "live_orders": 6
+        },
+        {
+          "relative_to_failure_ms": 199.717167,
+          "live_orders": 12
+        },
+        {
+          "relative_to_failure_ms": 1202.732251,
+          "live_orders": 12
+        },
+        {
+          "relative_to_failure_ms": 2206.154668,
+          "live_orders": 12
+        }
+      ],
+      "activity": {
+        "status": "observed",
+        "context_start_ns": 138694728367731,
+        "context_end_ns": 138699764634315,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "invalid_venue_clock_samples": 0,
+        "venue_tracking_incomplete": false,
+        "has_venue_sample_before_failure": true,
+        "has_venue_sample_after_recovery": true,
+        "max_venue_sample_gap_ms": 1004.357376,
+        "observed_empty_venue_samples": 1,
+        "min_observed_live_orders": 0,
+        "max_empty_sample_span_ms": 0,
+        "empty_group_max_gap_ms": 1500,
+        "max_strategy_tick_start_gap_ms": 1005.084084,
+        "max_controller_cycle_start_gap_ms": 1008.632501,
+        "max_observed_live_order_age_ms": 3311.853377,
+        "continuous_quoting_proven": false,
+        "order_call_returns": [],
+        "terminal_count": 0,
+        "tick_durations_ms": {
+          "count": 2,
+          "p50": 3.334792,
+          "p99": 5.945125,
+          "max": 5.945125
+        },
+        "controller_durations_ms": {
+          "count": 2,
+          "p50": 5.168917,
+          "p99": 6.015416,
+          "max": 6.015416
+        }
+      },
+      "overlapping_spans": [
+        {
+          "operation": "service.observe_once",
+          "start_ns": 138695768843356,
+          "end_ns": 138695932960439,
+          "duration_ms": 164.117083,
+          "thread_cpu_ms": 117.240536,
+          "intersects_transition": false
+        },
+        {
+          "operation": "service.observe_once",
+          "start_ns": 138696629234939,
+          "end_ns": 138696749138981,
+          "duration_ms": 119.904042,
+          "thread_cpu_ms": 86.371002,
+          "intersects_transition": true
+        },
+        {
+          "operation": "pool_checkout_ms",
+          "start_ns": 138695784696147,
+          "end_ns": 138695790829981,
+          "duration_ms": 6.133834,
+          "thread_cpu_ms": 0.588791,
+          "intersects_transition": false
+        },
+        {
+          "operation": "db_ping_ms",
+          "start_ns": 138695785143439,
+          "end_ns": 138695790796606,
+          "duration_ms": 5.653167,
+          "thread_cpu_ms": 0.364708,
+          "intersects_transition": false
+        },
+        {
+          "operation": "pool_checkout_ms",
+          "start_ns": 138696736172064,
+          "end_ns": 138696741573689,
+          "duration_ms": 5.401625,
+          "thread_cpu_ms": 0.372793,
+          "intersects_transition": true
+        }
+      ],
+      "gc": [],
+      "loop_stalls": []
+    }
+  ],
+  "baseline_empty_samples": {
+    "observed_empty_venue_samples": 13,
+    "min_observed_live_orders": 0,
+    "max_empty_sample_span_ms": 2004.103792,
+    "empty_group_max_gap_ms": 1500,
+    "samples": 597,
+    "max_sample_gap_ms": 1094.265083
+  },
+  "candidate_empty_samples": {
+    "observed_empty_venue_samples": 8,
+    "min_observed_live_orders": 0,
+    "max_empty_sample_span_ms": 1006.154583,
+    "empty_group_max_gap_ms": 1500,
+    "samples": 597,
+    "max_sample_gap_ms": 1046.698834
+  },
+  "instrumentation_loss": {
+    "engine": {
+      "trace": {
+        "written_records": 1827,
+        "written_bytes": 2295841,
+        "ordinary_written_bytes": 2195504,
+        "reserved_written_bytes": 100337,
+        "dropped_records": 0,
+        "writer_cpu_ms": 97.9572079999998,
+        "dropped_by_kind": {},
+        "queue_depth": 0,
+        "max_bytes": 33554432,
+        "reserved_bytes": 8388608,
+        "reserved_kinds": [
+          "gc",
+          "loop_stall",
+          "loop_stall_trigger",
+          "probe_failure",
+          "probe_recovered"
+        ],
+        "writer_alive": true,
+        "dropped_spans": 21058,
+        "slow_trace_threshold_ms": 100,
+        "gc_trace": {
+          "pending_events": 0,
+          "max_events": 128,
+          "dropped_events": 0
+        }
+      },
+      "incident_capture": {
+        "incidents": 7,
+        "evicted_records": 7190,
+        "oversize_records": 0,
+        "suppressed_incidents": 0,
+        "buffered_records": 98,
+        "buffered_bytes": 130594,
+        "max_records": 256,
+        "max_bytes": 524288,
+        "history_seconds": 10.0,
+        "tail_seconds": 10.0,
+        "max_incidents": 32
+      },
+      "metrics_export_skipped": 0
+    },
+    "api": {
+      "trace": {
+        "written_records": 258,
+        "written_bytes": 911360,
+        "ordinary_written_bytes": 906711,
+        "reserved_written_bytes": 4649,
+        "dropped_records": 0,
+        "writer_cpu_ms": 24.96591500000002,
+        "dropped_by_kind": {},
+        "queue_depth": 0,
+        "max_bytes": 33554432,
+        "reserved_bytes": 8388608,
+        "reserved_kinds": [
+          "gc",
+          "loop_stall",
+          "loop_stall_trigger",
+          "probe_failure",
+          "probe_recovered"
+        ],
+        "writer_alive": true,
+        "dropped_spans": 39,
+        "slow_trace_threshold_ms": 100,
+        "gc_trace": {
+          "pending_events": 0,
+          "max_events": 128,
+          "dropped_events": 0
+        }
+      },
+      "incident_capture": {
+        "incidents": 3,
+        "evicted_records": 2483,
+        "oversize_records": 0,
+        "suppressed_incidents": 0,
+        "buffered_records": 43,
+        "buffered_bytes": 139781,
+        "max_records": 256,
+        "max_bytes": 524288,
+        "history_seconds": 10.0,
+        "tail_seconds": 10.0,
+        "max_incidents": 32
+      },
+      "metrics_export_skipped": 0
+    }
+  },
+  "restoration": {
+    "actual_demo_image": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+    "phase": "stopped",
+    "counts": {
+      "orders": 3513,
+      "trade_fills": 23,
+      "positions": 3,
+      "executors": 2848
+    },
+    "hashes": {
+      "orders": "331c3a9fe9978af37faee7f15b656234",
+      "trade_fills": "89b927c2868e7483c105b43c3bc6b751",
+      "positions": "94315e1d770e988c967b43722f74b560",
+      "executors": "bb9e902715eec79b03bc3d98fa6a4494"
+    },
+    "unchanged": true,
+    "owner_available": true,
+    "private_backup_sha256": "613a1c5ffc8dab1b5ea5826edfb640bb24bf39d5333b88aaab29f34cb6b43c08"
+  },
+  "postprocessing_note": "Initial export checked the progress status against a stage label and stopped before publishing; corrected to passed status plus diagnostic_passed stage. Original script retained. No workload was rerun.",
+  "limitations": [
+    "Sequential matched-settings pair, not identical host scheduling, candle/guard trajectory or a guaranteed improvement on every run.",
+    "Same 600 unique synthetic fills in each run; no actual OKX trade or PnL claim.",
+    "Quote coverage consists of 597 point samples per run, not elapsed-time uptime or uninterrupted two-sided liquidity.",
+    "The historical 568.53ms controller outlier is not exclusively attributed. Candidate maximum controller duration is lower in this sample; no proof that this patch fixes every timing outlier or probe timeout.",
+    "Two candidate probe episodes recover during replacement context; preserve actual gaps and callback/venue witnesses. No zero-downtime assertion.",
+    "Bounded trace spans/context may be omitted. Final activity-close summaries may belong to preparation, not measured-engine teardown; window-export counters are used.",
+    "The candidate is a reviewed one-Python-file derived image, not a canonical Dockerfile rebuild. No new full release/R1/R2/hour gate, full PG suite, active Demo upgrade or deployment."
+  ],
+  "artifacts_sha256": {
+    "build/mm-sell-churn-20261104/red.log": "55dd0c6047cc218a23fba20cfe71a03b09dafca9838234a74a7d77e9805840ef",
+    "build/mm-sell-churn-20261104/green.log": "51c2b50571406f781f236acac44195ba03d08640a787f4c6942734df80f7f1e7",
+    "build/mm-sell-churn-20261104/native-regression.log": "9a2d21cf6b177d7847fb4cbd26b71af64e4b0d040a2bb8d8476d82ac16852690",
+    "build/mm-sell-churn-20261104/native-final.log": "d35b3499072a56e45e14032c69d6ae4302548ec25d2fb2b6707620db871f772d",
+    "build/mm-sell-churn-20261104/replay.py": "d23e8dd8dfc3b26a14e9c51d051562eeaf1464ef2c65bee72e9ac5b203826061",
+    "build/mm-sell-churn-20261104/replay.json": "db6fed55fc142060dca290346133cc0c46959034b01f5aa6fe84a1482c0492c2",
+    "build/mm-sell-churn-20261104/Dockerfile.candidate": "83b96529ac57230957d01f59a1384f88f6c145939bdeb217b9f2a457a2025338",
+    "build/mm-sell-churn-20261104/candidate-source.json": "7996f6af1a2d1aaff760b0aa00c8bef22a3258d05d6f799400675d6c3f353986",
+    "build/mm-sell-churn-20261104/candidate-verification.json": "6722e778adf8e99b6a6a329d55c22c3890b496f3a71853706526ec3055261e5f",
+    "build/mm-sell-churn-20261104/verify_candidate.py": "b424761b77a08503e12c3fef234c278e6427133306fa0ad97393234ace64c802",
+    "build/mm-sell-churn-20261104/verification-metadata.json": "8f374f5c431f84954d949ebe5b0c355766e3955d5b99c0cefe5a8210652f5a28",
+    "build/mm-sell-churn-20261104/e2e-life-mm.log": "3f16d33964164b2e24593d74a7b5e7ea5fdcbe651d9e134d4da77ac12cf6b9b1",
+    "build/mm-sell-churn-20261104/e2e-volatility-defense.log": "40490ecb121c3bc2792e8e37c1b4ace4ade023f35278d537e0c81a46b881c249",
+    "build/mm-sell-churn-20261104/correlation-summary.json": "a0a5263617e1e74c000dd888afc3e0f236a8f36994965b4ac5fd987aeb1c570d",
+    "build/mm-sell-churn-20261104/current-incidents.json": "c41ba5e17b264d8c1ba80654bc12d3e2c01416e370ba46accba2716daa380ac4",
+    "build/mm-sell-churn-20261104/summarize_candidate.py": "1d2b7908148dea138983682acfe1b138c97c5bb6aaccc62e57207286e059fc2c",
+    "build/mm-sell-churn-20261104/pre-diagnostic-baseline.json": "377882afb0b0af95ba822bbcec1ab00d51149675baa78ef12ffc3cdf68b28773",
+    "build/mm-sell-churn-20261104/post-diagnostic-local-state.json": "377882afb0b0af95ba822bbcec1ab00d51149675baa78ef12ffc3cdf68b28773",
+    "build/mm-sell-churn-20261104/publish_comparison.py": "06b827c8e0beb21f854db4ee6adc12d61aa4ed6f9d7f6c92faea6f9d2c62f5fa",
+    "build/mm-sell-churn-20261104/publish_comparison_attempt_1.py": "837930115a8e0114f3cb182a72b5cae32f82e27c57f5906de51834875b245611",
+    "controllers/market_making/life_mm.py": "0169f19fe6066ff37fbe1cca05db991051ec0cd0415250a024ab9f33b3ad7ee1",
+    "test/hummingbot/strategy_v2/controllers/test_quote_remaining_size.py": "8a83fd0d3c874358db6d3fc91d90a2d788ed19328f8141b92d44b364d8cd34b2",
+    "build/mm-load/20261104-190227-81e4bb/result.json": "bfa2630c02c118ffd11a989492386e4ac11487f0e180298cbd44c8b1b9c57594",
+    "build/mm-load/20261104-190227-81e4bb/probe-runtime-minutes.json": "60125f3f92cb589ee7d03d898eb6e6222751138e91b5f1126483fbebd9adad2f",
+    "build/mm-load/20261104-190227-81e4bb/exchange-ledger.json": "f776b13cbe3e9442f73af6923ca50bff5378afa6648d6d76350978b3c26865a8",
+    "build/mm-load/20261104-190227-81e4bb/recorder-load-fills.json": "fb4c7779010d429aaf38825f7eef16432b7774e5d3129c5e43b329c8212f2471",
+    "build/mm-load/20261104-190227-81e4bb/final-executors.json": "47a6db684711345d4adbb58eec68c8ad9bc85d685698d54a2c9179d18033ee35",
+    "build/mm-load/20261104-190227-81e4bb/hbot-e2e-68fa57341a-load-bot.log": "9be3199a12baca91fea19000aecd80f7e59c41dea7c872dc62e954aedc8ac406",
+    "build/mm-load/20261104-190227-81e4bb/incidents/engine-incident-summary.json": "91789694404564b237b1adcb6ae97a25bdff930c2c9b4ce930d10331ac255465",
+    "build/mm-load/20261104-190227-81e4bb/incidents/venue-activity.jsonl": "28df22377792ddd354fc99791c7533d1915e3545e80aaeba0c163810038617c2",
+    "build/mm-load/20261104-190227-81e4bb/incidents/api-incidents.jsonl": "a6252f5ab13380c490a6336eb164a1b7db9fca7c601b6d504eb5b18738219a9b",
+    "build/mm-load/20261104-190227-81e4bb/incidents/mm-activity-summary.json": "97e02dd61dcdf4768d8e0e425105c21940e183f53debd0b320c1dfc075ff206c",
+    "build/mm-load/20261104-190227-81e4bb/incidents/engine-incidents.jsonl": "054cea8179f52c653e80c0a07c49190966de4a313d579ed8f039144f625e013e",
+    "build/mm-load/20261104-190227-81e4bb/incidents/mm-activity.jsonl": "b5accf5ee0ff776d93ce0af84c6e6fb5398d19efc7c6d36b06faac2766b2c6c8",
+    "build/mm-load/20261104-190227-81e4bb/incidents/venue-activity-summary.json": "0d8491454e2bc1855d9da9bcb4c8344ef335aa7273205a8740f753232da49f06",
+    "build/mm-load/20261104-190227-81e4bb/incidents/api-incident-summary.json": "de6a7f347fe2390091a4334f1a151d8a179711d39d9d5b5d5ff7c3b95f670f54",
+    "build/mm-load/20261104-230000-16d899/result.json": "a158b7f65db0c1ff9501d526f1868456177b7fe79a5f576d327c84db696a662c",
+    "build/mm-load/20261104-230000-16d899/probe-runtime-minutes.json": "3b91d850bee9ce1a061b503cc56ae02a1a140565402ce617c6d2695e3be05101",
+    "build/mm-load/20261104-230000-16d899/exchange-ledger.json": "ae4de442c09a13243e2e9794f130e56e7c0b36ef26642b4db5a49a5518cb737b",
+    "build/mm-load/20261104-230000-16d899/recorder-load-fills.json": "391a93f16d80ae37d00794b1034a038746a1d089dc32b59ae470772a75b74db2",
+    "build/mm-load/20261104-230000-16d899/final-executors.json": "ecbf5cd74211727e8ec783f20a4ee0602ab174f112758cd49fa479f8a83906b6",
+    "build/mm-load/20261104-230000-16d899/hbot-e2e-931c78b6f3-load-bot.log": "6e93cbae2dda561241525eac54b1ab9993a328c22f3313722dca50eecd2abb10",
+    "build/mm-load/20261104-230000-16d899/incidents/engine-incident-summary.json": "95ab18a52378ebca38d353533f4027cd7b2b54a32e71462f1df72c8bce9d327f",
+    "build/mm-load/20261104-230000-16d899/incidents/venue-activity.jsonl": "2bbdc36007f79da08c9c3b4c1f3eb1bb033495e13dd37cb33a44787df99a37a8",
+    "build/mm-load/20261104-230000-16d899/incidents/api-incidents.jsonl": "44aafa22e6108505562dfd4d16a2727639562732ab3ed3d092aa9d67b192c591",
+    "build/mm-load/20261104-230000-16d899/incidents/mm-activity-summary.json": "19a441862e765d2a36f53780a59e5edcb70e249f55bc6acb7861b6d23912a916",
+    "build/mm-load/20261104-230000-16d899/incidents/engine-incidents.jsonl": "0885567c70949859984a5c88c1e4b26f435e08c64732c1c9c8c547f254be3141",
+    "build/mm-load/20261104-230000-16d899/incidents/mm-activity.jsonl": "4c89bbb30979623bc1a941dfb55ad97c841cb6925500b94977a01965609d1e06",
+    "build/mm-load/20261104-230000-16d899/incidents/venue-activity-summary.json": "c8ceb54a989c28c3c9da4e67cf0c158a7a0ad21b9cd1db30bf2088ee6ee8fb25",
+    "build/mm-load/20261104-230000-16d899/incidents/api-incident-summary.json": "ca514a1305e2a47fee89e7edd1999418dd1f9e746ac6dcf085047874672cf8dd"
+  }
+}

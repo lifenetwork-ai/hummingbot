@@ -1,6 +1,18 @@
 # Current-image OKX Demo acceptance
 
-**Current local API candidate:** `086454de` from `0f4095671` reserves one
+**New MM code candidate:** `354fec1e` from `905bff7e3` fixes partial-fill
+quote-size cancellation. It validates an acknowledged entry remainder while
+retaining full allocation/exposure reservation and all guards. Native528 plus
+two subtests, two targeted packaged E2E groups and matched-settings600s diagnostic
+pass:13,200 HTTP200/no unexpected errors or stale,600 exact synthetic fills;
+spot two-sided samples494/597→574/597 and spread-invalid executor references120→35.
+This is a reviewed one-Python-file derived candidate, not a canonical rebuild or
+new full R1/R2/hour/actual-Demo qualification. Actual Demo remains stopped on the
+prior086454de image with23 fills and four hashes unchanged. Residual timing/probe
+and quote-coverage limits remain explicit.
+[Report/evidence](../../reports/performance/mm-partial-quote-size.md).
+
+**Prior full-hour API candidate / actual stopped Demo image:** `086454de` from `0f4095671` reserves one
 operations and one heavy slot in the existing two-thread executor. Native2,494
 +11 subtests, PG355, Swagger, three E2E groups, four controlled report faults,
 300s probe and the unchanged standalone hour pass. Hour primary/auxiliary p99

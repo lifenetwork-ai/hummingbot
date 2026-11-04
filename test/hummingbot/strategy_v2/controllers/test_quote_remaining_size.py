@@ -132,3 +132,17 @@ def test_retained_partial_quote_still_reserves_full_allocation(monkeypatch, side
     assert config.amount * config.entry_price + new_price * new_amount > controller._quote_budget()
     # Deducting partial fills from this separate reservation would admit extra risk.
     assert controller.create_actions_proposal() == []
+
+
+@pytest.mark.parametrize('side', [TradeType.BUY, TradeType.SELL])
+def test_late_fill_precision_and_duplicate_snapshots_keep_safe_remainder(monkeypatch, side):
+    controller, _, config, order, executor, _ = partial_quote(monkeypatch, side)
+    original = config.amount
+    order.executed_amount_base += Decimal('0.000000000000000001')
+    expected = order.amount - Decimal('0.001000000000000001')
+    for _ in range(3):
+        assert controller._resting_quote_amount(executor) == expected
+        assert controller._defense_refresh_actions() == []
+        assert config.amount == original
+    if side == TradeType.BUY:
+        assert controller._exposure()[0] == Decimal('1000.001') + original

@@ -1,5 +1,10 @@
 # Current-image probe latency and MM progress
 
+Subsequent native replay and Red/Green confirm a partial-fill quote-size bug;
+[the narrow fix and candidate comparison](../performance/mm-partial-quote-size.md)
+use source905bff7e3/image354fec1e. Measurements below retain their earlier086454de
+baseline scope and do not qualify the later candidate or reconstruct every event.
+
 2026-11-04 (Asia/Saigon). Shipping image `086454de`, source `0f4095671`;
 host harness `f40cc9a46`. **The captured measured probe does not show a matching
 MM stop. No confirmed avoidable runtime defect is patched.** Short MM jitter,

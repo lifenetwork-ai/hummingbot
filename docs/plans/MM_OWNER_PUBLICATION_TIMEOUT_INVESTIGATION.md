@@ -197,12 +197,12 @@ are unchanged; no new full release/hour/actual-trade acceptance is claimed.
 - [x] Verify partial/late-fill quantities, missing/ambiguous entry metadata,
   genuine spread/fee/reduction breaches and unchanged full allocation/exposure
   reservations; run surrounding controller/executor lifecycle regressions.
-- [ ] Build a separately identified candidate and verify targeted lifecycle
+- [x] Build a separately identified candidate and verify targeted lifecycle
   behavior plus a bounded matched diagnostic; retain failures and scope.
-- [ ] Review the retained controller568ms/observer992ms overlap with the new
+- [x] Review the retained controller568ms/observer992ms overlap with the new
   measurements. Attribute only paths actually observed; no speculative deadline,
   cache/pool or ownership-fence change.
-- [ ] Publish findings/remaining attribution limits, update checklist and commit.
+- [x] Publish findings/remaining attribution limits, update checklist and commit.
   Actual Demo remains stopped; no maintenance reset or new trade is authorized.
 
 Source phase: two original-code Red cases reproduce unnecessary BUY/SELL
@@ -214,3 +214,27 @@ controller/position-executor/orchestrator/strategy suite pass: **526 tests plus
 two subtests**. Raw Red/Green/replay artifacts: `build/mm-sell-churn-20261104/`.
 Candidate image and measured comparison remain pending; old-image gates do not
 qualify this runtime change.
+
+Verification completed: source `905bff7e3`, separately identified candidate
+`354fec1e`, reviewed one-Python-file image derived from086454de. All parent layers
+and1,315 other reviewed application files are unchanged. Final native regression
+**528 plus two subtests**, including38 new cases; targeted LIFE lifecycle and
+volatility-defense E2E pass. The candidate600s diagnostic passes13,200 HTTP200,
+no unexpected errors/stale and600 exact synthetic fills/fees/positions. Fixture
+and measuring-source hashes match the earlier baseline600s run.
+
+Observed spot spread-invalid referenced executor IDs120→35; successful submit
+and cancel returns each219→141; spot two-sided samples494/597→574/597 and jointly
+two-sided490/597→566/597. These are proposal/call and point-sample counts, not a
+universal latency/uptime guarantee. Guard trajectories and host scheduling differ.
+
+Controller568.53ms outlier is not exclusively attributed; candidate maximum is
+262.85ms in this sample. Tick maximum increases89.47→180.54ms even though p99
+improves. Two candidate probes recover in replacement context, with real observed
+short quote gaps. No claim that this patch fixes all timing outliers/probes.
+Remaining35 spread-invalid references are not suppressed or all classified as bugs.
+
+Actual Demo restored stopped on086454de,23 fills/four hashes unchanged; no active
+Demo upgrade/trade, new candidate hour/full R1/R2 or production qualification.
+[Fix/comparison report](../../reports/performance/mm-partial-quote-size.md),
+[evidence](../../reports/performance/mm-partial-quote-size-evidence.json).
