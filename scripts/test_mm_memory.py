@@ -87,7 +87,7 @@ def main():
         (assets / 'life_mm_profiles.yaml').write_text(yaml.safe_dump(profiles))
         evidence['fixture_sha256'] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in assets.iterdir()}
         harness = Harness(metadata['Id'], assets, report, 'demo')
-        harness.env.update(ADMIN_API_ENABLED='true', ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin',
+        harness.env.update(ADMIN_API_ENABLED='true', ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin',
                            HBOT_MEMORY_DIAGNOSTICS='1', FUNDING_SYNC_INTERVAL_SECONDS='5')
         finished = threading.Event()
         events, failures = [], []

@@ -83,7 +83,7 @@ def test_history_query_count_does_not_grow_per_order(history):
 
 @pytest.mark.asyncio
 async def test_real_http_history_uses_pg_scopes_and_decimal_strings(history):
-    settings = AdminSettings(True, "operator", "test-password")
+    settings = AdminSettings(True, "operator", "test-password", basic_auth_enabled=True)
     app = web.Application(middlewares=[admin_middleware(settings)])
     AdminAPI(None, settings, store=history).register(app)
     async with TestClient(TestServer(app), headers={"Authorization": BasicAuth("operator", "test-password").encode()}) as client:

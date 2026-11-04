@@ -14,7 +14,7 @@ from hummingbot.client.config.mm_profiles import MMProfilesConfig
 
 @asynccontextmanager
 async def api(catalogue, row):
-    settings = AdminSettings(True, "operator", "test-password")
+    settings = AdminSettings(True, "operator", "test-password", basic_auth_enabled=True)
     store = MagicMock()
     store.read.return_value = row
     host = SimpleNamespace(store=store, revision="new-revision")

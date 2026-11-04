@@ -116,7 +116,7 @@ async def test_database_unavailable_status_keeps_local_diagnostics_without_inven
     item = host()
     item.store = MagicMock()
     item.store.read.side_effect = OperationalError("query", {}, RuntimeError("private-dsn"))
-    settings = AdminSettings(True, "operator", "test-password")
+    settings = AdminSettings(True, "operator", "test-password", basic_auth_enabled=True)
     async with TestClient(TestServer(create_service_app(item, settings)), headers={
             "Authorization": BasicAuth("operator", "test-password").encode()}) as client:
         response = await client.get("/api/v1/admin/status")

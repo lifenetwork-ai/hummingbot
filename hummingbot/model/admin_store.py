@@ -61,13 +61,17 @@ class AdminStore:
         self.engine = store.engine
         self.bot_id = store.bot_id
 
-    def command(self, idempotency_key, payload, *, catalogue, request=None, principal=None):
+    def command(self, idempotency_key, payload, *, catalogue, request=None, principal=None, audit_request_id=None):
         if (not isinstance(idempotency_key, str) or not 1 <= len(idempotency_key) <= 128
                 or any(not 33 <= ord(character) <= 126 for character in idempotency_key)):
             raise ValueError("Idempotency-Key must contain 1–128 visible ASCII characters")
         request_hash = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"),
                                                  allow_nan=False).encode()).hexdigest()
         with self.engine.begin() as connection:
+            from hummingbot.core.admin_identity import Principal
+            from hummingbot.model.admin_access import AdminAccessStore
+            access = AdminAccessStore(self.engine, self.bot_id)
+            actor = access.authorize(connection, principal, "write") if isinstance(principal, Principal) else None
             # One bot has one control row. This also serializes first use of a
             # retry key, so its receipt and control change always commit together.
             if not connection.execute(select(BotState.bot_id).where(
@@ -84,14 +88,20 @@ class AdminStore:
                 raise ControlConflict("Deployed catalogue changed", code="catalogue_changed")
             result = self.store.request_mm_session(
                 action=payload["action"], expected_version=payload["expected_version"], catalogue=catalogue,
-                request=request, current_session_id=payload.get("session_id"), connection=connection, principal=principal, source="admin_api")
-            return self._insert_command(connection, {
+                request=request, current_session_id=payload.get("session_id"), connection=connection,
+                principal=actor.id if actor else principal, source="admin_api")
+            receipt = self._insert_command(connection, {
                 "id": str(uuid.uuid4()), "bot_id": self.bot_id, "idempotency_key": idempotency_key,
                 "request_hash": request_hash, "action": payload["action"], "session_id": result["session_id"],
                 "expected_version": payload["expected_version"], "effective_version": result["control_version"],
                 "status": "accepted", "payload": payload, "created_at": func.clock_timestamp(),
                 "updated_at": func.clock_timestamp(),
             })
+            if actor:
+                access.audit(connection, actor=actor, action="trading_" + payload["action"], outcome="accepted",
+                             request_id=audit_request_id or uuid.uuid4().hex, operation_id=receipt["id"],
+                             details={"version": result["control_version"]})
+            return receipt
 
     @staticmethod
     def _insert_command(connection, values):
@@ -157,9 +167,9 @@ class AdminStore:
         from hummingbot.model.admin_reporting import daily
         return daily(self.engine, **filters)
 
-    def request_check(self, key, payload):
+    def request_check(self, key, payload, *, principal=None, audit_request_id=None):
         from hummingbot.model.admin_reconciliation import request_check
-        return request_check(self, key, payload)
+        return request_check(self, key, payload, principal=principal, audit_request_id=audit_request_id)
 
     def claim_check(self, owner_uuid, generation):
         from hummingbot.model.admin_reconciliation import claim_check

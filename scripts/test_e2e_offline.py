@@ -649,7 +649,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
     def until_stopped_scenario(self):
         """Use a fresh ledger so this case does not overflow bounded history checks."""
         print("Offline E2E: continuous random rollover, cold restart and Stop", flush=True)
-        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
         for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
             self.env["HBOT_OKX_PERPETUAL_" + field] = value
         first, port = self.start("mm-until-first")
@@ -724,7 +724,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.control(initial_positions=[dict(instId='LIFE-USDT-SWAP', posSide=side, pos='100',
                                              avgPx='0.1', notionalUsd='10', lever='1', upl='0')
                                         for side in ('long', 'short')])
-        self.env.update(ADMIN_API_ENABLED='true', ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')
+        self.env.update(ADMIN_API_ENABLED='true', ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')
         first, port = self.start('initial-seed')
         self.mm_command(port, 'start', market_mode='both', selection='fixed', profile_id='sideways', duration_seconds=600)
         session = self.state()['mm_session']
@@ -761,7 +761,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 
     def mm_scenario(self, *, matrix=True):
         print("Offline E2E: LIFE admin three scenarios x spot/perpetual/both", flush=True)
-        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin", FUNDING_SYNC_INTERVAL_SECONDS="5")
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin", FUNDING_SYNC_INTERVAL_SECONDS="5")
         for prefix in ("HBOT_OKX_PERPETUAL_",):
             for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
                 self.env[prefix + field] = value
@@ -970,7 +970,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             lower_price=".09", upper_price=".11", resume_lower_price=".095", resume_upper_price=".105")
         path.write_text(yaml.safe_dump(config))
         self.report.joinpath("effective-guard-profiles.yaml").write_bytes(path.read_bytes())
-        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
         for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
             self.env["HBOT_OKX_PERPETUAL_" + field] = value
         self.control(target_updates_per_second=20, include_own_orders=True)
@@ -1053,7 +1053,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         config.update(max_global_drawdown_quote="1", max_controller_drawdown_quote="1")
         path.write_text(yaml.safe_dump(config))
         self.report.joinpath("effective-drawdown-profiles.yaml").write_bytes(path.read_bytes())
-        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
         for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
             self.env["HBOT_OKX_PERPETUAL_" + field] = value
         first, port = self.start("drawdown")
@@ -1133,7 +1133,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         profiles["spot_outflow"] = dict(window_seconds=300, max_net_outflow_quote="30", fee_allowance_rate=".01")
         path.write_text(yaml.safe_dump(profiles))
         self.report.joinpath("effective-outflow-profiles.yaml").write_bytes(path.read_bytes())
-        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
         for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
             self.env["HBOT_OKX_PERPETUAL_" + field] = value
         first, port = self.start("outflow")
@@ -1203,7 +1203,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                                                            max_market_spread_bps="250", qualification_seconds="2")))
         path.write_text(yaml.safe_dump(profiles))
         self.report.joinpath("effective-bootstrap-profiles.yaml").write_bytes(path.read_bytes())
-        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
         for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
             self.env["HBOT_OKX_PERPETUAL_" + field] = value
         empty = {instrument: dict(bids=[], asks=[]) for instrument in ("LIFE-USDT", "LIFE-USDT-SWAP")}
@@ -1287,7 +1287,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             market["spread_policy"] = dict(fee_floor=True, volatility=volatility)
         path.write_text(yaml.safe_dump(profiles))
         self.report.joinpath("effective-spread-profiles.yaml").write_bytes(path.read_bytes())
-        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
         for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
             self.env["HBOT_OKX_PERPETUAL_" + field] = value
         bot, port = self.start("spread-policy")
@@ -1350,7 +1350,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         profiles['random']['step_duration_seconds'] = 120
         path.write_text(yaml.safe_dump(profiles))
         self.report.joinpath('effective-volatility-defense.yaml').write_bytes(path.read_bytes())
-        self.env.update(ADMIN_API_ENABLED='true', ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')
+        self.env.update(ADMIN_API_ENABLED='true', ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')
         for field, value in [('API_KEY', 'offline-key'), ('SECRET_KEY', 'offline-secret'), ('PASSPHRASE', 'offline-pass')]:
             self.env['HBOT_OKX_PERPETUAL_' + field] = value
         self.control(include_own_orders=True, candle_width='.005')
@@ -1470,7 +1470,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             market.update(executor_refresh_time=8, cooldown_time=0)
         path.write_text(yaml.safe_dump(profiles))
         self.report.joinpath("effective-inventory-skew-profiles.yaml").write_bytes(path.read_bytes())
-        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
         for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
             self.env["HBOT_OKX_PERPETUAL_" + field] = value
         first, port = self.start("inventory-skew")
@@ -1531,7 +1531,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 
     def availability_scenario(self):
         print("Offline E2E: service availability and automatic read/feed recovery", flush=True)
-        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
         for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
             self.env["HBOT_OKX_PERPETUAL_" + field] = value
         first, port = self.start("availability", availability=True)
@@ -1599,7 +1599,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 
     def funding_scenario(self):
         print("Offline E2E: stopped funding, exact bills, restart and closed-position catch-up", flush=True)
-        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin",
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin",
                         FUNDING_SYNC_INTERVAL_SECONDS="1")
         for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
             self.env["HBOT_OKX_PERPETUAL_" + field] = value

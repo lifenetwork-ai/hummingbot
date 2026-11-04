@@ -46,7 +46,7 @@ async def test_control_priority_accepts_stop_and_receipt_before_pending_slow_rea
                 all_arrived.set()
         return await handler(request)
 
-    settings = AdminSettings(True, 'operator', 'audit-password')
+    settings = AdminSettings(True, 'operator', 'audit-password', basic_auth_enabled=True)
     app = web.Application(middlewares=[arrivals, admin_middleware(settings)])
     stored = dict(action='stop', expected_version=0, session_id='audit-session')
     storage = SimpleNamespace(orders=orders, command=command, command_by_id=lambda identity: command('', stored))

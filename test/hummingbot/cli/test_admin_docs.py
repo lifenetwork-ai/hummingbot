@@ -13,7 +13,7 @@ from hummingbot.client.config.admin_config import AdminSettings
 @pytest.mark.parametrize("environment,visible", [(None, True), ("DEV", True), ("dev", True), ("development", True),
                                                  ("production", False), ("prod", False), ("staging", False), ("", False)])
 async def test_documentation_is_development_only_and_defaults_to_dev(environment, visible):
-    values = {"ADMIN_API_ENABLED": "true", "ADMIN_API_USERNAME": "operator", "ADMIN_API_PASSWORD": "test-password"}
+    values = {"ADMIN_API_ENABLED": "true", "ADMIN_BASIC_AUTH_ENABLED": "true", "ADMIN_API_USERNAME": "operator", "ADMIN_API_PASSWORD": "test-password"}
     if environment is not None:
         values["ENV"] = environment
     settings = AdminSettings.from_environment(values)
@@ -33,7 +33,7 @@ async def test_packaged_schema_and_swagger_ui_work_without_database_or_external_
     artifact = tmp_path / "openapi.json"
     artifact.write_text(swagger.rendered_spec())
     monkeypatch.setattr(swagger, "SPEC_PATH", artifact)
-    settings = AdminSettings(True, "operator", "test-password")
+    settings = AdminSettings(True, "operator", "test-password", basic_auth_enabled=True)
     app = web.Application(middlewares=[admin_middleware(settings)])
     AdminAPI(None, settings).register(app)
     async with TestClient(TestServer(app)) as client:

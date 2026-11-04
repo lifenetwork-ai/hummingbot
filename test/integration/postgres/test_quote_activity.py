@@ -39,7 +39,7 @@ async def test_persisted_quote_warning_is_read_only_and_stale_owner_revokes_it(p
         connection.execute(update(BotState).where(BotState.bot_id == 'hummingbot').values(
             desired_state='running', owner_uuid='owner', heartbeat=text('clock_timestamp()'),
             mm_session=row['mm_session'], status=json.loads(json.dumps(row['status'], default=str))))
-    settings = AdminSettings(True, 'operator', 'test-password')
+    settings = AdminSettings(True, 'operator', 'test-password', basic_auth_enabled=True)
     app = web.Application(middlewares=[admin_middleware(settings)])
     AdminAPI(SimpleNamespace(store=store, revision='test'), settings, catalogue=catalogue).register(app)
     with pg_engine.connect() as connection:

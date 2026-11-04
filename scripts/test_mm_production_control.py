@@ -113,7 +113,7 @@ def main():
             for name in ('life_mm_profiles.yaml', 'load_client.py', 'load_health.py', 'exchange.py', 'fixtures.json'):
                 assert evidence['fixture_sha256'][name] == baseline['fixture_sha256'][name], name
             harness = Harness(image, assets, report, 'demo')
-            harness.env.update(ADMIN_API_ENABLED='true', ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin',
+            harness.env.update(ADMIN_API_ENABLED='true', ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin',
                                ADMIN_STATISTICS_CACHE_TTL_SECONDS=str(baseline['daily_cache_ttl_seconds']), FUNDING_SYNC_INTERVAL_SECONDS='5')
             try:
                 harness.setup()

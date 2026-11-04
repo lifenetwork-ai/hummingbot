@@ -13,7 +13,7 @@ from hummingbot.connector.trading_rule import TradingRule
 
 @pytest.mark.asyncio
 async def test_discovery_uses_connector_rules_and_shares_one_refresh():
-    api = AdminAPI(None, AdminSettings(True, "operator", "test-password"))
+    api = AdminAPI(None, AdminSettings(True, "operator", "test-password", basic_auth_enabled=True))
     source = SimpleNamespace(trading_rules={
         pair: TradingRule(pair, min_order_size=Decimal("0.01"))
         for pair in ("AVAX-USDT", "BTC-USDT", "ETH-BTC")

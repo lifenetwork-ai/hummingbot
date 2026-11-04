@@ -323,7 +323,7 @@ def main():
             (report / "effective-life-mm-profiles.yaml").write_bytes((assets / "life_mm_profiles.yaml").read_bytes())
             evidence["fixture_sha256"] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in assets.iterdir()}
             harness = Harness(image, assets, report, "demo")
-            harness.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin",
+            harness.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin",
                                ADMIN_STATISTICS_CACHE_TTL_SECONDS=str(args.daily_cache_ttl_seconds))
             try:
                 harness.setup()

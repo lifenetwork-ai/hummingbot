@@ -54,7 +54,7 @@ async def test_optional_api_queries_leave_room_for_owner_and_background_work(pg_
             all_arrived.set()
         return await handler(request)
 
-    settings = AdminSettings(True, 'operator', 'test-password')
+    settings = AdminSettings(True, 'operator', 'test-password', basic_auth_enabled=True)
     app = web.Application(middlewares=[arrival, admin_middleware(settings)])
 
     def observations():

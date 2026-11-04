@@ -53,7 +53,7 @@ def main():
                                                                    'from quote_refresh_probe import install\ninstall()\nservice.main()'))
             evidence['fixture_sha256'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in assets.iterdir()}
             harness = Harness(baseline['image_id'], assets, report, 'demo')
-            harness.env.update(ADMIN_API_ENABLED='true', ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin',
+            harness.env.update(ADMIN_API_ENABLED='true', ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin',
                                ADMIN_STATISTICS_CACHE_TTL_SECONDS='15', FUNDING_SYNC_INTERVAL_SECONDS='5')
             try:
                 harness.setup()

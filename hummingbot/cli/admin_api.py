@@ -60,6 +60,7 @@ from hummingbot.cli.admin_models import (
 from hummingbot.cli.admin_operations import operator_view, process_identity
 from hummingbot.cli.api_documentation import api_operation
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
+from hummingbot.core.admin_identity import AccessDenied, Principal
 from hummingbot.core.control_errors import RequestError
 from hummingbot.model.admin_store import AdminStore
 from hummingbot.model.bot_state_store import ControlConflict
@@ -82,6 +83,13 @@ ADMIN_ENDPOINTS += (("GET", "/sessions/{session_id}/configuration", "session_con
 ADMIN_ENDPOINTS += (("GET", "/commands", "commands_history"), ("GET", "/sessions", "sessions"),
                     ("GET", "/reconciliation/{check_id}", "reconciliation_by_id"))
 
+READ_HANDLERS = frozenset({"profiles", "status", "command", "openapi", "docs", "asset", "orders", "order", "fills",
+                           "reference_pairs", "balances", "positions", "performance", "daily", "session_events", "liquidity",
+                           "reconciliation", "session_configuration", "commands_history", "sessions", "reconciliation_by_id"})
+WRITE_HANDLERS = frozenset({"commands", "reconciliation_check"})
+ADMIN_PERMISSIONS = {(method, ADMIN_PREFIX + path): "read" if name in READ_HANDLERS else "write"
+                     for method, path, name in ADMIN_ENDPOINTS if name in READ_HANDLERS | WRITE_HANDLERS}
+
 
 class APIUnavailable(RuntimeError):
     pass
@@ -93,6 +101,8 @@ async def admin_errors(request, handler):
         return await handler(request)
     try:
         return await handler(request)
+    except AccessDenied as error:
+        return error_response(request, error.code, status=error.status)
     except ControlConflict as error:
         return error_response(request, "control_or_idempotency_conflict", status=409, code=error.code,
                               retry_after_seconds=error.retry_after_seconds)
@@ -138,11 +148,18 @@ class AdminAPI:
         # Reserve independent operations/heavy slots within the existing
         # two-worker bound; reports cannot consume every operational slot.
         self._database_executor = AdminDatabaseExecutor()
+        self._identity_service = None
 
     def register(self, app):
         app.middlewares.append(admin_errors)
         app.on_cleanup.append(self.close)
+        if self.settings.google_auth_enabled:
+            from hummingbot.cli.admin_identity import AdminIdentityService
+            self._identity_service = AdminIdentityService(self)
+            app["admin_identity"] = self._identity_service
         for method, path, name in ADMIN_ENDPOINTS:
+            if (method, ADMIN_PREFIX + path) not in ADMIN_PERMISSIONS:
+                raise ValueError("Admin handler has no reviewed permission")
             if method == "GET":
                 app.router.add_get(ADMIN_PREFIX + path, getattr(self, name))
             else:
@@ -176,7 +193,14 @@ class AdminAPI:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
             self._daily_flights.clear()
+            if self._identity_service is not None:
+                await self._identity_service.close()
             await self._database_executor.close()
+
+    def access_store(self):
+        from hummingbot.model.admin_access import AdminAccessStore
+        state = self.storage().store
+        return AdminAccessStore(state.engine, state.bot_id)
 
     def reference_source(self):
         # Public instrument discovery uses the existing connector parser and
@@ -322,7 +346,9 @@ class AdminAPI:
             raise RequestError("Idempotency-Key is required", code="idempotency_key_required", field="Idempotency-Key")
         catalogue = await self.deployed_profiles() if command.action != "stop" else None
         session_request = command.session_request(catalogue) if command.action != "stop" else None
-        receipt = await self.run_control_database(self.storage().command, key, payload, catalogue=catalogue, request=session_request, principal=self.settings.username)
+        receipt = await self.run_control_database(self.storage().command, key, payload, catalogue=catalogue,
+                                                  request=session_request, principal=request["admin_principal"],
+                                                  audit_request_id=request_id(request))
         return web.json_response(self.command_response(receipt).model_dump(mode="json"), status=202)
 
     @api_operation(operation_id="getCommand", summary="Read accepted, applying or final command outcome", tag="Control",
@@ -506,7 +532,8 @@ class AdminAPI:
         except (json.JSONDecodeError, UnicodeError):
             raise web.HTTPBadRequest() from None
         ReconciliationRequest.model_validate(payload)
-        row = await self.run_database(self.storage().request_check, request.headers.get("Idempotency-Key", ""), payload)
+        row = await self.run_control_database(self.storage().request_check, request.headers.get("Idempotency-Key", ""), payload,
+                                              principal=request["admin_principal"], audit_request_id=request_id(request))
         return web.json_response(self.check_response(row).model_dump(mode="json"), status=202)
 
     @api_operation(operation_id="getReconciliation", summary="Read the latest stored check outcome without contacting OKX", tag="Reconciliation",
@@ -603,7 +630,7 @@ class AdminAPI:
                             content_type="application/javascript" if name.endswith(".js") else "text/css")
 
 
-def admin_middleware(settings):
+def admin_middleware(settings, *, identity=None):
     expected_user = hashlib.sha256(settings.username.encode("utf-8")).digest()
     expected_password = hashlib.sha256(settings.password.encode("utf-8")).digest()
 
@@ -638,18 +665,45 @@ def admin_middleware(settings):
                 "Access-Control-Allow-Headers": "Authorization, Content-Type, Idempotency-Key",
             })
         else:
+            authorization = request.headers.get("Authorization", "")
             try:
-                auth = BasicAuth.decode(request.headers.get("Authorization", ""), encoding="utf-8")
-                user_ok = hmac.compare_digest(hashlib.sha256(auth.login.encode("utf-8")).digest(), expected_user)
-                password_ok = hmac.compare_digest(hashlib.sha256(auth.password.encode("utf-8")).digest(), expected_password)
-                authenticated = user_ok & password_ok
-            except ValueError:
-                authenticated = False
-            if not authenticated:
-                response = error_response(request, "authentication_required", status=401)
-                response.headers["WWW-Authenticate"] = 'Basic realm="Hummingbot admin", charset="UTF-8"'
-            else:
+                scheme, _, value = authorization.partition(" ")
+                if scheme.casefold() == "basic":
+                    if not settings.basic_auth_enabled:
+                        raise AccessDenied("basic_auth_disabled")
+                    try:
+                        auth = BasicAuth.decode(authorization, encoding="utf-8")
+                        user_ok = hmac.compare_digest(hashlib.sha256(auth.login.encode("utf-8")).digest(), expected_user)
+                        password_ok = hmac.compare_digest(hashlib.sha256(auth.password.encode("utf-8")).digest(), expected_password)
+                    except ValueError:
+                        raise AccessDenied() from None
+                    if not (user_ok & password_ok):
+                        raise AccessDenied()
+                    principal = Principal("basic:" + settings.username, "basic", "admin")
+                elif scheme.casefold() == "bearer" and settings.google_auth_enabled and 1 <= len(value) <= 16384:
+                    service = identity or request.app.get("admin_identity")
+                    if service is None:
+                        raise AccessDenied("identity_provider_unavailable", status=503)
+                    canonical = request.match_info.route.resource.canonical if request.match_info.route.resource else ""
+                    required = ADMIN_PERMISSIONS.get(("GET" if request.method == "HEAD" else request.method, canonical))
+                    principal = await service.authenticate(value, control=required in ("write", "admin"),
+                                                           bind=False, request_id=request_id(request))
+                else:
+                    raise AccessDenied()
+                canonical = request.match_info.route.resource.canonical if request.match_info.route.resource else ""
+                required = ADMIN_PERMISSIONS.get(("GET" if request.method == "HEAD" else request.method, canonical))
+                if required is None:
+                    raise AccessDenied("insufficient_role", status=403)
+                principal.require(required)
+                request["admin_principal"] = principal
                 response = await handler(request)
+            except AccessDenied as error:
+                response = error_response(request, error.code, status=error.status,
+                                          retry_after_seconds=1 if error.code == "security_work_busy" else None)
+                if error.status == 401 and settings.basic_auth_enabled:
+                    response.headers["WWW-Authenticate"] = 'Basic realm="Hummingbot admin", charset="UTF-8"'
+            except (APIUnavailable, SQLAlchemyError, asyncio.TimeoutError):
+                response = error_response(request, "database_unavailable", status=503)
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Request-ID"] = request_id(request)
         if origin:

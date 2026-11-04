@@ -38,7 +38,7 @@ async def test_history_queue_leaves_real_pg_balances_and_stop_available(pg_engin
                         action='stop', session_id='session', expected_version=0),
                     created_at=now, updated_at=now)
 
-    settings = AdminSettings(True, 'operator', 'test-password')
+    settings = AdminSettings(True, 'operator', 'test-password', basic_auth_enabled=True)
     api = AdminAPI(None, settings, store=SimpleNamespace(
         orders=history, observations=observations, command=command,
         command_by_id=lambda identity: command()))

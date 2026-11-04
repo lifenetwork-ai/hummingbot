@@ -56,7 +56,7 @@ async def test_real_http_control_receipts_retry_conflicts_failures_and_market_mo
     state.ensure()
     owner = BotOwnership(pg_engine, "hummingbot")
     assert owner.try_acquire()
-    settings = AdminSettings(True, "operator", "test-password")
+    settings = AdminSettings(True, "operator", "test-password", basic_auth_enabled=True)
     catalogue = await MMProfilesConfig.load(CATALOGUE)
     app = web.Application(middlewares=[admin_middleware(settings)])
     AdminAPI(SimpleNamespace(store=state), settings, catalogue=catalogue).register(app)

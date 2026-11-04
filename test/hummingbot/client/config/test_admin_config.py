@@ -6,7 +6,7 @@ from hummingbot.client.config.runtime_config import RuntimeConfigurationError
 
 def test_admin_is_disabled_by_default_and_credentials_are_redacted():
     assert not AdminSettings.from_environment({}).enabled
-    settings = AdminSettings.from_environment({"ADMIN_API_ENABLED": "true", "ADMIN_API_USERNAME": "operator",
+    settings = AdminSettings.from_environment({"ADMIN_API_ENABLED": "true", "ADMIN_BASIC_AUTH_ENABLED": "true", "ADMIN_API_USERNAME": "operator",
                                                "ADMIN_API_PASSWORD": "test-password"})
     assert settings.enabled
     assert "test-password" not in repr(settings)
@@ -15,9 +15,9 @@ def test_admin_is_disabled_by_default_and_credentials_are_redacted():
 
 @pytest.mark.parametrize("values", [
     {"ADMIN_API_ENABLED": "yes"},
-    {"ADMIN_API_ENABLED": "true"},
-    {"ADMIN_API_ENABLED": "true", "ADMIN_API_USERNAME": "operator", "ADMIN_API_PASSWORD": ""},
-    {"ADMIN_API_ENABLED": "true", "ADMIN_API_USERNAME": "bad:username", "ADMIN_API_PASSWORD": "test-password"},
+    {"ADMIN_API_ENABLED": "true", "ADMIN_BASIC_AUTH_ENABLED": "true"},
+    {"ADMIN_API_ENABLED": "true", "ADMIN_BASIC_AUTH_ENABLED": "true", "ADMIN_API_USERNAME": "operator", "ADMIN_API_PASSWORD": ""},
+    {"ADMIN_API_ENABLED": "true", "ADMIN_BASIC_AUTH_ENABLED": "true", "ADMIN_API_USERNAME": "bad:username", "ADMIN_API_PASSWORD": "test-password"},
     {"ADMIN_CORS_ORIGINS": "https://*.example"},
     {"REPORTING_TIMEZONE": "unknown/timezone"},
     {"ADMIN_STATISTICS_CACHE_TTL_SECONDS": "nan"},

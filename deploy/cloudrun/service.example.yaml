@@ -54,6 +54,11 @@ spec:
               value: '5'
             - name: ADMIN_API_ENABLED
               value: 'true'
+            # Bootstrap only; disable after verified Google admins are onboarded.
+            - name: ADMIN_BASIC_AUTH_ENABLED
+              value: 'true'
+            - name: ADMIN_GOOGLE_AUTH_ENABLED
+              value: 'false'
             - name: ADMIN_STATISTICS_CACHE_TTL_SECONDS
               value: '15'
             - name: ADMIN_API_USERNAME

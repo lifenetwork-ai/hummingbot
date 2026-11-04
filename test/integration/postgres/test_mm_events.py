@@ -163,7 +163,7 @@ async def test_history_and_liquidity_http_are_authenticated_bounded_and_use_only
     from hummingbot.client.config.admin_config import AdminSettings
     store, admin, catalogue = history
     receipt, _, _ = start(history)
-    settings = AdminSettings(True, 'operator', 'offline-admin')
+    settings = AdminSettings(True, 'operator', 'offline-admin', basic_auth_enabled=True)
     app = web.Application(middlewares=[admin_middleware(settings)])
     AdminAPI(SimpleNamespace(store=store), settings, catalogue=catalogue).register(app)
     async with TestClient(TestServer(app)) as client:
@@ -270,7 +270,7 @@ async def test_live_liquidity_http_uses_published_snapshot_and_marks_owner_gap_u
                                         {'spot': quotes}, now=now, monotonic_now=0, owner_generation=owner.generation)
     status = json.loads(json.dumps(dict(mm_session=session.model_dump(mode='json'), mm_liquidity=frame), default=str))
     assert store.publish(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=1, status=status, save_balances=False)
-    settings = AdminSettings(True, 'operator', 'offline-admin')
+    settings = AdminSettings(True, 'operator', 'offline-admin', basic_auth_enabled=True)
     app = web.Application(middlewares=[admin_middleware(settings)])
     AdminAPI(SimpleNamespace(store=store), settings, catalogue=catalogue).register(app)
     try:

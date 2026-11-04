@@ -22,8 +22,10 @@ future exchange adapters, with OKX the only initial implementation.
 Credential actions will have their own operation receipt/polling route, plus
 retry and same-account key repair for interrupted cleanup; existing trading
 command receipts retain their contract. See the plan before integrating these routes.
-It is **not implemented**; the current Basic Auth and environment-only credential
-contract below still applies.
+A1 identity/permission foundations are implemented; onboarding, audit endpoints and
+managed credentials remain planned. Basic bootstrap now requires explicit
+`ADMIN_BASIC_AUTH_ENABLED=true`; disable it after Google administration is verified.
+The environment-only exchange credential contract below still applies.
 
 ## Start here
 

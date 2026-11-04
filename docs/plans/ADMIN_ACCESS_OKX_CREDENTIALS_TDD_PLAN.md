@@ -1,8 +1,8 @@
 # Admin access and encrypted exchange credentials — TDD plan (OKX first)
 
-Status: requirements and implementation boundaries reviewed on 2026-11-05
-(Asia/Saigon); ready to begin the sequential TDD phases below. Implementation has
-**not started**. This document describes proposed behavior. Current endpoints
+Status: A1 implemented and verified on 2026-11-05 (Asia/Saigon); A2–A6 remain open.
+Evidence: [implementation progress](../../reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
+Unchecked sections describe proposed behavior. Current endpoints
 and deployment behavior remain documented in [FE integration](../fe-integration.md).
 
 ## Agreed scope and review verdict
@@ -736,17 +736,17 @@ with a conventional prefix. Planning checks above do not mark implementation don
 
 ### A1 — Storage foundation, authentication settings and permissions
 
-- [ ] Create/test accounts and audit migrations/models before enabling DB-backed
+- [x] Create/test accounts and audit migrations/models before enabling DB-backed
   authentication; repeat migrations, missing-schema behavior and safe service startup.
-- [ ] Test Basic on/off, populated-but-disabled credentials, wrong/expired Google
+- [x] Test Basic on/off, populated-but-disabled credentials, wrong/expired Google
   tokens, wrong audience/issuer, non-whitelisted identities and disabled users.
-- [ ] Implement official Google verification and principal propagation; cover every
+- [x] Implement official Google verification and principal propagation; cover every
   existing handler with explicit read/write/admin permissions and correct audit actor.
-- [ ] Test no Basic fallback on Google/DB failure; avoid recording unverified email,
+- [x] Test no Basic fallback on Google/DB failure; avoid recording unverified email,
   Authorization headers or sensitive Pydantic input in errors/logs.
-- [ ] Test explicit 401/403 explanations, safe verified-identity boundaries and every
+- [x] Test explicit 401/403 explanations, safe verified-identity boundaries and every
   new error-code/retry mapping; specific errors must not collapse into generic failures.
-- [ ] Test bounded signing-key retrieval/caching and auth worker saturation without
+- [x] Test bounded signing-key retrieval/caching and auth worker saturation without
   blocking engine progress or starving Stop; document legacy env upgrade requirements.
 
 ### A2 — Whitelist, roles and audit API
@@ -903,7 +903,7 @@ The decisions above close them at plan level; their implementation tests stay op
 | Generic connector input metadata includes deployment-owned fields | Credential-only field allowlist and tested routing/identity injection |
 | DB-backed auth was scheduled before its schema; role changes can race mutation admission | A1 includes storage foundation; permission checks and mutation commit have defined transaction ordering |
 
-A1 can start now. A4b is the highest-risk subphase and must pass its targeted
+A1 is implemented; A2 is next. A4b is the highest-risk subphase and must pass its targeted
 cancel/close/restart tests before its capability is enabled. Actual Google sign-in,
 GCP KMS and reviewed Demo checks need their external resources for A6; their absence
 does not block offline implementation and must not be recorded as a pass.

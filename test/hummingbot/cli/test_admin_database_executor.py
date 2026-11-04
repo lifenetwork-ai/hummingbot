@@ -9,7 +9,7 @@ from hummingbot.client.config.admin_config import AdminSettings
 
 
 def api():
-    return AdminAPI(None, AdminSettings(True, 'operator', 'test-password'))
+    return AdminAPI(None, AdminSettings(True, 'operator', 'test-password', basic_auth_enabled=True))
 
 
 @pytest.mark.asyncio

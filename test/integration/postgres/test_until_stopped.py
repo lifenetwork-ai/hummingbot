@@ -20,7 +20,7 @@ from hummingbot.model.db_migration.postgres.runner import bootstrap_postgres
 
 
 def client(store, cfg):
-    settings = AdminSettings(True, 'operator', 'test-password')
+    settings = AdminSettings(True, 'operator', 'test-password', basic_auth_enabled=True)
     app = web.Application(middlewares=[admin_middleware(settings)])
     AdminAPI(SimpleNamespace(store=store, revision='test'), settings, catalogue=cfg).register(app)
     return TestClient(TestServer(app), headers={'Authorization': BasicAuth('operator', 'test-password').encode()})

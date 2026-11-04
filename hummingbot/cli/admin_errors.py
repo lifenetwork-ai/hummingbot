@@ -7,6 +7,11 @@ from aiohttp import web
 from hummingbot.cli.admin_models import ErrorResponse
 
 RETRIES = {
+    "basic_auth_disabled": "reconnect", "token_expired": "reconnect",
+    "account_not_allowed": "contact_support", "account_disabled": "contact_support",
+    "insufficient_role": "contact_support", "identity_binding_mismatch": "contact_support",
+    "account_onboarding_required": "reconnect", "identity_provider_unavailable": "wait",
+    "database_unavailable": "wait", "security_work_busy": "wait",
     'duration_mode_not_allowed': 'fix_request', 'duration_mode_conflict': 'fix_request',
     "validation_failed": "fix_request", "yaml_configuration_read_only": "fix_request",
     "duration_out_of_range": "fix_request", "profile_unavailable": "fix_request",
@@ -25,6 +30,16 @@ RETRIES = {
 }
 
 MESSAGES = {
+    "basic_auth_disabled": "Password sign-in is disabled. Sign in with Google.",
+    "token_expired": "Your sign-in expired. Sign in again to continue.",
+    "account_not_allowed": "Your account is not allowed to use this dashboard. Contact an administrator.",
+    "account_disabled": "Your dashboard access is disabled. Contact an administrator.",
+    "insufficient_role": "Your role does not allow this action. Contact an administrator.",
+    "identity_binding_mismatch": "This sign-in does not match the approved account. Contact an administrator.",
+    "account_onboarding_required": "Sign in to activate your approved dashboard account.",
+    "identity_provider_unavailable": "Sign-in verification is temporarily unavailable. Please try again shortly.",
+    "database_unavailable": "Account access cannot be checked right now. Please try again shortly.",
+    "security_work_busy": "Sign-in verification is busy. Please wait before trying again.",
     'duration_mode_not_allowed': 'Until stopped is not enabled in the deployed configuration. Choose Timed or contact your maintainer.',
     'duration_mode_conflict': 'Choose a duration for Timed, or omit it for Until stopped.',
     "validation_failed": "Check the highlighted fields and try again.",

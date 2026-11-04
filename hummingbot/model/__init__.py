@@ -10,6 +10,7 @@ HummingbotBase = declarative_base(metadata=MetaData(naming_convention={
 
 
 def get_declarative_base():
+    from .admin_access import AdminAccount, AdminAuditEvent  # noqa: F401
     from .admin_command import AdminCommand  # noqa: F401
     from .bot_state import BotState  # noqa: F401
     from .controllers import Controllers  # noqa: F401

@@ -24,11 +24,15 @@ def _state(connection, bot_id):
         BotState.bot_id == bot_id).with_for_update()).mappings().one()
 
 
-def request_check(store, key, payload):
+def request_check(store, key, payload, *, principal=None, audit_request_id=None):
     if not isinstance(key, str) or not 1 <= len(key) <= 128 or any(not 33 <= ord(c) <= 126 for c in key):
         raise ValueError("Idempotency-Key is required")
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
     with store.engine.begin() as connection:
+        from hummingbot.core.admin_identity import Principal
+        from hummingbot.model.admin_access import AdminAccessStore
+        access = AdminAccessStore(store.engine, store.bot_id)
+        actor = access.authorize(connection, principal, "write") if isinstance(principal, Principal) else None
         state = _state(connection, store.bot_id)
         prior = connection.execute(select(AdminCommand).where(AdminCommand.bot_id == store.bot_id,
                                                               AdminCommand.idempotency_key == key)).mappings().first()
@@ -50,7 +54,12 @@ def request_check(store, key, payload):
                       status="accepted" if available else "failed", payload=payload,
                       result=None if available else dict(state="unavailable", markets=[], started_at=None, finished_at=state["database_now"].isoformat()),
                       error=None if available else "owner_unavailable", created_at=state["database_now"], updated_at=state["database_now"])
-        return store._insert_command(connection, values)
+        receipt = store._insert_command(connection, values)
+        if actor:
+            access.audit(connection, actor=actor, action="reconciliation_requested", outcome=values["status"],
+                         request_id=audit_request_id or uuid.uuid4().hex, operation_id=receipt["id"],
+                         reason_code=values["error"])
+        return receipt
 
 
 def claim_check(store, owner_uuid, generation):

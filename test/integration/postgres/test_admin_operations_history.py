@@ -108,7 +108,7 @@ async def test_history_http_contracts_do_not_expose_storage_receipt_fields(pg_en
     bootstrap_postgres(pg_engine, auto_migrate=True)
     state = BotStateStore(pg_engine, "hummingbot")
     state.ensure()
-    settings = AdminSettings(True, "operator", "test-password")
+    settings = AdminSettings(True, "operator", "test-password", basic_auth_enabled=True)
     app = web.Application(middlewares=[admin_middleware(settings)])
     AdminAPI(SimpleNamespace(store=state), settings, catalogue=await MMProfilesConfig.load(CATALOGUE)).register(app)
     async with TestClient(TestServer(app)) as client:

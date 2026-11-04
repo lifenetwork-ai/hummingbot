@@ -26,7 +26,7 @@ async def client(settings):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("path", ["/status", "/profiles", "/openapi.json", "/docs", "/orders", "/balances"])
 async def test_every_admin_read_including_schema_and_ui_requires_basic_auth(path):
-    async with client(AdminSettings(True, "operator", "test-password")) as http:
+    async with client(AdminSettings(True, "operator", "test-password", basic_auth_enabled=True)) as http:
         response = await http.get(ADMIN_PREFIX + path)
         assert response.status == 401
         assert response.headers["WWW-Authenticate"].startswith("Basic ")
@@ -37,14 +37,14 @@ async def test_every_admin_read_including_schema_and_ui_requires_basic_auth(path
 @pytest.mark.parametrize("authorization", ["Bearer token", "Basic !!!", BasicAuth("wrong", "test-password").encode(),
                                            BasicAuth("operator", "wrong").encode()])
 async def test_bad_credentials_and_malformed_headers_fail(authorization):
-    async with client(AdminSettings(True, "operator", "test-password")) as http:
+    async with client(AdminSettings(True, "operator", "test-password", basic_auth_enabled=True)) as http:
         response = await http.post(ADMIN_PREFIX + "/commands", headers={"Authorization": authorization}, json={})
         assert response.status == 401
 
 
 @pytest.mark.asyncio
 async def test_valid_unicode_password_and_public_health():
-    async with client(AdminSettings(True, "operator", "test-mật-khẩu")) as http:
+    async with client(AdminSettings(True, "operator", "test-mật-khẩu", basic_auth_enabled=True)) as http:
         assert (await http.get("/live")).status == 200
         header = BasicAuth("operator", "test-mật-khẩu", encoding="utf-8").encode()
         assert (await http.get(ADMIN_PREFIX + "/status", headers={"Authorization": header})).status == 200
@@ -59,7 +59,7 @@ async def test_disabled_admin_api_does_not_expose_registered_routes():
 
 @pytest.mark.asyncio
 async def test_allowed_preflight_does_not_bypass_auth_for_actual_request():
-    async with client(AdminSettings(True, "operator", "test-password", ("https://ui.example",))) as http:
+    async with client(AdminSettings(True, "operator", "test-password", ("https://ui.example",), basic_auth_enabled=True)) as http:
         headers = {"Origin": "https://ui.example", "Access-Control-Request-Method": "POST",
                    "Access-Control-Request-Headers": "authorization, content-type, idempotency-key"}
         response = await http.options(ADMIN_PREFIX + "/commands", headers=headers)
@@ -72,7 +72,7 @@ async def test_allowed_preflight_does_not_bypass_auth_for_actual_request():
 
 @pytest.mark.asyncio
 async def test_wildcard_origin_allows_explicit_basic_header_without_browser_credentials():
-    async with client(AdminSettings(True, "operator", "test-password", ("*",))) as http:
+    async with client(AdminSettings(True, "operator", "test-password", ("*",), basic_auth_enabled=True)) as http:
         origin = "https://any-ui.example"
         response = await http.options(ADMIN_PREFIX + "/commands", headers={
             "Origin": origin, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization"})

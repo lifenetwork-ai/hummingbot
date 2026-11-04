@@ -33,7 +33,7 @@ def main():
             assets = Path(directory)
             prepare(assets, 'single')
             harness = Harness(image, assets, report, 'demo')
-            harness.env.update(ADMIN_API_ENABLED='true', ADMIN_API_USERNAME='operator',
+            harness.env.update(ADMIN_API_ENABLED='true', ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME='operator',
                                ADMIN_API_PASSWORD='offline-admin', ADMIN_STATISTICS_CACHE_TTL_SECONDS='15')
             try:
                 harness.setup()

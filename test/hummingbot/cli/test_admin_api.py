@@ -18,7 +18,7 @@ PAYLOAD = dict(action="start", expected_version=0, market_mode="spot", profile_i
 @asynccontextmanager
 async def client():
     catalogue = await MMProfilesConfig.load(CATALOGUE)
-    settings = AdminSettings(True, "operator", "test-password")
+    settings = AdminSettings(True, "operator", "test-password", basic_auth_enabled=True)
     storage = MagicMock()
     storage.command.return_value = dict(id="command-1", action="start", session_id="session-1", expected_version=0,
                                         effective_version=1, status="accepted", payload=PAYLOAD,

@@ -28,7 +28,7 @@ async def test_history_json_preserves_exact_values_utc_unicode_and_cursor(route,
                    fee=dict(percent='0', flat_fees=[dict(token='USDT', amount='0.000001')]))
     page = dict(items=[dict(row, id=str(i) + row['id']) for i in range(500)], next_cursor='opaque+/=')
     expected = model.model_validate(page).model_dump(mode='json')
-    settings = AdminSettings(True, 'operator', 'test-password')
+    settings = AdminSettings(True, 'operator', 'test-password', basic_auth_enabled=True)
     app = web.Application(middlewares=[admin_middleware(settings)])
     AdminAPI(None, settings, store=SimpleNamespace(**{route: lambda **kwargs: page})).register(app)
     async with TestClient(TestServer(app), headers={'Authorization': BasicAuth('operator', 'test-password').encode()}) as client:

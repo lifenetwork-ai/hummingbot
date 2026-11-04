@@ -170,7 +170,7 @@ def run_case(image, args, mode, directory, case):
             (executed / path.name).write_bytes((assets / path.name).read_bytes())
         (directory / 'effective-profiles.yaml').write_bytes((assets / 'life_mm_profiles.yaml').read_bytes())
         harness = Harness(image, assets, directory, 'demo')
-        harness.env.update(ADMIN_API_ENABLED='true', ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin',
+        harness.env.update(ADMIN_API_ENABLED='true', ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin',
                            FUNDING_SYNC_INTERVAL_SECONDS='5',
                            ADMIN_STATISTICS_CACHE_TTL_SECONDS=str(args.daily_cache_ttl_seconds))
         if args.supervision == 'restart':

@@ -94,7 +94,7 @@ def main():
                     return original_run_container(name, options, **kwargs)
 
                 harness.run_container = run_container
-            harness.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin",
+            harness.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin",
                                ADMIN_STATISTICS_CACHE_TTL_SECONDS="15", FUNDING_SYNC_INTERVAL_SECONDS="5")
             bot = None
             try:

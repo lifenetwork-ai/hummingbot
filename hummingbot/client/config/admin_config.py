@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from hummingbot.client.config.defaults import DEFAULT_ENV_CONFIG
-from hummingbot.client.config.runtime_config import RuntimeConfigurationError, parse_boolean
+from hummingbot.client.config.runtime_config import RuntimeConfigurationError, parse_boolean, storage_backend
 
 
 @dataclass(frozen=True)
@@ -19,14 +19,26 @@ class AdminSettings:
     statistics_cache_ttl_seconds: float = 5
     documentation_enabled: bool = True
     no_quote_warning_seconds: float = 120
+    basic_auth_enabled: bool = False
+    google_auth_enabled: bool = False
+    google_client_id: str = ""
 
     @classmethod
     def from_environment(cls, environ=None):
         values = os.environ if environ is None else environ
         enabled = parse_boolean(values.get("ADMIN_API_ENABLED", DEFAULT_ENV_CONFIG["ADMIN_API_ENABLED"]), "ADMIN_API_ENABLED")
+        basic = parse_boolean(values.get("ADMIN_BASIC_AUTH_ENABLED", DEFAULT_ENV_CONFIG["ADMIN_BASIC_AUTH_ENABLED"]), "ADMIN_BASIC_AUTH_ENABLED")
+        google = parse_boolean(values.get("ADMIN_GOOGLE_AUTH_ENABLED", DEFAULT_ENV_CONFIG["ADMIN_GOOGLE_AUTH_ENABLED"]), "ADMIN_GOOGLE_AUTH_ENABLED")
+        audience = values.get("ADMIN_GOOGLE_CLIENT_ID", DEFAULT_ENV_CONFIG["ADMIN_GOOGLE_CLIENT_ID"]).strip()
+        if enabled and not (basic or google):
+            raise RuntimeConfigurationError("Enabled admin API requires at least one enabled authentication method.")
+        if google and (not audience or storage_backend(values) != "postgres"):
+            raise RuntimeConfigurationError("Google auth requires ADMIN_GOOGLE_CLIENT_ID and STORAGE_BACKEND=postgres.")
         username, password = values.get("ADMIN_API_USERNAME", ""), values.get("ADMIN_API_PASSWORD", "")
-        if enabled and (not username.strip() or not password.strip() or ":" in username
-                        or any(character in username + password for character in "\r\n")):
+        if basic and (
+            not username.strip() or not password.strip() or ":" in username
+            or any(character in username + password for character in "\r\n")
+        ):
             raise RuntimeConfigurationError("Enabled admin API requires valid ADMIN_API_USERNAME and ADMIN_API_PASSWORD.")
         origins = []
         for origin in values.get("ADMIN_CORS_ORIGINS", DEFAULT_ENV_CONFIG["ADMIN_CORS_ORIGINS"]).split(","):
@@ -64,4 +76,4 @@ class AdminSettings:
         except (ValueError, TypeError):
             raise RuntimeConfigurationError('MM_NO_QUOTE_WARNING_SECONDS must be 0 or between 5 and 86400.') from None
         return cls(enabled, username, password, ("*",) if "*" in origins else tuple(dict.fromkeys(origins)), timezone, ttl,
-                   documentation_enabled, warning)
+                   documentation_enabled, warning, basic, google, audience)
