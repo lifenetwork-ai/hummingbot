@@ -1,5 +1,10 @@
 # Operations API and configuration ownership — TDD plan
 
+The planned [admin access and encrypted OKX credentials extension](ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md)
+will add Google whitelist/roles, optional Basic Auth and an explicit API-managed
+credential exception to the environment-only contract below. That extension is
+not implemented; the completed results here retain their original scope.
+
 The subsequent [until-stopped session extension](MM_UNTIL_STOPPED_TDD_PLAN.md)
 adds `duration_mode` as a session control subject to YAML permission. The original
 implementation/test results below keep their original scope; the current guide

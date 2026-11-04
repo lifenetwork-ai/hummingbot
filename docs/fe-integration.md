@@ -11,6 +11,11 @@ service available, are there working orders, what is blocking trading, how much
 capital/exposure remains, and what should the operator do? Profit is secondary.
 No dashboard application or browser acceptance ships in this repository.
 
+Planned extension: [admin access and encrypted OKX credentials](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md)
+defines Google whitelist/roles, environment-controlled Basic Auth disable, encrypted
+DB credentials with local/GCP KEK providers and an audit API. It is **not implemented**;
+the current Basic Auth and environment-only credential contract below still applies.
+
 ## Start here
 
 1. Agree on the service URL, Cloud Run network/IAM access and authentication route.
