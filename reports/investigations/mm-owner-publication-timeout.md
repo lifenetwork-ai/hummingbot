@@ -2,7 +2,8 @@
 
 2026-11-04. **Follow-up reproduces the same failing publication SELECT and
 SQLSTATE under controlled WAL I/O pressure.** The historical exclusive trigger
-remains unproven; the causal mechanism is now demonstrated below.
+remains unproven; the causal mechanism is now demonstrated below. The offline
+fixture preparation correction is implemented and verified in the final section.
 
 The initial three preparation runs do not reproduce the failure. One establishes a separate
 1.182s publication COMMIT wait on PostgreSQL WAL I/O during historical fixture
@@ -218,3 +219,68 @@ remedy. No new release acceptance or production database setting is claimed.
 Historical exclusive attribution stays open even though the matching mechanism
 has been reproduced. Final read-only verification preserves stopped Demo,
 23 fills, all four ledger hashes and no recovery block.
+
+
+## Offline history preparation correction
+
+Commits `7bdb5b6f6` and `2b4011556` move bulk fixture insertion out of the
+running service. Stopping a trading session alone had left the owner publisher
+active while the fixture generated WAL. The shared
+`scripts/mm_load_preparation.py` now requires acknowledged Stop, clean full
+container shutdown and released ownership before inserting history. It checks
+for remaining application DB connections, owner locks and pending orders,
+seeds the original rows, and runs CHECKPOINT before normal service startup.
+Startup must acquire a new owner generation with stopped intent, matching
+control version, no recovery block and preserved outflow origin. Failed seed
+or CHECKPOINT leaves the test service offline; unexpected child failures or
+restarts prevent workload admission. There is no recovery/HALT reset.
+
+All six maintained callers share this preparation: main load, reporting
+isolation, production control, random handover, memory and process-isolation
+diagnostics. Memory reads wait for fresh post-restart metrics; process-fault
+checks capture their initial generation after the planned setup restart.
+
+Red/Green coverage includes 13 initial failures, one lost-outflow-origin case
+and six caller-wiring cases. **169 related native tests and seven PostgreSQL
+fixture/reporting compatibility tests pass.** The first caller Green invocation
+referenced an absent optional test file and ran no tests; its corrected final
+invocation supplies the 169 passing results. Raw attempts remain retained.
+
+| Verification | Result |
+| --- | --- |
+| Two 8 MiB/s PG controls | Each seeds 100,000 orders and 100,000 fills offline; application connections/owner locks/pending orders are all zero. Generation 1→2, then 65s stable with no publication failure or unexpected child restart. |
+| Unchanged 300s load | PASS; 6,600 measured HTTP 200 responses, no unexpected errors/stale; primary p95/p99 50.83/113.94ms, auxiliary p95/p99 29.22/36.87ms; 300 exact synthetic fills/fees/positions. |
+| Controlled slow-report, 120s | PASS; one intentional `57014`, retry returns fresh data, zero stale replies, 120 exact synthetic fills/fees/positions; engine PID, owner and session unchanged, no HALT. Two simulator fills occur during the timed-out query, with one durable-fill witness inside it. |
+| Actual Demo restoration | Stopped, owner available, 23 existing fills; order/fill/position/executor counts and all four hashes unchanged. |
+
+The 300s load retains two single engine-probe timeout/recovery episodes: next
+successful observations arrive about 1.03–1.04s after the initial failed probe;
+maximum recorded probe elapsed is 303.64ms. There is no unexpected service
+failure or child restart. These observations do not establish that MM paused
+for the supervisor's observation interval, and this phase does not claim to
+eliminate every short slow probe.
+
+The 8 MiB/s controls validate **offline preparation and stopped-session startup**;
+they do not qualify live trading under that storage limit. The diagnostic PG
+sampler has independent 200ms timeouts/reconnects during the imposed pressure;
+these remain in the evidence. Initial Stop also produces expected local
+`SubmissionBlocked` records, which are not venue submissions or publication
+failures. No claim of entirely error-free raw logs is made.
+
+Shipping image remains `086454de`; its ten recorded runtime source hashes still
+match. Runtime ownership fences, durability, 2s statement/1s lock/3s client I/O
+deadlines, workload rates, history timestamps/outflow expiry and acceptance
+budgets are unchanged. Only the administrative fixture seed/CHECKPOINT command
+gets a 180s Docker budget while the service is offline. A planned full restart
+before measurement is recorded separately from an unexpected runtime restart.
+
+The main load and slow-report paths ran with real disposable containers. The
+other migrated long suites have common-lifecycle and wiring coverage; they were
+not fully rerun here. No new sixty-minute soak, real Demo trade, image rebuild
+or deployment was performed. Earlier failed artifacts and the old measured hour
+retain their original scopes; exclusive attribution of the original historical
+trigger remains open.
+
+[Machine-readable evidence](mm-offline-history-preparation-evidence.json) records
+source/image fingerprints, raw artifact hashes, preparation stages, controlled
+failures, measured results and read-only Demo preservation checks.

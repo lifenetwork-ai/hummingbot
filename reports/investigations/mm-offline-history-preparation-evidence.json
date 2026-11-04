@@ -1,0 +1,330 @@
+{
+  "date": "2026-11-04",
+  "scope": "Offline fixture staging correction; no shipping engine change or new measured-hour qualification",
+  "source_commits": [
+    "7bdb5b6f6b1b1f4b15c50798a866168b84870a0f",
+    "2b4011556e2bb37dad06a8c0ea9a44a54ea8ce33"
+  ],
+  "shipping_image": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+  "runtime_source_files_match_previous_image": true,
+  "source_validation": {
+    "native_related_passed": 169,
+    "postgres_compatibility_passed": 7,
+    "initial_red_failures": 13,
+    "outflow_origin_red_failures": 1,
+    "caller_red_failures": 6,
+    "nonqualifying_invocation": "caller-green.log referenced an absent optional test file; no tests ran. Corrected caller-green-final.log has 169 passing tests."
+  },
+  "controls": [
+    {
+      "case": "io-8mb-1",
+      "report": "build/mm-load/20261104-171745-8d720d",
+      "shipping_image": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+      "source_sha256": {
+        "scripts/test_mm_load.py": "13aa71f24248ffc206ab3fd883db527a5fdcafa95298c598705ef7a84277b5f7",
+        "scripts/test_e2e_offline.py": "97d2187481d6ff4dc783b6c9a51d16b5958109aaf6a7f79c8ce08fa120868e8a",
+        "scripts/analyze_mm_load_trace.py": "f6ff4e76ddfeb95098064247a9e68a07185f40671769b5bc28cf29da424c9fda",
+        "scripts/mm_load_budgets.py": "e63c9f4741475bae7bd2fd1b69d70ffb8b7b1fdba8fb7c1e4348d96a841694c7",
+        "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
+        "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458",
+        "scripts/mm_load_processes.py": "1b939e85a11b7d374cc17dc2111729b72f0775aad2f5161487110f1f516820fa",
+        "scripts/mm_load_preparation.py": "ae64961f43335cbd5f015c7dede8d86da01ff6b16ac0046d70fd810b7144466a",
+        "test/e2e/offline/load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+        "test/e2e/offline/load_trace.py": "8f287fb21e13b070edc2e162218af974ea6858747e1340479d9b3438f17e40f1",
+        "test/e2e/offline/load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+        "test/e2e/offline/load_service.py": "8e79dc44cacf8daf12a63119cb39f425f929e5c7b137f11b6dc4293f7f03cb57",
+        "test/e2e/offline/load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4"
+      },
+      "postgres_limits": {
+        "Memory": 536870912,
+        "NanoCpus": 0,
+        "BlkioDeviceWriteBps": [
+          {
+            "Path": "/dev/vda",
+            "Rate": 8388608
+          }
+        ]
+      },
+      "preparation": {
+        "history_rows": 100000,
+        "mode": "full_service_offline_seed",
+        "stage": "complete",
+        "owner_generation_before": 1,
+        "control_version": 2,
+        "offline_verified_at": 1793787496.0479062,
+        "offline_checks": {
+          "application_connections": 0,
+          "ownership_locks": 0,
+          "pending_orders": 0
+        },
+        "seed_completed_at": 1793787553.091156,
+        "checkpoint_completed_at": 1793787564.96477,
+        "seeded_counts": {
+          "orders": 100000,
+          "fills": 100000
+        },
+        "restarted_at": 1793787564.964776,
+        "owner_generation_after": 2,
+        "completed_at": 1793787575.184758
+      },
+      "post_restart_idle_seconds": 65,
+      "unexpected_service_failures_or_restarts": 0,
+      "measured_load_gate": false,
+      "runtime_publication_pg_errors": [],
+      "sampler": {
+        "samples": 1234,
+        "reconnects": 72,
+        "retained_error_examples": 20,
+        "dropped": 0
+      },
+      "local_submission_block_error_records": 12,
+      "artifacts_sha256": {
+        "build/mm-offline-history-20261104/case-io-8mb-1/preparation.jsonl": "493d69c0d030dacd0a0d4a3820f8cd7c8824477ff8a4b59f601b1e493c65b2ef",
+        "build/mm-offline-history-20261104/case-io-8mb-1/postgres.jsonl": "bf2e6be30ac20636e3ce5224815d04191f677cf9f2cff802f93caad043d5abaa",
+        "build/mm-offline-history-20261104/case-io-8mb-1/sampler-summary.json": "0de614dc74f89c9ad03d7b44407eed94160755e70bb715989df65e6b8feb2e2b",
+        "build/mm-load/20261104-171745-8d720d/hbot-e2e-1d5953781c-pg.log": "4089c2cf9963ee07ef7fd5b4245c9c0d65d1964628cbc2c33296aad5b9230970",
+        "build/mm-load/20261104-171745-8d720d/hbot-e2e-1d5953781c-load-bot.log": "99d5c8b733e90fbb20acdb7b6afaa2a21bd3ffdc9c1ede2219f54af0a7523027",
+        "build/mm-load/20261104-171745-8d720d/result.json": "d622f05441d210064a103898c38b7b9dc309162bfb865aa931d06d097883741d"
+      }
+    },
+    {
+      "case": "io-8mb-2",
+      "report": "build/mm-load/20261104-172249-7fef10",
+      "shipping_image": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+      "source_sha256": {
+        "scripts/test_mm_load.py": "2102bbf0970606b5f4df227d317046773a6d867f7ccc96be702fabd76a25527e",
+        "scripts/test_e2e_offline.py": "97d2187481d6ff4dc783b6c9a51d16b5958109aaf6a7f79c8ce08fa120868e8a",
+        "scripts/analyze_mm_load_trace.py": "f6ff4e76ddfeb95098064247a9e68a07185f40671769b5bc28cf29da424c9fda",
+        "scripts/mm_load_budgets.py": "e63c9f4741475bae7bd2fd1b69d70ffb8b7b1fdba8fb7c1e4348d96a841694c7",
+        "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
+        "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458",
+        "scripts/mm_load_processes.py": "1b939e85a11b7d374cc17dc2111729b72f0775aad2f5161487110f1f516820fa",
+        "scripts/mm_load_preparation.py": "6c879e6d4a2d041ec46f85b76ee44b940416397567ea80f7c5bb30746fbffba5",
+        "test/e2e/offline/load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+        "test/e2e/offline/load_trace.py": "8f287fb21e13b070edc2e162218af974ea6858747e1340479d9b3438f17e40f1",
+        "test/e2e/offline/load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+        "test/e2e/offline/load_service.py": "8e79dc44cacf8daf12a63119cb39f425f929e5c7b137f11b6dc4293f7f03cb57",
+        "test/e2e/offline/load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4"
+      },
+      "postgres_limits": {
+        "Memory": 536870912,
+        "NanoCpus": 0,
+        "BlkioDeviceWriteBps": [
+          {
+            "Path": "/dev/vda",
+            "Rate": 8388608
+          }
+        ]
+      },
+      "preparation": {
+        "history_rows": 100000,
+        "mode": "full_service_offline_seed",
+        "stage": "complete",
+        "owner_generation_before": 1,
+        "control_version": 2,
+        "offline_verified_at": 1793787800.418278,
+        "offline_checks": {
+          "application_connections": 0,
+          "ownership_locks": 0,
+          "pending_orders": 0
+        },
+        "seed_completed_at": 1793787858.494306,
+        "checkpoint_completed_at": 1793787870.4498591,
+        "seeded_counts": {
+          "orders": 100000,
+          "fills": 100000
+        },
+        "restarted_at": 1793787870.4498692,
+        "owner_generation_after": 2,
+        "completed_at": 1793787880.64826
+      },
+      "post_restart_idle_seconds": 65,
+      "unexpected_service_failures_or_restarts": 0,
+      "measured_load_gate": false,
+      "runtime_publication_pg_errors": [],
+      "sampler": {
+        "samples": 1207,
+        "reconnects": 75,
+        "retained_error_examples": 20,
+        "dropped": 0
+      },
+      "local_submission_block_error_records": 12,
+      "artifacts_sha256": {
+        "build/mm-offline-history-20261104/case-io-8mb-2/preparation.jsonl": "ae3933a434d787fdd56141eabfeffb504cbea929be8159dce44ac00ca86a7aa2",
+        "build/mm-offline-history-20261104/case-io-8mb-2/postgres.jsonl": "41d1c6453bfbd644611b2a9be1c1c2eaecd245d919d12a45a3aa54cbfdcdec6e",
+        "build/mm-offline-history-20261104/case-io-8mb-2/sampler-summary.json": "b974f699cdc86a4c67b9227697f0ddeeb25f3913df215cc31eeafd0e03bed626",
+        "build/mm-load/20261104-172249-7fef10/hbot-e2e-0ef3fc57d2-pg.log": "ce9a2a5c1d00bf100f69b872abf1e940ece9c37644ca3742ad233f26da522e5e",
+        "build/mm-load/20261104-172249-7fef10/hbot-e2e-0ef3fc57d2-load-bot.log": "2dd2579b6aec80e522e202f0b54206d9bdabf9bbfa4a93dad8abaab5e0ad056d",
+        "build/mm-load/20261104-172249-7fef10/result.json": "14708bcc14c26a8d422709da46cbeaac5a57dfb62b3efd6739b115826b3df803"
+      }
+    }
+  ],
+  "probe": {
+    "report": "build/mm-load/20261104-172619-77234d",
+    "passed": true,
+    "measured_reads": 6600,
+    "duration_seconds": 300,
+    "window_start_utc": 1793788042.8882263,
+    "requested_reads": 6000,
+    "completed_reads": 6000,
+    "statuses": {
+      "200": 6000
+    },
+    "read_p95_ms": 50.82554399268702,
+    "read_p99_ms": 113.94310898322146,
+    "unexpected_errors": 0,
+    "errors": [],
+    "auxiliary": {
+      "requested_reads": 600,
+      "completed_reads": 600,
+      "statuses": {
+        "200": 600
+      },
+      "read_p95_ms": 29.21557700028643,
+      "read_p99_ms": 36.87097800138872
+    },
+    "market_updates_per_second": 100.00186312930227,
+    "fills_per_second": 1.0,
+    "valid_fills": 300,
+    "ledger": {
+      "unique_exchange_fills": 300,
+      "unique_recorder_fills": 300,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "violations": [],
+    "preparation": {
+      "history_rows": 100000,
+      "mode": "full_service_offline_seed",
+      "stage": "complete",
+      "owner_generation_before": 1,
+      "control_version": 2,
+      "offline_verified_at": 1793788003.712008,
+      "offline_checks": {
+        "application_connections": 0,
+        "ownership_locks": 0,
+        "pending_orders": 0
+      },
+      "seed_completed_at": 1793788009.238175,
+      "checkpoint_completed_at": 1793788009.835985,
+      "seeded_counts": {
+        "orders": 100000,
+        "fills": 100000
+      },
+      "restarted_at": 1793788009.835994,
+      "owner_generation_after": 2,
+      "completed_at": 1793788019.77866
+    },
+    "host_source_sha256": {
+      "scripts/test_mm_load.py": "2102bbf0970606b5f4df227d317046773a6d867f7ccc96be702fabd76a25527e",
+      "scripts/test_e2e_offline.py": "97d2187481d6ff4dc783b6c9a51d16b5958109aaf6a7f79c8ce08fa120868e8a",
+      "scripts/analyze_mm_load_trace.py": "f6ff4e76ddfeb95098064247a9e68a07185f40671769b5bc28cf29da424c9fda",
+      "scripts/mm_load_budgets.py": "e63c9f4741475bae7bd2fd1b69d70ffb8b7b1fdba8fb7c1e4348d96a841694c7",
+      "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
+      "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458",
+      "scripts/mm_load_processes.py": "1b939e85a11b7d374cc17dc2111729b72f0775aad2f5161487110f1f516820fa",
+      "scripts/mm_load_preparation.py": "6c879e6d4a2d041ec46f85b76ee44b940416397567ea80f7c5bb30746fbffba5",
+      "test/e2e/offline/load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+      "test/e2e/offline/load_trace.py": "8f287fb21e13b070edc2e162218af974ea6858747e1340479d9b3438f17e40f1",
+      "test/e2e/offline/load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+      "test/e2e/offline/load_service.py": "8e79dc44cacf8daf12a63119cb39f425f929e5c7b137f11b6dc4293f7f03cb57",
+      "test/e2e/offline/load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4"
+    },
+    "unexpected_service_failures_or_restarts": 0,
+    "recovered_engine_probe_events": 2
+  },
+  "reporting_fault": {
+    "report": "build/mm-reporting-isolation/20261104-173428-54d96f",
+    "passed": true,
+    "duration_seconds": 120,
+    "history_preparation": {
+      "history_rows": 100000,
+      "mode": "full_service_offline_seed",
+      "stage": "complete",
+      "owner_generation_before": 1,
+      "control_version": 2,
+      "offline_verified_at": 1793788490.906077,
+      "offline_checks": {
+        "application_connections": 0,
+        "ownership_locks": 0,
+        "pending_orders": 0
+      },
+      "seed_completed_at": 1793788496.6428301,
+      "checkpoint_completed_at": 1793788497.0528471,
+      "seeded_counts": {
+        "orders": 100000,
+        "fills": 100000
+      },
+      "restarted_at": 1793788497.052855,
+      "owner_generation_after": 2,
+      "completed_at": 1793788507.23559
+    },
+    "fault_attempts": [
+      {
+        "started_at": 1793788532.9724536,
+        "finished_at": 1793788534.9832234,
+        "sqlstate": "57014"
+      }
+    ],
+    "transient_timeout_recovered_fresh": true,
+    "stale_read_count": 0,
+    "exchange_fills_during_timeout": 2,
+    "durable_fill_witness": {
+      "observed_at": 1793788533.607321,
+      "fills": 1
+    },
+    "ledger": {
+      "unique_exchange_fills": 120,
+      "unique_recorder_fills": 120,
+      "positions_matched": true,
+      "identified_funding_bills": 0,
+      "daily_snapshots": 3
+    },
+    "engine_pid_unchanged": true,
+    "ownership_and_session_unchanged": true,
+    "no_halt": true,
+    "later_daily_fresh": true,
+    "clean_stop": true
+  },
+  "restoration": {
+    "phase": "stopped",
+    "running": false,
+    "owner_available": true,
+    "counts": {
+      "orders": 3513,
+      "trade_fills": 23,
+      "positions": 3,
+      "executors": 2848
+    },
+    "hashes": {
+      "orders": "331c3a9fe9978af37faee7f15b656234",
+      "trade_fills": "89b927c2868e7483c105b43c3bc6b751",
+      "positions": "94315e1d770e988c967b43722f74b560",
+      "executors": "bb9e902715eec79b03bc3d98fa6a4494"
+    },
+    "ledger_hashes_unchanged": true,
+    "private_backup_sha256": [
+      "c33d1cb73f5f86981604e6c78918b91c5aa60ca862551f2a8bc42b4361c20095",
+      "53d66a6e943c53ca402f6ce10bfa971945f74c22b521ea16a12c4db74cbaf9ab"
+    ]
+  },
+  "scope_limits": [
+    "Both 65s I/O controls are stopped-session diagnostics, not live-MM load acceptance at 8 MiB/s.",
+    "The 300s workload/rates/rows/deadlines/budgets are unchanged; preparation deliberately adds a planned full service restart and CHECKPOINT.",
+    "Only main load and slow-report entrypoints were exercised with real containers in this phase. Other converted long suites have wiring/common-lifecycle coverage, not new full gate results.",
+    "No new 60-minute soak, actual Demo trade, production setting, image rebuild or Cloud Run deployment was performed.",
+    "The original historical exclusive trigger remains unproven; retained older failures are not relabelled as passes."
+  ],
+  "artifacts_sha256": {
+    "build/mm-load/20261104-172619-77234d/result.json": "c16f3000d269009bf8608d5b1f2bf13b0a92e5d83b4c3049030c62b271a26d50",
+    "build/mm-load/20261104-172619-77234d/hbot-e2e-700facca43-load-bot.log": "c825fa5264a226855b0fef44760fe7edaba7857eb031c0c861f5119d077e4f38",
+    "build/mm-reporting-isolation/20261104-173428-54d96f/result.json": "2dcdb89bd88b2ead077854a009b13b2110d5f13c6779afdd8ac4b508cef953fb",
+    "build/mm-offline-history-20261104/caller-green-final.log": "793cddcb354c5e339e37b95095f35312616c9d9c3e2de37abf44508ff3dbe2ce",
+    "build/mm-offline-history-20261104/related-postgres.log": "861be565f6c28d902b02430ab95d249be07171aa1871d77424c3bb8052447c13",
+    "build/mm-offline-history-20261104/red.log": "76900362ee646d59dc0fd3d1087558a9470a541f8660e0b767fe67d506297565",
+    "build/mm-offline-history-20261104/outflow-red.log": "32c53e54b3e9a2fc26f223aed65c228ad0710586f31551054d5387445f0c2b98",
+    "build/mm-offline-history-20261104/caller-red.log": "38a1f0501dc4c47dbd18d0b76481636988ed9bf1c3ceed417c4b929f58474a95",
+    "build/mm-offline-history-20261104/post-reporting-local-state.json": "377882afb0b0af95ba822bbcec1ab00d51149675baa78ef12ffc3cdf68b28773"
+  }
+}

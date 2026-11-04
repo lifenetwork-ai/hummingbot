@@ -30,9 +30,9 @@ persistence error/restart; three new plus eleven related PG tests pass. A traced
 1.182s publication COMMIT has eleven same-PID WAL I/O wait witnesses during
 history insertion. No runtime fix is claimed.
 
-- [ ] Attribute the original timed-out SELECT using a contemporaneous wait/stack
-  witness or a matching controlled reproduction. The successful WAL-delayed
-  COMMIT is a lead, not closure of this item.
+- [ ] Attribute the original historical trigger using a contemporaneous
+  wait/stack witness or equivalent host/storage evidence. The matching controlled
+  reproduction below establishes a mechanism, not exclusive historical attribution.
 
 [Report and evidence](../../reports/investigations/mm-owner-publication-timeout.md).
 
@@ -73,21 +73,37 @@ durability or timeout setting changed. See the report's follow-up section.
 - [x] Preserve the verified outflow origin, stop the full service, seed and
   CHECKPOINT offline, then require normal startup with a new owner generation
   and fresh runtime-role metrics. Keep workload rows/rates/gates unchanged.
-- [ ] Repeat the 8 MiB/s PG control using the corrected preparation, then run
+- [x] Repeat the 8 MiB/s PG control using the corrected preparation, then run
   the unchanged 300s load on the same shipping image. Retain any failed result.
-- [ ] Update evidence/instructions, verify stopped Demo and ledger preservation,
+- [x] Update evidence/instructions, verify stopped Demo and ledger preservation,
   and commit the completed phases.
 
-Source validation: 13 initial Red cases, plus a separate Red for a lost outflow
-origin after restart; 143 related native tests and seven PostgreSQL fixture/
-reporting tests pass. The first 8 MiB/s control seeds 100,000 orders/fills while
-the service is exited and owner released, checkpoints, acquires generation 2
-and remains stable for another 65s. A final-source repetition and the unchanged
-300s load remain pending below; no measured-hour acceptance is claimed.
+Source validation: 13 initial Red cases, one separate Red for lost outflow
+origin and six Red caller-wiring cases; **169 related native tests and seven
+PostgreSQL compatibility tests pass**. All six maintained seeding entrypoints
+use the shared offline preparation. The process experiment captures generation
+after the planned restart; memory diagnostics require fresh role metrics.
 
-Caller coverage: all six maintained history-seeding entrypoints now delegate to
-the same offline preparation. A repository wiring/fence check first fails six
-cases; 169 related native tests pass after migration. The process experiment
-captures its generation after the planned restart, and memory diagnostics wait
-for fresh post-restart metrics. A downstream slow-report run is verified
-separately; other long diagnostic suites are not claimed as rerun.
+Two corrected 8 MiB/s PG controls each seed 100,000 orders and 100,000 fills
+with no application connection, owner lock or pending order. Normal restart
+acquires generation 2; another 65s remains free of publication failure or
+unexpected child restart. These are stopped-session diagnostics, not live-MM
+acceptance under the imposed I/O limit.
+
+The unchanged 300s workload passes on shipping image `086454de`: 6,600 measured
+HTTP 200 responses, zero unexpected errors/stale, primary/auxiliary p99
+113.94/36.87ms and 300 exact synthetic fills/fees/positions. Two isolated engine
+probe timeouts recover without restart; no claim of zero slow probes is made.
+A separate 120s slow-report test passes with one intentional SQL timeout,
+successful fresh retry, zero stale replies, 120 exact synthetic fills and
+unchanged engine PID/owner/session. Other converted long suites have common
+lifecycle/wiring coverage, not new full-suite results.
+
+Commits `7bdb5b6f6` and `2b4011556` change host-side test preparation only.
+Runtime image, fences, durability and deadlines remain unchanged. Demo is
+restored stopped with all 23 fills and four ledger hashes intact. No new hour,
+actual Demo trade or production deployment is claimed. Historical exclusive
+attribution above remains open.
+
+[Correction report](../../reports/investigations/mm-owner-publication-timeout.md#offline-history-preparation-correction),
+[verification evidence](../../reports/investigations/mm-offline-history-preparation-evidence.json).

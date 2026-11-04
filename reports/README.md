@@ -4,6 +4,19 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Offline history preparation corrected:** commits `7bdb5b6f6` / `2b4011556`
+  stop the full test service before bulk seed/CHECKPOINT and require normal
+  fenced recovery before load. All six maintained callers share the helper;
+  169 related native and seven PG tests pass. Two 8 MiB/s controls each seed
+  100,000 orders/fills offline and remain stable 65s after restart. The unchanged
+  300s workload passes: 6,600 HTTP 200, zero unexpected errors/stale, p99
+  113.94/36.87ms and 300 exact synthetic fills. A 120s intentional report-timeout
+  test passes with fresh retry, zero stale, 120 matched synthetic fills and
+  unchanged engine PID/owner/session. Two recovered short probe episodes remain
+  recorded. Shipping image `086454de` and stopped Demo/23 fills/four ledger hashes
+  are unchanged. No new hour or exclusive historical-cause closure is claimed.
+  [Report and evidence](investigations/mm-owner-publication-timeout.md).
+
 - **Owner publication WAL mechanism reproduced:** a per-container 8 MiB/s PG
   write limit plus the historical bulk seed reproduces the same SELECT/control
   version 2 and `57014`, with same-PID WALWrite samples and a 2,901.57ms SQL span.

@@ -23,6 +23,10 @@ The planned setup restart is separate from an unexpected in-window restart.
 Earlier concurrent-seed failures and the intentional WAL-pressure diagnostic
 remain retained; this change does not qualify a new measured hour by itself.
 
+Main load, reporting isolation, production control, random handover, memory and
+process-isolation diagnostics use the same preparation helper. Verification and
+its scope are recorded in the [offline preparation correction](../reports/investigations/mm-owner-publication-timeout.md#offline-history-preparation-correction).
+
 For the separate **single-service process-isolation experiment**, run
 `make test-mm-process-isolation MM_PROCESS_CPUS=1 MM_PROCESS_SECONDS=90`
 and repeat with `MM_PROCESS_CPUS=2 MM_PROCESS_SECONDS=180`. The script uses

@@ -27,6 +27,18 @@ not a verified remedy. The confirmed offline trace-overwrite defect is fixed
 with Red/Green and 58 related tests. No shipping engine/image or deadline
 change, historical-exclusive-cause closure, or new release acceptance is claimed.
 
+**Offline fixture correction verified:** host-side commits `7bdb5b6f6` and
+`2b4011556` move all six bulk-seed callers to a clean full-service stop,
+offline seed/CHECKPOINT and normal fenced restart. 169 related native/seven PG
+tests, two 8 MiB/s controls, the unchanged 300s workload (p99 113.94/36.87ms,
+6,600 HTTP 200/no unexpected errors or stale, 300 exact synthetic fills), and a
+120s controlled report-timeout/retry test pass. The latter preserves engine
+PID/owner/session with zero stale and 120 exact synthetic fills. Two short
+probe timeout/recovery episodes remain recorded in the 300s result. Shipping
+image is unchanged; stopped actual Demo preserves 23 fills and four hashes.
+No new hour, natural-fill acceptance or exclusive historical attribution is
+claimed. [Correction report/evidence](../../reports/investigations/mm-owner-publication-timeout.md#offline-history-preparation-correction).
+
 **Preceding retry candidate:** `f4d90bc7` from `d2cdf2a36` retries one
 acknowledged daily-read timeout through the existing bounded executor. Native
 2,464 +11 subtests, PostgreSQL354, three packaged E2E groups and four controlled
