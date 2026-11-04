@@ -1,7 +1,10 @@
 # Pre-window owner publication timeout
 
-2026-11-04. The historical timeout and restart are confirmed. Three new
-preparation runs do not reproduce them. One traced run establishes a separate
+2026-11-04. **Follow-up reproduces the same failing publication SELECT and
+SQLSTATE under controlled WAL I/O pressure.** The historical exclusive trigger
+remains unproven; the causal mechanism is now demonstrated below.
+
+The initial three preparation runs do not reproduce the failure. One establishes a separate
 1.182s publication COMMIT wait on PostgreSQL WAL I/O during historical fixture
 insertion. This is a concrete storage-pressure lead, **not proof of the cause
 of the earlier SELECT timeout**. Historical attribution remains open.
@@ -128,3 +131,90 @@ Actual Demo remains intentionally stopped, owner available, no HALT/pending
 mutations or unresolved orders. All four order/fill/position/executor hashes
 match the prior baseline, including all 23 fills. No exchange orders, recovery
 resets, image changes or production deployment were performed.
+
+## Follow-up: matched WAL-pressure reproduction
+
+[Follow-up evidence](mm-owner-publication-wal-followup-evidence.json) retains all
+ordinary runs, imposed faults and unsuccessful interventions separately.
+
+Seven further original-prefix runs, alternating three traced/four untraced,
+complete with no persistence failure/restart and 3,251 PG samples. An additional
+diagnostic variant changes deadlock detection to 200ms and is excluded from that
+unchanged-setting set. Increasing history to 500,000 rows also completes without
+a persistence failure: its final cumulative WAL snapshot is about 1.07GB.
+These results do not make the old failure disappear.
+
+Limit writes to **8 MiB/s in only the disposable PG container's cgroup**, keeping
+the same bot image, application deadlines, durability settings, first spot
+Start/Stop and 100,000-row fixture. Do not change host-wide device limits.
+
+| Case | Intervention | Observed outcome |
+| --- | --- | --- |
+| 17 | 8 MiB/s, default WAL initialization | Publication lock timeout `55P03`; engine restarts. Fixture command subsequently exceeds its original 60s Docker budget. |
+| 18 | Repeat; retain traces across restart; fixture-only budget 180s | Same publication lock timeout; blocker COMMIT waits on `IO/WALInitSync`. |
+| 19 | Repeat with a guarded optional stack-dump handler | **Same publication SELECT/control version 2 fails with `57014`**; engine restarts. |
+| 20 | Same I/O limit, `wal_init_zero=off` | Publication SELECT exceeds the client's 3s response deadline; engine restarts. This setting is not a verified fix. |
+| 21 | Same I/O limit, zero historical rows | Completes without persistence failure or restart. |
+| 22 | Same no-bulk control, observe another 65s after seed | Completes without persistence failure or restart; covers the roughly one-minute bulk-seed interval of cases 18/19. |
+
+In case 19, backend **322** starts the fenced publication SELECT at
+09:42:43.352 UTC. Fifteen same-PID samples show `LWLock/WALWrite`, empty blocking
+PID lists and observed statement ages up to 2.817s. At 09:42:46.250 UTC PostgreSQL
+logs `57014` for that exact SELECT. Its retained runtime SQL span lasts
+**2,901.57ms**, with 2.693ms inclusive thread CPU and `QueryCanceled`; the engine
+reports `critical_persistence_failure` at 09:42:46.459 UTC. A configured statement
+timeout is not a guarantee of cancellation at exactly 2,000ms in every server
+wait. The separate client response bound is unchanged.
+
+Cases 17/18 demonstrate another consequence of the same imposed write pressure:
+a transaction waiting for WAL durability retains its row lock, and a concurrent
+publication reaches the 1s lock timeout. The blocker is witnessed at COMMIT;
+its originating application operation is not established by the retained
+completed spans. Do not attribute it to funding or another specific handler.
+Subsequent bootstrap retries during the still-running bulk transaction also
+encounter migration/DDL contention; the evidence retains these failures.
+
+This establishes a causal **bulk-write/WAL-pressure failure mechanism** for the
+unchanged engine. It does not prove the historical host experienced an 8 MiB/s
+limit, identify its original storage/scheduling bottleneck, or establish that
+every publication timeout has this cause. Collector queries have a separate
+200ms limit and repeatedly time out/reconnect under the imposed fault. Their
+gaps and errors are retained and never counted as runtime publication failures.
+
+Historical Docker VM logs add a PG-container exec from 06:48:54.200 through
+06:49:02.234 UTC, overlapping the original 06:48:59.915 timeout. Harness call
+ordering identifies bulk seeding as the likely command; its request body was
+not archived. Host power records contain no Sleep/Wake transition in the local
+13:45–13:52 window and show an active sleep inhibitor. This is not evidence
+excluding shorter CPU, VM or storage stalls.
+
+## Confirmed diagnostic defect and TDD correction
+
+The full-runtime trace writer opened `server.jsonl` / `server-api.jsonl` in
+overwrite mode when a child restarted. Case 17 consequently lost its first
+engine's trace after the supervisor restart. This is an offline instrumentation
+bug, separate from the engine's persistence failure.
+
+Commit `3a4737a44` uses the existing bounded append mode through the runtime
+trace factory. Three real OS-process restart tests first reproduce loss of the
+first record; all **58 related trace/analysis/timing/incident tests** pass after
+the correction. Cumulative file-byte ceilings and tracing opt-in remain intact.
+Cases 18–21 retain pre-failure SQL spans after restart. This does not guarantee
+every background/cleanup span was flushed before its process exited; collector
+gaps remain explicit. No shipping engine code/image changed.
+
+## Recommended action
+
+Treat this mechanism as shared database write pressure, not an API-framework,
+cache, or connection-pool problem. Separate large fixture seeds and manual bulk
+imports from a running service, then measure WAL/commit latency on the intended
+database storage. Stopping only the MM session leaves the service publishing
+heartbeats and observational state. A controlled full service stop is needed
+for an offline import; normal startup/recovery checks must run on restart.
+
+Keep the durability settings, ownership fences and critical-persistence failure
+handling. The `wal_init_zero=off` control failed and is not recommended as the
+remedy. No new release acceptance or production database setting is claimed.
+Historical exclusive attribution stays open even though the matching mechanism
+has been reproduced. Final read-only verification preserves stopped Demo,
+23 fills, all four ledger hashes and no recovery block.

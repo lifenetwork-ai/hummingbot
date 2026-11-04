@@ -4,12 +4,16 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
-- **Pre-window owner timeout investigated:** three new preparations retain 1,836
-  PG samples without persistence failure/restart; 14 targeted PG tests pass.
-  One publication COMMIT has 1.182s of same-PID WAL I/O wait evidence during
-  historical fixture insertion. The original failed SELECT remains unattributed;
-  no runtime fix or new release acceptance is claimed. Stopped Demo/23 fills and
-  ledger hashes are unchanged. [Report/evidence](investigations/mm-owner-publication-timeout.md).
+- **Owner publication WAL mechanism reproduced:** a per-container 8 MiB/s PG
+  write limit plus the historical bulk seed reproduces the same SELECT/control
+  version 2 and `57014`, with same-PID WALWrite samples and a 2,901.57ms SQL span.
+  The 65s no-bulk control has no failure/restart; `wal_init_zero=off` does not remedy
+  the imposed fault. Seven additional unchanged-setting prefixes and an
+  unthrottled 500,000-row control stay clean. A confirmed trace-overwrite bug is
+  fixed with Red/Green and 58 related tests. Shipping engine/image, deadlines,
+  stopped Demo/23 fills and ledger hashes are unchanged. Historical exclusive
+  attribution remains open; no new release acceptance.
+  [Report/evidence](investigations/mm-owner-publication-timeout.md).
 
 - **Admin worker lanes verified on086454de:** native2,494 +11 subtests, PG355,
   Swagger, three E2E groups, four report-fault cases,300s probe and unchanged

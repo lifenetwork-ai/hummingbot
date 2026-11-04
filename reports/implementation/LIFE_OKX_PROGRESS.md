@@ -5,6 +5,19 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-04
 
+- **WAL-pressure follow-up reproduces publication failure:** same `086454de`
+  shipping image, per-disposable-PG-container 8 MiB/s write limit and the original
+  bulk history seed. Case 19 has the same SELECT/control version 2, SQLSTATE
+  `57014`, 15 WALWrite samples of backend 322 and a 2,901.57ms failing SQL span.
+  Other controls show publication blocked by WAL-delayed COMMIT. The same limit
+  without bulk history completes a 65s observation cleanly; `wal_init_zero=off` does not remedy
+  the imposed fault. Seven further unchanged-setting preparations and a
+  500,000-row unthrottled control remain clean. Commit `3a4737a44` fixes a separate
+  test-trace truncation on restart: three Red cases, 58 related Green tests.
+  No engine behavior/image/deadline/durability change; no new release gate.
+  Historical exclusive attribution stays open. Stopped Demo/23 fills and four
+  ledger hashes are unchanged. [Report/evidence](../investigations/mm-owner-publication-timeout.md).
+
 - **Pre-window owner timeout investigation:** same `086454de` image, three valid
   preparations (one traced/two untraced), 1,836 PG samples and no reproduced
   persistence error/restart. A 1.182s engine publication COMMIT is witnessed in

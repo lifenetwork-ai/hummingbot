@@ -96,6 +96,16 @@ load acceptance continues to use five connections.
 Session advisory locks require direct/session-pooled PostgreSQL connections;
 transaction-pooling proxies are unsupported.
 
+Separate heavy bulk imports/restores from a running bot service. Independent
+API/engine pools still share PostgreSQL WAL and storage. In a controlled offline
+test, a bulk history seed plus an 8 MiB/s PG write limit makes the fenced status
+publication exceed its unchanged deadline and triggers engine recovery.
+Stopping only an MM session leaves heartbeats and observational writes running;
+stop the full service for an offline import and retain normal startup/recovery
+checks afterwards. Measure WAL/commit latency before changing database settings;
+the tested `wal_init_zero=off` intervention did not remedy the imposed fault.
+[Investigation and limits](../reports/investigations/mm-owner-publication-timeout.md).
+
 PostgreSQL runtime connections use UTC and bound idle open transactions to five
 seconds. This releases a paused process's uncommitted row locks after its owner
 session is lost. The separate committed advisory owner session is unaffected;

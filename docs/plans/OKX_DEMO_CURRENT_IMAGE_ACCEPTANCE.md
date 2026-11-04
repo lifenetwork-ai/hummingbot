@@ -19,6 +19,14 @@ a storage-pressure lead, not attribution or a fix of the historical SELECT
 timeout. Runtime/image unchanged; stopped Demo/23 fills and ledger hashes remain
 intact. [Investigation](../../reports/investigations/mm-owner-publication-timeout.md).
 
+**WAL follow-up:** the same publication SELECT/control version 2 and `57014`
+are reproduced with a per-container 8 MiB/s PG write limit during the bulk seed.
+Fifteen same-PID WALWrite samples and a 2,901.57ms failing SQL span identify the
+controlled mechanism. The 65s no-bulk control stays clean; `wal_init_zero=off` is
+not a verified remedy. The confirmed offline trace-overwrite defect is fixed
+with Red/Green and 58 related tests. No shipping engine/image or deadline
+change, historical-exclusive-cause closure, or new release acceptance is claimed.
+
 **Preceding retry candidate:** `f4d90bc7` from `d2cdf2a36` retries one
 acknowledged daily-read timeout through the existing bounded executor. Native
 2,464 +11 subtests, PostgreSQL354, three packaged E2E groups and four controlled

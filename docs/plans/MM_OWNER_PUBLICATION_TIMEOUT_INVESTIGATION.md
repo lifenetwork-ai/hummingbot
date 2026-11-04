@@ -43,12 +43,24 @@ history insertion. No runtime fix is claimed.
   record. Green: 58 related trace/analysis/timing/incident tests pass; opt-in and
   cumulative file-byte budgets remain unchanged. Only offline instrumentation
   changes; the trading-service image remains `086454de`.
-- [ ] Repeat the original preparation with server-side slow-statement/error and
+- [x] Repeat the original preparation with server-side slow-statement/error and
   lock-wait logging, alternating traced and untraced runs. Distinguish the
   diagnostic collector's 200ms timeout from the runtime publisher's 2s timeout.
-- [ ] Correlate any failed publication with the exact backend, WAL activity,
-  CPU/I/O pressure, blocker transaction and runtime stack. Use a separately
+- [x] Correlate a failed publication with the exact backend, WAL activity,
+  CPU/I/O pressure and runtime SQL span; retain blocker evidence where present. Use a separately
   labelled WAL-pressure control if the unchanged workload does not reproduce it.
-- [ ] Add Red/Green coverage and a narrow correction for any confirmed defect;
+- [x] Add Red/Green coverage and a narrow correction for any confirmed defect;
   retain failed artifacts and report unresolved historical attribution honestly.
-- [ ] Verify stopped Demo/ledger preservation, update evidence and commit.
+- [x] Verify stopped Demo/ledger preservation, update evidence and commit.
+
+Follow-up establishes the matching mechanism: with a per-container 8 MiB/s
+PostgreSQL write limit and the original 100,000-row bulk seed, backend 322 waits
+on WALWrite and the same publication SELECT/control version 2 fails with 57014.
+The retained SQL span is 2,901.57ms. Other repetitions show lock timeouts behind
+WAL-delayed COMMIT. The same limit without bulk history stays clean for 65s;
+wal_init_zero=off does not remedy the fault. Seven unchanged-setting repeats
+and the 500,000-row unthrottled control remain separate clean observations.
+
+The original exclusive trigger is still unproven; the unchecked historical
+attribution item above is deliberately retained. No shipping engine behavior,
+durability or timeout setting changed. See the report's follow-up section.

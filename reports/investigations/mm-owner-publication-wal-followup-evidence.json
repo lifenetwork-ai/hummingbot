@@ -1,0 +1,1094 @@
+{
+  "date": "2026-11-04",
+  "scope": "WAL-pressure investigation and diagnostic fix; no release load gate or active Demo trading",
+  "runtime_image_unchanged": true,
+  "runtime_engine_behavior_unchanged": true,
+  "trace_fix_commit": "3a4737a4499b0a682fe0f8df777fda8ddf7358f9",
+  "matching_controlled_reproduction": {
+    "case": 19,
+    "sqlstate": "57014",
+    "failed_select": {
+      "span_id": "b3eda10d86f74cd2",
+      "trace_id": "3772bc7cd81a4681840094a72e2ee539",
+      "parent_id": "121f496ea28a4571",
+      "operation": "sql",
+      "start_ns": 115492833122148,
+      "start_utc": 1793785363.351553,
+      "thread_id": 140736024467136,
+      "backend_pid": 322,
+      "sql_kind": "SELECT",
+      "sql_template": "SELECT bot_state.status, bot_state.mm_session FROM bot_state WHERE bot_state.bot_id = %(bot_id_1)s AND bot_state.owner_uuid = %(owner_uuid_1)s AND bot_state.owner_generation = %(owner_generation_1)s AND bot_state.control_version = %(control_version_1)s AND bot_state.acknowledged_version <= %(acknowledged_version_1)s FOR UPDATE",
+      "sql_fingerprint": "1531da697ca264ac537f",
+      "end_ns": 115495734692566,
+      "duration_ms": 2901.570418,
+      "thread_cpu_ms": 2.692833,
+      "error": "QueryCanceled"
+    },
+    "wal_wait_samples": [
+      {
+        "at": 1793785363.454185,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 102.447
+      },
+      {
+        "at": 1793785363.563287,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 211.549
+      },
+      {
+        "at": 1793785363.671591,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 319.853
+      },
+      {
+        "at": 1793785363.777081,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 425.343
+      },
+      {
+        "at": 1793785363.883211,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 531.473
+      },
+      {
+        "at": 1793785364.006585,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 654.847
+      },
+      {
+        "at": 1793785364.113901,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 762.163
+      },
+      {
+        "at": 1793785364.221361,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 869.623
+      },
+      {
+        "at": 1793785364.327983,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 976.245
+      },
+      {
+        "at": 1793785365.663203,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 2311.465
+      },
+      {
+        "at": 1793785365.74181,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 2390.072
+      },
+      {
+        "at": 1793785365.848572,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 2496.834
+      },
+      {
+        "at": 1793785365.957621,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 2605.883
+      },
+      {
+        "at": 1793785366.062823,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 2711.085
+      },
+      {
+        "at": 1793785366.169131,
+        "backend_pid": 322,
+        "wait_type": "LWLock",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "query_age_ms": 2817.393
+      }
+    ],
+    "causal_intervention": "8 MiB/s per-disposable-PG-container write limit while seeding 100000 historical orders/fills",
+    "historical_exclusive_trigger_proven": false
+  },
+  "cases": [
+    {
+      "case": 7,
+      "scope": "full original prefix",
+      "full_runtime_trace": true,
+      "fixture_rows": 100000,
+      "imposed_postgres_write_bps": null,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-162005-88b4b4",
+      "pg_samples": 563,
+      "sample_span_seconds": 59.941639,
+      "max_sample_gap_ms": 345.421,
+      "observed_blocked_samples": 0,
+      "service_failures": [],
+      "critical_persistence_failures": 0,
+      "scheduled_engine_restarts": 0,
+      "publication_pg_errors": [],
+      "collector_pg_error_records": 1,
+      "sampler": {
+        "samples": 563,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 16954,
+        "retained_error_examples": 0
+      },
+      "seed_seconds": 7.605767,
+      "post_seed_idle_seconds": null,
+      "final_wal_snapshot": null,
+      "postgres_settings": null,
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-7/postgres.jsonl": "1ba5bb805b67ee12b24474ac701d9172d806268f469c28b3287022f0d44d3418",
+        "build/owner-publication-timeout-20261104/case-7/preparation.jsonl": "91d107a64c999e691e71b0cef7ec292f59f4f9b1aadb50683db7fc95ee67a098",
+        "build/owner-publication-timeout-20261104/case-7/sampler-summary.json": "ade616b12151426bd1ba5074e663d81656cdceb094c44ac25c6560ecb7d03faa",
+        "build/mm-load/20261104-162005-88b4b4/hbot-e2e-9c99a0c86d-pg.log": "b7097e508d98d1413ed1074fcb883ec03fa806dcf5eb0de7b2a056194de5a7e7",
+        "build/mm-load/20261104-162005-88b4b4/hbot-e2e-9c99a0c86d-load-bot.log": "bb56129257f10f88d8f131eda5a20e19e0d9e50a151c5dd489fd86268562944a"
+      },
+      "caveat": "200ms deadlock detection diagnostic variant; excluded from unchanged-setting repeats. Collector timed out before cleanup; server log retained."
+    },
+    {
+      "case": 8,
+      "scope": "full original prefix",
+      "full_runtime_trace": false,
+      "fixture_rows": 100000,
+      "imposed_postgres_write_bps": null,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-162228-29a6d6",
+      "pg_samples": 479,
+      "sample_span_seconds": 50.040793,
+      "max_sample_gap_ms": 146.817,
+      "observed_blocked_samples": 0,
+      "service_failures": [],
+      "critical_persistence_failures": 0,
+      "scheduled_engine_restarts": 0,
+      "publication_pg_errors": [],
+      "collector_pg_error_records": 0,
+      "sampler": {
+        "samples": 479,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 20137,
+        "retained_error_examples": 0
+      },
+      "seed_seconds": 6.154825,
+      "post_seed_idle_seconds": null,
+      "final_wal_snapshot": null,
+      "postgres_settings": null,
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-8/postgres.jsonl": "be30e562a0f93b14539c10e3302ebdbfdc3545dbea13fd195729057ca315dc27",
+        "build/owner-publication-timeout-20261104/case-8/preparation.jsonl": "86aaf03ea436f7ddcab73c2a739b416fb24747958634b5bf1dca4084667cef45",
+        "build/owner-publication-timeout-20261104/case-8/sampler-summary.json": "5ce94686da22126c23f94e8666acb596897e88f5eefc8f8aead3932f365f22b4",
+        "build/mm-load/20261104-162228-29a6d6/hbot-e2e-25d52680ad-pg.log": "d280a2815b82de564872330de1c237e3c840dc519d3f525d6db2756837dd172e",
+        "build/mm-load/20261104-162228-29a6d6/hbot-e2e-25d52680ad-load-bot.log": "b5a4dbc00605698a000b41e134c52e429ea4e88e1456be232aeb317eb2c9ddbd"
+      }
+    },
+    {
+      "case": 9,
+      "scope": "full original prefix",
+      "full_runtime_trace": true,
+      "fixture_rows": 100000,
+      "imposed_postgres_write_bps": null,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-162325-f7730a",
+      "pg_samples": 444,
+      "sample_span_seconds": 46.165519,
+      "max_sample_gap_ms": 132.269,
+      "observed_blocked_samples": 0,
+      "service_failures": [],
+      "critical_persistence_failures": 0,
+      "scheduled_engine_restarts": 0,
+      "publication_pg_errors": [],
+      "collector_pg_error_records": 0,
+      "sampler": {
+        "samples": 444,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 21466,
+        "retained_error_examples": 0
+      },
+      "seed_seconds": 6.221109,
+      "post_seed_idle_seconds": null,
+      "final_wal_snapshot": null,
+      "postgres_settings": null,
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-9/postgres.jsonl": "33af1df948eee523b48f36d3ffe50b6898d2b4f0140fd97cff7f36b6d61e8c5d",
+        "build/owner-publication-timeout-20261104/case-9/preparation.jsonl": "4f3de288ac4ed9024b59ea9417566dde9049111efbfa564d8ca5db4b6a9667a7",
+        "build/owner-publication-timeout-20261104/case-9/sampler-summary.json": "3093197a5a61dc52499736e4d42412c80fd33fae8278f09f45a49a29378a2f84",
+        "build/mm-load/20261104-162325-f7730a/hbot-e2e-40573e5e40-pg.log": "3adc13afc595154784e68f778bba70e005f801af0f135087beb993d1df6fd1b5",
+        "build/mm-load/20261104-162325-f7730a/hbot-e2e-40573e5e40-load-bot.log": "0aee4f5f69e9900993c1ad4717001fb9f187afccaefcb1a38e8bb1d6017eaa18"
+      }
+    },
+    {
+      "case": 10,
+      "scope": "full original prefix",
+      "full_runtime_trace": false,
+      "fixture_rows": 100000,
+      "imposed_postgres_write_bps": null,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-162418-79d5a8",
+      "pg_samples": 446,
+      "sample_span_seconds": 47.605244,
+      "max_sample_gap_ms": 149.191,
+      "observed_blocked_samples": 1,
+      "service_failures": [],
+      "critical_persistence_failures": 0,
+      "scheduled_engine_restarts": 0,
+      "publication_pg_errors": [],
+      "collector_pg_error_records": 0,
+      "sampler": {
+        "samples": 446,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 22762,
+        "retained_error_examples": 0
+      },
+      "seed_seconds": 5.727048,
+      "post_seed_idle_seconds": null,
+      "final_wal_snapshot": {
+        "wal_records": 1637750,
+        "wal_fpi": 229,
+        "wal_bytes": 194894519,
+        "wal_buffers_full": 14843,
+        "wal_write": 15160,
+        "wal_sync": 313,
+        "wal_write_time": 112.963,
+        "wal_sync_time": 297.105,
+        "stats_reset": "2026-11-04T09:24:21.729583+00:00"
+      },
+      "postgres_settings": null,
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-10/postgres.jsonl": "77fe2c73912752037970a7af4f5487245aee992ca51bf03ac0e5a9d100229223",
+        "build/owner-publication-timeout-20261104/case-10/preparation.jsonl": "d2312997f901e6b54feee5d4c8939f2dbbca4eb128567e63a19b0d57b4b7ad55",
+        "build/owner-publication-timeout-20261104/case-10/sampler-summary.json": "c7f17b904bf4872d65093abc075aa288df4808c33833c419f5344a63dba8d0d9",
+        "build/mm-load/20261104-162418-79d5a8/hbot-e2e-fab0203076-pg.log": "44ff389921f4d5a1bef832cbcd6b487c4cdbf2ba678d0963f6ea8e01d6e81c0a",
+        "build/mm-load/20261104-162418-79d5a8/hbot-e2e-fab0203076-load-bot.log": "4e78203d93f5373afb90d59a2b87028de451e7d3c587fc461d19b31ee91e12ea"
+      }
+    },
+    {
+      "case": 11,
+      "scope": "full original prefix",
+      "full_runtime_trace": true,
+      "fixture_rows": 100000,
+      "imposed_postgres_write_bps": null,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-162513-9d07bf",
+      "pg_samples": 430,
+      "sample_span_seconds": 45.721919,
+      "max_sample_gap_ms": 163.808,
+      "observed_blocked_samples": 0,
+      "service_failures": [],
+      "critical_persistence_failures": 0,
+      "scheduled_engine_restarts": 0,
+      "publication_pg_errors": [],
+      "collector_pg_error_records": 0,
+      "sampler": {
+        "samples": 430,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 24080,
+        "retained_error_examples": 0
+      },
+      "seed_seconds": 5.75224,
+      "post_seed_idle_seconds": null,
+      "final_wal_snapshot": {
+        "wal_records": 1636765,
+        "wal_fpi": 229,
+        "wal_bytes": 194771659,
+        "wal_buffers_full": 14863,
+        "wal_write": 15109,
+        "wal_sync": 244,
+        "wal_write_time": 106.551,
+        "wal_sync_time": 305.929,
+        "stats_reset": "2026-11-04T09:25:15.909253+00:00"
+      },
+      "postgres_settings": null,
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-11/postgres.jsonl": "6f4b409fd3b8de0552b6e1418fcb8761499e02bdd372028c22e8134b7a483f21",
+        "build/owner-publication-timeout-20261104/case-11/preparation.jsonl": "87e402b784f06a4ce380cfe14f57db2715947ec3a9988b0d318f8a4920b2e694",
+        "build/owner-publication-timeout-20261104/case-11/sampler-summary.json": "4a64709f1ddcad59dc2e79d97cd38cc2d0438bf170d86a71f5c7208db32dea78",
+        "build/mm-load/20261104-162513-9d07bf/hbot-e2e-c3e8866690-pg.log": "5762ff958efc620adb9d5108143e594d6b43a261b292c433a0447f160a784942",
+        "build/mm-load/20261104-162513-9d07bf/hbot-e2e-c3e8866690-load-bot.log": "1cfd2d9b49145d02858b68b910276fc1f3d3b296fc7852d3f3439b952cd532c1"
+      }
+    },
+    {
+      "case": 12,
+      "scope": "full original prefix",
+      "full_runtime_trace": false,
+      "fixture_rows": 100000,
+      "imposed_postgres_write_bps": null,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-162605-0485f6",
+      "pg_samples": 439,
+      "sample_span_seconds": 46.849701,
+      "max_sample_gap_ms": 169.487,
+      "observed_blocked_samples": 0,
+      "service_failures": [],
+      "critical_persistence_failures": 0,
+      "scheduled_engine_restarts": 0,
+      "publication_pg_errors": [],
+      "collector_pg_error_records": 0,
+      "sampler": {
+        "samples": 439,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 25369,
+        "retained_error_examples": 0
+      },
+      "seed_seconds": 6.031154,
+      "post_seed_idle_seconds": null,
+      "final_wal_snapshot": {
+        "wal_records": 1636842,
+        "wal_fpi": 229,
+        "wal_bytes": 194796395,
+        "wal_buffers_full": 14523,
+        "wal_write": 14766,
+        "wal_sync": 237,
+        "wal_write_time": 143.332,
+        "wal_sync_time": 346.628,
+        "stats_reset": "2026-11-04T09:26:08.992147+00:00"
+      },
+      "postgres_settings": null,
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-12/postgres.jsonl": "5015afa81e21c2eda9538861fd5877e2608b89ef2ae76ae3d3f4bfadd1bd43a5",
+        "build/owner-publication-timeout-20261104/case-12/preparation.jsonl": "fcd24f0d7b526a1cb562a11ff008723ff15007d6cc1c93135d5fb84bb1d13f10",
+        "build/owner-publication-timeout-20261104/case-12/sampler-summary.json": "b805a0e31a04a65c2a5c0f2717d6648aaf8e0442042a3ef88c78f0f775666818",
+        "build/mm-load/20261104-162605-0485f6/hbot-e2e-3401d353ab-pg.log": "ac572652125dc71f2432299b2ced85a4c16d3b3241f2b3b39fee0f29e95b6a52",
+        "build/mm-load/20261104-162605-0485f6/hbot-e2e-3401d353ab-load-bot.log": "500c92a6f690050bb9a793fe872d8338f2649bc99c84502dca05f2cbdc2ebcec"
+      }
+    },
+    {
+      "case": 13,
+      "scope": "full original prefix",
+      "full_runtime_trace": true,
+      "fixture_rows": 100000,
+      "imposed_postgres_write_bps": null,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-162659-ba5236",
+      "pg_samples": 478,
+      "sample_span_seconds": 51.108607,
+      "max_sample_gap_ms": 181.115,
+      "observed_blocked_samples": 0,
+      "service_failures": [],
+      "critical_persistence_failures": 0,
+      "scheduled_engine_restarts": 0,
+      "publication_pg_errors": [],
+      "collector_pg_error_records": 0,
+      "sampler": {
+        "samples": 478,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 26646,
+        "retained_error_examples": 0
+      },
+      "seed_seconds": 5.781032,
+      "post_seed_idle_seconds": null,
+      "final_wal_snapshot": {
+        "wal_records": 1637577,
+        "wal_fpi": 229,
+        "wal_bytes": 194897207,
+        "wal_buffers_full": 14154,
+        "wal_write": 14458,
+        "wal_sync": 299,
+        "wal_write_time": 121.238,
+        "wal_sync_time": 275.185,
+        "stats_reset": "2026-11-04T09:27:02.489084+00:00"
+      },
+      "postgres_settings": null,
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-13/postgres.jsonl": "349fdd5d15688ee257661624900f21d2b5076be36ba35ce1ed87f3e6a9639436",
+        "build/owner-publication-timeout-20261104/case-13/preparation.jsonl": "34d5fb22fbcbe6dfcf4fd5c1f442c65d205da8fe04381c27fb8ffabc14c6fc11",
+        "build/owner-publication-timeout-20261104/case-13/sampler-summary.json": "59dca1272d767cabfcda8bb1e41a269d721b2bc925e3e48db58843c6f1d8ff4d",
+        "build/mm-load/20261104-162659-ba5236/hbot-e2e-a3d27eacdb-pg.log": "a09ed47dff3933bf3cf631b5f0120bdb9d85e99f7bbc3e4b027bb33a7b8c1050",
+        "build/mm-load/20261104-162659-ba5236/hbot-e2e-a3d27eacdb-load-bot.log": "28be796d087c3761258c175c3606a516bb119c0ccbdf1be59bd64dd7728a16fe"
+      }
+    },
+    {
+      "case": 14,
+      "scope": "full original prefix",
+      "full_runtime_trace": false,
+      "fixture_rows": 100000,
+      "imposed_postgres_write_bps": null,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-162757-62806f",
+      "pg_samples": 535,
+      "sample_span_seconds": 58.685446,
+      "max_sample_gap_ms": 302.581,
+      "observed_blocked_samples": 0,
+      "service_failures": [],
+      "critical_persistence_failures": 0,
+      "scheduled_engine_restarts": 0,
+      "publication_pg_errors": [],
+      "collector_pg_error_records": 0,
+      "sampler": {
+        "samples": 535,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 28019,
+        "retained_error_examples": 0
+      },
+      "seed_seconds": 6.259929,
+      "post_seed_idle_seconds": null,
+      "final_wal_snapshot": {
+        "wal_records": 1630900,
+        "wal_fpi": 224,
+        "wal_bytes": 194395769,
+        "wal_buffers_full": 13430,
+        "wal_write": 13674,
+        "wal_sync": 240,
+        "wal_write_time": 162.354,
+        "wal_sync_time": 297.826,
+        "stats_reset": "2026-11-04T09:28:00.144505+00:00"
+      },
+      "postgres_settings": null,
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-14/postgres.jsonl": "ef66216cee70080d1707b11a121e3879f01e7179ce27fac2fd5651cbd90a89f2",
+        "build/owner-publication-timeout-20261104/case-14/preparation.jsonl": "54fe9ca3ed2da3db99c2c6eb32e5aea08e56ff1bddabc0a3f92855c6a83d7707",
+        "build/owner-publication-timeout-20261104/case-14/sampler-summary.json": "41f9c939250e8a44e98751d66ca4f973f783697ee78c8edb324bac7eb156f2e3",
+        "build/mm-load/20261104-162757-62806f/hbot-e2e-a080858f96-pg.log": "81769c74eb6453341fb82fbcb0ecdd4bed7d756c91b47afa58a953b5f1d16730",
+        "build/mm-load/20261104-162757-62806f/hbot-e2e-a080858f96-load-bot.log": "8bae5efc79af15c4b4d726468dc5fd878645bd2bb4bc798cf6a028b56631329f"
+      }
+    },
+    {
+      "case": 15,
+      "scope": "stop after seeded-history prefix",
+      "full_runtime_trace": true,
+      "fixture_rows": 500000,
+      "imposed_postgres_write_bps": null,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-163110-395985",
+      "pg_samples": 551,
+      "sample_span_seconds": 60.785854,
+      "max_sample_gap_ms": 1172.041,
+      "observed_blocked_samples": 0,
+      "service_failures": [],
+      "critical_persistence_failures": 0,
+      "scheduled_engine_restarts": 0,
+      "publication_pg_errors": [],
+      "collector_pg_error_records": 1,
+      "sampler": {
+        "samples": 551,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 33387,
+        "reconnects": 1,
+        "retained_error_examples": 1
+      },
+      "seed_seconds": 34.891953,
+      "post_seed_idle_seconds": 3,
+      "final_wal_snapshot": {
+        "wal_records": 8116527,
+        "wal_fpi": 14213,
+        "wal_bytes": 1072894122,
+        "wal_buffers_full": 64535,
+        "wal_write": 64899,
+        "wal_sync": 343,
+        "wal_write_time": 520.61,
+        "wal_sync_time": 2257.489,
+        "stats_reset": "2026-11-04T09:31:15.226817+00:00"
+      },
+      "postgres_settings": null,
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-15/postgres.jsonl": "ca5a9fd347f45e76b25da97b33318407e5cce60bf24d31e9280efd8d1770e6c9",
+        "build/owner-publication-timeout-20261104/case-15/preparation.jsonl": "f77ca4a31115a7db36a3f63793bfbdee43d38459b21dab09de3e4ee8b07f75da",
+        "build/owner-publication-timeout-20261104/case-15/sampler-summary.json": "c90e66653bcdae3fab0096b0f655406a090e6ac4e33ae3eac4f1295acaa22cee",
+        "build/mm-load/20261104-163110-395985/hbot-e2e-d8a80effe0-pg.log": "b1e569dfee5ed833ee1a6e26dacc181954f3b8b78a72734174d3d27ac175490a",
+        "build/mm-load/20261104-163110-395985/hbot-e2e-d8a80effe0-load-bot.log": "b4f603198ef44783b7ad301b29f125f0c39642ae44a2618770aa515ec5b92855"
+      }
+    },
+    {
+      "case": 17,
+      "scope": "stop after seeded-history prefix",
+      "full_runtime_trace": true,
+      "fixture_rows": 100000,
+      "imposed_postgres_write_bps": 8388608,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-163310-fb7773",
+      "pg_samples": 510,
+      "sample_span_seconds": 76.222267,
+      "max_sample_gap_ms": 6320.565,
+      "observed_blocked_samples": 110,
+      "service_failures": [
+        {
+          "timestamp": "2026-11-04T09:33:44.696Z",
+          "reason_code": "critical_persistence_failure",
+          "error_type": "OperationalError"
+        },
+        {
+          "timestamp": "2026-11-04T09:33:59.414Z",
+          "reason_code": "service_internal_failure",
+          "error_type": "PostgreSQLBootstrapError"
+        },
+        {
+          "timestamp": "2026-11-04T09:34:12.252Z",
+          "reason_code": "service_internal_failure",
+          "error_type": "PostgreSQLBootstrapError"
+        },
+        {
+          "timestamp": "2026-11-04T09:34:27.123Z",
+          "reason_code": "service_internal_failure",
+          "error_type": "PostgreSQLBootstrapError"
+        },
+        {
+          "timestamp": "2026-11-04T09:34:40.943Z",
+          "reason_code": "service_internal_failure",
+          "error_type": "PostgreSQLBootstrapError"
+        }
+      ],
+      "critical_persistence_failures": 1,
+      "scheduled_engine_restarts": 5,
+      "publication_pg_errors": [
+        {
+          "at": "2026-11-04 09:33:44.482",
+          "backend_pid": 338,
+          "level": "error",
+          "sqlstate": "55P03",
+          "publication": true,
+          "collector": false,
+          "duration_ms": null
+        }
+      ],
+      "collector_pg_error_records": 66,
+      "sampler": {
+        "samples": 510,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 37112,
+        "reconnects": 66,
+        "retained_error_examples": 20
+      },
+      "seed_seconds": 60.011907,
+      "post_seed_idle_seconds": null,
+      "final_wal_snapshot": {
+        "wal_records": 8099,
+        "wal_fpi": 224,
+        "wal_bytes": 1395197,
+        "wal_buffers_full": 13,
+        "wal_write": 129,
+        "wal_sync": 113,
+        "wal_write_time": 59.871,
+        "wal_sync_time": 17772.658,
+        "stats_reset": "2026-11-04T09:33:18.460223+00:00"
+      },
+      "postgres_settings": null,
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-17/postgres.jsonl": "b17a090edd17ed74395cbe150344c73ec7b4437290108c1586d3a1fe390cacfd",
+        "build/owner-publication-timeout-20261104/case-17/preparation.jsonl": "076426a3cd702ebd9f05b4c2b7e4a908aa457961efd8d00bf2eca3faf0931b4c",
+        "build/owner-publication-timeout-20261104/case-17/sampler-summary.json": "b9fe5def511ea527834d71d8f08faa910a1725a349e8e3b9cc69607f9244cefb",
+        "build/mm-load/20261104-163310-fb7773/hbot-e2e-268318b5da-pg.log": "0ecb4db666f4d79b08b057654d06b6dea83392fc818f92a885117a36ef63339c",
+        "build/mm-load/20261104-163310-fb7773/hbot-e2e-268318b5da-load-bot.log": "725e52c39a87c8ef2b3fdc4cd0eb2c86495b9d393fd8e616479ff415d1c3a7ab"
+      },
+      "caveat": "Bulk fixture command exceeded its original 60s Docker budget; failure evidence retained. Later controls use a 180s fixture-only budget."
+    },
+    {
+      "case": 18,
+      "scope": "stop after seeded-history prefix",
+      "full_runtime_trace": true,
+      "fixture_rows": 100000,
+      "imposed_postgres_write_bps": 8388608,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-163856-1baf29",
+      "pg_samples": 620,
+      "sample_span_seconds": 89.821671,
+      "max_sample_gap_ms": 6283.475,
+      "observed_blocked_samples": 82,
+      "service_failures": [
+        {
+          "timestamp": "2026-11-04T09:39:48.538Z",
+          "reason_code": "critical_persistence_failure",
+          "error_type": "OperationalError"
+        },
+        {
+          "timestamp": "2026-11-04T09:40:06.586Z",
+          "reason_code": "service_internal_failure",
+          "error_type": "PostgreSQLBootstrapError"
+        },
+        {
+          "timestamp": "2026-11-04T09:40:25.322Z",
+          "reason_code": "service_internal_failure",
+          "error_type": "PostgreSQLBootstrapError"
+        }
+      ],
+      "critical_persistence_failures": 1,
+      "scheduled_engine_restarts": 3,
+      "publication_pg_errors": [
+        {
+          "at": "2026-11-04 09:39:48.329",
+          "backend_pid": 336,
+          "level": "error",
+          "sqlstate": "55P03",
+          "publication": true,
+          "collector": false,
+          "duration_ms": null
+        }
+      ],
+      "collector_pg_error_records": 55,
+      "sampler": {
+        "samples": 620,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 44826,
+        "reconnects": 54,
+        "retained_error_examples": 20
+      },
+      "seed_seconds": 61.096396,
+      "post_seed_idle_seconds": 3,
+      "final_wal_snapshot": {
+        "wal_records": 1629096,
+        "wal_fpi": 224,
+        "wal_bytes": 193898190,
+        "wal_buffers_full": 9878,
+        "wal_write": 10031,
+        "wal_sync": 148,
+        "wal_write_time": 117.362,
+        "wal_sync_time": 23941.565,
+        "stats_reset": "2026-11-04T09:39:05.049313+00:00"
+      },
+      "postgres_settings": null,
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-18/postgres.jsonl": "b7506380e0b19344c1d51d7c538fd5f4aca24f2954f525459a8ae882239cc0f6",
+        "build/owner-publication-timeout-20261104/case-18/preparation.jsonl": "a3a8a195e5cf64252f8d929f974c44c68c6b0d51c6c606847d4edad97f9de213",
+        "build/owner-publication-timeout-20261104/case-18/sampler-summary.json": "36e3c60b7936b1544f5717b509c32d7f0b687e359ddd5f059f397841286de7e8",
+        "build/mm-load/20261104-163856-1baf29/hbot-e2e-6bea15e667-pg.log": "2b00cc22e3c3835e3da2697002a4b02141b39e69684afc4e6961075c26c08d95",
+        "build/mm-load/20261104-163856-1baf29/hbot-e2e-6bea15e667-load-bot.log": "893c4e19515e50b6cf66e91dbec580141a45f45d993ee13b42997d259ca1cc08",
+        "build/owner-publication-timeout-20261104/case-18/postgres-limits.json": "2740ba3d68dd14966b75756714a0f27788381e349b2c6fa1e1870915be5304bc",
+        "build/mm-load/20261104-163856-1baf29/trace/server.jsonl": "c16e4aa6c1304640651acc07870e85ed0809363dfa4ddf2a1ac4cee915d4125c",
+        "build/mm-load/20261104-163856-1baf29/trace/server-api.jsonl": "c91f0edcfcf1ea2e9853f4a8781c7ec06aa9ff8f5aff9fa8665b9de93e532ce7"
+      },
+      "observed_write_limit_at_setup": [
+        {
+          "Path": "/dev/vda",
+          "Rate": 8388608
+        }
+      ]
+    },
+    {
+      "case": 19,
+      "scope": "stop after seeded-history prefix",
+      "full_runtime_trace": true,
+      "fixture_rows": 100000,
+      "imposed_postgres_write_bps": 8388608,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-164204-3122fa",
+      "pg_samples": 604,
+      "sample_span_seconds": 88.343906,
+      "max_sample_gap_ms": 5711.081,
+      "observed_blocked_samples": 103,
+      "service_failures": [
+        {
+          "timestamp": "2026-11-04T09:42:46.459Z",
+          "reason_code": "critical_persistence_failure",
+          "error_type": "OperationalError"
+        },
+        {
+          "timestamp": "2026-11-04T09:42:59.817Z",
+          "reason_code": "service_internal_failure",
+          "error_type": "PostgreSQLBootstrapError"
+        },
+        {
+          "timestamp": "2026-11-04T09:43:15.461Z",
+          "reason_code": "service_internal_failure",
+          "error_type": "PostgreSQLBootstrapError"
+        },
+        {
+          "timestamp": "2026-11-04T09:43:35.432Z",
+          "reason_code": "service_internal_failure",
+          "error_type": "PostgreSQLBootstrapError"
+        }
+      ],
+      "critical_persistence_failures": 1,
+      "scheduled_engine_restarts": 4,
+      "publication_pg_errors": [
+        {
+          "at": "2026-11-04 09:42:46.250",
+          "backend_pid": 322,
+          "level": "error",
+          "sqlstate": "57014",
+          "publication": true,
+          "collector": false,
+          "duration_ms": null
+        }
+      ],
+      "collector_pg_error_records": 55,
+      "sampler": {
+        "samples": 604,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 49001,
+        "reconnects": 54,
+        "retained_error_examples": 20
+      },
+      "seed_seconds": 62.183732,
+      "post_seed_idle_seconds": 3,
+      "final_wal_snapshot": {
+        "wal_records": 1629055,
+        "wal_fpi": 224,
+        "wal_bytes": 193888967,
+        "wal_buffers_full": 11162,
+        "wal_write": 11299,
+        "wal_sync": 138,
+        "wal_write_time": 161.54,
+        "wal_sync_time": 23734.222,
+        "stats_reset": "2026-11-04T09:42:12.578016+00:00"
+      },
+      "postgres_settings": null,
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-19/postgres.jsonl": "deef49cf9fda5ff7e8a09797b79f51cce230d2df8747fe518419d246abcc9c7a",
+        "build/owner-publication-timeout-20261104/case-19/preparation.jsonl": "f9341ba977c1a1cc909faec728a848181388c01f9a5b39f304eb48689e462672",
+        "build/owner-publication-timeout-20261104/case-19/sampler-summary.json": "b3a310633e39c8f2e795c4a0a6ff6b6831a10073f1f20cb8583ba9926d119fde",
+        "build/mm-load/20261104-164204-3122fa/hbot-e2e-63bf6f655b-pg.log": "79428f49746ca38104266a0cde4d4a0db6e5a1da6f47b4fc5a3728fc5068e850",
+        "build/mm-load/20261104-164204-3122fa/hbot-e2e-63bf6f655b-load-bot.log": "02bb111e72dba13ca7212437c88b97e248a72bc4393f725df6b6c2a0adbdb3bc",
+        "build/owner-publication-timeout-20261104/case-19/postgres-limits.json": "2740ba3d68dd14966b75756714a0f27788381e349b2c6fa1e1870915be5304bc",
+        "build/mm-load/20261104-164204-3122fa/trace/server.jsonl": "6917849943c0e775444e3a4fdfd3684ad30eb13b12e9d0d1e47e4e7379b87838",
+        "build/mm-load/20261104-164204-3122fa/trace/server-api.jsonl": "76340ec1a5f2e08f0e693830531caddcea81f70a9a534067055e47df72bc6426"
+      },
+      "observed_write_limit_at_setup": [
+        {
+          "Path": "/dev/vda",
+          "Rate": 8388608
+        }
+      ]
+    },
+    {
+      "case": 20,
+      "scope": "stop after seeded-history prefix",
+      "full_runtime_trace": true,
+      "fixture_rows": 100000,
+      "imposed_postgres_write_bps": 8388608,
+      "wal_init_zero": "off",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-164440-d93d57",
+      "pg_samples": 578,
+      "sample_span_seconds": 70.469788,
+      "max_sample_gap_ms": 5787.054,
+      "observed_blocked_samples": 40,
+      "service_failures": [
+        {
+          "timestamp": "2026-11-04T09:45:45.095Z",
+          "reason_code": "critical_persistence_failure",
+          "error_type": "OperationalError"
+        }
+      ],
+      "critical_persistence_failures": 1,
+      "scheduled_engine_restarts": 1,
+      "publication_pg_errors": [
+        {
+          "at": "2026-11-04 09:45:47.524",
+          "backend_pid": 350,
+          "level": "error",
+          "sqlstate": "57014",
+          "publication": true,
+          "collector": false,
+          "duration_ms": null
+        }
+      ],
+      "collector_pg_error_records": 18,
+      "sampler": {
+        "samples": 578,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 51854,
+        "reconnects": 17,
+        "retained_error_examples": 17
+      },
+      "seed_seconds": 33.686906,
+      "post_seed_idle_seconds": 3,
+      "final_wal_snapshot": {
+        "wal_records": 1629461,
+        "wal_fpi": 224,
+        "wal_bytes": 193993265,
+        "wal_buffers_full": 10892,
+        "wal_write": 11063,
+        "wal_sync": 167,
+        "wal_write_time": 652.32,
+        "wal_sync_time": 21576.791,
+        "stats_reset": "2026-11-04T09:44:50.35317+00:00"
+      },
+      "postgres_settings": {
+        "wal_init_zero": "off",
+        "fsync": "on",
+        "synchronous_commit": "on",
+        "full_page_writes": "on",
+        "wal_buffers": "4MB"
+      },
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-20/postgres.jsonl": "9e0ff352ee1675530617dc044c8d9c87576ea6a4e09fbab1eae5a7cc24061d8e",
+        "build/owner-publication-timeout-20261104/case-20/preparation.jsonl": "6b11e354ac0e28320b693f985af35d5ddc85775ea0cce88e46957663be186d5c",
+        "build/owner-publication-timeout-20261104/case-20/sampler-summary.json": "bdeec2ff0e66ea333d7ed7e2b172f91e50c315e1aeaa5ee9f747abb4e976ffa2",
+        "build/mm-load/20261104-164440-d93d57/hbot-e2e-5188904def-pg.log": "b1c3f6b9bcdd35ab0c64f0063299f3a5449fe31cd5d2601ba9e9e947b0757c74",
+        "build/mm-load/20261104-164440-d93d57/hbot-e2e-5188904def-load-bot.log": "c0c45a0a7e3781bf2e6ccec20b2a3764f983adcd2c25c8f2b86f8d7e1319e070",
+        "build/owner-publication-timeout-20261104/case-20/postgres-limits.json": "2740ba3d68dd14966b75756714a0f27788381e349b2c6fa1e1870915be5304bc",
+        "build/owner-publication-timeout-20261104/case-20/postgres-settings.json": "d2e049c028d14c7c2014b6ec43ae09986fbafe345ffd75b6a22b54c1a8062e2f",
+        "build/mm-load/20261104-164440-d93d57/trace/server.jsonl": "6572dabeb8b206f158903e9097924b5e7258eae94b0241a847abc702917d552e",
+        "build/mm-load/20261104-164440-d93d57/trace/server-api.jsonl": "d5d1d583fc830bc0bfe853a9d63d18ea13894effe7e5c0153aa55868e58a769d"
+      },
+      "observed_write_limit_at_setup": [
+        {
+          "Path": "/dev/vda",
+          "Rate": 8388608
+        }
+      ]
+    },
+    {
+      "case": 21,
+      "scope": "stop after seeded-history prefix",
+      "full_runtime_trace": true,
+      "fixture_rows": 0,
+      "imposed_postgres_write_bps": 8388608,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-164642-bfcab6",
+      "pg_samples": 235,
+      "sample_span_seconds": 25.409207,
+      "max_sample_gap_ms": 159.04,
+      "observed_blocked_samples": 0,
+      "service_failures": [],
+      "critical_persistence_failures": 0,
+      "scheduled_engine_restarts": 0,
+      "publication_pg_errors": [],
+      "collector_pg_error_records": 0,
+      "sampler": {
+        "samples": 235,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 53314,
+        "retained_error_examples": 0
+      },
+      "seed_seconds": 0.130708,
+      "post_seed_idle_seconds": 3,
+      "final_wal_snapshot": {
+        "wal_records": 7778,
+        "wal_fpi": 206,
+        "wal_bytes": 1232031,
+        "wal_buffers_full": 0,
+        "wal_write": 70,
+        "wal_sync": 69,
+        "wal_write_time": 3.877,
+        "wal_sync_time": 42.799,
+        "stats_reset": "2026-11-04T09:46:53.069894+00:00"
+      },
+      "postgres_settings": {
+        "wal_init_zero": "on",
+        "fsync": "on",
+        "synchronous_commit": "on",
+        "full_page_writes": "on",
+        "wal_buffers": "4MB"
+      },
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-21/postgres.jsonl": "4e1f0c3b7ce928140ff8596b5475ae392f43212fe95cb8934624b11417c30bb3",
+        "build/owner-publication-timeout-20261104/case-21/preparation.jsonl": "3d6691ca4a378f0a4bc04bb84ab13963f9f09585846dbdd91689150359362d1e",
+        "build/owner-publication-timeout-20261104/case-21/sampler-summary.json": "64442e40708390dda9bd697fb5f88d72cec792ac96285fd80f2aa561b550e90c",
+        "build/mm-load/20261104-164642-bfcab6/hbot-e2e-bb67c3fec2-pg.log": "9dca35fac1a6bf5ef64b00c4fc690319203bd0a1be0cf2327545e41dcc495a56",
+        "build/mm-load/20261104-164642-bfcab6/hbot-e2e-bb67c3fec2-load-bot.log": "d2d0abb3776fbc4ebecdf5cac6cef73392469cfe9f81e3a6eca5b96d8a98524e",
+        "build/owner-publication-timeout-20261104/case-21/postgres-limits.json": "2740ba3d68dd14966b75756714a0f27788381e349b2c6fa1e1870915be5304bc",
+        "build/owner-publication-timeout-20261104/case-21/postgres-settings.json": "4f6bb546c96176d382c63732b1c7a78f50337c7cf286a75a3806c80209461961",
+        "build/mm-load/20261104-164642-bfcab6/trace/server.jsonl": "75d2afa7dce2c8b0895971c047171d9a8a95ceb237a208b0a685356446f5ae08",
+        "build/mm-load/20261104-164642-bfcab6/trace/server-api.jsonl": "405a0dcce07c0804e531ca15e361ef4a5d924754d3a7d0f9216a4b0fd62a4d3a"
+      },
+      "observed_write_limit_at_setup": [
+        {
+          "Path": "/dev/vda",
+          "Rate": 8388608
+        }
+      ]
+    },
+    {
+      "case": 22,
+      "scope": "stop after seeded-history prefix",
+      "full_runtime_trace": true,
+      "fixture_rows": 0,
+      "imposed_postgres_write_bps": 8388608,
+      "wal_init_zero": "on",
+      "runtime_source": "0f4095671",
+      "image": "086454de",
+      "report": "build/mm-load/20261104-165345-3a9fba",
+      "pg_samples": 771,
+      "sample_span_seconds": 86.260297,
+      "max_sample_gap_ms": 1307.695,
+      "observed_blocked_samples": 0,
+      "service_failures": [],
+      "critical_persistence_failures": 0,
+      "scheduled_engine_restarts": 0,
+      "publication_pg_errors": [],
+      "collector_pg_error_records": 1,
+      "sampler": {
+        "samples": 771,
+        "dropped": 0,
+        "max_bytes": 33554432,
+        "sampler_process": 63590,
+        "reconnects": 1,
+        "retained_error_examples": 1
+      },
+      "seed_seconds": 0.074766,
+      "post_seed_idle_seconds": 65.0,
+      "final_wal_snapshot": {
+        "wal_records": 9434,
+        "wal_fpi": 225,
+        "wal_bytes": 1944579,
+        "wal_buffers_full": 0,
+        "wal_write": 212,
+        "wal_sync": 211,
+        "wal_write_time": 10.764,
+        "wal_sync_time": 107.913,
+        "stats_reset": "2026-11-04T09:53:54.055696+00:00"
+      },
+      "postgres_settings": {
+        "wal_init_zero": "on",
+        "fsync": "on",
+        "synchronous_commit": "on",
+        "full_page_writes": "on",
+        "wal_buffers": "4MB"
+      },
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-22/postgres.jsonl": "c7e1684c668da9f7d7957454200c5df3583bf4d56318903aa89744a1495f23d1",
+        "build/owner-publication-timeout-20261104/case-22/preparation.jsonl": "655dae9d4ef6c1b0dc3ba118a2c7158db56ea811273279b36671281a7c6fd4f6",
+        "build/owner-publication-timeout-20261104/case-22/sampler-summary.json": "6710024ff49506695724c17e5287637fd747c791308c010e5e200239d0bb41e0",
+        "build/mm-load/20261104-165345-3a9fba/hbot-e2e-8ce957d050-pg.log": "ad1ae53315c0cd4f27ce341d1c34754a194adc023e3eb5e2fc6b13ddf8529fc0",
+        "build/mm-load/20261104-165345-3a9fba/hbot-e2e-8ce957d050-load-bot.log": "c8015974b0d2b66bb04be109513e294742991d746586093c27c63bf4bdbf48ae",
+        "build/owner-publication-timeout-20261104/case-22/postgres-limits.json": "2740ba3d68dd14966b75756714a0f27788381e349b2c6fa1e1870915be5304bc",
+        "build/owner-publication-timeout-20261104/case-22/postgres-settings.json": "4f6bb546c96176d382c63732b1c7a78f50337c7cf286a75a3806c80209461961",
+        "build/mm-load/20261104-165345-3a9fba/trace/server.jsonl": "bbd681ce0463bcc5adeefcaadf42aa77f65682de93f6a4d0454a61cbdc3bda9d",
+        "build/mm-load/20261104-165345-3a9fba/trace/server-api.jsonl": "68b0e0572064f62550299b17311d29d45ad69e93854ad0bea5f99ffe07e128ad"
+      },
+      "observed_write_limit_at_setup": [
+        {
+          "Path": "/dev/vda",
+          "Rate": 8388608
+        }
+      ]
+    }
+  ],
+  "historical_environment": {
+    "pg_exec_start_utc": "2026-11-04T06:48:54.199636Z",
+    "pg_exec_end_utc": "2026-11-04T06:49:02.234736Z",
+    "pg_exec_duration_ms": 8035.173625,
+    "historical_publication_timeout_inside_exec": true,
+    "bulk_seed_identity": "inferred from harness call ordering and following simulator funding control, not an archived exec request body",
+    "host_power_window_local": "2026-11-04 13:45 through 13:52 +0700",
+    "retained_power_records": 37,
+    "observed_sleep_wake_transitions": 0,
+    "caffeinate_assertion_present": true,
+    "inference": "No recorded host sleep transition; CPU/I/O/VM scheduling stalls are not ruled out.",
+    "vm_pg_exec_start_utc": "2026-11-04T06:48:54.199825428Z",
+    "vm_pg_exec_end_utc": "2026-11-04T06:49:02.233784668Z",
+    "vm_pg_exec_duration_ms": 8034.866253,
+    "archived_excerpt": "build/owner-publication-timeout-20261104/historical-pg-exec-vm.log",
+    "archived_excerpt_sha256": "a99335ef672579e641d1eb00a1a68aa8e0d7b0ffd2dd2ddda61772f62b138028"
+  },
+  "limitations": [
+    "Collector 200ms failures/reconnects and sampling gaps are retained; collector errors are not publisher failures.",
+    "wal_init_zero=off did not eliminate the imposed I/O fault; it is not a verified remediation.",
+    "Eight additional original-prefix runs include case7 with a modified deadlock-detection diagnostic setting; unchanged-setting set is cases8-14.",
+    "Ordinary source/image behavior and deadlines are unchanged; test-only append behavior changes after case17.",
+    "An attempted partition-device throttle (case16) was unsupported and its created container was removed; whole-device per-cgroup throttle is verified in later cases."
+  ],
+  "unsupported_control": {
+    "case": 16,
+    "log_sha256": "245955c9c62c4e017522522390567331e26363c2ea648fb602949ce12a4a825e",
+    "reason": "Partition /dev/vda1 rejected by io.max; used /dev/vda for per-container controls, never changed host-wide limits."
+  },
+  "tdd": {
+    "red": "3 restart cases fail because first trace record is overwritten",
+    "green_related_tests": 58,
+    "red_sha256": "0c7bc199c42d53192aee0ae14b68b3fe976c409f5e0c61094dd5a0f211b02ee3",
+    "green_sha256": "2d89301b5d2be71f47979ff95d1022bb23bbff5d2251701a356267753bda53b6",
+    "files": [
+      "test/e2e/offline/load_trace.py",
+      "test/e2e/offline/load_service.py",
+      "test/hummingbot/cli/test_mm_load_trace.py"
+    ]
+  },
+  "demo": {
+    "phase": "stopped",
+    "running": false,
+    "owner_available": true,
+    "counts": {
+      "orders": 3513,
+      "trade_fills": 23,
+      "positions": 3,
+      "executors": 2848
+    },
+    "hashes": {
+      "orders": "331c3a9fe9978af37faee7f15b656234",
+      "trade_fills": "89b927c2868e7483c105b43c3bc6b751",
+      "positions": "94315e1d770e988c967b43722f74b560",
+      "executors": "bb9e902715eec79b03bc3d98fa6a4494"
+    },
+    "ledger_hashes_unchanged": true
+  },
+  "runner": {
+    "path": "build/owner-publication-timeout-20261104/reproduce_preparation_followup_final.py",
+    "sha256": "d86273c2e97292fbcb0d2af0072c786d6fcf3b408cc2fd96808019729eab6e82"
+  },
+  "recommendation": "Isolate bulk fixture/import writes from a running service and measure PostgreSQL WAL/commit latency; keep durability/fences/deadlines. Do not add blind retries or present wal_init_zero=off as a fix.",
+  "references": [
+    "https://www.postgresql.org/docs/14/runtime-config-wal.html",
+    "https://www.postgresql.org/docs/14/monitoring-stats.html"
+  ]
+}

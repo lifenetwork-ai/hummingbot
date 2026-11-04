@@ -16,6 +16,10 @@ Follow-up: [pre-window owner publication investigation](../investigations/mm-own
 adds three clean preparations and a witnessed 1.182s WAL-delayed publication
 COMMIT. The original failed SELECT remains unattributed; no runtime fix is
 claimed.
+Its later follow-up reproduces the same SELECT/57014 under imposed PG WAL write
+pressure, with a same-PID 2,901.57ms SQL span. This establishes the controlled
+mechanism without proving the original exclusive trigger or changing the
+shipping engine. A separate offline trace-overwrite defect is corrected.
 
 ## Change and tradeoff
 
