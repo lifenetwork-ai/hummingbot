@@ -142,3 +142,45 @@ trade, Cloud Run qualification or exclusive historical attribution is claimed.
 
 [Hour report](../../reports/investigations/mm-owner-publication-timeout.md#full-hour-confirmation-after-offline-preparation),
 [portable evidence](../../reports/performance/mm-offline-history-soak-evidence.json).
+
+
+## Current-image MM/probe correlation — requested 2026-11-04
+
+- [x] Reuse bounded activity/incident and independent venue sampling on unchanged
+  image `086454de` with corrected offline preparation. Start with a 600s fixed
+  follow_market/both diagnostic; retain original runtime/guard/load budgets and
+  keep its opt-in instrumented scope distinct from the completed Random hour.
+- [x] Correlate each captured probe failure with tick/controller start gaps and
+  execution, submit/cancel outcomes/RTT and independently observed quote presence.
+  Include losses, cadence, readiness/guard states and uninstrumented intervals.
+- [x] Review measured jitter and runtime spans before selecting a fix. No
+  avoidable runtime defect is established in this bounded run; publish the
+  observer/controller overlap and recurring spot SELL invalidation as remaining
+  leads. Do not invent a Red/Green runtime fix or change health/risk thresholds.
+- [x] Restore stopped Demo and unchanged ledger hashes; publish evidence, update
+  the checklist and commit. No actual Demo trading or deployment in this phase.
+
+
+Result: **600s diagnostic PASS**, 13,200 HTTP 200/no errors or stale, p99
+347.99/118.91ms and 600 exact synthetic fills/fees/positions. One recovered
+probe is before measurement and one is inside. For the measured 318.874ms
+probe, request-through-recovery tick/controller start gaps are at most
+1,050.67/1,233.10ms; all five venue context samples show both markets two-sided
+with 12 live orders. No unexpected engine restart/publication failure.
+
+Whole-window jitter remains: maximum tick/controller start gap 1,237.52/1,570.78ms,
+controller execution outlier 568.53ms overlaps a 992.49ms observer span without
+exclusive attribution. Point-sampled two-sided coverage is spot494/597,
+perpetual574/597, jointly490/597; 13 aggregate-empty samples form seven groups
+with refresh or readiness context. Recurring spot SELL `spread_quote_invalid`
+proposals are a separate optimization lead; component-level replay is needed
+before changing sizing/spread policy. No zero-downtime/tick-deadline SLO is claimed.
+
+Activity/venue files have zero drops; internal incident spans/context are bounded
+and omitted-span counts remain explicit. The close summary from preparation is
+not accepted as final measured-engine flush proof. Actual Demo is restored
+stopped with all 23 fills and four hashes intact. Shipping code/image/settings
+are unchanged; no new full release/hour/actual-trade acceptance is claimed.
+
+[Diagnostic report](../../reports/investigations/mm-current-probe-correlation.md),
+[evidence](../../reports/investigations/mm-current-probe-correlation-evidence.json).

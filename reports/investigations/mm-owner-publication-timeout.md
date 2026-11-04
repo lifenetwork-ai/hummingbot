@@ -349,3 +349,14 @@ rebuild, production deployment or exclusive historical-trigger attribution.
 [Portable evidence](../performance/mm-offline-history-soak-evidence.json) includes
 preparation stages, unchanged settings/source fingerprints, continuity, all eight
 probe intervals, local/independent simulator witnesses and raw artifact hashes.
+
+
+## Subsequent per-cycle MM/probe measurement
+
+The same-image bounded600s [MM/probe diagnostic](mm-current-probe-correlation.md)
+uses the existing activity/independent-venue instruments. Its single measured
+probe318.874ms recovers while tick/controller progress and both-market two-sided
+quotes remain observed. Whole-window controller jitter, replacement/guard gaps
+and repeated spot SELL invalidation remain visible. This adds direct evidence
+for that captured case, not per-tick reconstruction of the eight prior Random
+incidents or closure of historical unique cause. No shipping code/settings change.

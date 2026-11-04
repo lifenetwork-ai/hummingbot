@@ -11,6 +11,16 @@ FOR UPDATE timeout and automatic engine restart before the timed window; its
 exclusive cause remains unproven. No new full R1/R2 or active natural-fill
 acceptance is transferred. [Report](../../reports/performance/mm-admin-worker-lanes.md).
 
+**Subsequent MM/probe diagnostic:** same `086454de`, fixed follow_market/both,
+600s with existing opt-in activity/incident/independent venue tools. Diagnostic
+passes13,200 HTTP200/no errors or stale,600 exact synthetic fills. Its single
+in-window probe318.874ms recovers with tick/controller progress and12 live,
+both-market/two-sided orders in all five context samples. Whole-window jitter,
+refresh/guard quote gaps and recurring spot SELL invalidation remain explicit;
+no continuous-coverage claim or speculative runtime fix. This is not a
+reconstruction of the eight earlier Random-hour events. Stopped actual Demo
+preserves23 fills/four hashes. [Report/evidence](../../reports/investigations/mm-current-probe-correlation.md).
+
 **Subsequent offline-preparation hour confirmed:** the unchanged `086454de`
 standalone 3,600s Random soak passes after the host-side preparation correction:
 79,200 HTTP 200/no unexpected errors or stale, p99 260.39/77.27ms, 3,595 exact

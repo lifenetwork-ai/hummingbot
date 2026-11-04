@@ -5,6 +5,17 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-04
 
+- **Current-image MM/probe diagnostic:** unchanged `086454de`, bounded600s
+  fixed follow_market/both with existing activity/incident/venue instruments;
+  13,200 HTTP 200/no errors or stale, p99 347.99/118.91ms and 600 exact synthetic
+  fills. One measured probe318.874ms recovers with tick/controller start gaps
+  at most1,050.67/1,233.10ms in request-through-recovery context; all five venue
+  samples have12 live orders and both markets two-sided. No unexpected restart.
+  Whole-window controller568.53ms outlier and recurring spot SELL invalidation
+  remain leads; jointly two-sided point coverage is490/597, not continuous uptime.
+  No justified runtime/health/guard change; stopped Demo/23 fills/four hashes
+  preserved. [Report](../investigations/mm-current-probe-correlation.md), [evidence](../investigations/mm-current-probe-correlation-evidence.json).
+
 - **Offline preparation standalone hour passes:** unchanged `086454de`,
   3,600s Random soak, 79,200 HTTP 200/no unexpected errors or stale, p99
   260.39/77.27ms and 3,595 exact synthetic fills/fees/positions. All three profiles,

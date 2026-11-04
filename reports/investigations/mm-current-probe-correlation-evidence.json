@@ -1,0 +1,2445 @@
+{
+  "date": "2026-11-04T12:24:08.213532+00:00",
+  "source_commit": "f40cc9a46dff022b27647ce2a32cdda69022b5fd",
+  "scope": "Bounded 600s opt-in fixed-profile MM/probe diagnostic, no runtime change",
+  "analysis_regression_passed": 47,
+  "postprocessing_attempts": "First one-off export failed on a nullable previous-start value before publishing evidence; original script retained, corrected export passes without runtime/workload changes.",
+  "shipping_image": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+  "shipping_source": "0f409567105fd2975a6540b9fcf88ad8f6b583c0",
+  "reviewed_runtime_hashes_unchanged": true,
+  "raw_directory": "build/mm-load/20261104-190227-81e4bb",
+  "workload": {
+    "duration_seconds": 600,
+    "selection": "fixed",
+    "profile_id": "follow_market",
+    "market_mode": "both",
+    "history_rows": 100000,
+    "application_cpus": {
+      "cpus": 2,
+      "memory_bytes": 2147483648
+    },
+    "operations_reads_per_second": 0,
+    "mm_activity": true,
+    "incident": true,
+    "gc": true,
+    "market_diagnostics": true
+  },
+  "gate": {
+    "duration_seconds": 600,
+    "window_start_ns": 123946502312869,
+    "window_end_ns": 124546502312869,
+    "window_start_utc": 1793793816.9347785,
+    "read_p95_ms": 56.409691998851486,
+    "read_p99_ms": 347.9908129957039,
+    "statuses": {
+      "200": 12000
+    },
+    "auxiliary": {
+      "requested_reads": 1200,
+      "completed_reads": 1200,
+      "statuses": {
+        "200": 1200
+      },
+      "read_p95_ms": 43.355018002330326,
+      "read_p99_ms": 118.90826300077606
+    },
+    "unexpected_errors": 0,
+    "violations": [],
+    "ledger": {
+      "unique_exchange_fills": 600,
+      "unique_recorder_fills": 600,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    }
+  },
+  "preparation": {
+    "history_rows": 100000,
+    "mode": "full_service_offline_seed",
+    "stage": "complete",
+    "owner_generation_before": 1,
+    "control_version": 2,
+    "offline_verified_at": 1793793773.0577211,
+    "offline_checks": {
+      "application_connections": 0,
+      "ownership_locks": 0,
+      "pending_orders": 0
+    },
+    "seed_completed_at": 1793793779.265365,
+    "checkpoint_completed_at": 1793793779.701168,
+    "seeded_counts": {
+      "orders": 100000,
+      "fills": 100000
+    },
+    "restarted_at": 1793793779.7011762,
+    "owner_generation_after": 2,
+    "completed_at": 1793793790.984138
+  },
+  "source_sha256": {
+    "scripts/test_mm_load.py": "2102bbf0970606b5f4df227d317046773a6d867f7ccc96be702fabd76a25527e",
+    "scripts/test_e2e_offline.py": "97d2187481d6ff4dc783b6c9a51d16b5958109aaf6a7f79c8ce08fa120868e8a",
+    "scripts/analyze_mm_load_trace.py": "f6ff4e76ddfeb95098064247a9e68a07185f40671769b5bc28cf29da424c9fda",
+    "scripts/mm_load_budgets.py": "e63c9f4741475bae7bd2fd1b69d70ffb8b7b1fdba8fb7c1e4348d96a841694c7",
+    "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
+    "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458",
+    "scripts/mm_load_processes.py": "1b939e85a11b7d374cc17dc2111729b72f0775aad2f5161487110f1f516820fa",
+    "scripts/mm_load_preparation.py": "6c879e6d4a2d041ec46f85b76ee44b940416397567ea80f7c5bb30746fbffba5",
+    "test/e2e/offline/load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+    "test/e2e/offline/load_trace.py": "8f287fb21e13b070edc2e162218af974ea6858747e1340479d9b3438f17e40f1",
+    "test/e2e/offline/load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+    "test/e2e/offline/load_service.py": "8e79dc44cacf8daf12a63119cb39f425f929e5c7b137f11b6dc4293f7f03cb57",
+    "test/e2e/offline/load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4"
+  },
+  "fixture_sha256": {
+    "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+    "load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+    "exchange.py": "b0eb90488041e3fa85c7d30ae5b023494d940faa065aaef9553c462752d8c33b",
+    "load_mm_activity.py": "a37e4a1a784bc8426e8ca55aa75469e31544ae4208b3e4b38d6a7a405163247a",
+    "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "load_service.py": "8e79dc44cacf8daf12a63119cb39f425f929e5c7b137f11b6dc4293f7f03cb57",
+    "runtime_smoke.py": "fca71a6859997b6bf20b18a6185850595c3025197b8925d112f5ad228142aa76",
+    "life_mm_profiles.yaml": "9fed2959041edcb605a9c63241caa5eb935566883306d26b531cb4bf295df6d1",
+    "load_trace.py": "8f287fb21e13b070edc2e162218af974ea6858747e1340479d9b3438f17e40f1",
+    "load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+    "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+    "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+    "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+    "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+    "load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+    "load_client.py": "77bf2b07b8199c5545bf8cf19001c3e6828f874ca28429d6933d1bff24d4ff84"
+  },
+  "operations": {
+    "strategy.tick": {
+      "start_gap_ms": {
+        "count": 599,
+        "p99_ms": 1106.505208,
+        "max_ms": 1237.523042
+      },
+      "duration_ms": {
+        "count": 600,
+        "p99_ms": 60.695625,
+        "max_ms": 89.473125
+      },
+      "outcomes": {
+        "returned": 600
+      },
+      "successful_duration_ms": {
+        "count": 600,
+        "p99_ms": 60.695625,
+        "max_ms": 89.473125
+      }
+    },
+    "controller.cycle": {
+      "start_gap_ms": {
+        "count": 1182,
+        "p99_ms": 1104.459918,
+        "max_ms": 1570.781041
+      },
+      "duration_ms": {
+        "count": 1184,
+        "p99_ms": 27.153958,
+        "max_ms": 568.53225
+      },
+      "outcomes": {
+        "returned": 1184
+      },
+      "successful_duration_ms": {
+        "count": 1184,
+        "p99_ms": 27.153958,
+        "max_ms": 568.53225
+      }
+    },
+    "order.submit": {
+      "start_gap_ms": {
+        "count": 218,
+        "p99_ms": 63570.236903,
+        "max_ms": 64596.986446
+      },
+      "duration_ms": {
+        "count": 220,
+        "p99_ms": 285.117125,
+        "max_ms": 443.204875
+      },
+      "outcomes": {
+        "returned": 219,
+        "MarketReadinessBlocked": 1
+      },
+      "successful_duration_ms": {
+        "count": 219,
+        "p99_ms": 285.117125,
+        "max_ms": 443.204875
+      }
+    },
+    "order.cancel": {
+      "start_gap_ms": {
+        "count": 217,
+        "p99_ms": 63716.084779,
+        "max_ms": 65725.717821
+      },
+      "duration_ms": {
+        "count": 219,
+        "p99_ms": 116.076292,
+        "max_ms": 136.21775
+      },
+      "outcomes": {
+        "returned": 219
+      },
+      "successful_duration_ms": {
+        "count": 219,
+        "p99_ms": 116.076292,
+        "max_ms": 136.21775
+      }
+    }
+  },
+  "episodes": [
+    {
+      "role": "engine",
+      "failure_ns": 123995579231892,
+      "recovery_ns": 123996603666517,
+      "observed_transition_seconds": 1.024434625,
+      "seconds_from_window_start": 49.076919023,
+      "failed_probe_elapsed_ms": 318.874,
+      "estimated_failed_request_start_ns": 123995260357892,
+      "estimated_request_start_limit": "Marker publication follows probe completion; subtraction estimates request start and has unmeasured publication/rounding delay.",
+      "request_through_recovery_mm": {
+        "strategy.tick": {
+          "start_gaps_ms": {
+            "count": 3,
+            "p50": 999.203709,
+            "p99": 1050.668584,
+            "max": 1050.668584
+          },
+          "duration_ms": {
+            "count": 2,
+            "p50": 2.955417,
+            "p99": 24.048125,
+            "max": 24.048125
+          },
+          "outcomes": {
+            "returned": 2
+          }
+        },
+        "controller.cycle": {
+          "start_gaps_ms": {
+            "count": 5,
+            "p50": 1098.377333,
+            "p99": 1233.101043,
+            "max": 1233.101043
+          },
+          "duration_ms": {
+            "count": 4,
+            "p50": 5.862084,
+            "p99": 150.624584,
+            "max": 150.624584
+          },
+          "outcomes": {
+            "returned": 4
+          }
+        },
+        "order.submit": {
+          "start_gaps_ms": {
+            "count": 0,
+            "p50": null,
+            "p99": null,
+            "max": null
+          },
+          "duration_ms": {
+            "count": 0,
+            "p50": null,
+            "p99": null,
+            "max": null
+          },
+          "outcomes": {}
+        },
+        "order.cancel": {
+          "start_gaps_ms": {
+            "count": 0,
+            "p50": null,
+            "p99": null,
+            "max": null
+          },
+          "duration_ms": {
+            "count": 0,
+            "p50": null,
+            "p99": null,
+            "max": null
+          },
+          "outcomes": {}
+        }
+      },
+      "quote_context_points": [
+        {
+          "relative_to_failure_ms": -1913.70846,
+          "live_orders": 12
+        },
+        {
+          "relative_to_failure_ms": -909.719292,
+          "live_orders": 12
+        },
+        {
+          "relative_to_failure_ms": 97.032041,
+          "live_orders": 12
+        },
+        {
+          "relative_to_failure_ms": 1099.2865,
+          "live_orders": 12
+        },
+        {
+          "relative_to_failure_ms": 2104.121876,
+          "live_orders": 12
+        }
+      ],
+      "activity": {
+        "status": "observed",
+        "context_start_ns": 123993579231892,
+        "context_end_ns": 123998603666517,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "invalid_venue_clock_samples": 0,
+        "venue_tracking_incomplete": false,
+        "has_venue_sample_before_failure": true,
+        "has_venue_sample_after_recovery": true,
+        "max_venue_sample_gap_ms": 1006.751333,
+        "observed_empty_venue_samples": 0,
+        "min_observed_live_orders": 12,
+        "max_empty_sample_span_ms": null,
+        "empty_group_max_gap_ms": 1500,
+        "max_strategy_tick_start_gap_ms": 1050.668584,
+        "max_controller_cycle_start_gap_ms": 1152.650668,
+        "max_observed_live_order_age_ms": 53150.739066,
+        "continuous_quoting_proven": false,
+        "order_call_returns": [],
+        "terminal_count": 0,
+        "tick_durations_ms": {
+          "count": 2,
+          "p50": 2.955417,
+          "p99": 24.048125,
+          "max": 24.048125
+        },
+        "controller_durations_ms": {
+          "count": 2,
+          "p50": 5.851708,
+          "p99": 5.862084,
+          "max": 5.862084
+        }
+      },
+      "overlapping_spans": [
+        {
+          "operation": "service.observe_once",
+          "start_ns": 123995548498433,
+          "end_ns": 123995751242058,
+          "duration_ms": 202.743625,
+          "thread_cpu_ms": 142.442246,
+          "intersects_transition": true
+        },
+        {
+          "operation": "candle_sample_ms",
+          "start_ns": 123995266806766,
+          "end_ns": 123995399229600,
+          "duration_ms": 132.422834,
+          "thread_cpu_ms": 68.976417,
+          "intersects_transition": false
+        },
+        {
+          "operation": "natr_ms",
+          "start_ns": 123995351193642,
+          "end_ns": 123995399021142,
+          "duration_ms": 47.8275,
+          "thread_cpu_ms": 42.668624,
+          "intersects_transition": false
+        },
+        {
+          "operation": "sql",
+          "start_ns": 123995645250058,
+          "end_ns": 123995661660100,
+          "duration_ms": 16.410042,
+          "thread_cpu_ms": 0.76625,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "start_ns": 123995626194975,
+          "end_ns": 123995641235892,
+          "duration_ms": 15.040917,
+          "thread_cpu_ms": 1.170208,
+          "intersects_transition": true
+        }
+      ],
+      "gc": [],
+      "loop_stalls": []
+    }
+  ],
+  "supervisor_recovered_probes_including_preparation": [
+    {
+      "timestamp": "2026-11-04T12:03:36.497Z",
+      "scope": "engine",
+      "reason_code": "timeout",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.049 max_probe_gap_seconds=1.344 probe_status=None probe_elapsed_ms=303.409 max_probe_elapsed_ms=303.409"
+    },
+    {
+      "timestamp": "2026-11-04T12:04:27.035Z",
+      "scope": "engine",
+      "reason_code": "timeout",
+      "message": "Service child event=child_probe_recovered role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=1.022 max_probe_gap_seconds=1.34 probe_status=None probe_elapsed_ms=318.874 max_probe_elapsed_ms=318.874"
+    }
+  ],
+  "quotes": {
+    "total_in_window_samples": 597,
+    "two_sided_sample_counts": {
+      "spot": 494,
+      "perpetual": 574,
+      "both_markets": 490
+    },
+    "patterns": [
+      {
+        "market_sides": [
+          [
+            "perpetual",
+            "buy"
+          ],
+          [
+            "perpetual",
+            "sell"
+          ],
+          [
+            "spot",
+            "buy"
+          ],
+          [
+            "spot",
+            "sell"
+          ]
+        ],
+        "samples": 490
+      },
+      {
+        "market_sides": [],
+        "samples": 13
+      },
+      {
+        "market_sides": [
+          [
+            "spot",
+            "buy"
+          ],
+          [
+            "spot",
+            "sell"
+          ]
+        ],
+        "samples": 4
+      },
+      {
+        "market_sides": [
+          [
+            "perpetual",
+            "buy"
+          ],
+          [
+            "perpetual",
+            "sell"
+          ]
+        ],
+        "samples": 3
+      },
+      {
+        "market_sides": [
+          [
+            "spot",
+            "buy"
+          ]
+        ],
+        "samples": 5
+      },
+      {
+        "market_sides": [
+          [
+            "perpetual",
+            "buy"
+          ],
+          [
+            "perpetual",
+            "sell"
+          ],
+          [
+            "spot",
+            "buy"
+          ]
+        ],
+        "samples": 78
+      },
+      {
+        "market_sides": [
+          [
+            "perpetual",
+            "buy"
+          ],
+          [
+            "perpetual",
+            "sell"
+          ],
+          [
+            "spot",
+            "sell"
+          ]
+        ],
+        "samples": 3
+      },
+      {
+        "market_sides": [
+          [
+            "perpetual",
+            "buy"
+          ]
+        ],
+        "samples": 1
+      }
+    ],
+    "empty_sample_summary": {
+      "observed_empty_venue_samples": 13,
+      "min_observed_live_orders": 0,
+      "max_empty_sample_span_ms": 2004.103792,
+      "empty_group_max_gap_ms": 1500,
+      "samples": 597,
+      "max_sample_gap_ms": 1094.265083
+    },
+    "empty_groups": [
+      {
+        "first_relative_seconds": 59.34404561,
+        "last_relative_seconds": 60.351647152,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.007601542,
+        "live_order_range": [
+          0,
+          0
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 90.489111957,
+        "last_relative_seconds": 91.492115958,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.003004001,
+        "live_order_range": [
+          0,
+          0
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "readiness_or_inventory": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 5
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 5
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": false,
+            "count": 2
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": false,
+            "session_admitted": false,
+            "count": 1
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": false,
+            "count": 1
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 154.713361862,
+        "last_relative_seconds": 154.713361862,
+        "samples": 1,
+        "first_to_last_span_seconds": 0.0,
+        "live_order_range": [
+          0,
+          0
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 6
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 5
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 217.957300308,
+        "last_relative_seconds": 218.959732183,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.002431875,
+        "live_order_range": [
+          0,
+          0
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 281.174529711,
+        "last_relative_seconds": 283.178633503,
+        "samples": 3,
+        "first_to_last_span_seconds": 2.004103792,
+        "live_order_range": [
+          0,
+          0
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 8
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 474.056123632,
+        "last_relative_seconds": 475.058312257,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.002188625,
+        "live_order_range": [
+          0,
+          0
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 1,
+          "spread_quote_invalid": 1,
+          "readiness_or_inventory": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 6
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 5
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": false,
+            "session_admitted": false,
+            "count": 1
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": false,
+            "count": 1
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": false,
+            "count": 1
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 538.407397785,
+        "last_relative_seconds": 538.407397785,
+        "samples": 1,
+        "first_to_last_span_seconds": 0.0,
+        "live_order_range": [
+          0,
+          0
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 6
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 6
+          }
+        ]
+      }
+    ],
+    "missing_spot_sell_groups": [
+      {
+        "first_relative_seconds": 59.34404561,
+        "last_relative_seconds": 60.351647152,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.007601542,
+        "live_order_range": [
+          0,
+          0
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 90.489111957,
+        "last_relative_seconds": 91.492115958,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.003004001,
+        "live_order_range": [
+          0,
+          0
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "readiness_or_inventory": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 5
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 5
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": false,
+            "count": 2
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": false,
+            "session_admitted": false,
+            "count": 1
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": false,
+            "count": 1
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 153.709525528,
+        "last_relative_seconds": 155.717299987,
+        "samples": 3,
+        "first_to_last_span_seconds": 2.007774459,
+        "live_order_range": [
+          0,
+          6
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 8
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 217.957300308,
+        "last_relative_seconds": 218.959732183,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.002431875,
+        "live_order_range": [
+          0,
+          0
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 281.174529711,
+        "last_relative_seconds": 283.178633503,
+        "samples": 3,
+        "first_to_last_span_seconds": 2.004103792,
+        "live_order_range": [
+          0,
+          0
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 8
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 287.193169005,
+        "last_relative_seconds": 289.202210048,
+        "samples": 3,
+        "first_to_last_span_seconds": 2.009041043,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 8
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 293.214405925,
+        "last_relative_seconds": 294.218516259,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.004110334,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 296.22443251,
+        "last_relative_seconds": 297.228280551,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.003848041,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 301.243644969,
+        "last_relative_seconds": 303.25192997,
+        "samples": 3,
+        "first_to_last_span_seconds": 2.008285001,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 8
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 8
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 305.258277513,
+        "last_relative_seconds": 307.264515597,
+        "samples": 3,
+        "first_to_last_span_seconds": 2.006238084,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 8
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 310.271316807,
+        "last_relative_seconds": 311.276451349,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.005134542,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 6
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 313.284610184,
+        "last_relative_seconds": 314.286585351,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.001975167,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 6
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 318.301451561,
+        "last_relative_seconds": 319.30433202,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.002880459,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 322.312667979,
+        "last_relative_seconds": 323.316811897,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.004143918,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 325.326858356,
+        "last_relative_seconds": 326.330863648,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.004005292,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 330.349124024,
+        "last_relative_seconds": 331.353601816,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.004477792,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 334.35995586,
+        "last_relative_seconds": 335.362413568,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.002457708,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 337.371517403,
+        "last_relative_seconds": 338.375392945,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.003875542,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 342.39766053,
+        "last_relative_seconds": 343.401127989,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.003467459,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2,
+          "executor_refresh": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 345.407429365,
+        "last_relative_seconds": 346.412182074,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.004752709,
+        "live_order_range": [
+          3,
+          3
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 2,
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 349.43410445,
+        "last_relative_seconds": 350.440239909,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.006135459,
+        "live_order_range": [
+          6,
+          6
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 1,
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 353.456312827,
+        "last_relative_seconds": 354.459624244,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.003311417,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 356.46411237,
+        "last_relative_seconds": 357.466732703,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.002620333,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 361.48083508,
+        "last_relative_seconds": 362.485337122,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.004502042,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 364.49473429,
+        "last_relative_seconds": 365.500657624,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.005923334,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 368.509369584,
+        "last_relative_seconds": 369.511053667,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.001684083,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 373.570486419,
+        "last_relative_seconds": 374.581022336,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.010535917,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 376.589553421,
+        "last_relative_seconds": 377.595632213,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.006078792,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 380.609462089,
+        "last_relative_seconds": 381.61379209,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.004330001,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 385.642953425,
+        "last_relative_seconds": 386.6493148,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.006361375,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 416.783915563,
+        "last_relative_seconds": 417.793668189,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.009752626,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 420.81320494,
+        "last_relative_seconds": 421.817775566,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.004570626,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 6
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 423.8322779,
+        "last_relative_seconds": 424.838262067,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.005984167,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 6
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 428.861834402,
+        "last_relative_seconds": 429.864610486,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.002776084,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 432.875019779,
+        "last_relative_seconds": 433.880224071,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.005204292,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 436.895600031,
+        "last_relative_seconds": 437.899387948,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.003787917,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 440.909484866,
+        "last_relative_seconds": 441.912593117,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.003108251,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 443.920034285,
+        "last_relative_seconds": 444.923984743,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.003950458,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 448.936251161,
+        "last_relative_seconds": 449.945747328,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.009496167,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 451.954296079,
+        "last_relative_seconds": 452.957676913,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.003380834,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 456.975441957,
+        "last_relative_seconds": 457.979629541,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.004187584,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 460.992473959,
+        "last_relative_seconds": 461.998078626,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.005604667,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 464.010420669,
+        "last_relative_seconds": 465.018923627,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.008502958,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 469.037585754,
+        "last_relative_seconds": 470.041401296,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.003815542,
+        "live_order_range": [
+          9,
+          9
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "spread_quote_invalid": 2,
+          "executor_refresh": 1
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 472.048635464,
+        "last_relative_seconds": 476.061979799,
+        "samples": 5,
+        "first_to_last_span_seconds": 4.013344335,
+        "live_order_range": [
+          0,
+          8
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 1,
+          "spread_quote_invalid": 1,
+          "readiness_or_inventory": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 9
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 8
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": false,
+            "session_admitted": false,
+            "count": 1
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": false,
+            "count": 1
+          },
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": false,
+            "count": 1
+          }
+        ]
+      },
+      {
+        "first_relative_seconds": 538.407397785,
+        "last_relative_seconds": 539.410365244,
+        "samples": 2,
+        "first_to_last_span_seconds": 1.002967459,
+        "live_order_range": [
+          0,
+          1
+        ],
+        "preceding_context_seconds": 4,
+        "following_context_seconds": 2,
+        "context_stop_sources": {
+          "executor_refresh": 2
+        },
+        "context_controller_flags": [
+          {
+            "controller": "life_spot",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          },
+          {
+            "controller": "life_perpetual",
+            "data_ready": true,
+            "session_admitted": true,
+            "count": 7
+          }
+        ]
+      }
+    ],
+    "interpretation": "Point-sample counts, not elapsed-time uptime. Context source/flag overlap does not certify every quote absence or a component-level refresh cause."
+  },
+  "longest_controller_review": {
+    "controller": {
+      "kind": "mm_activity",
+      "operation": "controller.cycle",
+      "phase": "end",
+      "event_id": 213,
+      "process_id": 31,
+      "instance": 8,
+      "at_ns": 124002244082478,
+      "previous_start_ns": 124000579440311,
+      "gap_ms": 1096.109917,
+      "controller_id": "life_perpetual",
+      "data_ready": true,
+      "session_admitted": true,
+      "start_ns": 124001675550228,
+      "duration_ms": 568.53225,
+      "outcome": "returned",
+      "capturing_role": "engine",
+      "capturing_pid": 31
+    },
+    "relative_seconds": 55.741769609,
+    "overlapping_spans": [
+      {
+        "span_id": "ed97ea29a32049f0",
+        "trace_id": "df4142807ebf4125a559e3c9adb25ef6",
+        "parent_id": null,
+        "operation": "service.observe_once",
+        "start_ns": 124001514315561,
+        "start_utc": 1793793871.9461493,
+        "thread_id": 140737476621504,
+        "end_ns": 124002506807937,
+        "duration_ms": 992.492376,
+        "thread_cpu_ms": 482.662369,
+        "error": null
+      },
+      {
+        "span_id": "43f19298687a4325",
+        "trace_id": "df4142807ebf4125a559e3c9adb25ef6",
+        "parent_id": "ed97ea29a32049f0",
+        "operation": "sql",
+        "start_ns": 124001711398561,
+        "start_utc": 1793793872.1432338,
+        "thread_id": 140735892936384,
+        "backend_pid": 202,
+        "sql_kind": "SELECT",
+        "sql_template": "SELECT bot_state.status, bot_state.mm_session FROM bot_state WHERE bot_state.bot_id = %(bot_id_1)s AND bot_state.owner_uuid = %(owner_uuid_1)s AND bot_state.owner_generation = %(owner_generation_1)s AND bot_state.control_version = %(control_version_1)s AND bot_state.acknowledged_version <= %(acknowledged_version_1)s FOR UPDATE",
+        "sql_fingerprint": "1531da697ca264ac537f",
+        "end_ns": 124001798697811,
+        "duration_ms": 87.29925,
+        "thread_cpu_ms": 36.262542
+      },
+      {
+        "span_id": "607b479f3f504604",
+        "trace_id": "df4142807ebf4125a559e3c9adb25ef6",
+        "parent_id": "ed97ea29a32049f0",
+        "operation": "pool_checkout_ms",
+        "start_ns": 124001663346228,
+        "start_utc": 1793793872.095185,
+        "thread_id": 140735892936384,
+        "end_ns": 124001709132020,
+        "duration_ms": 45.785792,
+        "thread_cpu_ms": 2.270291,
+        "error": null,
+        "backend_pid": 202
+      },
+      {
+        "span_id": "50101da0518248b8",
+        "trace_id": "df4142807ebf4125a559e3c9adb25ef6",
+        "parent_id": "607b479f3f504604",
+        "operation": "db_ping_ms",
+        "start_ns": 124001673635061,
+        "start_utc": 1793793872.1054688,
+        "thread_id": 140735892936384,
+        "end_ns": 124001708918853,
+        "duration_ms": 35.283792,
+        "thread_cpu_ms": 1.464832,
+        "error": null,
+        "backend_pid": 202
+      },
+      {
+        "span_id": "5dc989ea18a24558",
+        "trace_id": "df4142807ebf4125a559e3c9adb25ef6",
+        "parent_id": "ed97ea29a32049f0",
+        "operation": "sql",
+        "start_ns": 124002235121228,
+        "start_utc": 1793793872.666957,
+        "thread_id": 140735892936384,
+        "backend_pid": 202,
+        "sql_kind": "UPDATE",
+        "sql_template": "UPDATE bot_state SET acknowledged_version=%(acknowledged_version)s, heartbeat=clock_timestamp(), status=%(status)s::JSONB, revision=%(revision)s WHERE bot_state.bot_id = %(bot_id_1)s AND bot_state.owner_uuid = %(owner_uuid_1)s AND bot_state.owner_generation = %(owner_generation_1)s AND bot_state.control_version = %(control_version_1)s AND bot_state.acknowledged_version <= %(acknowledged_version_1)s RETURNING bot_state.mm_session, bot_state.desired_state",
+        "sql_fingerprint": "c6aa009a05e139f659cc",
+        "end_ns": 124002256458603,
+        "duration_ms": 21.337375,
+        "thread_cpu_ms": 2.320666
+      }
+    ],
+    "attribution": "Overlap only. Observer thread CPU includes other event-loop work across awaits. Missing inner spans/samples prevent exclusive attribution; no avoidable runtime defect is established."
+  },
+  "instrumentation": {
+    "venue_observer": {
+      "samples": 598,
+      "errors": 0,
+      "clock_errors": 0,
+      "sink_errors": 0,
+      "max_sample_gap_ms": 1114.443875,
+      "nominal_sample_interval_ms": 1000,
+      "clock": "shared Linux-kernel monotonic clock",
+      "sink": {
+        "written_records": 598,
+        "written_bytes": 10980606,
+        "ordinary_written_bytes": 10980606,
+        "reserved_written_bytes": 0,
+        "dropped_records": 0,
+        "writer_cpu_ms": 231.22200399999997,
+        "dropped_by_kind": {},
+        "queue_depth": 0,
+        "max_bytes": 16777216,
+        "reserved_bytes": 0,
+        "reserved_kinds": [],
+        "writer_alive": false
+      }
+    },
+    "mm_activity_sink_at_window_export": {
+      "written_records": 5534,
+      "written_bytes": 1824943,
+      "ordinary_written_bytes": 1824943,
+      "reserved_written_bytes": 0,
+      "dropped_records": 0,
+      "writer_cpu_ms": 226.27032700000066,
+      "dropped_by_kind": {},
+      "queue_depth": 0,
+      "max_bytes": 8388608,
+      "reserved_bytes": 0,
+      "reserved_kinds": [],
+      "writer_alive": true
+    },
+    "final_close_summary_precedes_window": true,
+    "final_close_summary_scope": "Preparation engine only; not proof of measured-engine final flush.",
+    "activity_metadata_errors": 0,
+    "activity_sink_errors": 0,
+    "runtime_loss": {
+      "engine": {
+        "trace": {
+          "written_records": 1513,
+          "written_bytes": 2115955,
+          "ordinary_written_bytes": 2024045,
+          "reserved_written_bytes": 91910,
+          "dropped_records": 0,
+          "writer_cpu_ms": 131.44427499999995,
+          "dropped_by_kind": {},
+          "queue_depth": 0,
+          "max_bytes": 33554432,
+          "reserved_bytes": 8388608,
+          "reserved_kinds": [
+            "gc",
+            "loop_stall",
+            "loop_stall_trigger",
+            "probe_failure",
+            "probe_recovered"
+          ],
+          "writer_alive": true,
+          "dropped_spans": 20859,
+          "slow_trace_threshold_ms": 100,
+          "gc_trace": {
+            "pending_events": 0,
+            "max_events": 128,
+            "dropped_events": 0
+          }
+        },
+        "incident_capture": {
+          "incidents": 6,
+          "evicted_records": 7860,
+          "oversize_records": 0,
+          "suppressed_incidents": 0,
+          "buffered_records": 98,
+          "buffered_bytes": 120850,
+          "max_records": 256,
+          "max_bytes": 524288,
+          "history_seconds": 10.0,
+          "tail_seconds": 10.0,
+          "max_incidents": 32
+        },
+        "metrics_export_skipped": 0
+      },
+      "api": {
+        "trace": {
+          "written_records": 307,
+          "written_bytes": 1236215,
+          "ordinary_written_bytes": 1226751,
+          "reserved_written_bytes": 9464,
+          "dropped_records": 0,
+          "writer_cpu_ms": 78.26954099999996,
+          "dropped_by_kind": {},
+          "queue_depth": 0,
+          "max_bytes": 33554432,
+          "reserved_bytes": 8388608,
+          "reserved_kinds": [
+            "gc",
+            "loop_stall",
+            "loop_stall_trigger",
+            "probe_failure",
+            "probe_recovered"
+          ],
+          "writer_alive": true,
+          "dropped_spans": 39,
+          "slow_trace_threshold_ms": 100,
+          "gc_trace": {
+            "pending_events": 0,
+            "max_events": 128,
+            "dropped_events": 0
+          }
+        },
+        "incident_capture": {
+          "incidents": 3,
+          "evicted_records": 2563,
+          "oversize_records": 0,
+          "suppressed_incidents": 0,
+          "buffered_records": 41,
+          "buffered_bytes": 140079,
+          "max_records": 256,
+          "max_bytes": 524288,
+          "history_seconds": 10.0,
+          "tail_seconds": 10.0,
+          "max_incidents": 32
+        },
+        "metrics_export_skipped": 0
+      }
+    },
+    "bounded_episode_activity": {
+      "status": "observed",
+      "context_start_ns": 123993579231892,
+      "context_end_ns": 123998603666517,
+      "evidence_overflow": false,
+      "venue_observer_errors": 0,
+      "invalid_venue_clock_samples": 0,
+      "venue_tracking_incomplete": false,
+      "has_venue_sample_before_failure": true,
+      "has_venue_sample_after_recovery": true,
+      "max_venue_sample_gap_ms": 1006.751333,
+      "observed_empty_venue_samples": 0,
+      "min_observed_live_orders": 12,
+      "max_empty_sample_span_ms": null,
+      "empty_group_max_gap_ms": 1500,
+      "max_strategy_tick_start_gap_ms": 1050.668584,
+      "max_controller_cycle_start_gap_ms": 1152.650668,
+      "max_observed_live_order_age_ms": 53150.739066,
+      "continuous_quoting_proven": false,
+      "order_call_returns": [],
+      "terminal_count": 0,
+      "tick_durations_ms": {
+        "count": 2,
+        "p50": 2.955417,
+        "p99": 24.048125,
+        "max": 24.048125
+      },
+      "controller_durations_ms": {
+        "count": 2,
+        "p50": 5.851708,
+        "p99": 5.862084,
+        "max": 5.862084
+      }
+    }
+  },
+  "restoration": {
+    "phase": "stopped",
+    "owner_available": true,
+    "counts": {
+      "orders": 3513,
+      "trade_fills": 23,
+      "positions": 3,
+      "executors": 2848
+    },
+    "hashes": {
+      "orders": "331c3a9fe9978af37faee7f15b656234",
+      "trade_fills": "89b927c2868e7483c105b43c3bc6b751",
+      "positions": "94315e1d770e988c967b43722f74b560",
+      "executors": "bb9e902715eec79b03bc3d98fa6a4494"
+    },
+    "ledger_unchanged": true,
+    "private_backup_sha256": "0e70898ee7a5b8cd3c97866077717c55ee2ecb7fbee7cf599f7e5e5085501639"
+  },
+  "disposition": "No confirmed avoidable runtime defect; keep deadlines/guards unchanged. Repeated spot SELL invalidation is a separate refresh/size-policy optimization lead, not a proven probe cause.",
+  "limits": [
+    "One measured probe episode and one pre-window recovery only. This fixed-profile diagnostic does not reconstruct the eight Random-soak events or its 3.798s interval.",
+    "Per-cycle jitter and short refresh/guard quote gaps are measured; no zero-downtime or production quote-coverage SLO is certified.",
+    "Incident child spans and rolling context are bounded and explicitly evicted. Whole-window activity/venue file drops are zero; final measured-engine teardown flush is not certified.",
+    "All exchange effects are simulated. Actual Demo remains stopped with unchanged ledger. No actual trade, image rebuild, full release rerun or deployment."
+  ],
+  "artifacts_sha256": {
+    "build/mm-load/20261104-190227-81e4bb/result.json": "bfa2630c02c118ffd11a989492386e4ac11487f0e180298cbd44c8b1b9c57594",
+    "build/mm-load/20261104-190227-81e4bb/probe.json": "f0b00b01db31fbe4d392bcba380576bfc8895a5c228a944ecbd65c380b290843",
+    "build/mm-load/20261104-190227-81e4bb/probe-runtime-minutes.json": "60125f3f92cb589ee7d03d898eb6e6222751138e91b5f1126483fbebd9adad2f",
+    "build/mm-load/20261104-190227-81e4bb/exchange-ledger.json": "f776b13cbe3e9442f73af6923ca50bff5378afa6648d6d76350978b3c26865a8",
+    "build/mm-load/20261104-190227-81e4bb/recorder-load-fills.json": "fb4c7779010d429aaf38825f7eef16432b7774e5d3129c5e43b329c8212f2471",
+    "build/mm-load/20261104-190227-81e4bb/hbot-e2e-68fa57341a-load-bot.log": "9be3199a12baca91fea19000aecd80f7e59c41dea7c872dc62e954aedc8ac406",
+    "build/mm-probe-current-correlation-20261104T120222Z/run-metadata.json": "96be2aaf11a996a547c9bb0d49f5514155744a9f1eaea76fc056916e54f3bd7a",
+    "build/mm-probe-current-correlation-20261104T120222Z/current-incidents.json": "2b26fd00117ae4f70e7c6295a394dd0b3e5bf537397efdb9ac2349ab09319d39",
+    "build/mm-probe-current-correlation-20261104T120222Z/correlation-summary.json": "3662406d127a45021bbeaf8bc5d43b1cccb9b127a89b80e1f14008fa630528c4",
+    "build/mm-probe-current-correlation-20261104T120222Z/summarize.py": "2fc3b476aef4c872b47526fdda98d98a5113fa6b7d3ce91a438513f482a443d8",
+    "build/mm-probe-current-correlation-20261104T120222Z/run_diagnostic.py": "b816f34c62750d12259db0cf9a8b75850c638fa5247c33880bc7bcc0a02367fe",
+    "build/mm-probe-current-correlation-20261104T120222Z/load_dataset_diagnostics.py": "35e90a5e70ca190c6293fc121314809a86b8ea7447505d2173cbf587c703e260",
+    "build/mm-probe-current-correlation-20261104T120222Z/post-diagnostic-local-state.json": "377882afb0b0af95ba822bbcec1ab00d51149675baa78ef12ffc3cdf68b28773",
+    "build/mm-probe-current-correlation-20261104T120222Z/pre-diagnostic-baseline.json": "377882afb0b0af95ba822bbcec1ab00d51149675baa78ef12ffc3cdf68b28773",
+    "build/mm-probe-current-correlation-20261104T120222Z/publish_evidence.py": "8ca6f2388c063f70b65d3b658ac9ef5658c5aff648517046d13b46668aac4264",
+    "build/mm-probe-current-correlation-20261104T120222Z/publish_evidence_attempt_1.py": "9278fcb6127a9c24a43cd6253ad48accfc47569392ef34952743b7203225f190",
+    "build/mm-probe-current-correlation-20261104T120222Z/analysis-regression.log": "1f268c8f15c943c0085bd605436254a2294353b0f23418e9036f1783ab247c0a",
+    "build/mm-load/20261104-190227-81e4bb/incidents/engine-incident-summary.json": "91789694404564b237b1adcb6ae97a25bdff930c2c9b4ce930d10331ac255465",
+    "build/mm-load/20261104-190227-81e4bb/incidents/venue-activity.jsonl": "28df22377792ddd354fc99791c7533d1915e3545e80aaeba0c163810038617c2",
+    "build/mm-load/20261104-190227-81e4bb/incidents/api-incidents.jsonl": "a6252f5ab13380c490a6336eb164a1b7db9fca7c601b6d504eb5b18738219a9b",
+    "build/mm-load/20261104-190227-81e4bb/incidents/mm-activity-summary.json": "97e02dd61dcdf4768d8e0e425105c21940e183f53debd0b320c1dfc075ff206c",
+    "build/mm-load/20261104-190227-81e4bb/incidents/engine-incidents.jsonl": "054cea8179f52c653e80c0a07c49190966de4a313d579ed8f039144f625e013e",
+    "build/mm-load/20261104-190227-81e4bb/incidents/mm-activity.jsonl": "b5accf5ee0ff776d93ce0af84c6e6fb5398d19efc7c6d36b06faac2766b2c6c8",
+    "build/mm-load/20261104-190227-81e4bb/incidents/venue-activity-summary.json": "0d8491454e2bc1855d9da9bcb4c8344ef335aa7273205a8740f753232da49f06",
+    "build/mm-load/20261104-190227-81e4bb/incidents/api-incident-summary.json": "de6a7f347fe2390091a4334f1a151d8a179711d39d9d5b5d5ff7c3b95f670f54"
+  }
+}
