@@ -1,6 +1,6 @@
 # Admin access and encrypted exchange credentials — TDD plan (OKX first)
 
-Status: A1 implemented and verified on 2026-11-05 (Asia/Saigon); A2–A6 remain open.
+Status: A1/A2 implemented and verified on 2026-11-05 (Asia/Saigon); A3–A6 remain open.
 Evidence: [implementation progress](../../reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
 Unchecked sections describe proposed behavior. Current endpoints
 and deployment behavior remain documented in [FE integration](../fe-integration.md).
@@ -751,15 +751,15 @@ with a conventional prefix. Planning checks above do not mark implementation don
 
 ### A2 — Whitelist, roles and audit API
 
-- [ ] Implement whitelist/bootstrap and audit endpoints over A1 models; test version
+- [x] Implement whitelist/bootstrap and audit endpoints over A1 models; test version
   conflicts, transactional role enforcement and cursor/filter behavior with real PostgreSQL.
-- [ ] Test subject binding, role hierarchy, self-demotion and simultaneous last-admin
+- [x] Test subject binding, role hierarchy, self-demotion and simultaneous last-admin
   removals; an unverified invitation must not satisfy bootstrap readiness.
-- [ ] Implement the audit API and complete actor/outcome coverage, including failures
+- [x] Implement the audit API and complete actor/outcome coverage, including failures
   and denied actions; test atomic change+audit rollback and duplicate retries.
-- [ ] Prove revoked/demoted users lose permission across API restarts/processes with
+- [x] Prove revoked/demoted users lose permission across API restarts/processes with
   an existing token; failed auth lookup remains fail-closed.
-- [ ] Validate disabling Basic across full restart/revision replacement while Google
+- [x] Validate disabling Basic across full restart/revision replacement while Google
   admin remains usable; no API can toggle either authentication env flag.
 
 ### A3 — Envelopes and local/GCP providers
@@ -903,7 +903,7 @@ The decisions above close them at plan level; their implementation tests stay op
 | Generic connector input metadata includes deployment-owned fields | Credential-only field allowlist and tested routing/identity injection |
 | DB-backed auth was scheduled before its schema; role changes can race mutation admission | A1 includes storage foundation; permission checks and mutation commit have defined transaction ordering |
 
-A1 is implemented; A2 is next. A4b is the highest-risk subphase and must pass its targeted
+A1/A2 are implemented; A3 is next. A4b is the highest-risk subphase and must pass its targeted
 cancel/close/restart tests before its capability is enabled. Actual Google sign-in,
 GCP KMS and reviewed Demo checks need their external resources for A6; their absence
 does not block offline implementation and must not be recorded as a pass.

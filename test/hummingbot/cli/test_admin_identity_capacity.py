@@ -27,7 +27,8 @@ async def test_slow_reader_verification_does_not_take_control_verification_slot(
 
     principal = Principal("user-1", "google", "write")
     store = SimpleNamespace(resolve_google=lambda *args, **kwargs: principal)
-    api = SimpleNamespace(access_store=lambda: store, run_database=lookup, run_control_database=lookup)
+    api = SimpleNamespace(access_store=lambda: store, run_database=lookup, run_control_database=lookup,
+                          settings=SimpleNamespace(basic_auth_enabled=True))
     service = AdminIdentityService(api, verifier=Verifier())
     reader = asyncio.create_task(service.authenticate("reader"))
     try:

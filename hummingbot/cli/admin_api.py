@@ -16,6 +16,7 @@ from aiohttp import BasicAuth, web
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
+from hummingbot.cli.admin_access_api import AdminAccessAPI
 from hummingbot.cli.admin_daily_cache import (
     DailyStatisticsCache,
     retryable_statement_timeout,
@@ -66,6 +67,8 @@ from hummingbot.model.admin_store import AdminStore
 from hummingbot.model.bot_state_store import ControlConflict
 
 ADMIN_PREFIX = "/api/v1/admin"
+ADMIN_IDENTITY_KEY = web.AppKey("admin_identity", object)
+ADMIN_ACCESS_KEY = web.AppKey("admin_access_api", object)
 # Match the existing default page size; bulk pages share the aggregate lane.
 OPERATIONAL_HISTORY_LIMIT = 100
 ADMIN_ENDPOINTS = (("GET", "/profiles", "profiles"), ("GET", "/status", "status"),
@@ -82,13 +85,19 @@ ADMIN_ENDPOINTS += (("POST", "/reconciliation/check", "reconciliation_check"), (
 ADMIN_ENDPOINTS += (("GET", "/sessions/{session_id}/configuration", "session_configuration"),)
 ADMIN_ENDPOINTS += (("GET", "/commands", "commands_history"), ("GET", "/sessions", "sessions"),
                     ("GET", "/reconciliation/{check_id}", "reconciliation_by_id"))
+ADMIN_ENDPOINTS += (("POST", "/access/login", "access_login"), ("GET", "/access/me", "access_me"),
+                    ("GET", "/access/bootstrap", "access_bootstrap"), ("GET", "/access/accounts", "access_accounts"),
+                    ("POST", "/access/accounts", "access_add_account"), ("POST", "/access/accounts/{account_id}", "access_change_account"),
+                    ("GET", "/audit", "access_audit"))
 
 READ_HANDLERS = frozenset({"profiles", "status", "command", "openapi", "docs", "asset", "orders", "order", "fills",
                            "reference_pairs", "balances", "positions", "performance", "daily", "session_events", "liquidity",
-                           "reconciliation", "session_configuration", "commands_history", "sessions", "reconciliation_by_id"})
+                           "reconciliation", "session_configuration", "commands_history", "sessions", "reconciliation_by_id",
+                           "access_login", "access_me", "access_audit"})
 WRITE_HANDLERS = frozenset({"commands", "reconciliation_check"})
-ADMIN_PERMISSIONS = {(method, ADMIN_PREFIX + path): "read" if name in READ_HANDLERS else "write"
-                     for method, path, name in ADMIN_ENDPOINTS if name in READ_HANDLERS | WRITE_HANDLERS}
+ACCOUNT_HANDLERS = frozenset({"access_bootstrap", "access_accounts", "access_add_account", "access_change_account"})
+ADMIN_PERMISSIONS = {(method, ADMIN_PREFIX + path): "read" if name in READ_HANDLERS else "write" if name in WRITE_HANDLERS else "admin"
+                     for method, path, name in ADMIN_ENDPOINTS if name in READ_HANDLERS | WRITE_HANDLERS | ACCOUNT_HANDLERS}
 
 
 class APIUnavailable(RuntimeError):
@@ -123,7 +132,7 @@ async def admin_errors(request, handler):
                                             extra={"event": "admin_request_unavailable", "error_type": kind})
         return error_response(request, "unavailable", status=503)
     except web.HTTPException as error:
-        return error_response(request, {400: "invalid_json", 404: "not_found", 415: "unsupported_media_type"}.get(
+        return error_response(request, {400: "invalid_json", 404: "not_found", 413: "request_too_large", 415: "unsupported_media_type"}.get(
             error.status, "http_error"), status=error.status)
     except Exception as error:
         logging.getLogger(__name__).error("Admin handler failed type=%s request_id=%s", type(error).__name__, request_id(request),
@@ -131,7 +140,7 @@ async def admin_errors(request, handler):
         return error_response(request, "internal_error", status=500)
 
 
-class AdminAPI:
+class AdminAPI(AdminAccessAPI):
     def __init__(self, host, settings, *, store=None, catalogue=None):
         self.host = host
         self.settings = settings
@@ -153,10 +162,11 @@ class AdminAPI:
     def register(self, app):
         app.middlewares.append(admin_errors)
         app.on_cleanup.append(self.close)
-        if self.settings.google_auth_enabled:
+        app[ADMIN_ACCESS_KEY] = self
+        if self.settings.enabled and self.settings.google_auth_enabled:
             from hummingbot.cli.admin_identity import AdminIdentityService
             self._identity_service = AdminIdentityService(self)
-            app["admin_identity"] = self._identity_service
+            app[ADMIN_IDENTITY_KEY] = self._identity_service
         for method, path, name in ADMIN_ENDPOINTS:
             if (method, ADMIN_PREFIX + path) not in ADMIN_PERMISSIONS:
                 raise ValueError("Admin handler has no reviewed permission")
@@ -666,6 +676,7 @@ def admin_middleware(settings, *, identity=None):
             })
         else:
             authorization = request.headers.get("Authorization", "")
+            principal = None
             try:
                 scheme, _, value = authorization.partition(" ")
                 if scheme.casefold() == "basic":
@@ -681,13 +692,14 @@ def admin_middleware(settings, *, identity=None):
                         raise AccessDenied()
                     principal = Principal("basic:" + settings.username, "basic", "admin")
                 elif scheme.casefold() == "bearer" and settings.google_auth_enabled and 1 <= len(value) <= 16384:
-                    service = identity or request.app.get("admin_identity")
+                    service = identity or request.app.get(ADMIN_IDENTITY_KEY)
                     if service is None:
                         raise AccessDenied("identity_provider_unavailable", status=503)
                     canonical = request.match_info.route.resource.canonical if request.match_info.route.resource else ""
                     required = ADMIN_PERMISSIONS.get(("GET" if request.method == "HEAD" else request.method, canonical))
-                    principal = await service.authenticate(value, control=required in ("write", "admin"),
-                                                           bind=False, request_id=request_id(request))
+                    login = canonical == ADMIN_PREFIX + "/access/login" and request.method == "POST"
+                    principal = await service.authenticate(value, control=required in ("write", "admin") or login,
+                                                           bind=login, request_id=request_id(request))
                 else:
                     raise AccessDenied()
                 canonical = request.match_info.route.resource.canonical if request.match_info.route.resource else ""
@@ -697,12 +709,27 @@ def admin_middleware(settings, *, identity=None):
                 principal.require(required)
                 request["admin_principal"] = principal
                 response = await handler(request)
+                if response.status >= 400 and request.method == "POST" and request.app.get(ADMIN_ACCESS_KEY):
+                    try:
+                        code = json.loads(response.body).get("code", "request_rejected")
+                    except (ValueError, TypeError, AttributeError):
+                        code = "request_rejected"
+                    await request.app[ADMIN_ACCESS_KEY].audit_denial(
+                        actor=principal, reason_code=code, request_identity=request_id(request),
+                        login=request.path == ADMIN_PREFIX + "/access/login", mutation=True)
             except AccessDenied as error:
+                if request.app.get(ADMIN_ACCESS_KEY):
+                    await request.app[ADMIN_ACCESS_KEY].audit_denial(
+                        actor=error.actor or principal, reason_code=error.code, request_identity=request_id(request),
+                        login=request.path == ADMIN_PREFIX + "/access/login", mutation=request.method == "POST")
                 response = error_response(request, error.code, status=error.status,
                                           retry_after_seconds=1 if error.code == "security_work_busy" else None)
                 if error.status == 401 and settings.basic_auth_enabled:
                     response.headers["WWW-Authenticate"] = 'Basic realm="Hummingbot admin", charset="UTF-8"'
-            except (APIUnavailable, SQLAlchemyError, asyncio.TimeoutError):
+            except (APIUnavailable, SQLAlchemyError, asyncio.TimeoutError) as error:
+                logging.getLogger(__name__).warning("Admin identity storage unavailable type=%s", type(error).__name__,
+                                                    extra={"event": "admin_identity_unavailable", "request_id": request_id(request),
+                                                           "reason_code": "database_unavailable"})
                 response = error_response(request, "database_unavailable", status=503)
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Request-ID"] = request_id(request)

@@ -7,6 +7,9 @@ from aiohttp import web
 from hummingbot.cli.admin_models import ErrorResponse
 
 RETRIES = {
+    "bootstrap_required": "contact_support", "last_admin_required": "fix_request",
+    "account_exists": "refresh_state", "account_unavailable": "refresh_state", "account_version_conflict": "refresh_state",
+    "request_too_large": "fix_request",
     "basic_auth_disabled": "reconnect", "token_expired": "reconnect",
     "account_not_allowed": "contact_support", "account_disabled": "contact_support",
     "insufficient_role": "contact_support", "identity_binding_mismatch": "contact_support",
@@ -30,6 +33,12 @@ RETRIES = {
 }
 
 MESSAGES = {
+    "bootstrap_required": "Administrator setup is incomplete. Ask your maintainer to enable bootstrap access and finish Google onboarding.",
+    "last_admin_required": "Keep at least one active Google administrator.",
+    "account_exists": "This account is already approved. Refresh the account list.",
+    "account_unavailable": "This account is no longer available. Refresh the account list.",
+    "account_version_conflict": "This account changed. Refresh and review its current role before trying again.",
+    "request_too_large": "This request is too large. Reduce its size and try again.",
     "basic_auth_disabled": "Password sign-in is disabled. Sign in with Google.",
     "token_expired": "Your sign-in expired. Sign in again to continue.",
     "account_not_allowed": "Your account is not allowed to use this dashboard. Contact an administrator.",

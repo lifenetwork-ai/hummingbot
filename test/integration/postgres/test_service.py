@@ -40,7 +40,7 @@ def health(port, path):
         return None, None
 
 
-def start_service(tmp_path, *, auto_migrate=True, admin_enabled=False):
+def start_service(tmp_path, *, auto_migrate=True, admin_enabled=False, basic_enabled=None):
     tmp_path.mkdir()
     conf = tmp_path / "conf"
     for name in ("strategies", "scripts", "controllers", "connectors"):
@@ -54,7 +54,8 @@ def start_service(tmp_path, *, auto_migrate=True, admin_enabled=False):
            "K_REVISION": tmp_path.name, "BOT_ID": "hummingbot", "PORT": str(port),
            "ENABLE_AUTO_MIGRATION": str(auto_migrate).lower(), "PYTHONDONTWRITEBYTECODE": "1",
            "PYTHONPATH": str(Path(__file__).resolve().parents[3])}
-    env.update(ADMIN_API_ENABLED=str(admin_enabled).lower(), ADMIN_BASIC_AUTH_ENABLED=str(admin_enabled).lower(),
+    env.update(ADMIN_API_ENABLED=str(admin_enabled).lower(),
+               ADMIN_BASIC_AUTH_ENABLED=str(admin_enabled if basic_enabled is None else basic_enabled).lower(),
                ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
     for key in list(env):
         if key == "HBOT_ENV_FILE" or key.startswith("HBOT_OKX"):
@@ -78,6 +79,18 @@ def offline(self, address):
         raise RuntimeError('External network is disabled')
     return original(self, address)
 socket.socket.connect = offline
+import os, json
+certificate_path = os.environ.get('HBOT_OFFLINE_GOOGLE_CERTIFICATES')
+if certificate_path:
+    # Test-only public-certificate injection; the real verifier still checks
+    # signatures/issuer/audience/expiry. Shipping modules read no such switch.
+    from hummingbot.cli.admin_identity import AdminIdentityService, GoogleTokenVerifier
+    original_identity_init = AdminIdentityService.__init__
+    def identity_init(self, api, **kwargs):
+        verifier = GoogleTokenVerifier(api.settings.google_client_id,
+                                       certificates=json.loads(pathlib.Path(certificate_path).read_text()))
+        return original_identity_init(self, api, verifier=verifier)
+    AdminIdentityService.__init__ = identity_init
 from hummingbot.cli import service_processes
 from hummingbot.cli.service import main
 # Repeat the test's isolated config paths and network prohibition in both real

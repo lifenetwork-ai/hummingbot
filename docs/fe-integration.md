@@ -22,8 +22,8 @@ future exchange adapters, with OKX the only initial implementation.
 Credential actions will have their own operation receipt/polling route, plus
 retry and same-account key repair for interrupted cleanup; existing trading
 command receipts retain their contract. See the plan before integrating these routes.
-A1 identity/permission foundations are implemented; onboarding, audit endpoints and
-managed credentials remain planned. Basic bootstrap now requires explicit
+A1/A2 identity, whitelist, roles and audit endpoints are implemented; managed
+credentials and automatic Disconnect remain planned. Basic bootstrap requires explicit
 `ADMIN_BASIC_AUTH_ENABLED=true`; disable it after Google administration is verified.
 The environment-only exchange credential contract below still applies.
 
@@ -45,22 +45,32 @@ The environment-only exchange credential contract below still applies.
 ## Connection and OpenAPI
 
 All operational paths below are relative to `/api/v1/admin`. Health probes remain
-separate. Configure `ADMIN_API_ENABLED=true`, `ADMIN_API_USERNAME` and
-`ADMIN_API_PASSWORD` through the existing `.env` loader or deployment secrets.
-There are no usable credential defaults. All admin endpoints require Basic Auth.
-The API does not create login sessions, issue frontend tokens or persist FE passwords.
+separate. Enable `ADMIN_API_ENABLED=true` and configure the accepted sign-in method
+through the existing dotenv/deployment settings:
+
+- Bootstrap: `ADMIN_BASIC_AUTH_ENABLED=true` with `ADMIN_API_USERNAME` and
+  `ADMIN_API_PASSWORD`. This is a shared administrator identity.
+- Google: `ADMIN_GOOGLE_AUTH_ENABLED=true`, `ADMIN_GOOGLE_CLIENT_ID` and PostgreSQL.
+  FE uses Google Identity Services with the same client ID and sends the Google
+  ID token in `Authorization: Bearer …`. The backend verifies identity and current
+  whitelist/role on every request. Use `/access/login` before starting dashboard polls.
+
+There are no usable password/audience defaults. The API does not issue its own
+tokens or sessions. Initial Google sign-in binds the approved email to its verified
+subject; a pending invitation alone cannot replace a working Google administrator.
 
 Use TLS for the hosted dashboard. Credentials stay out of FE builds, URLs, logs
-and persistent browser storage. Direct browser requests send an explicit Basic
+and persistent browser storage. Direct browser requests send an explicit
 `Authorization` header and `credentials: "omit"`. A gateway route needs its own
 browser authentication and forwarding behavior; that deployment decision is not
 implemented by the bot API.
 
 For the internal Cloud Run service, the proposed integration is browser → FE
-backend/gateway → bot. The gateway authenticates its users, keeps Basic Auth
-credentials server-side and uses an ingress path permitted by the deployment.
+backend/gateway → bot. The gateway forwards the individual user's Google ID token
+and uses an ingress path permitted by the deployment. A shared Basic identity
+must not substitute for users and bypass per-user roles/audit.
 When Cloud Run IAM invocation is also required, send the platform ID token in
-`X-Serverless-Authorization: Bearer …` and retain `Authorization: Basic …` for the
+`X-Serverless-Authorization: Bearer …` and retain `Authorization: Bearer <user ID token>` for the
 bot. Using the same Authorization header for both would lose application auth.
 Google documents this [two-header invocation](https://docs.cloud.google.com/run/docs/authenticating/service-to-service).
 This is a deployment integration contract, not a gateway shipped by this repo.
@@ -78,6 +88,44 @@ operational error handling. A browser network/CORS failure does not prove the
 password is wrong or the bot is stopped. On 401, suspend automatic submissions
 and ask the operator to reconnect.
 
+### Accounts, roles and audit
+
+| API | Permission | FE behavior |
+| --- | --- | --- |
+| `POST /access/login` | Verified enabled identity | Header-only sign-in; returns identity, English role label and permissions; records sign-in |
+| `GET /access/me` | All roles | Refresh current identity/role; permissions are role grants, combined with runtime/action availability |
+| `GET /access/bootstrap` | Admin | Check bound Google administrator readiness before changing auth environment flags |
+| `GET /access/accounts` | Admin | Cursor-paginated approved accounts, role, enabled/bound state and version |
+| `POST /access/accounts` | Admin | Invite `{email, role, active?}`; 201 is committed, duplicate email returns 409 |
+| `POST /access/accounts/{id}` | Admin | Change `{expected_version, role?, active?}`; protects last bound active Google admin |
+| `GET /audit` | All roles | Cursor-paginated security history with verified actor snapshots and request/operation IDs |
+
+`read` is Viewer, `write` is Operator and `admin` is Administrator. Operators can
+control trading; administrators additionally manage accounts. After any 403,
+refresh `/access/me` and explain permission/access changes. Keep credentials and
+Google tokens out of account request bodies. Changing a role/active flag takes
+effect on the next request, including with an already issued Google token.
+
+Bootstrap flow: enable both methods, invite a Google admin, let that person sign
+in, verify `/access/bootstrap.google_admin_ready`, then redeploy/restart with
+`ADMIN_BASIC_AUTH_ENABLED=false`. No API enables Basic again. Remove older exposed
+revisions and the unused password reference. Disabling Basic never disables the
+Google `admin` role. Google-only operation without a bound administrator fails
+closed with `bootstrap_required` and requires maintainer recovery.
+
+Audit filters: `from_time` inclusive, `to_time` exclusive (timezone required),
+`actor_id`, `action`, `outcome`, `target_id`, `operation_id`, `exchange`, `connector`,
+`environment`; default limit 100, maximum 500. Keep filters unchanged while using
+`next_cursor`. IDs are strings; timestamps are UTC. Successful changes/audit commit
+together; explicit sign-in/mutation denials also have durable history when DB is
+available. Ordinary polling and anonymous request failures use structured platform
+logs; DB outages can prevent audit persistence, with request IDs retained in logs.
+There is no audit edit/delete API. Account management uses synchronous committed
+responses; a 409 means refresh/review, not blind resubmission.
+An `accepted` audit event records admission of a control request; use its linked
+command receipt to inspect later runtime success/failure. It does not assert that
+an exchange operation already completed.
+
 Generate the offline schema with `make swagger`; CI checks drift with
 `make swagger-check`. Handler annotations and Pydantic models supply the contract.
 Protected `/docs`, `/openapi.json` and `/docs/assets/{asset}` exist only when
@@ -93,7 +141,8 @@ strings. Keep one small API client for authentication, errors, idempotency and r
 
 ## Configuration ownership
 
-API commands control sessions. Maintainers change strategy/profile settings in
+API commands control sessions; the access API manages the persisted whitelist and
+roles. Maintainers change strategy/profile settings in
 YAML and service settings in the process environment. No API edits or overrides
 either file, including an override equal to YAML or set to null.
 

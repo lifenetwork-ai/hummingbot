@@ -18,12 +18,14 @@ def test_spec_uses_handler_annotations_and_shared_pydantic_contracts():
     assert set(spec["paths"]) == {ADMIN_PREFIX + path for _, path, _ in ADMIN_ENDPOINTS}
     command = spec["paths"][ADMIN_PREFIX + "/commands"]["post"]
     assert command["operationId"] == "submitCommand"
-    assert command["security"] == [{"basicAuth": []}]
+    assert command["security"] == [{"googleIdentity": []}, {"basicAuth": []}]
     assert "202" in command["responses"]
     assert command["parameters"][0]["name"] == "Idempotency-Key"
     assert command["parameters"][0]["required"]
     assert "StartCommand" in spec["components"]["schemas"]
-    assert spec["components"]["securitySchemes"]["basicAuth"] == {"type": "http", "scheme": "basic"}
+    assert spec["components"]["securitySchemes"]["basicAuth"]["scheme"] == "basic"
+    assert "ADMIN_BASIC_AUTH_ENABLED=true" in spec["components"]["securitySchemes"]["basicAuth"]["description"]
+    assert spec["components"]["securitySchemes"]["googleIdentity"]["scheme"] == "bearer"
 
 
 def test_missing_handler_annotation_fails_generation(monkeypatch):

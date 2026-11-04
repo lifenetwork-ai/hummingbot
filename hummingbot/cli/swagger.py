@@ -46,7 +46,7 @@ def build_spec():
         if path_parameters != set(metadata["path_parameters"]):
             raise ValueError(f"Handler path annotation disagrees with registered route: {name}")
         operation = dict(operationId=operation_id, summary=metadata["summary"], tags=[metadata["tag"]],
-                         security=[{"basicAuth": []}], responses={
+                         security=[{"googleIdentity": []}, {"basicAuth": []}], responses={
                              str(metadata["status"]): {"description": "Accepted; poll command result" if metadata["status"] == 202 else "Success",
                                                        "content": {metadata["response_content_type"]: {"schema": schema_for(metadata["response_model"], "serialization")}}}})
         for code, description in ((400, "Invalid JSON"), (401, "Basic authentication required"), (403, "Origin not permitted"),
@@ -81,8 +81,12 @@ def build_spec():
                 operation["requestBody"]["content"]["application/json"]["examples"] = metadata["examples"]
         paths.setdefault(ADMIN_PREFIX + path, {})[method.lower()] = operation
     spec = dict(openapi="3.1.0", info={"title": "Hummingbot MM Admin API", "version": "1.0.0"},
-                paths=paths, security=[{"basicAuth": []}],
-                components={"securitySchemes": {"basicAuth": {"type": "http", "scheme": "basic"}}, "schemas": schemas})
+                paths=paths, security=[{"googleIdentity": []}, {"basicAuth": []}],
+                components={"securitySchemes": {
+                    "googleIdentity": {"type": "http", "scheme": "bearer", "bearerFormat": "Google ID token",
+                                       "description": "Enabled Google identity, current whitelist and role are checked on every request."},
+                    "basicAuth": {"type": "http", "scheme": "basic", "description": "Bootstrap only, when ADMIN_BASIC_AUTH_ENABLED=true."}},
+                    "schemas": schemas})
 
     def validate_references(value):
         if isinstance(value, dict):

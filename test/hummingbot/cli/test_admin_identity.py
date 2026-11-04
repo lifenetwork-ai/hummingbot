@@ -130,10 +130,11 @@ async def test_unknown_admin_mutation_cannot_inherit_permission_from_http_method
 @pytest.mark.parametrize("method,path,name", ADMIN_ENDPOINTS)
 async def test_reader_permission_is_explicit_for_every_registered_admin_handler(method, path, name):
     actor = Principal("reader-1", "google", "read")
-    path = path.format(command_id="command-1", order_id="order-1", session_id="session-1", check_id="check-1", asset="swagger.js")
+    path = path.format(command_id="command-1", order_id="order-1", session_id="session-1", check_id="check-1", asset="swagger.js", account_id="account-1")
     async with identity_client(actor) as (client, _):
         response = await client.request(method, ADMIN_PREFIX + path, headers={"Authorization": "Bearer reader-token"})
-        assert response.status == (403 if name in {"commands", "reconciliation_check"} else 200)
+        restricted = {"commands", "reconciliation_check", "access_bootstrap", "access_accounts", "access_add_account", "access_change_account"}
+        assert response.status == (403 if name in restricted else 200)
 
 
 @pytest.mark.asyncio

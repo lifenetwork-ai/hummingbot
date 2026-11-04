@@ -105,7 +105,14 @@ class AdminIdentityService:
                                    control=control, heavy=not control)
             claims = await asyncio.wait_for(job, timeout=6)
             run = self.api.run_control_database if control else self.api.run_database
-            return await run(self.api.access_store().resolve_google, claims, bind=bind, request_id=request_id)
+            try:
+                return await run(self.api.access_store().resolve_google, claims, bind=bind, request_id=request_id,
+                                 bootstrap_enabled=self.api.settings.basic_auth_enabled)
+            except AccessDenied as error:
+                if error.actor is None:
+                    from hummingbot.core.admin_identity import Principal
+                    error.actor = Principal("google:" + claims["sub"], "google", "unassigned", email=claims["email"])
+                raise
         except DatabaseBusy:
             raise AccessDenied("security_work_busy", status=429) from None
         except (SQLAlchemyError, asyncio.TimeoutError):
