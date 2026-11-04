@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT))
 from test.e2e.offline.build_fixtures import enable_volatility_defense  # noqa: E402
 
 from scripts.mm_load_budgets import violations  # noqa: E402
+from scripts.mm_load_preparation import prepare_history  # noqa: E402
 from scripts.test_e2e_offline import Harness, docker, http, poll  # noqa: E402
 from scripts.test_mm_load import assets_for, command, seed_history, verify_ledger  # noqa: E402
 
@@ -190,11 +191,13 @@ def run_case(image, args, mode, directory, case):
                                       instrumented_entrypoint='load_service.py')
             docker('update', '--cpus', args.cpus, '--memory', '2g', '--memory-swap', '2g', bot)
             poll(lambda: bool(harness.state().get('status')), description='published owner observation')
-            generation = harness.state()['owner_generation']
             command(harness, port, 'start', market_mode='spot', selection='fixed', profile_id='sideways', duration_seconds=600)
             poll(lambda: bool(harness.state()['recovery_state'].get('spot_outflow', {}).get('binding')), description='empty-history binding')
             command(harness, port, 'stop')
-            seed_history(harness, args.history_rows, active_outflow=True)
+            case['history_preparation'] = {}
+            prepare_history(harness, bot, args.history_rows, active_outflow=True,
+                            seed=seed_history, evidence=case['history_preparation'])
+            generation = harness.state()['owner_generation']
             controls = {}
             for action in ('start', 'switch', 'stop'):
                 values = {} if action == 'stop' else dict(market_mode='both', selection='fixed', profile_id='follow_market', duration_seconds=86400)

@@ -1,6 +1,8 @@
 """Bulk fixture writes must never compete with the running service's owner."""
+import ast
 import copy
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -224,3 +226,29 @@ def test_restart_cannot_rebind_the_verified_outflow_origin(fixture):
     fixture.clear_outflow = True
     with pytest.raises(AssertionError, match='outflow'):
         run(fixture)
+
+
+@pytest.mark.parametrize('entrypoint', [
+    'test_mm_load.py', 'test_mm_reporting_isolation.py', 'test_mm_production_control.py',
+    'test_mm_random_handover.py', 'test_mm_memory.py', 'test_mm_process_isolation.py'])
+def test_load_entrypoints_cannot_bypass_offline_preparation(entrypoint):
+    # This repository-level safety rule guards the call sites as well as the
+    # shared lifecycle: a new diagnostic must not restore live bulk writes.
+    root = Path(__file__).resolve().parents[3]
+    tree = ast.parse((root / 'scripts' / entrypoint).read_text())
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)]
+    assert not [node for node in calls if node.func.id == 'seed_history'], 'Direct live seed bypasses service shutdown'
+    staged = [node for node in calls if node.func.id == 'prepare_history']
+    assert len(staged) == 1
+    assert any(k.arg == 'seed' and isinstance(k.value, ast.Name) and k.value.id == 'seed_history'
+               for k in staged[0].keywords), 'Reuse the original fixture generator'
+
+
+def test_process_experiment_fences_are_measured_after_planned_restart():
+    root = Path(__file__).resolve().parents[3]
+    tree = ast.parse((root / 'scripts/test_mm_process_isolation.py').read_text())
+    staged = [node.lineno for node in ast.walk(tree) if isinstance(node, ast.Call)
+              and isinstance(node.func, ast.Name) and node.func.id == 'prepare_history']
+    generations = [node.lineno for node in ast.walk(tree) if isinstance(node, ast.Assign)
+                   and any(isinstance(t, ast.Name) and t.id == 'generation' for t in node.targets)]
+    assert len(staged) == len(generations) == 1 and generations[0] > staged[0]

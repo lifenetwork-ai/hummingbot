@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from scripts.mm_load_preparation import prepare_history  # noqa: E402
 from scripts.test_e2e_offline import Harness, docker, poll  # noqa: E402
 from scripts.test_mm_load import assets_for, command, read_metrics, seed_history, verify_ledger  # noqa: E402
 
@@ -107,7 +108,9 @@ def main():
                 poll(lambda: bool(harness.state()["recovery_state"].get("spot_outflow", {}).get("binding")),
                      description="empty-DB outflow origin")
                 command(harness, port, "stop")
-                seed_history(harness, baseline["history_orders"], active_outflow=True)
+                evidence['history_preparation'] = {}
+                prepare_history(harness, bot, baseline['history_orders'], active_outflow=True,
+                                seed=seed_history, evidence=evidence['history_preparation'])
                 command(harness, port, "start", market_mode="both", selection="fixed", profile_id="follow_market", duration_seconds=600)
                 poll(lambda: len([row for row in harness.ledger()["orders"] if row["state"] == "live"]) == 12,
                      description="both markets have working quotes")

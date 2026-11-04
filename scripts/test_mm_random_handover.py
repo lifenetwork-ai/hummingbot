@@ -17,6 +17,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from scripts.mm_load_preparation import prepare_history  # noqa: E402
 from scripts.test_e2e_offline import Harness, docker, poll  # noqa: E402
 from scripts.test_mm_load import (  # noqa: E402
     assets_for,
@@ -65,7 +66,9 @@ def main():
                 poll(lambda: bool(harness.state()['recovery_state'].get('spot_outflow', {}).get('binding')),
                      description='empty database outflow origin')
                 command(harness, port, 'stop')
-                seed_history(harness, baseline['history_orders'], active_outflow=True)
+                evidence['history_preparation'] = {}
+                prepare_history(harness, bot, baseline['history_orders'], active_outflow=True,
+                                seed=seed_history, evidence=evidence['history_preparation'])
                 command(harness, port, 'start', market_mode='both', selection='random', duration_seconds=600)
                 client = harness.prefix + '-load-client'
                 harness.run_container(client, ['--platform', 'linux/amd64', '--cpus', '1', '--memory', '512m',

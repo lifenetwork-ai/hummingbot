@@ -84,3 +84,10 @@ reporting tests pass. The first 8 MiB/s control seeds 100,000 orders/fills while
 the service is exited and owner released, checkpoints, acquires generation 2
 and remains stable for another 65s. A final-source repetition and the unchanged
 300s load remain pending below; no measured-hour acceptance is claimed.
+
+Caller coverage: all six maintained history-seeding entrypoints now delegate to
+the same offline preparation. A repository wiring/fence check first fails six
+cases; 169 related native tests pass after migration. The process experiment
+captures its generation after the planned restart, and memory diagnostics wait
+for fresh post-restart metrics. A downstream slow-report run is verified
+separately; other long diagnostic suites are not claimed as rerun.

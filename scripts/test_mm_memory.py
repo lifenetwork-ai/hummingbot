@@ -65,6 +65,7 @@ def main():
         parser.error('Use at least 180 seconds for lifecycle sampling.')
     import yaml
 
+    from scripts.mm_load_preparation import prepare_history
     from scripts.test_e2e_offline import Harness, docker, poll
     from scripts.test_mm_load import assets_for, read_metrics, run_window, seed_history, verify_ledger
 
@@ -95,10 +96,12 @@ def main():
             harness.setup()
             bot, port = harness.start('memory-bot', instrumented=True)
             docker('update', '--memory', '2g', '--memory-swap', '2g', bot)
-            seed_history(harness, 100000)
+            evidence['history_preparation'] = {}
+            prepare_history(harness, bot, 100000, active_outflow=False,
+                            seed=seed_history, evidence=evidence['history_preparation'])
             poll(lambda: bool(harness.state().get('status')), description='memory owner status')
             harness.mm_command(port, 'start', market_mode='both', selection='random', duration_mode='until_stopped')
-            initial = read_metrics(harness, bot)
+            initial = poll(lambda: read_metrics(harness, bot), description='fresh post-preparation memory metrics')
             evidence['initial'] = initial
 
             def controls():

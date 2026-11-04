@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scripts.mm_load_budgets import violations  # noqa: E402
+from scripts.mm_load_preparation import prepare_history  # noqa: E402
 from scripts.test_e2e_offline import Harness, docker, poll  # noqa: E402
 from scripts.test_mm_load import assets_for, command, seed_history, verify_ledger  # noqa: E402
 
@@ -136,7 +137,9 @@ def main():
                 poll(lambda: bool(harness.state()['recovery_state'].get('spot_outflow', {}).get('binding')),
                      description='empty DB outflow provenance')
                 command(harness, port, 'stop')
-                seed_history(harness, baseline['history_orders'], active_outflow=True)
+                evidence['history_preparation'] = {}
+                prepare_history(harness, bot, baseline['history_orders'], active_outflow=True,
+                                seed=seed_history, evidence=evidence['history_preparation'])
                 stamp = int(time.time() * 1000) - 1000
                 harness.control(funding_bills=[dict(billId=str(i), type='8', subType='174' if value[0] != '-' else '173',
                                                     instId='LIFE-USDT-SWAP', ts=str(stamp), pnl=value, ccy='USDT')
