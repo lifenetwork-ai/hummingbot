@@ -1,6 +1,17 @@
 # Current-image OKX Demo acceptance
 
-**Current local reporting candidate:** `50f96001` from `14feb47dd` has source,
+**Current local reporting candidate:** `f4d90bc7` from `d2cdf2a36` retries one
+acknowledged daily-read timeout through the existing bounded executor. Native
+2,464 +11 subtests, PostgreSQL354, three packaged E2E groups and four controlled
+reporting faults pass. Its unchanged standalone hour passes:79,200 HTTP200
+responses, no errors/stale, primary/auxiliary p99 615.65/565.42ms and3,594 exact
+synthetic fills/fees/positions. The earlier300s probe still fails p99 at
+1,094.27/1,112.11ms. A separate traced diagnostic passes823.21/734.17ms and
+confirms worker queueing; the original exclusive cause is unproven and overall
+qualification stays incomplete. Stopped Demo upgrade/restart preserves the
+ledger, but active natural-fill acceptance below remains scoped to50f96001.
+
+**Preceding reporting candidate:** `50f96001` from `14feb47dd` has source,
 three packaged E2E groups, two controlled slow-report faults and positive Demo
 spot/perpetual fills with active restart verified. The rich600s probe fails its
 reporting/latency gate; the standalone hour fails only zero-degraded reporting
@@ -107,9 +118,10 @@ image/date scope; the new local gate does not relabel them.
   fills/fees/positions match; latency and25.69MiB retention growth pass. Verify
   backup hashes and post-soak read-only preflight, restore stopped/no HALT/pending
   state, publish scoped evidence and commit. Full R1/R2 is not rerun here.
-- [ ] Obtain a clean current-image zero-degraded-response gate. Further work
-  must target measured statement-specific SQL cost; do not relax the existing
-  deadline/latency budgets or relabel stale replies to close this item.
+- [x] Obtain a later current-image zero-degraded-response hour onf4d90bc7 through
+  the bounded-timeout follow-up below. Its79,200 responses have no errors/stale;
+  the50f96001 hour above remains failed. No deadline/latency budget is relaxed,
+  no stale reply relabelled, and no general SQL-cost improvement is inferred.
 
 Historical p99/probe and own-depth attribution remain unproven; the bounded
 investigation above is complete. Preserve the evidence and capture a recurrence
@@ -137,10 +149,31 @@ capacity are not established by these local observations.
   explicitly; a successful retry is a complete new observation, not relabeling.
 - [x] Finish broad PostgreSQL354 checks and source commit. No shipping SQL,
   schema, TTL, statement/I/O deadline, worker or pool change.
-- [ ] Build/verify the image and run packaged E2E, single-timeout recovery and
-  two-timeout stale fallback under wait/CPU faults, with independent witnesses.
-- [ ] Repeat the unchanged healthy standalone hour after shorter checks;
-  preserve all failures and independently verify stopped Demo restoration.
+- [x] Build/verify image `f4d90bc7` from `d2cdf2a36`: nine runtime hashes and
+  all197 Python package versions match. Three packaged E2E groups pass. All
+  four wait/CPU single/persistent-timeout cases pass: a single timeout recovers
+  without stale replies, two retain bounded stale fallback; each reconciles
+  120 fills/fees/positions with unchanged engine/owner/session and no HALT.
+  Stopped Demo upgrade/restart preserves four ledger hashes and matches exposure.
+- [x] Repeat the unchanged healthy standalone hour after shorter checks:
+  79,200 HTTP200 responses, no errors/stale, primary/auxiliary p99
+  615.65/565.42ms,3,594 exact synthetic fills/fees/positions and27.68MiB retained
+  growth. Independently restore the pre-soak backup into a network-isolated
+  clone, match four ledger hashes, and verify stopped/no HALT/pending state.
+  Preserve the earlier failed short probe; this does not close full R1/R2.
+- [x] Preserve the new 300s probe's p99 failure (1,094.27/1,112.11ms against
+  1,000ms); all6,600 responses are HTTP200, no stale response,300 fills match.
+  Worker-queue p99 is500.25ms, pool-admission p99 is0.070ms and API SQL p99
+  is52.57ms. These separate cumulative distributions cannot be added or matched
+  to individual requests; the untraced run does not establish an exclusive cause.
+- [x] After the independent hour and Demo restoration, collect one isolated
+  same-image300s traced probe with unchanged load/resource/latency settings.
+  All34 >1s clients match API roots;12 wait >500ms for a worker. Balance and
+  positions wait1,066/1,092ms although their largest SQL spans are12.03/4.82ms.
+  Review API-only loop/GC overlap and trace losses; retained p99 is823.21/734.17ms
+  with no stale/error and300 exact fills. Publish the bounded explanation and
+  independently verify restored Demo/hash/configuration state. Original failure
+  remains failed and its exclusive cause unproven; no new runtime tuning.
 
 ## Quote-recovery current-image completion — 2026-11-03
 

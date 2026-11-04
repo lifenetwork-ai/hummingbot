@@ -5,7 +5,18 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-04
 
-- **Bounded reporting retry source verified:** native2,464 +11 subtests and PG354 pass. Real server timeout Red/Green confirms new-snapshot counts/fees and persistent stale fallback. One retry keeps control priority and all deadlines/resources; no experimental SQL/schema accepted. New-image checks/hour are pending. [Report](../performance/mm-daily-conversion-followup.md#bounded-timeout-retry-follow-up--2026-11-04).
+- **Bounded reporting retry image verified:** imagef4d90bc7 matches source
+  d2cdf2a36 and all197 prior Python packages. Native2,464 +11 subtests, PG354,
+  three packaged E2E groups and four wait/CPU report-fault cases pass. The
+  unchanged healthy hour passes:79,200 HTTP200, no errors/stale, primary/
+  auxiliary p99 615.65/565.42ms,3,594 exact synthetic fills and27.68MiB retained
+  growth. No natural SQL timeout/retry occurs in that hour; controlled faults
+  establish recovery semantics. Prior300s p99 failure remains; a separate
+  traced diagnostic passes823.21/734.17ms and matches34 slow requests to API
+  roots,12 with >500ms worker waits. The exclusive old trigger remains unproven.
+  Stopped Demo upgrade/restart and independent
+  four-ledger-hash restoration pass. No SQL/schema/deadline/resource change or
+  full R1/R2 transfer. [Report](../performance/mm-daily-conversion-followup.md#bounded-timeout-retry-follow-up--2026-11-04).
 
 - **Current-image follow-up complete; qualification incomplete:** image50f96001
   independently matches one natural spot and one perpetual maker fill through

@@ -1,8 +1,18 @@
 # Daily fee aggregation and remaining availability investigation
 
-2026-11-04 (Asia/Saigon). **Source, three packaged E2E groups, two controlled
+2026-11-04 (Asia/Saigon). **Latest candidatef4d90bc7:** three packaged E2E
+groups and four controlled reporting faults pass. The unchanged standalone hour
+passes with79,200 HTTP200 responses, no stale/error, primary/auxiliary p99
+615.65/565.42ms and3,594 matched synthetic fills/fees/positions. The prior
+300s probe remains failed at1,094.27/1,112.11ms p99. A separate traced probe
+passes at823.21/734.17ms and confirms worker queueing during slow bursts;
+the original exclusive trigger remains unproven. Neither this hour nor
+diagnostics transfer full R1/R2 acceptance.
+See the [retry follow-up](#bounded-timeout-retry-follow-up--2026-11-04).
+
+**Preceding candidate50f96001:** source, three packaged E2E groups, two controlled
 reporting faults and positive Demo fills/restart pass. The rich 600s probe fails
-reporting/latency; the hour soak fails only the zero-degraded-response gate.**
+reporting/latency; its hour soak fails only the zero-degraded-response gate.
 Earlier failed results remain in the
 [controller/persistence report](../release/mm-controller-persistence-release.md).
 [Evidence](mm-daily-conversion-followup-evidence.json),
@@ -265,7 +275,136 @@ checks pass. Valid real-PG Red2/Green2 uses actual2s server cancellation: a late
 fill appears consistently in both counts and original fees after the new snapshot,
 while two failures retain stale timestamps/cooldown. Initial incorrect from/to
 fixture aliases are corrected and their logs excluded from Red proof. Broad
-native2,464 +11 subtests and PostgreSQL354 pass. Packaged E2E,
-wait/CPU transient and persistent fault tests, stopped Demo upgrade and unchanged
-healthy standalone-hour acceptance remain pending on a rebuilt image. The failed
-50f96001 results above remain failed and are not reclassified.
+native2,464 +11 subtests and PostgreSQL354 pass. Imagef4d90bc7 matches nine
+runtime file hashes from source d2cdf2a36 and all197 preceding Python package
+versions. Three packaged E2E groups pass. Stopped Demo upgrade/restart retains
+four ledger hashes, positions and the original configuration; there is no new
+connected trading session on this image.
+
+All four120s wait/CPU tests pass on the unmodified image. One injected timeout
+recovers a fresh report without stale replies; two exhaust the retry and produce
+18 expected stale replies per persistent case, keeping the original observation
+time and bounded age. Each case independently witnesses a committed fill during
+the first actual timeout, matches120 fills/fees/positions, preserves engine PID/
+owner/session, produces no HALT, later returns fresh data and stops cleanly.
+Independent log review extends through the last injected timeout plus8s and
+finds no ERROR/CRITICAL. These are intentionally impaired tests, not healthy gates.
+
+The300s untraced probe returns all6,600 HTTP200 responses without stale/error
+and matches300 fills, but fails primary/auxiliary p99 at1,094.27/1,112.11ms
+against1,000ms. Primary/auxiliary p95 are469.65/442.97ms. No daily retry or
+server SQL timeout occurs; the retry path cannot explain that run's slow reads.
+Cumulative API worker-queue p99 is500.25ms versus0.070ms pool admission and
+52.57ms SQL; these are separate distributions including pre-window work, not
+additive stages of the same request. The untraced result lacks per-request
+correlation. It is retained as failed, even though the later hour passes.
+
+The unchanged standalone3,600s hour on the same image returns72,000 primary
+and7,200 auxiliary HTTP200 responses with zero stale/error. Primary p95/p99
+are90.32/615.65ms; auxiliary86.38/565.42ms. All3,594 synthetic fills, fees and
+positions match. Retained growth is27.68MiB against64MiB and raw cgroup peak
+700.95MiB against1.5GiB;58 minute samples have maximum65.90s spacing and retain
+supervisor/engine/API PIDs1/37/38. Random visits all three scenarios. No natural
+server statement timeout or retry occurs in this hour; four controlled faults
+above establish retry behavior, and a changing host prevents attributing the
+latency difference exclusively to the API patch.
+
+Within the hour,46 engine probe failures and47 recoveries are logged, plus four
+API failure/recovery pairs. A recovery can correspond to a failure preceding the
+timed boundary; these counts are not complete in-window episode counts. Maximum
+logged recovered observation intervals are3.098/1.151s, without child replacement.
+There is no MM activity stream in this hour, so neither probe recovery nor the
+matching ledger proves uninterrupted quoting.
+
+After the hour, a network-isolated restore of the private pre-soak backup matches
+orders/fills/positions/executors hashes. Packaged read-only REST/public/privateWS
+preflight passes; canonical Demo returns owner-available, trading-stopped, no
+HALT/pending mutation/unresolved order. Original private configuration is intact.
+The current healthy-hour reporting gate passes; earlier50f96001 failures remain
+failed. Full release qualification remains incomplete because of the retained
+short p99 failure and the absence of a new full R1/R2 run.
+
+## Request-level latency investigation — 2026-11-04
+
+One isolated300s traced diagnostic follows the unchanged hour and verified Demo
+restoration. It uses the samef4d90bc7 image,100k history, two application CPUs,
+two database CPUs,2GiB/512MiB limits, pool/worker/cache policy and20 primary plus
+two auxiliary reads/s. The extra bounded trace sampler is declared diagnostic
+overhead, not a controlled-away variable or release acceptance.
+
+All6,600 replies are HTTP200 with no stale/error;300 synthetic fills, original
+fees and positions match. Primary p95/p99 are140.14/823.21ms; auxiliary96.90/
+734.17ms. The retained trace has34 clients above1s:32 primary and two auxiliary,
+all34 matched to their API-process handler roots. Passing p99 can coexist with
+these individual outliers because they comprise less than1% of each population.
+This result does not reclassify the earlier untraced short failure.
+
+### Observed delay mechanism
+
+The same two physical API workers serve reports, history and ordinary reads.
+Slow SQL/round trips and delayed completion create queueing behind those jobs;
+queued controls retain dispatch priority, but cannot preempt an active DB call.
+The following request IDs are from the same traced diagnostic:
+
+| Request suffix / route | Client total ms | Worker wait ms | Largest SQL span ms |
+| --- | ---: | ---: | ---: |
+|1272 / balances|1,335.61|1,066.19|12.03|
+|1273 / positions|1,282.55|1,091.81|4.82|
+|1274 / session events|1,307.67|1,124.33|5.05|
+|4966 / daily|1,686.52|10.64|758.18|
+
+These are individually matched timings, not sums of unrelated percentile
+histograms. Twelve of the34 outliers wait over500ms for a worker. The daily
+example instead spends758.18ms in its fill aggregate and559.85ms in original-fee
+aggregation; both remain below the2s per-statement deadline. Fifteen outliers
+have over100ms scheduled-client delay;16 have over100ms between dispatch and
+handler entry. The categories overlap and must not be added as disjoint causes.
+
+Connection-pool admission is distinct from the entire checkout: cumulative API
+admission p99 is0.405ms, while one checkout contains a723.55ms `pre_ping` round
+trip. There is no evidence that exhaustion of physical connection slots is the
+dominant cause, so this investigation does not justify increasing the pool.
+A separate retained history SQL span lasts675.43ms while its matching backend
+is already `idle in transaction / ClientRead` at a sample during that interval,
+with no blocking PID. Client-side SQL timing therefore includes receipt and
+scheduling, not only server execution. That sample does not exclude other DB
+waits between observations or identify why the client was delayed.
+
+Eight API watchdog stall samples reach628.63ms. Seventeen of the34 outliers
+overlap an API stall and25 overlap an API GC event; largest API GC is91.49ms.
+The two selected stalled stacks show a constant-time daily-cache lookup and a
+fill response validation interrupted by the test GC callback. A sampled frame
+does not prove that function consumed the entire interval. No cache-lookup bug,
+exclusive GC trigger or unique cause of the old failure is established. Engine
+stalls/GC are deliberately excluded from API overlap attribution because they
+run in a different process.
+
+### Trace quality and practical next step
+
+Client/API/engine sinks report zero dropped records; API reports zero dropped
+child spans. The engine reports100 bounded child-span omissions, while selected
+slow roots report zero. The diagnostic PG sampler records two200ms query
+cancellations, distinct from application reporting timeouts. Missing samples
+around a burst prevent complete DB-wait attribution. Whole-window cgroup
+observation is bounded across298.837s with41 throttled periods and2.870s reported
+throttling; those counters cannot be added to a request's duration or assigned
+exclusively to one function. Tracing and changing host conditions prevent a
+causal speedup claim from comparison with the untraced run.
+
+The bounded investigation is complete: worker queueing and several transient
+round-trip/scheduling delays are observed, while an exclusive old source-level
+trigger remains unproven. No additional runtime change, cache, worker/pool
+increase or timeout relaxation is made. If API tail latency becomes an operator
+priority, first compare the shipping entrypoint with this diagnostic wrapper
+under matched two-CPU conditions. If ordinary reads still queue behind heavy
+reports, use Red/Green tests for one bounded heavy-report admission lane while
+retaining the total worker/connection limits, control priority, cancellation
+ownership and starvation protection. That change is a proposal, not shipped work.
+
+After the probe, the first immediate status read fails with
+`ServerDisconnectedError` before restored API readiness has been established;
+the failed helper log is retained. A later independent status/ledger read and
+packaged REST/public/privateWS preflight pass. Four ledger hashes and all23
+existing fills remain intact, nine source/container runtime hashes match, private
+configuration is unchanged, and canonical Demo is trading-stopped with no HALT,
+pending mutation or unresolved order. No Demo order or account mutation is sent.

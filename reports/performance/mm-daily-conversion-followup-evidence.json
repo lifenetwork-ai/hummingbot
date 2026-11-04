@@ -1499,7 +1499,7 @@
   ],
   "completed_at": "2026-11-04T02:04:24.813605+00:00",
   "timeout_retry_followup": {
-    "status": "source verified; image qualification pending",
+    "status": "reporting_hour_passed_short_p99_retained_qualification_incomplete",
     "source_checks": {
       "stage": "passed",
       "passed": true,
@@ -1589,6 +1589,1348 @@
         "path": "build/original-fee-fix-20261104/comparison.json",
         "sha256": "1daf295509ea768dce241895f2dda466c9cd3866ad04a2549b9a580f8bb6569a"
       }
+    ],
+    "source_commit": "d2cdf2a36fb3a6ee9933c26ccecde664b6977406",
+    "image": {
+      "image_id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+      "image_tag": "hummingbot-cloudrun:reporting-retry-d2cdf2a36",
+      "source_commit": "d2cdf2a36fb3a6ee9933c26ccecde664b6977406",
+      "size_bytes": 1368948653,
+      "architecture": "amd64",
+      "source_sha256": {
+        "hummingbot/cli/admin_api.py": "e58cbbd13a97395428345e685473d0a672dee4c3f272a219389a7338b5e99665",
+        "hummingbot/cli/admin_daily_cache.py": "d47f76a71e56e7727817f39cbdc73b0e872117271086242918b1aca2a811372e",
+        "hummingbot/model/admin_reporting.py": "ccfddf212543c022ac2733a732de2477c4acfe6a69d1d212964d6e0a936e4238",
+        "controllers/market_making/life_mm.py": "e8ab7213b0a998c2ff8b0cdbc61463d662b9e58f2476aac79a33fa5ac70ff4b7",
+        "hummingbot/cli/service.py": "2e4a33e1beabb06ed332ab5dc04bf266283593600ec4f87ab090e99215dd1959",
+        "hummingbot/connector/markets_recorder.py": "e175b2dc73ccd37070ae39d0cb95fd282aad896c96914285c404d94e33e652ae",
+        "hummingbot/core/mm_liquidity.py": "c00dc0860d597978ae62271ecea8029b43aa6050ac8d066e9ecee9ee5c1e69d6",
+        "hummingbot/core/mm_quote_activity.py": "56fc4285dc5432c0412c855ec53998ad87d7d778c59b84091865ac0b66a7e397",
+        "docs/api/openapi.json": "9fb8e53b91f1ee7a35ddc3cd082e7ef675b2da2b0223a1844c208d6202b2efdd"
+      },
+      "verified_source_files": 9,
+      "python_package_versions_match": true,
+      "python_package_count": 197,
+      "immutable_reference": "127.0.0.1:56753/hummingbot@sha256:a7f1d7de2dea766f78f87344bf10b4f3bcc5caa9f6b2629962ea045178e40f5e"
+    },
+    "broad_source_checks": {
+      "stage": "passed",
+      "passed": true,
+      "native_passed": 2464,
+      "native_subtests_passed": 11,
+      "postgres_passed": 354,
+      "source_sha256": {
+        "hummingbot/cli/admin_api.py": "26867aae2a0d2d0f2c4b40ba05f209865e2a446fce6d07f83926f2802416664c",
+        "hummingbot/cli/admin_daily_cache.py": "d47f76a71e56e7727817f39cbdc73b0e872117271086242918b1aca2a811372e",
+        "test/hummingbot/cli/test_admin_daily_retry.py": "685709babb5c42a8492d6d462679009f8ad5034dca6092439cf0c287799f2eda",
+        "test/integration/postgres/test_admin_daily_retry.py": "ec3000808ee6ff98fb9aed62f7abdf8d030f7572821aed94cc377dd9111b85e3"
+      },
+      "artifacts": [
+        {
+          "path": "build/original-fee-fix-20261104/native-full.log",
+          "sha256": "a4ec77528f1a0f744090891a590c4f967aa6552433c1df163c04014adfc810eb"
+        },
+        {
+          "path": "build/original-fee-fix-20261104/postgres-full.log",
+          "sha256": "0c6e43a42976adc62db1bc47e49639b801bc9956131a07b9c7561d0fc86ee8a3"
+        },
+        {
+          "path": "build/original-fee-fix-20261104/retry-red.log",
+          "sha256": "10c220607d4043d1834850fe6a15823c3b3aeda1845711cf7cedc3d0f9e88a8e"
+        },
+        {
+          "path": "build/original-fee-fix-20261104/retry-green.log",
+          "sha256": "793d24f1b302586910b3d8a15a660171e2b9f215f88392d00185a068516d43c9"
+        },
+        {
+          "path": "build/original-fee-fix-20261104/retry-native-related.log",
+          "sha256": "820cd5cc006a1aa8d1e43bb6799d13240fe345ecb93b08893a79a11cac34e20b"
+        },
+        {
+          "path": "build/original-fee-fix-20261104/retry-pg-red.log",
+          "sha256": "2d652cb3059c5570d545aecf701c10c92d9580b56c77c4d948b37b007664258e"
+        },
+        {
+          "path": "build/original-fee-fix-20261104/retry-pg-green.log",
+          "sha256": "2ab1b9b00a6f38a798bf234b620bb7499f08df109393de73b055f3baad2d13a5"
+        }
+      ]
+    },
+    "packaged_e2e": {
+      "life-mm": {
+        "passed": true,
+        "result_path": "build/e2e-offline/20261104-105407-b0a08f/result.json",
+        "artifact": {
+          "path": "build/e2e-offline/20261104-105407-b0a08f/result.json",
+          "sha256": "df7efb41a8d36e75feb37c1fcae92d53ebd35f9b6ace294c983c238f1b6e09ef"
+        }
+      },
+      "life-mm-recovery": {
+        "passed": true,
+        "result_path": "build/e2e-offline/20261104-110027-d72bda/result.json",
+        "artifact": {
+          "path": "build/e2e-offline/20261104-110027-d72bda/result.json",
+          "sha256": "f55a99164063f430366fa10cb43c1c6fd18cb9b99609bc595f2813adcea044b8"
+        }
+      },
+      "volatility-defense": {
+        "passed": true,
+        "result_path": "build/e2e-offline/20261104-110515-f16b52/result.json",
+        "artifact": {
+          "path": "build/e2e-offline/20261104-110515-f16b52/result.json",
+          "sha256": "e24ff313a81b10f416ad9b11c153e29320893fff47747192eb27daa34ce0b2ad"
+        }
+      }
+    },
+    "controlled_reporting_faults": {
+      "wait": {
+        "image_id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+        "scope": "Observe trading progress during bounded real daily-report timeouts.\n\nThis test uses the existing simulator, PostgreSQL and shipping image. A test-only\nAPI SQL hook injects a server-side wait or CPU-heavy expansion. Neither case\nestablishes universal isolation or certifies Cloud Run capacity.\n",
+        "fault_mode": "wait",
+        "passed": true,
+        "release_scope_complete": false,
+        "baseline_passed": false,
+        "duration_seconds": 120,
+        "injected_timeouts": 1,
+        "expect_retry": true,
+        "supervision_source_overlay_sha256": {},
+        "unmodified_runtime_image": true,
+        "injection_sha256": "208737d9e13a4400a0e1cd36319b540df600914199ddaf1dc749accd3dee6122",
+        "fault_attempts": [
+          {
+            "started_at": 1793766075.354716,
+            "finished_at": 1793766077.380404,
+            "sqlstate": "57014"
+          }
+        ],
+        "observation": {
+          "fault": {
+            "started_at": 1793766075.354716,
+            "finished_at": 1793766077.380404,
+            "sqlstate": "57014"
+          },
+          "witness": {
+            "observed_at": 1793766076.868573,
+            "fills": 1
+          },
+          "stale": [],
+          "market_updates_per_second": 99.98248823543088,
+          "fills_per_second": 1.0,
+          "unexpected_errors": 0,
+          "errors": []
+        },
+        "unexpected_error_logs_during_fault": [],
+        "retry_events": [
+          {
+            "timestamp": "2026-11-04T04:21:17.381Z",
+            "event": "admin_daily_retry",
+            "severity": "WARNING"
+          },
+          {
+            "timestamp": "2026-11-04T04:21:17.984Z",
+            "event": "admin_daily_retry_recovered",
+            "severity": "INFO"
+          }
+        ],
+        "fault": {
+          "started_at": 1793766075.354716,
+          "finished_at": 1793766077.380404,
+          "sqlstate": "57014"
+        },
+        "stale_read_count": 0,
+        "stale_metadata_bounded": null,
+        "stale_original_server_time_preserved": null,
+        "transient_timeout_recovered_fresh": true,
+        "exchange_fills_during_timeout": 2,
+        "durable_fill_witness": {
+          "observed_at": 1793766076.868573,
+          "fills": 1
+        },
+        "ledger": {
+          "unique_exchange_fills": 120,
+          "unique_recorder_fills": 120,
+          "positions_matched": true,
+          "identified_funding_bills": 0,
+          "daily_snapshots": 3
+        },
+        "engine_pid_unchanged": true,
+        "ownership_and_session_unchanged": true,
+        "no_halt": true,
+        "later_daily_fresh": true,
+        "clean_stop": true,
+        "observed_market_updates_per_second": 99.98248823543088,
+        "observed_fills_per_second": 1.0,
+        "limitation": "Server-side wait holds one API connection but does not model CPU-heavy SQL or all Cloud Run workloads.",
+        "artifact": {
+          "path": "build/mm-reporting-isolation/20261104-112011-4e0249/result.json",
+          "sha256": "5ccd7e517a02c31cb9d9087474b02bffffebb9050bccfec28756de7ddcdc5d68"
+        }
+      },
+      "wait_persistent": {
+        "image_id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+        "scope": "Observe trading progress during bounded real daily-report timeouts.\n\nThis test uses the existing simulator, PostgreSQL and shipping image. A test-only\nAPI SQL hook injects a server-side wait or CPU-heavy expansion. Neither case\nestablishes universal isolation or certifies Cloud Run capacity.\n",
+        "fault_mode": "wait",
+        "passed": true,
+        "release_scope_complete": false,
+        "baseline_passed": false,
+        "duration_seconds": 120,
+        "injected_timeouts": 2,
+        "expect_retry": false,
+        "supervision_source_overlay_sha256": {},
+        "unmodified_runtime_image": true,
+        "injection_sha256": "4a9cfbd25c54e60e9b7c70c2ca609f718fd0f0bf2e4de27fbe402f7f11b694bb",
+        "fault_attempts": [
+          {
+            "started_at": 1793766260.78695,
+            "finished_at": 1793766262.7924252,
+            "sqlstate": "57014"
+          },
+          {
+            "started_at": 1793766263.0216064,
+            "finished_at": 1793766265.023724,
+            "sqlstate": "57014"
+          }
+        ],
+        "observation": {
+          "fault": {
+            "started_at": 1793766260.78695,
+            "finished_at": 1793766262.7924252,
+            "sqlstate": "57014"
+          },
+          "witness": {
+            "observed_at": 1793766262.007538,
+            "fills": 1
+          },
+          "stale": [
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.30743169784546,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.30743169784546,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.30743169784546,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.30743169784546,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.30743169784546,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.30743169784546,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.30743169784546,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.30743169784546,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.30743169784546,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.742342472076416,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 21.290243434923468,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 21.842644851931254,
+              "retry_after_seconds": 4,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 22.392244143920834,
+              "retry_after_seconds": 3,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 22.941421060924768,
+              "retry_after_seconds": 3,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 23.493318935928983,
+              "retry_after_seconds": 2,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 24.042363060929347,
+              "retry_after_seconds": 2,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 24.592549185923417,
+              "retry_after_seconds": 1,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 25.142300352919847,
+              "retry_after_seconds": 1,
+              "server_time": "2026-11-04T04:24:04.717822Z"
+            }
+          ],
+          "market_updates_per_second": 99.97281811397971,
+          "fills_per_second": 1.0,
+          "unexpected_errors": 18,
+          "errors": [
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766265.0328698,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766265.0334492,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766265.0339103,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766265.0340533,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766265.0343478,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766265.0345442,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766265.0349715,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766265.0350935,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766265.035222,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766265.4609723,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766266.0089805,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766266.5608082,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766267.110391,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766267.6597464,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766268.2115114,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766268.7604332,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766269.3109145,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766269.8603573,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            }
+          ]
+        },
+        "unexpected_error_logs_during_fault": [],
+        "retry_events": [
+          {
+            "timestamp": "2026-11-04T04:24:22.794Z",
+            "event": "admin_daily_retry",
+            "severity": "WARNING"
+          }
+        ],
+        "fault": {
+          "started_at": 1793766260.78695,
+          "finished_at": 1793766262.7924252,
+          "sqlstate": "57014"
+        },
+        "stale_read_count": 18,
+        "stale_metadata_bounded": true,
+        "stale_original_server_time_preserved": true,
+        "transient_timeout_recovered_fresh": false,
+        "exchange_fills_during_timeout": 2,
+        "durable_fill_witness": {
+          "observed_at": 1793766262.007538,
+          "fills": 1
+        },
+        "ledger": {
+          "unique_exchange_fills": 120,
+          "unique_recorder_fills": 120,
+          "positions_matched": true,
+          "identified_funding_bills": 0,
+          "daily_snapshots": 3
+        },
+        "engine_pid_unchanged": true,
+        "ownership_and_session_unchanged": true,
+        "no_halt": true,
+        "later_daily_fresh": true,
+        "clean_stop": true,
+        "observed_market_updates_per_second": 99.97281811397971,
+        "observed_fills_per_second": 1.0,
+        "limitation": "Server-side wait holds one API connection but does not model CPU-heavy SQL or all Cloud Run workloads.",
+        "artifact": {
+          "path": "build/mm-reporting-isolation/20261104-112314-6fc945/result.json",
+          "sha256": "7c5f7cc3a27b57ae53bd58e319577d7a3367fa4f99df41040ef7bf44708f23c1"
+        }
+      },
+      "cpu": {
+        "image_id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+        "scope": "Observe trading progress during bounded real daily-report timeouts.\n\nThis test uses the existing simulator, PostgreSQL and shipping image. A test-only\nAPI SQL hook injects a server-side wait or CPU-heavy expansion. Neither case\nestablishes universal isolation or certifies Cloud Run capacity.\n",
+        "fault_mode": "cpu",
+        "passed": true,
+        "release_scope_complete": false,
+        "baseline_passed": false,
+        "duration_seconds": 120,
+        "injected_timeouts": 1,
+        "expect_retry": true,
+        "supervision_source_overlay_sha256": {},
+        "unmodified_runtime_image": true,
+        "injection_sha256": "dba7230d685275bb79e9207017e466ebedc13facc3322222c006da0a0bd731d6",
+        "fault_attempts": [
+          {
+            "started_at": 1793766439.4848735,
+            "finished_at": 1793766441.4905894,
+            "sqlstate": "57014"
+          }
+        ],
+        "observation": {
+          "fault": {
+            "started_at": 1793766439.4848735,
+            "finished_at": 1793766441.4905894,
+            "sqlstate": "57014"
+          },
+          "witness": {
+            "observed_at": 1793766440.945324,
+            "fills": 1
+          },
+          "stale": [],
+          "market_updates_per_second": 99.99802165917869,
+          "fills_per_second": 1.0,
+          "unexpected_errors": 0,
+          "errors": []
+        },
+        "unexpected_error_logs_during_fault": [],
+        "retry_events": [
+          {
+            "timestamp": "2026-11-04T04:27:21.492Z",
+            "event": "admin_daily_retry",
+            "severity": "WARNING"
+          },
+          {
+            "timestamp": "2026-11-04T04:27:22.357Z",
+            "event": "admin_daily_retry_recovered",
+            "severity": "INFO"
+          }
+        ],
+        "fault": {
+          "started_at": 1793766439.4848735,
+          "finished_at": 1793766441.4905894,
+          "sqlstate": "57014"
+        },
+        "stale_read_count": 0,
+        "stale_metadata_bounded": null,
+        "stale_original_server_time_preserved": null,
+        "transient_timeout_recovered_fresh": true,
+        "exchange_fills_during_timeout": 2,
+        "durable_fill_witness": {
+          "observed_at": 1793766440.945324,
+          "fills": 1
+        },
+        "ledger": {
+          "unique_exchange_fills": 120,
+          "unique_recorder_fills": 120,
+          "positions_matched": true,
+          "identified_funding_bills": 0,
+          "daily_snapshots": 3
+        },
+        "engine_pid_unchanged": true,
+        "ownership_and_session_unchanged": true,
+        "no_halt": true,
+        "later_daily_fresh": true,
+        "clean_stop": true,
+        "observed_market_updates_per_second": 99.99802165917869,
+        "observed_fills_per_second": 1.0,
+        "limitation": "Synthetic CPU-heavy SQL does not establish isolation for all queries or Cloud Run workloads.",
+        "artifact": {
+          "path": "build/mm-reporting-isolation/20261104-112617-aceff5/result.json",
+          "sha256": "9d0978d14e7ccb4dbefc0cc76fc1c7c10fc3d1752c56906577534fd5b71f330b"
+        }
+      },
+      "cpu_persistent": {
+        "image_id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+        "scope": "Observe trading progress during bounded real daily-report timeouts.\n\nThis test uses the existing simulator, PostgreSQL and shipping image. A test-only\nAPI SQL hook injects a server-side wait or CPU-heavy expansion. Neither case\nestablishes universal isolation or certifies Cloud Run capacity.\n",
+        "fault_mode": "cpu",
+        "passed": true,
+        "release_scope_complete": false,
+        "baseline_passed": false,
+        "duration_seconds": 120,
+        "injected_timeouts": 2,
+        "expect_retry": false,
+        "supervision_source_overlay_sha256": {},
+        "unmodified_runtime_image": true,
+        "injection_sha256": "ebb8a3973175121187f097c079c242c5eb617086ab65288ee6bbe8484ef861c5",
+        "fault_attempts": [
+          {
+            "started_at": 1793766628.059361,
+            "finished_at": 1793766630.0675695,
+            "sqlstate": "57014"
+          },
+          {
+            "started_at": 1793766630.3305645,
+            "finished_at": 1793766632.3328643,
+            "sqlstate": "57014"
+          }
+        ],
+        "observation": {
+          "fault": {
+            "started_at": 1793766628.059361,
+            "finished_at": 1793766630.0675695,
+            "sqlstate": "57014"
+          },
+          "witness": {
+            "observed_at": 1793766630.052555,
+            "fills": 1
+          },
+          "stale": [
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.546758201307966,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.546758201307966,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.546758201307966,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.546758201307966,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.546758201307966,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.546758201307966,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.546758201307966,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.546758201307966,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.546758201307966,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 20.60049253530451,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 21.14946295230766,
+              "retry_after_seconds": 5,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 21.698953202314442,
+              "retry_after_seconds": 4,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 22.250417160306824,
+              "retry_after_seconds": 4,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 22.799713869317202,
+              "retry_after_seconds": 3,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 23.349520953313913,
+              "retry_after_seconds": 3,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 23.900384078311617,
+              "retry_after_seconds": 2,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 24.450900161318714,
+              "retry_after_seconds": 2,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            },
+            {
+              "freshness": "stale",
+              "observation_age_seconds": 25.00015174530563,
+              "retry_after_seconds": 1,
+              "server_time": "2026-11-04T04:30:11.787888Z"
+            }
+          ],
+          "market_updates_per_second": 99.9776189897253,
+          "fills_per_second": 1.0,
+          "unexpected_errors": 18,
+          "errors": [
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766632.3431516,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766632.3443568,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766632.3446758,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766632.3448687,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766632.345293,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766632.3455336,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766632.3459632,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766632.3461378,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766632.346283,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766632.3904061,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766632.938414,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766633.4879515,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766634.040683,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766634.5884826,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766635.1382544,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766635.689173,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766636.2395234,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            },
+            {
+              "path": "/statistics/daily",
+              "status": 200,
+              "at": 1793766636.7891886,
+              "reason": "daily_statistics_degraded",
+              "server_request_id": null
+            }
+          ]
+        },
+        "unexpected_error_logs_during_fault": [],
+        "retry_events": [
+          {
+            "timestamp": "2026-11-04T04:30:30.070Z",
+            "event": "admin_daily_retry",
+            "severity": "WARNING"
+          }
+        ],
+        "fault": {
+          "started_at": 1793766628.059361,
+          "finished_at": 1793766630.0675695,
+          "sqlstate": "57014"
+        },
+        "stale_read_count": 18,
+        "stale_metadata_bounded": true,
+        "stale_original_server_time_preserved": true,
+        "transient_timeout_recovered_fresh": false,
+        "exchange_fills_during_timeout": 2,
+        "durable_fill_witness": {
+          "observed_at": 1793766630.052555,
+          "fills": 1
+        },
+        "ledger": {
+          "unique_exchange_fills": 120,
+          "unique_recorder_fills": 120,
+          "positions_matched": true,
+          "identified_funding_bills": 0,
+          "daily_snapshots": 3
+        },
+        "engine_pid_unchanged": true,
+        "ownership_and_session_unchanged": true,
+        "no_halt": true,
+        "later_daily_fresh": true,
+        "clean_stop": true,
+        "observed_market_updates_per_second": 99.9776189897253,
+        "observed_fills_per_second": 1.0,
+        "limitation": "Synthetic CPU-heavy SQL does not establish isolation for all queries or Cloud Run workloads.",
+        "artifact": {
+          "path": "build/mm-reporting-isolation/20261104-112924-94104a/result.json",
+          "sha256": "d9a45290d8da485dcf48d6a954b6c4ae7303976e360cd12f54bb71539d07b61d"
+        }
+      }
+    },
+    "untraced_short_probe": {
+      "artifact": {
+        "path": "build/mm-load/20261104-111021-c59dfe/result.json",
+        "sha256": "02321139d23715178de34b8745c7e3741ad78772e88615e64a295b8dcbdec01a"
+      },
+      "image_id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+      "passed": false,
+      "diagnostic": true,
+      "tracing": false,
+      "release_scope_complete": false,
+      "duration_seconds": 300,
+      "requested_reads": 6000,
+      "completed_reads": 6000,
+      "statuses": {
+        "200": 6000
+      },
+      "read_p50_ms": 12.67983800789807,
+      "read_p95_ms": 469.64908299560193,
+      "read_p99_ms": 1094.269640991115,
+      "auxiliary": {
+        "requested_reads": 600,
+        "completed_reads": 600,
+        "statuses": {
+          "200": 600
+        },
+        "read_p95_ms": 442.96919000044,
+        "read_p99_ms": 1112.1107250073692
+      },
+      "unexpected_errors": 0,
+      "errors": [],
+      "violations": [
+        "auxiliary_read_p99",
+        "read_p99"
+      ],
+      "ledger": {
+        "unique_exchange_fills": 300,
+        "unique_recorder_fills": 300,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "peak_rss_bytes": 708935680,
+      "command_seconds": {
+        "start": 9.657512250123546,
+        "switch": 9.152757667005062,
+        "stop": 2.4947318339254707
+      }
+    },
+    "hour_soak": {
+      "artifact": {
+        "path": "build/mm-load/20261104-113304-a3d17d/result.json",
+        "sha256": "0fa344eaa561f9d037f2dab761ababa906ad8f8ba6f1723b9926d2ba1c515315"
+      },
+      "image_id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+      "passed": true,
+      "diagnostic": false,
+      "tracing": false,
+      "release_scope_complete": false,
+      "duration_seconds": 3600,
+      "requested_reads": 72000,
+      "completed_reads": 72000,
+      "statuses": {
+        "200": 72000
+      },
+      "read_p50_ms": 11.712389998137951,
+      "read_p95_ms": 90.31950200733263,
+      "read_p99_ms": 615.6454570009373,
+      "auxiliary": {
+        "requested_reads": 7200,
+        "completed_reads": 7200,
+        "statuses": {
+          "200": 7200
+        },
+        "read_p95_ms": 86.37541100324597,
+        "read_p99_ms": 565.4177840042394
+      },
+      "unexpected_errors": 0,
+      "errors": [],
+      "violations": [],
+      "ledger": {
+        "unique_exchange_fills": 3594,
+        "unique_recorder_fills": 3594,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "memory_retention": {
+        "basis": "cgroup_current_minus_file_plus_shmem",
+        "early_median_bytes": 702504960,
+        "late_median_bytes": 731529216,
+        "growth_bytes": 29024256,
+        "budget_bytes": 67108864,
+        "raw_cgroup_growth_bytes": 29024256
+      },
+      "peak_rss_bytes": 735002624,
+      "command_seconds": {
+        "start": 5.830980667145923,
+        "switch": 6.521836124826223,
+        "stop": 1.2682879578787833
+      },
+      "profile_running_coverage": [
+        {
+          "profile": "follow_token",
+          "step": 0,
+          "running_overlap_seconds": 598.5938799381256
+        },
+        {
+          "profile": "sideways",
+          "step": 1,
+          "running_overlap_seconds": 595.8699388504028
+        },
+        {
+          "profile": "follow_market",
+          "step": 2,
+          "running_overlap_seconds": 592.6907119750977
+        },
+        {
+          "profile": "follow_token",
+          "step": 3,
+          "running_overlap_seconds": 596.7213559150696
+        },
+        {
+          "profile": "follow_token",
+          "step": 4,
+          "running_overlap_seconds": 595.9613468647003
+        },
+        {
+          "profile": "follow_market",
+          "step": 5,
+          "running_overlap_seconds": 593.9595060348511
+        }
+      ],
+      "rate_scope": "observed; random-step admission gaps are intentional; fixed mixed window enforces rates",
+      "natural_sql_timeouts": 0,
+      "natural_retry_events": 0,
+      "runtime_samples": 58,
+      "max_sample_gap_seconds": 65.89949440956116,
+      "supervisor_engine_api_pids": [
+        1,
+        37,
+        38
+      ],
+      "engine_probe_failed_events_in_window": 46,
+      "engine_probe_recovered_events_in_window": 47,
+      "api_probe_failed_events_in_window": 4,
+      "api_probe_recovered_events_in_window": 4,
+      "max_logged_recovered_observation_seconds": {
+        "engine": 3.098,
+        "api": 1.151
+      },
+      "no_runtime_child_replacement": true,
+      "continuously_working_quotes_proven": false
+    },
+    "stopped_upgrade": {
+      "stage": "complete",
+      "status": "passed",
+      "image_id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+      "short_probe_qualified": false,
+      "short_probe_violations": [
+        "auxiliary_read_p99",
+        "read_p99"
+      ],
+      "previous_container": "hummingbot-local-demo-before-controller-persistence-20261104043232",
+      "backup_sha256": "d0861535fbd6d467900908374b282a77ccb1c909f66d82b413eb8761da020f42",
+      "stopped_restart": true,
+      "ledger_unchanged": true,
+      "no_halt": true,
+      "positions_matched": true
+    },
+    "independent_post_soak_ledger_verification": {
+      "passed": true,
+      "source": "private pre-soak backup restored into disposable network-isolated PostgreSQL clone",
+      "hashes_match": {
+        "orders": true,
+        "trade_fills": true,
+        "positions": true,
+        "executors": true
+      },
+      "current_hashes": {
+        "orders": "331c3a9fe9978af37faee7f15b656234",
+        "trade_fills": "89b927c2868e7483c105b43c3bc6b751",
+        "positions": "94315e1d770e988c967b43722f74b560",
+        "executors": "bb9e902715eec79b03bc3d98fa6a4494"
+      }
+    },
+    "latency_investigation": {
+      "status": "bounded_investigation_complete_exclusive_original_trigger_unproven",
+      "original_untraced_analysis": {
+        "path": "build/original-fee-fix-20261104/p99-original-analysis.json",
+        "sha256": "9c44900d949821a6af31dc24ce7b7b221c112cd10d857340dafce72a449ff1c5"
+      },
+      "traced_probe": {
+        "artifact": {
+          "path": "build/mm-load/20261104-123454-598601/result.json",
+          "sha256": "dfe3a494a459bdce9455b71445766cc0f6e6979e0c0e5866c1915e1af24e6f8f"
+        },
+        "image_id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+        "passed": true,
+        "diagnostic": true,
+        "tracing": true,
+        "release_scope_complete": false,
+        "duration_seconds": 300,
+        "requested_reads": 6000,
+        "completed_reads": 6000,
+        "statuses": {
+          "200": 6000
+        },
+        "read_p50_ms": 12.527259008493274,
+        "read_p95_ms": 140.14396999846213,
+        "read_p99_ms": 823.2099750021007,
+        "auxiliary": {
+          "requested_reads": 600,
+          "completed_reads": 600,
+          "statuses": {
+            "200": 600
+          },
+          "read_p95_ms": 96.89858900674153,
+          "read_p99_ms": 734.1669209999964
+        },
+        "unexpected_errors": 0,
+        "errors": [],
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "peak_rss_bytes": 716128256,
+        "command_seconds": {
+          "start": 7.897828208049759,
+          "switch": 7.135997999925166,
+          "stop": 2.982551416847855
+        }
+      },
+      "matched_clients_over_one_second": 34,
+      "matched_api_roots": 34,
+      "clients_with_worker_wait_over_500ms": 12,
+      "clients_with_scheduling_wait_over_100ms": 15,
+      "clients_with_dispatch_to_handler_over_100ms": 16,
+      "clients_with_largest_sql_over_500ms": 2,
+      "clients_overlapping_api_stall": 17,
+      "clients_overlapping_api_gc": 25,
+      "max_api_stall_ms": 628.627584,
+      "max_api_gc_ms": 91.493625,
+      "request_examples": [
+        {
+          "request_id": "e3fa0ccc42fa-1272",
+          "path": "/balances",
+          "client_total_ms": 1335.608234,
+          "client_queue_ms": 60.7704,
+          "handler_ms": 1125.894375,
+          "dispatch_to_handler_ms": 147.966001,
+          "worker_queue_max_ms": 1066.19025,
+          "sql_max_ms": 12.029167,
+          "dropped_spans": 0
+        },
+        {
+          "request_id": "e3fa0ccc42fa-1273",
+          "path": "/positions",
+          "client_total_ms": 1282.552651,
+          "client_queue_ms": 11.28215,
+          "handler_ms": 1121.041126,
+          "dispatch_to_handler_ms": 149.103542,
+          "worker_queue_max_ms": 1091.811959,
+          "sql_max_ms": 4.8235,
+          "dropped_spans": 0
+        },
+        {
+          "request_id": "e3fa0ccc42fa-1274",
+          "path": "/sessions/b41cded3-dfb4-4d7c-8042-d5973846f845/events?limit=100",
+          "client_total_ms": 1307.671234,
+          "client_queue_ms": 11.556025,
+          "handler_ms": 1145.077,
+          "dispatch_to_handler_ms": 149.575501,
+          "worker_queue_max_ms": 1124.333708,
+          "sql_max_ms": 5.049583,
+          "dropped_spans": 0
+        },
+        {
+          "request_id": "e3fa0ccc42fa-4966",
+          "path": "/statistics/daily",
+          "client_total_ms": 1686.517019,
+          "client_queue_ms": 15.61631,
+          "handler_ms": 1651.300668,
+          "dispatch_to_handler_ms": 18.548875,
+          "worker_queue_max_ms": 10.644,
+          "sql_max_ms": 758.184459,
+          "dropped_spans": 0
+        }
+      ],
+      "client_trace_loss": {
+        "sink": {
+          "written_records": 1554,
+          "written_bytes": 537253,
+          "ordinary_written_bytes": 537253,
+          "reserved_written_bytes": 0,
+          "dropped_records": 0,
+          "writer_cpu_ms": 366.2037850000008,
+          "dropped_by_kind": {},
+          "queue_depth": 0,
+          "max_bytes": 134217728,
+          "reserved_bytes": 0,
+          "reserved_kinds": [],
+          "writer_alive": false
+        },
+        "database_sampler": {
+          "samples": 1163,
+          "errors": 2,
+          "thread_cpu_ms": 1344.520311
+        }
+      },
+      "per_role_trace_loss": {
+        "engine": {
+          "written_records": 462,
+          "written_bytes": 1253032,
+          "ordinary_written_bytes": 1253032,
+          "reserved_written_bytes": 0,
+          "dropped_records": 0,
+          "writer_cpu_ms": 125.59442299999986,
+          "dropped_by_kind": {},
+          "queue_depth": 0,
+          "max_bytes": 134217728,
+          "reserved_bytes": 0,
+          "reserved_kinds": [],
+          "writer_alive": true,
+          "dropped_spans": 100,
+          "slow_trace_threshold_ms": 100,
+          "gc_trace": {
+            "pending_events": 0,
+            "max_events": 128,
+            "dropped_events": 0
+          }
+        },
+        "api": {
+          "written_records": 674,
+          "written_bytes": 2061101,
+          "ordinary_written_bytes": 2061101,
+          "reserved_written_bytes": 0,
+          "dropped_records": 0,
+          "writer_cpu_ms": 187.49455300000008,
+          "dropped_by_kind": {},
+          "queue_depth": 0,
+          "max_bytes": 134217728,
+          "reserved_bytes": 0,
+          "reserved_kinds": [],
+          "writer_alive": true,
+          "dropped_spans": 0,
+          "slow_trace_threshold_ms": 100,
+          "gc_trace": {
+            "pending_events": 0,
+            "max_events": 128,
+            "dropped_events": 0
+          }
+        }
+      },
+      "selected_slow_roots_dropped_spans": 0,
+      "cgroup_cpu_observation": {
+        "sample_count": 582,
+        "timing_status": "bounded_read_intervals",
+        "elapsed_lower_ns": 298837381595,
+        "elapsed_upper_ns": 298837878386,
+        "cgroup_cpu_delta": {
+          "usage_usec": 132871263,
+          "user_usec": 124043585,
+          "system_usec": 8827677,
+          "nr_periods": 2989,
+          "nr_throttled": 41,
+          "throttled_usec": 2870152,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      "postgres_sampler_errors": 2,
+      "diagnostic_sampler_timeouts_not_application_reporting_timeouts": true,
+      "raw_request_analysis": {
+        "path": "build/original-fee-fix-20261104/p99-request-analysis.json",
+        "sha256": "5576dec498b6b101c1067d1f46dc26a83a95d5e580f0c8c17fc918491c95c516"
+      },
+      "trace_analysis": {
+        "path": "build/mm-load/20261104-123454-598601/probe-trace-analysis.json",
+        "sha256": "de46d2483b73ebb3f05564e6ede8d012bd34f3193612398357554c09a998ce98"
+      },
+      "limitations": [
+        "Traced diagnostic overhead is not controlled away by the earlier untraced run.",
+        "Retained requests are slow-only and bounded; inspect trace loss counters.",
+        "API stall/GC overlap is observational, not proof of a unique trigger.",
+        "No engine-process stall is attributed to API request blocking.",
+        "Spans/CPU can overlap; percentile or nested-span durations are not additive."
+      ],
+      "no_runtime_pool_or_cache_tuning": true
+    },
+    "final_restoration": {
+      "stopped": true,
+      "owner_available": true,
+      "no_halt": true,
+      "no_pending_mutation": true,
+      "no_unresolved_order": true,
+      "counts": {
+        "orders": 3513,
+        "trade_fills": 23,
+        "positions": 3,
+        "executors": 2848
+      },
+      "four_ledger_hashes_match_pre_soak": true,
+      "nine_runtime_hashes": {
+        "passed": true,
+        "image_id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+        "source_sha256": {
+          "hummingbot/cli/admin_api.py": "e58cbbd13a97395428345e685473d0a672dee4c3f272a219389a7338b5e99665",
+          "hummingbot/cli/admin_daily_cache.py": "d47f76a71e56e7727817f39cbdc73b0e872117271086242918b1aca2a811372e",
+          "hummingbot/model/admin_reporting.py": "ccfddf212543c022ac2733a732de2477c4acfe6a69d1d212964d6e0a936e4238",
+          "controllers/market_making/life_mm.py": "e8ab7213b0a998c2ff8b0cdbc61463d662b9e58f2476aac79a33fa5ac70ff4b7",
+          "hummingbot/cli/service.py": "2e4a33e1beabb06ed332ab5dc04bf266283593600ec4f87ab090e99215dd1959",
+          "hummingbot/connector/markets_recorder.py": "e175b2dc73ccd37070ae39d0cb95fd282aad896c96914285c404d94e33e652ae",
+          "hummingbot/core/mm_liquidity.py": "c00dc0860d597978ae62271ecea8029b43aa6050ac8d066e9ecee9ee5c1e69d6",
+          "hummingbot/core/mm_quote_activity.py": "56fc4285dc5432c0412c855ec53998ad87d7d778c59b84091865ac0b66a7e397",
+          "docs/api/openapi.json": "9fb8e53b91f1ee7a35ddc3cd082e7ef675b2da2b0223a1844c208d6202b2efdd"
+        },
+        "verified_file_count": 9
+      },
+      "read_only_preflight": {
+        "passed": true,
+        "image_id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+        "private_config_unchanged": true,
+        "order_mutations": 0,
+        "account_mutations": 0,
+        "db_mutations": 0
+      },
+      "early_post_probe_read_error": "ServerDisconnectedError before restored API readiness was established; retained failed helper log",
+      "early_read_log": {
+        "path": "build/original-fee-fix-20261104/p99-post-local-read.log",
+        "sha256": "76d69f2ecd54549cbe17c70f893d107958b9936de63e7910531cf60a4394a380"
+      },
+      "subsequent_independent_status_and_ledger_read_passed": true
+    },
+    "remaining_limits": [
+      "The original untraced short probe still fails p99; a later pass never reclassifies it.",
+      "Queueing and transient SQL/round-trip/loop delays are observed, not an exclusive source-level trigger for the old spike.",
+      "No full R1/R2, Cloud Run, production or new active connected-Demo trading acceptance on f4d90bc7.",
+      "The new hour contains no natural SQL timeout/retry; recovery is exercised in the four controlled cases.",
+      "Million-row aggregation cost and preceding historical failures remain under their original scopes."
     ]
   }
 }

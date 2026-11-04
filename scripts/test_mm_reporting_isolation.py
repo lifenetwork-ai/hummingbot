@@ -36,10 +36,10 @@ def main():
     parser.add_argument("--baseline", type=Path, required=True, help="Retained verified-image load result directory")
     parser.add_argument("--fault-mode", choices=("wait", "cpu"), default="wait",
                         help="Inject a server wait or CPU-heavy expansion into one daily query")
-    parser.add_argument('--timeouts', type=int, choices=(1, 2), default=1,
-                        help='Inject one timeout, or two to exhaust a bounded read retry')
+    parser.add_argument('--timeouts', type=int, choices=(1, 2), default=2,
+                        help='Two timeouts exhaust the bounded retry (default); use 1 to test recovery')
     parser.add_argument('--expect-retry', action='store_true',
-                        help='Require a single injected timeout to recover without stale replies')
+                        help='Require a single timeout to recover without stale replies; use --timeouts=1')
     parser.add_argument("--supervision-source-overlay", action="store_true",
                         help="Diagnostic only: mount the two local supervision modules over the base image")
     args = parser.parse_args()
@@ -214,7 +214,7 @@ def main():
                         timestamp = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00")).timestamp()
                         if row.get('event') in ('admin_daily_retry', 'admin_daily_retry_recovered'):
                             retry_events.append({key: row.get(key) for key in ('timestamp', 'event', 'severity')})
-                        if row.get("severity") in ("ERROR", "CRITICAL") and fault["started_at"] <= timestamp <= fault["finished_at"] + 8:
+                        if row.get("severity") in ("ERROR", "CRITICAL") and fault["started_at"] <= timestamp <= attempts[-1]["finished_at"] + 8:
                             unexpected_logs.append({key: row.get(key) for key in ("timestamp", "severity", "event", "message")})
                     except (ValueError, KeyError, TypeError):
                         continue

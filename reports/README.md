@@ -4,7 +4,13 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
-- **Timeout retry source follow-up:** native2,464 +11 subtests and PG354 pass; one acknowledged daily-read timeout retries a complete snapshot through normal admission. Persistent failure stays explicitly stale. No SQL/schema/deadline change; new-image acceptance pending. [Report/evidence](performance/mm-daily-conversion-followup.md).
+- **Timeout retry image follow-up:** imagef4d90bc7 matches source d2cdf2a36;
+  native2,464 +11 subtests, PG354, three E2E groups and four controlled report
+  faults pass. The unchanged hour passes:79,200 HTTP200, no errors/stale,
+  primary/auxiliary p99 615.65/565.42ms and3,594 exact synthetic fills. The prior
+  short probe still fails p99; its traced follow-up passes823.21/734.17ms and
+  confirms worker queueing without proving a unique original trigger. No SQL/schema/
+  deadline change or new full R1/R2 acceptance. [Report/evidence](performance/mm-daily-conversion-followup.md).
 
 - [Daily conversion/availability follow-up](performance/mm-daily-conversion-followup.md),
   [evidence](performance/mm-daily-conversion-followup-evidence.json): fee-array
