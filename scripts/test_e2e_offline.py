@@ -161,9 +161,9 @@ class Harness:
     def port(self, name):
         return name
 
-    def sql(self, statement):
+    def sql(self, statement, *, timeout=60):
         return docker("exec", self.pg, "psql", "-U", "postgres", "-d", "hbot_test_offline", "-At", "-v", "ON_ERROR_STOP=1",
-                      "-c", statement).stdout.strip()
+                      "-c", statement, timeout=timeout).stdout.strip()
 
     def state(self):
         return json.loads(self.sql("SELECT row_to_json(b) FROM public.bot_state b"))

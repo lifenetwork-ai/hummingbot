@@ -3,6 +3,26 @@
 Workload, commands and acceptance budgets for offline verification. Historical
 results and measured fixes are in [the load report](../reports/performance/life-mm-load-tests.md).
 
+For nonzero history, preparation now performs a planned **full service stop and
+start before measurement**. It preserves the verified empty-DB outflow origin,
+requires acknowledged MM Stop, clean process exit, released ownership, no app DB
+connections and no pending orders, then seeds the original history and runs
+CHECKPOINT while the service is offline. Normal startup/migrations must acquire
+a new owner generation with stopped intent, no recovery block and fresh role
+metrics before the usual workload commands can run. No recovery reset or intent
+rewrite is used. A failed seed/CHECKPOINT leaves the service offline; unexpected
+child failure/restart prevents workload admission.
+
+`result.json.history_preparation` retains stages, timestamps, row counts,
+offline checks and owner generations. The administrative fixture seed/CHECKPOINT
+has a 180s Docker-command budget; runtime statement/lock/I/O deadlines are
+unchanged. Rows, timestamp generation, outflow expiry, offered rates, durations
+and acceptance thresholds remain unchanged. A slow preparation that misses the
+original active-outflow condition still fails rather than re-dating its rows.
+The planned setup restart is separate from an unexpected in-window restart.
+Earlier concurrent-seed failures and the intentional WAL-pressure diagnostic
+remain retained; this change does not qualify a new measured hour by itself.
+
 For the separate **single-service process-isolation experiment**, run
 `make test-mm-process-isolation MM_PROCESS_CPUS=1 MM_PROCESS_SECONDS=90`
 and repeat with `MM_PROCESS_CPUS=2 MM_PROCESS_SECONDS=180`. The script uses

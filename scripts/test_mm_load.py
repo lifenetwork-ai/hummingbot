@@ -20,6 +20,7 @@ from test.e2e.offline.load_incidents import capture_limit  # noqa: E402
 from scripts.mm_load_budgets import memory_retention, soak_violations, violations  # noqa: E402
 from scripts.mm_load_faults import fault_windows  # noqa: E402
 from scripts.mm_load_ledger import funding_ledger_violations, ledger_violations  # noqa: E402
+from scripts.mm_load_preparation import prepare_history  # noqa: E402
 from scripts.mm_load_processes import merge_metrics  # noqa: E402
 from scripts.test_e2e_offline import Harness, docker, pin_manifest, poll  # noqa: E402
 
@@ -31,7 +32,7 @@ def save_fault_progress(report, evidence, name, data):
     (report / "result.json").write_text(json.dumps(evidence, indent=2))
 
 
-def seed_history(harness, count, *, active_outflow=False):
+def seed_history(harness, count, *, active_outflow=False, sql_timeout=None):
     """Reuse the PG performance fixture's generate_series bulk insert pattern.
 
     Add recorder fills in natural decimal units, dated yesterday and closed so
@@ -41,7 +42,7 @@ def seed_history(harness, count, *, active_outflow=False):
     """
     assert 0 <= count <= 1000000
     stamp = "(extract(epoch from transaction_timestamp())*1000)::bigint-86400000+120000" if active_outflow else "(extract(epoch from clock_timestamp())*1000)::bigint-86400000"
-    harness.sql(f"""
+    statement = f"""
         INSERT INTO orders (id, config_file_path, strategy, market, symbol, base_asset, quote_asset,
             creation_timestamp, order_type, amount, leverage, price, last_status, last_update_timestamp, creation_pending)
         SELECT 'load-history-' || n, 'load-history.yaml', 'v2_with_controllers',
@@ -54,7 +55,8 @@ def seed_history(harness, count, *, active_outflow=False):
         SELECT config_file_path,strategy,market,symbol,base_asset,quote_asset,creation_timestamp,id,'BUY',order_type,
             price,amount,leverage,'{{"percent":"0","flat_fees":[{{"token":"USDT","amount":"0.000001"}}]}}'::json,0.000001,id,'OPEN'
         FROM orders WHERE id LIKE 'load-history-%'; ANALYZE orders; ANALYZE trade_fills;
-    """)
+    """
+    harness.sql(statement, **({'timeout': sql_timeout} if sql_timeout is not None else {}))
 
 
 def assets_for(path):
@@ -248,7 +250,7 @@ def main():
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
         ROOT / "scripts/test_mm_load.py", ROOT / "scripts/test_e2e_offline.py", ROOT / "scripts/analyze_mm_load_trace.py",
         ROOT / "scripts/mm_load_budgets.py", ROOT / "scripts/mm_load_faults.py", ROOT / "scripts/mm_load_ledger.py",
-        ROOT / "scripts/mm_load_processes.py", ROOT / "test/e2e/offline/load_entrypoint.py",
+        ROOT / "scripts/mm_load_processes.py", ROOT / "scripts/mm_load_preparation.py", ROOT / "test/e2e/offline/load_entrypoint.py",
         ROOT / "test/e2e/offline/load_trace.py", ROOT / "test/e2e/offline/load_incidents.py",
         ROOT / "test/e2e/offline/load_service.py", ROOT / "test/e2e/offline/load_process_metrics.py")}
     try:
@@ -383,7 +385,17 @@ def main():
                     poll(lambda: bool((harness.state()["recovery_state"].get("spot_outflow") or {}).get("binding")),
                          description="verified empty-DB outflow binding before historical fixture insertion")
                     command(harness, port, "stop")
-                seed_history(harness, args.history_rows, active_outflow=args.enhancements)
+                evidence['history_preparation'] = {}
+                prepare_history(harness, bot, args.history_rows, active_outflow=args.enhancements,
+                                seed=seed_history, evidence=evidence['history_preparation'])
+
+                def prepared_metrics():
+                    metrics = read_metrics(harness, bot)
+                    started_at = evidence['history_preparation'].get('restarted_at', 0)
+                    if metrics and all(row['at'] >= started_at for row in metrics.get('role_metrics', {'combined': metrics}).values()):
+                        return metrics
+                fresh_metrics = poll(prepared_metrics, timeout=30, description='fresh post-preparation runtime role metrics')
+                assert memory_retention([fresh_metrics])['basis'] == 'cgroup_current_minus_file_plus_shmem'
                 bill_time = int(time.time() * 1000) - 1000
                 harness.control(funding_bills=[dict(billId=str(i), type="8", subType="174" if value[0] != "-" else "173",
                                                     instId="LIFE-USDT-SWAP", ts=str(bill_time), pnl=value, ccy="USDT")

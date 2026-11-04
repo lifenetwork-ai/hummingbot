@@ -64,3 +64,23 @@ and the 500,000-row unthrottled control remain separate clean observations.
 The original exclusive trigger is still unproven; the unchecked historical
 attribution item above is deliberately retained. No shipping engine behavior,
 durability or timeout setting changed. See the report's follow-up section.
+
+## Offline history preparation
+
+- [x] Use Red/Green to prevent fixture seeding while the service is running;
+  cover failed Stop/release, remaining DB effects, failed seed/CHECKPOINT,
+  changed intent, failed recovery and unexpected child restart without resets.
+- [x] Preserve the verified outflow origin, stop the full service, seed and
+  CHECKPOINT offline, then require normal startup with a new owner generation
+  and fresh runtime-role metrics. Keep workload rows/rates/gates unchanged.
+- [ ] Repeat the 8 MiB/s PG control using the corrected preparation, then run
+  the unchanged 300s load on the same shipping image. Retain any failed result.
+- [ ] Update evidence/instructions, verify stopped Demo and ledger preservation,
+  and commit the completed phases.
+
+Source validation: 13 initial Red cases, plus a separate Red for a lost outflow
+origin after restart; 143 related native tests and seven PostgreSQL fixture/
+reporting tests pass. The first 8 MiB/s control seeds 100,000 orders/fills while
+the service is exited and owner released, checkpoints, acquires generation 2
+and remains stable for another 65s. A final-source repetition and the unchanged
+300s load remain pending below; no measured-hour acceptance is claimed.
