@@ -99,7 +99,7 @@ def daily_snapshot():
 
 
 @pytest.mark.asyncio
-async def test_independent_uncached_filters_do_not_wait_for_a_slow_aggregate():
+async def test_independent_uncached_filters_keep_separate_results_in_the_serial_heavy_lane():
     storage = MagicMock()
     started, release = threading.Event(), threading.Event()
 
@@ -112,13 +112,19 @@ async def test_independent_uncached_filters_do_not_wait_for_a_slow_aggregate():
     storage.daily.side_effect = aggregate
     api = AdminAPI(None, AdminSettings(reporting_timezone='UTC'), store=storage)
     slow = asyncio.create_task(api.daily(SimpleNamespace(query=MultiDict(market='perpetual'))))
+    other = None
     try:
         assert await asyncio.to_thread(started.wait, 2)
-        await asyncio.wait_for(api.daily(SimpleNamespace(query=MultiDict(market='spot'))), .5)
-        assert not slow.done() and storage.daily.call_count == 2
+        other = asyncio.create_task(api.daily(SimpleNamespace(query=MultiDict(market='spot'))))
+        await asyncio.sleep(.02)
+        assert not slow.done() and not other.done() and storage.daily.call_count == 1
+        release.set()
+        await asyncio.gather(slow, other)
+        assert storage.daily.call_count == 2
+        assert {call.kwargs['market'] for call in storage.daily.call_args_list} == {'spot', 'perpetual'}
     finally:
         release.set()
-        await asyncio.gather(slow, return_exceptions=True)
+        await asyncio.gather(slow, *([other] if other else []), return_exceptions=True)
         await api.close(None)
 
 
@@ -168,13 +174,13 @@ async def test_daily_key_registry_is_bounded_and_releases_completed_keys():
     api = AdminAPI(None, AdminSettings(reporting_timezone='UTC'), store=storage)
     tasks = []
     try:
-        for n in range(api._database_executor.MAX_REPORTS):
+        for n in range(api._database_executor.MAX_HEAVY):
             tasks.append(asyncio.create_task(api.daily(SimpleNamespace(query=MultiDict(pair=f'X{n}-USDT')))))
         assert await asyncio.to_thread(started.wait, 2)
         await asyncio.sleep(.02)
         with pytest.raises(APIUnavailable):
             await asyncio.wait_for(api.daily(SimpleNamespace(query=MultiDict(pair='OVER-USDT'))), .5)
-        assert len(api._daily_flights) == api._database_executor.MAX_REPORTS
+        assert len(api._daily_flights) == api._database_executor.MAX_HEAVY
         release.set()
         await asyncio.gather(*tasks)
         assert not api._daily_flights
@@ -188,15 +194,15 @@ async def test_daily_key_registry_is_bounded_and_releases_completed_keys():
 @pytest.mark.asyncio
 async def test_zero_ttl_does_not_share_concurrent_observations():
     storage = MagicMock()
-    both_started, release, lock = threading.Event(), threading.Event(), threading.Lock()
+    first_started, release, lock = threading.Event(), threading.Event(), threading.Lock()
     count = 0
 
     def aggregate(**filters):
         nonlocal count
         with lock:
             count += 1
-            if count == 2:
-                both_started.set()
+            if count == 1:
+                first_started.set()
         assert release.wait(5)
         return daily_snapshot()
 
@@ -204,7 +210,10 @@ async def test_zero_ttl_does_not_share_concurrent_observations():
     api = AdminAPI(None, AdminSettings(reporting_timezone='UTC', statistics_cache_ttl_seconds=0), store=storage)
     tasks = [asyncio.create_task(api.daily(SimpleNamespace(query=MultiDict()))) for _ in range(2)]
     try:
-        assert await asyncio.to_thread(both_started.wait, 2)
+        assert await asyncio.to_thread(first_started.wait, 2)
+        await asyncio.sleep(.02)
+        assert storage.daily.call_count == 1 and api._database_executor.pending == 2
+        assert not api._daily_flights, 'TTL0 keeps distinct reads, serialized in the heavy lane'
         release.set()
         await asyncio.gather(*tasks)
         assert storage.daily.call_count == 2 and not api._daily_flights

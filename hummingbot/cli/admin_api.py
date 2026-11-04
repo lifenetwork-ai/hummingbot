@@ -65,6 +65,8 @@ from hummingbot.model.admin_store import AdminStore
 from hummingbot.model.bot_state_store import ControlConflict
 
 ADMIN_PREFIX = "/api/v1/admin"
+# Match the existing default page size; bulk pages share the aggregate lane.
+OPERATIONAL_HISTORY_LIMIT = 100
 ADMIN_ENDPOINTS = (("GET", "/profiles", "profiles"), ("GET", "/status", "status"),
                    ("POST", "/commands", "commands"), ("GET", "/commands/{command_id}", "command"),
                    ("GET", "/openapi.json", "openapi"), ("GET", "/docs", "docs"),
@@ -133,8 +135,8 @@ class AdminAPI:
         self._daily_cache = DailyStatisticsCache(settings.statistics_cache_ttl_seconds)
         self._daily_flights = {}
         self._daily_closing = False
-        # Bound API database concurrency independently of the default executor.
-        # The shared pool has five slots; reporting must not consume all five.
+        # Reserve independent operations/heavy slots within the existing
+        # two-worker bound; reports cannot consume every operational slot.
         self._database_executor = AdminDatabaseExecutor()
 
     def register(self, app):
@@ -146,18 +148,18 @@ class AdminAPI:
             else:
                 app.router.add_route(method, ADMIN_PREFIX + path, getattr(self, name))
 
-    async def run_database(self, function, /, *args, **kwargs):
-        return await self._run_database(False, function, *args, **kwargs)
+    async def run_database(self, function, /, *args, heavy=False, **kwargs):
+        return await self._run_database(False, function, *args, heavy=heavy, **kwargs)
 
     async def run_control_database(self, function, /, *args, **kwargs):
         return await self._run_database(True, function, *args, **kwargs)
 
-    async def _run_database(self, control, function, /, *args, **kwargs):
+    async def _run_database(self, control, function, /, *args, heavy=False, **kwargs):
         # Preserve tracing/query context just as asyncio.to_thread does. Canceling
         # an awaiter cannot release a worker that is still using a connection.
         call = functools.partial(contextvars.copy_context().run, function, *args, **kwargs)
         try:
-            result = self._database_executor.submit(call, control=control)
+            result = self._database_executor.submit(call, control=control, heavy=heavy)
         except DatabaseBusy:
             raise APIUnavailable('Admin database capacity is busy') from None
         return await result
@@ -338,7 +340,7 @@ class AdminAPI:
                    response_model=CommandsPage, query_model=CommandsQuery)
     async def commands_history(self, request):
         query = self.query(request, CommandsQuery)
-        page = await self.run_database(self.storage().commands_page, **query.model_dump())
+        page = await self.run_database(self.storage().commands_page, heavy=query.limit > OPERATIONAL_HISTORY_LIMIT, **query.model_dump())
         model = CommandsPage(items=[self.command_response(row) for row in page["items"]], next_cursor=page["next_cursor"])
         return web.json_response(model.model_dump(mode="json"))
 
@@ -346,14 +348,14 @@ class AdminAPI:
                    response_model=SessionsPage, query_model=PageQuery)
     async def sessions(self, request):
         query = self.query(request, PageQuery)
-        page = await self.run_database(self.storage().sessions_page, **query.model_dump())
+        page = await self.run_database(self.storage().sessions_page, heavy=query.limit > OPERATIONAL_HISTORY_LIMIT, **query.model_dump())
         return web.json_response(SessionsPage.model_validate(page).model_dump(mode="json"))
 
     @api_operation(operation_id="listOrders", summary="Read bounded bot-owned order history", tag="History",
                    response_model=OrdersPage, query_model=OrdersQuery)
     async def orders(self, request):
         query = self.query(request, OrdersQuery)
-        page = await self.run_database(self.storage().orders, **query.filters())
+        page = await self.run_database(self.storage().orders, heavy=query.limit > OPERATIONAL_HISTORY_LIMIT, **query.filters())
         return web.json_response(text=OrdersPage.model_validate(page).model_dump_json())
 
     @api_operation(operation_id="getOrder", summary="Read one recorded order and its bounded status timeline", tag="History",
@@ -363,7 +365,8 @@ class AdminAPI:
         if len(order_id) > 128:
             raise ValueError("Order identity is too long")
         query = self.query(request, OrderDetailQuery)
-        row = await self.run_database(self.storage().order, order_id, timeline_limit=query.timeline_limit)
+        row = await self.run_database(self.storage().order, order_id,
+                                      heavy=query.timeline_limit > OPERATIONAL_HISTORY_LIMIT, timeline_limit=query.timeline_limit)
         if row is None:
             raise web.HTTPNotFound()
         return web.json_response(OrderDetail.model_validate(row).model_dump(mode="json"))
@@ -372,7 +375,7 @@ class AdminAPI:
                    response_model=FillsPage, query_model=FillsQuery)
     async def fills(self, request):
         query = self.query(request, FillsQuery)
-        page = await self.run_database(self.storage().fills, **query.filters())
+        page = await self.run_database(self.storage().fills, heavy=query.limit > OPERATIONAL_HISTORY_LIMIT, **query.filters())
         return web.json_response(text=FillsPage.model_validate(page).model_dump_json())
 
     @api_operation(operation_id="getBalances", summary="Read account cash and equity once, with observation freshness", tag="Reporting",
@@ -426,7 +429,7 @@ class AdminAPI:
             else:
                 task = self._daily_flights.get(key)
                 if task is None:
-                    if len(self._daily_flights) >= self._database_executor.MAX_REPORTS:
+                    if len(self._daily_flights) >= self._database_executor.MAX_HEAVY:
                         body = self._daily_cache.fallback(key)
                         if body is None:
                             raise APIUnavailable('Daily reporting capacity is busy')
@@ -456,7 +459,7 @@ class AdminAPI:
     async def _refresh_daily(self, filters):
         for attempt in range(2):
             try:
-                row = await self.run_database(self.storage().daily, **filters, reporting_timezone=self.settings.reporting_timezone)
+                row = await self.run_database(self.storage().daily, heavy=True, **filters, reporting_timezone=self.settings.reporting_timezone)
             except (APIUnavailable, SQLAlchemyError, TimeoutError) as error:
                 if not attempt and not self._daily_closing and retryable_statement_timeout(error):
                     # daily() has rolled back and returned its physical connection.
@@ -530,7 +533,8 @@ class AdminAPI:
     async def session_events(self, request):
         from hummingbot.model.mm_event import session_events
         query = self.query(request, MMEventsQuery)
-        result = await self.run_database(session_events, self.storage().store, request.match_info["session_id"], **query.model_dump())
+        result = await self.run_database(session_events, self.storage().store, request.match_info["session_id"],
+                                         heavy=query.limit > OPERATIONAL_HISTORY_LIMIT, **query.model_dump())
         return web.json_response(MMEventsPage.model_validate(result).model_dump(mode="json"))
 
     @api_operation(operation_id="getSessionConfiguration", summary="Read pinned session configuration; restart never replaces it with current YAML",

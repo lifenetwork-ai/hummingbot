@@ -1,6 +1,7 @@
 """Optional HTTP reporting must leave the shared pool available to its owner."""
 import asyncio
 import threading
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -55,11 +56,19 @@ async def test_optional_api_queries_leave_room_for_owner_and_background_work(pg_
 
     settings = AdminSettings(True, 'operator', 'test-password')
     app = web.Application(middlewares=[arrival, admin_middleware(settings)])
-    AdminAPI(None, settings, store=SimpleNamespace(orders=read_page)).register(app)
+
+    def observations():
+        read_page()
+        return dict(accounts=[], server_time=datetime.now(timezone.utc), owner_available=True)
+
+    AdminAPI(None, settings, store=SimpleNamespace(orders=read_page, observations=observations)).register(app)
     # Hold two connections to represent concurrent funding/outflow database work.
     with pg_engine.connect(), pg_engine.connect():
         async with TestClient(TestServer(app), headers={'Authorization': BasicAuth('operator', 'test-password').encode()}) as client:
-            requests = [asyncio.create_task(client.get(ADMIN_PREFIX + '/orders')) for _ in range(5)]
+            # One operations read and one history read hold the two physical
+            # slots; the remaining history stays queued in its own lane.
+            requests = [asyncio.create_task(client.get(ADMIN_PREFIX + path))
+                        for path in ('/orders?limit=500', '/orders?limit=500', '/orders?limit=500', '/orders?limit=500', '/balances')]
             try:
                 await asyncio.wait_for(all_arrived.wait(), timeout=3)
                 assert await asyncio.to_thread(entered.wait, 3)
@@ -71,6 +80,6 @@ async def test_optional_api_queries_leave_room_for_owner_and_background_work(pg_
                 release.set()
                 responses = await asyncio.gather(*requests, return_exceptions=True)
             assert owner_available, 'Reporting exhausted the owner connection budget'
-            assert peak <= 2
+            assert peak == 2
             assert all(not isinstance(r, Exception) and r.status == 200 for r in responses)
     assert pg_engine.pool.checkedout() == 0

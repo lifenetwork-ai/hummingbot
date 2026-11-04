@@ -26,7 +26,7 @@ async def test_control_priority_accepts_stop_and_receipt_before_pending_slow_rea
         with pg_engine.connect() as connection:
             with lock:
                 active += 1
-                if active >= 2:
+                if active >= 1:
                     entered.set()
             # This remains below the unchanged two-second server statement budget.
             connection.exec_driver_sql('SELECT pg_sleep(1.8)')
@@ -52,7 +52,7 @@ async def test_control_priority_accepts_stop_and_receipt_before_pending_slow_rea
     storage = SimpleNamespace(orders=orders, command=command, command_by_id=lambda identity: command('', stored))
     AdminAPI(None, settings, store=storage).register(app)
     async with TestClient(TestServer(app), headers={'Authorization': BasicAuth('operator', 'audit-password').encode()}) as client:
-        reads = [asyncio.create_task(client.get(ADMIN_PREFIX + '/orders')) for _ in range(7)]
+        reads = [asyncio.create_task(client.get(ADMIN_PREFIX + '/orders?limit=500')) for _ in range(7)]
         try:
             await asyncio.wait_for(all_arrived.wait(), 3)
             assert await asyncio.to_thread(entered.wait, 3)

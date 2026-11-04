@@ -5,6 +5,13 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-04
 
+- **Admin worker lanes in progress:** source isolates aggregates/large history
+  from operational reads using the existing two physical workers. Reserve two
+  non-control admission slots; keep default-sized pages operational. TDD covers
+  lane progress, control priority and physical cancellation ownership. Broad
+  native/PG and rebuilt-image/load acceptance are pending; prior f4 results stay
+  under their original scope. [Report](../performance/mm-admin-worker-lanes.md).
+
 - **Bounded reporting retry image verified:** imagef4d90bc7 matches source
   d2cdf2a36 and all197 prior Python packages. Native2,464 +11 subtests, PG354,
   three packaged E2E groups and four wait/CPU report-fault cases pass. The

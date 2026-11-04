@@ -195,7 +195,7 @@ async def test_worker_wait_crossing_midnight_cannot_borrow_yesterdays_fallback(d
     clock.monotonic += 1
     storage.daily.side_effect = TimeoutError()
     release = threading.Event()
-    blockers = [api._database_executor.submit(lambda: release.wait(3)) for _ in range(api._database_executor.WORKERS)]
+    blockers = [api._database_executor.submit(lambda: release.wait(3), heavy=bool(index)) for index in range(api._database_executor.WORKERS)]
     try:
         task = asyncio.create_task(api.daily(request()))
         await asyncio.sleep(0)

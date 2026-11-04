@@ -1,0 +1,53 @@
+{
+  "date": "2026-11-04",
+  "timezone": "Asia/Saigon",
+  "status": "source verified; image qualification pending",
+  "baseline_source": "143111cd1",
+  "baseline_image": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+  "physical_workers": 2,
+  "operations_concurrency": 1,
+  "heavy_concurrency": 1,
+  "total_pending_limit": 32,
+  "non_control_pending_limit": 12,
+  "heavy_pending_limit": 10,
+  "operational_history_limit": 100,
+  "no_sql_schema_pool_deadline_cache_or_engine_change": true,
+  "initial_native_red_failures": 6,
+  "additional_red_cases": [
+    "operational admission reservation",
+    "small page progress under a heavy aggregate"
+  ],
+  "invalid_fixture_log_not_runtime_red": "build/admin-worker-lanes-20261104/related-postgres-invalid-receipt-fixture.log",
+  "source_checks": {
+    "passed": true,
+    "native_passed": 2494,
+    "native_subtests_passed": 11,
+    "postgres_passed": 355,
+    "related_native_passed": 78,
+    "native_new_cases": 30,
+    "new_pg_cases": 1,
+    "source_sha256": {
+      "hummingbot/cli/admin_api.py": "c2d63a8c4ccb40e5eebbaca6ac7d7f8de7496f1ba5f65d50900129c26f4c583e",
+      "hummingbot/cli/admin_database.py": "5e20a8d84812e4899fe0691e4e89565093f64f2ce2b307c7b31ba504dbaf0e06",
+      "test/e2e/offline/load_trace.py": "58f260ba2d0a9df934e06891cb73070ee9ef228ebe3ce58e83e08433db931938",
+      "test/hummingbot/cli/test_admin_work_lanes.py": "bec2c0525396fec6dab4660ba6dab8d82b178d2d88018b49f6f45f942409f05f",
+      "test/hummingbot/cli/test_admin_database_executor.py": "4152fc8844340f690cfedd6e3c3103f51d56557dc9ba4177e742c64e8d11f6c9",
+      "test/hummingbot/cli/test_admin_database_admission.py": "17ec2a638a04604e6ebbb5c2ebc0ef309b31615f7b34faa70fc3d7d584d15a0e",
+      "test/hummingbot/cli/test_admin_daily_cache.py": "770d996519e44d966c0a7dc24f4f494234a999d25030a0777764dd7514b75dcf",
+      "test/hummingbot/cli/test_admin_daily_fallback.py": "e698d80e7d2ce0fee888f13f3be23d7d63bcb4f2e0a6332af23290a253a4306a",
+      "test/hummingbot/cli/test_admin_worker_queue_timing.py": "eb0268fa442d9d6f2ed93742462f77f305a376f2cc33a40148dc5abceb1aa341",
+      "test/integration/postgres/test_admin_work_lanes.py": "d4140c93423a070eff233c25814cd8ea6ea0a000bb7b37e055270da213719e61",
+      "test/integration/postgres/test_admin_database_capacity.py": "130bace9be08a55e047ce17461744731b3b0c12c21c7b3f9fb63202c40909e5e",
+      "test/integration/postgres/test_admin_control_priority.py": "c82871ac484b48db1a234169e946ebda9a695bc52fe495765806b0b27c61dff6"
+    },
+    "artifacts": {
+      "red.log": "57d2f4bfc7912de5209ed8f46f65ef2c663a9df54bfb99af2f863bab4833c6f6",
+      "red-admission.log": "272cd3d9cd5d3997085d09130d26778a3059c16fd2747b966bb5f0f0bad27d1f",
+      "red-small-page.log": "2c4cd1f9bba1a025436bb51663f9dd1ab51e884261b5a7c6d1850e3da660cc41",
+      "related-native-final.log": "2f60f4dbdba3b9b58579f532ffd83133393ef599f5aabac5e8dbc66ad2efd7a0",
+      "native-full.log": "4e3c8c0695c44e0cb5edf5b9fe7a88a5bbdc5f9280d4fb38ebf3aae04962f827",
+      "postgres-full.log": "4af9b708c28c238529182d93f17ece07f4997e6017eed923ecc2621ff5326ea1",
+      "swagger-check.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

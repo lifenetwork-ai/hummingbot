@@ -50,7 +50,7 @@ async def test_cancellation_does_not_allow_more_database_workers_or_lose_shutdow
 
     tasks = []
     try:
-        tasks = [asyncio.create_task(instance.run_database(blocked)) for _ in range(2)]
+        tasks = [asyncio.create_task(instance.run_database(blocked, heavy=bool(index))) for index in range(2)]
         assert await asyncio.to_thread(ready.wait, 2)
         for task in tasks:
             task.cancel()

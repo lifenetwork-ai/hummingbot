@@ -693,13 +693,23 @@ Relative date ranges roll over at reporting midnight, including during a refresh
 Setting the cache TTL to zero disables both caching and fallback.
 
 With caching enabled, simultaneous cache misses for the same canonical
-timezone/date/market/pair share one in-flight refresh. Different filters can
-refresh independently within the existing two-worker API database executor;
-control priority and queue limits remain. At most12 distinct daily refresh keys
+timezone/date/market/pair share one in-flight refresh. Different filters retain
+independent observations but execute serially in the heavy-report/history lane.
+The other of the existing two database workers is reserved for operational reads
+and session controls; controls overtake queued operational reads. At most10 distinct daily refresh keys
 are outstanding. Further uncached keys receive the existing503/unavailable
 response, or an eligible explicitly stale observation. Disconnecting one client
 does not cancel a shared physical query. TTL0 also disables in-flight sharing.
 Completed keys leave the registry; the cache still holds at most32 entries.
+Heavy work is capped at10 running/queued jobs, leaving two of the existing12
+non-control admission slots for operational reads. Total pending remains32.
+Daily refreshes and history pages/order timelines above100 rows share the heavy
+lane. Default-sized history pages (up to100), pinned session configuration,
+status, balances, positions, performance, liquidity and stored reconciliation
+receipts use the operations lane. A running job cannot be
+preempted. History/statistics may take longer while current-state panels remain
+independently admissible within these bounds. Overload and shared DB/CPU pressure
+can still cause503 or delay; this is not an unconditional latency guarantee.
 Daily-report transactions disable PostgreSQL parallel workers locally to limit
 shared-database CPU/memory fan-out. The2s statement deadline still applies;
 a million-fill report can time out. This does not change trading settings or

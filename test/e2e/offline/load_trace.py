@@ -145,7 +145,7 @@ def instrument_admin_queue(owner, samples, totals, tracer):
     values = samples['api_worker_queue_ms']
     totals['api_worker_queue_count'] += 0
 
-    def submit(self, call, *, control=False):
+    def submit(self, call, *, control=False, heavy=False):
         started = time.perf_counter_ns()
         context = contextvars.copy_context()
         pending = self.pending
@@ -159,11 +159,12 @@ def instrument_admin_queue(owner, samples, totals, tracer):
                 totals['api_worker_queue_count'] += 1
             if tracer:
                 span = tracer.begin('api_database_worker_start', queue_wait_ms=waited,
-                                    request_id=request_id, pending_at_submit=pending, control=control)
+                                    request_id=request_id, pending_at_submit=pending, control=control,
+                                    workload='heavy' if heavy else 'operations')
                 tracer.end(span)
             return call()
 
-        return original(self, lambda: context.run(admitted), control=control)
+        return original(self, lambda: context.run(admitted), control=control, heavy=heavy)
 
     owner.submit = submit
 

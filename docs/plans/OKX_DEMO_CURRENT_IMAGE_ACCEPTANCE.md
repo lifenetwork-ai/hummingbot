@@ -175,6 +175,21 @@ capacity are not established by these local observations.
   independently verify restored Demo/hash/configuration state. Original failure
   remains failed and its exclusive cause unproven; no new runtime tuning.
 
+## Admin database worker lanes — requested 2026-11-04
+
+[TDD plan](MM_ADMIN_WORKER_LANES_TDD_PLAN.md),
+[scoped report](../../reports/performance/mm-admin-worker-lanes.md).
+
+- [x] Demonstrate native Red for heavy work blocking balance, reserved admission
+  and default-page progress. Keep one operations and one heavy job within the
+  existing two-worker/connection limits; controls retain priority.
+- [x] Finish native2,494 +11 subtests, PostgreSQL355 and Swagger checks;
+  commit the verified source phase. Thirty new native cases and one PG case.
+- [ ] Verify a rebuilt image, packaged E2E, controlled report faults and the
+  unchanged short/hour load gates; retain failures and compare route latency.
+- [ ] Independently verify stopped Demo/configuration/ledger restoration and
+  publish final evidence. Older image acceptance is not transferred.
+
 ## Quote-recovery current-image completion — 2026-11-03
 
 - [x] Full unchanged R1 including one-hour soak/six faults, and matched shipping R2;

@@ -40,7 +40,7 @@ async def test_worker_wait_is_measured_before_call_with_request_context_and_boun
         assert release.wait(5)
 
     try:
-        futures = [executor.submit(blocked) for _ in range(2)]
+        futures = [executor.submit(blocked, heavy=bool(index)) for index in range(2)]
         assert await asyncio.to_thread(ready.wait, 2)
         queued = executor.submit(lambda: (value.get(), threading.get_ident()))
         futures.append(queued)
@@ -82,7 +82,7 @@ async def test_cancelled_queued_work_is_not_recorded_as_a_worker_start_and_contr
         assert release.wait(5)
 
     try:
-        futures = [executor.submit(blocked) for _ in range(2)]
+        futures = [executor.submit(blocked, heavy=bool(index)) for index in range(2)]
         assert await asyncio.to_thread(ready.wait, 2)
         cancelled = executor.submit(lambda: pytest.fail('Cancelled request executed'))
         futures.append(cancelled)

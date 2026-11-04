@@ -32,7 +32,7 @@ async def test_control_overtakes_reports_without_extra_workers():
 
     tasks = []
     try:
-        tasks = [asyncio.create_task(instance.run_database(blocking_read, index)) for index in range(2)]
+        tasks = [asyncio.create_task(instance.run_database(blocking_read, index, heavy=bool(index))) for index in range(2)]
         assert await asyncio.to_thread(ready.wait, 2)
         queued = [asyncio.create_task(instance.run_database(lambda: order.append('report'))) for _ in range(7)]
         tasks.extend(queued)
@@ -73,7 +73,7 @@ async def test_overload_is_bounded_and_reserves_control_admission():
 
     tasks = []
     try:
-        tasks = [asyncio.create_task(instance.run_database(blocked)) for _ in range(12)]
+        tasks = [asyncio.create_task(instance.run_database(blocked, heavy=bool(index % 2))) for index in range(12)]
         assert await asyncio.to_thread(ready.wait, 2)
         await asyncio.sleep(.01)
         excess = asyncio.create_task(instance.run_database(lambda: None))
@@ -125,7 +125,7 @@ async def test_database_failure_releases_admission_and_close_cancels_pending():
         with pytest.raises(ValueError, match='synthetic-database-failure'):
             await instance.run_control_database(fail)
         assert await instance.run_database(lambda: 'still available') == 'still available'
-        tasks = [asyncio.create_task(instance.run_database(blocked)) for _ in range(2)]
+        tasks = [asyncio.create_task(instance.run_database(blocked, heavy=bool(index))) for index in range(2)]
         assert await asyncio.to_thread(ready.wait, 2)
         queued = asyncio.create_task(instance.run_control_database(lambda: pytest.fail('Closed queue executed')))
         tasks.append(queued)
@@ -163,7 +163,7 @@ async def test_declared_ten_retry_burst_remains_admissible_while_reports_are_run
 
     tasks = []
     try:
-        tasks = [asyncio.create_task(instance.run_database(blocked)) for _ in range(10)]
+        tasks = [asyncio.create_task(instance.run_database(blocked, heavy=bool(index % 2))) for index in range(10)]
         assert await asyncio.to_thread(ready.wait, 2)
         controls = [asyncio.create_task(instance.run_control_database(lambda: 'receipt')) for _ in range(10)]
         tasks.extend(controls)

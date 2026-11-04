@@ -4,6 +4,12 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Admin worker-lane source follow-up in progress:** one operations and one
+  heavy slot reuse the existing two workers. Heavy admission is capped at10;
+  default-sized pages remain operational. Native Red/Green covers routing,
+  reserved admission, controls, cancellation and progress. Broad checks and a
+  rebuilt image/load qualification are pending. [Report](performance/mm-admin-worker-lanes.md).
+
 - **Timeout retry image follow-up:** imagef4d90bc7 matches source d2cdf2a36;
   native2,464 +11 subtests, PG354, three E2E groups and four controlled report
   faults pass. The unchanged hour passes:79,200 HTTP200, no errors/stale,
