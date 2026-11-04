@@ -13,6 +13,7 @@ under the ignored `build/` directory.
 | [Cloud Run operations](cloudrun.md) | Runtime images, service/deployment configuration, logging and release verification |
 | [PostgreSQL operations](postgres-runtime.md) | Environment, migrations, persistence, ownership/recovery and idle funding observation |
 | [OKX operations](okx-operations.md) | Live/Demo routing, credentials, enabled Demo preset and blocked-quote runbook |
+| [Exchange credential encryption](exchange-credentials.md) | Source selection, local/GCP keys, envelope scope and controlled key transition |
 | [MM controls](life-mm-controls.md) | Quote guards, drawdown, spot outflow, listing bootstrap, inventory skew and fee/NATR spreads |
 | [Local load testing](life-mm-load-tests.md) | Commands, workloads, declared budgets and verification policy |
 | [Economic stress replay](life-mm-economic-stress.md) | Pre-listing synthetic execution assumptions, accounting and metric limitations |
@@ -26,7 +27,7 @@ under the ignored `build/` directory.
 - [MM volatility defense — TDD plan](plans/MM_VOLATILITY_DEFENSE_TDD_PLAN.md) — V0–V5 complete, including final-image hour/fault gates and bounded OKX Demo compatibility
 - [Pre-listing economic stress plan](plans/LIFE_MM_ECONOMIC_STRESS_PLAN.md)
 - [Operations API and configuration ownership plan](plans/ADMIN_OPERATIONS_API_TDD_PLAN.md)
-- [Admin access and encrypted exchange credentials — TDD plan, OKX first](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md) — planned roles, local/GCP KEK, audit and automatic cancel/close on Disconnect; reusable exchange boundaries, not implemented
+- [Admin access and encrypted exchange credentials — TDD plan, OKX first](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md) — A1–A3 implemented locally: roles, audit and local/GCP encryption; credential API/lifecycle and final acceptance remain open
 - [Checkpoint and background-poll optimization](plans/MM_CHECKPOINT_POLL_OPTIMIZATION_TDD_PLAN.md)
 - [Working-order activity and diagnostics plan](plans/MM_QUOTE_ACTIVITY_TDD_PLAN.md)
 - [Until-stopped MM sessions plan](plans/MM_UNTIL_STOPPED_TDD_PLAN.md)

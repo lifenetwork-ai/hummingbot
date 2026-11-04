@@ -66,6 +66,42 @@ still-populated old password and accepts the existing Google token/account. Offl
 tests use signed RSA fixtures through the official verifier, not real Google OAuth
 acceptance. Actual external Google sign-in remains an A6 check.
 
-Remaining: A3 encrypted providers; A4 credential lifecycle/automatic cancel-close/
+Remaining after A2: A3 encrypted providers; A4 credential lifecycle/automatic cancel-close/
 recovery; A5 final FE contract; A6 final-image release/load and external Google/GCP/
 Demo acceptance. No managed credential or Disconnect endpoint is enabled yet.
+
+
+## A3 — Scoped encrypted storage and key providers
+
+Added the idempotent exchange-neutral credential table, AES-256-GCM envelopes with
+fresh DEKs/nonces, authenticated scope/account/version/provider metadata, strict
+local KEK configuration and Cloud KMS encrypt/decrypt using official Google Auth
+ADC. No credential-management mutation endpoint is enabled in this phase, and no
+existing environment credentials are imported or modified.
+
+Red/Green caught two defects in the new code: relabeling a KMS key version within
+the same CryptoKey was not initially authenticated by the payload; transient Google
+credential-refresh errors were initially reported as permanent IAM denial. Both
+now have passing regressions. Wrong-key/scope/ciphertext attempts return safe errors,
+never partial credentials, plaintext SDK errors or an automatic local fallback.
+
+The full protobuf KMS SDK was tried and rejected: its dependency version conflicted
+with an installed connector, and even a compatible SDK version collided with Google
+protobuf descriptors loaded by the connector registry. Cloud KMS REST avoids that
+shared-process collision. It retains bounded AuthorizedSession/ADC calls and CRC32C
+request/response checks; no extra protobuf/grpc dependency remains. The environment's
+four pre-existing pip-check conflicts were not changed or declared resolved.
+
+Verified: **34 focused encryption/configuration/HTTP tests**, **1,332 CLI/config/model/
+provider tests**, **19 targeted PostgreSQL tests** (including full Google-only process
+restart), then **2 credential PostgreSQL tests** after adding scope/constraint checks.
+Database row exports contain none of the supplied canary API key/secret/passphrase;
+revoked envelopes become SQL NULL while account/version metadata remain. Repeated
+migrations preserve encrypted data, and a fresh cipher instance decrypts it after
+restart. No managed secret reaches generic command serialization because that API
+is not enabled; A4 must prove its dedicated mutation path before enabling it.
+
+The user confirmed no Google OAuth client/GCP KMS resource is available yet. Real
+Google/GCP acceptance stays open at A6; offline signature/crypto tests are not a
+substitute. A4a is next, followed by A4b automatic cleanup, A5 and A6. The running
+Demo service and its database/credentials remain untouched.

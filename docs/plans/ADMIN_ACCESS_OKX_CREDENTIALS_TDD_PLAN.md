@@ -1,6 +1,6 @@
 # Admin access and encrypted exchange credentials — TDD plan (OKX first)
 
-Status: A1/A2 implemented and verified on 2026-11-05 (Asia/Saigon); A3–A6 remain open.
+Status: A1–A3 implemented and verified locally on 2026-11-05 (Asia/Saigon); A4–A6 remain open.
 Evidence: [implementation progress](../../reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
 Unchecked sections describe proposed behavior. Current endpoints
 and deployment behavior remain documented in [FE integration](../fe-integration.md).
@@ -764,17 +764,19 @@ with a conventional prefix. Planning checks above do not mark implementation don
 
 ### A3 — Envelopes and local/GCP providers
 
-- [ ] Test and implement the idempotent `exchange_credentials` migration, scoped
+- [x] Test and implement the idempotent `exchange_credentials` migration, scoped
   uniqueness/version checks and encrypted persistence without exchange-specific tables.
-- [ ] Test encryption/decryption, distinct nonces/DEKs, restart persistence, wrong key,
+- [x] Test encryption/decryption, distinct nonces/DEKs, restart persistence, wrong key,
   malformed local key, modified ciphertext and wrong bot/exchange/connector/environment/version.
-- [ ] Implement the small wrap/unwrap provider interface with local and official GCP
+- [x] Implement the small wrap/unwrap provider interface with local and GCP REST/official Google Auth
   adapters; verify no automatic fallback, regeneration or plaintext persistence.
-- [ ] Test KMS denial/timeout/wrong-key-version and dependency packaging; use fakes for
-  deterministic offline tests and a separately scoped real-GCP integration check.
-- [ ] Test KEK/credentials/token redaction through repr, SQL/logging, error responses,
+- [x] Test KMS denial/timeout/wrong-key-version and dependency packaging; use fakes for
+  deterministic offline tests; actual GCP acceptance remains explicitly open at A6.
+  The official protobuf KMS SDK conflicts with connector descriptors, so use
+  Cloud KMS REST via Google Auth ADC, CRC32C and bounded transport instead.
+- [x] Test KEK/credentials/token redaction through repr, SQL/logging, error responses,
   trace and generic command serialization. Scan disposable DB rows/exports for canaries.
-- [ ] Document controlled key/provider transition with re-entry, backup key retention,
+- [x] Document controlled key/provider transition with re-entry, backup key retention,
   and environment-mode cutover; do not auto-import or silently copy existing `.env` keys.
 
 ### A4 — Credential API and engine lifecycle
@@ -903,7 +905,7 @@ The decisions above close them at plan level; their implementation tests stay op
 | Generic connector input metadata includes deployment-owned fields | Credential-only field allowlist and tested routing/identity injection |
 | DB-backed auth was scheduled before its schema; role changes can race mutation admission | A1 includes storage foundation; permission checks and mutation commit have defined transaction ordering |
 
-A1/A2 are implemented; A3 is next. A4b is the highest-risk subphase and must pass its targeted
+A1–A3 are implemented locally; A4a is next. A4b is the highest-risk subphase and must pass its targeted
 cancel/close/restart tests before its capability is enabled. Actual Google sign-in,
 GCP KMS and reviewed Demo checks need their external resources for A6; their absence
 does not block offline implementation and must not be recorded as a pass.

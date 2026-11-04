@@ -7,6 +7,8 @@ from aiohttp import web
 from hummingbot.cli.admin_models import ErrorResponse
 
 RETRIES = {
+    "credential_decryption_failed": "contact_support", "kms_permission_denied": "contact_support",
+    "kms_key_unavailable": "contact_support", "kms_configuration_invalid": "contact_support", "kms_unavailable": "wait",
     "bootstrap_required": "contact_support", "last_admin_required": "fix_request",
     "account_exists": "refresh_state", "account_unavailable": "refresh_state", "account_version_conflict": "refresh_state",
     "request_too_large": "fix_request",
@@ -33,6 +35,11 @@ RETRIES = {
 }
 
 MESSAGES = {
+    "credential_decryption_failed": "The saved connection cannot be loaded. Contact support.",
+    "kms_permission_denied": "The service cannot access its encryption key. Contact support.",
+    "kms_key_unavailable": "The configured encryption key is unavailable. Contact support.",
+    "kms_configuration_invalid": "Connection encryption is not configured correctly. Contact support.",
+    "kms_unavailable": "Connection encryption is temporarily unavailable. Wait and retry with the same request identity.",
     "bootstrap_required": "Administrator setup is incomplete. Ask your maintainer to enable bootstrap access and finish Google onboarding.",
     "last_admin_required": "Keep at least one active Google administrator.",
     "account_exists": "This account is already approved. Refresh the account list.",

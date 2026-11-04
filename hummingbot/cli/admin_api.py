@@ -63,6 +63,7 @@ from hummingbot.cli.api_documentation import api_operation
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.core.admin_identity import AccessDenied, Principal
 from hummingbot.core.control_errors import RequestError
+from hummingbot.core.credential_encryption import CredentialCryptoError
 from hummingbot.model.admin_store import AdminStore
 from hummingbot.model.bot_state_store import ControlConflict
 
@@ -112,6 +113,10 @@ async def admin_errors(request, handler):
         return await handler(request)
     except AccessDenied as error:
         return error_response(request, error.code, status=error.status)
+    except CredentialCryptoError as error:
+        logging.getLogger(__name__).warning("Credential provider unavailable code=%s request_id=%s", error.code, request_id(request),
+                                            extra={"event": "credential_provider_unavailable", "scope": "credentials", "reason_code": error.code})
+        return error_response(request, error.code, status=503)
     except ControlConflict as error:
         return error_response(request, "control_or_idempotency_conflict", status=409, code=error.code,
                               retry_after_seconds=error.retry_after_seconds)

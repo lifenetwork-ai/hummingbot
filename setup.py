@@ -61,6 +61,7 @@ def main():
         "decibel-python-sdk==0.2.1",
         "eth-account>=0.13.0",
         "google-auth>=2.40,<3",
+        "google-crc32c>=1.5,<2",
         "injective-py>=1.13",
         "msgpack-python",
         "numba>=0.61.2",

@@ -15,6 +15,7 @@ def get_declarative_base():
     from .bot_state import BotState  # noqa: F401
     from .controllers import Controllers  # noqa: F401
     from .daily_balance_snapshot import DailyBalanceSnapshot  # noqa: F401
+    from .exchange_credential import ExchangeCredential  # noqa: F401
     from .executors import Executors  # noqa: F401
     from .funding_bill import FundingBill  # noqa: F401
     from .funding_payment import FundingPayment  # noqa: F401
