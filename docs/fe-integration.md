@@ -13,8 +13,10 @@ No dashboard application or browser acceptance ships in this repository.
 
 Planned extension: [admin access and encrypted OKX credentials](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md)
 defines Google whitelist/roles, environment-controlled Basic Auth disable, encrypted
-DB credentials with local/GCP KEK providers and an audit API. It is **not implemented**;
-the current Basic Auth and environment-only credential contract below still applies.
+DB credentials with local/GCP KEK providers and an audit API. It also specifies
+clear errors, pending/failed/unknown outcomes and role-aware operational guidance.
+It is **not implemented**; the current Basic Auth and environment-only credential
+contract below still applies.
 
 ## Start here
 

@@ -22,6 +22,8 @@ Redis, broker, signing service or exchange-account administration service.
 - [x] Confirm user clarification: revoke disconnects credentials **inside this
   bot**. Deleting the API key on OKX remains an operator action on OKX.
 - [x] Require durable audit history and an authenticated, filterable audit API.
+- [x] Require clear English errors and operator status: what happened, current
+  impact on trading, whether recovery is automatic, and the next permitted action.
 
 Google sign-in follows the original Gmail/Google-account requirement. Whitelisting
 an email does not authenticate a request. The backend must verify Google identity
@@ -252,6 +254,105 @@ timeouts to hide blocking. No unbounded queues, extra/shared plaintext credentia
 caches or secret-bearing cross-process status messages; authorized connectors
 necessarily retain credentials in their own memory while in use.
 
+## Clear errors and operational status — required FE contract
+
+Extend the existing `ErrorResponse`, `error_response`, `OperatorStatus`,
+`ActionAvailability`, observation freshness and incident models. Do not add a
+second error envelope or an independent source of trading/credential authority.
+All human-facing labels, details and instructions are plain English. The main UI
+must be understandable without knowing KMS, control versions or connector internals;
+technical IDs and request references belong in an expandable Details view.
+
+### Errors identify the problem and next action
+
+Every handled rejection/failure must provide a stable machine-readable `code`,
+safe English `detail`, server-generated `request_id`/`X-Request-ID`, and an explicit
+existing `retry` instruction. Include safe `fields[].path` for input errors and
+`Retry-After`/`retry_after_seconds` only when an actual backoff is known. Register
+each new code in the current error/retry/message mapping: the helper currently
+falls back to a generic error for unregistered codes, which must not erase the
+specific cause. FE branches on codes and action metadata, never parsed prose.
+
+| Synchronous HTTP result / proposed code | Operator meaning and guidance |
+| --- | --- |
+| 401 `authentication_required` / `token_expired` | “Sign in again to continue.” Use `reconnect`; do not infer the bot stopped |
+| 401 `basic_auth_disabled` | “Password sign-in is disabled. Sign in with Google.” Use `reconnect`; never enable Basic automatically |
+| 403 `account_not_allowed` / `account_disabled` / `insufficient_role` | “Your account cannot perform this action. Contact an administrator.” No automatic retry; use `contact_support` |
+| 409 `last_admin_required` | “Keep at least one active Google administrator.” Use `fix_request` |
+| 409 `bot_must_be_stopped` | “Stop the bot and wait for pending orders to finish cancelling before changing the connection.” Use `refresh_state` |
+| 409 `credential_version_conflict` / `control_conflict` | “The connection or bot state changed. Refresh and review before continuing.” Use `refresh_state` |
+| 409 `exchange_account_mismatch` | “This key belongs to a different OKX account. Use a key for this bot's account.” Use `fix_request`; never offer a reset-history bypass |
+| 422 `validation_failed` / `okx_credentials_rejected` | Identify safe field paths or say “OKX did not accept the connection details. Check the API key, secret and passphrase.” Use `fix_request`; never echo supplied values |
+| 429 `security_work_busy` | “The service is busy. Please wait before trying again.” Use `wait` and a bounded retry delay |
+| 503 `kms_unavailable` / `database_unavailable` / `owner_unavailable` | Identify the unavailable dependency in safe language; choose `wait`, `same_request` or `contact_support` according to confirmed outcome and recovery behavior |
+| 503 `credential_decryption_failed` / `kms_permission_denied` | “The saved connection cannot be loaded. Contact support.” Use `contact_support`; no destructive replacement, automatic fallback or blind retry loop |
+| 500 `internal_error` | “The request could not be completed. Contact support with the request ID.” Preserve whether the mutation outcome is known |
+
+For auth failures, reveal account-specific access reasons only after verifying
+the identity; never expose whitelist membership for an arbitrary supplied email.
+Raw OKX/KMS/SQL messages, stack traces, submitted field values, tokens and secrets
+never appear in responses, notifications or audit details. Unknown failures still
+return a safe explanation and request ID rather than an empty/generic UI message.
+Distinguish confirmed invalid credentials from exchange timeout/unavailability:
+a failed network check must not tell the operator that their key is wrong or
+require them to replace it.
+
+HTTP acceptance and runtime application are different. A `202` receipt means the
+operation was accepted durably, not that credentials work or Disconnect completed.
+A later validation/cleanup failure is represented in the receipt and operational
+status with its stable code; a successful GET of that result may still be HTTP 200.
+Include operation ID when known and distinguish confirmed not-applied, accepted
+and unknown mutation outcome. A lost response/timeout must not produce a success
+toast or a new mutation identity. FE queries the existing receipt/history and
+preserves the original idempotency key if replay is needed.
+
+### Status separates service, trading and the exchange connection
+
+Keep the existing service/engine status alongside credential status: a reachable
+API, saved credentials, a verified connection and active MM are different facts.
+Credential projection uses the persisted version plus matching fresh owner evidence;
+it is display information and cannot authorize a trade. Reuse existing freshness
+fields and operator incidents instead of creating another scheduler/state machine.
+
+| Proposed connection code | English label | Meaning and permitted next step |
+| --- | --- | --- |
+| `not_configured` | Not configured | No bundle has been configured; admin/write may configure it. A saved bundle that cannot be loaded is a failure, not missing configuration |
+| `checking` | Checking connection | Saved bundle is being validated or loaded; show progress and wait |
+| `connected` | Connected | Current credential version is verified/loaded with fresh runtime evidence; show the bot's separate running/stopped/guard state |
+| `failed` | Connection failed | Validation rejected the key/account/environment or loading failed; explain the specific reason and offer the appropriate authorized action |
+| `disconnecting` | Disconnecting | Stop/revoke accepted, new risk fenced, cancellation/detachment underway; show outstanding work |
+| `action_required` | Action required | Cleanup outcome is unresolved or intervention is required; show the blocker and safe next action |
+| `disconnected` | Disconnected | Current bundle removed and all consumers confirmed detached; API remains usable and positions may still be open |
+| `unavailable` | Status unavailable | Current evidence is missing, stale or belongs to another owner/credential version; show last observation time without asserting Connected or Disconnected |
+
+Each blocked/pending/failed view includes a reason code, clear `detail`/next action,
+operation ID where relevant, last update/observation time, affected connector and
+whether operator action is required. Include conditional automatic-recovery guidance
+and scheduled retry time only when a retry actually exists. Long-running cleanup
+must expose its last progress and blocker; no endless spinner, fabricated completion
+percentage or invented recovery ETA.
+
+Expose allowed actions using the existing `allowed`, `reason_code`, `detail`
+pattern, combining the verified role with current domain preconditions. This covers
+Configure, Disconnect, Start, Stop and account administration. A disabled button
+explains why; backend enforcement remains authoritative. Do not unnecessarily hide
+an authorized durable Stop merely because the engine is unavailable. Read-only
+users get clear permission guidance rather than buttons which inevitably fail.
+
+Temporary KMS trouble with an already loaded authorized connection is a dependency
+warning, not a claim that MM stopped. Missing credentials on cold start show an
+available administration service with trading blocked. Revocation cannot display
+Disconnected while cancellation/detachment is pending. Logout, HTTP/network failure
+or a stale observation cannot fabricate a stopped engine, zero pending orders or
+closed positions. Surface retained exposure and its freshness using existing
+order/position views; unknown values remain unknown.
+
+Use “Disconnect OKX” for the user-facing action. Its confirmation says it stops
+the bot, cancels its pending orders where confirmed, removes saved credentials,
+leaves positions open and does not delete the API key on OKX. Audit, receipt,
+status and request logs share operation/request IDs and consistent reason codes
+so support can follow one action through request, processing and final outcome.
+
 ## Audit contract and proposed API
 
 Audit business/security actions durably: explicit sign-in and denied access;
@@ -336,6 +437,8 @@ with a conventional prefix. Planning checks above do not mark implementation don
   existing handler with explicit read/write/admin permissions and correct audit actor.
 - [ ] Test no Basic fallback on Google/DB failure; avoid recording unverified email,
   Authorization headers or sensitive Pydantic input in errors/logs.
+- [ ] Test explicit 401/403 explanations, safe verified-identity boundaries and every
+  new error-code/retry mapping; specific errors must not collapse into generic failures.
 - [ ] Test bounded signing-key retrieval/caching and auth worker saturation without
   blocking engine progress or starving Stop; document legacy env upgrade requirements.
 
@@ -380,6 +483,9 @@ with a conventional prefix. Planning checks above do not mark implementation don
   concurrent Start/replace; no new risk after the existing fenced send check.
 - [ ] Test restart at every accepted/applied/revoking boundary, cleanup timeout and
   revoke during KMS outage; all consumers detach and outcomes remain honest.
+- [ ] Test accepted versus applied/failed/unknown outcomes, lost responses, stale
+  owner/credential versions and cleanup requiring intervention. Never show false
+  Connected/Disconnected, reset exposure to zero or report completion prematurely.
 - [ ] Verify KMS/auth work stays outside the quote path; loaded authorized clients
   tolerate KMS outage while cold loads and removed credentials remain blocked.
 
@@ -389,6 +495,9 @@ with a conventional prefix. Planning checks above do not mark implementation don
   shutdown and credential exception to the old API/YAML/env ownership table.
 - [ ] Provide simple English UI labels: Connected, Not configured, Checking connection,
   Disconnecting, Disconnected, Action required; audit exposes actor/action/time/result.
+- [ ] Document the error/status tables, role-aware action availability, safe inline
+  validation, retry/receipt handling and request-ID support path. Add OpenAPI examples
+  for healthy, stopped, blocked, stale, permission-denied and cleanup-pending cases.
 - [ ] Show that Disconnect stops the bot, may need outstanding-order cleanup, leaves
   positions open and does not delete the OKX API key; prevent duplicate button actions.
 - [ ] Update annotations and run `make swagger` / `make swagger-check`; schema must
@@ -402,6 +511,9 @@ with a conventional prefix. Planning checks above do not mark implementation don
   exercise authenticated read/write/admin and Basic-disabled cases end to end.
 - [ ] Run offline lifecycle/fault tests using real local encryption and simulated KMS
   delays/denials: credential change/revoke, owner restart, DB loss and token/role changes.
+- [ ] Verify error, receipt, audit and status correlation end to end, including a
+  post-commit response loss and a KMS outage while MM keeps running; all visible
+  guidance remains English, secret-free and consistent with observed trading state.
 - [ ] Verify bounded audit queries with substantial history, query counts, and secret-
   free export; authenticate sustained load as Google identities with fresh role lookups.
   Offline signing keys/verifier inputs are fixture injection only, never a shipped
