@@ -128,6 +128,11 @@ positions and2,848 executors. Candidate354fec1e is tested separately; actual Dem
 is not silently upgraded, repaired or traded.
 
 The code fix, safety regressions, targeted E2E and short comparison are complete.
-No new full R1/R2,60-minute candidate soak,full PG suite, actual Demo trade or
-Cloud Run deployment is claimed. Prior gates keep their original image scope.
-The historical unique cause of all probe/controller outliers remains unproven.
+The subsequent unchanged60-minute candidate soak now passes; its separate
+[final report](../release/mm-partial-quote-final-soak.md) and
+[evidence](../release/mm-partial-quote-final-soak-evidence.json) record the fine
+trace, original gates, four measured recovered probes, one locally spread-rejected
+SELL and verified Demo restoration. No new full R1/R2,canonical rebuild,full PG
+suite, actual Demo trade or Cloud Run deployment is claimed. Prior gates keep
+their original image scope. The historical unique cause of all probe/controller
+outliers remains unproven.

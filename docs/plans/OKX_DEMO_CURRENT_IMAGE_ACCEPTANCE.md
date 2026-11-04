@@ -6,11 +6,19 @@ retaining full allocation/exposure reservation and all guards. Native528 plus
 two subtests, two targeted packaged E2E groups and matched-settings600s diagnostic
 pass:13,200 HTTP200/no unexpected errors or stale,600 exact synthetic fills;
 spot two-sided samples494/597→574/597 and spread-invalid executor references120→35.
+The separate unchanged3600s Random hour now passes:79,200 HTTP200/no unexpected
+errors or stale, p99 126.88/76.41ms,3,594 exact synthetic fills and27.59MiB retained
+growth. No unexpected service failure/restart; four measured probe episodes
+recover. One locally spread-rejected SELL produces two retained ERROR records
+and never reaches the simulator. A separate180s fine trace narrows current CPU
+costs without reproducing the historical controller spike.
 This is a reviewed one-Python-file derived candidate, not a canonical rebuild or
-new full R1/R2/hour/actual-Demo qualification. Actual Demo remains stopped on the
+new full R1/R2/active-actual-Demo qualification. Actual Demo remains stopped on the
 prior086454de image with23 fills and four hashes unchanged. Residual timing/probe
 and quote-coverage limits remain explicit.
-[Report/evidence](../../reports/performance/mm-partial-quote-size.md).
+[Fix/comparison](../../reports/performance/mm-partial-quote-size.md),
+[final hour/trace](../../reports/release/mm-partial-quote-final-soak.md),
+[evidence](../../reports/release/mm-partial-quote-final-soak-evidence.json).
 
 **Prior full-hour API candidate / actual stopped Demo image:** `086454de` from `0f4095671` reserves one
 operations and one heavy slot in the existing two-thread executor. Native2,494

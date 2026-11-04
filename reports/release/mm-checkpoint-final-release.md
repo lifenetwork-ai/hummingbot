@@ -1,12 +1,13 @@
 # Final checkpoint-fix image: full local release gates
 
-Later candidate: the `086454de` standalone hour after offline fixture staging
-passes with p99 260.39/77.27ms, zero unexpected API errors/stale and 3,595 exact
-synthetic fills. Eight probe episodes recover without restart; MM log and
-independent simulator witnesses show some progress, not per-tick guarantees.
-[Current hour report](../investigations/mm-owner-publication-timeout.md#full-hour-confirmation-after-offline-preparation),
-[evidence](../performance/mm-offline-history-soak-evidence.json). The historical
-image-specific full R1/R2 results below keep their original scope.
+Latest MM candidate: `354fec1e` passes its own unchanged standalone hour with
+p99 126.88/76.41 ms, zero unexpected API errors/stale and 3,594 exact synthetic
+fills. Four measured probes recover without restart; one locally spread-rejected
+SELL and the incomplete historical attribution remain explicit. Actual Demo
+stays stopped on `086454de` with its ledger preserved.
+[Current hour/trace report](mm-partial-quote-final-soak.md),
+[evidence](mm-partial-quote-final-soak-evidence.json). The historical image-specific
+full R1/R2 results below keep their original scope.
 
 Image `51d4d879d0f0`, source `06ab51b17`, passes the unchanged full local R1
 and matched ordinary-entrypoint R2. This is a new measurement on the final

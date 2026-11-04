@@ -238,3 +238,41 @@ Actual Demo restored stopped on086454de,23 fills/four hashes unchanged; no activ
 Demo upgrade/trade, new candidate hour/full R1/R2 or production qualification.
 [Fix/comparison report](../../reports/performance/mm-partial-quote-size.md),
 [evidence](../../reports/performance/mm-partial-quote-size-evidence.json).
+
+## Fine controller trace and candidate hour — requested 2026-11-04
+
+- [x] Prepare a bounded180s diagnostic on candidate354fec1e using existing
+  tracing primitives in a temporary test wrapper. Add reference/NATR, inventory,
+  guard/checkpoint, action/refresh and snapshot/publication segments; preserve
+  image, runtime behavior/deadlines and data/byte limits. No SQL parameters/locals.
+- [x] Review retained component timing, thread CPU, nested spans and measurement
+  loss; use Red/Green only for a confirmed additional avoidable runtime defect.
+  Do not promote non-reproduction or temporal overlap into exclusive attribution.
+- [x] If no further runtime correction is established, run the unchanged
+  standalone3600s Random soak on candidate354fec1e with ordinary load fixtures
+  and no extra trace instruments. Retain every failed attempt and original gates.
+- [x] Restore stopped actual Demo and unchanged ledger hashes; publish evidence,
+  update relevant checklists and commit. No new actual trade or deployment.
+
+Fine180s diagnostic passes3,960 HTTP200 and180 exact synthetic fills. Measured
+controller max51.67ms; cold NATR>400ms is pre-window. A seeded expiry pulse costs
+290.23ms/283.17ms CPU; a separate publication223.97ms overlaps214.96ms GC on its
+worker with small SQL spans. One402.89ms observer root remains incompletely
+attributed. Session validation benchmark median1.04ms does not justify caching.
+No extra runtime correction is claimed. The separate ordinary candidate354fec1e
+hour completes on2026-11-05 (Asia/Saigon):79,200 HTTP200/no unexpected errors or
+stale, primary/auxiliary p99 126.88/76.41ms,3,594 exact synthetic fills/fees/positions,
+58 continuous samples/max gap65.50s and27.59MiB retained growth within64MiB.
+Fixture/source hashes and original settings match the prior ordinary hour. No
+unexpected service failure or child restart, including setup. Four measured
+probe episodes recover; one additional probe recovers before measurement. All
+four measured intervals have local and independent simulator-fill witnesses.
+Two ERROR records for one locally spread-rejected SELL remain explicit; its ID
+never reaches the simulator and subsequent orders/fills progress. The evidence
+publisher initially rejects a copied pre-window-only ERROR assumption; its
+reviewed correction changes no workload or original gate. Actual Demo restores
+stopped on086454de,23 fills/four hashes unchanged. Historical exclusive cause,
+continuous quote coverage, canonical rebuild and full R1/R2 remain outside this
+completed bounded phase.
+[Final report](../../reports/release/mm-partial-quote-final-soak.md),
+[evidence](../../reports/release/mm-partial-quote-final-soak-evidence.json).

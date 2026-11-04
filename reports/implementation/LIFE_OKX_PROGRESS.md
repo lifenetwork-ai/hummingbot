@@ -1,11 +1,11 @@
 # LIFE / OKX implementation progress
 
-Updated: 2026-11-04 (Asia/Saigon).
+Updated: 2026-11-05 (Asia/Saigon).
 Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
 
-## Current status — 2026-11-04
+## Current status — 2026-11-05
 
-- **Partial-fill quote-size bug fixed:** source `905bff7e3`, candidate354fec1e.
+- **Partial-fill quote-size fix and candidate hour verified:** source `905bff7e3`, candidate354fec1e.
   Two Red BUY/SELL cases;528 native plus two subtests (38 new cases), LIFE lifecycle
   and volatility-defense E2E pass. Quote validity reuses acknowledged in-flight
   remainder; full allocation/exposure reservation and guards are unchanged.
@@ -13,9 +13,16 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
   exact synthetic fills. Observed spread-invalid executor references120→35,
   successful submit/cancel calls219→141 each; spot two-sided samples494/597→574/597.
   Controller jitter/probe and quote gaps remain; timing maxima do not all improve.
-  Actual Demo stays stopped on086454de with23 fills/four hashes intact. New
-  candidate full/hour release gates are not inherited.
+  Separate unchanged candidate3600s Random hour passes79,200 HTTP200/no unexpected
+  HTTP errors or stale, p99 126.88/76.41ms and3,594 exact synthetic fills/fees/positions.
+  Retained growth27.59MiB passes64MiB; no unexpected failure/restart. Four measured
+  probes recover; two ERROR records refer to one locally blocked SELL absent
+  from the simulator. Fine180s trace passes without reproducing the old spike.
+  Actual Demo stays stopped on086454de with23 fills/four hashes intact. Full
+  R1/R2, canonical rebuild and active candidate-Demo gates are not inherited.
   [Report](../performance/mm-partial-quote-size.md), [evidence](../performance/mm-partial-quote-size-evidence.json).
+
+  [Final hour/trace](../release/mm-partial-quote-final-soak.md), [evidence](../release/mm-partial-quote-final-soak-evidence.json).
 
 - **Current-image MM/probe diagnostic:** unchanged `086454de`, bounded600s
   fixed follow_market/both with existing activity/incident/venue instruments;
