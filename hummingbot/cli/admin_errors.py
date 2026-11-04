@@ -7,6 +7,13 @@ from aiohttp import web
 from hummingbot.cli.admin_models import ErrorResponse
 
 RETRIES = {
+    "credential_load_failed": "contact_support", "credentials_not_configured": "fix_request",
+    "credentials_managed_externally": "contact_support", "credential_operation_in_progress": "wait",
+    "credential_version_conflict": "refresh_state", "bot_must_be_stopped": "refresh_state",
+    "account_binding_required": "contact_support", "exchange_account_mismatch": "fix_request",
+    "exchange_credentials_rejected": "fix_request", "exchange_permissions_required": "fix_request",
+    "exchange_unavailable": "wait", "exchange_identity_unavailable": "wait",
+    "unsupported_exchange": "fix_request", "unsupported_connector": "fix_request", "unsupported_cleanup_mode": "fix_request",
     "credential_decryption_failed": "contact_support", "kms_permission_denied": "contact_support",
     "kms_key_unavailable": "contact_support", "kms_configuration_invalid": "contact_support", "kms_unavailable": "wait",
     "bootstrap_required": "contact_support", "last_admin_required": "fix_request",
@@ -35,6 +42,21 @@ RETRIES = {
 }
 
 MESSAGES = {
+    "credential_load_failed": "The engine could not load the saved connection. Contact support with the operation ID.",
+    "credentials_not_configured": "Configure the required exchange connection before starting trading.",
+    "credentials_managed_externally": "This connection is managed by deployment settings. Ask your maintainer to update it.",
+    "credential_operation_in_progress": "A connection operation is in progress. Wait for its confirmed outcome.",
+    "credential_version_conflict": "This connection changed. Refresh its status before submitting a new request.",
+    "bot_must_be_stopped": "Stop trading and wait for confirmed order cleanup before changing this connection.",
+    "account_binding_required": "Existing trading history needs an operator-reviewed account binding before this connection can be saved.",
+    "exchange_account_mismatch": "This key belongs to a different exchange account. Use a key for this bot's account.",
+    "exchange_credentials_rejected": "The exchange did not accept the connection details. Check the required credentials and environment.",
+    "exchange_permissions_required": "Use a key with Read and Trade permissions, without Withdraw permission.",
+    "exchange_unavailable": "The exchange could not be reached or checked. Wait and retry; this does not mean your key is invalid.",
+    "exchange_identity_unavailable": "The exchange account identity could not be confirmed. Wait and retry.",
+    "unsupported_exchange": "This exchange is not enabled in this deployment.",
+    "unsupported_connector": "This connector is not enabled for the selected exchange and deployment.",
+    "unsupported_cleanup_mode": "Perpetual connection currently requires a Futures or multi-currency account with Hedge mode and CROSS configuration.",
     "credential_decryption_failed": "The saved connection cannot be loaded. Contact support.",
     "kms_permission_denied": "The service cannot access its encryption key. Contact support.",
     "kms_key_unavailable": "The configured encryption key is unavailable. Contact support.",
@@ -55,7 +77,7 @@ MESSAGES = {
     "account_onboarding_required": "Sign in to activate your approved dashboard account.",
     "identity_provider_unavailable": "Sign-in verification is temporarily unavailable. Please try again shortly.",
     "database_unavailable": "Account access cannot be checked right now. Please try again shortly.",
-    "security_work_busy": "Sign-in verification is busy. Please wait before trying again.",
+    "security_work_busy": "Security work is busy. Please wait before trying again.",
     'duration_mode_not_allowed': 'Until stopped is not enabled in the deployed configuration. Choose Timed or contact your maintainer.',
     'duration_mode_conflict': 'Choose a duration for Timed, or omit it for Until stopped.',
     "validation_failed": "Check the highlighted fields and try again.",

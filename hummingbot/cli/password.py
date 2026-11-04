@@ -68,8 +68,14 @@ def login(*, password_stdin: bool = False, confirm: bool = False, connectors=Non
         from hummingbot.client.config.security import Security
         from hummingbot.client.settings import connectable_exchange_names
         try:
-            selected = connectors if connectors is not None else configured_environment_connectors(connectable_exchange_names())
-            Security.initialize_from_environment(selected)
+            from hummingbot.client.config.credential_config import credential_source_mode
+            if credential_source_mode() == "postgres_kms":
+                from hummingbot.cli import bot
+                from hummingbot.client.config.managed_credentials import initialize_managed_credentials
+                initialize_managed_credentials(bot.state_store(), names=connectors)
+            else:
+                selected = connectors if connectors is not None else configured_environment_connectors(connectable_exchange_names())
+                Security.initialize_from_environment(selected)
             return load_client_config_map_from_file(read_only=True), None
         except RuntimeConfigurationError as error:
             fail(str(error), ExitCode.CONFIG_ERROR)

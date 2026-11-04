@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
 from hummingbot.cli.admin_access_api import AdminAccessAPI
+from hummingbot.cli.admin_credentials import AdminCredentialsAPI
 from hummingbot.cli.admin_daily_cache import (
     DailyStatisticsCache,
     retryable_statement_timeout,
@@ -61,6 +62,7 @@ from hummingbot.cli.admin_models import (
 from hummingbot.cli.admin_operations import operator_view, process_identity
 from hummingbot.cli.api_documentation import api_operation
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
+from hummingbot.connector.credential_adapters import CredentialAdapterError
 from hummingbot.core.admin_identity import AccessDenied, Principal
 from hummingbot.core.control_errors import RequestError
 from hummingbot.core.credential_encryption import CredentialCryptoError
@@ -90,12 +92,16 @@ ADMIN_ENDPOINTS += (("POST", "/access/login", "access_login"), ("GET", "/access/
                     ("GET", "/access/bootstrap", "access_bootstrap"), ("GET", "/access/accounts", "access_accounts"),
                     ("POST", "/access/accounts", "access_add_account"), ("POST", "/access/accounts/{account_id}", "access_change_account"),
                     ("GET", "/audit", "access_audit"))
+ADMIN_ENDPOINTS += (("GET", "/credentials", "credentials_catalogue"),
+                    ("GET", "/credentials/operations/{operation_id}", "credentials_operation"),
+                    ("GET", "/credentials/{exchange}", "credentials_status"),
+                    ("POST", "/credentials/{exchange}/{connector}", "credentials_set"))
 
 READ_HANDLERS = frozenset({"profiles", "status", "command", "openapi", "docs", "asset", "orders", "order", "fills",
                            "reference_pairs", "balances", "positions", "performance", "daily", "session_events", "liquidity",
                            "reconciliation", "session_configuration", "commands_history", "sessions", "reconciliation_by_id",
-                           "access_login", "access_me", "access_audit"})
-WRITE_HANDLERS = frozenset({"commands", "reconciliation_check"})
+                           "access_login", "access_me", "access_audit", "credentials_catalogue", "credentials_status", "credentials_operation"})
+WRITE_HANDLERS = frozenset({"commands", "reconciliation_check", "credentials_set"})
 ACCOUNT_HANDLERS = frozenset({"access_bootstrap", "access_accounts", "access_add_account", "access_change_account"})
 ADMIN_PERMISSIONS = {(method, ADMIN_PREFIX + path): "read" if name in READ_HANDLERS else "write" if name in WRITE_HANDLERS else "admin"
                      for method, path, name in ADMIN_ENDPOINTS if name in READ_HANDLERS | WRITE_HANDLERS | ACCOUNT_HANDLERS}
@@ -112,6 +118,8 @@ async def admin_errors(request, handler):
     try:
         return await handler(request)
     except AccessDenied as error:
+        return error_response(request, error.code, status=error.status)
+    except CredentialAdapterError as error:
         return error_response(request, error.code, status=error.status)
     except CredentialCryptoError as error:
         logging.getLogger(__name__).warning("Credential provider unavailable code=%s request_id=%s", error.code, request_id(request),
@@ -145,7 +153,7 @@ async def admin_errors(request, handler):
         return error_response(request, "internal_error", status=500)
 
 
-class AdminAPI(AdminAccessAPI):
+class AdminAPI(AdminAccessAPI, AdminCredentialsAPI):
     def __init__(self, host, settings, *, store=None, catalogue=None):
         self.host = host
         self.settings = settings
@@ -210,6 +218,10 @@ class AdminAPI(AdminAccessAPI):
             self._daily_flights.clear()
             if self._identity_service is not None:
                 await self._identity_service.close()
+            if getattr(self, "_credential_work", None) is not None:
+                await self._credential_work.close()
+            if getattr(self, "_credential_cipher", None) is not None:
+                self._credential_cipher.close()
             await self._database_executor.close()
 
     def access_store(self):

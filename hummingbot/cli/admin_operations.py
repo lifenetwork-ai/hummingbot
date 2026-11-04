@@ -27,16 +27,17 @@ def operator_view(row, process):
     recovery = row.get("recovery_summary") or {}
     halted = bool(recovery.get("halted")) or snapshot.get("phase") == "halted"
     pending = bool(recovery.get("pending_mutations"))
+    connection_pending = bool(recovery.get("credential_operation_pending"))
     owner = snapshot.get("identity")
     mismatch = bool(available and owner and owner.get("trading_environment") != process["trading_environment"])
-    common = ("recovery_required" if halted or pending else "owner_unavailable" if not available else
+    common = ("credential_operation_in_progress" if connection_pending else "recovery_required" if halted or pending else "owner_unavailable" if not available else
               "environment_mismatch" if mismatch else None)
     current_active = session.get("status") in ("preparing", "running", "stopping")
     reasons = {
         "start": common or ("session_active" if row["desired_state"] == "running" or current_active else None),
         "switch": common or (None if session.get("status") in ("preparing", "running") else "session_not_active"),
         # Stop is a durable intent and remains useful during startup/owner loss.
-        "stop": None if session.get("id") else "session_not_active",
+        "stop": "credential_operation_in_progress" if connection_pending else None if session.get("id") else "session_not_active",
     }
     from hummingbot.cli.admin_errors import MESSAGES
     descriptions = {"start": "Start a new session.", "switch": "Replace the current session.",
@@ -46,7 +47,9 @@ def operator_view(row, process):
         detail = MESSAGES.get(reason, "The action is currently unavailable.") if reason else descriptions[key]
         actions[key] = dict(allowed=reason is None, reason_code=reason, detail=detail)
     phase = snapshot.get("phase")
-    if halted or pending:
+    if connection_pending:
+        state, label, detail, next_action = "preparing", "Applying connection", "Wait for the connection operation. Trading will not start automatically.", "wait"
+    elif halted or pending:
         state, label, detail, next_action = "needs_attention", "Technical review needed", "Trading cannot restart until the cause is resolved.", "contact_support"
     elif mismatch:
         state, label, detail, next_action = "needs_attention", "Deployment review needed", "The responding service and trading owner use different environments.", "contact_support"

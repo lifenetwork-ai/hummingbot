@@ -91,6 +91,15 @@ if certificate_path:
                                        certificates=json.loads(pathlib.Path(certificate_path).read_text()))
         return original_identity_init(self, api, verifier=verifier)
     AdminIdentityService.__init__ = identity_init
+candidate_account = os.environ.get('HBOT_OFFLINE_CREDENTIAL_ACCOUNT')
+if candidate_account:
+    # Only this test wrapper replaces the exchange network response. Production
+    # code has no environment switch for bypassing candidate account validation.
+    from hummingbot.connector.credential_adapters import OKXCredentialAdapter
+    async def preflight(self, connector, values):
+        self.config(connector, values)
+        return self.deployment.site + ':' + candidate_account
+    OKXCredentialAdapter.preflight = preflight
 from hummingbot.cli import service_processes
 from hummingbot.cli.service import main
 # Repeat the test's isolated config paths and network prohibition in both real

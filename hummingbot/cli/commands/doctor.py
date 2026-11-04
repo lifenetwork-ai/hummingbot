@@ -172,13 +172,24 @@ def doctor(as_json: bool = json_option()) -> None:
                 load_connector_credentials,
             )
             names = list((status.get("engine") or {}).get("connectors") or {})
-            names = names or configured_environment_connectors(["okx", "okx_perpetual"])
+            from hummingbot.client.config.credential_config import credential_source_mode
+            managed = credential_source_mode() == "postgres_kms"
+            if managed:
+                from hummingbot.model.credential_store import CredentialStore
+                names = names or [row["connector"] for row in CredentialStore(store).metadata() if row["state"] == "active"]
+            else:
+                names = names or configured_environment_connectors(["okx", "okx_perpetual"])
             from hummingbot.client.config.runtime_config import RuntimeConfigurationError
             try:
-                for name in names:
-                    load_connector_credentials(name)
+                if managed:
+                    from hummingbot.client.config.managed_credentials import initialize_managed_credentials
+                    initialize_managed_credentials(store, names=names)
+                else:
+                    for name in names:
+                        load_connector_credentials(name)
                 rows.append(_row("credentials", "ok" if names else "warn",
-                                 "environment fields validated; no exchange request" if names else "no connector selected/configured"))
+                                 ("managed envelopes loaded; no exchange request" if managed else "environment fields validated; no exchange request")
+                                 if names else "no connector selected/configured"))
             except RuntimeConfigurationError as error:
                 rows.append(_row("credentials", "fail", str(error)))
         except Exception:

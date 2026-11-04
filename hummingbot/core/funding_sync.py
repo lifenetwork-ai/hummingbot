@@ -150,14 +150,26 @@ class FundingReader:
 
     @classmethod
     def from_environment(cls):
-        from hummingbot.client.config.config_helpers import api_keys_from_connector_config_map, get_connector_class
         from hummingbot.client.config.environment_credentials import load_connector_credentials
-        from hummingbot.client.settings import AllConnectorSettings
         config = load_connector_credentials("okx_perpetual")
-        setting = AllConnectorSettings.get_connector_settings()["okx_perpetual"]
-        params = setting.conn_init_parameters(trading_pairs=[], trading_required=False,
-                                              api_keys=api_keys_from_connector_config_map(config))
-        return cls(get_connector_class("okx_perpetual")(**params))
+        return cls.from_config(config)
+
+    @classmethod
+    def from_config(cls, config):
+        from hummingbot.connector.credential_adapters import read_only_connector
+        return cls(read_only_connector("okx_perpetual", config))
+
+    @classmethod
+    def from_current_source(cls):
+        from hummingbot.client.config.credential_config import credential_source_mode
+        from hummingbot.client.config.runtime_config import RuntimeConfigurationError
+        from hummingbot.client.config.security import Security
+        if credential_source_mode() == "postgres_kms":
+            config = Security.decrypted_value("okx_perpetual") if Security._managed_mode else None
+            if config is None:
+                raise RuntimeConfigurationError("credentials_not_configured")
+            return cls.from_config(config)
+        return cls.from_environment()
 
     async def __call__(self, path, params):
         if path not in self.PATHS:

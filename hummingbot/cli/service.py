@@ -71,6 +71,7 @@ class ServiceHost:
         self.phase = "bootstrapping"
         self.error = None
         self.engine = self.store = self.owner = self.hb = None
+        self.managed_credentials = None
         self.applied_version = None
         self.start_task = None
         self.running = False
@@ -410,6 +411,12 @@ class ServiceHost:
             raise ValueError("MQTT autostart is outside the reviewed service scope.")
         self.hb = await bootstrap_application(client, None, headless=True, environment_connectors=[],
                                               read_only_configuration=True)
+        from hummingbot.client.config.credential_config import credential_source_mode
+        if credential_source_mode() == "postgres_kms":
+            from hummingbot.cli.credential_runtime import ManagedCredentialRuntime
+            from hummingbot.client.config.security import Security
+            Security.initialize_from_managed({})
+            self.managed_credentials = ManagedCredentialRuntime(self.store)
         # API reporting/PnL uses PostgreSQL and V2 aggregates. Keep only recent
         # connector diagnostics; the connector refuses unsafe budget truncation.
         self.hb.trading_core.connector_event_log_fill_limit = 1000
@@ -417,7 +424,8 @@ class ServiceHost:
         # A strategy-triggered risk stop uses this same bounded service lifecycle.
         # It must not start the interactive stop coroutine behind the host's back.
         self.hb.stop = self.strategy_stop
-        await self.validate_selection(self.store.read())
+        if self.managed_credentials is None:
+            await self.validate_selection(self.store.read())
         self.bootstrapped = True
         self.phase = "standby"
         self.log.info("Service bootstrap completed bot=%s revision=%s", self.settings.bot_id, self.revision)
@@ -462,7 +470,11 @@ class ServiceHost:
         if not connectors or connectors - set(SUPPORTED_CONNECTORS):
             raise RuntimeConfigurationError("The service requires reviewed OKX spot/perpetual connectors.")
         for connector in sorted(connectors):
-            load_connector_credentials(connector)
+            if self.managed_credentials is not None:
+                from hummingbot.client.config.security import Security
+                Security.api_keys(connector)
+            else:
+                load_connector_credentials(connector)
 
     def strategy_stop(self, *args, **kwargs):
         reason = kwargs.get("mm_drawdown_reason")
@@ -539,6 +551,9 @@ class ServiceHost:
                                 "spread_policy": controller.processed_data.get("spread_policy")} for controller in self._mm_controllers()],
                 "reporting": observations["reporting"],
                 "funding_sync": self.funding.status(now_ms=int(time.time() * 1000)),
+                "credential_versions": self.managed_credentials.versions.copy() if self.managed_credentials is not None else {},
+                "credential_owner": ({"owner_uuid": self.owner.owner_uuid, "generation": self.owner.generation}
+                                     if self.managed_credentials is not None else None),
                 "reporting_timezone": self.admin_settings.reporting_timezone if hasattr(self, "admin_settings") else "Asia/Ho_Chi_Minh",
                 "format_status": None}
 
@@ -607,6 +622,25 @@ class ServiceHost:
             self.error = None
             self.halt_requested = False
             try:
+                if self.managed_credentials is not None:
+                    await self.detach_credential_readers()
+                    operation = (row["recovery_state"] or {}).get("credential_operation") or {}
+                    if operation.get("action") == "credentials_set":
+                        from hummingbot.model.credential_store import CredentialStore
+                        if not await self.managed_credentials.call(CredentialStore(self.store).claim_set,
+                                                                   operation["id"], self.owner.owner_uuid, self.owner.generation):
+                            return
+                    # Explicit bounded dependency wait while stopped; health
+                    # remains responsive and does not confuse this with loop stall.
+                    self.observer_wait_until = time.monotonic() + 45
+                    try:
+                        versions = await self.managed_credentials.reload()
+                        if operation.get("action") == "credentials_set":
+                            from hummingbot.model.credential_store import CredentialStore
+                            await self.managed_credentials.call(CredentialStore(self.store).finish_set,
+                                                                operation["id"], self.owner.owner_uuid, self.owner.generation, versions=versions)
+                    finally:
+                        self.observer_wait_until = None
                 await self.validate_selection(row)
                 self.availability.clear("configuration")
                 # Cleanup and configuration loading can both yield to a newer
@@ -628,6 +662,13 @@ class ServiceHost:
                             session_id=self.mm_session.id, generation=self.mm_session.generation,
                             change=lambda session, now: setattr(session, "status", "stopped"))
             except Exception as error:
+                if self.managed_credentials is not None:
+                    operation = (row["recovery_state"] or {}).get("credential_operation") or {}
+                    if operation.get("action") == "credentials_set":
+                        from hummingbot.model.credential_store import CredentialStore
+                        code = getattr(error, "code", "credential_load_failed")
+                        await self.managed_credentials.call(CredentialStore(self.store).finish_set,
+                                                            operation["id"], self.owner.owner_uuid, self.owner.generation, versions={}, error=code)
                 self.availability.fail("configuration", "configuration_unavailable", error, operator=True)
                 self.phase, self.error = "halted", type(error).__name__
                 self.log.error("Configuration bootstrap failed type=%s version=%s", self.error, version)
@@ -807,6 +848,15 @@ class ServiceHost:
     def poll_funding(self):
         self.funding.poll(self.engine, self.owner, self.hb.trading_core)
 
+    async def detach_credential_readers(self):
+        await self.funding.credentials_changed()
+        if self.reconciliation_task is not None and not self.reconciliation_task.done():
+            self.reconciliation_task.cancel()
+            done, _ = await asyncio.wait({self.reconciliation_task}, timeout=1)
+            if not done:
+                raise RuntimeError("Credential consumers did not detach")
+        self.reconciliation_task = None
+
     async def collect_funding(self):
         await self.funding.collect(self.engine, self.owner, self.hb.trading_core)
 
@@ -893,6 +943,8 @@ class ServiceHost:
                 self.log.error("Service cleanup incomplete; ownership retained until process exit.")
                 return False
         install_guard(None)
+        if self.managed_credentials is not None:
+            await self.managed_credentials.close()
         if self.engine is not None:
             self.engine.dispose()
         from hummingbot.core.web_assistant.connections.connections_factory import ConnectionsFactory

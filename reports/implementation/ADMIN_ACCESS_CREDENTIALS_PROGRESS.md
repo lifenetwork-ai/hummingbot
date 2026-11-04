@@ -105,3 +105,61 @@ The user confirmed no Google OAuth client/GCP KMS resource is available yet. Rea
 Google/GCP acceptance stays open at A6; offline signature/crypto tests are not a
 substitute. A4a is next, followed by A4b automatic cleanup, A5 and A6. The running
 Demo service and its database/credentials remain untouched.
+
+
+## A4a — Managed Set/load, typed receipts and safe replacement
+
+Added secret-input-only Set, safe catalogue/status and dedicated credential-operation
+reads on the existing aiohttp API. They use the existing control row, bounded workers,
+connector models, PostgreSQL receipts and audit. Environment source rejects mutation.
+Set requires acknowledged Stop and no unresolved runtime/mutation/HALT; a fresh
+read-only OKX request verifies request UID, permissions and account mode before commit.
+Site/routing remain deployment-owned. Account binding survives credential removal;
+unbound historical ledgers require reviewed cutover rather than silent adoption.
+
+Only the envelope crosses storage. Retry hashes contain approved scope/version/actor
+metadata, never secrets or a secret-derived digest. The first committed retry identity
+wins. The commit rechecks current role and versions and atomically updates encrypted
+credentials, existing control authority, receipt and audit. Ordinary trading command
+history/Stop completion cannot consume a credential receipt or supersede its fence.
+
+The engine stops first, cancels/detaches funding and reconciliation readers, replaces
+existing Security connector models off-loop and confirms the version loaded. It never
+falls back to environment keys or automatically starts a strategy. CLI connection/
+doctor/login and idle funding select the managed source explicitly. Reusing the same
+loaded version for a later ordinary Start avoids another KMS call. Missing KEK keeps
+API/live health available and trading blocked, without an owner restart loop.
+
+Red evidence: missing store/adapter/source/runtime modules failed first. Owner/control
+admission tests then demonstrated ordinary Stop could supersede a pending credential
+operation before the new guard. A status regression reproduced a historical failed
+receipt masking a subsequently recovered connection; the current view now prefers
+fresh matching owner/version evidence while retaining that failed receipt in history.
+No Disconnect/retry/cleanup-key route is enabled by A4a.
+
+Verified locally:
+
+- **1,316 native CLI/config/adapter/funding tests** passed. Follow-up focused runs
+  covered the later owner/freshness and reader-detachment changes (**55**, **27**,
+  **24**, then **16** checks in their recorded scopes).
+- **33 targeted PostgreSQL checks** passed for credentials/access/roles and the
+  Google-only restart foundation. The first native attempt exposed three obsolete
+  route-test path placeholders, which were updated; the rerun passed.
+- **22 PostgreSQL credential/runtime/projection checks** passed after adding rotation,
+  other-venue fixture and freshness tests; **19** Set/store/service checks passed
+  after the claim/loading stage was added. **3 final status/full-process checks**
+  passed after the recovered-status fix, including actual supervised engine/API
+  restart with encrypted persistence and missing-KEK availability.
+- Swagger generation/drift and changed-module style/diff checks passed.
+
+Two PostgreSQL attempts retained fixture failures: the public recovery projection
+expected its previous exact shape, and a manually simulated owner did not renew its
+heartbeat during a loaded-machine test. Fixtures now include the connection-operation
+summary and renew the owner heartbeat; fresh/stale/wrong-owner/wrong-version cases
+are tested independently. These are not counted as clean passing attempts.
+
+Tests use local cryptography and an explicitly injected read-only exchange response
+inside the test process wrapper. No shipping bypass flag exists. Real OAuth/KMS/Demo
+cutover, automatic Disconnect and final-image release/load gates remain open.
+Next, A4b adds automatic bot-order cancellation, managed perpetual closure,
+restart/unknown-outcome recovery and credential removal. The running Demo is untouched.

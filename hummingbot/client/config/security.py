@@ -27,6 +27,7 @@ class Security:
     _secure_configs = {}
     _decryption_done = asyncio.Event()
     _environment_mode = False
+    _managed_mode = False
 
     _logger: Optional[HummingbotLogger] = None
 
@@ -57,6 +58,7 @@ class Security:
             return False
         cls.secrets_manager = secrets_manager
         cls._environment_mode = False
+        cls._managed_mode = False
         cls.decrypt_all()
         # coro = AsyncCallScheduler.shared_instance().call_async(cls.decrypt_all, timeout_seconds=30)
         # safe_ensure_future(coro)
@@ -68,12 +70,21 @@ class Security:
 
         # Build/validate all requested inputs before replacing the selected source.
         configs = {name: load_connector_credentials(name) for name in connectors}
+        cls._replace_deployment_configs(configs, managed=False)
+
+    @classmethod
+    def initialize_from_managed(cls, configs) -> None:
+        cls._replace_deployment_configs(configs, managed=True)
+
+    @classmethod
+    def _replace_deployment_configs(cls, configs, *, managed):
         for name in cls._secure_configs:
             reset_connector_hb_config(name)
         cls._decryption_done.clear()
         cls._secure_configs = configs
         cls.secrets_manager = None
         cls._environment_mode = True
+        cls._managed_mode = managed
         for config in configs.values():
             update_connector_hb_config(config)
         cls._decryption_done.set()
@@ -141,6 +152,9 @@ class Security:
     def api_keys(cls, connector_name: str) -> Dict[str, Optional[str]]:
         connector_config = cls.decrypted_value(connector_name)
         if cls._environment_mode and connector_config is None:
+            if cls._managed_mode:
+                from hummingbot.client.config.runtime_config import RuntimeConfigurationError
+                raise RuntimeConfigurationError("credentials_not_configured")
             from hummingbot.client.config.environment_credentials import load_connector_credentials
 
             # The existing connector manager selects the connector. Lazy validation

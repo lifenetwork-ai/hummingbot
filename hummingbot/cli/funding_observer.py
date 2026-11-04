@@ -25,7 +25,10 @@ class FundingObserver:
             return
         self.next_poll = time.monotonic() + self.interval
         try:
-            self.configured = bool(configured_environment_connectors(["okx_perpetual"]))
+            from hummingbot.client.config.credential_config import credential_source_mode
+            from hummingbot.client.config.security import Security
+            self.configured = (bool(Security._managed_mode and Security.decrypted_value("okx_perpetual"))
+                               if credential_source_mode() == "postgres_kms" else bool(configured_environment_connectors(["okx_perpetual"])))
         except Exception as error:
             self.availability.fail("funding", "funding_configuration_unavailable", error, operator=True)
             return
@@ -67,7 +70,7 @@ class FundingObserver:
             # Fresh REST assistant per batch survives the shared HTTP session's
             # shutdown/recreation when the trading core stops. No network tasks,
             # market data, RateOracle registration or exchange mutations start.
-            reader = FundingReader.from_environment()
+            reader = FundingReader.from_current_source()
             if self.sync is None:
                 self.sync = FundingSync(self.store, reader,
                                         environment=reader.connector.trading_environment,
@@ -107,3 +110,13 @@ class FundingObserver:
         if self.task is not None and not self.task.done():
             self.task.cancel()
             await asyncio.gather(self.task, return_exceptions=True)
+
+    async def credentials_changed(self):
+        if self.task is not None and not self.task.done():
+            self.task.cancel()
+            done, _ = await asyncio.wait({self.task}, timeout=1)
+            if not done:
+                raise RuntimeError("Funding credential consumer did not detach")
+        self.task = self.sync = None
+        self.configured = False
+        self.next_poll = 0

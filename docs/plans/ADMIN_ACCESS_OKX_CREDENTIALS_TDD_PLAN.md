@@ -1,6 +1,6 @@
 # Admin access and encrypted exchange credentials — TDD plan (OKX first)
 
-Status: A1–A3 implemented and verified locally on 2026-11-05 (Asia/Saigon); A4–A6 remain open.
+Status: A1–A4a implemented and verified locally on 2026-11-05 (Asia/Saigon); A4b–A6 remain open.
 Evidence: [implementation progress](../../reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
 Unchecked sections describe proposed behavior. Current endpoints
 and deployment behavior remain documented in [FE integration](../fe-integration.md).
@@ -787,29 +787,32 @@ an unprocessable placeholder `202` is not an acceptable intermediate API.
 
 #### A4a — Provider integration, typed receipts and safe replacement
 
-- [ ] Test set/replace only after acknowledged Stop; recheck authorization after slow
+- [x] Test set/replace only after acknowledged Stop; recheck authorization after slow
   encryption, use safe idempotent receipts and atomically commit credential/audit/control.
-- [ ] Test candidate preflight before commit, wrong-account/invalid-key rejection
+- [x] Test candidate preflight before commit, wrong-account/invalid-key rejection
   preserving the old version, persisted `uid` binding and first-key onboarding.
-- [ ] Add typed credential-operation reads over existing receipts without breaking
-  command/history schemas. Cover nullable sessions, cross-actor/action idempotency,
-  no-session Disconnect admission and completion distinct from an ordinary Stop.
-- [ ] Implement managed source into existing connector models; cover service startup,
+- [x] Add typed credential-operation reads over existing receipts without breaking
+  command/history schemas. Cover nullable sessions and cross-actor/action idempotency.
+  Disconnect admission/completion belongs to A4b, consistent with its runtime capability gate.
+- [x] Implement managed source into existing connector models; cover service startup,
   CLI preflight, funding observer and reconciliation consumers, with no env fallback.
-- [ ] Test source-mode mutation rejection, all lazy credential consumers and process
+- [x] Test source-mode mutation rejection, all lazy credential consumers and process
   env/provider wiring; a cold managed-key outage keeps admin alive without a restart loop.
-- [ ] Test exchange-neutral API/storage/audit scope and input descriptions with OKX
+- [x] Test exchange-neutral API/storage/audit scope and input descriptions with OKX
   and a fake second adapter; reject unsupported/mismatched connectors and prevent
   cross-exchange account binding, envelope reuse or implicit venue switches.
   Include connector fields marked `is_connect_key` that are deployment-owned:
   request values must not override OKX site/routing or leak through metadata.
-- [ ] Test missing/bad credentials keep admin usable; same-account binding, spot-only,
+- [x] Test missing/bad credentials keep admin usable; same-account binding, spot-only,
   perpetual/both, wrong environment, and validation failure never auto-resume trading.
-- [ ] Test same-account key rotation retains ledger/positions; different subaccount,
+- [x] Test same-account key rotation retains ledger/positions; different subaccount,
   Demo/live, cross-slot identity mismatch and a second `BOT_ID` in the same DB are
   rejected without resetting balances, history, HALT or account bindings.
 
 #### A4b — Automatic Disconnect and recovery
+
+- [ ] Prove no-session Disconnect admission and completion distinct from ordinary Stop;
+  enable its endpoints only with the complete engine cleanup workflow.
 
 - [ ] Test revoke against queued sends, delayed ACK/fill/cancel, an absent owner and
   concurrent Start/replace; no new risk after the existing fenced send check.
@@ -905,7 +908,7 @@ The decisions above close them at plan level; their implementation tests stay op
 | Generic connector input metadata includes deployment-owned fields | Credential-only field allowlist and tested routing/identity injection |
 | DB-backed auth was scheduled before its schema; role changes can race mutation admission | A1 includes storage foundation; permission checks and mutation commit have defined transaction ordering |
 
-A1–A3 are implemented locally; A4a is next. A4b is the highest-risk subphase and must pass its targeted
+A1–A4a are implemented locally; A4b is next. A4b is the highest-risk subphase and must pass its targeted
 cancel/close/restart tests before its capability is enabled. Actual Google sign-in,
 GCP KMS and reviewed Demo checks need their external resources for A6; their absence
 does not block offline implementation and must not be recorded as a pass.

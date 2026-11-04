@@ -1,8 +1,8 @@
 # Exchange credential encryption
 
-A3 implements the encrypted-storage/provider foundation. Managed credential API
-and engine integration are A4 work; until then trading continues to use the existing
-environment credential path. See the [implementation status](../reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
+A1–A4a implement identity/audit, encrypted storage/providers and managed Set/load
+integration. Automatic Disconnect and cleanup recovery remain A4b work. Environment
+credentials remain the default; managed mode must be explicitly selected. See the [implementation status](../reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
 
 Strategy YAML and routing stay deployment-owned. An exchange adapter validates
 credential fields and account identity; the shared encryption format covers the bot,
@@ -57,6 +57,38 @@ sets the envelope to SQL NULL while retaining account/version/audit metadata.
 KMS is used for save/load, never per quote, order or health probe. Already loaded,
 authorized connectors can continue through a temporary provider outage. New loads
 must remain blocked when decryption cannot be verified.
+
+## Managed Set and runtime loading
+
+`POST /api/v1/admin/credentials/okx/{connector}` accepts a complete input-only
+`credentials` object (`api_key`, `secret_key`, `passphrase`), non-negative strict
+`expected_version` and `expected_control_version`, plus `Idempotency-Key`.
+Only admin/write users may submit. The bot must be stopped and its current control
+version acknowledged, with no unresolved mutation/runtime or recovery HALT.
+
+A fresh read-only account-config request verifies permissions and request `uid`
+(rather than only its parent `mainUid`). The retained account binding includes the
+deployment site (`site:uid`); Demo/live scope and companion slots must agree.
+Perpetual setup requires the existing HEDGE/CROSS MM configuration and Futures or
+multi-currency Hedge account. See [OKX account configuration](https://www.okx.com/docs-v5/en/#trading-account-rest-api-get-account-configuration).
+
+The existing ledger cannot be adopted silently by the first managed key. A database
+with history but no verified managed account binding needs operator-reviewed cutover.
+Do not clear its history or HALT to bypass `account_binding_required`.
+
+Read `/credentials`, `/credentials/okx` and `/credentials/operations/{id}` for input
+metadata, safe status and progress. The typed receipt distinguishes accepted,
+loading and loaded/failed; ordinary trading command history remains unchanged.
+Set increments existing control authority, commits ciphertext/audit/receipt together,
+detaches old readers/connector models and verifies the loaded connection. Start stays
+explicit. Key replacement preserves positions and ledger; automatic cancel/close on
+Disconnect is not enabled until A4b has its own engine/recovery acceptance.
+
+Already loaded versions avoid another KMS call when ordinary Start follows Stop.
+Cold loads use bounded worker work and read-only account validation. Missing KEK or
+provider failure keeps administration alive with trading blocked; after repairing
+deployment configuration, restart to retry loading. Current status uses matching fresh
+owner evidence, while the original failed receipt remains historical evidence.
 
 ## Key or provider transition
 

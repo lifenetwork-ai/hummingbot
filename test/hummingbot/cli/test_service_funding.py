@@ -10,6 +10,19 @@ from hummingbot.client.config.runtime_config import RuntimeSettings
 from hummingbot.core.funding_sync import FundingReader
 
 
+@pytest.mark.asyncio
+async def test_credential_change_detaches_idle_funding_reader_and_cancels_old_batch():
+    host = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
+                       asyncio.Event(), MagicMock())
+    host.funding.sync = SimpleNamespace(getter=object())
+    host.funding.task = asyncio.create_task(asyncio.sleep(100))
+    await asyncio.sleep(0)
+    task = host.funding.task
+    await host.funding.credentials_changed()
+    assert task.cancelled() and host.funding.task is None and host.funding.sync is None
+    assert not host.funding.configured
+
+
 class Store:
     def __init__(self):
         self.state, self.rows = {}, []

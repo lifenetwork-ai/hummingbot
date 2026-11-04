@@ -11,21 +11,47 @@ service available, are there working orders, what is blocking trading, how much
 capital/exposure remains, and what should the operator do? Profit is secondary.
 No dashboard application or browser acceptance ships in this repository.
 
-Planned extension: [admin access and encrypted exchange credentials](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md)
-defines Google whitelist/roles, environment-controlled Basic Auth disable, encrypted
-DB credentials with local/GCP KEK providers and an audit API. It also specifies
-clear errors, pending/failed/unknown outcomes and role-aware operational guidance.
-Its [Disconnect flow](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md#disconnect-ux-for-a-non-technical-operator)
-automatically cancels bot orders and closes bot-managed perpetual positions before
-removing selected credentials; spot balances remain. Storage/API/audit support
-future exchange adapters, with OKX the only initial implementation.
-Credential actions will have their own operation receipt/polling route, plus
-retry and same-account key repair for interrupted cleanup; existing trading
-command receipts retain their contract. See the plan before integrating these routes.
-A1/A2 identity, whitelist, roles and audit endpoints are implemented; managed
-credentials and automatic Disconnect remain planned. Basic bootstrap requires explicit
-`ADMIN_BASIC_AUTH_ENABLED=true`; disable it after Google administration is verified.
-The environment-only exchange credential contract below still applies.
+The [admin access and encrypted exchange credentials plan](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md)
+tracks phased implementation. Google whitelist/roles, bootstrap disable, audit,
+local/GCP envelope encryption and managed credential Set/status/receipt routes are
+implemented locally through A4a. Automatic Disconnect, cleanup retry/key repair and
+final acceptance remain open. Integrate only routes in the current OpenAPI contract.
+Basic bootstrap requires explicit `ADMIN_BASIC_AUTH_ENABLED=true`; disable it after
+Google administration is verified. Actual Google/GCP verification awaits resources.
+
+Exchange credentials use `EXCHANGE_CREDENTIALS_SOURCE=environment|postgres_kms`.
+Environment mode keeps deployment ownership. Managed mode permits admin/write users
+to submit complete credentials after acknowledged Stop, with read-only candidate
+validation and a dedicated operation receipt. Saving never starts trading. Read the
+[credential guide](exchange-credentials.md) for source/key setup and cutover limits.
+
+## Managed connection integration (A4a)
+
+| Route relative to `/api/v1/admin` | Role | Use |
+|---|---|---|
+| `GET /credentials` | Any | Deployment-enabled exchange/connectors, input names and source; `disconnect_available=false` until A4b |
+| `GET /credentials/{exchange}` | Any | Safe saved/loaded state, version, actor/time, operation link and Configure permission |
+| `POST /credentials/{exchange}/{connector}` | Write/admin | Complete secret bundle, expected credential/control versions and `Idempotency-Key`; returns `202` |
+| `GET /credentials/operations/{id}` | Any | Typed credential receipt; session may be null; separate from `/commands/{id}` |
+
+For OKX, submit `credentials: {api_key, secret_key, passphrase}`. These are input-only
+secret fields. Site, Demo/live routing and strategy YAML stay deployment-owned.
+Use the existing Stop workflow first; `bot_must_be_stopped` means its cleanup or
+acknowledgement is incomplete. A new empty managed deployment can onboard without
+an MM session. Existing unbound ledgers require reviewed account binding during
+cutover; the API rejects attempts to silently adopt their history.
+
+Poll the returned operation: `accepted/waiting_for_owner`, `applying/loading`, then
+`succeeded/loaded` or `failed`. Receipt success describes loading, never active MM.
+The current status additionally requires fresh matching owner/version evidence to
+say Connected; historical receipt failure does not override later verified recovery.
+After confirmation the operator explicitly chooses Start. Clear all secret inputs
+from FE state after submission; receipt/status/audit cannot return them.
+
+A lost response retries the same operation key and unchanged non-secret preconditions.
+The first committed secret bundle wins; submitting different secrets with that same
+identity returns the original receipt. A genuinely new save requires a new key and
+fresh versions. Do not infer mutation success from a timeout or stale status.
 
 ## Start here
 
@@ -166,7 +192,9 @@ restarting a child does not apply new YAML settings to a running session.
 | Random pool and step duration | YAML `random.profile_ids`, `step_duration_seconds` | No | New session after deployment |
 | Trading pair, budgets, spreads, leverage/margin, price/inventory limits | YAML market templates | No | New session after deployment and normal account/readiness validation |
 | Guards, bootstrap, drawdown, outflow, inventory/spread policies | YAML plus existing durable policy bindings | No | New session only where compatible with bound policy; conflicts require technical review |
-| Credentials, database, auth/CORS, logging, runtime intervals | Process environment / local `.env` / deployment secrets | No | New process with reviewed environment |
+| Exchange credentials in `environment` mode | Process environment / deployment secrets | No | New process with reviewed environment |
+| Exchange credentials in `postgres_kms` mode | Encrypted PostgreSQL bundle and durable credential operation | Admin/write may Set after acknowledged Stop | Validate candidate, commit receipt, wait for engine load; never auto-start |
+| Credential source/provider, KEK, database, auth/CORS, logging, intervals | Process environment / deployment secrets | No | New process with reviewed environment |
 | Swagger availability | `ENV`, default `dev` | No | New process; only `dev`/`development`, case-insensitive, expose UI/schema/assets |
 | Missing working-order warning | `MM_NO_QUOTE_WARNING_SECONDS`, default 120; 0 disables | No | New process; monitoring only, continuous window resets after restart |
 | Exchange live/demo routing | `OKX_TRADING_ENV` and matching credentials | No | Deployment-level account/environment change; not a session switch |

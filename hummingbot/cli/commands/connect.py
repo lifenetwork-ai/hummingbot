@@ -80,22 +80,36 @@ def _show_connections(ccm, password_stdin: bool) -> None:
 
 def _environment_connections(connector, show_all: bool) -> None:
     from hummingbot.client.config.config_helpers import load_client_config_map_from_file
+    from hummingbot.client.config.credential_config import credential_source_mode
     from hummingbot.client.config.environment_credentials import configured_environment_connectors
     from hummingbot.client.config.runtime_config import RuntimeConfigurationError
     from hummingbot.client.config.security import Security
     from hummingbot.user.user_balances import UserBalances
     names = _connectable_exchanges()
-    configured = configured_environment_connectors(names)
+    managed = credential_source_mode() == "postgres_kms"
+    state = None
+    if managed:
+        from hummingbot.cli import bot
+        from hummingbot.model.credential_store import CredentialStore
+        state = bot.state_store()
+        configured = [row["connector"] for row in CredentialStore(state).metadata() if row["state"] == "active"]
+    else:
+        configured = configured_environment_connectors(names)
     if show_all:
         echo(render_table([{"connector": name, "keys_added": name in configured} for name in names],
                           columns=["connector", "keys_added"], title="environment connectors"))
         return
     selected = [connector] if connector else configured
     if not selected:
-        echo("No connector credentials configured; set HBOT_<CONNECTOR_FIELD> environment values and restart.")
+        echo("No connector credentials configured; use the managed credential API." if managed else
+             "No connector credentials configured; set HBOT_<CONNECTOR_FIELD> environment values and restart.")
         return
     try:
-        Security.initialize_from_environment(selected)
+        if managed:
+            from hummingbot.client.config.managed_credentials import initialize_managed_credentials
+            initialize_managed_credentials(state, names=selected)
+        else:
+            Security.initialize_from_environment(selected)
         ccm = load_client_config_map_from_file(read_only=True)
         errors = asyncio.run(asyncio.wait_for(
             UserBalances.instance().update_exchanges(ccm, reconnect=True, exchanges=selected),

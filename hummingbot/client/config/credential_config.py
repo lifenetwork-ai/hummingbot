@@ -9,6 +9,14 @@ from hummingbot.client.config.defaults import DEFAULT_ENV_CONFIG
 from hummingbot.client.config.runtime_config import RuntimeConfigurationError, storage_backend
 
 
+def credential_source_mode(environ=None):
+    values = os.environ if environ is None else environ
+    source = values.get("EXCHANGE_CREDENTIALS_SOURCE", DEFAULT_ENV_CONFIG["EXCHANGE_CREDENTIALS_SOURCE"])
+    if source not in ("environment", "postgres_kms"):
+        raise RuntimeConfigurationError("Choose EXCHANGE_CREDENTIALS_SOURCE=environment/postgres_kms.")
+    return source
+
+
 @dataclass(frozen=True)
 class CredentialSettings:
     source: str = "environment"

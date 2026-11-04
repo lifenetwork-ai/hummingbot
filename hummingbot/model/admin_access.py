@@ -136,7 +136,7 @@ class AdminAccessStore:
         return current
 
     def audit(self, connection, *, actor, action, outcome, request_id, target_id=None,
-              reason_code=None, operation_id=None, event_key=None, details=None):
+              reason_code=None, operation_id=None, event_key=None, details=None, exchange=None, connector=None, environment=None):
         safe = details or {}
         if set(safe) - {"version", "previous_version", "role", "previous_role", "active", "previous_active", "target_email"}:
             raise ValueError("Unreviewed audit detail fields")
@@ -145,6 +145,7 @@ class AdminAccessStore:
             operation_id=operation_id, actor_kind=actor.kind if actor else "unknown",
             actor_id=actor.id if actor else None, actor_email=actor.email if actor else None,
             actor_role=actor.role if actor else None, action=action, target_id=target_id,
+            exchange=exchange, connector=connector, environment=environment,
             outcome=outcome, reason_code=reason_code, details=safe, created_at=func.clock_timestamp()))
 
     def bootstrap_status(self):
