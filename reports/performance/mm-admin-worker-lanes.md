@@ -12,6 +12,11 @@ acceptance is transferred. The preceding f4 failures remain failed.
 [Plan](../../docs/plans/MM_ADMIN_WORKER_LANES_TDD_PLAN.md),
 [evidence](mm-admin-worker-lanes-evidence.json).
 
+Follow-up: [pre-window owner publication investigation](../investigations/mm-owner-publication-timeout.md)
+adds three clean preparations and a witnessed 1.182s WAL-delayed publication
+COMMIT. The original failed SELECT remains unattributed; no runtime fix is
+claimed.
+
 ## Change and tradeoff
 
 The existing two-thread API database executor admits at most one operations job

@@ -5,6 +5,16 @@ Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN
 
 ## Current status — 2026-11-04
 
+- **Pre-window owner timeout investigation:** same `086454de` image, three valid
+  preparations (one traced/two untraced), 1,836 PG samples and no reproduced
+  persistence error/restart. A 1.182s engine publication COMMIT is witnessed in
+  WAL I/O during the bulk history seed; its preceding SELECT takes 2.32ms.
+  Three new plus eleven related real-PG tests pass, distinguishing row-lock
+  timeout `55P03` from statement timeout `57014` and verifying no false acknowledgement.
+  Historical SELECT attribution stays open; no runtime changes or release-gate
+  upgrade. Stopped Demo/23 fills and all four ledger hashes remain unchanged.
+  [Report/evidence](../investigations/mm-owner-publication-timeout.md).
+
 - **Admin worker lanes scoped verification complete:** source0f4095671/image
   086454de retain two physical workers while reserving operations/heavy capacity.
   Native2,494 +11 subtests, PG355, Swagger, three E2E groups, four report-fault

@@ -1,0 +1,403 @@
+{
+  "date": "2026-11-04",
+  "scope": "pre-window offline preparation investigation; no new release/load acceptance",
+  "image_id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+  "runtime_source": "0f409567105fd2975a6540b9fcf88ad8f6b583c0",
+  "runtime_changed": false,
+  "historical": {
+    "report": "build/mm-load/20261104-134831-d0dea6",
+    "error": "PostgreSQL canceling statement due to statement timeout",
+    "operation": "BotStateStore.publish initial owner/version-fenced SELECT status,mm_session FOR UPDATE",
+    "lock_timeout_ms": 1000,
+    "statement_timeout_ms": 2000,
+    "io_response_deadline_ms": 3000,
+    "postgres_error_utc": "2026-11-04T06:48:59.915Z",
+    "strategy_stopped_utc": "2026-11-04T06:48:53.513Z",
+    "clock_stopped_utc": "2026-11-04T06:48:53.516Z",
+    "engine_failed_utc": "2026-11-04T06:48:59.921Z",
+    "second_engine_started_utc": "2026-11-04T06:49:00.954Z",
+    "second_bootstrap_completed_utc": "2026-11-04T06:49:06.543Z",
+    "measured_hour_started_utc": "2026-11-04T06:49:33.009Z",
+    "historical_blocker_or_wait_witness_retained": false,
+    "exclusive_cause": "unproven"
+  },
+  "cases": [
+    {
+      "case": 4,
+      "full_runtime_trace": true,
+      "release_gate": false,
+      "report": "build/mm-load/20261104-155822-ba0d7c",
+      "samples": 660,
+      "sample_span_seconds": 71.141564,
+      "max_sample_gap_ms": 230.486,
+      "observed_blocked_backend_samples": 0,
+      "dropped_samples": 0,
+      "persistence_failure_records": 0,
+      "engine_start_records": 1,
+      "postgres_error_records": 0,
+      "history_seed_seconds": 10.079894,
+      "observed_wait_samples": [
+        {
+          "wait_type": "IO",
+          "wait_event": "DataFileRead",
+          "samples": 1
+        },
+        {
+          "wait_type": null,
+          "wait_event": null,
+          "samples": 95
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "DataFileImmediateSync",
+          "samples": 1
+        },
+        {
+          "wait_type": "Client",
+          "wait_event": "ClientRead",
+          "samples": 188
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "WALInitSync",
+          "samples": 2
+        },
+        {
+          "wait_type": "LWLock",
+          "wait_event": "WALBufMapping",
+          "samples": 1
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "WALWrite",
+          "samples": 6
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "WALInitWrite",
+          "samples": 9
+        },
+        {
+          "wait_type": "LWLock",
+          "wait_event": "WALWrite",
+          "samples": 14
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "DataFileExtend",
+          "samples": 3
+        }
+      ],
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-4/postgres.jsonl": "7c10adbc739ef155651f46d5f4c761fad534dce39761683937554c52e43e5399",
+        "build/owner-publication-timeout-20261104/case-4/preparation.jsonl": "fc794cd20b2bc2765e5b6490a38cdd74b4bef6129e0d19e2ac0fbec51e0eabd6",
+        "build/owner-publication-timeout-20261104/case-4/sampler-summary.json": "716f968bcbf29a7de5b90d081780e666b6401fca2f76564216bcb2d0ba72ac7c",
+        "build/mm-load/20261104-155822-ba0d7c/hbot-e2e-b9fa223b0a-pg.log": "e93d995050de78465e5e3a226e9d64a1456b379a4ba6acab072d3794fe43d523",
+        "build/mm-load/20261104-155822-ba0d7c/hbot-e2e-b9fa223b0a-load-bot.log": "a052c7f5ac64714b1f540282302edadd643e98c978aa9cccc470b6f83ad5999a"
+      }
+    },
+    {
+      "case": 5,
+      "full_runtime_trace": false,
+      "release_gate": false,
+      "report": "build/mm-load/20261104-160004-1b93c5",
+      "samples": 648,
+      "sample_span_seconds": 69.873011,
+      "max_sample_gap_ms": 252.341,
+      "observed_blocked_backend_samples": 0,
+      "dropped_samples": 0,
+      "persistence_failure_records": 0,
+      "engine_start_records": 1,
+      "postgres_error_records": 0,
+      "history_seed_seconds": 8.120843,
+      "observed_wait_samples": [
+        {
+          "wait_type": null,
+          "wait_event": null,
+          "samples": 97
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "WALWrite",
+          "samples": 1
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "DataFileImmediateSync",
+          "samples": 2
+        },
+        {
+          "wait_type": "Client",
+          "wait_event": "ClientRead",
+          "samples": 155
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "WALSync",
+          "samples": 5
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "DataFileExtend",
+          "samples": 2
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "WALInitSync",
+          "samples": 2
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "WALInitWrite",
+          "samples": 3
+        },
+        {
+          "wait_type": "LWLock",
+          "wait_event": "WALWrite",
+          "samples": 3
+        }
+      ],
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-5/postgres.jsonl": "8156a8fa97a8b97f27026407dedd9bc749cd4a711cfaf131fecb6c4085867eeb",
+        "build/owner-publication-timeout-20261104/case-5/preparation.jsonl": "d145532f0e18d347dac1c84ec302c4335b37290c4c5a73428ad46444307dfe79",
+        "build/owner-publication-timeout-20261104/case-5/sampler-summary.json": "1979c0d975f02a75494f930ec4644f1db3309c26c2e3e5eb6f18c6dcc886c9fb",
+        "build/mm-load/20261104-160004-1b93c5/hbot-e2e-a0fdc4eec7-pg.log": "682116c8a8b7fb6f128a0cadebda5fc7f3df250ab7d2896465d43a876bf8a40b",
+        "build/mm-load/20261104-160004-1b93c5/hbot-e2e-a0fdc4eec7-load-bot.log": "f6120289b21048c66487d5327a8e9867a0c735b9be0675d3c2fc7bb38d148d77"
+      }
+    },
+    {
+      "case": 6,
+      "full_runtime_trace": false,
+      "release_gate": false,
+      "report": "build/mm-load/20261104-160317-30e61a",
+      "samples": 528,
+      "sample_span_seconds": 55.617598,
+      "max_sample_gap_ms": 206.915,
+      "observed_blocked_backend_samples": 0,
+      "dropped_samples": 0,
+      "persistence_failure_records": 0,
+      "engine_start_records": 1,
+      "postgres_error_records": 0,
+      "history_seed_seconds": 8.072757,
+      "observed_wait_samples": [
+        {
+          "wait_type": null,
+          "wait_event": null,
+          "samples": 69
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "DataFileImmediateSync",
+          "samples": 1
+        },
+        {
+          "wait_type": "Client",
+          "wait_event": "ClientRead",
+          "samples": 96
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "DataFileExtend",
+          "samples": 10
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "WALWrite",
+          "samples": 1
+        },
+        {
+          "wait_type": "LWLock",
+          "wait_event": "WALWrite",
+          "samples": 30
+        },
+        {
+          "wait_type": "IO",
+          "wait_event": "WALInitWrite",
+          "samples": 2
+        }
+      ],
+      "artifacts_sha256": {
+        "build/owner-publication-timeout-20261104/case-6/postgres.jsonl": "aa4ba1cecbbf5f4ced08be5affdbb0aafaa22be9b820615a6f1f263eda3f7857",
+        "build/owner-publication-timeout-20261104/case-6/preparation.jsonl": "2eb11a95d75858810e754f1499acb4a4f97ace5fa0e106423b7a4d0a8216cdc3",
+        "build/owner-publication-timeout-20261104/case-6/sampler-summary.json": "c68de048dc4f5507856d09effa0afc6b2c18387398c1fcf1e3f39a371bae0055",
+        "build/mm-load/20261104-160317-30e61a/hbot-e2e-6e79dc9fe2-pg.log": "d5096e08b0299bff1bb253db3e98b694db247f6cec0db162e72d995572e668f2",
+        "build/mm-load/20261104-160317-30e61a/hbot-e2e-6e79dc9fe2-load-bot.log": "25839c8f0498ca34716dbed5408d8e52888120796f7904d1b5bde548dd1f90f6"
+      }
+    }
+  ],
+  "observed_wal_wait": {
+    "case": 4,
+    "trace_id": "a87a00202e3f4447b75599d015e92a98",
+    "backend_pid": 140,
+    "publication_select_ms": 2.323333,
+    "commit_ms": 1182.315709,
+    "commit_thread_cpu_ms": 0.378625,
+    "commit_start_utc_epoch": 1793782744.9609616,
+    "root_operation": "service.observe_once",
+    "seed_in_progress": true,
+    "postgres_samples": [
+      {
+        "at": 1793782745.050168,
+        "backend_pid": 140,
+        "state": "active",
+        "wait_type": "IO",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "sql_template": "COMMIT"
+      },
+      {
+        "at": 1793782745.156137,
+        "backend_pid": 140,
+        "state": "active",
+        "wait_type": "IO",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "sql_template": "COMMIT"
+      },
+      {
+        "at": 1793782745.264495,
+        "backend_pid": 140,
+        "state": "active",
+        "wait_type": "IO",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "sql_template": "COMMIT"
+      },
+      {
+        "at": 1793782745.379371,
+        "backend_pid": 140,
+        "state": "active",
+        "wait_type": "IO",
+        "wait_event": "WALWrite",
+        "blocking_pids": [],
+        "sql_template": "COMMIT"
+      },
+      {
+        "at": 1793782745.488562,
+        "backend_pid": 140,
+        "state": "active",
+        "wait_type": "IO",
+        "wait_event": "WALInitWrite",
+        "blocking_pids": [],
+        "sql_template": "COMMIT"
+      },
+      {
+        "at": 1793782745.595379,
+        "backend_pid": 140,
+        "state": "active",
+        "wait_type": "IO",
+        "wait_event": "WALInitWrite",
+        "blocking_pids": [],
+        "sql_template": "COMMIT"
+      },
+      {
+        "at": 1793782745.700526,
+        "backend_pid": 140,
+        "state": "active",
+        "wait_type": "IO",
+        "wait_event": "WALInitWrite",
+        "blocking_pids": [],
+        "sql_template": "COMMIT"
+      },
+      {
+        "at": 1793782745.810135,
+        "backend_pid": 140,
+        "state": "active",
+        "wait_type": "IO",
+        "wait_event": "WALInitWrite",
+        "blocking_pids": [],
+        "sql_template": "COMMIT"
+      },
+      {
+        "at": 1793782745.915359,
+        "backend_pid": 140,
+        "state": "active",
+        "wait_type": "IO",
+        "wait_event": "WALInitWrite",
+        "blocking_pids": [],
+        "sql_template": "COMMIT"
+      },
+      {
+        "at": 1793782746.020786,
+        "backend_pid": 140,
+        "state": "active",
+        "wait_type": "IO",
+        "wait_event": "WALInitWrite",
+        "blocking_pids": [],
+        "sql_template": "COMMIT"
+      },
+      {
+        "at": 1793782746.127957,
+        "backend_pid": 140,
+        "state": "active",
+        "wait_type": "IO",
+        "wait_event": "WALInitSync",
+        "blocking_pids": [],
+        "sql_template": "COMMIT"
+      }
+    ],
+    "historical_attribution": false
+  },
+  "controlled_tests": {
+    "new_cases": 3,
+    "related_cases": 11,
+    "passed": 14,
+    "failed": 0,
+    "lock_wait_sqlstate": "55P03",
+    "statement_timeout_sqlstate": "57014",
+    "failed_publication_preserves_ack_heartbeat_status": true,
+    "unrelated_row_lock_allows_publication": true,
+    "log": "build/owner-publication-timeout-20261104/controlled-postgres-green.log",
+    "sha256": "76d67df805a38d07cf7d2e5f95244dc77da09f31d9845fb82b85bbfd25e1ddad",
+    "earlier_invalid_control_fixture": "One test attempted a second bot identity rejected by the existing single-bot guard; corrected to an unrelated fixture table. Not a runtime regression."
+  },
+  "nonqualifying_diagnostics": [
+    {
+      "case": 1,
+      "reason": "No public PG port; sampler collected no rows"
+    },
+    {
+      "case": 2,
+      "reason": "Interrupted the diagnostic with the same port issue; not counted"
+    },
+    {
+      "case": 3,
+      "reason": "Incomplete sampler due to multiline JSON parsing; not counted"
+    }
+  ],
+  "demo_after": {
+    "phase": "stopped",
+    "running": false,
+    "owner_available": true,
+    "counts": {
+      "orders": 3513,
+      "trade_fills": 23,
+      "positions": 3,
+      "executors": 2848
+    },
+    "hashes": {
+      "orders": "331c3a9fe9978af37faee7f15b656234",
+      "trade_fills": "89b927c2868e7483c105b43c3bc6b751",
+      "positions": "94315e1d770e988c967b43722f74b560",
+      "executors": "bb9e902715eec79b03bc3d98fa6a4494"
+    },
+    "ledger_hashes_unchanged": true,
+    "recovery": {
+      "halted": false,
+      "pending_mutations": false,
+      "next_action": "none",
+      "detail": "No recovery block is recorded.",
+      "reset_available": false
+    },
+    "unresolved_orders": []
+  },
+  "next_evidence_needed": "Capture wait/blocker PID, transaction and trace for the same timed-out publication, before the measured window; no blind retry or deadline relaxation justified.",
+  "raw_runner": {
+    "path": "build/owner-publication-timeout-20261104/reproduce_preparation.py",
+    "sha256": "8421f74fc2c77da8a280647c8d4fb55107bd1478f791464917cca153e3514aea"
+  },
+  "references": [
+    "https://www.postgresql.org/docs/14/explicit-locking.html#LOCKING-ROWS",
+    "https://www.postgresql.org/docs/14/monitoring-stats.html#MONITORING-PG-STAT-ACTIVITY-VIEW"
+  ]
+}

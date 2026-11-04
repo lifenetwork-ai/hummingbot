@@ -11,6 +11,14 @@ FOR UPDATE timeout and automatic engine restart before the timed window; its
 exclusive cause remains unproven. No new full R1/R2 or active natural-fill
 acceptance is transferred. [Report](../../reports/performance/mm-admin-worker-lanes.md).
 
+**Pre-window timeout investigation:** three new preparations (one traced/two
+untraced) do not reproduce persistence failure/restart. 1,836 PG samples show no
+blocked backend; a same-PID publication COMMIT waits 1.182s on WAL I/O during
+history insertion. Three new and eleven related PG tests pass. This establishes
+a storage-pressure lead, not attribution or a fix of the historical SELECT
+timeout. Runtime/image unchanged; stopped Demo/23 fills and ledger hashes remain
+intact. [Investigation](../../reports/investigations/mm-owner-publication-timeout.md).
+
 **Preceding retry candidate:** `f4d90bc7` from `d2cdf2a36` retries one
 acknowledged daily-read timeout through the existing bounded executor. Native
 2,464 +11 subtests, PostgreSQL354, three packaged E2E groups and four controlled

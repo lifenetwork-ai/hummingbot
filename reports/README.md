@@ -4,6 +4,13 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Pre-window owner timeout investigated:** three new preparations retain 1,836
+  PG samples without persistence failure/restart; 14 targeted PG tests pass.
+  One publication COMMIT has 1.182s of same-PID WAL I/O wait evidence during
+  historical fixture insertion. The original failed SELECT remains unattributed;
+  no runtime fix or new release acceptance is claimed. Stopped Demo/23 fills and
+  ledger hashes are unchanged. [Report/evidence](investigations/mm-owner-publication-timeout.md).
+
 - **Admin worker lanes verified on086454de:** native2,494 +11 subtests, PG355,
   Swagger, three E2E groups, four report-fault cases,300s probe and unchanged
   hour pass. Hour p99 246.24/88.55ms,79,200 HTTP200/no stale,3,595 exact synthetic
