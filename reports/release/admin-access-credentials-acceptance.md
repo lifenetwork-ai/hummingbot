@@ -65,3 +65,16 @@ the existing static safety gate requires the original generator to pass directly
 through the verified offline preparation lifecycle. The original callback was
 restored; optional audit-history seeding reads only the explicit test fixture flag.
 The guard was retained unchanged and the affected harness scope was rerun.
+
+Post-fix native regression on runtime `4eb311ff5` passed **2,671 tests** plus 11
+subtests (202, 11, 1,705, 753). The second full PostgreSQL attempt was stopped after
+four known failures in the shared test seeder: SQL-only fixture adapters lacked the
+optional `env` attribute. It finished with 4 failed/78 passed before interruption;
+this was not a trading-query failure or a clean full-suite pass. A minimal-adapter
+Red/Green regression now covers that compatibility and optional audit-history mode.
+The four affected PostgreSQL cases passed on rerun; a clean full rerun remains due.
+Candidate runtime image: `8cd8052d…`, tag `admin-credentials-fc3577831`.
+
+The shared SQL-only seeder compatibility regression passed **32 native preparation
+checks** and all **4 affected PostgreSQL cases**. The test fixture's extra audit
+history remains opt-in; its original generator and offline-only lifecycle are intact.

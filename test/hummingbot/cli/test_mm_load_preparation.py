@@ -252,3 +252,17 @@ def test_process_experiment_fences_are_measured_after_planned_restart():
     generations = [node.lineno for node in ast.walk(tree) if isinstance(node, ast.Assign)
                    and any(isinstance(t, ast.Name) and t.id == 'generation' for t in node.targets)]
     assert len(staged) == len(generations) == 1 and generations[0] > staged[0]
+
+
+@pytest.mark.parametrize('security', [False, True])
+def test_shared_seed_supports_minimal_sql_adapter_and_opt_in_audit_history(security):
+    from scripts.test_mm_load import seed_history
+    statements = []
+    fixture = SimpleNamespace(sql=statements.append)
+    if security:
+        fixture.env = {'HBOT_LOAD_GOOGLE_FIXTURE': '/test-assets'}
+    seed_history(fixture, 1)
+    assert len(statements) == (2 if security else 1)
+    assert 'INSERT INTO orders' in statements[0]
+    if security:
+        assert 'INSERT INTO admin_audit_events' in statements[1]

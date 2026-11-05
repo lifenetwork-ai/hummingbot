@@ -57,7 +57,7 @@ def seed_history(harness, count, *, active_outflow=False, sql_timeout=None):
         FROM orders WHERE id LIKE 'load-history-%'; ANALYZE orders; ANALYZE trade_fills;
     """
     harness.sql(statement, **({'timeout': sql_timeout} if sql_timeout is not None else {}))
-    if harness.env.get('HBOT_LOAD_GOOGLE_FIXTURE'):
+    if getattr(harness, 'env', {}).get('HBOT_LOAD_GOOGLE_FIXTURE'):
         harness.sql(f"""INSERT INTO admin_audit_events
             (bot_id,event_key,request_id,actor_kind,actor_id,actor_email,actor_role,action,outcome,details,created_at)
             SELECT 'hummingbot','load-audit-'||n,'fixture-'||n,'google','load-history','load-history@gmail.com','read',
