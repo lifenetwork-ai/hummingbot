@@ -52,7 +52,7 @@ class ServiceFormatter(logging.Formatter):
             owner_uuid=getattr(owner, "owner_uuid", None) or "-",
             owner_generation=getattr(owner, "generation", None) or 0,
             revision=getattr(host, "revision", None) or os.environ.get("K_REVISION") or os.environ.get("COMMIT_SHA") or "local")
-        for name in ("event", "reason_code", "scope", "session_id", "command_id", "error_type",
+        for name in ("event", "reason_code", "scope", "session_id", "command_id", "error_type", "request_id", "actor_id",
                      "buy_wait_stage", "sell_wait_stage"):
             value = getattr(record, name, None)
             if isinstance(value, (str, int, bool)):
@@ -71,6 +71,9 @@ class ServiceFormatter(logging.Formatter):
         text = (f"{payload['timestamp']} {severity} {record.name} bot={payload['bot_id']} "
                 f"config={payload['config']} owner={payload['owner_uuid']} generation={payload['owner_generation']} "
                 f"revision={payload['revision']} {payload['message']}")
+        for name in ('request_id', 'actor_id'):
+            if name in payload:
+                text += f" {name}={payload[name]}"
         if "exception" in payload:
             text += "\n" + payload["exception"]
         if "stack" in payload:

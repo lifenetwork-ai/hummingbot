@@ -5,6 +5,24 @@ Actual Google sign-in/GCP KMS resources are unavailable, as confirmed by the ope
 The existing Demo service/database have not been cut over. No production deployment
 or real exchange order is part of this acceptance.
 
+Final load on candidate `8cd8052d…` passed warmup/mixed/burst, the unchanged
+sixty-minute soak and all five faults. Soak had 72,000 primary plus 18,000 auxiliary
+HTTP 200 responses, zero unexpected HTTP errors, p99 450.67 ms, 4,884 reconciled
+simulated fills/fees/positions and +28.94 MiB retained growth against 64 MiB.
+The signed security workload completed 163 role cycles and 489 expected denials.
+Raw evidence: `build/mm-load/20261105-092334-94dc45/result.json`.
+
+Audit review found two denied-request audit writes exceeded bounded DB admission
+during the healthy burst window. They were explicitly logged, not successful
+mutations silently committed without audit. However, the console formatter omitted
+the handler's request/actor ID extras. Two Red cases reproduced that observability
+defect. The logging-only fix allows those safe IDs in JSON/text and includes actor ID
+on audit-persistence failure, without exporting arbitrary extras or credentials.
+The focused Green scope passed 83 tests. A missing test filename caused one earlier
+invocation to collect nothing; that invocation is not counted as a pass.
+The updated image must be qualified separately; the green run above is retained,
+not relabelled as evidence for different image bytes.
+
 ## Candidate and implementation
 
 - Runtime tag: `hummingbot-cloudrun:admin-credentials-fc3577831`.

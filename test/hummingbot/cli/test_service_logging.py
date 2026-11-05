@@ -14,6 +14,38 @@ import pytest
 from hummingbot.cli.service import ServiceHost
 from hummingbot.cli.service_availability import ServiceAvailability
 from hummingbot.logger import HummingbotLogger
+from hummingbot.logger.service_logging import ServiceFormatter
+
+
+@pytest.mark.parametrize('style', ['json', 'text'])
+def test_security_correlation_survives_console_format_without_exporting_arbitrary_extras(style):
+    record = logging.LogRecord('security', logging.ERROR, __file__, 1, 'Audit unavailable', (), None)
+    record.request_id, record.actor_id = 'request-123', 'account-456'
+    record.authorization = 'Bearer must-not-export'
+    record.credentials = {'secret': 'must-not-export'}
+    formatted = ServiceFormatter(style, {}).format(record)
+    assert 'request-123' in formatted and 'account-456' in formatted
+    assert 'must-not-export' not in formatted
+    if style == 'json':
+        row = json.loads(formatted)
+        assert row['request_id'] == 'request-123' and row['actor_id'] == 'account-456'
+
+
+@pytest.mark.asyncio
+async def test_failed_denial_audit_retains_safe_actor_request_and_explicit_persistence_reason(caplog):
+    from unittest.mock import AsyncMock
+
+    from hummingbot.cli.admin_access_api import AdminAccessAPI
+    api = SimpleNamespace(access_store=lambda: SimpleNamespace(record_denial=object()),
+                          run_database=AsyncMock(side_effect=RuntimeError('private-database-input')))
+    with caplog.at_level(logging.WARNING):
+        await AdminAccessAPI.audit_denial(api, actor=SimpleNamespace(id='account-456'), reason_code='forbidden',
+                                          request_identity='request-123', mutation=True)
+    record = next(row for row in caplog.records if getattr(row, 'event', None) == 'admin_audit_unavailable')
+    result = json.loads(ServiceFormatter('json', {}).format(record))
+    assert result['actor_id'] == 'account-456' and result['request_id'] == 'request-123'
+    assert result['reason_code'] == 'audit_persistence_unavailable' and result['severity'] == 'ERROR'
+    assert 'private-database-input' not in json.dumps(result)
 
 
 @pytest.fixture

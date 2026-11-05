@@ -37,7 +37,7 @@ class AdminAccessAPI:
         except Exception as error:
             logger.error("Security audit unavailable type=%s", type(error).__name__,
                          extra={"event": "admin_audit_unavailable", "request_id": request_identity,
-                                "reason_code": "audit_persistence_unavailable"})
+                                "actor_id": actor.id if actor else None, "reason_code": "audit_persistence_unavailable"})
 
     @staticmethod
     def principal_response(actor):
