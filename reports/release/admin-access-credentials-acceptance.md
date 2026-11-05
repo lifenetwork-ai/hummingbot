@@ -1,179 +1,135 @@
 # Admin access and encrypted credential acceptance
 
-Status: A1–A5 implemented and committed; A6 local verification is in progress.
-Actual Google sign-in/GCP KMS resources are unavailable, as confirmed by the operator.
-The existing Demo service/database have not been cut over. No production deployment
-or real exchange order is part of this acceptance.
+Local/offline acceptance is complete on final source/image below. The final related
+PostgreSQL rerun passed 148 tests. Real Google/GCP and reviewed Demo cutover remain open.
+No production deployment or change to the existing Demo service/database was made.
 
-Final load on candidate `8cd8052d…` passed warmup/mixed/burst, the unchanged
-sixty-minute soak and all five faults. Soak had 72,000 primary plus 18,000 auxiliary
-HTTP 200 responses, zero unexpected HTTP errors, p99 450.67 ms, 4,884 reconciled
-simulated fills/fees/positions and +28.94 MiB retained growth against 64 MiB.
-The signed security workload completed 163 role cycles and 489 expected denials.
-Raw evidence: `build/mm-load/20261105-092334-94dc45/result.json`.
+## Implemented
 
-Audit review found two denied-request audit writes exceeded bounded DB admission
-during the healthy burst window. They were explicitly logged, not successful
-mutations silently committed without audit. However, the console formatter omitted
-the handler's request/actor ID extras. Two Red cases reproduced that observability
-defect. The logging-only fix allows those safe IDs in JSON/text and includes actor ID
-on audit-persistence failure, without exporting arbitrary extras or credentials.
-The focused Green scope passed 83 tests. A missing test filename caused one earlier
-invocation to collect nothing; that invocation is not counted as a pass.
-The updated image must be qualified separately; the green run above is retained,
-not relabelled as evidence for different image bytes.
+- Google whitelist identities with `read`, `write`, `admin`; fresh role lookup on
+  every request and mutation-time authorization. Basic bootstrap is explicitly
+  env-controlled and can be disabled after a Google administrator is bound.
+- Input-only exchange credentials, encrypted/account-bound PostgreSQL storage,
+  local/GCP key-provider adapters, safe connection status and atomic mutation audit.
+  Source selection, provider, routing and strategy YAML remain deployment-owned.
+- Stop-acknowledged Set/rotation without auto-start. Guided Disconnect cancels bot
+  orders, closes managed perpetual LONG/SHORT, verifies native fills/fees/checkpoints,
+  detaches consumers, then erases the selected encrypted bundle. Spot is preserved.
+- Durable same-operation retry and same-account cleanup-key repair. Unknown exposure,
+  uncertain sends and unsupported modes retain credentials and show operator action.
+- English API/UX guidance, audit pagination, Swagger annotations and FE/runbook handoff.
 
-The logging update is `c33a73cc9`, image `772ddb88c5f2b0984c896c747ef520de8386571d1969b80d5057fe09f0b34f06`
-(1,374,393,886 bytes). Its full native regression passed **2,677 tests plus 11
-subtests**. The first PG rerun had one failure while constructing 20,000 fixture
-events: statement timeout during FK checks, before the discovery query or index
-assertions. Concurrent image compilation was present; an exclusive host cause is
-not proven. Setup now has a bounded 60-second transaction-local timeout and restores
-the exact original timeout before EXPLAIN. Query budgets/index assertions are
-unchanged. The isolated affected test passed; a clean full PG rerun is required.
+Reuse: existing aiohttp handlers, bounded worker scheduler, PostgreSQL receipts,
+ownership, supervisor, native connectors/order tracker/recorder. One Cloud Run service
+retains separate API and trading processes with bounded pools. No new web framework,
+external queue or Redis was introduced. Admission fixes change API queue headroom,
+not worker count, DB pool limits or MM quote logic. Queues allow 64 total/32 reports/
+30 heavy jobs; control priority and physical cancellation reservations remain tested.
 
-That clean rerun passed all 442 tests. The updated image passed packaged logging/
-schema, 600-second retention and native managed cleanup/restart. Its full load
-`build/mm-load/20261105-114223-64ff90` passed warmup/mixed, but failed burst for one
-HTTP 503. Correlation ID `90b0ccb22a5b49d5bb8aa2d91c1eb4c0` proves this was **fresh
-role lookup rejected by shared reporting admission**, before `/statistics/daily`
-ran; it was not a daily aggregate SQL timeout. Primary burst p99 was 147.36 ms.
+## Exact candidate and scope
 
-A Red capacity test reproduces that rejection without reaching role storage.
-The fix executes verification and fresh role lookup on the identity scheduler's
-existing bounded threads, retaining its reserved control slot, physical cancellation
-accounting and underlying DB pool bounds. It adds no permission cache or thread
-pool. Fifty-five identity/capacity tests pass, including immediate role changes and
-slow-query/control isolation. The final image/load checks must repeat on this fix;
-the failed burst is retained rather than retried until green or relabelled.
+- Source: `3a3011d6f`; tag `hummingbot-cloudrun:admin-admission-final`.
+- Image: `sha256:1bb946c39830f79044b520b47dd4d324419cf7f0d63271363673e2ce137b57a3`.
+- Manifest: `sha256:c92d3d6fefabb18e2d4b2cc2ee78a2b6122989f0d115533166763a667945f2cd`.
+- Image size: 1,374,394,138 bytes, below the original 1.5 GiB budget.
+- Portable [evidence](admin-access-credentials-evidence.json) retains hashes, workload,
+  limits, query counts, full-window outcomes and bounded capture counters.
 
-The next candidate passed warmup/mixed/burst and its retention assertions but its
-sixty-minute window failed: one client TimeoutError and 23 HTTP 429 responses.
-Evidence: `build/mm-load/20261105-123257-e6d1d3`. The 429 request IDs resolve to
-`security_work_busy`: the reused identity scheduler admits only ten queued reader
-jobs, less than ten primary readers plus concurrent operations/security polling.
-A new 20-reader Red test reproduced the rejection with an available control slot.
-The identity-only queue now admits 30 reader jobs/32 non-control jobs/64 total;
-its two workers, reserved control execution and DB pool are unchanged. The bound
-remains explicit and physical cancellation accounting is preserved. The isolated
-client timeout has no exclusive cause established; it is not silently called fixed
-by queue headroom, nor is the failed hour accepted. Final gates remain due.
-
-Candidate with identity headroom passed its native/schema/memory/cleanup checks and
-warmup/mixed, but `build/mm-load/20261105-142118-543f93` failed burst: four HTTP 503s
-were now ordinary reporting admission (not identity), and command admission p95 was
-503.66 ms against 500 ms. Its old reporting queue still admitted only 12 requests.
-An extended existing control-burst test reproduces rejection of 20 combined primary/
-operations readers. Reporting now shares the explicit 64-total/32-report/30-heavy
-queue bounds; identity reuses that scheduler directly instead of a duplicate subclass.
-Two physical workers, control priority, DB pool limits and all load budgets remain
-unchanged. Overload tests still fill the actual bound, require rejection beyond it,
-and verify cancellation cannot free running physical work. No failed gate is closed
-by these targeted tests; image acceptance must repeat.
-
-## Candidate and implementation
-
-- Runtime tag: `hummingbot-cloudrun:admin-credentials-fc3577831`.
-- Image config ID: `sha256:8cd8052d5ba1851b992862f531f231aaa0637215c0e5236a122cbc01aa287952`.
-- Immutable manifest: `sha256:b3424b541904126a360bcec8e5aab33b687f11af55c00359af37d3af7b5c2235`.
-- Size: 1,374,393,248 bytes; original 1.5 GiB image budget passes.
-- Runtime phases: `c06c02a60`, `91cc55267`, `69e16e142`, `7c5d99588`, `4f284b9f8`;
-  native cleanup fix `4eb311ff5`. FE/runbook handoff: `f98c4711a`.
-- Later commits extend tests/docs only. Gate artifacts record their fixture hashes;
-  a test-only change does not imply a rebuilt runtime image.
-
-Implemented behavior: Google whitelist roles with fresh authorization, env-controlled
-Basic bootstrap disablement, encrypted account-bound PostgreSQL credentials with
-local/GCP provider adapters, typed Set/load receipts, guided automatic Disconnect,
-same-operation retry/cleanup-key repair, safe status/errors and durable audit reads.
-The implementation reuses the existing HTTP handlers, bounded workers, supervisor,
-engine ownership, native connectors, tracker and recorder.
-
-## Local verification
-
-| Check | Result | Evidence |
+| Verification | Result | Artifact/log |
 | --- | --- | --- |
-| Post-fix native release regression | 2,671 tests plus 11 subtests pass | `/tmp/hbot-admin-release-native2.log` |
-| Clean post-fix PostgreSQL suite | 439 pass in 837.56 seconds | `/tmp/hbot-admin-release-postgres3.log` |
-| Supervised provider delay and permission denial | 2 additional tests pass; API stays live, no env fallback/restart loop | `/tmp/hbot-admin-provider-fault-process.log` |
-| Lost post-commit HTTP response and error/audit correlation | 2 focused tests pass; one receipt/version/accepted audit on replay | `/tmp/hbot-admin-response-correlation3.log` |
-| Signed identity/provider-fault/history fixture checks | 35 pass | `/tmp/hbot-admin-kms-marker-green.log` |
-| Final-image offline E2E, including upgrade/takeover/rollback | 17/17 scenarios pass | `build/e2e-offline/20261105-083127-b83ad5/result.json` |
-| Native cancel/close/removal/restart probe | Pass; 62 exact simulated fills/fees, flat perpetual, preserved spot, removed envelopes | `build/mm-load/20261105-082520-d84e71/result.json` |
-| Same probe with loaded-key provider outage | Pass; same native cleanup and restart proof | `build/mm-load/20261105-090816-2b0e09/result.json` |
-| Original 600-second retention/startup gate | Pass; +18.40 MiB RSS against 32 MiB budget, 12,000/12,000 reads, zero errors, p99 693.95 ms; 3 successful control transitions, no contract-size startup error | `build/memory-review/20261105-091131/result.json` |
-| Original full-load profiles and unchanged 60-minute zero-error soak | Running with signed identities, fresh roles, 100,000 audit rows and loaded-key provider outage | `/tmp/hbot-admin-release-load.log` |
+| Final native release regression | 2,680 tests plus 11 subtests pass | `/tmp/hbot-admin-admission-native.log` |
+| Full PG regression before identity admission changes | 442 pass; SQL/models unchanged by later queue fixes | `/tmp/hbot-admin-release-postgres-clean-final.log` |
+| Related auth/credential/cleanup PG regression on final code | 148 pass | `/tmp/hbot-admin-closeout-postgres.log` |
+| Identity, admission and worker regressions | 65 focused checks pass; overlaps native total | `/tmp/hbot-admin-report-admission-green.log` |
+| Final packaged ABI/JIT/TLS/logging/schema | Pass; 20 migrations, safe request/actor IDs, no arbitrary extra/secret export | `build/e2e-offline/20261105-145245-1ebb6e/result.json` |
+| Full 17-scenario E2E/upgrade baseline | Pass on earlier `8cd8052d…`; not relabelled as final-image full E2E | `build/e2e-offline/20261105-083127-b83ad5/result.json` |
+| Final 600-second retention/startup | Pass; +18.07 MiB RSS against 32 MiB, p99 615.41 ms, three control transitions, no contract-size startup error | `build/memory-review/20261105-145439/result.json` |
+| Final native managed cleanup/restart | Pass; 62 exact simulated fills/fees, flat perpetual, preserved spot, erased envelopes, no resurrection | `build/mm-load/20261105-150636-a30e50/result.json` |
+| Final unchanged full load/soak/fault gate | Pass, `release_scope_complete=true`, no diagnostic relaxation | `build/mm-load/20261105-150933-07d0a1/result.json` |
+| Swagger drift check | Pass | `/tmp/hbot-admin-swagger-closeout.log` |
 
-Native command populations were 202, 11 subtests, 1,705 and 753. Additional/focused
-checks overlap prior scopes and are not added to an inflated total. The provider-delay
-process test exceeds normal observer freshness but remains within the existing
-45-second stopped-load grace; no new production grace/bypass was needed.
+Tests use isolated PostgreSQL/simulator data. These are not actual OKX Demo fills.
+No totals add overlapping focused suites into an inflated test count.
 
-### Diagnostic probe results
+## Final load results
 
-Both measured windows are 60-second diagnostics, not the long release soak.
+| Window | Seconds | Main reads | Main p95 / p99 | Command admission p95 | Unexpected HTTP errors |
+| --- | ---: | ---: | --- | ---: | ---: |
+| Warmup | 300 | 6,000 | 64.40 / 357.15 ms | 41.54 ms | 0 |
+| Mixed | 900 | 18,000 | 97.14 / 570.17 ms | 56.77 ms | 0 |
+| Bursts | 90 | 1,800 | 102.12 / 667.14 ms | 135.93 ms | 0 |
+| Random soak | 3,600 | 72,000 | 114.48 / 638.82 ms | 38.20 ms | 0 |
 
-| Probe | Reads/s | Market updates/s | Fills/s | Read p95 | Read p99 | Sampled RSS |
-| --- | --- | --- | --- | --- | --- | --- |
-| Corrected-image managed lifecycle | 20.00 | 100.002 | 1.00 | 63.18 ms | 343.25 ms | 627,216,384 bytes |
-| Loaded-key provider unavailable | 20.00 | 100.006 | 1.00 | 56.73 ms | 297.61 ms | 625,537,024 bytes |
+All 97,800 main reads and 24,450 auxiliary reads completed HTTP 200. Soak auxiliary
+p99 was 573.10 ms. The fixed mixed window maintained approximately 20 main reads/s,
+100 market updates/s and 1 synthetic fill/s; the unchanged 500-update/s burst stimulus
+passed. Intentional random-transition gaps are included in soak's observed rates.
+All 4,884 exchange/recorder fills, exact fees and positions reconciled; two identified
+funding bills and daily snapshots were checked. Soak retained growth was **28.125 MiB**
+against the original **64 MiB** budget, using cgroup current minus file plus shmem.
+No production GC policy or runtime/error/latency budget was relaxed.
 
-Each probe passed its declared window budgets. Disconnect uses the real native
-connector/recorder path against the isolated simulator: stop, cancel/read back bot
-orders, close LONG and SHORT separately, reconcile all 62 fill/fee records, verify
-flat/detached state, erase selected envelopes, then restart without resurrecting
-keys or closed exposure. Spot checkpoints remain unchanged. This is not OKX Demo.
+All five fault windows passed: stale feed, owner restart, queued expiry, DB delay and
+DB failure. Their expected errors are explicitly separated from healthy-window
+latency; no hidden retry of a failed normal window is used.
 
-The first corrected probe retained one **pre-window** 311.093 ms engine probe timeout
-(epoch 1793842006.25, recovered 1793842007.61; measured window
-1793842017.39–1793842077.39). No captured probe failure or loop-stall trigger occurred
-inside that window. This is not an exclusive probe-root-cause fix or a guarantee
-of continuous two-sided quotes. Bounded capture counters and pre-window signals
-remain in raw artifacts; the trace does not claim every child span is lossless.
+Security: signed offline Google-shaped identities use the official verifier with
+fixture public certificates; no private signing key is persisted and no shipping
+verification bypass exists. Basic is off before measurement, env exchange keys are
+removed, and managed bundles use real local encryption. There are 100,000 audit rows
+alongside 100,000 historical orders/fills. Across normal windows, 1,467 extra security
+requests exercised 163 role cycles and 489 expected denials without caching roles.
+Instrumented audit queries remain one query/page and credential status three queries.
+Already loaded authorized keys kept MM active while the test-only provider rejected
+unwrap; provider access was restored before intentional cold/crash recovery tests.
+Separate supervised checks cover slow/denied cold loads with admin health available.
 
-## Load methodology and security boundaries
+## Retained failures and fixes
 
-The optional `--security` wrapper signs Google-shaped fixture tokens and injects only
-public certificates into the mounted test entrypoint. Signature, audience, issuer,
-expiry and current database role verification remain real. Private signing keys are
-not persisted. There is no shipping env flag that bypasses verification.
+| Failed attempt | Finding and action |
+| --- | --- |
+| `20261105-081017-a5bc18`, image `37c36234…` | Native cleanup requested singular `/market/ticker`, absent from the perpetual throttler. Red with the real throttler reproduced pre-transport failure. `4eb311ff5` reuses registered `/market/tickers` and selects the exact instrument. No close was sent by that failed attempt. |
+| Seed callback/static safety and SQL-only Seeder cases | Restored the required offline-only seed callback; minimal adapters lacked optional `env`. Retained the guard, added compatibility regressions, reran affected tests and clean full PG. |
+| Bulk 20,000-event fixture during concurrent compilation | Timed out on FK checks before the query/index assertion. Setup now has a bounded 60-second local timeout; the exact original timeout is restored before EXPLAIN. Runtime/query budgets are unchanged; no exclusive host cause is claimed. |
+| `20261105-092334-94dc45`, earlier successful full gate | Two denial-audit writes could not enter bounded DB admission. Errors were visible, but formatter dropped request/actor extras. Two Red JSON/text tests reproduced it; `c33a73cc9` preserves safe IDs and explicit fallback correlation, never arbitrary extras. |
+| `20261105-114223-64ff90` | One `/statistics/daily` 503 was fresh-role admission rejected before the handler, not aggregate SQL. Correlation ID and Red capacity test identify it. `1e4253d47` combines verify/fresh lookup on the existing identity worker. |
+| `20261105-123257-e6d1d3` | One client timeout plus 23 identity 429s failed soak despite passing retention. Twenty-reader Red test exposed ten-job reader headroom. The queue fix retains bounds and reserved control. The isolated timeout has no exclusive cause established and is not silently called fixed. |
+| `20261105-142118-543f93` | Four reporting-admission 503s and command p95 503.66 ms against 500 ms failed burst. Extended control-burst regression reproduces rejection of combined readers. `3a3011d6f` unifies bounded queue headroom without adding workers/pool connections. Final gate above repeats unchanged and passes. |
 
-Accounts and identity bindings are created through real HTTP handlers. Basic is
-disabled before measurement, and working exchange environment credentials are removed.
-The engine must load real local-encrypted PostgreSQL bundles. Synthetic audit history
-contains 100,000 records. A bounded extra workload checks credential/audit reads,
-invalid signatures, denied mutation and demotion/re-promotion on the same token.
-Original read/fill schedules, duration, error, latency and retention budgets stay intact.
+Collector invocations using missing test filenames and initial incorrect HTTP audit
+assertions were corrected and are not counted as successful runs. Red/development
+logs and phase evidence remain referenced in Git history and the phase progress.
 
-The provider-outage marker is consumed only by the test wrapper after authorized
-bundles have loaded. Unwrap is denied throughout normal windows, then restored before
-intentional crash/recovery windows. Already loaded clients must continue MM. Separate
-supervised tests cover slow/denied cold loads while administration remains usable.
-No production outage toggle or plaintext/environment fallback is introduced.
+## Availability and audit limits
 
-## Failed attempts and diagnosis
+Retained healthy-window logs show no ERROR, unexpected HALT or child restart. Safe
+request/actor IDs are present on verified denial logs. Successful mutations/audit
+commit atomically; anonymous polling/auth failures use platform logs. Denial-history
+writes are bounded: DB unavailability/admission timeout can prevent a DB audit row,
+with explicit correlated `admin_audit_unavailable` logs. No invented audit backfill
+or claim of complete DB history during an outage is made.
 
-| Attempt | Diagnosis and action | Acceptance consequence |
-| --- | --- | --- |
-| First image `37c36234…`, `build/mm-load/20261105-081017-a5bc18` | Diagnostic load passed, but Disconnect requested singular `/market/ticker`, absent from the native perpetual throttler. `AttributeError` occurred before transport; no close was sent. A Red test using the real throttler reproduced it. `4eb311ff5` reuses registered `/market/tickers` and selects the exact instrument with Decimal parsing. | Overall attempt failed. Rebuilt candidate repeats all required gates. |
-| Static offline seed guard | Wrapping the callback with `partial` violated the existing offline-only safety rule. Restored the original callback; retained the guard unchanged. | Harness failure, not a runtime SQL failure. |
-| Second full PostgreSQL attempt | Four SQL fixture cases failed before querying because minimal Seeder adapters lacked optional `env`; run stopped with 4 failed/78 passed. Added minimal-adapter regressions and `getattr` compatibility. | Not a clean pass. All four affected cases, 32 native preparation checks and the clean 439-case rerun passed. |
-| New HTTP correlation assertions | Test used absent `message` instead of the existing `error`/`detail` contract, then selected generic denial rather than credential failure from the same request. Corrected selectors; no runtime change. | Both failed attempts retained in `/tmp/hbot-admin-response-correlation{,2}.log`; clean rerun passes. |
+Recovered slow probes remain: **3 engine episodes in mixed** (longest observed
+transition 3.023 s), **22 episodes in soak** (longest 1.627 s), none in warmup/burst.
+All recorded episodes recovered inside their window. These are supervisor transition
+intervals, not measured quote downtime. Capture has bounded buffers/queues/span loss;
+fill/fee/position agreement and sampled activity do not prove continuous two-sided
+quotes or establish an exclusive cause. The historical single HTTP timeout did not
+recur in this final gate, but its root cause remains unproven.
 
-The original pre-fix native/PG runs (2,628 tests plus 11 subtests; 439 PG tests) and
-38 focused crypto/adapter checks are historical evidence, not substitutes for the
-post-fix gates above. The full KMS protobuf SDK was deliberately excluded after its
-dependency/connector descriptor conflict; the GCP adapter uses official Auth/REST.
+API and engine are separate processes with bounded work/pools, sharing CPU/PostgreSQL
+by design. Reporting overload does not itself request a trading Stop. Shared-resource
+exhaustion can still affect both; there is no absolute uptime guarantee.
 
 ## External acceptance still open
 
-- Real Google sign-in, public certificate discovery and deployment OAuth audience.
-- Real GCP KMS/IAM using synthetic credentials and the configured runtime identity.
-- Separately reviewed cutover of the existing OKX Demo ledger/account binding to
-  managed credentials; no prior approval for unrelated Demo maintenance is reused.
-- Production ingress, identities and deployment configuration when deployment is requested.
+Real Google sign-in/certificate discovery, real GCP KMS/IAM with synthetic credentials,
+and a separately reviewed managed-credential cutover of the existing OKX Demo ledger
+need the operator's resources. The operator confirmed local/offline continuation.
+Unavailable checks are not passes. The exchange API key must still be deleted on
+OKX by its owner; Python reference removal is not physical memory zeroization and
+backups can retain old encrypted rows.
 
-An unavailable external check is not a pass. Python reference removal is not physical
-key zeroization; backups can retain earlier encrypted rows. No secret reveal API exists.
-See [FE integration](../../docs/fe-integration.md), [credential operations](../../docs/exchange-credentials.md)
-and [phase progress](../implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
+See [FE integration](../../docs/fe-integration.md), [credential operations](../../docs/exchange-credentials.md),
+[phase progress](../implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md) and the
+[implementation checklist](../../docs/plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md).

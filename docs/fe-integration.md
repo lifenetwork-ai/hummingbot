@@ -198,9 +198,11 @@ Audit filters: `from_time` inclusive, `to_time` exclusive (timezone required),
 `actor_id`, `action`, `outcome`, `target_id`, `operation_id`, `exchange`, `connector`,
 `environment`; default limit 100, maximum 500. Keep filters unchanged while using
 `next_cursor`. IDs are strings; timestamps are UTC. Successful changes/audit commit
-together; explicit sign-in/mutation denials also have durable history when DB is
-available. Ordinary polling and anonymous request failures use structured platform
-logs; DB outages can prevent audit persistence, with request IDs retained in logs.
+together; explicit sign-in/mutation denials also have durable history when the bounded
+audit write completes. Ordinary polling and anonymous request failures use structured
+platform logs. DB outages or admission timeouts can prevent a denial-audit row;
+request and verified actor IDs remain in correlated platform logs. A failed mandatory
+mutation audit rolls back the mutation.
 There is no audit edit/delete API. Account management uses synchronous committed
 responses; a 409 means refresh/review, not blind resubmission.
 An `accepted` audit event records admission of a control request; use its linked

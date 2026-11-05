@@ -268,7 +268,7 @@ expected dependency/blocking outcomes retain WARNING. No secret or trading gate
 is bypassed, and no close order from that failed attempt reached the simulator.
 The corrected image must repeat the probe and subsequent release gates.
 
-## A6 — Local final-image acceptance in progress
+## A6 — Earlier candidate evidence (superseded)
 
 Runtime image `8cd8052d5ba1851b992862f531f231aaa0637215c0e5236a122cbc01aa287952`
 contains the native ticker/throttle fix. Immutable manifest:
@@ -290,9 +290,41 @@ Subsequent commits change tests/docs only.
   32 MiB budget, 12,000/12,000 reads, zero errors, p99 693.95 ms, three completed
   controls and no contract-size startup errors. Evidence:
   `build/memory-review/20261105-091131/result.json`.
-- Unchanged full-load/sixty-minute-soak acceptance is running on the same candidate.
+- Later identity/admission findings required newer images; the earlier evidence above
+  is not transferred to the final candidate. See final closeout below.
 - Actual Google/GCP resources are unavailable; the operator confirmed local/offline
   continuation. Existing Demo credentials/database have not been cut over or altered.
 
 The consolidated [acceptance report](../release/admin-access-credentials-acceptance.md)
 retains failed attempts and separates production defects from test-harness defects.
+
+## A6 — Final local closeout
+
+Final runtime source `3a3011d6f`, image
+`1bb946c39830f79044b520b47dd4d324419cf7f0d63271363673e2ce137b57a3`, manifest
+`c92d3d6fefabb18e2d4b2cc2ee78a2b6122989f0d115533166763a667945f2cd`.
+
+The final image passed packaged schema/logging, 600-second memory, actual native
+managed cancel/close/removal/restart and the unchanged full load/sixty-minute soak
+plus all five faults. Native regression passed 2,680 tests plus 11 subtests.
+The final related PostgreSQL regression passed 148 tests; the earlier clean full
+PG scope passed 442 tests. These scopes are reported separately. All available local
+A6 checkboxes are complete; external acceptance remains explicitly open.
+
+Soak: 72,000 primary + 18,000 auxiliary HTTP 200, no unexpected errors, primary
+p99 638.82 ms, +28.125 MiB retained growth against 64 MiB. Across all normal windows,
+97,800 primary + 24,450 auxiliary reads pass, 4,884 synthetic fills/fees/positions
+match, and 163 role cycles/489 expected denials preserve fresh authorization.
+The final cleanup probe verifies 62 fills/fees, both perpetual sides flat, spot
+preserved, envelopes erased and no resurrection after restart.
+
+Confirmed fixes include native ticker/throttle compatibility, safe log correlation,
+fresh-role work isolated from reporting admission, and bounded reader/control
+headroom using the existing scheduler. No extra physical worker or DB pool increase
+was made. All failed attempts are retained in the consolidated report.
+
+Recovered probes and the historical isolated HTTP timeout remain qualified; there
+is no claim of continuous quote uptime or an exclusive historical timeout cause.
+Actual Google/GCP and reviewed existing-Demo cutover remain open. No production
+or existing Demo change was made. See [acceptance report](../release/admin-access-credentials-acceptance.md)
+and [portable evidence](../release/admin-access-credentials-evidence.json).

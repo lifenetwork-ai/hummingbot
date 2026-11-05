@@ -1,6 +1,6 @@
 # Admin access and encrypted exchange credentials — TDD plan (OKX first)
 
-Status: A1–A4b implemented and verified locally on 2026-11-05 (Asia/Saigon); A5 integration handoff completed; A6 final acceptance remains open.
+Status: A1–A5 implemented; A6 local/offline acceptance completed on 2026-11-05 (Asia/Saigon). Real Google/GCP and reviewed existing-Demo cutover remain open; no production deployment.
 Evidence: [implementation progress](../../reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
 Unchecked sections describe proposed behavior. Current endpoints
 and deployment behavior remain documented in [FE integration](../fe-integration.md).
@@ -876,21 +876,21 @@ an unprocessable placeholder `202` is not an acceptable intermediate API.
 - [x] Verify error, receipt, audit and status correlation end to end, including a
   post-commit response loss and a KMS outage while MM keeps running; all visible
   guidance remains English, secret-free and consistent with observed trading state.
-- [ ] Verify bounded audit queries with substantial history, query counts, and secret-
+- [x] Verify bounded audit queries with substantial history, query counts, and secret-
   free export; authenticate sustained load as Google identities with fresh role lookups.
   Offline signing keys/verifier inputs are fixture injection only, never a shipped
   environment flag that disables Google verification or permits arbitrary issuers.
-- [ ] Run the original final-image load/retention gates including the unchanged
+- [x] Run the original final-image load/retention gates including the unchanged
   60-minute soak; record auth/audit/provider overhead and MM/probe witnesses, preserving
   original limits and every failed attempt. Do not transfer older-image acceptance.
-- [ ] Add a bounded mixed-security workload for concurrent role change, invalid auth,
+- [x] Add a bounded mixed-security workload for concurrent role change, invalid auth,
   credential status/audit reads and slow KMS. Prove Stop remains responsive, accepted
   mutations remain auditable, queues are bounded and no secret memory accumulation occurs.
 - [ ] Verify real Google sign-in and a real Cloud KMS key with synthetic credentials
   when project/client resources are provided. Keep unavailable external checks open;
   offline mocks cannot close them. Test actual OKX Demo credentials only under an
   explicitly reviewed cutover, retaining prior ledger and recovery evidence.
-- [ ] Complete FE integration notes, evidence and remaining limitations; verify no
+- [x] Complete FE integration notes, evidence and remaining limitations; verify no
   secret enters Git, mark completed phases and commit. Do not deploy production here.
 
 ## Implementation-readiness review
@@ -908,10 +908,17 @@ The decisions above close them at plan level; their implementation tests stay op
 | Generic connector input metadata includes deployment-owned fields | Credential-only field allowlist and tested routing/identity injection |
 | DB-backed auth was scheduled before its schema; role changes can race mutation admission | A1 includes storage foundation; permission checks and mutation commit have defined transaction ordering |
 
-A1–A4b are implemented locally and A5 handoff is complete. A4b passed its targeted local boundary tests; A6 must still verify final-image lifecycle faults and release/load acceptance. The original requirement remains: pass targeted
-cancel/close/restart tests before its capability is enabled. Actual Google sign-in,
-GCP KMS and reviewed Demo checks need their external resources for A6; their absence
-does not block offline implementation and must not be recorded as a pass.
+A1–A5 and all available A6 local/offline checks are complete. Final source
+`3a3011d6f`, image `1bb946c3…`, passed the unchanged full load/sixty-minute soak,
+all five faults, native managed cleanup/restart and retention gates. Native regression
+passed 2,680 tests plus 11 subtests; final related PostgreSQL scope passed 148 tests.
+The earlier full 442-case PG and 17-scenario E2E baselines retain their exact scope.
+See [acceptance report](../../reports/release/admin-access-credentials-acceptance.md)
+and [portable evidence](../../reports/release/admin-access-credentials-evidence.json).
+Recovered probe episodes and the historical single HTTP timeout remain qualified,
+not declared exclusively explained. Real Google sign-in, GCP KMS and reviewed
+existing-Demo cutover need external resources and remain unchecked above. Offline
+fixtures cannot close them; no production or existing Demo cutover was performed.
 
 ## Primary references
 

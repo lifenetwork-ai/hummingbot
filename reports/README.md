@@ -4,6 +4,17 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Admin identities and encrypted credentials — local acceptance complete:** source
+  `3a3011d6f`, image `1bb946c3…`. Native 2,680 + 11 subtests and final related PG148
+  pass. Final-image schema/logging, memory, automatic cancel/close/removal/restart
+  and unchanged full load/60-minute soak/five faults pass. Soak90,000 main+auxiliary
+  HTTP200/no unexpected errors, p99 primary638.82ms, +28.125MiB retained growth;
+  4,884 exact simulated fills/fees/positions. Audit/role work uses existing bounded
+  schedulers; no extra physical worker/pool. All failed attempts and recovered
+  probe limits remain explicit. Real Google/GCP and reviewed existing-Demo cutover
+  remain open; existing Demo is untouched. [Report](release/admin-access-credentials-acceptance.md),
+  [evidence](release/admin-access-credentials-evidence.json).
+
 - **Partial-fill quote-size fix and candidate hour verified:** source `905bff7e3`, candidate354fec1e.
   Two Red BUY/SELL cases;528 native plus two subtests (38 new cases), LIFE lifecycle
   and volatility-defense E2E pass. Quote validity reuses acknowledged in-flight
