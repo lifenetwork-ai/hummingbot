@@ -78,3 +78,33 @@ Candidate runtime image: `8cd8052d…`, tag `admin-credentials-fc3577831`.
 The shared SQL-only seeder compatibility regression passed **32 native preparation
 checks** and all **4 affected PostgreSQL cases**. The test fixture's extra audit
 history remains opt-in; its original generator and offline-only lifecycle are intact.
+
+## Corrected-image diagnostic probe
+
+`build/mm-load/20261105-082520-d84e71` passed the Google-only/managed-key probe:
+20 reads/s, 100.002 updates/s, 1 fill/s, p95 63.18 ms, p99 343.25 ms, no declared
+window violations; sampled RSS 627,216,384 bytes. Synthetic audit history contained
+100,000 entries. The bounded role/denial workload ran alongside the original slots.
+The native connector/recorder cleanup then closed LONG and SHORT, reconciled all
+62 simulated fills/fees, removed the selected slots sequentially and restarted.
+Spot checkpoints were preserved and no removed key or closed exposure returned.
+This is a 60-second diagnostic, **not** the required sixty-minute release soak.
+Actual Google/GCP/OKX Demo remain explicitly outside this evidence.
+
+Clean PostgreSQL rerun: `/tmp/hbot-admin-release-postgres3.log` (running).
+Full image E2E/upgrade: `/tmp/hbot-admin-release-e2e.log` (running).
+
+The bounded diagnostic capture retained one 311.093 ms engine probe timeout before
+the measured probe window (epoch 1793842006.25, recovered 1793842007.61; window
+1793842017.39–1793842077.39). There were zero captured probe failures or loop-stall
+triggers inside that window. Startup/restart signals are retained, not called a
+root-cause fix or silently erased by the healthy window result.
+
+The clean post-fix PostgreSQL rerun passed **439/439** in 837.56 seconds
+(`/tmp/hbot-admin-release-postgres3.log`). Two additional full-supervisor provider
+fault tests passed separately: delayed decryption exceeds normal observer freshness
+without a restart, and permission denial stays explicit while API/live health remains
+available with no environment fallback/restart loop. Provider behavior is injected
+only into the native test wrapper; this is not real GCP acceptance.
+The existing 45-second stopped-load health grace required no production change.
+Focused fault log: `/tmp/hbot-admin-provider-fault-process.log`.

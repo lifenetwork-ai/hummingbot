@@ -100,6 +100,18 @@ if candidate_account:
         self.config(connector, values)
         return self.deployment.site + ':' + candidate_account
     OKXCredentialAdapter.preflight = preflight
+if os.environ.get('HBOT_OFFLINE_KMS_DELAY') or os.environ.get('HBOT_OFFLINE_KMS_DENIED'):
+    # Inject provider behavior only in this process test wrapper. Shipping
+    # provider selection/authorization contains no such environment switches.
+    from hummingbot.core.credential_encryption import LocalKeyProvider, CredentialCryptoError
+    original_unwrap = LocalKeyProvider.unwrap
+    def delayed_unwrap(self, *args, **kwargs):
+        if os.environ.get('HBOT_OFFLINE_KMS_DENIED') == 'true':
+            raise CredentialCryptoError('kms_permission_denied')
+        import time
+        time.sleep(float(os.environ.get('HBOT_OFFLINE_KMS_DELAY', '0')))
+        return original_unwrap(self, *args, **kwargs)
+    LocalKeyProvider.unwrap = delayed_unwrap
 if os.environ.get('HBOT_OFFLINE_CLEANUP_EMPTY') == 'true':
     # Empty-account lifecycle fixture only. Keep TradingCore, recorder, clock,
     # owner, coordinator and real connector construction; replace exchange I/O.

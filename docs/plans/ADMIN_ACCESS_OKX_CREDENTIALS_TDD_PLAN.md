@@ -867,7 +867,7 @@ an unprocessable placeholder `202` is not an acceptable intermediate API.
 
 ### A6 — Final verification, load and evidence
 
-- [ ] Run focused plus required native/regression and PostgreSQL suites on final code;
+- [x] Run focused plus required native/regression and PostgreSQL suites on final code;
   exercise authenticated read/write/admin and Basic-disabled cases end to end.
 - [ ] Run offline lifecycle/fault tests using real local encryption and simulated KMS
   delays/denials: credential change/revoke, automatic cancel/close, owner restart,

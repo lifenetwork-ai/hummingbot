@@ -118,3 +118,60 @@ def test_supervised_empty_account_disconnect_uses_real_core_and_stays_removed_af
             log.seek(0)
             assert 'REMOVAL-CANARY' not in log.read()
             log.close()
+
+
+def test_slow_provider_load_keeps_api_live_without_restarting_stopped_engine(pg_engine, tmp_path, monkeypatch):
+    monkeypatch.setenv('EXCHANGE_CREDENTIALS_SOURCE', 'postgres_kms')
+    monkeypatch.setenv('KMS_PROVIDER', 'local')
+    monkeypatch.setenv('KMS_LOCAL_SECRET_KEY', base64.b64encode(b'K' * 32).decode())
+    monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
+    monkeypatch.setenv('HBOT_OFFLINE_CREDENTIAL_ACCOUNT', 'offline-account')
+    monkeypatch.setenv('HBOT_OFFLINE_KMS_DELAY', '12')
+    process, port, log = start_service(tmp_path / 'slow-kms', admin_enabled=True)
+    store = BotStateStore(pg_engine, 'hummingbot')
+    try:
+        eventually(lambda: health(port, '/startup')[0] == 200)
+        eventually(lambda: store.read() and store.read()['owner_uuid'])
+        generation = store.read()['owner_generation']
+        status, receipt = call(port, '/credentials/okx/okx', key='slow-save', body=dict(expected_version=0, expected_control_version=0,
+                                                                                        credentials=dict(api_key='SLOW-CANARY-API', secret_key='SLOW-CANARY-SECRET', passphrase='SLOW-CANARY-PASS')))
+        assert status == 202, receipt
+        eventually(lambda: call(port, '/credentials/operations/' + receipt['id'])[1]['result']['stage'] == 'loading')
+        time.sleep(9)  # Exceeds observer freshness and several supervisor probe intervals.
+        assert health(port, '/live')[0] == 200 and call(port, '/access/me')[0] == 200
+        assert store.read()['owner_generation'] == generation and store.read()['desired_state'] == 'stopped'
+        eventually(lambda: call(port, '/credentials/operations/' + receipt['id'])[1]['status'] == 'succeeded')
+        assert store.read()['owner_generation'] == generation
+    finally:
+        terminate(process)
+        log.seek(0)
+        assert 'SLOW-CANARY' not in log.read()
+        log.close()
+
+
+def test_provider_denial_is_explicit_keeps_api_live_and_does_not_fallback_or_restart_loop(pg_engine, tmp_path, monkeypatch):
+    monkeypatch.setenv('EXCHANGE_CREDENTIALS_SOURCE', 'postgres_kms')
+    monkeypatch.setenv('KMS_PROVIDER', 'local')
+    monkeypatch.setenv('KMS_LOCAL_SECRET_KEY', base64.b64encode(b'K' * 32).decode())
+    monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
+    monkeypatch.setenv('HBOT_OFFLINE_CREDENTIAL_ACCOUNT', 'offline-account')
+    monkeypatch.setenv('HBOT_OFFLINE_KMS_DENIED', 'true')
+    process, port, log = start_service(tmp_path / 'denied-kms', admin_enabled=True)
+    store = BotStateStore(pg_engine, 'hummingbot')
+    try:
+        eventually(lambda: health(port, '/startup')[0] == 200)
+        eventually(lambda: store.read() and store.read()['owner_uuid'])
+        generation = store.read()['owner_generation']
+        status, receipt = call(port, '/credentials/okx/okx', key='denied-save', body=dict(expected_version=0, expected_control_version=0,
+                                                                                          credentials=dict(api_key='DENIED-CANARY-API', secret_key='DENIED-CANARY-SECRET', passphrase='DENIED-CANARY-PASS')))
+        assert status == 202, receipt
+        observed = eventually(lambda: (row if (row := call(port, '/credentials/operations/' + receipt['id'])[1])['status'] == 'failed' else None))
+        assert observed['error'] == 'kms_permission_denied'
+        time.sleep(2)
+        assert health(port, '/live')[0] == 200 and call(port, '/credentials/okx')[1]['slots'][0]['status'] == 'failed'
+        assert store.read()['owner_generation'] == generation and not store.read()['status']['running']
+    finally:
+        terminate(process)
+        log.seek(0)
+        assert 'DENIED-CANARY' not in log.read()
+        log.close()
