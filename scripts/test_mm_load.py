@@ -32,7 +32,7 @@ def save_fault_progress(report, evidence, name, data):
     (report / "result.json").write_text(json.dumps(evidence, indent=2))
 
 
-def seed_history(harness, count, *, active_outflow=False, sql_timeout=None, security=False):
+def seed_history(harness, count, *, active_outflow=False, sql_timeout=None):
     """Reuse the PG performance fixture's generate_series bulk insert pattern.
 
     Add recorder fills in natural decimal units, dated yesterday and closed so
@@ -57,7 +57,7 @@ def seed_history(harness, count, *, active_outflow=False, sql_timeout=None, secu
         FROM orders WHERE id LIKE 'load-history-%'; ANALYZE orders; ANALYZE trade_fills;
     """
     harness.sql(statement, **({'timeout': sql_timeout} if sql_timeout is not None else {}))
-    if security:
+    if harness.env.get('HBOT_LOAD_GOOGLE_FIXTURE'):
         harness.sql(f"""INSERT INTO admin_audit_events
             (bot_id,event_key,request_id,actor_kind,actor_id,actor_email,actor_role,action,outcome,details,created_at)
             SELECT 'hummingbot','load-audit-'||n,'fixture-'||n,'google','load-history','load-history@gmail.com','read',
@@ -414,9 +414,8 @@ def main():
                          description="verified empty-DB outflow binding before historical fixture insertion")
                     command(harness, port, "stop")
                 evidence['history_preparation'] = {}
-                from functools import partial
                 prepare_history(harness, bot, args.history_rows, active_outflow=args.enhancements,
-                                seed=partial(seed_history, security=args.security), evidence=evidence['history_preparation'])
+                                seed=seed_history, evidence=evidence['history_preparation'])
                 if args.security:
                     evidence['history_preparation']['audit_events'] = int(harness.sql("SELECT count(*) FROM admin_audit_events WHERE action='fixture_history'"))
 

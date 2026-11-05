@@ -59,3 +59,9 @@ budgets and soak duration are unchanged. Private fixture signing keys are not pe
 Real Google sign-in/certificate discovery and actual GCP KMS/IAM with synthetic
 credentials require the operator's resources. Existing Demo cutover needs its separate
 reviewed procedure and ledger/account binding; no production deployment is performed.
+
+A harness regression check rejected wrapping the seed callback with `partial`:
+the existing static safety gate requires the original generator to pass directly
+through the verified offline preparation lifecycle. The original callback was
+restored; optional audit-history seeding reads only the explicit test fixture flag.
+The guard was retained unchanged and the affected harness scope was rerun.
