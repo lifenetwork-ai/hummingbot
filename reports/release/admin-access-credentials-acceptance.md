@@ -47,6 +47,18 @@ pool. Fifty-five identity/capacity tests pass, including immediate role changes 
 slow-query/control isolation. The final image/load checks must repeat on this fix;
 the failed burst is retained rather than retried until green or relabelled.
 
+The next candidate passed warmup/mixed/burst and its retention assertions but its
+sixty-minute window failed: one client TimeoutError and 23 HTTP 429 responses.
+Evidence: `build/mm-load/20261105-123257-e6d1d3`. The 429 request IDs resolve to
+`security_work_busy`: the reused identity scheduler admits only ten queued reader
+jobs, less than ten primary readers plus concurrent operations/security polling.
+A new 20-reader Red test reproduced the rejection with an available control slot.
+The identity-only queue now admits 30 reader jobs/32 non-control jobs/64 total;
+its two workers, reserved control execution and DB pool are unchanged. The bound
+remains explicit and physical cancellation accounting is preserved. The isolated
+client timeout has no exclusive cause established; it is not silently called fixed
+by queue headroom, nor is the failed hour accepted. Final gates remain due.
+
 ## Candidate and implementation
 
 - Runtime tag: `hummingbot-cloudrun:admin-credentials-fc3577831`.

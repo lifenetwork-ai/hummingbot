@@ -9,6 +9,35 @@ from hummingbot.core.admin_identity import Principal
 
 
 @pytest.mark.asyncio
+async def test_normal_reader_concurrency_is_admitted_without_consuming_control_capacity():
+    release, started = threading.Event(), threading.Event()
+    principal = Principal('user-1', 'google', 'read')
+
+    def resolve(claims, **kwargs):
+        if claims['sub'] != 'control':
+            started.set()
+            release.wait(3)
+        return principal
+
+    service = AdminIdentityService(SimpleNamespace(access_store=lambda: SimpleNamespace(resolve_google=resolve),
+                                                   settings=SimpleNamespace(basic_auth_enabled=False)),
+                                   verifier=SimpleNamespace(verify=lambda token: {'sub': token}, close=lambda: None))
+    tasks = [asyncio.create_task(service.authenticate(str(n))) for n in range(20)]
+    try:
+        assert await asyncio.to_thread(started.wait, 1)
+        await asyncio.sleep(.05)
+        assert not any(task.done() for task in tasks)
+        assert await asyncio.wait_for(service.authenticate('control', control=True), .5) == principal
+        assert service.work.pending == 20 and service.work.active == 1
+        release.set()
+        assert all(result == principal for result in await asyncio.gather(*tasks))
+    finally:
+        release.set()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await service.close()
+
+
+@pytest.mark.asyncio
 async def test_fresh_role_lookup_is_not_rejected_by_saturated_reporting_admission():
     from unittest.mock import Mock
 

@@ -92,12 +92,21 @@ class GoogleTokenVerifier:
             self.transport.close()
 
 
+class IdentityWorkExecutor(AdminDatabaseExecutor):
+    # Ten primary readers, operations polling and security checks can overlap.
+    # Queue headroom is bounded; worker count, reserved control slot and DB pool
+    # bounds stay unchanged. Timed-out physical work still holds its reservation.
+    MAX_PENDING = 64
+    MAX_REPORTS = 32
+    MAX_HEAVY = 30
+
+
 class AdminIdentityService:
     def __init__(self, api, *, verifier=None):
         self.api = api
         self.verifier = verifier or GoogleTokenVerifier(api.settings.google_client_id)
         # Reuse bounded scheduling; controls have their own reserved execution slot.
-        self.work = AdminDatabaseExecutor()
+        self.work = IdentityWorkExecutor()
 
     async def authenticate(self, token, *, control=False, bind=False, request_id=None):
         def verify_and_resolve():
