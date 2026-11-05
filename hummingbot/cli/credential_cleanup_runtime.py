@@ -156,10 +156,15 @@ class CleanupExchangeRuntime:
         quantized = connector.quantize_order_amount(trading_pair=pair, amount=amount)
         if not amount.is_finite() or amount <= 0 or rule is None or quantized != amount or amount < rule.min_order_size:
             raise CredentialAdapterError("cleanup_uncloseable_residual", status=409)
-        ticker = await asyncio.wait_for(connector._api_get(path_url="/api/v5/market/ticker", params={"instId": pair + "-SWAP"}), 10)
         try:
-            price = Decimal(ticker["data"][0]["last"])
-            if str(ticker.get("code")) != "0" or not price.is_finite() or price <= 0 or price * amount < rule.min_notional_size:
+            # Reuse the native connector's registered ticker endpoint/bucket.
+            # A made-up path has no rate limit and fails before transport.
+            ticker = await asyncio.wait_for(connector._api_get(path_url="/api/v5/market/tickers", params={"instType": "SWAP"}), 10)
+            rows = [row for row in ticker["data"] if row.get("instId") == pair + "-SWAP"]
+            if str(ticker.get("code")) != "0" or len(rows) != 1:
+                raise ValueError
+            price = Decimal(rows[0]["last"])
+            if not price.is_finite() or price <= 0 or price * amount < rule.min_notional_size:
                 raise ValueError
         except Exception:
             raise CredentialAdapterError("cleanup_price_unavailable", status=503) from None

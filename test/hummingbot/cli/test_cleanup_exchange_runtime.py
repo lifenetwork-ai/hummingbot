@@ -12,7 +12,7 @@ def runtime():
     connector = SimpleNamespace(name="okx_perpetual", client_order_id_prefix="HB", in_flight_orders={},
                                 trading_rules={"BTC-USDT": SimpleNamespace(min_order_size=Decimal("0.001"), min_notional_size=Decimal(0))},
                                 quantize_order_amount=lambda **kwargs: kwargs["amount"], cancel_all=AsyncMock(),
-                                _api_get=AsyncMock(return_value={"code": "0", "data": [{"last": "100"}]}))
+                                _api_get=AsyncMock(return_value={"code": "0", "data": [{"instId": "BTC-USDT-SWAP", "last": "100"}]}))
     core = SimpleNamespace(connector_manager=SimpleNamespace(connectors={"okx_perpetual": connector}),
                            trade_fill_db=SimpleNamespace(assert_persistence_healthy=Mock()))
     owner = SimpleNamespace(owner_uuid="owner", generation=1, _open_orders=AsyncMock(return_value=[]), _refresh_orders=AsyncMock(),
@@ -112,3 +112,29 @@ async def test_cancel_ack_without_terminal_readback_does_not_count_as_cleanup(mo
         await instance.cancel_orders()
     assert connector.cancel_all.await_count == 1
     instance.owner._refresh_orders.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_price_read_uses_registered_native_throttle_and_requested_instrument():
+    from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
+    from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_web_utils import get_rest_api_limit_id_for_endpoint
+    instance, connector = runtime()
+    native = OkxPerpetualDerivative(okx_perpetual_api_key='offline-key', okx_perpetual_secret_key='offline-secret',
+                                    okx_perpetual_passphrase='offline-pass', trading_pairs=['BTC-USDT'])
+
+    async def throttled_get(path_url, **kwargs):
+        async with native._throttler.execute_task(get_rest_api_limit_id_for_endpoint('GET', path_url)):
+            return dict(code='0', data=[dict(instId='LIFE-USDT-SWAP', last='.1'), dict(instId='BTC-USDT-SWAP', last='100')])
+
+    connector._api_get = throttled_get
+    order = SimpleNamespace(client_order_id='close', is_done=True, executed_amount_base=Decimal('.1'))
+
+    def close(**kwargs):
+        assert kwargs['price'] == Decimal('100')
+        connector.in_flight_orders['close'] = order
+        return 'close'
+
+    connector.sell = Mock(side_effect=close)
+    await instance.close_position(dict(id='held', side='BUY', trading_pair='BTC-USDT', amount=Decimal('.1')),
+                                  dict(id='disconnect', affected_versions={'okx_perpetual': 1}))
+    connector.sell.assert_called_once()

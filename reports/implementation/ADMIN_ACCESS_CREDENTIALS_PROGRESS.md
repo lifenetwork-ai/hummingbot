@@ -248,3 +248,22 @@ proposed stage/route descriptions now match the implemented OpenAPI fields.
 Runtime documentation still uses the existing authenticated development-only ENV
 policy. Swagger generation/drift and documentation link/diff checks passed.
 A6 full final-code/image verification and unavailable external resources remain open.
+
+### A6 image probe found a native-throttle integration defect
+
+The first Google-only/managed-key image probe (`37c36234…`, source `f98c4711a`)
+passed its 60-second diagnostic load window: 20 reads/s, 1 fill/s, p95 157.59 ms,
+p99 519.92 ms, no declared window violations. Automatic Disconnect immediately
+afterward correctly retained credentials and reported Action required at closing
+positions, so the **overall attempt failed** and is not release acceptance.
+Evidence: `build/mm-load/20261105-081017-a5bc18`.
+
+A new Red test uses the actual perpetual connector throttler, rather than the
+previous unrestricted AsyncMock. It reproduces `AttributeError` before transport:
+cleanup requested singular `/market/ticker`, which has no native registered rate
+bucket. The fix reuses the connector's existing plural `/market/tickers` endpoint
+and strictly selects the requested instrument, preserving Decimal parsing. Unknown
+cleanup exceptions now log their safe class at ERROR without exception inputs;
+expected dependency/blocking outcomes retain WARNING. No secret or trading gate
+is bypassed, and no close order from that failed attempt reached the simulator.
+The corrected image must repeat the probe and subsequent release gates.

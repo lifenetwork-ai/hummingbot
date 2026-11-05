@@ -86,8 +86,10 @@ class DisconnectCoordinator:
         except Exception as error:
             code = "database_unavailable" if isinstance(error, SQLAlchemyError) else getattr(error, "code", "cleanup_failed")
             transient = code in self.TRANSIENT
-            logging.getLogger(__name__).warning("Disconnect incomplete code=%s operation_id=%s", code, identity,
-                                                extra={"event": "credential_cleanup_incomplete", "reason_code": code, "operation_id": identity})
+            logging.getLogger(__name__).log(logging.ERROR if code == "cleanup_failed" else logging.WARNING,
+                                            "Disconnect incomplete code=%s operation_id=%s error_type=%s", code, identity, type(error).__name__,
+                                            extra={"event": "credential_cleanup_incomplete", "reason_code": code,
+                                                   "operation_id": identity, "error_type": type(error).__name__})
             try:
                 snapshot = await self.snapshot(identity)
                 if snapshot is not None:
