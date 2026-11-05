@@ -61,7 +61,9 @@ def install_provider_fault_fixture(marker='/tmp/offline-kms-unavailable'):
 def set_provider_outage(harness, bot, *, unavailable):
     from scripts.test_e2e_offline import docker
     if unavailable:
-        code = """from pathlib import Path
+        code = """import sys
+from pathlib import Path
+sys.path.insert(0, '/test-assets')
 from security_fixture import install_provider_fault_fixture
 from hummingbot.core.credential_encryption import CredentialCryptoError, LocalKeyProvider
 Path('/tmp/offline-kms-unavailable').touch()
