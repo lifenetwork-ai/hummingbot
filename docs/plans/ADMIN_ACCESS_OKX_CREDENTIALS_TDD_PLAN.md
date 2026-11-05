@@ -1,6 +1,6 @@
 # Admin access and encrypted exchange credentials — TDD plan (OKX first)
 
-Status: A1–A4b implemented and verified locally on 2026-11-05 (Asia/Saigon); A5–A6 remain open.
+Status: A1–A4b implemented and verified locally on 2026-11-05 (Asia/Saigon); A5 integration handoff completed; A6 final acceptance remains open.
 Evidence: [implementation progress](../../reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
 Unchecked sections describe proposed behavior. Current endpoints
 and deployment behavior remain documented in [FE integration](../fe-integration.md).
@@ -489,14 +489,14 @@ remains in its own repository; this plan supplies the API contract and English c
 The following stage values are a projection of existing receipt/cleanup evidence,
 not another independent state machine. Persist only progress needed for recovery.
 
-| Proposed `cleanup_stage` | English UI label | Required evidence / next step |
+| Receipt `result.stage` | English UI label | Required evidence / next step |
 | --- | --- | --- |
-| `blocking_submissions` | Stopping new orders | Durable trading fence; resolve submissions already sent |
+| `waiting_for_owner` | Waiting for trading service | Durable trading fence; resolve submissions already sent |
 | `cancelling_orders` | Cancelling pending orders | Automatic cancellation and terminal order reconciliation; show remaining/unknown counts |
 | `closing_positions` | Closing perpetual positions | Automatic close orders; show remaining long/short quantity per pair and tracked close-order state |
-| `verifying_cleanup` | Verifying orders and positions | Exchange readback plus committed ledger; late fills/residuals return to the necessary cleanup stage |
-| `removing_credentials` | Removing saved connection | Verified cleanup; detach consumers and erase the selected envelope |
-| `complete` | Disconnected | Cleanup verified and credential removal committed; bot remains stopped |
+| `verifying` | Verifying orders and positions | Exchange readback plus committed ledger; late fills/residuals return to the necessary cleanup stage |
+| `detaching` | Removing saved connection | Verified cleanup; detach consumers and erase the selected envelope |
+| `removed` | Disconnected | Cleanup verified and credential removal committed; bot remains stopped |
 
 `connection_status=action_required` retains the blocked stage and uses specific
 reasons such as `order_cancellation_unconfirmed`, `position_close_unconfirmed`,
@@ -684,7 +684,7 @@ traffic exhaust the DB pool or an unbounded audit queue. Real Google tokens used
 by non-interactive API clients retain per-request access logging and per-mutation
 actor audit even when they do not perform an interactive sign-in.
 
-All paths below are proposed additions under `/api/v1/admin`, not shipped routes.
+The following routes are implemented under `/api/v1/admin`; final-image and external acceptance are tracked at A6.
 
 | Endpoint | Access | Contract |
 | --- | --- | --- |
@@ -847,22 +847,22 @@ an unprocessable placeholder `202` is not an acceptable intermediate API.
 
 ### A5 — FE handoff, Swagger and operational runbook
 
-- [ ] Document endpoint models, status versus applied state, role matrix, bootstrap
+- [x] Document endpoint models, status versus applied state, role matrix, bootstrap
   shutdown and credential exception to the old API/YAML/env ownership table.
-- [ ] Provide simple English UI labels: Connected, Not configured, Checking connection,
+- [x] Provide simple English UI labels: Connected, Not configured, Checking connection,
   Disconnecting, Disconnected, Action required; audit exposes actor/action/time/result.
-- [ ] Document the error/status tables, role-aware action availability, safe inline
+- [x] Document the error/status tables, role-aware action availability, safe inline
   validation, retry/receipt handling and request-ID support path. Add OpenAPI examples
   for healthy, stopped, blocked, stale, permission-denied and cleanup-pending cases.
-- [ ] Document the guided Disconnect confirmation/progress/result flow, automatic
+- [x] Document the guided Disconnect confirmation/progress/result flow, automatic
   order cancellation and perpetual closure, fees/execution uncertainty, retained
   spot balances and selected-slot removal. No success while work is unconfirmed;
   show actionable failures and prevent duplicate/conflicting button actions.
-- [ ] Document credential-operation polling, "Retry cleanup" and same-account
+- [x] Document credential-operation polling, "Retry cleanup" and same-account
   cleanup-key repair; distinguish them from trading receipts and normal key rotation.
-- [ ] Update annotations and run `make swagger` / `make swagger-check`; schema must
+- [x] Update annotations and run `make swagger` / `make swagger-check`; schema must
   contain no reveal-secret operation or secret-valued response example.
-- [ ] Document local/GCP setup, rollout/rollback, private ingress/auth headers, env-only
+- [x] Document local/GCP setup, rollout/rollback, private ingress/auth headers, env-only
   Basic disable, last-admin recovery and actual OKX key revocation by the operator.
 
 ### A6 — Final verification, load and evidence
@@ -908,7 +908,7 @@ The decisions above close them at plan level; their implementation tests stay op
 | Generic connector input metadata includes deployment-owned fields | Credential-only field allowlist and tested routing/identity injection |
 | DB-backed auth was scheduled before its schema; role changes can race mutation admission | A1 includes storage foundation; permission checks and mutation commit have defined transaction ordering |
 
-A1–A4b are implemented locally. A4b passed its targeted local boundary tests; A6 must still verify final-image lifecycle faults and release/load acceptance. The original requirement remains: pass targeted
+A1–A4b are implemented locally and A5 handoff is complete. A4b passed its targeted local boundary tests; A6 must still verify final-image lifecycle faults and release/load acceptance. The original requirement remains: pass targeted
 cancel/close/restart tests before its capability is enabled. Actual Google sign-in,
 GCP KMS and reviewed Demo checks need their external resources for A6; their absence
 does not block offline implementation and must not be recorded as a pass.

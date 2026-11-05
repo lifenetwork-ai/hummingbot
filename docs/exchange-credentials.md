@@ -158,3 +158,37 @@ its KEK; a loaded matching version can clean up through a temporary KMS outage.
 Old encrypted database backups may still need the old KEK. Python reference removal
 does not guarantee physical zeroization. Runtime/deployment code with authorized key
 access remains a trust boundary; encryption does not remove that authority.
+
+## Local rollout and rollback
+
+1. Start with an isolated database, a retained local KEK and explicit source/provider
+   settings. Keep Demo and live in separate databases/deployments. Another independent
+   bot also needs its own database and exchange subaccount; `BOT_ID` alone does not
+   isolate the existing shared order/fill tables or ownership lock.
+2. Keep ingress private or behind the approved gateway. Follow the
+   [authentication and bootstrap flow](fe-integration.md#connection-and-openapi):
+   use Basic only for explicit bootstrap, whitelist/bind a Google administrator,
+   verify that account works, then disable Basic in environment settings and restart
+   the complete service. Remove older reachable revisions with Basic still enabled.
+3. Apply the idempotent migrations, verify stopped/acknowledged state, configure both
+   required connection slots, then test Start/Stop before broader acceptance. A running
+   environment-backed ledger requires a separately reviewed managed-account cutover;
+   this work does not perform that cutover on the existing Demo database.
+4. Back up database and key configuration together. Roll back only to a binary tested
+   against the current schema; older strict schema validation may reject new tables
+   or columns. Never drop audit/history, reset HALT, delete a pending cleanup or change
+   account binding to force an older image to start. Database restore and any related
+   position reconciliation require operator review.
+5. Source/provider, auth, routing, whitelist bootstrap policy and strategy YAML remain
+   deployment-owned. The API cannot change these settings. Do not switch back to
+   environment credentials to evade an incomplete managed Disconnect.
+
+Swagger/OpenAPI HTTP routes remain authenticated and available only under the
+existing development `ENV` policy (`dev` default; `DEV`/`development` accepted).
+Deploy production with an explicit non-development `ENV`. The committed schema and
+`make swagger-check` remain available to maintainers without enabling runtime docs.
+
+Future venues use the existing adapter/registry boundary for input validation,
+identity and cleanup capability. They must implement and verify their own native
+cancel/close/readback and final-send rules before advertising Disconnect. A generic
+credential row or input descriptor alone does not add trading support for that venue.

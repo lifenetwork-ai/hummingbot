@@ -232,3 +232,19 @@ unverified crash checkpoints, position mismatch and below-minimum residuals reta
 credentials and require review. No force-erase/reset API exists. Live/Demo cutover
 of the running service is unchanged and still requires its reviewed procedure.
 A5 documents FE/operations; A6 release/load and real external resources remain open.
+
+## A5 — FE handoff and operations
+
+Updated the single FE integration guide with the shipped credential endpoints,
+strict versions/idempotency, root/child polling, role-aware actions, saved versus
+loaded state and the separate Stop/Disconnect confirmation. All suggested copy,
+status labels and guidance are English. Recorded remaining counts are explicitly
+not exchange-wide proof; unknown outcomes never imply successful disconnection.
+
+The credential runbook documents local/GCP settings, retained KEK/backups, private
+Google/gateway headers, environment-only Basic disable, reviewed existing-ledger
+cutover, schema-compatible rollback and future-venue capability limits. The plan's
+proposed stage/route descriptions now match the implemented OpenAPI fields.
+Runtime documentation still uses the existing authenticated development-only ENV
+policy. Swagger generation/drift and documentation link/diff checks passed.
+A6 full final-code/image verification and unavailable external resources remain open.

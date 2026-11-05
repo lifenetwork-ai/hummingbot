@@ -14,8 +14,8 @@ No dashboard application or browser acceptance ships in this repository.
 The [admin access and encrypted exchange credentials plan](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md)
 tracks phased implementation. Google whitelist/roles, bootstrap disable, audit,
 local/GCP envelope encryption and managed credential Set/status/receipt routes are
-implemented locally through A4a. Automatic Disconnect, cleanup retry/key repair and
-final acceptance remain open. Integrate only routes in the current OpenAPI contract.
+implemented locally through A4b, including automatic Disconnect and same-operation
+cleanup retry/key repair. Final release acceptance remains open. Integrate only routes in the current OpenAPI contract.
 Basic bootstrap requires explicit `ADMIN_BASIC_AUTH_ENABLED=true`; disable it after
 Google administration is verified. Actual Google/GCP verification awaits resources.
 
@@ -25,14 +25,17 @@ to submit complete credentials after acknowledged Stop, with read-only candidate
 validation and a dedicated operation receipt. Saving never starts trading. Read the
 [credential guide](exchange-credentials.md) for source/key setup and cutover limits.
 
-## Managed connection integration (A4a)
+## Managed connection integration
 
 | Route relative to `/api/v1/admin` | Role | Use |
 |---|---|---|
-| `GET /credentials` | Any | Deployment-enabled exchange/connectors, input names and source; `disconnect_available=false` until A4b |
+| `GET /credentials` | Any | Deployment-enabled exchange/connectors, input names, source and `disconnect_available` capability |
 | `GET /credentials/{exchange}` | Any | Safe saved/loaded state, version, actor/time, operation link and Configure permission |
 | `POST /credentials/{exchange}/{connector}` | Write/admin | Complete secret bundle, expected credential/control versions and `Idempotency-Key`; returns `202` |
 | `GET /credentials/operations/{id}` | Any | Typed credential receipt; session may be null; separate from `/commands/{id}` |
+| `POST /credentials/{exchange}/{connector}/revoke` | Write/admin | Stop bot-wide trading, cancel bot orders, close managed perpetual exposure, then remove selected key |
+| `POST /credentials/operations/{id}/retry` | Write/admin | Versioned retry of the same blocked cleanup; no automatic Start |
+| `POST /credentials/{exchange}/{connector}/cleanup-credentials` | Write/admin | Working same-account key to finish cleanup; includes root operation ID and all expected versions |
 
 For OKX, submit `credentials: {api_key, secret_key, passphrase}`. These are input-only
 secret fields. Site, Demo/live routing and strategy YAML stay deployment-owned.
@@ -52,6 +55,58 @@ A lost response retries the same operation key and unchanged non-secret precondi
 The first committed secret bundle wins; submitting different secrets with that same
 identity returns the original receipt. A genuinely new save requires a new key and
 fresh versions. Do not infer mutation success from a timeout or stale status.
+
+### Disconnect UX
+
+Keep ordinary **Stop orders** separate from **Disconnect exchange**. Stop retains
+positions and credentials. Disconnect stops the whole bot, cleans up both markets
+and removes only the chosen slot. Confirm once with clear English copy:
+
+> Stop trading, cancel this bot's pending orders and close its managed perpetual
+> positions at market price, then remove this saved connection. Market closure may
+> incur fees and slippage. Spot holdings will remain. The API key on OKX will remain
+> valid until you delete it there separately.
+
+Use server `actions` for Configure, Disconnect, Retry cleanup and Repair cleanup key;
+never infer permission from a role label alone. Previously configured slots remain
+visible for cleanup even if removed from the current strategy YAML. Render
+`configured=true` during cleanup: acceptance has not removed the key.
+
+Poll the root credential receipt. Suggested labels for `result.stage`:
+
+| Stage | English label |
+|---|---|
+| `waiting_for_owner` | Waiting for trading service |
+| `checking_account` | Checking connection and saved positions |
+| `cancelling_orders` | Cancelling pending orders |
+| `closing_positions` | Closing perpetual positions |
+| `verifying` | Verifying orders and positions |
+| `detaching` | Removing saved connection |
+| `waiting_for_dependency` | Waiting to retry |
+| `action_required` | Action required |
+| `removed` with `status=succeeded` | Disconnected |
+
+Show `blocked_stage`, safe `reason_code` and the scheduled UTC `next_retry_at` when
+present. Counts are **recorded** remaining orders/position rows, not an exchange-wide
+live snapshot; absence of a count or zero alone cannot imply completion. Root final
+proofs are `orders_terminal_verified`, `positions_flat_verified`, `ledger_confirmed`
+and `consumers_detached`. A timeout, stale owner or unknown outcome keeps the
+operation open, with credentials retained; never offer a force-delete button.
+
+For an invalid/expired key, show **Repair cleanup key** and ask for a complete new
+key for the same account. For a temporary dependency failure, show its scheduled
+retry; optionally offer **Retry cleanup** when allowed. Submit the current slot
+credential `version`, current control version and root `result.operation_version`.
+Refresh all three after a conflict. Retry/repair responses are child receipts linked
+by `cleanup_operation_id`; a child `succeeded/cleanup_completed` confirms completion
+of its root, not removal of every companion key. Follow the root for final status.
+
+Connection labels are Connected, Not configured, Checking connection, Disconnecting,
+Action required, Disconnected and Status unavailable. Environment source instead
+shows Managed by deployment. Connected means a fresh owner loaded the current key;
+it does not mean MM is running. Disconnected confirms this bot's cleanup/removal at
+that time; it makes no claim about future manual exchange activity. For technical
+blockers, retain the operation/request ID and link to support and the exchange.
 
 ## Start here
 
@@ -193,7 +248,7 @@ restarting a child does not apply new YAML settings to a running session.
 | Trading pair, budgets, spreads, leverage/margin, price/inventory limits | YAML market templates | No | New session after deployment and normal account/readiness validation |
 | Guards, bootstrap, drawdown, outflow, inventory/spread policies | YAML plus existing durable policy bindings | No | New session only where compatible with bound policy; conflicts require technical review |
 | Exchange credentials in `environment` mode | Process environment / deployment secrets | No | New process with reviewed environment |
-| Exchange credentials in `postgres_kms` mode | Encrypted PostgreSQL bundle and durable credential operation | Admin/write may Set after acknowledged Stop | Validate candidate, commit receipt, wait for engine load; never auto-start |
+| Exchange credentials in `postgres_kms` mode | Encrypted PostgreSQL bundle and durable credential operation | Admin/write may Set after acknowledged Stop, Disconnect, or repair blocked cleanup | Validate candidate, commit receipt, wait for confirmed engine outcome; never auto-start |
 | Credential source/provider, KEK, database, auth/CORS, logging, intervals | Process environment / deployment secrets | No | New process with reviewed environment |
 | Swagger availability | `ENV`, default `dev` | No | New process; only `dev`/`development`, case-insensitive, expose UI/schema/assets |
 | Missing working-order warning | `MM_NO_QUOTE_WARNING_SECONDS`, default 120; 0 disables | No | New process; monitoring only, continuous window resets after restart |
@@ -661,9 +716,10 @@ Stop and reconciliation never automatically flatten positions or clear HALT.
 Checks may be unavailable when no appropriate connector remains; they do not start
 one. For unresolved recovery, the operator action is “Contact support”; maintainers
 use the [technical recovery runbook](postgres-runtime.md).
-All calls use one configured Basic Auth identity. Events record that username
-where available; shared credentials do not provide per-person audit/read-only
-RBAC. No recovery-reset/resume endpoint is implemented.
+Google-authenticated calls record the individual approved actor and enforce their
+current role. Basic bootstrap records its configured shared username. No
+recovery-reset/resume endpoint is implemented. The separate Disconnect workflow
+above closes managed perpetual positions; ordinary Stop retains this section's semantics.
 
 ## History, balances and statistics
 
