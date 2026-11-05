@@ -15,9 +15,10 @@ class DatabaseBusy(RuntimeError):
 
 
 class AdminDatabaseExecutor:
-    # Keep the existing ten-retry control burst admissible alongside ten readers.
-    MAX_PENDING = 32
-    MAX_REPORTS = 12
+    # Primary readers, operations polling and the ten-retry control burst overlap.
+    # Bound the queue independently of the unchanged physical worker/DB limits.
+    MAX_PENDING = 64
+    MAX_REPORTS = 32
     # Reserve non-control admission even when history/report queues are full.
     MAX_HEAVY = MAX_REPORTS - 2
     WORKERS = 2

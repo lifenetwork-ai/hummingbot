@@ -73,7 +73,8 @@ async def test_overload_is_bounded_and_reserves_control_admission():
 
     tasks = []
     try:
-        tasks = [asyncio.create_task(instance.run_database(blocked, heavy=bool(index % 2))) for index in range(12)]
+        limits = instance._database_executor
+        tasks = [asyncio.create_task(instance.run_database(blocked, heavy=bool(index % 2))) for index in range(limits.MAX_REPORTS)]
         assert await asyncio.to_thread(ready.wait, 2)
         await asyncio.sleep(.01)
         excess = asyncio.create_task(instance.run_database(lambda: None))
@@ -86,14 +87,15 @@ async def test_overload_is_bounded_and_reserves_control_admission():
         for task in tasks[:2]:
             task.cancel()
         await asyncio.gather(*tasks[:2], return_exceptions=True)
-        controls = [asyncio.create_task(instance.run_control_database(lambda: 'accepted')) for _ in range(20)]
+        control_capacity = limits.MAX_PENDING - limits.MAX_REPORTS
+        controls = [asyncio.create_task(instance.run_control_database(lambda: 'accepted')) for _ in range(control_capacity)]
         tasks.extend(controls)
         await asyncio.sleep(.01)
         assert all(not control.done() for control in controls)
         with pytest.raises(APIUnavailable):
             await instance.run_control_database(lambda: None)
         release.set()
-        assert await asyncio.gather(*controls) == ['accepted'] * 20
+        assert await asyncio.gather(*controls) == ['accepted'] * control_capacity
     finally:
         release.set()
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -163,8 +165,10 @@ async def test_declared_ten_retry_burst_remains_admissible_while_reports_are_run
 
     tasks = []
     try:
-        tasks = [asyncio.create_task(instance.run_database(blocked, heavy=bool(index % 2))) for index in range(10)]
+        tasks = [asyncio.create_task(instance.run_database(blocked, heavy=bool(index % 2))) for index in range(20)]
         assert await asyncio.to_thread(ready.wait, 2)
+        await asyncio.sleep(.02)
+        assert all(not task.done() for task in tasks), 'Primary and operations readers must both be admitted'
         controls = [asyncio.create_task(instance.run_control_database(lambda: 'receipt')) for _ in range(10)]
         tasks.extend(controls)
         await asyncio.sleep(.02)

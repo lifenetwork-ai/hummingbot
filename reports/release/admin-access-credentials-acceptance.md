@@ -59,6 +59,18 @@ remains explicit and physical cancellation accounting is preserved. The isolated
 client timeout has no exclusive cause established; it is not silently called fixed
 by queue headroom, nor is the failed hour accepted. Final gates remain due.
 
+Candidate with identity headroom passed its native/schema/memory/cleanup checks and
+warmup/mixed, but `build/mm-load/20261105-142118-543f93` failed burst: four HTTP 503s
+were now ordinary reporting admission (not identity), and command admission p95 was
+503.66 ms against 500 ms. Its old reporting queue still admitted only 12 requests.
+An extended existing control-burst test reproduces rejection of 20 combined primary/
+operations readers. Reporting now shares the explicit 64-total/32-report/30-heavy
+queue bounds; identity reuses that scheduler directly instead of a duplicate subclass.
+Two physical workers, control priority, DB pool limits and all load budgets remain
+unchanged. Overload tests still fill the actual bound, require rejection beyond it,
+and verify cancellation cannot free running physical work. No failed gate is closed
+by these targeted tests; image acceptance must repeat.
+
 ## Candidate and implementation
 
 - Runtime tag: `hummingbot-cloudrun:admin-credentials-fc3577831`.
