@@ -914,6 +914,24 @@ revisions and exact native simulator-ledger reconciliation pass on unchanged ima
 `1bb946c3…`; 69 related native tests pass. No new full load gate or real external
 acceptance is claimed by this test/docs-only follow-up.
 
+### A6 follow-up — Additional native lifecycle E2E
+
+- [x] Add Red/Green checks for simulator-only credential generations and deterministic
+  cleanup barriers; keep the shipping service entrypoint and runtime policy unchanged.
+- [ ] Kill the actual service container after exchange close acceptance before ACK,
+  and after a close fill is committed before cleanup verification. Restart the
+  same durable operation; prove no duplicate close/reversal or early erasure,
+  retain spot, and reconcile all native fills/fees/positions.
+- [ ] Rotate both slots A to B on the same account using admin APIs; reject an invalid
+  replacement without mutation, cold restart and Start, then independently observe
+  REST/WS/funding/reconciliation using B without old-key fallback or ledger loss.
+- [ ] Reject an expired cleanup key, retain Action required and ciphertext, repair
+  the same root operation via API with a same-account key and complete cleanup;
+  verify idempotency, versions and actor-correlated audit without duplicate sends.
+- [ ] Include all new scenarios in the standard offline matrix, run appropriate
+  regressions, retain failed attempts and safe evidence, update documentation and
+  commit each completed phase. Real Google/GCP and existing Demo are excluded.
+
 ## Implementation-readiness review
 
 The review found design/integration gaps, not newly reproduced runtime defects.

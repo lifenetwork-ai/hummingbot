@@ -17,6 +17,11 @@ from pathlib import Path
 
 from aiohttp import WSMsgType, web
 
+FIXTURE_KEYS = {
+    'a': dict(api_key='offline-key', secret_key='offline-secret', passphrase='offline-pass'),
+    'b': dict(api_key='offline-key-b', secret_key='offline-secret-b', passphrase='offline-pass-b'),
+}
+
 
 def millis():
     return str(int(time.time() * 1000))
@@ -117,6 +122,26 @@ class Exchange:
         self.market_rate_changed = asyncio.Event()
         self.market_diagnostics = None
         self.quote_activity = None
+        self.credential_generations = {'a'}
+        self.socket_credentials = {}
+        self.cleanup_barrier = 'none'
+        self.cleanup_barrier_hits = deque(maxlen=16)
+        self.cleanup_close_id = None
+        self.cleanup_release = asyncio.Event()
+        self.cleanup_release.set()
+
+    def authenticate(self, key, passphrase, signature, signed):
+        generation = next((name for name, values in FIXTURE_KEYS.items() if values['api_key'] == key), None)
+        if generation is not None and generation not in self.credential_generations:
+            return generation, '50119'
+        values = FIXTURE_KEYS.get(generation, FIXTURE_KEYS['a'])
+        expected = base64.b64encode(hmac.new(values['secret_key'].encode(), signed.encode(), hashlib.sha256).digest()).decode()
+        valid = generation is not None and passphrase == values['passphrase'] and hmac.compare_digest(signature, expected)
+        return generation, '0' if valid else '50113'
+
+    async def cleanup_wait(self, stage):
+        self.cleanup_barrier_hits.append(dict(stage=stage, clOrdId=self.cleanup_close_id, at_ms=millis()))
+        await self.cleanup_release.wait()
 
     def event(self, order, fill=None):
         message = copy.deepcopy(self.fixtures["order_event"])
@@ -152,19 +177,22 @@ class Exchange:
                 if payload["op"] == "login":
                     credentials = payload["args"][0]
                     signed = str(credentials["timestamp"]) + "GET/users/self/verify"
-                    expected = base64.b64encode(hmac.new(b"offline-secret", signed.encode(), hashlib.sha256).digest()).decode()
-                    if (credentials.get("apiKey") != "offline-key" or credentials.get("passphrase") != "offline-pass"
-                            or not hmac.compare_digest(credentials.get("sign", ""), expected)):
-                        self.unknown.append({"reason": "invalid WS auth"})
+                    generation, code = self.authenticate(credentials.get('apiKey'), credentials.get('passphrase'), credentials.get('sign', ''), signed)
+                    if code != '0':
+                        if code != '50119':
+                            self.unknown.append({"reason": "invalid WS auth"})
+                        await socket.send_json({'event': 'error', 'code': code, 'msg': 'fixture key rejected'})
                         await socket.close()
                         continue
+                    self.socket_credentials[socket] = generation
                     await socket.send_json({"event": "login", "code": "0", "msg": ""})
                 elif payload["op"] == "subscribe":
                     for arg in payload["args"]:
                         channel = arg["channel"]
                         channels.add(channel)
                         args_list.append(arg)
-                        self.subscriptions.append({"channel": channel, "connection": self.connections})
+                        self.subscriptions.append({"channel": channel, "connection": self.connections,
+                                                   "credential_generation": self.socket_credentials.get(socket)})
                         await socket.send_json({"event": "subscribe", "arg": arg})
                         if channel.startswith("candle"):
                             await socket.send_json({"arg": arg, "data": [self.candle(arg.get("instId", "LIFE-USDT"), channel[6:])]})
@@ -179,6 +207,7 @@ class Exchange:
         finally:
             self.sockets.pop(socket, None)
             self.socket_args.pop(socket, None)
+            self.socket_credentials.pop(socket, None)
         return socket
 
     @staticmethod
@@ -296,22 +325,27 @@ class Exchange:
                                       "balances": self.fixtures["balances"]["data"][0]["details"],
                                       "market_update_count": self.market_update_count,
                                       "observed_at_monotonic": time.monotonic(),
+                                      "cleanup_barrier": self.cleanup_barrier,
+                                      "cleanup_barrier_hits": list(self.cleanup_barrier_hits),
                                       "connections": self.connections, "subscriptions": self.subscriptions})
         if path == "/control":
             return await self.control(await request.json())
         raw = await request.text()
         data = json.loads(raw) if raw else {}
-        self.requests.append({"method": method, "path": path, "at_ms": millis(), "simulated": request.headers.get("x-simulated-trading"), "params": dict(request.query)})
+        observed = {"method": method, "path": path, "at_ms": millis(), "simulated": request.headers.get("x-simulated-trading"), "params": dict(request.query)}
+        self.requests.append(observed)
         if path.startswith(("/api/v5/trade/", "/api/v5/account/")) and not request.headers.get("OK-ACCESS-KEY"):
             self.unknown.append({"path": path, "reason": "missing authentication"})
             return web.json_response({"code": "50103", "msg": "missing fixture auth", "data": []}, status=401)
         if request.headers.get("OK-ACCESS-KEY"):
             signed = request.headers["OK-ACCESS-TIMESTAMP"] + method + request.path_qs + raw
-            expected = base64.b64encode(hmac.new(b"offline-secret", signed.encode(), hashlib.sha256).digest()).decode()
-            if (request.headers["OK-ACCESS-KEY"] != "offline-key" or request.headers.get("OK-ACCESS-PASSPHRASE") != "offline-pass"
-                    or not hmac.compare_digest(request.headers["OK-ACCESS-SIGN"], expected)):
-                self.unknown.append({"method": method, "path": path, "reason": "invalid auth"})
-                return web.json_response({"code": "50113", "msg": "invalid fixture signature", "data": []}, status=401)
+            generation, code = self.authenticate(request.headers['OK-ACCESS-KEY'], request.headers.get('OK-ACCESS-PASSPHRASE'),
+                                                 request.headers.get('OK-ACCESS-SIGN', ''), signed)
+            observed.update(credential_generation=generation, authorized=code == '0')
+            if code != '0':
+                if code != '50119':
+                    self.unknown.append({"method": method, "path": path, "reason": "invalid auth"})
+                return web.json_response({"code": code, "msg": "fixture key rejected", "data": []}, status=200 if code == '50119' else 401)
         if path == "/api/v5/public/time":
             return self.ok([{"ts": millis()}])
         if path == "/api/v5/public/instruments":
@@ -321,6 +355,8 @@ class Exchange:
         if path == "/api/v5/account/config":
             return self.ok([{"posMode": self.position_mode, "uid": "offline-account-1", "acctLv": "2", "perm": "read_only,trade"}])
         if path == "/api/v5/account/positions":
+            if self.cleanup_barrier == 'verified_fill' and self.cleanup_close_id is not None:
+                await self.cleanup_wait('verified_fill')
             return self.ok([row for row in self.positions.values() if not request.query.get("instId") or row["instId"] == request.query["instId"]])
         if path in ("/api/v5/account/bills", "/api/v5/account/bills-archive"):
             if self.funding_error:
@@ -398,10 +434,13 @@ class Exchange:
                 self.quote_activity.accept(order)
             self.accepted.append(copy.deepcopy(order))
             if market_close:
+                self.cleanup_close_id = client_id
+                if self.cleanup_barrier == 'accepted':
+                    await self.cleanup_wait('accepted')
                 # A market order has no wire px; the simulator executes at its
                 # independent current reference and uses the ordinary fill/WS path.
                 order['px'] = self.prices[data['instId'].removesuffix('-SWAP')]
-                await self.control({'fill': dict(clOrdId=client_id, amount=data['sz'], fee='0.000001')})
+                await self.control({'fill': dict(clOrdId=client_id, amount=data['sz'], fee='0.000001'), 'duplicate': True})
             cancel_before_ack = self.cancel_before_ack and self.cancel_before_ack_remaining != 0
             if cancel_before_ack:
                 if self.cancel_before_ack_remaining is not None:
@@ -447,6 +486,21 @@ class Exchange:
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
 
     async def control(self, data):
+        if 'credential_generations' in data:
+            generations = data['credential_generations']
+            if not isinstance(generations, list) or any(name not in FIXTURE_KEYS for name in generations):
+                return web.json_response({'error': 'invalid_fixture_credential_generations'}, status=400)
+            self.credential_generations = set(generations)
+        if 'cleanup_barrier' in data:
+            mode = data['cleanup_barrier']
+            if mode not in ('none', 'accepted', 'verified_fill'):
+                return web.json_response({'error': 'invalid_cleanup_barrier'}, status=400)
+            self.cleanup_barrier = mode
+            if mode == 'none':
+                self.cleanup_release.set()
+            else:
+                self.cleanup_close_id = None
+                self.cleanup_release.clear()
         if 'cleanup_market_closes' in data:
             if type(data['cleanup_market_closes']) is not bool:
                 return web.json_response({'error': 'invalid_cleanup_market_closes'}, status=400)
