@@ -32,6 +32,21 @@ not proven. Setup now has a bounded 60-second transaction-local timeout and rest
 the exact original timeout before EXPLAIN. Query budgets/index assertions are
 unchanged. The isolated affected test passed; a clean full PG rerun is required.
 
+That clean rerun passed all 442 tests. The updated image passed packaged logging/
+schema, 600-second retention and native managed cleanup/restart. Its full load
+`build/mm-load/20261105-114223-64ff90` passed warmup/mixed, but failed burst for one
+HTTP 503. Correlation ID `90b0ccb22a5b49d5bb8aa2d91c1eb4c0` proves this was **fresh
+role lookup rejected by shared reporting admission**, before `/statistics/daily`
+ran; it was not a daily aggregate SQL timeout. Primary burst p99 was 147.36 ms.
+
+A Red capacity test reproduces that rejection without reaching role storage.
+The fix executes verification and fresh role lookup on the identity scheduler's
+existing bounded threads, retaining its reserved control slot, physical cancellation
+accounting and underlying DB pool bounds. It adds no permission cache or thread
+pool. Fifty-five identity/capacity tests pass, including immediate role changes and
+slow-query/control isolation. The final image/load checks must repeat on this fix;
+the failed burst is retained rather than retried until green or relabelled.
+
 ## Candidate and implementation
 
 - Runtime tag: `hummingbot-cloudrun:admin-credentials-fc3577831`.

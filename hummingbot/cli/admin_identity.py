@@ -100,19 +100,22 @@ class AdminIdentityService:
         self.work = AdminDatabaseExecutor()
 
     async def authenticate(self, token, *, control=False, bind=False, request_id=None):
-        try:
-            job = self.work.submit(functools.partial(contextvars.copy_context().run, self.verifier.verify, token),
-                                   control=control, heavy=not control)
-            claims = await asyncio.wait_for(job, timeout=6)
-            run = self.api.run_control_database if control else self.api.run_database
+        def verify_and_resolve():
+            claims = self.verifier.verify(token)
             try:
-                return await run(self.api.access_store().resolve_google, claims, bind=bind, request_id=request_id,
-                                 bootstrap_enabled=self.api.settings.basic_auth_enabled)
+                return self.api.access_store().resolve_google(claims, bind=bind, request_id=request_id,
+                                                              bootstrap_enabled=self.api.settings.basic_auth_enabled)
             except AccessDenied as error:
                 if error.actor is None:
                     from hummingbot.core.admin_identity import Principal
                     error.actor = Principal("google:" + claims["sub"], "google", "unassigned", email=claims["email"])
                 raise
+        try:
+            # Fresh role lookup shares the existing bounded identity worker, not
+            # reporting admission. Keep the separate control slot and DB pool limits.
+            job = self.work.submit(functools.partial(contextvars.copy_context().run, verify_and_resolve),
+                                   control=control, heavy=not control)
+            return await asyncio.wait_for(job, timeout=6)
         except DatabaseBusy:
             raise AccessDenied("security_work_busy", status=429) from None
         except (SQLAlchemyError, asyncio.TimeoutError):
