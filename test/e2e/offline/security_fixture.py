@@ -44,6 +44,43 @@ def install_identity_fixture(directory):
     AdminIdentityService.__init__ = initialize
 
 
+def install_provider_fault_fixture(marker='/tmp/offline-kms-unavailable'):
+    """Injected only by the mounted wrapper, never by the production entrypoint."""
+    from hummingbot.core.credential_encryption import CredentialCryptoError, LocalKeyProvider
+    original = LocalKeyProvider.unwrap
+    marker = Path(marker)
+
+    def unwrap(self, envelope, aad):
+        if marker.exists():
+            raise CredentialCryptoError('kms_unavailable')
+        return original(self, envelope, aad)
+
+    LocalKeyProvider.unwrap = unwrap
+
+
+def set_provider_outage(harness, bot, *, unavailable):
+    from scripts.test_e2e_offline import docker
+    if unavailable:
+        code = """from pathlib import Path
+from security_fixture import install_provider_fault_fixture
+from hummingbot.core.credential_encryption import CredentialCryptoError, LocalKeyProvider
+Path('/tmp/offline-kms-unavailable').touch()
+install_provider_fault_fixture()
+try:
+    LocalKeyProvider(b'K' * 32, 'fixture').unwrap({}, b'fixture')
+except CredentialCryptoError as error:
+    assert error.code == 'kms_unavailable'
+    print('kms_unavailable')
+else:
+    raise AssertionError('Provider outage fixture was not applied')
+"""
+        result = docker('exec', bot, 'python', '-c', code)
+        assert result.stdout.strip() == 'kms_unavailable'
+    else:
+        docker('exec', bot, 'python', '-c', "from pathlib import Path; Path('/tmp/offline-kms-unavailable').unlink(missing_ok=True)")
+    return dict(unavailable=unavailable, at=time.time(), scope='offline_test_wrapper_only')
+
+
 def bootstrap_accounts(harness, port):
     """Use actual account and sign-in handlers, not direct seed/role bypass SQL."""
     fixture = json.loads((harness.assets / 'google-identities.json').read_text())

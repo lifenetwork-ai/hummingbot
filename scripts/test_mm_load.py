@@ -460,6 +460,9 @@ def main():
                         windows.append(("bursts", 90))
                     if args.profile in ("soak", "all"):
                         windows.append(("soak", 3600))
+                if args.security and windows:
+                    from test.e2e.offline.security_fixture import set_provider_outage
+                    evidence['security']['provider_outage_started'] = set_provider_outage(harness, bot, unavailable=True)
                 for name, duration in windows:
                     if name == "soak":
                         _, _ = command(harness, port, "switch", market_mode="both", selection="random", duration_seconds=7200)
@@ -510,6 +513,8 @@ def main():
                     print(name, {key: data[key] for key in ("read_p95_ms", "read_p99_ms", "completed_reads_per_second", "market_updates_per_second", "fills_per_second", "violations")}, flush=True)
                     if data["violations"] and not args.keep_going:
                         raise AssertionError("Declared load budgets failed: " + ", ".join(data["violations"]))
+                if args.security and windows:
+                    evidence['security']['provider_outage_restored'] = set_provider_outage(harness, bot, unavailable=False)
                 if args.profile in ("faults", "all"):
                     evidence["faults"] = fault_windows(
                         harness, bot, port, client, report, run_window,

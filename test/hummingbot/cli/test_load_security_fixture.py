@@ -7,6 +7,25 @@ from hummingbot.cli.admin_identity import GoogleTokenVerifier
 from hummingbot.core.admin_identity import AccessDenied
 
 
+def test_provider_fault_is_test_only_switchable_and_normal_local_crypto_recovers(tmp_path, monkeypatch):
+    from test.e2e.offline.security_fixture import install_provider_fault_fixture
+
+    from hummingbot.core.credential_encryption import CredentialCryptoError, LocalKeyProvider
+    original = LocalKeyProvider.unwrap
+    monkeypatch.setattr(LocalKeyProvider, 'unwrap', original)
+    marker = tmp_path / 'unavailable'
+    install_provider_fault_fixture(marker)
+    provider = LocalKeyProvider(b'K' * 32, 'fixture-key')
+    envelope = provider.wrap(b'D' * 32, b'scope')
+    assert provider.unwrap(envelope, b'scope') == b'D' * 32
+    marker.touch()
+    with pytest.raises(CredentialCryptoError) as error:
+        provider.unwrap(envelope, b'scope')
+    assert error.value.code == 'kms_unavailable'
+    marker.unlink()
+    assert provider.unwrap(envelope, b'scope') == b'D' * 32
+
+
 def test_offline_load_identities_are_signed_verified_and_write_no_private_key(tmp_path):
     fixture = create_identity_fixture(tmp_path)
     certs = json.loads((tmp_path / 'google-certificates.json').read_text())

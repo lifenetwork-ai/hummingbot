@@ -52,8 +52,9 @@ from hummingbot.strategy.strategy_v2_base import StrategyV2Base  # noqa: E402
 from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator  # noqa: E402
 
 if os.environ.get('HBOT_LOAD_GOOGLE_FIXTURE'):
-    from security_fixture import install_identity_fixture
+    from security_fixture import install_identity_fixture, install_provider_fault_fixture
     install_identity_fixture(os.environ['HBOT_LOAD_GOOGLE_FIXTURE'])
+    install_provider_fault_fixture()
 
 # Memory diagnostics are test-only and keep weak references, never old runners.
 MEMORY_DIAGNOSTICS = os.environ.get("HBOT_MEMORY_DIAGNOSTICS") == "1"

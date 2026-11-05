@@ -108,3 +108,11 @@ available with no environment fallback/restart loop. Provider behavior is inject
 only into the native test wrapper; this is not real GCP acceptance.
 The existing 45-second stopped-load health grace required no production change.
 Focused fault log: `/tmp/hbot-admin-provider-fault-process.log`.
+
+The security load wrapper now also supports a test-only local-provider outage after
+both managed bundles have loaded. Every normal measured window will run with unwrap
+denied, then restore the provider before injected crash/recovery windows. This proves
+continued MM uses the authorized loaded bundle rather than quietly calling KMS for
+each quote. The fixture's switch/denial/recovery test first failed for its missing
+implementation, then passed with the signed-identity/history scope (35 tests).
+This adds no production outage toggle and does not replace actual GCP acceptance.
