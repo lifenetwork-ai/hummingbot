@@ -597,7 +597,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 
     def admin(self, port, path, data=None, key=None):
         import base64
-        headers = {"Authorization": "Basic " + base64.b64encode(b"operator:offline-admin").decode()}
+        headers = {"Authorization": getattr(self, 'admin_authorization', None) or "Basic " + base64.b64encode(b"operator:offline-admin").decode()}
         if key:
             headers["Idempotency-Key"] = key
         return http(port, "/api/v1/admin" + path, data, headers)

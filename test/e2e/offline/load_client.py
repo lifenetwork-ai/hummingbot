@@ -142,7 +142,10 @@ def fill_candidate(working, cursor):
 
 async def main(args):
     start_tracing()
-    auth = aiohttp.BasicAuth("operator", "offline-admin")
+    fixture_directory = os.environ.get('HBOT_LOAD_GOOGLE_FIXTURE')
+    google_headers = ({'Authorization': 'Bearer ' + json.loads((Path(fixture_directory) / 'google-identities.json').read_text())['tokens']['admin']}
+                      if fixture_directory else {})
+    auth = None if fixture_directory else aiohttp.BasicAuth("operator", "offline-admin")
     timeout = aiohttp.ClientTimeout(total=5)
     async with aiohttp.ClientSession(timeout=timeout, auth=auth) as client:
         async def exchange(path, payload=None):
@@ -164,7 +167,7 @@ async def main(args):
             status, error = None, None
             try:
                 async with client.get("http://bot:8080/api/v1/admin" + path,
-                                      headers={"X-Load-Request-ID": identity}) as response:
+                                      headers={**google_headers, "X-Load-Request-ID": identity}) as response:
                     status = response.status
                     return status, await response.json()
             except Exception as exception:
@@ -188,7 +191,7 @@ async def main(args):
             started_ns, identity, status, error = time.monotonic_ns(), request_identity(), None, None
             try:
                 async with client.post("http://bot:8080/api/v1/admin" + path, json=payload,
-                                       headers={"Idempotency-Key": key, "X-Load-Request-ID": identity}) as response:
+                                       headers={**google_headers, "Idempotency-Key": key, "X-Load-Request-ID": identity}) as response:
                     body, status = await response.json(), response.status
                     acceptance_ms.append((time.perf_counter() - started) * 1000)
                     return status, body
@@ -368,6 +371,12 @@ async def main(args):
                 await asyncio.sleep(.25 if candidate else .1)
 
         workers = [asyncio.create_task(reader()) for _ in range(10)]
+        security_summary = {}
+        security_task = None
+        if fixture_directory:
+            from security_fixture import mixed_security_workload
+            security_task = asyncio.create_task(mixed_security_workload(
+                client, fixture_directory, 'http://bot:8080/api/v1/admin', origin + args.duration, security_summary))
         fills = asyncio.create_task(fill_events()) if args.fills else None
         control_task = asyncio.create_task(controls()) if args.controls else None
         next_minute, summaries = 60, []
@@ -412,6 +421,11 @@ async def main(args):
                 await control_task
             except Exception as error:
                 errors.append(dict(path="controls", error=type(error).__name__, detail=str(error)))
+        if security_task:
+            try:
+                await asyncio.wait_for(security_task, timeout=15)
+            except Exception as error:
+                errors.append(dict(path='security_workload', error=type(error).__name__))
         after = await exchange("/ledger")
         drained = time.monotonic() - generation_end
         if all(not worker.cancelled() and not worker.cancelling() for worker in workers):
@@ -419,6 +433,7 @@ async def main(args):
                 await queue.put(None)
         await asyncio.gather(*workers, return_exceptions=True)
         result = dict(duration_seconds=args.duration, window_start_ns=int(origin * 1e9),
+                      security_workload=security_summary,
                       window_end_ns=int((origin + args.duration) * 1e9), window_start_utc=origin_utc,
                       requested_reads=requested, completed_reads=completed,
                       requested_reads_per_second=args.read_rate, completed_reads_per_second=completed / max(args.duration, (last_completion or origin) - origin),

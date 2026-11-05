@@ -202,3 +202,18 @@ async def test_hot_load_reads_do_not_serialize_the_growing_exchange_ledger():
     assert set(working) == {'orders'}
     assert {row['clOrdId'] for row in working['orders']} == {'live', 'partial'}
     assert len(exchange.orders) == 1002 and len(exchange.fills) == 1000
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('position_side,close_side', [('long', 'sell'), ('short', 'buy')])
+async def test_simulator_close_fill_reduces_only_its_hedge_side(position_side, close_side):
+    from decimal import Decimal
+    exchange = Exchange(fixtures=dict(order_event={'arg': {'channel': 'orders'}, 'data': [{}]}, balances={'data': [{'details': []}]}))
+    exchange.positions[('LIFE-USDT-SWAP', position_side)] = dict(instId='LIFE-USDT-SWAP', posSide=position_side,
+                                                                 pos='10', avgPx='0.1', notionalUsd='0.01', lever='1', upl='0', mgnMode='cross')
+    exchange.orders['close'] = dict(instId='LIFE-USDT-SWAP', clOrdId='close', ordId='1', state='live', posSide=position_side,
+                                    accFillSz='0', sz='3', side=close_side, px='0.1')
+    response = await exchange.control({'fill': {'clOrdId': 'close', 'amount': '3', 'fee': '0.000001'}})
+    assert response.status == 200
+    assert Decimal(exchange.positions[('LIFE-USDT-SWAP', position_side)]['pos']) == 7
+    assert exchange.fills[0]['fillSz'] == '3'

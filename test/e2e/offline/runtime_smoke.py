@@ -100,8 +100,18 @@ def main():
                    "hummingbot.strategy.pure_market_making.pure_market_making",
                    "hummingbot.connector.exchange.okx.okx_exchange",
                    "hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative",
-                   "hummingbot.strategy_v2.executors.executor_orchestrator", "pandas_ta", "psycopg2"):
+                   "hummingbot.strategy_v2.executors.executor_orchestrator", "pandas_ta", "psycopg2",
+                   "google.auth", "google.oauth2.id_token", "google_crc32c", "jwt",
+                   "hummingbot.core.gcp_kms_rest", "hummingbot.cli.credential_disconnect"):
         importlib.import_module(module)
+    from hummingbot.core.credential_encryption import CredentialCipher, CredentialContext, LocalKeyProvider
+    cipher = CredentialCipher(LocalKeyProvider(b'K' * 32, 'offline-smoke'))
+    try:
+        context = CredentialContext('smoke', 'okx', 'okx', 'demo', 1, 'www:offline')
+        values = {'api_key': 'runtime-smoke-canary'}
+        assert cipher.decrypt(cipher.encrypt(values, context), context) == values
+    finally:
+        cipher.close()
     connectors = AllConnectorSettings.get_connector_settings()
     assert {"okx", "okx_perpetual"} <= connectors.keys()
     # Numba needs LLVM at runtime even though Rust/GCC are build-only.
@@ -110,7 +120,9 @@ def main():
     ssl.create_default_context()
     trust = ssl.get_default_verify_paths()
     assert trust.cafile and Path(trust.cafile).is_file()
-    assert len(list(SCRIPTS.glob("*.sql"))) == 17
+    assert len(list(SCRIPTS.glob("*.sql"))) == 20
+    for name in ('018_create_admin_access.sql', '019_create_exchange_credentials.sql', '020_add_cleanup_order_scope.sql'):
+        assert (SCRIPTS / name).is_file(), name
     assert (SCRIPTS / "017_add_session_discovery_index.sql").is_file()
     assert (SCRIPTS / "016_create_mm_events.sql").is_file()
     assert (SCRIPTS.parent / "manual_scripts/001_normalize_legacy_names.sql").is_file()

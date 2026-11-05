@@ -32,7 +32,7 @@ def save_fault_progress(report, evidence, name, data):
     (report / "result.json").write_text(json.dumps(evidence, indent=2))
 
 
-def seed_history(harness, count, *, active_outflow=False, sql_timeout=None):
+def seed_history(harness, count, *, active_outflow=False, sql_timeout=None, security=False):
     """Reuse the PG performance fixture's generate_series bulk insert pattern.
 
     Add recorder fills in natural decimal units, dated yesterday and closed so
@@ -57,19 +57,29 @@ def seed_history(harness, count, *, active_outflow=False, sql_timeout=None):
         FROM orders WHERE id LIKE 'load-history-%'; ANALYZE orders; ANALYZE trade_fills;
     """
     harness.sql(statement, **({'timeout': sql_timeout} if sql_timeout is not None else {}))
+    if security:
+        harness.sql(f"""INSERT INTO admin_audit_events
+            (bot_id,event_key,request_id,actor_kind,actor_id,actor_email,actor_role,action,outcome,details,created_at)
+            SELECT 'hummingbot','load-audit-'||n,'fixture-'||n,'google','load-history','load-history@gmail.com','read',
+                'fixture_history','succeeded','{{}}'::jsonb,transaction_timestamp()-interval '1 day'
+            FROM generate_series(1,{count}) n; ANALYZE admin_audit_events;""",
+                    **({'timeout': sql_timeout} if sql_timeout is not None else {}))
 
 
-def assets_for(path):
+def assets_for(path, *, security=False):
     from test.e2e.offline.build_fixtures import write_fixtures
 
     import yaml
     path.chmod(0o755)
-    for name in ("exchange.py", "load_service.py", "load_mm_activity.py", "load_entrypoint.py", "load_process_metrics.py", "load_trace.py", "load_incidents.py", "load_health.py", "load_client.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
+    for name in ("exchange.py", "load_service.py", "load_mm_activity.py", "load_entrypoint.py", "load_process_metrics.py", "load_trace.py", "load_incidents.py", "load_health.py", "load_client.py", "security_fixture.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
         (path / name).write_bytes((ROOT / "test/e2e/offline" / name).read_bytes())
     (path / "pmm-revised.yml").write_bytes((path / "pmm.yml").read_bytes())
     write_fixtures(path / "fixtures.json")
     profiles = yaml.safe_load((ROOT / "deploy/cloudrun/conf/life_mm_profiles.yaml").read_text())
     (path / "life_mm_profiles.yaml").write_text(yaml.safe_dump(profiles))
+    if security:
+        from test.e2e.offline.security_fixture import create_identity_fixture
+        create_identity_fixture(path)
 
 
 def command(harness, port, action, **values):
@@ -204,6 +214,7 @@ def main():
     parser.add_argument('--volatility-defense', action='store_true', help='Explicit three-level defense fixture; preserve original load rates, durations and budgets')
     parser.add_argument("--keep-going", action="store_true", help="Continue healthy windows after budget violations; final result still fails")
     parser.add_argument("--operations", action="store_true", help="Add three operator-history/configuration reads/s to the existing read mix")
+    parser.add_argument('--security', action='store_true', help='Use signed offline Google identities and managed local-encrypted keys; disable Basic before measurement')
     args = parser.parse_args()
     if args.mm_activity and (args.profile != 'probe' or not args.incident_diagnostics):
         parser.error('MM activity requires --profile probe and --incident-diagnostics; it is diagnostic, not release acceptance')
@@ -256,7 +267,7 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix="hbot-mm-load-") as directory:
             assets = Path(directory)
-            assets_for(assets)
+            assets_for(assets, security=args.security)
             if args.spot_outflow:
                 import yaml
                 config_path = assets / "life_mm_profiles.yaml"
@@ -325,6 +336,14 @@ def main():
             harness = Harness(image, assets, report, "demo")
             harness.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin",
                                ADMIN_STATISTICS_CACHE_TTL_SECONDS=str(args.daily_cache_ttl_seconds))
+            if args.security:
+                import base64
+                harness.env.update(ADMIN_GOOGLE_AUTH_ENABLED='true', ADMIN_GOOGLE_CLIENT_ID='offline-load-client',
+                                   EXCHANGE_CREDENTIALS_SOURCE='postgres_kms', KMS_PROVIDER='local', KMS_LOCAL_KEY_ID='offline-load',
+                                   KMS_LOCAL_SECRET_KEY=base64.b64encode(b'K' * 32).decode(), HBOT_LOAD_GOOGLE_FIXTURE='/test-assets')
+                for key in list(harness.env):
+                    if key.startswith('HBOT_OKX'):
+                        harness.env.pop(key)  # Managed-path acceptance cannot be masked by working env keys.
             try:
                 harness.setup()
                 if args.mm_activity:
@@ -369,6 +388,15 @@ def main():
                                                     span_cpu_scope="inclusive thread CPU; async spans include interleaved work")
                 bot, port = harness.start("load-bot", instrumented=True, trace_directory=trace_directory,
                                           incident_directory=incident_directory, cpus=args.cpus)
+                if args.security:
+                    from test.e2e.offline.security_fixture import bootstrap_accounts, configure_connections
+                    evidence['security'] = bootstrap_accounts(harness, port)
+                    configure_connections(harness, port)
+                    harness.terminate(bot)
+                    harness.env['ADMIN_BASIC_AUTH_ENABLED'] = 'false'
+                    bot, port = harness.start('google-only-load-bot', instrumented=True, trace_directory=trace_directory,
+                                              incident_directory=incident_directory, cpus=args.cpus)
+                    assert harness.admin(port, '/access/bootstrap')[1]['basic_auth_enabled'] is False
                 docker("update", "--cpus", args.cpus, "--memory", "2g", "--memory-swap", "2g", bot)
                 initial_metrics = poll(lambda: read_metrics(harness, bot), timeout=30, description='complete fresh runtime role metrics')
                 assert memory_retention([initial_metrics])['basis'] == 'cgroup_current_minus_file_plus_shmem', \
@@ -386,8 +414,11 @@ def main():
                          description="verified empty-DB outflow binding before historical fixture insertion")
                     command(harness, port, "stop")
                 evidence['history_preparation'] = {}
+                from functools import partial
                 prepare_history(harness, bot, args.history_rows, active_outflow=args.enhancements,
-                                seed=seed_history, evidence=evidence['history_preparation'])
+                                seed=partial(seed_history, security=args.security), evidence=evidence['history_preparation'])
+                if args.security:
+                    evidence['history_preparation']['audit_events'] = int(harness.sql("SELECT count(*) FROM admin_audit_events WHERE action='fixture_history'"))
 
                 def prepared_metrics():
                     metrics = read_metrics(harness, bot)
@@ -414,6 +445,8 @@ def main():
                 client = harness.prefix + "-load-client"
                 client_mounts = ["--mount", f"type=bind,source={trace_directory},target=/trace-output"] if args.trace else []
                 client_env = {"HBOT_LOAD_TRACE_DIRECTORY": "/trace-output", "HBOT_LOAD_TRACE_DATABASE_URL": harness.env["DATABASE_URL"]} if args.trace else None
+                if args.security:
+                    client_env = {**(client_env or {}), 'HBOT_LOAD_GOOGLE_FIXTURE': '/test-assets'}
                 if args.mm_activity:
                     client_mounts += ['--mount', f'type=bind,source={incident_directory},target=/activity-output']
                     client_env = {**(client_env or {}), 'HBOT_MM_ACTIVITY_DIRECTORY': '/activity-output'}
@@ -487,6 +520,9 @@ def main():
                 failed = {name: data["violations"] for name, data in evidence["windows"].items() if data.get("violations")}
                 if failed:
                     raise AssertionError("Declared load budgets failed: " + json.dumps(failed))
+                if args.security and args.profile not in ('all', 'faults'):
+                    from test.e2e.offline.security_fixture import disconnect_connections
+                    evidence['security_cleanup'] = disconnect_connections(harness, bot, port)
                 evidence["passed"] = True
                 evidence['release_scope_complete'] = args.profile == 'all' and not diagnostic
             finally:

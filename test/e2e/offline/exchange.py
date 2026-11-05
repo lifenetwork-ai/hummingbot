@@ -94,6 +94,7 @@ class Exchange:
         self.sockets = {}
         self.positions = {}
         self.position_mode = "long_short_mode"
+        self.cleanup_market_closes = False
         self.mutations = []
         self.connections = 0
         self.subscriptions = []
@@ -318,7 +319,7 @@ class Exchange:
         if path in ("/api/v5/public/mark-price", "/api/v5/market/index-tickers", "/api/v5/public/funding-rate"):
             return self.ok([self.funding(request.query.get("instId", "BTC-USDT-SWAP"))])
         if path == "/api/v5/account/config":
-            return self.ok([{"posMode": self.position_mode, "uid": "offline-account-1"}])
+            return self.ok([{"posMode": self.position_mode, "uid": "offline-account-1", "acctLv": "2", "perm": "read_only,trade"}])
         if path == "/api/v5/account/positions":
             return self.ok([row for row in self.positions.values() if not request.query.get("instId") or row["instId"] == request.query["instId"]])
         if path in ("/api/v5/account/bills", "/api/v5/account/bills-archive"):
@@ -383,12 +384,24 @@ class Exchange:
                 return web.json_response({"code": "1", "msg": "duplicate identity", "data": []})
             if int(request.headers.get("expTime", "0")) <= int(millis()):
                 return web.json_response({"code": "50037", "msg": "expired", "data": []})
+            market_close = self.cleanup_market_closes and data.get('ordType') == 'market'
+            if market_close:
+                position = self.positions.get((data['instId'], data.get('posSide')))
+                reducing = (data.get('posSide'), data.get('side')) in (('long', 'sell'), ('short', 'buy'))
+                if (not reducing or data.get('tdMode') != 'cross' or position is None
+                        or not 0 < Decimal(data['sz']) <= Decimal(position['pos'])):
+                    return self.ok([dict(clOrdId=client_id, ordId='', sCode='51169', sMsg='not a valid reduce close')])
             order = {**data, "ordId": str(len(self.accepted) + 1), "state": "live", "accFillSz": "0",
                      "uTime": millis(), "cTime": millis(), "tradeId": "", "fillSz": "0", "fillPx": "0"}
             self.orders[client_id] = order
             if self.quote_activity:
                 self.quote_activity.accept(order)
             self.accepted.append(copy.deepcopy(order))
+            if market_close:
+                # A market order has no wire px; the simulator executes at its
+                # independent current reference and uses the ordinary fill/WS path.
+                order['px'] = self.prices[data['instId'].removesuffix('-SWAP')]
+                await self.control({'fill': dict(clOrdId=client_id, amount=data['sz'], fee='0.000001')})
             cancel_before_ack = self.cancel_before_ack and self.cancel_before_ack_remaining != 0
             if cancel_before_ack:
                 if self.cancel_before_ack_remaining is not None:
@@ -434,6 +447,10 @@ class Exchange:
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
 
     async def control(self, data):
+        if 'cleanup_market_closes' in data:
+            if type(data['cleanup_market_closes']) is not bool:
+                return web.json_response({'error': 'invalid_cleanup_market_closes'}, status=400)
+            self.cleanup_market_closes = data['cleanup_market_closes']
         if 'cancel_before_ack_limit' in data:
             limit = data['cancel_before_ack_limit']
             if type(limit) is not int or not 1 <= limit <= 200:
@@ -513,6 +530,11 @@ class Exchange:
             if order["state"] not in ("live", "partially_filled"):
                 return web.json_response({"error": "order_not_fillable"}, status=409)
             amount = Decimal(spec["amount"])
+            perpetual = order["instId"].endswith("-SWAP")
+            closing = perpetual and (order.get('posSide'), order['side']) in (('long', 'sell'), ('short', 'buy'))
+            held = self.positions.get((order['instId'], order.get('posSide')))
+            if closing and (held is None or not 0 < amount <= Decimal(held['pos'])):
+                return web.json_response({'error': 'position_not_closeable'}, status=409)
             total = Decimal(order["accFillSz"]) + amount
             assert total <= Decimal(order["sz"])
             order.update(accFillSz=str(total), state="filled" if total == Decimal(order["sz"]) else "partially_filled", uTime=millis())
@@ -527,10 +549,11 @@ class Exchange:
             if perpetual:
                 side = order.get("posSide", "long")
                 position = self.positions.setdefault((order["instId"], side), {"instId": order["instId"], "posSide": side, "pos": "0",
-                                                                               "avgPx": order["px"], "notionalUsd": "0", "lever": "1", "upl": "0"})
+                                                                               "avgPx": order["px"], "notionalUsd": "0", "lever": "1", "upl": "0", "mgnMode": "cross"})
                 previous = Decimal(position["pos"])
-                position["avgPx"] = str((previous * Decimal(position["avgPx"]) + amount * Decimal(order["px"])) / (previous + amount))
-                position["pos"] = str(previous + amount)
+                if not closing:
+                    position["avgPx"] = str((previous * Decimal(position["avgPx"]) + amount * Decimal(order["px"])) / (previous + amount))
+                position["pos"] = str(previous - amount if closing else previous + amount)
                 self.mark_positions()
             for details in self.fixtures["balances"]["data"][0]["details"]:
                 if perpetual:
