@@ -42,7 +42,8 @@ def check_service_logging():
         logger = HummingbotLogger("runtime-logging-smoke")
         logger.parent = root
         for level in (logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, logging.CRITICAL):
-            logger.log(level, "multiline\nsmoke-private-value")
+            logger.log(level, "multiline\nsmoke-private-value", extra={
+                'request_id': 'smoke-request', 'actor_id': 'smoke-actor', 'authorization': 'must-not-export'})
         logger.network("connection unavailable")
         availability = ServiceAvailability()
         availability.fail("test", "test_failure", operator=True)
@@ -62,6 +63,8 @@ def check_service_logging():
         assert all(value["timestamp"].endswith("Z") and value["owner_generation"] == 7
                    and value["session_id"] == "test-session" for value in values)
         assert values[-1]["logger"] == "py.warnings"
+        assert all(value['request_id'] == 'smoke-request' and value['actor_id'] == 'smoke-actor' for value in values[:5])
+        assert 'must-not-export' not in stream.getvalue()
         assert "smoke-private-value" not in stream.getvalue() and "smoke-private-row" not in stream.getvalue()
     finally:
         for handler in root.handlers:
