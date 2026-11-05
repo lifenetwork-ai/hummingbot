@@ -23,6 +23,15 @@ invocation to collect nothing; that invocation is not counted as a pass.
 The updated image must be qualified separately; the green run above is retained,
 not relabelled as evidence for different image bytes.
 
+The logging update is `c33a73cc9`, image `772ddb88c5f2b0984c896c747ef520de8386571d1969b80d5057fe09f0b34f06`
+(1,374,393,886 bytes). Its full native regression passed **2,677 tests plus 11
+subtests**. The first PG rerun had one failure while constructing 20,000 fixture
+events: statement timeout during FK checks, before the discovery query or index
+assertions. Concurrent image compilation was present; an exclusive host cause is
+not proven. Setup now has a bounded 60-second transaction-local timeout and restores
+the exact original timeout before EXPLAIN. Query budgets/index assertions are
+unchanged. The isolated affected test passed; a clean full PG rerun is required.
+
 ## Candidate and implementation
 
 - Runtime tag: `hummingbot-cloudrun:admin-credentials-fc3577831`.

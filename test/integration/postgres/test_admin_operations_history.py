@@ -143,12 +143,17 @@ def test_session_discovery_does_not_scan_unrelated_guard_history(pg_engine):
     bootstrap_postgres(pg_engine, auto_migrate=True)
     BotStateStore(pg_engine, "hummingbot").ensure()
     with pg_engine.begin() as connection:
+        runtime_timeout = connection.execute(text('SHOW statement_timeout')).scalar_one()
+        # Offline bulk fixture construction is not the query being measured.
+        connection.execute(text("SELECT set_config('statement_timeout','60s',true)"))
         connection.execute(text("""INSERT INTO mm_events
             (bot_id,session_id,event_key,event_type,source,generation,control_version,payload,created_at)
             SELECT 'hummingbot','session-' || n%10,'history-plan-' || n,
                 CASE WHEN n<=10 THEN 'session_created' ELSE 'guard_changed' END,
                 'scheduler',1,1,'{}'::jsonb,clock_timestamp() FROM generate_series(1,20000) n"""))
         connection.execute(text("ANALYZE mm_events"))
+        connection.execute(text("SELECT set_config('statement_timeout',:value,true)"), {'value': runtime_timeout})
+        assert connection.execute(text('SHOW statement_timeout')).scalar_one() == runtime_timeout
         plan = connection.execute(text("""EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON)
             SELECT id,session_id,payload->'configuration'->'request' FROM mm_events
             WHERE bot_id='hummingbot' AND event_type='session_created' ORDER BY id DESC LIMIT 2""")).scalar_one()[0]["Plan"]
