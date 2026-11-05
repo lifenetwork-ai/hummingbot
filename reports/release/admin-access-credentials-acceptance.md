@@ -4,6 +4,10 @@ Local/offline acceptance is complete on final source/image below. The final rela
 PostgreSQL rerun passed 148 tests. Real Google/GCP and reviewed Demo cutover remain open.
 No production deployment or change to the existing Demo service/database was made.
 
+Additional local managed-environment cold-restart coverage is recorded in the
+[follow-up report](admin-managed-environment-e2e.md). It extends the test harness
+without changing this runtime image or rerunning/relabeling the load results below.
+
 ## Implemented
 
 - Google whitelist identities with `read`, `write`, `admin`; fresh role lookup on

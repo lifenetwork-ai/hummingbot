@@ -4,6 +4,13 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Managed Demo/Live cold restarts with local KEK:** additional shipping-image
+  E2E coverage checks missing-scope blocking, no environment-key fallback, rejected
+  Live binding on a Demo ledger, preserved native spot/perpetual fill history and
+  wrong-KEK recovery. Test/docs only; real Google/GCP remain deferred.
+  [Report](release/admin-managed-environment-e2e.md),
+  [evidence](release/admin-managed-environment-evidence.json).
+
 - **Admin identities and encrypted credentials — local acceptance complete:** source
   `3a3011d6f`, image `1bb946c3…`. Native 2,680 + 11 subtests and final related PG148
   pass. Final-image schema/logging, memory, automatic cancel/close/removal/restart

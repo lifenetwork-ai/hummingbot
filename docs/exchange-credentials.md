@@ -1,7 +1,8 @@
 # Exchange credential encryption
 
-A1–A4b implement identity/audit, encrypted storage/providers, managed Set/load and
-automatic Disconnect with durable cleanup recovery. Final release acceptance remains open. Environment
+A1–A6 implement identity/audit, encrypted storage/providers, managed Set/load and
+automatic Disconnect with durable cleanup recovery. Local/offline acceptance is complete;
+real Google/GCP and reviewed existing-Demo cutover remain open. Environment
 credentials remain the default; managed mode must be explicitly selected. See the [implementation status](../reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
 
 Strategy YAML and routing stay deployment-owned. An exchange adapter validates
@@ -28,6 +29,34 @@ Generate and retain a random key in private deployment settings; for example,
 `openssl rand -base64 32`. Do not commit its output or generate a replacement at
 every process start. The encryption key must remain available across restarts.
 An invalid/missing key is a configuration error, never permission to regenerate it.
+
+`OKX_TRADING_ENV=demo|live` selects exchange routing independently of this source
+and provider. Cloud Run can use `demo` with `postgres_kms` and `local`; retain the
+same private KEK across revisions. The API cannot change these deployment settings.
+
+A managed database remains bound to its original exchange/environment/account,
+including after Disconnect. Changing `OKX_TRADING_ENV` from Demo to Live does not
+convert its ledger or authorize using Demo keys. Missing Live credentials block
+trading, even when usable environment keys are present; attaching a Live key to
+that Demo database returns `409 exchange_account_mismatch`. Use a separate bot and
+database for independent Live operation, or a separately reviewed cutover. Returning
+to Demo restores the original binding; a preserved running intent can resume, while
+a stopped bot stays stopped.
+
+With a wrong valid-length local KEK, cold loading blocks trading and keeps admin
+health available without replacing ciphertext or falling back to environment keys.
+Restore the original KEK and restart; a previously stopped bot still needs Start.
+The [cold-restart E2E report](../reports/release/admin-managed-environment-e2e.md)
+documents the local checks. Run the same isolated scenario against a compatible image:
+
+```sh
+python scripts/test_e2e_offline.py --image hummingbot-cloudrun:local \
+  --scenario managed-environment --trading-env demo
+```
+
+The scenario explicitly tests both routing modes using an internal-network simulator,
+local encryption and Basic bootstrap. It is also included in `--scenario all`; it
+does not contact OKX or require Google/GCP resources.
 
 GCP configuration:
 

@@ -893,6 +893,27 @@ an unprocessable placeholder `202` is not an acceptable intermediate API.
 - [x] Complete FE integration notes, evidence and remaining limitations; verify no
   secret enters Git, mark completed phases and commit. Do not deploy production here.
 
+### A6 follow-up — Local managed-environment cold restarts
+
+- [x] Run the shipping image/entrypoint on isolated PostgreSQL with local KEK and
+  explicit Basic bootstrap: stopped `demo -> live -> demo` keeps Demo ciphertext,
+  refuses env-key fallback and rejects attaching a Live key to the Demo ledger.
+- [x] Repeat the boundary with a persisted running intent and native spot/perpetual
+  fills: Live remains blocked; returning to Demo restores only the original scope
+  and retains exact fill/fee/position history.
+- [x] Cold-load with the wrong valid-length local KEK: admin stays available,
+  trading/key fallback stays blocked, ciphertext/history remain unchanged; restore
+  the original KEK and verify stopped/connected state without auto-start.
+- [x] Include the scenario in the standard offline E2E matrix, record source/image
+  hashes and safe evidence, update FE/runbook guidance and commit. Real Google/GCP
+  resources and existing-Demo cutover remain outside this follow-up.
+
+Evidence: [local managed-environment E2E](../../reports/release/admin-managed-environment-e2e.md),
+final artifact `build/e2e-offline/20261105-175542-5adcab/result.json`. Seven cold
+revisions and exact native simulator-ledger reconciliation pass on unchanged image
+`1bb946c3…`; 69 related native tests pass. No new full load gate or real external
+acceptance is claimed by this test/docs-only follow-up.
+
 ## Implementation-readiness review
 
 The review found design/integration gaps, not newly reproduced runtime defects.

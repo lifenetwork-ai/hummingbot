@@ -222,6 +222,17 @@ without depending on the production HTTP documentation routes.
 exchange routing. All timestamp responses use UTC `Z`; monetary values use Decimal
 strings. Keep one small API client for authentication, errors, idempotency and retries.
 
+For managed credentials, changing routing does not convert an existing database's
+account/environment binding. A Demo database started in Live blocks trading with
+missing Live credentials and rejects attaching a Live key with
+`409 exchange_account_mismatch`; it never falls back to environment keys. Display
+the current deployment environment and connection status rather than offering a
+Demo/Live session toggle. Independent Live operation needs its own bot/database or
+a reviewed cutover. Returning to Demo can resume preserved running intent; stopped
+intent stays stopped. A wrong local KEK also blocks cold loading while admin remains
+available. Only the maintainer can restore deployment key settings; FE cannot reset
+the binding or regenerate the KEK. See [credential configuration](exchange-credentials.md).
+
 ## Configuration ownership
 
 API commands control sessions; the access API manages the persisted whitelist and

@@ -328,3 +328,20 @@ is no claim of continuous quote uptime or an exclusive historical timeout cause.
 Actual Google/GCP and reviewed existing-Demo cutover remain open. No production
 or existing Demo change was made. See [acceptance report](../release/admin-access-credentials-acceptance.md)
 and [portable evidence](../release/admin-access-credentials-evidence.json).
+
+## A6 follow-up — Managed environment cold restarts
+
+The requested local-only extension passes on unchanged shipping image `1bb946c3…`:
+`build/e2e-offline/20261105-175542-5adcab/result.json`, plus 69 related native tests.
+Seven cold revisions cover stopped Demo/Live/Demo, persisted running intent blocked
+in Live then resumed only in Demo, native spot/perpetual fills with duplicate
+notifications, wrong local KEK with admin alive and original-KEK recovery. Both
+financial rows and saved ciphertext remain unchanged across blocked cold starts.
+Live admission rejects a Demo-bound ledger with `exchange_account_mismatch`;
+usable dummy env keys cannot become managed-source fallback.
+
+The standard offline matrix now includes `managed-environment`. This follow-up
+changes only tests/docs, not runtime logic or `.env`; it does not rebrand old load
+evidence as a new run. Real Google sign-in, real GCP KMS/IAM and separately reviewed
+existing-Demo cutover remain open. See the [follow-up report](../release/admin-managed-environment-e2e.md)
+and [portable evidence](../release/admin-managed-environment-evidence.json).
