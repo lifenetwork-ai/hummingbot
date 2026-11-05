@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-from aiohttp import BasicAuth, web
+from aiohttp import BasicAuth, ServerDisconnectedError, web
 from aiohttp.test_utils import TestClient, TestServer
 from sqlalchemy import func, update
 
@@ -22,7 +22,7 @@ BODY = dict(expected_version=0, expected_control_version=0,
 
 
 @asynccontextmanager
-async def client_for(pg_engine, monkeypatch, *, mode="postgres_kms"):
+async def client_for(pg_engine, monkeypatch, *, mode="postgres_kms", lose_first_save_response=False):
     import base64
     monkeypatch.setenv("EXCHANGE_CREDENTIALS_SOURCE", mode)
     monkeypatch.setenv("STORAGE_BACKEND", "postgres")
@@ -34,7 +34,18 @@ async def client_for(pg_engine, monkeypatch, *, mode="postgres_kms"):
     state = BotStateStore(pg_engine, "hummingbot")
     state.ensure()
     settings = AdminSettings(enabled=True, username="operator", password="offline-password", basic_auth_enabled=True)
-    app = web.Application(middlewares=[admin_middleware(settings)])
+    lost = False
+
+    @web.middleware
+    async def response_loss(request, handler):
+        nonlocal lost
+        response = await handler(request)
+        if lose_first_save_response and not lost and request.method == 'POST' and response.status == 202:
+            lost = True
+            request.transport.abort()  # Commit completed, but the client receives no receipt.
+        return response
+
+    app = web.Application(middlewares=[admin_middleware(settings), response_loss])
     api = AdminAPI(SimpleNamespace(store=state), settings)
     adapter = OKXCredentialAdapter()
     adapter.preflight = AsyncMock(return_value="www:account")
@@ -70,6 +81,26 @@ async def test_secret_save_has_typed_receipt_no_plaintext_and_no_auto_start(pg_e
 
 
 @pytest.mark.asyncio
+async def test_lost_post_commit_response_replays_one_correlated_secret_free_operation(pg_engine, monkeypatch):
+    async with client_for(pg_engine, monkeypatch, lose_first_save_response=True) as (client, state, adapter):
+        with pytest.raises(ServerDisconnectedError):
+            await client.post(ADMIN_PREFIX + '/credentials/okx/okx', headers={**AUTH, 'Idempotency-Key': 'lost'}, json=BODY)
+        assert state.read()['control_version'] == 1
+        saved = CredentialStore(state).load('okx', 'okx', 'demo')
+        response = await client.post(ADMIN_PREFIX + '/credentials/okx/okx', headers={**AUTH, 'Idempotency-Key': 'lost'}, json=BODY)
+        assert response.status == 202
+        replay = await response.json()
+        assert replay['id'] == saved['operation_id'] and saved['version'] == 1
+        assert adapter.preflight.await_count == 1 and state.read()['control_version'] == 1
+        audit = await (await client.get(ADMIN_PREFIX + '/audit', headers=AUTH)).json()
+        events = [row for row in audit['items'] if row['operation_id'] == replay['id']]
+        assert len(events) == 1 and events[0]['action'] == 'credentials_set' and events[0]['outcome'] == 'accepted'
+        status = await (await client.get(ADMIN_PREFIX + '/credentials/okx', headers=AUTH)).json()
+        assert status['slots'][0]['operation_id'] == replay['id'] and status['slots'][0]['status'] == 'checking'
+        assert 'HTTP-CANARY' not in str(replay) + str(audit) + str(status)
+
+
+@pytest.mark.asyncio
 async def test_environment_source_cannot_mutate_and_routing_cannot_be_overridden(pg_engine, monkeypatch):
     async with client_for(pg_engine, monkeypatch, mode="environment") as (client, state, adapter):
         response = await client.post(ADMIN_PREFIX + "/credentials/okx/okx", headers={**AUTH, "Idempotency-Key": "save"}, json=BODY)
@@ -87,7 +118,13 @@ async def test_candidate_unavailability_is_not_reported_as_bad_key_and_writes_no
     async with client_for(pg_engine, monkeypatch) as (client, state, adapter):
         adapter.preflight.side_effect = CredentialAdapterError("exchange_unavailable", status=503)
         response = await client.post(ADMIN_PREFIX + "/credentials/okx/okx", headers={**AUTH, "Idempotency-Key": "save"}, json=BODY)
-        assert response.status == 503 and (await response.json())["code"] == "exchange_unavailable"
+        error = await response.json()
+        assert response.status == 503 and error['code'] == 'exchange_unavailable'
+        assert response.headers['X-Request-ID'] == error['request_id'] and error['error']
+        audit = await (await client.get(ADMIN_PREFIX + '/audit', headers=AUTH)).json()
+        event = next(row for row in audit['items'] if row['request_id'] == error['request_id'] and row['action'] == 'credentials_set')
+        assert event['outcome'] == 'failed' and event['reason_code'] == error['code']
+        assert 'HTTP-CANARY' not in str(error) + str(event)
         assert not CredentialStore(state).metadata() and state.read()["control_version"] == 0
 
 

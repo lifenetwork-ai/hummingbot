@@ -116,3 +116,11 @@ continued MM uses the authorized loaded bundle rather than quietly calling KMS f
 each quote. The fixture's switch/denial/recovery test first failed for its missing
 implementation, then passed with the signed-identity/history scope (35 tests).
 This adds no production outage toggle and does not replace actual GCP acceptance.
+
+Two focused PostgreSQL HTTP checks passed: an aborted transport after Set commits
+replays the single original receipt/audit/version; a dependency error correlates its
+request ID with the failed credential audit without exposing input. Initial test
+assertions used an absent `message` field (the contract uses `error`/`detail`) and
+selected the generic denial rather than the credential failure audit; those test
+assumptions were corrected, with no runtime change. Logs retain both failed attempts
+and the clean result at `/tmp/hbot-admin-response-correlation{,2,3}.log`.
