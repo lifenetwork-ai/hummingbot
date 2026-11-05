@@ -1015,6 +1015,73 @@
         "title": "CredentialCatalogue",
         "type": "object"
       },
+      "CredentialCleanupKeyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "credentials": {
+            "additionalProperties": {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            "maxProperties": 8,
+            "minProperties": 1,
+            "title": "Credentials",
+            "type": "object"
+          },
+          "expected_control_version": {
+            "minimum": 0,
+            "title": "Expected Control Version",
+            "type": "integer"
+          },
+          "expected_operation_version": {
+            "minimum": 0,
+            "title": "Expected Operation Version",
+            "type": "integer"
+          },
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "operation_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "expected_control_version",
+          "expected_operation_version",
+          "operation_id",
+          "credentials"
+        ],
+        "title": "CredentialCleanupKeyRequest",
+        "type": "object"
+      },
+      "CredentialDisconnectRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_control_version": {
+            "minimum": 0,
+            "title": "Expected Control Version",
+            "type": "integer"
+          },
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version",
+          "expected_control_version"
+        ],
+        "title": "CredentialDisconnectRequest",
+        "type": "object"
+      },
       "CredentialInputFieldOutput": {
         "additionalProperties": false,
         "properties": {
@@ -1069,6 +1136,18 @@
             "title": "Bot Id",
             "type": "string"
           },
+          "cleanup_operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cleanup Operation Id"
+          },
           "connector": {
             "title": "Connector",
             "type": "string"
@@ -1084,6 +1163,18 @@
           "expected_control_version": {
             "title": "Expected Control Version",
             "type": "integer"
+          },
+          "expected_operation_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Operation Version"
           },
           "expected_version": {
             "title": "Expected Version",
@@ -1107,14 +1198,117 @@
       "CredentialProgressOutput": {
         "additionalProperties": false,
         "properties": {
+          "account_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Account Verified"
+          },
+          "blocked_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Blocked Stage"
+          },
+          "cleanup_operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cleanup Operation Id"
+          },
+          "consumers_detached": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Consumers Detached"
+          },
           "credential_version": {
             "title": "Credential Version",
+            "type": "integer"
+          },
+          "ledger_confirmed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ledger Confirmed"
+          },
+          "next_retry_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Retry At"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Observed At"
+          },
+          "operation_version": {
+            "default": 0,
+            "title": "Operation Version",
             "type": "integer"
           },
           "operator_action_required": {
             "default": false,
             "title": "Operator Action Required",
             "type": "boolean"
+          },
+          "orders_terminal_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Orders Terminal Verified"
           },
           "owner_generation": {
             "anyOf": [
@@ -1140,6 +1334,30 @@
             "default": null,
             "title": "Owner Uuid"
           },
+          "position_checkpoints_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Position Checkpoints Verified"
+          },
+          "positions_flat_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Positions Flat Verified"
+          },
           "reason_code": {
             "anyOf": [
               {
@@ -1151,6 +1369,30 @@
             ],
             "default": null,
             "title": "Reason Code"
+          },
+          "remaining_order_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Remaining Order Count"
+          },
+          "remaining_position_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Remaining Position Count"
           },
           "stage": {
             "title": "Stage",
@@ -1254,6 +1496,33 @@
         "title": "CredentialReceipt",
         "type": "object"
       },
+      "CredentialRetryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_control_version": {
+            "minimum": 0,
+            "title": "Expected Control Version",
+            "type": "integer"
+          },
+          "expected_operation_version": {
+            "minimum": 0,
+            "title": "Expected Operation Version",
+            "type": "integer"
+          },
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version",
+          "expected_control_version",
+          "expected_operation_version"
+        ],
+        "title": "CredentialRetryRequest",
+        "type": "object"
+      },
       "CredentialSetRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1322,6 +1591,18 @@
             "default": null,
             "title": "Changed By"
           },
+          "cleanup_operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cleanup Operation Id"
+          },
           "configured": {
             "title": "Configured",
             "type": "boolean"
@@ -1362,6 +1643,18 @@
             ],
             "default": null,
             "title": "Operation Id"
+          },
+          "operation_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Operation Version"
           },
           "reason_code": {
             "anyOf": [
@@ -11691,6 +11984,268 @@
         ]
       }
     },
+    "/api/v1/admin/credentials/operations/{operation_id}/retry": {
+      "post": {
+        "operationId": "retryCredentialCleanup",
+        "parameters": [
+          {
+            "description": "Stable retry identity; reuse only for the identical request body",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "operation_id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialRetryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialReceiptOutput"
+                }
+              }
+            },
+            "description": "Accepted; poll command result",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "googleIdentity": []
+          },
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Resume the same blocked cleanup; never starts trading or skips unknown orders",
+        "tags": [
+          "Credentials"
+        ]
+      }
+    },
     "/api/v1/admin/credentials/{exchange}": {
       "get": {
         "operationId": "getExchangeCredentialStatus",
@@ -12197,6 +12752,548 @@
           }
         ],
         "summary": "Validate and save a full connection after acknowledged Stop; never resumes trading",
+        "tags": [
+          "Credentials"
+        ]
+      }
+    },
+    "/api/v1/admin/credentials/{exchange}/{connector}/cleanup-credentials": {
+      "post": {
+        "operationId": "repairCleanupCredentials",
+        "parameters": [
+          {
+            "description": "Stable retry identity; reuse only for the identical request body",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "connector",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "exchange",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialCleanupKeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialReceiptOutput"
+                }
+              }
+            },
+            "description": "Accepted; poll command result",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "googleIdentity": []
+          },
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Replace an existing same-account key only to resume blocked cleanup",
+        "tags": [
+          "Credentials"
+        ]
+      }
+    },
+    "/api/v1/admin/credentials/{exchange}/{connector}/revoke": {
+      "post": {
+        "operationId": "disconnectExchangeCredentials",
+        "parameters": [
+          {
+            "description": "Stable retry identity; reuse only for the identical request body",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "connector",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "exchange",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialDisconnectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialReceiptOutput"
+                }
+              }
+            },
+            "description": "Accepted; poll command result",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "googleIdentity": []
+          },
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Stop trading, cancel bot orders, close managed perpetual positions, then remove this saved key",
         "tags": [
           "Credentials"
         ]

@@ -95,13 +95,16 @@ ADMIN_ENDPOINTS += (("POST", "/access/login", "access_login"), ("GET", "/access/
 ADMIN_ENDPOINTS += (("GET", "/credentials", "credentials_catalogue"),
                     ("GET", "/credentials/operations/{operation_id}", "credentials_operation"),
                     ("GET", "/credentials/{exchange}", "credentials_status"),
-                    ("POST", "/credentials/{exchange}/{connector}", "credentials_set"))
+                    ("POST", "/credentials/{exchange}/{connector}", "credentials_set"),
+                    ("POST", "/credentials/{exchange}/{connector}/revoke", "credentials_disconnect"),
+                    ("POST", "/credentials/{exchange}/{connector}/cleanup-credentials", "credentials_cleanup_key"),
+                    ("POST", "/credentials/operations/{operation_id}/retry", "credentials_retry"))
 
 READ_HANDLERS = frozenset({"profiles", "status", "command", "openapi", "docs", "asset", "orders", "order", "fills",
                            "reference_pairs", "balances", "positions", "performance", "daily", "session_events", "liquidity",
                            "reconciliation", "session_configuration", "commands_history", "sessions", "reconciliation_by_id",
                            "access_login", "access_me", "access_audit", "credentials_catalogue", "credentials_status", "credentials_operation"})
-WRITE_HANDLERS = frozenset({"commands", "reconciliation_check", "credentials_set"})
+WRITE_HANDLERS = frozenset({"commands", "reconciliation_check", "credentials_set", "credentials_disconnect", "credentials_cleanup_key", "credentials_retry"})
 ACCOUNT_HANDLERS = frozenset({"access_bootstrap", "access_accounts", "access_add_account", "access_change_account"})
 ADMIN_PERMISSIONS = {(method, ADMIN_PREFIX + path): "read" if name in READ_HANDLERS else "write" if name in WRITE_HANDLERS else "admin"
                      for method, path, name in ADMIN_ENDPOINTS if name in READ_HANDLERS | WRITE_HANDLERS | ACCOUNT_HANDLERS}

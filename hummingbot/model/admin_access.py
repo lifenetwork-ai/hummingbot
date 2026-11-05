@@ -138,7 +138,8 @@ class AdminAccessStore:
     def audit(self, connection, *, actor, action, outcome, request_id, target_id=None,
               reason_code=None, operation_id=None, event_key=None, details=None, exchange=None, connector=None, environment=None):
         safe = details or {}
-        if set(safe) - {"version", "previous_version", "role", "previous_role", "active", "previous_active", "target_email"}:
+        if set(safe) - {"version", "previous_version", "role", "previous_role", "active", "previous_active", "target_email", "stage",
+                        "order_id", "position_id", "pair", "position_side", "amount", "child_operation_id"}:
             raise ValueError("Unreviewed audit detail fields")
         connection.execute(AdminAuditEvent.__table__.insert().values(
             bot_id=self.bot_id, event_key=event_key or uuid.uuid4().hex, request_id=request_id,

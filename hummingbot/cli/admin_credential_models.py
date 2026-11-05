@@ -12,6 +12,20 @@ class CredentialSetRequest(APIModel):
     credentials: Dict[str, SecretStr] = Field(min_length=1, max_length=8, repr=False)
 
 
+class CredentialDisconnectRequest(APIModel):
+    expected_version: int = Field(ge=1, strict=True)
+    expected_control_version: int = Field(ge=0, strict=True)
+
+
+class CredentialRetryRequest(CredentialDisconnectRequest):
+    expected_operation_version: int = Field(ge=0, strict=True)
+
+
+class CredentialCleanupKeyRequest(CredentialRetryRequest):
+    operation_id: str = Field(min_length=1, max_length=128)
+    credentials: Dict[str, SecretStr] = Field(min_length=1, max_length=8, repr=False)
+
+
 class CredentialPayload(APIModel):
     action: Literal["credentials_set", "credentials_disconnect", "credentials_cleanup_key", "credentials_cleanup_retry"]
     bot_id: str
@@ -22,6 +36,8 @@ class CredentialPayload(APIModel):
     environment: str
     expected_version: int
     expected_control_version: int
+    cleanup_operation_id: Optional[str] = None
+    expected_operation_version: Optional[int] = None
 
 
 class CredentialProgress(APIModel):
@@ -31,6 +47,19 @@ class CredentialProgress(APIModel):
     operator_action_required: bool = False
     owner_uuid: Optional[str] = None
     owner_generation: Optional[int] = None
+    operation_version: int = 0
+    cleanup_operation_id: Optional[str] = None
+    account_verified: Optional[bool] = None
+    position_checkpoints_verified: Optional[bool] = None
+    orders_terminal_verified: Optional[bool] = None
+    positions_flat_verified: Optional[bool] = None
+    ledger_confirmed: Optional[bool] = None
+    consumers_detached: Optional[bool] = None
+    observed_at: Optional[UTCDateTime] = None
+    next_retry_at: Optional[UTCDateTime] = None
+    blocked_stage: Optional[str] = None
+    remaining_order_count: Optional[int] = None
+    remaining_position_count: Optional[int] = None
 
 
 class CredentialReceipt(APIModel):
@@ -86,6 +115,8 @@ class CredentialSlot(APIModel):
     changed_at: Optional[UTCDateTime] = None
     changed_by: Optional[str] = None
     operation_id: Optional[str] = None
+    cleanup_operation_id: Optional[str] = None
+    operation_version: Optional[int] = None
     observed_at: Optional[UTCDateTime] = None
     actions: Dict[str, CredentialAction]
 

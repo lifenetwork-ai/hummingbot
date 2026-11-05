@@ -1,7 +1,7 @@
 # Exchange credential encryption
 
-A1–A4a implement identity/audit, encrypted storage/providers and managed Set/load
-integration. Automatic Disconnect and cleanup recovery remain A4b work. Environment
+A1–A4b implement identity/audit, encrypted storage/providers, managed Set/load and
+automatic Disconnect with durable cleanup recovery. Final release acceptance remains open. Environment
 credentials remain the default; managed mode must be explicitly selected. See the [implementation status](../reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
 
 Strategy YAML and routing stay deployment-owned. An exchange adapter validates
@@ -81,14 +81,67 @@ metadata, safe status and progress. The typed receipt distinguishes accepted,
 loading and loaded/failed; ordinary trading command history remains unchanged.
 Set increments existing control authority, commits ciphertext/audit/receipt together,
 detaches old readers/connector models and verifies the loaded connection. Start stays
-explicit. Key replacement preserves positions and ledger; automatic cancel/close on
-Disconnect is not enabled until A4b has its own engine/recovery acceptance.
+explicit. Ordinary key replacement preserves positions and ledger. Disconnect is a
+separate action with automatic cancellation and perpetual position closure.
 
 Already loaded versions avoid another KMS call when ordinary Start follows Stop.
 Cold loads use bounded worker work and read-only account validation. Missing KEK or
 provider failure keeps administration alive with trading blocked; after repairing
 deployment configuration, restart to retry loading. Current status uses matching fresh
 owner evidence, while the original failed receipt remains historical evidence.
+
+## Disconnect and recovery
+
+`POST /api/v1/admin/credentials/{exchange}/{connector}/revoke` takes strict
+`expected_version` (credential version), `expected_control_version` and
+`Idempotency-Key`. It works without an MM session. It immediately fences ordinary
+orders for the entire bot; it does not immediately delete the encrypted bundle.
+
+The existing engine owner stops the strategy, preserves its checkpoints, reloads
+existing connectors solely for cleanup and verifies the same exchange account.
+It cancels recorded bot orders across both markets, reads back terminal outcomes,
+checks held exposure against fresh exchange positions, then closes managed
+perpetual LONG and SHORT separately with narrowly scoped market CLOSE orders.
+This can incur taker fees and slippage. Spot holdings and unrelated positions are
+not sold. Unsupported NET/isolated modes, unmatched exposure, unknown bot orders,
+missing tracking state and uncloseable residuals require technical review.
+
+Every identified close fill reduces its saved position in the same transaction as
+the fill ledger. Duplicate trade IDs cannot apply twice; cumulative quantity cannot
+exceed the admitted close. A lost placement response is read back, never blindly
+resubmitted. A cancel acknowledgement or an empty local tracker does not prove
+cleanup. Selected credentials remain encrypted and available solely for cleanup
+until terminal orders, flat managed perpetual exposure, committed ledger and
+detachment of authenticated consumers have all been confirmed.
+
+Only then does one fenced transaction set the selected envelope to SQL NULL,
+complete the operation and audit, and leave the bot stopped. Companion credentials,
+account binding, order/fill history and unrelated recovery HALTs are retained.
+The API key remains valid at OKX until its owner deletes it directly on OKX.
+Do not delete the key there while automatic cleanup still needs it.
+
+Read the root receipt at `/credentials/operations/{id}`. `202` is acceptance,
+not completion. A scheduled `waiting_for_dependency` retries automatically;
+`action_required` keeps the blocker and requires intervention. Two write/admin
+actions continue the **same** root operation and control fence:
+
+- `POST /credentials/operations/{id}/retry`: expected credential, control and
+  `expected_operation_version` from the latest root progress, plus a new idempotency key.
+- `POST /credentials/{exchange}/{connector}/cleanup-credentials`: the same versions,
+  root `operation_id` and complete input-only credentials for the **same** account.
+  An existing companion slot can also be repaired. This cannot add a new slot,
+  bind another account, start trading or bypass an unknown previous send.
+
+Poll the child receipt and its `cleanup_operation_id`. It completes with
+`cleanup_completed` when the root finishes; this does not mean the repaired
+companion key was removed. A superseded repair finishes as failed/replaced.
+Accepted cleanup retains its original audited authority after logout or role
+removal; new retry/repair requests recheck the actor's current role.
+
+If a crashed runtime left an unverified checkpoint, automatic closure refuses to
+infer missing exposure. Follow the reviewed [recovery runbook](postgres-runtime.md).
+No API resets a risk HALT or fabricates a flat position. A cold load still needs
+its KEK; a loaded matching version can clean up through a temporary KMS outage.
 
 ## Key or provider transition
 

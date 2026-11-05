@@ -70,14 +70,15 @@ class BotStateStore:
             from hummingbot.core.mm_session import MMSession
         with self.engine.begin() as connection:
             conditions = [BotState.bot_id == self.bot_id, BotState.control_version == expected_version]
-            if desired_state == "running" and config_file_path is None:
-                conditions.append(BotState.config_file_path.isnot(None))
-            row = connection.execute(select(BotState.mm_session, BotState.recovery_state).where(*conditions)
+            row = connection.execute(select(BotState.mm_session, BotState.recovery_state, BotState.config_file_path).where(*conditions)
                                      .with_for_update()).mappings().first()
             if row is None:
                 raise ControlConflict("Control version changed; read status and submit the intended command again.")
             if (row["recovery_state"] or {}).get("credential_operation"):
                 raise ControlConflict("Wait for the connection operation to complete", code="credential_operation_in_progress")
+            if desired_state == "running" and config_file_path is None:
+                if row["config_file_path"] is None:
+                    raise ControlConflict("A deployed configuration must be selected before starting.")
             bound = (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get("life_mm_profiles.yaml", {}).get("mm_drawdown_policy")
             if bound is not None and desired_state != "stopped":
                 raise ControlConflict("Armed MM drawdown requires admin MM commands; policy/scope changes need operator review.")

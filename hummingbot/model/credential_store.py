@@ -62,12 +62,16 @@ class CredentialStore:
                 AdminCommand.bot_id == self.bot_id, AdminCommand.id.in_(identities))).mappings()} if identities else {}
         return metadata, self.store.read(), operations
 
-    def record_failure(self, actor, *, request_id, exchange, connector, environment, reason_code):
+    def record_failure(self, actor, *, request_id, exchange, connector, environment, reason_code,
+                       action="credentials_set", operation_id=None):
         # The adapter maps failures into fixed safe codes. Never persist its request/body.
         with self.engine.begin() as connection:
             current = self.access.authorize(connection, actor, "write")
-            self.access.audit(connection, actor=current, action="credentials_set", outcome="failed", request_id=request_id,
-                              target_id=connector, exchange=exchange, connector=connector, environment=environment, reason_code=reason_code)
+            if action not in CREDENTIAL_ACTIONS:
+                raise ValueError("Invalid credential audit action")
+            self.access.audit(connection, actor=current, action=action, outcome="failed", request_id=request_id,
+                              operation_id=operation_id, target_id=connector, exchange=exchange, connector=connector,
+                              environment=environment, reason_code=reason_code)
 
     def set_payload(self, actor, *, exchange, connector, environment, expected_version, expected_control_version):
         if any(not isinstance(value, str) or not 1 <= len(value) <= 128 for value in (exchange, connector, environment)):
@@ -215,3 +219,77 @@ class CredentialStore:
                 AdminCommand.status.in_(("accepted", "applying")), authority).values(
                 status="applying", result=func.jsonb_set(AdminCommand.result, "{stage}", '"loading"'), updated_at=func.clock_timestamp()))
             return result.rowcount == 1
+
+    def accept_disconnect(self, actor, *, exchange, connector, environment, expected_version,
+                          expected_control_version, idempotency_key, request_id):
+        from hummingbot.core.mm_session import MMSession
+        payload = self.set_payload(actor, exchange=exchange, connector=connector, environment=environment,
+                                   expected_version=expected_version, expected_control_version=expected_control_version)
+        payload["action"] = "credentials_disconnect"
+        with self.engine.begin() as connection:
+            current, state, previous = self.lock_request(connection, actor, idempotency_key, payload)
+            if previous:
+                return previous
+            recovery = dict(state["recovery_state"] or {})
+            if recovery.get("credential_operation"):
+                raise ControlConflict("Wait for the current connection operation", code="credential_operation_in_progress")
+            if state["control_version"] != expected_control_version:
+                raise ControlConflict("Control version changed", code="control_version_changed")
+            saved = connection.execute(select(*SAFE_COLUMNS).where(*self.scope(exchange, connector, environment))).mappings().first()
+            if saved is None or saved["state"] != "active":
+                raise ControlConflict("The connection is not configured", code="credentials_not_configured")
+            if saved["version"] != expected_version:
+                raise ControlConflict("Connection version changed", code="credential_version_conflict")
+            affected = connection.execute(select(*SAFE_COLUMNS).where(
+                ExchangeCredential.bot_id == self.bot_id, ExchangeCredential.state == "active")).mappings().all()
+            if any((row["exchange"], row["environment"], row["account_id"]) != (exchange, environment, saved["account_id"]) for row in affected):
+                raise ControlConflict("Connection scope/binding mismatch", code="exchange_account_mismatch")
+            identity, control = str(uuid.uuid4()), expected_control_version + 1
+            operation = dict(id=identity, action="credentials_disconnect", exchange=exchange, connector=connector,
+                             environment=environment, version=expected_version,
+                             affected_versions={row["connector"]: row["version"] for row in affected})
+            recovery["credential_operation"] = operation
+            values = dict(desired_state="stopped", control_version=control, recovery_state=recovery)
+            if state["mm_session"]:
+                session = MMSession.model_validate(state["mm_session"])
+                if session.status in ("preparing", "running"):
+                    session.status = "stopping"
+                    session.generation += 1
+                    values["mm_session"] = session.model_dump(mode="json")
+            connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(**values))
+            connection.execute(update(ExchangeCredential).where(*self.scope(exchange, connector, environment)).values(
+                state="revoking", operation_id=identity, changed_by=current.id, changed_at=func.clock_timestamp()))
+            receipt = dict(connection.execute(AdminCommand.__table__.insert().values(
+                id=identity, bot_id=self.bot_id, idempotency_key=idempotency_key, request_hash=self.request_hash(payload),
+                action="credentials_disconnect", session_id=(state["mm_session"] or {}).get("id"),
+                expected_version=expected_control_version, effective_version=control, status="accepted", payload=payload,
+                result=dict(stage="waiting_for_owner", credential_version=expected_version),
+                created_at=func.clock_timestamp(), updated_at=func.clock_timestamp()).returning(*AdminCommand.__table__.c)).mappings().one())
+            self.access.audit(connection, actor=current, action="credentials_disconnect", outcome="accepted", request_id=request_id,
+                              operation_id=identity, target_id=connector, exchange=exchange, connector=connector,
+                              environment=environment, details={"version": expected_version})
+            return receipt
+
+    def finish_disconnect(self, identity, owner_uuid, owner_generation, *, evidence):
+        from hummingbot.model.credential_cleanup import finish
+        return finish(self, identity, owner_uuid, owner_generation, evidence=evidence)
+
+    def progress_disconnect(self, identity, owner_uuid, owner_generation, **progress):
+        from hummingbot.model.credential_cleanup import progress as record_progress
+        return record_progress(self, identity, owner_uuid, owner_generation, **progress)
+
+    def disconnect_snapshot(self, identity, owner_uuid, owner_generation):
+        from hummingbot.model.credential_cleanup import snapshot
+        return snapshot(self, identity, owner_uuid, owner_generation)
+
+    def retry_disconnect(self, actor, identity, **request):
+        from hummingbot.model.credential_cleanup_requests import retry
+        return retry(self, actor, identity, **request)
+
+    def prepare_cleanup_key(self, actor, **request):
+        from hummingbot.model.credential_cleanup_requests import prepare_repair
+        return prepare_repair(self, actor, **request)
+
+    def accept_cleanup_key(self, actor, **request):
+        from hummingbot.model.credential_cleanup_requests import repair
+        return repair(self, actor, **request)

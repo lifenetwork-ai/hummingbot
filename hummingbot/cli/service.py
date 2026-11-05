@@ -72,6 +72,7 @@ class ServiceHost:
         self.error = None
         self.engine = self.store = self.owner = self.hb = None
         self.managed_credentials = None
+        self.credential_cleanup_task = None
         self.applied_version = None
         self.start_task = None
         self.running = False
@@ -569,6 +570,10 @@ class ServiceHost:
         install_guard(self.owner)
         self.owner.runtime_ready_check = self.runtime_healthy
         row = self.owner.check_owner()
+        if await self.observe_credential_operation(row):
+            self.mm_liquidity_state = self.liquidity_observer = None
+            await self.publish_status(row["control_version"])
+            return
         guard = getattr(self.owner, "spot_outflow", None)
         if guard is None:
             from hummingbot.core.spot_outflow_guard import checkpoint_outflow_status
@@ -848,6 +853,57 @@ class ServiceHost:
     def poll_funding(self):
         self.funding.poll(self.engine, self.owner, self.hb.trading_core)
 
+    async def observe_credential_operation(self, row):
+        operation = (row["recovery_state"] or {}).get("credential_operation") or {}
+        if not operation:
+            if self.credential_cleanup_task is not None:
+                if not self.credential_cleanup_task.done():
+                    return True
+                self.credential_cleanup_task.result()
+                self.credential_cleanup_task = None
+                self.applied_version = None
+            return False
+        if self.managed_credentials is None:
+            self.running = False
+            if not await self.stop_core():
+                raise RuntimeError("Connection operation runtime did not stop")
+            self.phase = "halted"
+            self.availability.fail("credentials", "credential_source_conflict", operator=True)
+            return True
+        if operation.get("action") != "credentials_disconnect":
+            return False
+        if row.get("mm_session"):
+            from hummingbot.core.mm_session import MMSession
+            self.mm_session = MMSession.model_validate(row["mm_session"])
+        self.running = False
+        self.phase = "disconnecting"
+        if self.credential_cleanup_task is not None:
+            if not self.credential_cleanup_task.done():
+                return True
+            # A cleanup that cannot stop its own runtime follows the existing
+            # engine restart fence, while the isolated administration API stays up.
+            self.credential_cleanup_task.result()
+            self.credential_cleanup_task = None
+            row = self.owner.check_owner()
+            operation = (row["recovery_state"] or {}).get("credential_operation") or {}
+            if not operation:
+                self.applied_version = None
+                return True
+        if operation.get("operator_action_required"):
+            self.phase = "credential_action_required"
+            return True
+        retry_at = operation.get("next_retry_at")
+        if retry_at is not None and float(row["database_now"]) < float(retry_at):
+            self.phase = "credential_waiting"
+            return True
+        from hummingbot.cli.credential_cleanup_runtime import CleanupExchangeRuntime
+        from hummingbot.cli.credential_disconnect import DisconnectCoordinator
+        from hummingbot.model.credential_store import CredentialStore
+        store = CredentialStore(self.store)
+        coordinator = DisconnectCoordinator(store, self.owner, CleanupExchangeRuntime(self, store))
+        self.credential_cleanup_task = asyncio.create_task(coordinator.run(operation["id"]))
+        return True
+
     async def detach_credential_readers(self):
         await self.funding.credentials_changed()
         if self.reconciliation_task is not None and not self.reconciliation_task.done():
@@ -856,6 +912,12 @@ class ServiceHost:
             if not done:
                 raise RuntimeError("Credential consumers did not detach")
         self.reconciliation_task = None
+        if self.hb is not None:
+            self.hb.trading_core.before_position_checkpoint = None
+            self.hb.trading_core.after_order_cancellation = None
+        if self.owner is not None:
+            self.owner.listing_bootstrap = self.owner.spot_outflow = None
+            self.owner.volatility_checkpoints = self.owner.mm_quote_check = None
 
     async def collect_funding(self):
         await self.funding.collect(self.engine, self.owner, self.hb.trading_core)
@@ -924,6 +986,13 @@ class ServiceHost:
         self._publication_closing = True
         if self.owner is not None:
             self.owner.begin_shutdown()
+        if self.credential_cleanup_task is not None and not self.credential_cleanup_task.done():
+            self.credential_cleanup_task.cancel()
+            done, _ = await asyncio.wait({self.credential_cleanup_task}, timeout=2)
+            if not done:
+                return False
+        if self.credential_cleanup_task is not None:
+            await asyncio.gather(self.credential_cleanup_task, return_exceptions=True)
         await self.funding.close()
         if self.reconciliation_task is not None and not self.reconciliation_task.done():
             self.reconciliation_task.cancel()

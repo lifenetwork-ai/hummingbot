@@ -29,7 +29,9 @@ class ServiceFormatter(logging.Formatter):
         self.secrets = sorted((value for value in secrets if len(value) >= 4), key=len, reverse=True)
 
     def redact(self, value):
-        for secret in self.secrets:
+        from hummingbot.core.credential_redaction import sensitive_values
+        secrets = sorted(set(self.secrets).union(secret for secret in sensitive_values() if len(secret) >= 4), key=len, reverse=True)
+        for secret in secrets:
             value = value.replace(secret, "[REDACTED]")
         return value
 

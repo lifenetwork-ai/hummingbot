@@ -161,3 +161,40 @@ async def test_connected_requires_fresh_matching_owner_evidence_not_only_saved_c
                 status="failed", error="kms_unavailable"))
         status = await (await client.get(ADMIN_PREFIX + "/credentials/okx", headers=AUTH)).json()
         assert status["slots"][0]["status"] == "connected"  # A historical receipt cannot override fresh recovered evidence.
+
+
+@pytest.mark.asyncio
+async def test_disconnect_and_repair_are_typed_versioned_and_never_erase_early(pg_engine, monkeypatch):
+    async with client_for(pg_engine, monkeypatch) as (client, state, adapter):
+        first = await client.post(ADMIN_PREFIX + '/credentials/okx/okx', headers={**AUTH, 'Idempotency-Key': 'save'}, json=BODY)
+        saved = await first.json()
+        with pg_engine.begin() as connection:
+            connection.execute(update(BotState).values(owner_uuid='owner', owner_generation=1))
+        store = CredentialStore(state)
+        assert store.finish_set(saved['id'], 'owner', 1, versions={'okx': 1})
+        response = await client.post(ADMIN_PREFIX + '/credentials/okx/okx/revoke', headers={**AUTH, 'Idempotency-Key': 'remove'},
+                                     json=dict(expected_version=1, expected_control_version=1))
+        assert response.status == 202, await response.text()
+        root = await response.json()
+        assert root['result']['stage'] == 'waiting_for_owner'
+        status = await (await client.get(ADMIN_PREFIX + '/credentials/okx', headers=AUTH)).json()
+        assert status['slots'][0]['status'] == 'disconnecting'
+        assert store.load('okx', 'okx', 'demo')['envelope'] is not None
+        store.progress_disconnect(root['id'], 'owner', 1, stage='action_required', reason_code='exchange_credentials_rejected', operator_action_required=True)
+        response = await client.post(ADMIN_PREFIX + '/credentials/okx/okx/cleanup-credentials', headers={**AUTH, 'Idempotency-Key': 'repair'},
+                                     json=dict(operation_id=root['id'], expected_version=1, expected_control_version=2, expected_operation_version=1,
+                                               credentials=BODY['credentials']))
+        assert response.status == 202, await response.text()
+        child = await response.json()
+        assert child['result']['cleanup_operation_id'] == root['id']
+        assert store.load('okx', 'okx', 'demo')['state'] == 'revoking'
+        proof = dict(orders_terminal_verified=True, positions_flat_verified=True, ledger_confirmed=True, consumers_detached=True,
+                     observed_at=float(state.read()['database_now']), owner_generation=1)
+        store.progress_disconnect(root['id'], 'owner', 1, stage='detaching', evidence=proof)
+        assert store.finish_disconnect(root['id'], 'owner', 1, evidence=proof)
+        operation = await client.get(ADMIN_PREFIX + '/credentials/operations/' + child['id'], headers=AUTH)
+        assert operation.status == 200, await operation.text()
+        assert (await operation.json())['status'] == 'succeeded'
+        status = await (await client.get(ADMIN_PREFIX + '/credentials/okx', headers=AUTH)).json()
+        assert status['slots'][0]['status'] == 'disconnected' and not status['slots'][0]['configured']
+        assert 'HTTP-CANARY' not in str(child) + str(status)

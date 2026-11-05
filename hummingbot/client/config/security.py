@@ -28,6 +28,7 @@ class Security:
     _decryption_done = asyncio.Event()
     _environment_mode = False
     _managed_mode = False
+    _redaction_secrets = ()
 
     _logger: Optional[HummingbotLogger] = None
 
@@ -59,6 +60,7 @@ class Security:
         cls.secrets_manager = secrets_manager
         cls._environment_mode = False
         cls._managed_mode = False
+        cls._redaction_secrets = ()
         cls.decrypt_all()
         # coro = AsyncCallScheduler.shared_instance().call_async(cls.decrypt_all, timeout_seconds=30)
         # safe_ensure_future(coro)
@@ -85,6 +87,9 @@ class Security:
         cls.secrets_manager = None
         cls._environment_mode = True
         cls._managed_mode = managed
+        cls._redaction_secrets = tuple(item.value.get_secret_value() for config in configs.values() for item in config.traverse()
+                                       if managed and item.client_field_data is not None and item.client_field_data.is_secure
+                                       and hasattr(item.value, "get_secret_value"))
         for config in configs.values():
             update_connector_hb_config(config)
         cls._decryption_done.set()

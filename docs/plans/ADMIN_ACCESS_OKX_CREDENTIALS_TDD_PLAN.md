@@ -1,6 +1,6 @@
 # Admin access and encrypted exchange credentials — TDD plan (OKX first)
 
-Status: A1–A4a implemented and verified locally on 2026-11-05 (Asia/Saigon); A4b–A6 remain open.
+Status: A1–A4b implemented and verified locally on 2026-11-05 (Asia/Saigon); A5–A6 remain open.
 Evidence: [implementation progress](../../reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
 Unchecked sections describe proposed behavior. Current endpoints
 and deployment behavior remain documented in [FE integration](../fe-integration.md).
@@ -811,38 +811,38 @@ an unprocessable placeholder `202` is not an acceptable intermediate API.
 
 #### A4b — Automatic Disconnect and recovery
 
-- [ ] Prove no-session Disconnect admission and completion distinct from ordinary Stop;
+- [x] Prove no-session Disconnect admission and completion distinct from ordinary Stop;
   enable its endpoints only with the complete engine cleanup workflow.
 
-- [ ] Test revoke against queued sends, delayed ACK/fill/cancel, an absent owner and
+- [x] Test revoke against queued sends, delayed ACK/fill/cancel, an absent owner and
   concurrent Start/replace; no new risk after the existing fenced send check.
-- [ ] Test bot-wide serialization across API/CLI control, repeated Stop and both
+- [x] Test bot-wide serialization across API/CLI control, repeated Stop and both
   credential slots; accepted cleanup continues after logout/token expiry/role removal,
   while newly submitted retry/repair requires current permission.
-- [ ] Test automatic cancellation across both markets, recovered/late orders,
+- [x] Test automatic cancellation across both markets, recovered/late orders,
   partial fills racing with cancellation, bounded retries and manual fallback.
   Exclude unrelated orders; an empty local tracker or cancel ACK cannot finish cleanup.
-- [ ] Test Disconnect closes live and recovered/held perpetual positions, HEDGE
+- [x] Test Disconnect closes live and recovered/held perpetual positions, HEDGE
   long and short independently, spot-only/both scopes and a spot-slot disconnect
   with held perpetual exposure. Preserve spot balances and unrelated exposure;
   ordinary Stop, crash shutdown and key rotation retain their existing semantics.
-- [ ] Test scoped close authorization through the final REST gate, partial fills,
+- [x] Test scoped close authorization through the final REST gate, partial fills,
   lost placement ACK, concurrent cleanup, stale owners, unsupported position modes
   and uncloseable residuals. No duplicate close, position reversal, new quote,
   bypassed persistence/HALT or premature credential erasure is permitted.
-- [ ] Cover `before_order`, final REST, expired session, service control dispatch,
+- [x] Cover `before_order`, final REST, expired session, service control dispatch,
   SIGTERM and close-result checkpoints together; verify confirmed flat exposure
   cannot reappear as held exposure after restart. Reject unsupported modes explicitly.
-- [ ] Test restart at every accepted/applied/revoking boundary, cleanup timeout and
+- [x] Test restart at every accepted/applied/revoking boundary, cleanup timeout and
   revoke during KMS outage; recover tracked closes and cleanup-only credential use,
   then detach all selected-credential consumers. Outcomes remain honest.
-- [ ] Test accepted versus applied/failed/unknown outcomes, lost responses, stale
+- [x] Test accepted versus applied/failed/unknown outcomes, lost responses, stale
   owner/credential versions and cleanup requiring intervention. Never show false
   Connected/Disconnected, reset exposure to zero or report completion prematurely.
-- [ ] Test blocked-cleanup retry and same-account cleanup-key repair after key
+- [x] Test blocked-cleanup retry and same-account cleanup-key repair after key
   expiry/deletion, including a companion slot, stale versions and unknown prior sends.
   Retain the original operation/fence and remove only selected credentials at completion.
-- [ ] Verify KMS/auth work stays outside the quote path; loaded authorized clients
+- [x] Verify KMS/auth work stays outside the quote path; loaded authorized clients
   tolerate KMS outage while cold loads and removed credentials remain blocked.
 
 ### A5 — FE handoff, Swagger and operational runbook
@@ -908,7 +908,7 @@ The decisions above close them at plan level; their implementation tests stay op
 | Generic connector input metadata includes deployment-owned fields | Credential-only field allowlist and tested routing/identity injection |
 | DB-backed auth was scheduled before its schema; role changes can race mutation admission | A1 includes storage foundation; permission checks and mutation commit have defined transaction ordering |
 
-A1–A4a are implemented locally; A4b is next. A4b is the highest-risk subphase and must pass its targeted
+A1–A4b are implemented locally. A4b passed its targeted local boundary tests; A6 must still verify final-image lifecycle faults and release/load acceptance. The original requirement remains: pass targeted
 cancel/close/restart tests before its capability is enabled. Actual Google sign-in,
 GCP KMS and reviewed Demo checks need their external resources for A6; their absence
 does not block offline implementation and must not be recorded as a pass.

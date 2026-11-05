@@ -4,7 +4,7 @@ from enum import Enum
 from os.path import join
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import MetaData, create_engine, event
+from sqlalchemy import MetaData, create_engine, event, inspect, text
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.orm import Query, Session, sessionmaker
 
@@ -108,6 +108,7 @@ class SQLConnectionManager(TransactionBase):
                 self._engine = create_engine(client_config_map.db_mode.get_url(self.db_path))
                 if self._engine.dialect.name != "sqlite":
                     raise ValueError("Configure PostgreSQL through DATABASE_URL; legacy DB modes are unsupported.")
+                self._ensure_nullable_file_cleanup_columns()
                 self._metadata.create_all(self._engine)
 
         self._session_cls = sessionmaker(bind=self._engine)
@@ -125,6 +126,17 @@ class SQLConnectionManager(TransactionBase):
     @property
     def engine(self) -> Engine:
         return self._engine
+
+    def _ensure_nullable_file_cleanup_columns(self):
+        # Preserve canonical file databases created by this fork before the new
+        # optional Order fields. PostgreSQL exclusively uses its SQL migrations.
+        inspector = inspect(self._engine)
+        if inspector.has_table("orders"):
+            present = {column["name"] for column in inspector.get_columns("orders")}
+            with self._engine.begin() as connection:
+                for name, kind in (("cleanup_operation_id", "TEXT"), ("cleanup_scope", "JSON")):
+                    if name not in present:
+                        connection.execute(text(f'ALTER TABLE orders ADD COLUMN {name} {kind}'))
 
     def get_new_session(self) -> Session:
         return self._session_cls()

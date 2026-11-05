@@ -61,6 +61,9 @@ class BotOwnership:
         self.mm_quote_check = None
         self.runtime_ready_check = None
         self.intent_scopes = {}
+        self.cleanup_operation_id = None
+        self.cleanup_versions = {}
+        self.cleanup_intents = {}
         self.spot_outflow = None
         self.listing_bootstrap = None
         self.volatility_checkpoints = None
@@ -205,6 +208,7 @@ class BotOwnership:
         self.active_intents.intersection_update(ids)
         self.sent_intents.intersection_update(ids)
         self.intent_scopes = {key: value for key, value in self.intent_scopes.items() if key in ids}
+        self.cleanup_intents = {key: value for key, value in self.cleanup_intents.items() if key in ids}
         if self.listing_bootstrap is not None:
             self.listing_bootstrap.deadlines = {key: value for key, value in self.listing_bootstrap.deadlines.items() if key in ids}
         for order_id, market in pending:
@@ -215,12 +219,17 @@ class BotOwnership:
                 raise SubmissionBlocked("Unresolved order submission requires reconciliation.")
 
     def before_order(self, connector, order):
+        from hummingbot.core.cleanup_authority import current_cleanup_scope, validate_close
         from hummingbot.core.order_submission_guard import current_session_scope
-        row = self.check_owner(new_risk=True)
-        if self.runtime_ready_check is not None and not self.runtime_ready_check():
+        cleanup = current_cleanup_scope()
+        row = self.check_owner(new_risk=cleanup is None)
+        if cleanup is not None:
+            validate_close(self, row, connector, order, cleanup)
+        if cleanup is None and self.runtime_ready_check is not None and not self.runtime_ready_check():
             raise SubmissionBlocked("A required runtime task is not healthy.")
         scope = current_session_scope()
-        self._check_mm_authority(row, scope)
+        if cleanup is None:
+            self._check_mm_authority(row, scope)
         if connector.name not in SUPPORTED_CONNECTORS:
             raise SubmissionBlocked("This connector has not been verified for the PostgreSQL service.")
         from hummingbot.connector.markets_recorder import MarketsRecorder
@@ -230,11 +239,11 @@ class BotOwnership:
             raise SubmissionBlocked("The active recorder/configuration does not match the service owner.")
         self._check_intents(recorder)
         try:
-            if self.listing_bootstrap is not None:
+            if cleanup is None and self.listing_bootstrap is not None:
                 self.listing_bootstrap.before_order(connector, order, row)
-            if self.spot_outflow is not None:
+            if cleanup is None and self.spot_outflow is not None:
                 self.spot_outflow.before_order(connector, order, row)
-            if self.mm_quote_check is not None:
+            if cleanup is None and self.mm_quote_check is not None:
                 self.mm_quote_check(connector, order)
         except BaseException:
             # Admission has not attempted a durable write or transport. Only
@@ -247,6 +256,8 @@ class BotOwnership:
         # a fenced durable rejection before releasing its local reservations.
         self.active_intents.add(order.client_order_id)
         self.intent_scopes[order.client_order_id] = scope
+        if cleanup is not None:
+            self.cleanup_intents[order.client_order_id] = cleanup
         recorder.record_order_intent(connector, order)
         try:
             task = asyncio.current_task()
@@ -297,6 +308,7 @@ class BotOwnership:
             self.spot_outflow.release_unsent(client_id)
         self.active_intents.discard(client_id)
         self.intent_scopes.pop(client_id, None)
+        self.cleanup_intents.pop(client_id, None)
         if self.listing_bootstrap is not None:
             self.listing_bootstrap.deadlines.pop(client_id, None)
 
@@ -326,13 +338,40 @@ class BotOwnership:
 
     async def authorize_rest(self, request):
         path = urlparse(request.url).path
-        row = self.check_owner(new_risk=path == ORDER_PATH)
+        try:
+            data = json.loads(getattr(request, "data", None) or "{}") if path == ORDER_PATH else {}
+            if not isinstance(data, dict):
+                raise ValueError
+        except (TypeError, ValueError):
+            raise SubmissionBlocked("Order submission requires a valid object payload.") from None
+        cleanup = self.cleanup_intents.get(data.get("clOrdId")) if path == ORDER_PATH else None
+        row = self.check_owner(new_risk=path == ORDER_PATH and cleanup is None)
         if path in CANCEL_PATHS:
             return None
         if path == ORDER_PATH:
+            if cleanup is not None:
+                from hummingbot.connector.markets_recorder import MarketsRecorder
+                from hummingbot.core.cleanup_authority import validate_close, validate_payload
+                client_id = data.get("clOrdId")
+                connector, order = next(((connector, connector.in_flight_orders[client_id]) for connector in self.connectors.values()
+                                         if client_id in connector.in_flight_orders), (None, None))
+                if order is None:
+                    raise SubmissionBlocked("Disconnect close tracking is unavailable")
+                validate_close(self, row, connector, order, cleanup, final=True)
+                validate_payload(connector, order, cleanup, data)
+                recorder = MarketsRecorder._shared_instance
+                if recorder is None or recorder.sql_manager.engine is not self.engine:
+                    raise SubmissionBlocked("Disconnect close recorder is unavailable")
+                self._check_intents(recorder)
+                if client_id not in self.active_intents or client_id in self.sent_intents:
+                    raise SubmissionBlocked("Disconnect close was already sent or needs reconciliation")
+                headers = dict(request.headers or {})
+                headers["expTime"] = str(min(cleanup.deadline_ms, int(headers.get("expTime", cleanup.deadline_ms))))
+                request.headers = headers
+                self.sent_intents.add(client_id)
+                return None
             if self.runtime_ready_check is not None and not self.runtime_ready_check():
                 raise SubmissionBlocked("A required runtime task is not healthy.")
-            data = json.loads(request.data or "{}")
             client_id = data.get("clOrdId")
             self._check_mm_authority(row, self.intent_scopes.get(client_id))
             from hummingbot.connector.markets_recorder import MarketsRecorder

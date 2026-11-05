@@ -35,6 +35,17 @@ def test_wrong_site_or_revoking_bundle_is_not_activated(source):
     source.store.load.return_value["account_id"] = "app:account"
     with pytest.raises(RuntimeConfigurationError):
         source.load_configs(["okx"])
+
+
+def test_revoking_key_is_loadable_only_for_its_current_cleanup_manifest(source):
+    source.store.load.return_value.update(state="revoking", operation_id="disconnect")
+    source.store.store = SimpleNamespace(read=lambda: dict(desired_state="stopped", recovery_state={"credential_operation": dict(
+        id="disconnect", action="credentials_disconnect", exchange="okx", connector="okx", environment="demo",
+        version=1, affected_versions={"okx": 1})}))
+    configs, versions = source.load_cleanup_configs("disconnect")
+    assert versions == {"okx": 1} and configs["okx"].okx_api_key.get_secret_value() == "canary-key"
+    with pytest.raises(RuntimeConfigurationError):
+        source.load_cleanup_configs("old-disconnect")
     source.store.load.return_value["account_id"] = "www:account"
     source.store.load.return_value["state"] = "revoking"
     with pytest.raises(RuntimeConfigurationError):

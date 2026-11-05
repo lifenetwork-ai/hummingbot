@@ -78,3 +78,43 @@ def test_missing_managed_kek_keeps_admin_alive_without_owner_restart_loop(pg_eng
     finally:
         terminate(process)
         log.close()
+
+
+def test_supervised_empty_account_disconnect_uses_real_core_and_stays_removed_after_restart(pg_engine, tmp_path, monkeypatch):
+    from hummingbot.model.credential_store import CredentialStore
+    monkeypatch.setenv('EXCHANGE_CREDENTIALS_SOURCE', 'postgres_kms')
+    monkeypatch.setenv('KMS_PROVIDER', 'local')
+    monkeypatch.setenv('KMS_LOCAL_SECRET_KEY', base64.b64encode(b'K' * 32).decode())
+    monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
+    monkeypatch.setenv('HBOT_OFFLINE_CREDENTIAL_ACCOUNT', 'offline-account')
+    monkeypatch.setenv('HBOT_OFFLINE_CLEANUP_EMPTY', 'true')
+    processes = []
+    store = BotStateStore(pg_engine, 'hummingbot')
+    try:
+        process, port, log = start_service(tmp_path / 'disconnect', admin_enabled=True)
+        processes.append((process, log))
+        eventually(lambda: health(port, '/startup')[0] == 200)
+        eventually(lambda: store.read() and store.read()['owner_uuid'])
+        status, receipt = call(port, '/credentials/okx/okx', key='save', body=dict(expected_version=0, expected_control_version=0,
+                                                                                   credentials=dict(api_key='REMOVAL-CANARY-API', secret_key='REMOVAL-CANARY-SECRET', passphrase='REMOVAL-CANARY-PASS')))
+        assert status == 202, receipt
+        eventually(lambda: call(port, '/credentials/operations/' + receipt['id'])[1].get('status') == 'succeeded')
+        eventually(lambda: store.read()['acknowledged_version'] == 1)
+        status, receipt = call(port, '/credentials/okx/okx/revoke', key='disconnect', body=dict(expected_version=1, expected_control_version=1))
+        assert status == 202, receipt
+        eventually(lambda: call(port, '/credentials/operations/' + receipt['id'])[1].get('status') == 'succeeded')
+        assert CredentialStore(store).load('okx', 'okx', 'demo')['envelope'] is None
+        assert health(port, '/live')[0] == 200 and not store.read()['status']['running']
+        terminate(process)
+        assert process.returncode == 0
+        process, port, log = start_service(tmp_path / 'removed-restart', admin_enabled=True, auto_migrate=False)
+        processes.append((process, log))
+        eventually(lambda: health(port, '/startup')[0] == 200)
+        eventually(lambda: call(port, '/credentials/okx')[1].get('slots', [{}])[0].get('status') == 'disconnected')
+        assert store.read()['desired_state'] == 'stopped'
+    finally:
+        for process, log in processes:
+            terminate(process)
+            log.seek(0)
+            assert 'REMOVAL-CANARY' not in log.read()
+            log.close()

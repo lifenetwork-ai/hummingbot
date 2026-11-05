@@ -1,7 +1,8 @@
 from typing import Any, Dict
 
 import numpy
-from sqlalchemy import BigInteger, Boolean, Column, Index, Integer, Text, text
+from sqlalchemy import JSON, BigInteger, Boolean, Column, Index, Integer, Text, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from hummingbot.model import HummingbotBase
@@ -20,7 +21,8 @@ class Order(HummingbotBase):
                       Index("idx_orders_market_base_asset_creation_timestamp",
                             "market", "base_asset", "creation_timestamp"),
                       Index("idx_orders_market_quote_asset_creation_timestamp",
-                            "market", "quote_asset", "creation_timestamp"))
+                            "market", "quote_asset", "creation_timestamp"),
+                      Index("idx_orders_cleanup_operation_id", "cleanup_operation_id"))
 
     id = Column(Text, primary_key=True, nullable=False)
     config_file_path = Column(Text, nullable=False)
@@ -40,6 +42,8 @@ class Order(HummingbotBase):
     position = Column(Text, nullable=True)
     # A fill or a persisted send intent can precede the create acknowledgment.
     creation_pending = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    cleanup_operation_id = Column(Text)
+    cleanup_scope = Column(JSONB().with_variant(JSON(), "sqlite"))
     status = relationship("OrderStatus", back_populates="order")
     trade_fills = relationship("TradeFill", back_populates="order")
 

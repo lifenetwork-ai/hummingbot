@@ -85,6 +85,7 @@ class MarketsRecorder:
         self._markets: List[ConnectorBase] = markets
         self._config_file_path: str = config_file_path
         self._strategy_name: str = strategy_name
+        self.cleanup_operation_id = None
         self._market_data_collection_config: MarketDataCollectionConfigMap = market_data_collection
         self._market_data_collection_task: Optional[asyncio.Task] = None
         for market in self._markets:
@@ -447,6 +448,8 @@ class MarketsRecorder:
 
     def record_order_intent(self, market: ConnectorBase, order) -> None:
         """Persist existing order identity/tracking state before an external submission."""
+        from hummingbot.core.cleanup_authority import current_cleanup_scope
+        cleanup = current_cleanup_scope()
         base, quote = order.trading_pair.split("-")
         with self._sql_manager.get_new_session() as session, session.begin():
             if session.get(Order, order.client_order_id) is not None:
@@ -459,12 +462,29 @@ class MarketsRecorder:
                            order_type=order.order_type.name, amount=order.amount, price=price,
                            leverage=order.leverage or 1, position=order.position.value,
                            last_status="Pending" + order.trade_type.name.title(),
-                           last_update_timestamp=timestamp, creation_pending=True)
+                           last_update_timestamp=timestamp, creation_pending=True,
+                           cleanup_operation_id=cleanup.operation_id if cleanup is not None else None,
+                           cleanup_scope=cleanup.json() if cleanup is not None else None)
             session.add(record)
+            if cleanup is not None:
+                from hummingbot.model.cleanup_positions import record_cleanup_intent
+                record_cleanup_intent(session, cleanup, record)
             # Keep the original side even when a terminal update precedes any
             # Created callback. This records intent, not exchange admission.
             self._add_order_status(session, record, timestamp, record.last_status)
             self.save_market_states(self._config_file_path, market, session)
+
+    def _event_configuration(self, session, market, order):
+        if order is None or order.config_file_path == self._config_file_path:
+            return self._config_file_path, self._strategy_name
+        if self.cleanup_operation_id is not None and order.market == market.display_name:
+            from hummingbot.model.bot_state import BotState
+            active = session.query(BotState.bot_id).filter(
+                BotState.recovery_state["credential_operation"]["id"].astext == self.cleanup_operation_id,
+                BotState.recovery_state["credential_operation"]["action"].astext == "credentials_disconnect").first()
+            if active:
+                return order.config_file_path, order.strategy
+        raise ValueError("Order identity conflicts with its recorded configuration")
 
     def reject_unsent_order(self, market: ConnectorBase, order_id: str, *, require_existing: bool = False) -> None:
         with self._sql_manager.get_new_session() as session, session.begin():
@@ -516,15 +536,16 @@ class MarketsRecorder:
         with self._sql_manager.get_new_session() as session:
             with session.begin():
                 order_record = session.get(Order, evt.order_id)
+                config_file_path, strategy_name = self._event_configuration(session, market, order_record)
                 if order_record is not None and (
                     order_record.market != market.display_name or order_record.symbol != evt.trading_pair
-                    or order_record.config_file_path != self._config_file_path
+                    or order_record.config_file_path != config_file_path
                 ):
                     raise ValueError("Order identity conflicts with an existing recorded order.")
                 values = dict(
                     id=evt.order_id,
-                    config_file_path=self._config_file_path,
-                    strategy=self._strategy_name,
+                    config_file_path=config_file_path,
+                    strategy=strategy_name,
                     market=market.display_name,
                     symbol=evt.trading_pair,
                     base_asset=base_asset,
@@ -557,7 +578,7 @@ class MarketsRecorder:
                     if order_record.last_status in (MarketEvent.BuyOrderCreated.name, MarketEvent.SellOrderCreated.name):
                         order_record.last_update_timestamp = max(order_record.last_update_timestamp, timestamp)
                 self._add_order_status(session, order_record, timestamp, event_type.name)
-                self.save_market_states(self._config_file_path, market, session=session)
+                self.save_market_states(config_file_path, market, session=session)
         if evt.exchange_order_id and self._uses_reconstruction_history(market):
             market.add_exchange_order_ids_from_market_recorder({evt.exchange_order_id: evt.order_id})
 
@@ -611,13 +632,14 @@ class MarketsRecorder:
             with session.begin():
                 # Try to find the order record, and update it if necessary.
                 order_record: Optional[Order] = session.query(Order).filter(Order.id == order_id).one_or_none()
+                config_file_path, _ = self._event_configuration(session, market, order_record)
                 existing_fill = session.get(TradeFill, (market.display_name, order_id, evt.exchange_trade_id))
                 if existing_fill is not None:
                     if (existing_fill.symbol != evt.trading_pair or existing_fill.price != evt.price
                             or existing_fill.amount != evt.amount or existing_fill.trade_type != evt.trade_type.name
                             or not self._same_trade_fee(existing_fill.trade_fee, evt.trade_fee.to_json())):
                         raise ValueError("Duplicate fill identity has conflicting economic values.")
-                    self.save_market_states(self._config_file_path, market, session=session)
+                    self.save_market_states(config_file_path, market, session=session)
                 else:
                     existing_fill = self._store_fill(session, market, evt, order_record, timestamp, event_type.name, base_asset, quote_asset)
                 committed = {key: getattr(existing_fill, key) for key in (
@@ -632,6 +654,7 @@ class MarketsRecorder:
 
     def _store_fill(self, session: Session, market: ConnectorBase, evt: OrderFilledEvent,
                     order_record: Optional[Order], timestamp: int, status: str, base_asset: str, quote_asset: str):
+        config_file_path, strategy_name = self._event_configuration(session, market, order_record)
         if order_record is None:
             # Preserve FKs even when exchange fill updates precede the create ack.
             # Quantity/price here are provisional until the original create arrives.
@@ -644,7 +667,7 @@ class MarketsRecorder:
                                  last_status=status, last_update_timestamp=timestamp, creation_pending=True)
             session.add(order_record)
         elif (order_record.market != market.display_name or order_record.symbol != evt.trading_pair
-              or order_record.config_file_path != self._config_file_path):
+              or order_record.config_file_path != config_file_path):
             raise ValueError("Fill identity conflicts with its recorded order.")
         self._record_latest_status(order_record, status, timestamp)
         self._add_order_status(session, order_record, timestamp, status)
@@ -662,8 +685,8 @@ class MarketsRecorder:
             self.logger().warning("Quote-fee conversion unavailable; original fees are preserved type=%s", type(error).__name__)
             fee_in_quote = None
         trade_fill_record: TradeFill = TradeFill(
-            config_file_path=self.config_file_path,
-            strategy=self.strategy_name,
+            config_file_path=config_file_path,
+            strategy=strategy_name,
             market=market.display_name,
             symbol=evt.trading_pair,
             base_asset=base_asset,
@@ -681,7 +704,10 @@ class MarketsRecorder:
             position=evt.position if evt.position else PositionAction.NIL.value,
         )
         session.add(trade_fill_record)
-        self.save_market_states(self._config_file_path, market, session=session)
+        if order_record.cleanup_operation_id is not None:
+            from hummingbot.model.cleanup_positions import apply_cleanup_fill
+            apply_cleanup_fill(session, order_record, trade_fill_record)
+        self.save_market_states(config_file_path, market, session=session)
         return trade_fill_record
 
     def _did_complete_funding_payment(self,
@@ -766,12 +792,13 @@ class MarketsRecorder:
                 order_record: Optional[Order] = session.query(Order).filter(Order.id == order_id).one_or_none()
 
                 if order_record is not None:
+                    config_file_path, _ = self._event_configuration(session, market, order_record)
                     # A private cancel can arrive before the create ACK. Its
                     # exchange ID proves admission; a not-found cancel without
                     # that identity must remain unresolved.
                     exchange_id = getattr(evt, "exchange_order_id", None)
                     if event_type == MarketEvent.OrderCancelled and isinstance(exchange_id, str) and exchange_id:
-                        if (order_record.market != market.display_name or order_record.config_file_path != self._config_file_path
+                        if (order_record.market != market.display_name or order_record.config_file_path != config_file_path
                                 or (order_record.exchange_order_id and order_record.exchange_order_id != exchange_id)):
                             raise ValueError("Cancel acknowledgment conflicts with the recorded order identity.")
                         # A fill-only placeholder does not yet contain the
@@ -784,7 +811,7 @@ class MarketsRecorder:
                             order_record.creation_pending = False
                     self._record_latest_status(order_record, event_type.name, timestamp)
                     self._add_order_status(session, order_record, timestamp, event_type.name)
-                    self.save_market_states(self._config_file_path, market, session=session)
+                    self.save_market_states(config_file_path, market, session=session)
                 elif self._sql_manager.engine.dialect.name == "postgresql" and event_type != MarketEvent.OrderFailure:
                     raise RuntimeError("Order status arrived without a persisted order identity; reconciliation is required.")
 

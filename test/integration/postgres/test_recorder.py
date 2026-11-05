@@ -338,6 +338,9 @@ def test_all_registered_models_roundtrip(pg_engine):
                 else:
                     raise AssertionError(f"Missing independent round-trip value for {table.name}.{column.name}")
                 values[column.name] = value
+            # Real constrained examples for the added security models; the
+            # generic text sampler cannot satisfy their enum/check contracts.
+            values.update({"admin_accounts": {"role": "read"}, "exchange_credentials": {"state": "revoked"}}.get(table.name, {}))
             obj = classes[table.name](**values)
             session.add(obj)
             # Flush in dependency order; the same order identity is used by FKs.

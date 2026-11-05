@@ -100,6 +100,25 @@ if candidate_account:
         self.config(connector, values)
         return self.deployment.site + ':' + candidate_account
     OKXCredentialAdapter.preflight = preflight
+if os.environ.get('HBOT_OFFLINE_CLEANUP_EMPTY') == 'true':
+    # Empty-account lifecycle fixture only. Keep TradingCore, recorder, clock,
+    # owner, coordinator and real connector construction; replace exchange I/O.
+    from bidict import bidict
+    from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
+    from hummingbot.connector.trading_rule import TradingRule
+    async def start_empty(self):
+        self._set_trading_pair_symbol_map(bidict({'BTC-USDT': 'BTC-USDT'}))
+        self._trading_rules = {'BTC-USDT': TradingRule('BTC-USDT')}
+    async def empty_get(self, path_url, **kwargs):
+        if path_url not in ('/api/v5/trade/orders-pending', '/api/v5/account/positions'):
+            raise RuntimeError('Unexpected exchange read in empty-account fixture')
+        return {'code': '0', 'data': []}
+    async def offline_ready(self):
+        from hummingbot.core.network_iterator import NetworkStatus
+        return NetworkStatus.CONNECTED
+    OkxExchange.start_network = start_empty
+    OkxExchange._api_get = empty_get
+    OkxExchange.check_network = offline_ready
 from hummingbot.cli import service_processes
 from hummingbot.cli.service import main
 # Repeat the test's isolated config paths and network prohibition in both real

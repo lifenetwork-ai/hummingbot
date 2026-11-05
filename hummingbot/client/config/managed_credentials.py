@@ -34,6 +34,17 @@ class ManagedCredentialSource:
         self.loaded_bindings = {}
 
     def load_configs(self, names):
+        return self._load_configs(names)
+
+    def load_cleanup_configs(self, operation_id):
+        state = self.store.store.read() or {}
+        operation = (state.get("recovery_state") or {}).get("credential_operation") or {}
+        if (operation.get("id") != operation_id or operation.get("action") != "credentials_disconnect"
+                or state.get("desired_state") != "stopped" or not operation.get("affected_versions")):
+            raise RuntimeConfigurationError("credential_operation_in_progress")
+        return self._load_configs(sorted(operation["affected_versions"]), cleanup=operation)
+
+    def _load_configs(self, names, *, cleanup=None):
         configs, versions, bindings = {}, {}, {}
         for name in names:
             candidates = [adapter for adapter in self.adapters.adapters.values() if name in adapter.connectors]
@@ -41,7 +52,15 @@ class ManagedCredentialSource:
                 raise RuntimeConfigurationError("unsupported_connector")
             adapter = self.adapters.get(candidates[0].exchange, name)
             row = self.store.load(adapter.exchange, name, adapter.environment)
-            if row is None or row["state"] != "active":
+            if row is None:
+                raise RuntimeConfigurationError("credentials_not_configured")
+            allowed = row["state"] == "active"
+            if cleanup is not None:
+                selected = name == cleanup["connector"]
+                allowed = (row["version"] == cleanup["affected_versions"].get(name)
+                           and adapter.exchange == cleanup["exchange"] and adapter.environment == cleanup["environment"]
+                           and (row["state"] == "revoking" and row.get("operation_id") == cleanup["id"] if selected else row["state"] == "active"))
+            if not allowed:
                 raise RuntimeConfigurationError("credentials_not_configured")
             if adapter.exchange == "okx" and not row["account_id"].startswith(adapter.deployment.site + ":"):
                 raise RuntimeConfigurationError("exchange_account_mismatch")

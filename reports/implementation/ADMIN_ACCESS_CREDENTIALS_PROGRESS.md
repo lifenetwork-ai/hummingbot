@@ -163,3 +163,72 @@ inside the test process wrapper. No shipping bypass flag exists. Real OAuth/KMS/
 cutover, automatic Disconnect and final-image release/load gates remain open.
 Next, A4b adds automatic bot-order cancellation, managed perpetual closure,
 restart/unknown-outcome recovery and credential removal. The running Demo is untouched.
+
+## A4b — Automatic Disconnect, scoped close authority and recovery
+
+Implemented the separate Disconnect workflow on the existing owner/control row,
+TradingCore, native OKX connectors/order tracker/recorder and command/audit tables.
+No additional process, service, web framework or exchange HTTP client was added.
+Accepted requests fence ordinary bot orders immediately, preserve encrypted keys
+while cancelling/readback occurs, compare held LONG/SHORT independently with fresh
+account positions, then authorize only exact identified MARKET/CLOSE orders.
+Final REST checks recheck current owner/control/credential versions, stage, side,
+quantity, payload and short expiry. Normal Stop and key replacement retain positions.
+
+Close-intent scope is persisted with the native order. Identified close fills and
+held-position quantity/PnL/known quote fees commit together; duplicate fills cannot
+apply twice and distinct fills cannot exceed the admitted close quantity. Recovered
+order events retain original strategy/configuration attribution. Lost responses
+remain reconciliation work, never permission to repeat a close. The selected bundle
+is erased only with fresh terminal/flat/ledger/detachment evidence in one transaction
+with completion/audit. Other bundles, spot holdings, history and unrelated HALTs remain.
+
+Added versioned retry and same-account cleanup-key repair, including an existing
+companion slot. They keep the original root fence. Newly submitted requests require
+current permission; previously accepted cleanup and its final audit retain the
+original actor even after role removal. Child receipts now reach a final outcome
+with their root; a superseded repair cannot claim its older key was applied.
+The child lookup reuses the indexed audit operation link and command PK, streams
+bounded batches and avoids per-child actor reads or a JSON-history scan.
+
+Authenticated funding/reconciliation readers, retained shutdown callbacks, old
+controller guards and selected Security models are detached. Current managed and
+short-lived candidate secrets are redacted even by a formatter created before key
+loading; old secret values are not accumulated in that formatter. Matching loaded
+bundles tolerate KMS outage for cleanup; cold missing-KEK errors are explicit and
+never cause an environment fallback. Strategy-free cleanup still publishes owner
+status/heartbeat so administration remains observable.
+
+Verification on this local worktree:
+
+- **1,356 native tests passed** across CLI, client config, models and credential/
+  position adapters. Later focused runtime checks passed **30**, then **16** tests;
+  the latter includes explicit missing-KEK classification.
+- **140 PostgreSQL tests passed** across cleanup, credential HTTP/storage, ownership,
+  recorder and coordinator scopes. Earlier broad follow-ups passed **128** and
+  **135** tests; these are overlapping scopes, not additive totals.
+- Later focused receipt/progress/checkpoint tests passed **25**, then **21** tests,
+  including owner takeover at six durable stages and continued accepted cleanup
+  after actor disable. These exercise local encryption and PostgreSQL transactions.
+- A supervised two-child process test used real TradingCore/clock/native connector
+  construction, local encryption and the real coordinator for an empty account,
+  then restarted and confirmed credentials stayed removed and trading stayed stopped.
+  Only exchange I/O was replaced inside the test wrapper. No shipping bypass flag
+  was introduced. Other boundary tests use explicit simulated exchange fixtures;
+  they are not real Google/GCP/OKX acceptance.
+- Swagger generation/drift and changed Python style checks passed; final phase A6
+  still needs the complete final-code/image gates.
+
+Red/Green and development failures retained in `/tmp/hbot-a4b-*.log`: missing retry/
+repair methods; child receipt stuck accepted after parent completion; cumulative
+close-fill over-admission; missing cold KEK classification; callback retention and
+skipped owner publication. Development regression also caught an incorrect streamed
+SQL result API call, missing REST-payload attribute handling, outdated explicit
+permission test cases and a registered-model synthetic role value. All were fixed
+and their affected scopes rerun. These failed attempts are not reported as clean passes.
+
+Safety limits remain deliberate: unknown bot orders, missing recovery tracking,
+unverified crash checkpoints, position mismatch and below-minimum residuals retain
+credentials and require review. No force-erase/reset API exists. Live/Demo cutover
+of the running service is unchanged and still requires its reviewed procedure.
+A5 documents FE/operations; A6 release/load and real external resources remain open.

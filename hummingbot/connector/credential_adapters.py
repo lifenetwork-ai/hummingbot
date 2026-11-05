@@ -1,5 +1,6 @@
 """Small exchange boundary; shared lifecycle/storage never selects a venue implicitly."""
 import asyncio
+from decimal import Decimal
 
 from pydantic import ValidationError
 
@@ -28,6 +29,7 @@ def read_only_connector(connector, config):
 
 class OKXCredentialAdapter:
     exchange = "okx"
+    disconnect_available = True
     connectors = ("okx", "okx_perpetual")
     fields = ("api_key", "secret_key", "passphrase")
 
@@ -60,6 +62,11 @@ class OKXCredentialAdapter:
         return read_only_connector(connector, config)
 
     async def preflight(self, connector, values):
+        from hummingbot.core.credential_redaction import redact_candidate
+        with redact_candidate(values.values()):
+            return await self._preflight(connector, values)
+
+    async def _preflight(self, connector, values):
         config = self.config(connector, values)
         try:
             reader = self.reader(connector, config)
@@ -91,6 +98,43 @@ class OKXCredentialAdapter:
         # Site belongs to deployment, and request UID distinguishes subaccounts.
         # Keep this binding after removal so site/account changes cannot adopt a ledger.
         return self.deployment.site + ":" + uid
+
+    async def cleanup_positions(self, connector):
+        try:
+            # Query the whole account scope, including formerly configured pairs;
+            # a cached/per-pair position dictionary cannot prove flat exposure.
+            response = await asyncio.wait_for(connector._api_get(
+                path_url="/api/v5/account/positions", params={"instType": "SWAP"}, is_auth_required=True,
+                **({"limit_id": "/api/v5/account/config"} if connector.name == "okx" else {})), 10)
+            if not isinstance(response, dict) or str(response.get("code")) != "0" or not isinstance(response.get("data"), list):
+                raise CredentialAdapterError("exchange_unavailable", status=503)
+            if len(response["data"]) > 1000:
+                raise CredentialAdapterError("cleanup_scope_limit", status=409)
+            positions = {}
+            for row in response["data"]:
+                size = Decimal(str(row["pos"]))
+                if not size.is_finite() or size < 0:
+                    raise CredentialAdapterError("cleanup_position_invalid", status=409)
+                if not size:
+                    continue
+                instrument = row.get("instId", "")
+                if (row.get("posSide") not in ("long", "short") or row.get("mgnMode") != "cross"
+                        or not instrument.endswith("-USDT-SWAP") or instrument.count("-") != 2):
+                    raise CredentialAdapterError("unsupported_cleanup_mode")
+                if connector.name != "okx_perpetual":
+                    raise CredentialAdapterError("cleanup_perpetual_credentials_required", status=409)
+                pair, side = instrument.removesuffix("-SWAP"), row["posSide"].upper()
+                amount = Decimal(connector._format_size_to_amount(pair, size))
+                if not amount.is_finite() or amount <= 0 or (pair, side) in positions:
+                    raise CredentialAdapterError("cleanup_position_invalid", status=409)
+                positions[pair, side] = amount
+            return positions
+        except asyncio.CancelledError:
+            raise
+        except CredentialAdapterError:
+            raise
+        except Exception:
+            raise CredentialAdapterError("exchange_unavailable", status=503) from None
 
 
 class CredentialAdapters:

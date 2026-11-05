@@ -6,6 +6,29 @@ from aiohttp import web
 
 from hummingbot.cli.admin_models import ErrorResponse
 
+CLEANUP_MESSAGES = {
+    "cleanup_operation_changed": ("refresh_state", "The cleanup operation changed. Refresh its progress before trying again."),
+    "operation_version_changed": ("refresh_state", "Cleanup progress changed. Refresh and review its latest state."),
+    "credential_version_replaced": ("refresh_state", "A newer cleanup key replaced this request. Read the current cleanup operation."),
+    "cleanup_orders_pending": ("wait", "Waiting for confirmed order outcomes. Keep the saved connection available."),
+    "cleanup_ledger_pending": ("wait", "Waiting for fills and position checkpoints to agree with the exchange."),
+    "cleanup_runtime_unavailable": ("wait", "The cleanup runtime is temporarily unavailable. Trading remains stopped."),
+    "cleanup_metadata_unavailable": ("wait", "Waiting for exchange instrument metadata before cleanup can continue."),
+    "cleanup_price_unavailable": ("wait", "A current price could not be verified for position closure. Trading remains stopped."),
+    "cleanup_runtime_stop_incomplete": ("contact_support", "The old runtime has not confirmed shutdown. Cleanup cannot safely continue yet."),
+    "cleanup_checkpoint_unavailable": ("contact_support", "A previous runtime ended without a verified position checkpoint. Reconcile the exchange and ledger before retrying."),
+    "cleanup_order_tracking_missing": ("contact_support", "A saved order lacks its recovery state. Reconcile its exchange outcome before retrying."),
+    "cleanup_unknown_orders": ("contact_support", "Additional bot orders were found on the exchange. Review and reconcile them before retrying cleanup."),
+    "cleanup_position_mismatch": ("contact_support", "Exchange positions differ from the bot's saved positions. Reconcile both before retrying."),
+    "cleanup_position_invalid": ("contact_support", "A position cannot be safely interpreted for automatic closure. Technical review is required."),
+    "cleanup_perpetual_credentials_required": ("contact_support", "Perpetual positions exist but a working perpetual connection is missing. Restore the required connection for cleanup."),
+    "cleanup_credentials_missing": ("contact_support", "A connection needed to clean up existing orders or positions is missing."),
+    "cleanup_uncloseable_residual": ("contact_support", "A remaining position is below exchange size limits or cannot be represented exactly. Resolve it on the exchange and reconcile the ledger."),
+    "cleanup_scope_limit": ("contact_support", "The number of saved orders or positions exceeds automatic cleanup limits. Technical review is required."),
+    "cleanup_verification_changed": ("refresh_state", "Cleanup evidence changed before removal. Credentials were retained; review the current operation."),
+    "cleanup_failed": ("contact_support", "Cleanup could not be completed. Credentials were retained. Contact support with the operation ID."),
+}
+
 RETRIES = {
     "credential_load_failed": "contact_support", "credentials_not_configured": "fix_request",
     "credentials_managed_externally": "contact_support", "credential_operation_in_progress": "wait",
@@ -108,6 +131,9 @@ MESSAGES = {
     "environment_mismatch": "The active owner uses a different trading environment. Contact support before starting.",
     "owner_unavailable": "Wait for the trading service to become available.",
 }
+
+RETRIES.update({code: value[0] for code, value in CLEANUP_MESSAGES.items()})
+MESSAGES.update({code: value[1] for code, value in CLEANUP_MESSAGES.items()})
 
 
 def request_id(request):
