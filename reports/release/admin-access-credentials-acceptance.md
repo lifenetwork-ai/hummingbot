@@ -35,8 +35,8 @@ engine ownership, native connectors, tracker and recorder.
 | Final-image offline E2E, including upgrade/takeover/rollback | 17/17 scenarios pass | `build/e2e-offline/20261105-083127-b83ad5/result.json` |
 | Native cancel/close/removal/restart probe | Pass; 62 exact simulated fills/fees, flat perpetual, preserved spot, removed envelopes | `build/mm-load/20261105-082520-d84e71/result.json` |
 | Same probe with loaded-key provider outage | Pass; same native cleanup and restart proof | `build/mm-load/20261105-090816-2b0e09/result.json` |
-| Original 600-second retention/startup gate | Running | `/tmp/hbot-admin-release-memory.log` |
-| Original full-load profiles and unchanged 60-minute zero-error soak | Pending | Must run on the candidate above |
+| Original 600-second retention/startup gate | Pass; +18.40 MiB RSS against 32 MiB budget, 12,000/12,000 reads, zero errors, p99 693.95 ms; 3 successful control transitions, no contract-size startup error | `build/memory-review/20261105-091131/result.json` |
+| Original full-load profiles and unchanged 60-minute zero-error soak | Running with signed identities, fresh roles, 100,000 audit rows and loaded-key provider outage | `/tmp/hbot-admin-release-load.log` |
 
 Native command populations were 202, 11 subtests, 1,705 and 753. Additional/focused
 checks overlap prior scopes and are not added to an inflated total. The provider-delay

@@ -286,7 +286,11 @@ Subsequent commits change tests/docs only.
   rows: 20 reads/s, 100 updates/s, 1 fill/s, p99 297.61 ms. All 62 simulated fills/fees
   reconcile; Disconnect closes both perpetual sides, preserves spot, erases selected
   envelopes and survives restart. `build/mm-load/20261105-090816-2b0e09/result.json`.
-- Final retention and unchanged full-load/sixty-minute-soak acceptance remain pending.
+- Final 600-second retention/startup gate passes: +18.40 MiB RSS against the original
+  32 MiB budget, 12,000/12,000 reads, zero errors, p99 693.95 ms, three completed
+  controls and no contract-size startup errors. Evidence:
+  `build/memory-review/20261105-091131/result.json`.
+- Unchanged full-load/sixty-minute-soak acceptance is running on the same candidate.
 - Actual Google/GCP resources are unavailable; the operator confirmed local/offline
   continuation. Existing Demo credentials/database have not been cut over or altered.
 
