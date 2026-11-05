@@ -1,126 +1,113 @@
 # Admin access and encrypted credential acceptance
 
-Status: A1–A5 committed locally. A6 final-image acceptance is in progress; do not
-transfer acceptance from an older image or treat simulated Google/OKX as external
-acceptance. Actual Google OAuth/GCP KMS resources are not available yet, as confirmed
-by the operator. The existing Demo service/database have not been cut over.
+Status: A1–A5 implemented and committed; A6 local verification is in progress.
+Actual Google sign-in/GCP KMS resources are unavailable, as confirmed by the operator.
+The existing Demo service/database have not been cut over. No production deployment
+or real exchange order is part of this acceptance.
 
-Runtime implementation commits: `c06c02a60`, `91cc55267`, `69e16e142`, `7c5d99588`,
-`4f284b9f8`. FE/runbook handoff: `f98c4711a`.
+## Candidate and implementation
 
-## Completed local checks
+- Runtime tag: `hummingbot-cloudrun:admin-credentials-fc3577831`.
+- Image config ID: `sha256:8cd8052d5ba1851b992862f531f231aaa0637215c0e5236a122cbc01aa287952`.
+- Immutable manifest: `sha256:b3424b541904126a360bcec8e5aab33b687f11af55c00359af37d3af7b5c2235`.
+- Size: 1,374,393,248 bytes; original 1.5 GiB image budget passes.
+- Runtime phases: `c06c02a60`, `91cc55267`, `69e16e142`, `7c5d99588`, `4f284b9f8`;
+  native cleanup fix `4eb311ff5`. FE/runbook handoff: `f98c4711a`.
+- Later commits extend tests/docs only. Gate artifacts record their fixture hashes;
+  a test-only change does not imply a rebuilt runtime image.
 
-- Full native release regression: **2,628 tests passed**, plus 11 subtests, using
-  `make test-cloudrun-regression`. Original command populations: 202, 11, 1,700, 715.
-  New crypto/adapter groups are now included in that Make target; the focused
-  follow-up passed **38 tests**. These follow-up scopes overlap other earlier tests.
-- Security/load wrapper checks passed **47 tests** before adding the simulator
-  reduce-close cases; the later simulator/identity-focused follow-up passed **16**.
-- Earlier A4b verification, failed Red/development attempts and local runtime limits
-  are recorded in [phase progress](../implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
+Implemented behavior: Google whitelist roles with fresh authorization, env-controlled
+Basic bootstrap disablement, encrypted account-bound PostgreSQL credentials with
+local/GCP provider adapters, typed Set/load receipts, guided automatic Disconnect,
+same-operation retry/cleanup-key repair, safe status/errors and durable audit reads.
+The implementation reuses the existing HTTP handlers, bounded workers, supervisor,
+engine ownership, native connectors, tracker and recorder.
 
-Full PostgreSQL suite: **439 passed**, 36 existing warnings, in 846.10 seconds.
-Log: `/tmp/hbot-admin-release-postgres.log`.
-Image build completed for `hummingbot-cloudrun:admin-credentials-f98c4711a`: config ID
-`sha256:37c36234ca89b4a6c5a9dc1be89c453806339fd651197c57caf8bd58ba08c630`,
-1,374,389,795 bytes. Immutable registry digest is still pending.
-Build log: `/tmp/hbot-admin-release-build.log`.
-Native log: `/tmp/hbot-admin-release-native.log`.
+## Local verification
 
-The first image probe passed its diagnostic load window but failed automatic
-Disconnect before any close transport because of an unregistered native throttle
-bucket. The Red/Green fix is committed as `4eb311ff5`; acceptance must use a rebuilt
-image. The full native/PG numbers above predate that narrow runtime fix; focused
-runtime follow-up passed 17 tests. Failed attempt: `build/mm-load/20261105-081017-a5bc18`.
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Post-fix native release regression | 2,671 tests plus 11 subtests pass | `/tmp/hbot-admin-release-native2.log` |
+| Clean post-fix PostgreSQL suite | 439 pass in 837.56 seconds | `/tmp/hbot-admin-release-postgres3.log` |
+| Supervised provider delay and permission denial | 2 additional tests pass; API stays live, no env fallback/restart loop | `/tmp/hbot-admin-provider-fault-process.log` |
+| Lost post-commit HTTP response and error/audit correlation | 2 focused tests pass; one receipt/version/accepted audit on replay | `/tmp/hbot-admin-response-correlation3.log` |
+| Signed identity/provider-fault/history fixture checks | 35 pass | `/tmp/hbot-admin-kms-marker-green.log` |
+| Final-image offline E2E, including upgrade/takeover/rollback | 17/17 scenarios pass | `build/e2e-offline/20261105-083127-b83ad5/result.json` |
+| Native cancel/close/removal/restart probe | Pass; 62 exact simulated fills/fees, flat perpetual, preserved spot, removed envelopes | `build/mm-load/20261105-082520-d84e71/result.json` |
+| Same probe with loaded-key provider outage | Pass; same native cleanup and restart proof | `build/mm-load/20261105-090816-2b0e09/result.json` |
+| Original 600-second retention/startup gate | Running | `/tmp/hbot-admin-release-memory.log` |
+| Original full-load profiles and unchanged 60-minute zero-error soak | Pending | Must run on the candidate above |
 
-## Final-image work pending
+Native command populations were 202, 11 subtests, 1,705 and 753. Additional/focused
+checks overlap prior scopes and are not added to an inflated total. The provider-delay
+process test exceeds normal observer freshness but remains within the existing
+45-second stopped-load grace; no new production grace/bypass was needed.
 
-- Build `hummingbot-cloudrun:admin-credentials-f98c4711a`, record immutable digest.
-- Run the complete existing image E2E and retention gates, preserving their limits.
-- Run the bounded Google-only/local-encrypted-key probe, then unchanged long load
-  profiles including the sixty-minute zero-error soak.
-- Exercise real native connector/recorder automatic cancel/close/removal and restart
-  against the isolated exchange; compare actual simulated fills/fees and checkpoints.
-- Preserve every failed attempt and distinguish harness defects, application defects
-  and unresolved performance evidence.
+### Diagnostic probe results
 
-The optional `--security` fixture signs offline Google-shaped tokens and injects
-only public verification certificates inside the mounted test wrapper. Signature,
-audience, issuer and expiry checks remain real; no shipping bypass flag is added.
-Accounts and role bindings are created through actual HTTP handlers. Basic is disabled
-before measurement, and working exchange environment keys are removed: the engine must
-load local-encrypted PostgreSQL bundles. Every normal request still performs current
-role lookup. The bounded additional workload checks invalid auth, credential/audit
-reads and demotion/re-promotion on the same signed token. Original read/fill schedules,
-budgets and soak duration are unchanged. Private fixture signing keys are not persisted.
+Both measured windows are 60-second diagnostics, not the long release soak.
 
-## External checks explicitly open
+| Probe | Reads/s | Market updates/s | Fills/s | Read p95 | Read p99 | Sampled RSS |
+| --- | --- | --- | --- | --- | --- | --- |
+| Corrected-image managed lifecycle | 20.00 | 100.002 | 1.00 | 63.18 ms | 343.25 ms | 627,216,384 bytes |
+| Loaded-key provider unavailable | 20.00 | 100.006 | 1.00 | 56.73 ms | 297.61 ms | 625,537,024 bytes |
 
-Real Google sign-in/certificate discovery and actual GCP KMS/IAM with synthetic
-credentials require the operator's resources. Existing Demo cutover needs its separate
-reviewed procedure and ledger/account binding; no production deployment is performed.
+Each probe passed its declared window budgets. Disconnect uses the real native
+connector/recorder path against the isolated simulator: stop, cancel/read back bot
+orders, close LONG and SHORT separately, reconcile all 62 fill/fee records, verify
+flat/detached state, erase selected envelopes, then restart without resurrecting
+keys or closed exposure. Spot checkpoints remain unchanged. This is not OKX Demo.
 
-A harness regression check rejected wrapping the seed callback with `partial`:
-the existing static safety gate requires the original generator to pass directly
-through the verified offline preparation lifecycle. The original callback was
-restored; optional audit-history seeding reads only the explicit test fixture flag.
-The guard was retained unchanged and the affected harness scope was rerun.
+The first corrected probe retained one **pre-window** 311.093 ms engine probe timeout
+(epoch 1793842006.25, recovered 1793842007.61; measured window
+1793842017.39–1793842077.39). No captured probe failure or loop-stall trigger occurred
+inside that window. This is not an exclusive probe-root-cause fix or a guarantee
+of continuous two-sided quotes. Bounded capture counters and pre-window signals
+remain in raw artifacts; the trace does not claim every child span is lossless.
 
-Post-fix native regression on runtime `4eb311ff5` passed **2,671 tests** plus 11
-subtests (202, 11, 1,705, 753). The second full PostgreSQL attempt was stopped after
-four known failures in the shared test seeder: SQL-only fixture adapters lacked the
-optional `env` attribute. It finished with 4 failed/78 passed before interruption;
-this was not a trading-query failure or a clean full-suite pass. A minimal-adapter
-Red/Green regression now covers that compatibility and optional audit-history mode.
-The four affected PostgreSQL cases passed on rerun; a clean full rerun remains due.
-Candidate runtime image: `8cd8052d…`, tag `admin-credentials-fc3577831`.
+## Load methodology and security boundaries
 
-The shared SQL-only seeder compatibility regression passed **32 native preparation
-checks** and all **4 affected PostgreSQL cases**. The test fixture's extra audit
-history remains opt-in; its original generator and offline-only lifecycle are intact.
+The optional `--security` wrapper signs Google-shaped fixture tokens and injects only
+public certificates into the mounted test entrypoint. Signature, audience, issuer,
+expiry and current database role verification remain real. Private signing keys are
+not persisted. There is no shipping env flag that bypasses verification.
 
-## Corrected-image diagnostic probe
+Accounts and identity bindings are created through real HTTP handlers. Basic is
+disabled before measurement, and working exchange environment credentials are removed.
+The engine must load real local-encrypted PostgreSQL bundles. Synthetic audit history
+contains 100,000 records. A bounded extra workload checks credential/audit reads,
+invalid signatures, denied mutation and demotion/re-promotion on the same token.
+Original read/fill schedules, duration, error, latency and retention budgets stay intact.
 
-`build/mm-load/20261105-082520-d84e71` passed the Google-only/managed-key probe:
-20 reads/s, 100.002 updates/s, 1 fill/s, p95 63.18 ms, p99 343.25 ms, no declared
-window violations; sampled RSS 627,216,384 bytes. Synthetic audit history contained
-100,000 entries. The bounded role/denial workload ran alongside the original slots.
-The native connector/recorder cleanup then closed LONG and SHORT, reconciled all
-62 simulated fills/fees, removed the selected slots sequentially and restarted.
-Spot checkpoints were preserved and no removed key or closed exposure returned.
-This is a 60-second diagnostic, **not** the required sixty-minute release soak.
-Actual Google/GCP/OKX Demo remain explicitly outside this evidence.
+The provider-outage marker is consumed only by the test wrapper after authorized
+bundles have loaded. Unwrap is denied throughout normal windows, then restored before
+intentional crash/recovery windows. Already loaded clients must continue MM. Separate
+supervised tests cover slow/denied cold loads while administration remains usable.
+No production outage toggle or plaintext/environment fallback is introduced.
 
-Clean PostgreSQL rerun: `/tmp/hbot-admin-release-postgres3.log` (running).
-Full image E2E/upgrade: `/tmp/hbot-admin-release-e2e.log` (running).
+## Failed attempts and diagnosis
 
-The bounded diagnostic capture retained one 311.093 ms engine probe timeout before
-the measured probe window (epoch 1793842006.25, recovered 1793842007.61; window
-1793842017.39–1793842077.39). There were zero captured probe failures or loop-stall
-triggers inside that window. Startup/restart signals are retained, not called a
-root-cause fix or silently erased by the healthy window result.
+| Attempt | Diagnosis and action | Acceptance consequence |
+| --- | --- | --- |
+| First image `37c36234…`, `build/mm-load/20261105-081017-a5bc18` | Diagnostic load passed, but Disconnect requested singular `/market/ticker`, absent from the native perpetual throttler. `AttributeError` occurred before transport; no close was sent. A Red test using the real throttler reproduced it. `4eb311ff5` reuses registered `/market/tickers` and selects the exact instrument with Decimal parsing. | Overall attempt failed. Rebuilt candidate repeats all required gates. |
+| Static offline seed guard | Wrapping the callback with `partial` violated the existing offline-only safety rule. Restored the original callback; retained the guard unchanged. | Harness failure, not a runtime SQL failure. |
+| Second full PostgreSQL attempt | Four SQL fixture cases failed before querying because minimal Seeder adapters lacked optional `env`; run stopped with 4 failed/78 passed. Added minimal-adapter regressions and `getattr` compatibility. | Not a clean pass. All four affected cases, 32 native preparation checks and the clean 439-case rerun passed. |
+| New HTTP correlation assertions | Test used absent `message` instead of the existing `error`/`detail` contract, then selected generic denial rather than credential failure from the same request. Corrected selectors; no runtime change. | Both failed attempts retained in `/tmp/hbot-admin-response-correlation{,2}.log`; clean rerun passes. |
 
-The clean post-fix PostgreSQL rerun passed **439/439** in 837.56 seconds
-(`/tmp/hbot-admin-release-postgres3.log`). Two additional full-supervisor provider
-fault tests passed separately: delayed decryption exceeds normal observer freshness
-without a restart, and permission denial stays explicit while API/live health remains
-available with no environment fallback/restart loop. Provider behavior is injected
-only into the native test wrapper; this is not real GCP acceptance.
-The existing 45-second stopped-load health grace required no production change.
-Focused fault log: `/tmp/hbot-admin-provider-fault-process.log`.
+The original pre-fix native/PG runs (2,628 tests plus 11 subtests; 439 PG tests) and
+38 focused crypto/adapter checks are historical evidence, not substitutes for the
+post-fix gates above. The full KMS protobuf SDK was deliberately excluded after its
+dependency/connector descriptor conflict; the GCP adapter uses official Auth/REST.
 
-The security load wrapper now also supports a test-only local-provider outage after
-both managed bundles have loaded. Every normal measured window will run with unwrap
-denied, then restore the provider before injected crash/recovery windows. This proves
-continued MM uses the authorized loaded bundle rather than quietly calling KMS for
-each quote. The fixture's switch/denial/recovery test first failed for its missing
-implementation, then passed with the signed-identity/history scope (35 tests).
-This adds no production outage toggle and does not replace actual GCP acceptance.
+## External acceptance still open
 
-Two focused PostgreSQL HTTP checks passed: an aborted transport after Set commits
-replays the single original receipt/audit/version; a dependency error correlates its
-request ID with the failed credential audit without exposing input. Initial test
-assertions used an absent `message` field (the contract uses `error`/`detail`) and
-selected the generic denial rather than the credential failure audit; those test
-assumptions were corrected, with no runtime change. Logs retain both failed attempts
-and the clean result at `/tmp/hbot-admin-response-correlation{,2,3}.log`.
+- Real Google sign-in, public certificate discovery and deployment OAuth audience.
+- Real GCP KMS/IAM using synthetic credentials and the configured runtime identity.
+- Separately reviewed cutover of the existing OKX Demo ledger/account binding to
+  managed credentials; no prior approval for unrelated Demo maintenance is reused.
+- Production ingress, identities and deployment configuration when deployment is requested.
+
+An unavailable external check is not a pass. Python reference removal is not physical
+key zeroization; backups can retain earlier encrypted rows. No secret reveal API exists.
+See [FE integration](../../docs/fe-integration.md), [credential operations](../../docs/exchange-credentials.md)
+and [phase progress](../implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).

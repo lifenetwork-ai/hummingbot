@@ -267,3 +267,28 @@ cleanup exceptions now log their safe class at ERROR without exception inputs;
 expected dependency/blocking outcomes retain WARNING. No secret or trading gate
 is bypassed, and no close order from that failed attempt reached the simulator.
 The corrected image must repeat the probe and subsequent release gates.
+
+## A6 — Local final-image acceptance in progress
+
+Runtime image `8cd8052d5ba1851b992862f531f231aaa0637215c0e5236a122cbc01aa287952`
+contains the native ticker/throttle fix. Immutable manifest:
+`sha256:b3424b541904126a360bcec8e5aab33b687f11af55c00359af37d3af7b5c2235`.
+Subsequent commits change tests/docs only.
+
+- Clean post-fix native release: **2,671 tests plus 11 subtests**; clean PostgreSQL
+  rerun: **439 passed**. Two additional supervised slow/denied-provider checks and
+  two HTTP response-loss/error-correlation checks pass separately (overlapping scopes
+  are not added into one inflated total).
+- Final-image offline E2E: **17/17 scenarios**, including upgrade/takeover/rollback,
+  `build/e2e-offline/20261105-083127-b83ad5/result.json`.
+- Corrected native cleanup probe passes, then a second provider-outage probe passes
+  with Google-only fixture auth, no environment credential fallback and 100,000 audit
+  rows: 20 reads/s, 100 updates/s, 1 fill/s, p99 297.61 ms. All 62 simulated fills/fees
+  reconcile; Disconnect closes both perpetual sides, preserves spot, erases selected
+  envelopes and survives restart. `build/mm-load/20261105-090816-2b0e09/result.json`.
+- Final retention and unchanged full-load/sixty-minute-soak acceptance remain pending.
+- Actual Google/GCP resources are unavailable; the operator confirmed local/offline
+  continuation. Existing Demo credentials/database have not been cut over or altered.
+
+The consolidated [acceptance report](../release/admin-access-credentials-acceptance.md)
+retains failed attempts and separates production defects from test-harness defects.

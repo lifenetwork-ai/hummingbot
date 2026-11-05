@@ -869,11 +869,11 @@ an unprocessable placeholder `202` is not an acceptable intermediate API.
 
 - [x] Run focused plus required native/regression and PostgreSQL suites on final code;
   exercise authenticated read/write/admin and Basic-disabled cases end to end.
-- [ ] Run offline lifecycle/fault tests using real local encryption and simulated KMS
+- [x] Run offline lifecycle/fault tests using real local encryption and simulated KMS
   delays/denials: credential change/revoke, automatic cancel/close, owner restart,
   DB loss and token/role changes. Reconcile terminal orders, fills/fees and flat
   bot-managed perpetual positions before accepting Disconnect completion.
-- [ ] Verify error, receipt, audit and status correlation end to end, including a
+- [x] Verify error, receipt, audit and status correlation end to end, including a
   post-commit response loss and a KMS outage while MM keeps running; all visible
   guidance remains English, secret-free and consistent with observed trading state.
 - [ ] Verify bounded audit queries with substantial history, query counts, and secret-
