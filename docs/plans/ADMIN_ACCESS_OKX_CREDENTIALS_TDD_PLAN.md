@@ -918,19 +918,27 @@ acceptance is claimed by this test/docs-only follow-up.
 
 - [x] Add Red/Green checks for simulator-only credential generations and deterministic
   cleanup barriers; keep the shipping service entrypoint and runtime policy unchanged.
-- [ ] Kill the actual service container after exchange close acceptance before ACK,
+- [x] Kill the actual service container after exchange close acceptance before ACK,
   and after a close fill is committed before cleanup verification. Restart the
   same durable operation; prove no duplicate close/reversal or early erasure,
   retain spot, and reconcile all native fills/fees/positions.
-- [ ] Rotate both slots A to B on the same account using admin APIs; reject an invalid
+- [x] Rotate both slots A to B on the same account using admin APIs; reject an invalid
   replacement without mutation, cold restart and Start, then independently observe
   REST/WS/funding/reconciliation using B without old-key fallback or ledger loss.
-- [ ] Reject an expired cleanup key, retain Action required and ciphertext, repair
+- [x] Reject an expired cleanup key, retain Action required and ciphertext, repair
   the same root operation via API with a same-account key and complete cleanup;
   verify idempotency, versions and actor-correlated audit without duplicate sends.
-- [ ] Include all new scenarios in the standard offline matrix, run appropriate
+- [x] Include all new scenarios in the standard offline matrix, run appropriate
   regressions, retain failed attempts and safe evidence, update documentation and
   commit each completed phase. Real Google/GCP and existing Demo are excluded.
+
+Final evidence: [native lifecycle report](../../reports/release/admin-managed-lifecycle-e2e.md),
+`build/e2e-offline/20261105-213142-34b8a4/result.json`. All four grouped E2E cases
+pass on unchanged image `1bb946c3…`, including every physical close attempt (two
+per cleanup case, no rejected duplicate sends). Related native regression passes
+102 tests. Five fixture Red/Green checks and two corrected E2E test assumptions
+are retained in the report. No runtime fix, new full load gate or external
+Google/GCP/Demo acceptance is claimed.
 
 ## Implementation-readiness review
 

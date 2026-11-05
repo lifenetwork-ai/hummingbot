@@ -966,6 +966,11 @@ GET `/reconciliation` reads the latest stored result; polling does not contact O
 GET `/reconciliation/{check_id}` returns the specific receipt and report requested,
 even after a newer check starts. Use this lookup while following an operator's
 check; missing IDs and IDs belonging to trading commands return 404.
+After a cold start with stopped intent, managed credentials can be Connected while
+reconciliation reports `authenticated_connector_unavailable`: the live trading
+connectors have not been started. Show the check as unavailable, separately from
+credential validity; do not ask for replacement keys or auto-start trading merely
+to obtain a matched report.
 Report states are `not_checked`, `checking`, `matched`, `mismatch`, `incomplete`
 and `unavailable`. Receipt execution success is distinct from a matched report.
 `matched` means only the complete checked scope agreed. Truncation, overlapping

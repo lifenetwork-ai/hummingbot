@@ -107,3 +107,18 @@ async def test_cleanup_barrier_preserves_independent_venue_truth_until_explicit_
     finally:
         placement.cancel()
         await asyncio.gather(placement, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_venue_witness_counts_rejected_close_attempts_without_reversing_flat_position():
+    venue = exchange()
+    venue.positions[('LIFE-USDT-SWAP', 'long')] = dict(instId='LIFE-USDT-SWAP', posSide='long',
+                                                       pos='10', avgPx='.1', mgnMode='cross')
+    await venue.control({'cleanup_market_closes': True})
+    terms = dict(instId='LIFE-USDT-SWAP', side='sell', posSide='long', tdMode='cross', sz='10', ordType='market')
+    first = json.loads((await venue.handle(signed('/api/v5/trade/order', method='POST', data={**terms, 'clOrdId': 'first'}))).text)
+    second = json.loads((await venue.handle(signed('/api/v5/trade/order', method='POST', data={**terms, 'clOrdId': 'duplicate'}))).text)
+    assert first['data'][0]['sCode'] == '0' and second['data'][0]['sCode'] == '51169'
+    assert len(venue.accepted) == 1 and len(venue.fills) == 1
+    assert venue.positions['LIFE-USDT-SWAP', 'long']['pos'] == '0'
+    assert [row['order']['clOrdId'] for row in venue.requests] == ['first', 'duplicate']

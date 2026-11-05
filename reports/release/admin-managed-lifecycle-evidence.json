@@ -1,0 +1,275 @@
+{
+  "scope": "Native managed lifecycle on isolated simulator/PostgreSQL with local KEK and Basic bootstrap",
+  "runtime_source": "3a3011d6f",
+  "runtime_changes": false,
+  "existing_demo_changed": false,
+  "fixture_foundation_commit": "de9efad34",
+  "artifact": "build/e2e-offline/20261105-213142-34b8a4/result.json",
+  "native_regression": {
+    "passed": 102,
+    "warnings": 7,
+    "seconds": 5.75,
+    "log": "/tmp/hbot-managed-lifecycle-native-witness-final.log"
+  },
+  "red_green": {
+    "initial_fixture_red_cases": 4,
+    "physical_send_witness_red_cases": 1,
+    "red_logs": [
+      "/tmp/hbot-managed-lifecycle-fixture-red.log",
+      "/tmp/hbot-managed-send-witness-red.log"
+    ]
+  },
+  "test_source_sha256": {
+    "test/e2e/offline/exchange.py": "61aee005642710503a29f5a69a2b6b028c820eb150ba300b657920b72b1708d8",
+    "test/hummingbot/cli/test_managed_lifecycle_fixture.py": "c7021c6332e368406f0cc61e649659b068e304b2d4e570f1311b8251ac504201"
+  },
+  "e2e": {
+    "image_id": "sha256:1bb946c39830f79044b520b47dd4d324419cf7f0d63271363673e2ce137b57a3",
+    "registry_manifest_digest": "sha256:c92d3d6fefabb18e2d4b2cc2ee78a2b6122989f0d115533166763a667945f2cd",
+    "image_size_bytes": 1374394138,
+    "image_size_budget_bytes": 1610612736,
+    "architecture": "amd64",
+    "config_sha256": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "fixture_sha256": {
+      "999_offline_upgrade.sql": "b1252d16a9aeea808d6bd3857f6613fd53cc23809f152b62fd2d5bd7bd4d1a30",
+      "availability_service.py": "eda43c991ef7eea6174eef67b011ce96988de970a61c6ecaa30d8d18d7441073",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "exchange.py": "61aee005642710503a29f5a69a2b6b028c820eb150ba300b657920b72b1708d8",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "life_mm_profiles.yaml": "bcfa4738d72a721bdeb5969039dbcd08102a1ca0ff926a2c0ede6946935e6346",
+      "pmm-revised.yml": "44e1cdd0ea6113f620427e0396fb0d8de22ab4e7a4bdac9561d42a02f7277f63",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "runtime_smoke.py": "b81a51ad11d3e7e0e90af3532cfc72aee6a47d4c7f57b186825456034fa2cef1",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132"
+    },
+    "harness_source_sha256": {
+      "test_e2e_offline.py": "9eb9eb682bca110954ceabc508901922a8a54cbd42f3741705354dd98e699755",
+      "mm_managed_environment.py": "6d01f7f4ebf7e5783ac852f972a7f7ab32b088a4acc611c668d3f58aced26a52",
+      "mm_managed_lifecycle.py": "2073543ad489a6496f03b2364318d56d8ffce223c7dc9c6eb0d70226e814c3ff"
+    },
+    "runtime_smoke": {
+      "passed": true,
+      "numba_jit": true,
+      "ta_lib": true,
+      "tls_trust": true,
+      "connector_count": 63,
+      "sql_scripts": 20,
+      "build_tools_absent": true,
+      "cli_version": "hbot 2.17.0",
+      "environment_bytes": 1273069153,
+      "service_logging": {
+        "passed": true,
+        "all_severities": true,
+        "network_warning": true,
+        "utc_context": true,
+        "redaction": true,
+        "startup_failure_json": true,
+        "python_warning_json": true,
+        "sql_parameters_suppressed": true
+      }
+    },
+    "scenarios": {
+      "managed-close-ack-crash": {
+        "passed": true,
+        "metrics": {
+          "managed-lifecycle_startup_s": 21.279,
+          "lifecycle_shutdown_s": 1.38,
+          "removed-restart_startup_s": 20.098,
+          "restart_shutdown_s": 1.414,
+          "managed_cleanup_crash": {
+            "boundary": "accepted",
+            "operation_id": "ce566ac5-e129-4d62-91ee-b02827c84407",
+            "generation_before": 1,
+            "close_id": "93027a12dac34fBCBLEUT2287b0bd7e8",
+            "exchange_fills_before_kill": 3,
+            "ciphertext_retained": true,
+            "generation_after": 3,
+            "no_duplicate_close": true,
+            "no_reversal": true,
+            "spot_preserved": true,
+            "recovery_halt_retained": false,
+            "ledger": {
+              "unique_exchange_fills": 5,
+              "unique_recorder_fills": 5,
+              "fees_matched": true,
+              "positions_flat": true,
+              "physical_close_attempts": 2
+            },
+            "audit": {
+              "events": 12,
+              "actor": "basic:operator",
+              "root": "ce566ac5-e129-4d62-91ee-b02827c84407",
+              "children": []
+            },
+            "actual_okx": false,
+            "local_kms": true
+          }
+        }
+      },
+      "managed-close-fill-crash": {
+        "passed": true,
+        "metrics": {
+          "managed-lifecycle_startup_s": 20.473,
+          "lifecycle_shutdown_s": 1.369,
+          "removed-restart_startup_s": 21.278,
+          "restart_shutdown_s": 1.411,
+          "managed_cleanup_crash": {
+            "boundary": "verified_fill",
+            "operation_id": "a608c828-1af5-4c48-b075-c434df215d82",
+            "generation_before": 1,
+            "close_id": "93027a12dac34fBCBLEUTe7c410d6b75",
+            "exchange_fills_before_kill": 4,
+            "ciphertext_retained": true,
+            "generation_after": 3,
+            "no_duplicate_close": true,
+            "no_reversal": true,
+            "spot_preserved": true,
+            "recovery_halt_retained": false,
+            "ledger": {
+              "unique_exchange_fills": 5,
+              "unique_recorder_fills": 5,
+              "fees_matched": true,
+              "positions_flat": true,
+              "physical_close_attempts": 2
+            },
+            "audit": {
+              "events": 12,
+              "actor": "basic:operator",
+              "root": "a608c828-1af5-4c48-b075-c434df215d82",
+              "children": []
+            },
+            "actual_okx": false,
+            "local_kms": true
+          }
+        }
+      },
+      "managed-rotation": {
+        "passed": true,
+        "metrics": {
+          "managed-lifecycle_startup_s": 23.261,
+          "lifecycle_shutdown_s": 1.799,
+          "rotated-cold-restart_startup_s": 21.989,
+          "restart_shutdown_s": 1.634,
+          "managed_rotation": {
+            "same_account": true,
+            "generations": [
+              "a",
+              "b"
+            ],
+            "cold_restart": true,
+            "old_candidate_rejected": true,
+            "original_history_preserved": true,
+            "private_rest_b": 81,
+            "private_ws_b": true,
+            "funding_b": true,
+            "reconciliation": "matched",
+            "audit_events": [
+              2,
+              2
+            ],
+            "ledger": {
+              "unique_exchange_fills": 3,
+              "unique_recorder_fills": 3,
+              "positions_matched": true,
+              "identified_funding_bills": 0,
+              "daily_snapshots": 3
+            },
+            "actual_okx": false,
+            "local_kms": true
+          }
+        }
+      },
+      "managed-cleanup-repair": {
+        "passed": true,
+        "metrics": {
+          "managed-lifecycle_startup_s": 21.475,
+          "lifecycle_shutdown_s": 1.874,
+          "repaired-cleanup-restart_startup_s": 20.327,
+          "restart_shutdown_s": 1.386,
+          "managed_cleanup_repair": {
+            "expired_key_blocked": true,
+            "retry_preserves_root": true,
+            "companion_and_selected_repaired": true,
+            "stale_version_rejected": true,
+            "no_duplicate_close": true,
+            "spot_preserved": true,
+            "restart_removed": true,
+            "audit": {
+              "events": 21,
+              "actor": "basic:operator",
+              "root": "7af9e74f-4868-4489-92ce-5a219f38c93b",
+              "children": [
+                [
+                  "aa9337f1-f547-43d5-a6ab-cfb772c80be6",
+                  "credentials_cleanup_retry"
+                ],
+                [
+                  "86b4fb48-b29d-4acc-b6ff-fd34baf6b6ef",
+                  "credentials_cleanup_key"
+                ],
+                [
+                  "cf2a3660-a294-4b42-b054-a1e490dc3643",
+                  "credentials_cleanup_key"
+                ]
+              ]
+            },
+            "ledger": {
+              "unique_exchange_fills": 5,
+              "unique_recorder_fills": 5,
+              "fees_matched": true,
+              "positions_flat": true,
+              "physical_close_attempts": 2
+            },
+            "actual_okx": false,
+            "local_kms": true
+          }
+        }
+      }
+    },
+    "passed": true,
+    "release_scope_complete": false
+  },
+  "rotation_position_changes": [
+    {
+      "id": "53a1e483-e7c9-4b26-be9f-04c9a08dec91",
+      "fields": [
+        "timestamp"
+      ]
+    },
+    {
+      "id": "5afc5ac1-d860-4f91-9f1a-70bdfe1788a9",
+      "fields": [
+        "timestamp"
+      ]
+    },
+    {
+      "id": "99236c00-7069-407b-be02-ffde34028987",
+      "fields": [
+        "timestamp"
+      ]
+    }
+  ],
+  "development_attempts": [
+    {
+      "artifact": "build/e2e-offline/20261105-211542-7a88b9/result.json",
+      "result": "failed",
+      "cause": "New test requested matched reconciliation before Start; active trading connectors correctly unavailable"
+    },
+    {
+      "artifact": "build/e2e-offline/20261105-211757-b71359/result.json",
+      "result": "failed",
+      "cause": "New test compared legitimate checkpoint timestamp updates; final comparison keeps row identities and every financial field exact"
+    },
+    {
+      "artifact": "build/e2e-offline/20261105-212507-fa217f/result.json",
+      "result": "passed",
+      "scope": "Four-case group before adding all-physical-close-attempt witness; not the final fixture/hash"
+    }
+  ],
+  "deferred": [
+    "Real Google sign-in",
+    "Real GCP KMS/IAM",
+    "Reviewed managed cutover of existing OKX Demo ledger"
+  ]
+}

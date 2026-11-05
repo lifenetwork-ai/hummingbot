@@ -333,6 +333,8 @@ class Exchange:
         raw = await request.text()
         data = json.loads(raw) if raw else {}
         observed = {"method": method, "path": path, "at_ms": millis(), "simulated": request.headers.get("x-simulated-trading"), "params": dict(request.query)}
+        if path == '/api/v5/trade/order' and method == 'POST':
+            observed['order'] = {key: data.get(key) for key in ('clOrdId', 'instId', 'ordType', 'posSide', 'side', 'sz')}
         self.requests.append(observed)
         if path.startswith(("/api/v5/trade/", "/api/v5/account/")) and not request.headers.get("OK-ACCESS-KEY"):
             self.unknown.append({"path": path, "reason": "missing authentication"})

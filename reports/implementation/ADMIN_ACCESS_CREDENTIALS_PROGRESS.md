@@ -345,3 +345,31 @@ changes only tests/docs, not runtime logic or `.env`; it does not rebrand old lo
 evidence as a new run. Real Google sign-in, real GCP KMS/IAM and separately reviewed
 existing-Demo cutover remain open. See the [follow-up report](../release/admin-managed-environment-e2e.md)
 and [portable evidence](../release/admin-managed-environment-evidence.json).
+
+## A6 follow-up — Native cleanup, rotation and repair E2E
+
+Completed in order: deterministic simulator failure stimuli (foundation commit
+`de9efad34`), both native crash boundaries, A/B rotation, then expired-key cleanup
+Retry/repair. Four initial fixture Red checks and one later physical-send witness
+Red check are Green. The final related native scope passes 102 tests; previous
+64/101-case scopes overlap and are not added into that total.
+
+The final grouped shipping-image run passes all four cases at
+`build/e2e-offline/20261105-213142-34b8a4/result.json`. Image `1bb946c3…` and runtime
+source are unchanged. Cleanup cases attempt exactly two native closes, including
+rejected attempts in the independent oracle; none duplicate/reverse. Five exact
+fills/fees, flat perpetual positions, preserved spot/companion credentials, delayed
+selected-key erasure and subsequent restart all reconcile. Rotation preserves
+three original fills and every position field except checkpoint timestamp; B is
+observed in private REST/WS/funding and matched reconciliation after Start.
+Expired keys retain Action required; Retry and both repairs use the same root and
+control fence, strict versions and actor-correlated audit.
+
+Two new E2E authoring assumptions were corrected: reconciliation before trading
+connector initialization, and comparing mutable checkpoint timestamps. They are
+not runtime fixes. An earlier complete four-case group predates the stronger
+physical-send witness and is retained separately. Standard `--scenario all` now
+includes the cases; this targeted group is not a new full release/upgrade/hour gate.
+Real Google/GCP and reviewed existing-Demo cutover remain open. See the
+[report](../release/admin-managed-lifecycle-e2e.md) and
+[evidence](../release/admin-managed-lifecycle-evidence.json).

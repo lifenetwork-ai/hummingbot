@@ -7,6 +7,8 @@ No production deployment or change to the existing Demo service/database was mad
 Additional local managed-environment cold-restart coverage is recorded in the
 [follow-up report](admin-managed-environment-e2e.md). It extends the test harness
 without changing this runtime image or rerunning/relabeling the load results below.
+The later [native lifecycle group](admin-managed-lifecycle-e2e.md) adds crash,
+rotation and expired-key repair checks under the same runtime-image qualification.
 
 ## Implemented
 

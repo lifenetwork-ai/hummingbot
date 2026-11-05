@@ -58,6 +58,13 @@ The scenario explicitly tests both routing modes using an internal-network simul
 local encryption and Basic bootstrap. It is also included in `--scenario all`; it
 does not contact OKX or require Google/GCP resources.
 
+Additional native lifecycle checks use `--scenario managed-lifecycle`: hard crashes
+at close acceptance and after committed close fill, same-account A/B rotation, and
+expired-key Retry/companion/selected-slot repair. Each case uses its own isolated
+database and the shipping image with local encryption. See the
+[lifecycle E2E report](../reports/release/admin-managed-lifecycle-e2e.md); these tests
+do not operate on the existing Demo account or require real Google/GCP services.
+
 GCP configuration:
 
 ```dotenv

@@ -4,6 +4,15 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Managed native lifecycle E2E complete:** four final shipping-image cases pass:
+  SIGKILL before close ACK and after committed fill, same-account A/B rotation,
+  and expired-key Retry/companion/selected-slot repair. Exactly two physical close
+  attempts per cleanup case; exact fills/fees, preserved spot, correlated audit and
+  restart/removal proof. Related native102 pass. Tests/docs only, unchanged `1bb946c3…`;
+  local KEK/simulator, no real Google/GCP or existing-Demo changes.
+  [Report](release/admin-managed-lifecycle-e2e.md),
+  [evidence](release/admin-managed-lifecycle-evidence.json).
+
 - **Managed Demo/Live cold restarts with local KEK:** additional shipping-image
   E2E coverage checks missing-scope blocking, no environment-key fallback, rejected
   Live binding on a Demo ledger, preserved native spot/perpetual fill history and
