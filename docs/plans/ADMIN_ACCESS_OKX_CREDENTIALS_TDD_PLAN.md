@@ -1019,6 +1019,19 @@ new full/hour gate, real Google/GCP or existing Demo changes. See the
 [optimization report](../../reports/performance/admin-cleanup-polling.md) and
 [portable evidence](../../reports/performance/admin-cleanup-polling-evidence.json).
 
+### Cleanup ownership loss, shutdown failure and snapshot cost
+
+- [x] Reproduce ownership loss between cancel/close/verification/detachment and
+  snapshot consumption; classify lost authority without TypeError or stale writes.
+- [ ] Test shutdown failures before removal, after completion and during another
+  failure; preserve receipt/key/audit semantics and the intentional engine-restart fence.
+- [ ] Measure full snapshot queries/payload/row-lock scope with a large tracking
+  fixture before optimizing; avoid loading unused tracking JSON if justified.
+- [ ] Preserve full tracking recovery for runtime preparation and all existing
+  owner/control/operation fences; verify matching snapshots and stale-owner rejection.
+- [ ] Run final related/native and rebuilt-image recovery checks, record scoped
+  results, update documentation/checklists and commit completed phases.
+
 ## Implementation-readiness review
 
 The review found design/integration gaps, not newly reproduced runtime defects.

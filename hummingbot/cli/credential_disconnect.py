@@ -22,8 +22,11 @@ class DisconnectCoordinator:
         # no HTTP request creates an independent cleanup task or engine.
         return await asyncio.to_thread(function, *args, **kwargs)
 
-    async def snapshot(self, identity):
-        return await self.call(self.store.disconnect_snapshot, identity, self.owner.owner_uuid, self.owner.generation)
+    async def snapshot(self, identity, *, required=False):
+        snapshot = await self.call(self.store.disconnect_snapshot, identity, self.owner.owner_uuid, self.owner.generation)
+        if required and snapshot is None:
+            raise ControlConflict("Cleanup ownership or operation changed", code="owner_unavailable")
+        return snapshot
 
     async def progress(self, identity, stage, **kwargs):
         if not await self.call(self.store.progress_disconnect, identity, self.owner.owner_uuid, self.owner.generation, stage=stage, **kwargs):
@@ -54,7 +57,7 @@ class DisconnectCoordinator:
             await self.runtime.prepare(operation)
             await self.progress(identity, "cancelling_orders")
             await self.runtime.cancel_orders()
-            snapshot = await self.snapshot(identity)
+            snapshot = await self.snapshot(identity, required=True)
             actual = await self.runtime.positions()
             if actual != self.expected(snapshot["positions"]):
                 raise CredentialAdapterError("cleanup_position_mismatch", status=409)
@@ -64,17 +67,17 @@ class DisconnectCoordinator:
             # checkpoints separate; terminal fills reduce each row atomically.
             for position in snapshot["positions"]:
                 await self.runtime.close_position(position, operation)
-                current = await self.snapshot(identity)
+                current = await self.snapshot(identity, required=True)
                 if await self.runtime.positions() != self.expected(current["positions"]):
                     raise CredentialAdapterError("cleanup_ledger_pending", status=503)
             await self.progress(identity, "verifying")
             await self.runtime.cancel_orders()
-            snapshot = await self.snapshot(identity)
+            snapshot = await self.snapshot(identity, required=True)
             if snapshot["positions"] or snapshot["orders"] or await self.runtime.positions():
                 raise CredentialAdapterError("cleanup_ledger_pending", status=503)
             await self.runtime.shutdown()
             await self.runtime.detach(operation["connector"])
-            snapshot = await self.snapshot(identity)
+            snapshot = await self.snapshot(identity, required=True)
             proof = self.proof(snapshot, orders_terminal_verified=True, positions_flat_verified=True,
                                ledger_confirmed=True, consumers_detached=True)
             await self.progress(identity, "detaching", evidence=proof)
