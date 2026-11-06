@@ -13,9 +13,10 @@ from scripts.mm_managed_lifecycle import (
     spot_digest,
     verify_cleanup,
 )
-from scripts.test_e2e_offline import poll
+from scripts.test_e2e_offline import docker, http, poll
 
-SCENARIOS = ('managed-close-partial-ws', 'managed-close-partial-cancel')
+SCENARIOS = ('managed-close-partial-ws', 'managed-close-partial-cancel',
+             'managed-cleanup-fill-db-fault', 'managed-cleanup-removal-db-fault')
 
 
 def install_database_fault(harness, target):
@@ -100,3 +101,67 @@ def partial_scenario(harness, outcome):
     harness.metrics['managed_partial_cleanup'] = dict(**checkpoint, ledger=ledger, audit=evidence,
                                                       no_duplicate_fill=True, residual_only=True, restart_removed=True,
                                                       local_kms=True, actual_okx=False)
+
+
+def database_scenario(harness, target):
+    print('Offline E2E: real PostgreSQL cleanup transaction failure, target=' + target, flush=True)
+    bot, port = initialize(harness)
+    seed_exposure(harness, port)
+    spot = spot_digest(harness)
+    harness.control(cleanup_market_closes=True)
+    generation = harness.state()['owner_generation']
+    install_database_fault(harness, target)
+    try:
+        root = disconnect(harness, port)
+        poll(lambda: database_fault_attempts(harness) > 0, timeout=60, description='native write reaches guarded PG transaction fault')
+        attempts = database_fault_attempts(harness)
+        assert harness.sql("SELECT count(*) FROM exchange_credentials WHERE connector='okx_perpetual' AND envelope IS NOT NULL AND state='revoking'") == '1'
+        assert harness.sql("SELECT count(*) FROM admin_audit_events WHERE action='credentials_disconnect' AND outcome='succeeded'") == '0'
+        observed = operation(harness, port, root['id'])
+        assert observed['status'] != 'succeeded'
+        assert harness.sql('SELECT count(*) FROM trade_fills') == ('3' if target == 'fill' else '5')
+        if target == 'fill':
+            assert Decimal(harness.sql("SELECT sum(amount) FROM positions WHERE connector_name='okx_perpetual'")) == Decimal('.02')
+        else:
+            assert harness.sql("SELECT count(*) FROM positions WHERE connector_name='okx_perpetual' AND amount <> 0") == '0'
+        checkpoint = dict(target=target, operation_id=root['id'], fault_attempts=attempts,
+                          generation_before=generation, ciphertext_retained=True, false_success=False,
+                          stage=observed['result']['stage'], reason_code=observed['result']['reason_code'],
+                          unique_committed_fills=int(harness.sql('SELECT count(*) FROM trade_fills')))
+        (harness.report / 'database-fault-checkpoint.json').write_text(json.dumps(checkpoint, indent=2))
+    finally:
+        disarm_database_fault(harness, target)
+    if target == 'fill':
+        # Recorder rollback permanently fences that process. Use an ordinary
+        # process replacement, never flip persistence_healthy or edit a ledger.
+        docker('stop', '--time', '10', bot)
+        docker('start', bot)
+        poll(lambda: http(port, '/startup')[0] == 200, timeout=200, description='fresh process after recorder DB failure')
+        poll(lambda: harness.state()['owner_generation'] > generation, description='DB-failure recovery obtains a new owner')
+    retries = []
+
+    def recovered():
+        row = operation(harness, port, root['id'])
+        assert row['status'] != 'failed', row['error']
+        if row['result']['operator_action_required']:
+            assert not retries, ('Cleanup remained blocked after one normal recovery Retry', row['result']['reason_code'])
+            request = dict(expected_version=slot(harness, port, 'okx_perpetual')['version'],
+                           expected_control_version=harness.state()['control_version'],
+                           expected_operation_version=row['result']['operation_version'])
+            code, retry = harness.admin(port, '/credentials/operations/' + root['id'] + '/retry', request,
+                                        key='retry-after-database-repair')
+            assert code == 202, (code, retry.get('code'))
+            retries.append((retry['id'], 'credentials_cleanup_retry'))
+        return row if row['status'] == 'succeeded' else None
+    poll(recovered, timeout=180, description='normal owner/readback/Retry completes the original DB-failed cleanup')
+    ledger = verify_cleanup(harness, port, root, spot)
+    evidence = audit(harness, port, root['id'], children=retries)
+    history = financial_digest(harness)
+    harness.terminate(bot)
+    resumed, port = harness.start('database-cleanup-restart', auto_migrate=False)
+    assert financial_digest(harness) == history and slot(harness, port, 'okx_perpetual')['status'] == 'disconnected'
+    assert harness.state()['desired_state'] == 'stopped'
+    harness.terminate(resumed)
+    harness.metrics['managed_cleanup_database_fault'] = dict(**checkpoint, ledger=ledger, audit=evidence,
+                                                             recovery_process_replacement=target == 'fill',
+                                                             restart_removed=True, local_kms=True, actual_okx=False)

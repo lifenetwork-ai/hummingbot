@@ -950,11 +950,20 @@ Google/GCP/Demo acceptance is claimed.
   close, preserving the same operation, exact quantities/fees and spot holdings.
 - [x] Add guarded test-DB transaction faults for cleanup-fill persistence and final
   removal audit. Prove rollback prevents partial financial state/key erasure.
-- [ ] Exercise both faults on the shipping image; after repair, reconcile through
+- [x] Exercise both faults on the shipping image; after repair, reconcile through
   normal recovery/retry or expose a specific safe blocker, never fabricate state.
-- [ ] Run appropriate regressions and final grouped E2E, retain all attempts and
+- [x] Run appropriate regressions and final grouped E2E, retain all attempts and
   source/image hashes, update evidence/runbook/checklist and commit. Real Google,
   GCP, actual Demo/Live and production deployment remain excluded.
+
+Final evidence: [partial/DB cleanup report](../../reports/release/admin-cleanup-fault-e2e.md).
+New image `89d5e7c6…`, runtime fix `16b268737`, passes all four new cases and four
+prior lifecycle cases. Native release scope passes 2,689 tests plus 11 subtests;
+full PostgreSQL confirmation passes 452 tests, with the initial 300 ms probe
+timeout retained and no exclusive cause claimed. A runner port-publication race
+has six focused passing regressions. Ten unused bot images are removed; all
+container references, candidate/rollback and volumes are preserved. This closes
+the targeted follow-up, not a new full-image hour/upgrade acceptance gate.
 
 ## Implementation-readiness review
 

@@ -179,6 +179,18 @@ infer missing exposure. Follow the reviewed [recovery runbook](postgres-runtime.
 No API resets a risk HALT or fabricates a flat position. A cold load still needs
 its KEK; a loaded matching version can clean up through a temporary KMS outage.
 
+A failed recorder transaction permanently fences that process; do not flip its
+health flag or edit position totals. After restoring the database, replace the
+process and inspect the same Disconnect operation; use Retry if it requests action.
+For a previously frozen/approved cleanup, the replacement can retire the older
+process's incomplete-shutdown fence only after fresh account/terminal-order/position
+proof and no unresolved local orders or account mutations. Risk HALT/reason remain
+separate. Missing proof keeps cleanup blocked and credentials retained. A partial
+close is not flat: a live remainder must settle first; a terminal cancelled remainder
+needs fresh proof before only its residual quantity can be submitted.
+The [partial/DB-failure acceptance report](../reports/release/admin-cleanup-fault-e2e.md)
+records the tested replacement/Retry path and its limits.
+
 ## Key or provider transition
 
 1. Stop trading and confirm outstanding order cleanup before changing deployment keys.

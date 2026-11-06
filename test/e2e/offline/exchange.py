@@ -618,6 +618,10 @@ class Exchange:
                     "fillSz": str(amount), "feeCcy": "USDT", "fee": str(-Decimal(spec["fee"])), "ts": millis(),
                     "side": order["side"], "posSide": order.get("posSide", "long"), "billId": str(len(self.fills) + 1)}
             self.fills.append(fill)
+            # A later terminal status message must describe the actual last
+            # trade, not inherit the upstream sample's blank/zero fee fields.
+            order.update(tradeId=fill['tradeId'], fillSz=fill['fillSz'], fillPx=fill['fillPx'],
+                         fillFee=fill['fee'], fillFeeCcy=fill['feeCcy'], fillTime=fill['ts'])
             if perpetual:
                 side = order.get("posSide", "long")
                 position = self.positions.setdefault((order["instId"], side), {"instId": order["instId"], "posSide": side, "pos": "0",

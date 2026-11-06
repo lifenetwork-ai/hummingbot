@@ -373,3 +373,44 @@ includes the cases; this targeted group is not a new full release/upgrade/hour g
 Real Google/GCP and reviewed existing-Demo cutover remain open. See the
 [report](../release/admin-managed-lifecycle-e2e.md) and
 [evidence](../release/admin-managed-lifecycle-evidence.json).
+
+## A6 follow-up — Partial closes and cleanup database failures
+
+Fixture foundation `509b34c9c` adds one-shot 40% closes with WS loss, live/terminal
+remainders and guarded real-PostgreSQL transaction faults. Three partial-fixture
+Red cases and two missing-helper PG Red cases become Green. Live partials retain
+one physical send until the original remainder settles; cancelled partials get
+only a newly verified 60% residual close. Both cases preserve exact fees/spot,
+key retention, the original operation and final restart/removal state.
+
+Native old-image attempt `20261106-151728-624919` finds a runtime defect: after
+recorder rollback and process replacement/Retry, a stale incomplete-shutdown flag
+blocks the remaining close. Six PostgreSQL Red cases reproduce it; fix `16b268737`
+retires only that prior-generation process fence after frozen/fresh terminal,
+account and position proof. Pending mutations, unresolved orders, same/unknown
+previous generations and active runtime remain blocked; unrelated HALTs persist.
+Two more negative cases protect the local-intent and missing-approval boundaries.
+A separate fixture Red check fixes blank last-trade/fee terminal republication.
+
+Canonical image `89d5e7c6…` matches the runtime module hash. The original DB-fill
+case passes, then final new group `20261106-153445-540333` passes four cases; prior
+lifecycle group `20261106-153445-e58454` passes four more on the same image. Fill
+faults recover using ordinary process replacement and one API Retry; final-audit
+faults roll back ciphertext removal and complete once after dependency repair.
+No SQL data/HALT repair, persistence-health reset or runtime threshold relaxation
+is used. All close attempts, fills/fees and final state are compared independently.
+
+Full native regression passes 2,689 tests plus 11 subtests. Initial full PG run is
+451 pass/1 probe timeout at the existing 300 ms deadline; unchanged confirmation
+passes452 and isolated probe passes1. The timeout's exclusive cause remains
+undetermined. An extra isolated attempt fails before pytest because Docker's port
+mapping is briefly empty; the test runner now waits for a bounded valid loopback
+mapping, with two Red/Green and four extra negative checks (six focused passes).
+
+Removed ten unused bot image IDs and their old local-registry references, preserving
+new candidate, rollback, all running/stopped container references, other projects
+and volumes. Build cache remains; Docker image accounting is not physical free-space
+proof. Targeted checklist is complete. No new full release/upgrade/hour gate or real
+Google/GCP/existing-Demo cutover is claimed. See the
+[report](../release/admin-cleanup-fault-e2e.md) and
+[evidence](../release/admin-cleanup-fault-evidence.json).

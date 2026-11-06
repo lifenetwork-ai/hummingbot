@@ -4,6 +4,16 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Partial/DB cleanup recovery verified on rebuilt `89d5e7c6…`:** a real DB-fill
+  failure exposed a prior-owner shutdown fence that blocked recovery; fix `16b268737`
+  requires fresh scoped proof and preserves risk HALTs. Four new plus four prior
+  native-image E2E cases pass, native2,689 + 11 subtests and full PG confirmation452
+  pass. The initial 300 ms probe timeout remains qualified; no budget relaxation or
+  exclusive cause claim. Ten unused bot images removed, all container references
+  and volumes preserved. This is targeted acceptance, not a new hour/upgrade gate.
+  [Report](release/admin-cleanup-fault-e2e.md),
+  [evidence](release/admin-cleanup-fault-evidence.json).
+
 - **Managed native lifecycle E2E complete:** four final shipping-image cases pass:
   SIGKILL before close ACK and after committed fill, same-account A/B rotation,
   and expired-key Retry/companion/selected-slot repair. Exactly two physical close

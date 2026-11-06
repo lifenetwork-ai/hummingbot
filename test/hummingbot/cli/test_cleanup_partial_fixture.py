@@ -35,3 +35,15 @@ async def test_invalid_partial_mode_cannot_change_the_fixture_policy():
     venue = exchange()
     assert (await venue.control({'cleanup_partial': 'pretend-flat'})).status == 400
     assert venue.cleanup_partial == 'none'
+
+
+@pytest.mark.asyncio
+async def test_terminal_status_republication_keeps_real_trade_identity_and_fee_instead_of_zero_fill():
+    venue = exchange()
+    order = dict(instId='LIFE-USDT', clOrdId='filled', ordId='1', state='live', accFillSz='0', sz='1', side='buy', px='.1')
+    venue.orders['filled'] = order
+    await venue.control({'fill': dict(clOrdId='filled', amount='1', fee='.000001')})
+    event = venue.event(order)['data'][0]
+    fill = venue.fills[0]
+    assert (event['tradeId'], event['fillSz'], event['fillPx'], event['fillFee'], event['fillFeeCcy']) == (
+        fill['tradeId'], fill['fillSz'], fill['fillPx'], fill['fee'], fill['feeCcy'])

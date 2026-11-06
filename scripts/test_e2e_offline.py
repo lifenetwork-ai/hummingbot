@@ -1797,9 +1797,12 @@ def main():
                         from scripts.mm_managed_environment import managed_environment_scenario
                         managed_environment_scenario(harness)
                     elif scenario in cleanup_fault_scenarios:
-                        from scripts.mm_cleanup_faults import partial_scenario
+                        from scripts.mm_cleanup_faults import database_scenario, partial_scenario
                         from scripts.mm_managed_lifecycle import safe_logs
-                        partial_scenario(harness, 'live' if scenario == 'managed-close-partial-ws' else 'canceled')
+                        if scenario in ('managed-close-partial-ws', 'managed-close-partial-cancel'):
+                            partial_scenario(harness, 'live' if scenario == 'managed-close-partial-ws' else 'canceled')
+                        else:
+                            database_scenario(harness, 'fill' if scenario == 'managed-cleanup-fill-db-fault' else 'removal')
                         for container in harness.containers:
                             if container not in (harness.pg, harness.simulator):
                                 safe_logs(harness, container)

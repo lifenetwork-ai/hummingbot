@@ -11,6 +11,20 @@ import uuid
 from pathlib import Path
 
 
+def published_port(name):
+    deadline = time.monotonic() + 30
+    while True:
+        mapping = subprocess.check_output(['docker', 'port', name, '5432/tcp'], text=True, timeout=5).strip()
+        if mapping:
+            host, _, port = mapping.rpartition(':')
+            if host != '127.0.0.1' or not port.isdecimal() or not 1 <= int(port) <= 65535:
+                raise RuntimeError('Disposable PostgreSQL requires one published loopback port')
+            return port
+        if time.monotonic() >= deadline:
+            raise RuntimeError('Disposable PostgreSQL port publication failed')
+        time.sleep(.1)
+
+
 def main() -> int:
     name = "hbot-test-" + uuid.uuid4().hex[:12]
     password = secrets.token_hex(16)
@@ -20,7 +34,7 @@ def main() -> int:
         subprocess.run(["docker", "run", "-d", "--name", name, "-e", f"POSTGRES_PASSWORD={password}",
                         "-e", f"POSTGRES_DB={database}", "-p", "127.0.0.1::5432", "postgres:14-alpine"],
                        check=True, capture_output=True, text=True, timeout=60)
-        port = subprocess.check_output(["docker", "port", name, "5432/tcp"], text=True).strip().rsplit(":", 1)[1]
+        port = published_port(name)
         deadline = time.monotonic() + 30
         while True:
             ready = subprocess.run(["docker", "exec", name, "pg_isready", "-U", "postgres", "-d", database],
