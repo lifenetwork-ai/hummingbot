@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import update
 
 from hummingbot.cli.credential_disconnect import DisconnectCoordinator
+from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.model.bot_state import BotState
 
 managed = managed_fixture
@@ -16,7 +17,8 @@ managed = managed_fixture
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('boundary', ['cancel', 'close', 'verification_cancel', 'detach'])
-async def test_cleanup_lost_owner_stops_without_generic_error_and_replacement_resumes(managed, monkeypatch, caplog, boundary):
+@pytest.mark.parametrize('raise_native_loss', [False, True], ids=['absent_snapshot', 'native_exception'])
+async def test_cleanup_lost_owner_stops_without_generic_error_and_replacement_resumes(managed, monkeypatch, caplog, boundary, raise_native_loss):
     store, actor = loaded(managed, both=True)
     positions(store)
     root = disconnect(store, actor, control=2)
@@ -33,6 +35,8 @@ async def test_cleanup_lost_owner_stops_without_generic_error_and_replacement_re
             with store.engine.begin() as connection:
                 connection.execute(update(BotState).values(owner_uuid='replacement', owner_generation=2))
             losses.append(boundary)
+            if raise_native_loss:
+                raise OwnershipLost('Injected native ownership loss at cleanup readback')
 
     monkeypatch.setattr(runtime, method, change_owner)
     coordinator = DisconnectCoordinator(store, SimpleNamespace(owner_uuid='owner', generation=1), runtime)

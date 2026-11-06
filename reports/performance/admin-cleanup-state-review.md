@@ -16,6 +16,12 @@ replacement-owner recovery without repeating either hedge close. A direct DB
 generation change is the test stimulus; this does not itself emulate advisory-lock
 or TCP loss. Related coordinator scope passes 17 tests.
 
+A later audit also confirms the native `OwnershipLost` exception has no `.code`;
+it was independently classified as `cleanup_failed`. Four additional Red cases
+raise that actual exception at the same boundaries. Explicit classification maps
+it to `owner_unavailable`; all eight owner-transition cases pass. This changes
+reason reporting, not the send/ownership or intentional shutdown-restart fences.
+
 ## Shutdown failure: verify the existing restart fence
 
 Commit `9e3a71f66` adds tests without changing shutdown behavior. Three PG cases
@@ -68,8 +74,14 @@ succeeds after completion. This verifies the control lock is retained; the chang
 does not remove the ownership fence to improve timings. Projected/full position,
 order, receipt and state values match except the separately sampled DB clock.
 
-## Pending final validation
+## Intermediate regression; final-source/image verification pending
 
-Final broad native/related PG regression and rebuilt-image cleanup recovery remain
-pending. No new image, actual OKX, external Google/GCP, existing-Demo, full release
-or hour-soak acceptance is claimed by these phase results.
+Intermediate source `7a4089a61` passes full native regression: **2,721 tests plus 11 subtests**.
+Related PostgreSQL scope passes **124 tests**. Twenty-two cases are added across
+those phases (four owner-transition PG, three shutdown PG, thirteen snapshot PG and
+two native host-fence cases). The earlier targeted/benchmark runs overlap these
+counts and are not additive. Rebuilt-image cleanup recovery remains pending. No
+new image, actual OKX, external Google/GCP, existing-Demo, full release or hour-soak
+acceptance is claimed by these source results. Four further native-exception PG
+cases extend the new coverage to 26 cases; final-source broad/image checks remain
+pending after that classification fix.

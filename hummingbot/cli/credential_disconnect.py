@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy.exc import SQLAlchemyError
 
 from hummingbot.connector.credential_adapters import CredentialAdapterError
+from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.core.control_errors import ControlConflict
 
 
@@ -90,7 +91,10 @@ class DisconnectCoordinator:
         except asyncio.CancelledError:
             raise
         except Exception as error:
-            code = "database_unavailable" if isinstance(error, SQLAlchemyError) else getattr(error, "code", "cleanup_failed")
+            if isinstance(error, OwnershipLost):
+                code = "owner_unavailable"
+            else:
+                code = "database_unavailable" if isinstance(error, SQLAlchemyError) else getattr(error, "code", "cleanup_failed")
             transient = code in self.TRANSIENT
             logging.getLogger(__name__).log(logging.ERROR if code == "cleanup_failed" else logging.WARNING,
                                             "Disconnect incomplete code=%s operation_id=%s error_type=%s", code, identity, type(error).__name__,
