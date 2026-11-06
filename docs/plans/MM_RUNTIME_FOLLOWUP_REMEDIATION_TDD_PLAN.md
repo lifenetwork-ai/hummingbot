@@ -25,9 +25,9 @@ real cleanup/checkpoint writes still propagate. Operator guidance is English.
 
 ## R2 — Steady readiness (F3)
 
-- [ ] Red/Green: remove only the duplicate steady no-bootstrap readiness traversal;
+- [x] Red/Green: remove only the duplicate steady no-bootstrap readiness traversal;
   preserve strict final readiness, preparation/anchor writes and bootstrap checks.
-- [ ] Keep per-order/after-throttle checks fresh; no cross-call cache. Measure
+- [x] Keep per-order/after-throttle checks fresh; no cross-call cache. Measure
   reference/exposure call counts and verify recovery/failure paths; commit the phase.
 
 ## R3 — Remaining report costs (F4/F5/F6)

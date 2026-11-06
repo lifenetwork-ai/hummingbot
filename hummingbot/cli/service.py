@@ -317,7 +317,8 @@ class ServiceHost:
         bootstrap = getattr(self.owner, "listing_bootstrap", None)
         if bootstrap is not None and not bootstrap.sync_qualification():
             return False
-        if not self.mm_runtime_ready(allow_bootstrap_start=True):
+        if (self.mm_session.status == "preparing" or bootstrap is not None) and not self.mm_runtime_ready(
+                allow_bootstrap_start=True):
             return False
         controllers = self._mm_controllers()
         anchors = None

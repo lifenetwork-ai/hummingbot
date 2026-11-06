@@ -37,5 +37,21 @@ pass; focused suites overlap final broad results. Logs:
 `/tmp/hbot-runtime-r1-operator-red-corrected.log`, `/tmp/hbot-runtime-r1-ui-green.log`,
 `/tmp/hbot-runtime-r1-postgres.log`. Formatting/lint checks pass.
 
-R2/R3 and final frozen-source regression remain in progress; this R1 report does
-not claim those phases complete or inherit the earlier image's load acceptance.
+## R2 — One strict steady readiness traversal
+
+A running session without listing bootstrap now performs only the final strict
+readiness check. Preparing/bootstrap sessions keep qualification, the initial
+bootstrap-permitted check, anchor/checkpoint writes and the final strict check.
+Per-order and after-throttle checks remain fresh; no readiness cache is introduced.
+
+Nine native cases: two Red failures/seven passes before the change; all pass after.
+A real LIFE-controller fixture measures reference/exposure checks from two to one
+per controller, with no steady session write. It verifies strict rejection, data
+changes between calls, recovery, preparation changes during commit, bootstrap and
+inactive sessions. Related native46 and PostgreSQL joint-send readiness11 pass.
+This halves those traversals, not total engine CPU. Logs:
+`/tmp/hbot-runtime-r2-red.log`, `/tmp/hbot-runtime-r2-green.log`,
+`/tmp/hbot-runtime-r2-postgres.log`.
+
+R3 measurement and final frozen-source regression remain in progress. No new
+image/load acceptance is claimed.
