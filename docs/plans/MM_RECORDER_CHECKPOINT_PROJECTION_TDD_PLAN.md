@@ -45,3 +45,8 @@ extra SELECT. No new image, E2E or hour acceptance is claimed. See the
 Any shipping runtime change requires separately identified image qualification
 before deployment. Previous image/hour acceptance does not automatically qualify
 new source. Existing Demo, real exchanges, Google/GCP and production are excluded.
+
+The subsequent [read-only runtime review](../../reports/investigations/mm-runtime-followup-code-review.md)
+identifies additional fault-boundary and repeated-readiness/reporting work. Those
+findings remain open; they are not fixes or acceptance items completed by this
+checkpoint projection phase.

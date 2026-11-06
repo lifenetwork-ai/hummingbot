@@ -576,3 +576,27 @@ does not contain this patch. New image qualification remains necessary before
 deployment. No actual Demo/OKX/Google/GCP operation or new hour gate is claimed.
 See the [report](../performance/mm-intent-checkpoint-projection.md) and
 [evidence](../performance/mm-intent-checkpoint-projection-evidence.json).
+
+### Further runtime code analysis — 2026-11-07
+
+Read-only review of stopped checkpoint projection, optional observations,
+steady-session admission, valuation readiness and unified report construction.
+Two controlled fixtures expose escaping exceptions: malformed stored outflow
+checkpoint → KeyError before stopped-status publication; unexpected drawdown
+valuation dependency failure → RuntimeError from snapshot even though readiness
+already returns false. Neither asserts corruption/crashes in the existing Demo;
+process replacement is inferred from the outer source boundary, not executed.
+
+Real controller methods with an in-process provider confirm two reference and
+two exposure checks per controller during a steady no-bootstrap admission,
+with zero session writes and no await in that method. Twelve fixture residents
+produce twelve full DTOs in valuation readiness. One held position produces two
+summaries/local-price reads per report; status preparation makes two JSON round
+trips. Counts are scoped diagnostics, not measured MM speedups or SQL/REST N+1.
+
+Fifty existing native tests pass; no new tests/runtime/DB/image/load changes.
+Availability hardening requires its own Red/Green cases; startup/bootstrap and
+every physical-send fence must remain. The drawdown-enabled DTO path cannot
+explain the accepted six-probe baseline with drawdown disabled. Findings remain
+open, in the recommended order in the [review](../investigations/mm-runtime-followup-code-review.md)
+and [evidence](../investigations/mm-runtime-followup-code-review-evidence.json).

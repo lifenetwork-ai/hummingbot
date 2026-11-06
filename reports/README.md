@@ -4,6 +4,14 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Further runtime review — findings remain open:** two controlled fault cases
+  escape optional/checkpoint projection boundaries; steady admission repeats
+  reference/exposure checks, and drawdown readiness builds full executor DTOs.
+  Fifty existing native checks pass. This review changes no runtime and does
+  not assert current DB corruption, a live crash or a cause for all old probes.
+  [Review](investigations/mm-runtime-followup-code-review.md),
+  [evidence](investigations/mm-runtime-followup-code-review-evidence.json).
+
 - **New-intent checkpoint projection — source checks complete:** `c9889da28`
   passes native 2,723 + 11 subtests and full PG 518, including 22 new cases.
   A fresh tracked intent skips unused old JSON; ordinary checkpoints and cold
