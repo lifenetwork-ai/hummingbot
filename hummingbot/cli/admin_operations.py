@@ -24,14 +24,26 @@ def operator_view(row, process):
     now = row.get("database_now", time.time())
     observation_old = observed_at is not None and not 0 <= float(now) - float(observed_at) <= 5
     stale = not available or not matches or observation_old
+    checkpoint_incident = next((item for item in (snapshot.get("availability") or {}).get("incidents", [])
+                                if isinstance(item, dict) and not stale and item.get("scope") in ("spot_outflow_checkpoint", "drawdown_checkpoint")
+                                and item.get("operator_action_required")), None)
+    checkpoint_reason = checkpoint_incident["scope"] + "_invalid" if checkpoint_incident else None
     recovery = row.get("recovery_summary") or {}
     halted = bool(recovery.get("halted")) or snapshot.get("phase") == "halted"
     pending = bool(recovery.get("pending_mutations"))
     connection_pending = bool(recovery.get("credential_operation_pending"))
     owner = snapshot.get("identity")
     mismatch = bool(available and owner and owner.get("trading_environment") != process["trading_environment"])
-    common = ("credential_operation_in_progress" if connection_pending else "recovery_required" if halted or pending else "owner_unavailable" if not available else
-              "environment_mismatch" if mismatch else None)
+    if connection_pending:
+        common = "credential_operation_in_progress"
+    elif checkpoint_reason:
+        common = checkpoint_reason
+    elif halted or pending:
+        common = "recovery_required"
+    elif not available:
+        common = "owner_unavailable"
+    else:
+        common = "environment_mismatch" if mismatch else None
     current_active = session.get("status") in ("preparing", "running", "stopping")
     reasons = {
         "start": common or ("session_active" if row["desired_state"] == "running" or current_active else None),
@@ -49,6 +61,8 @@ def operator_view(row, process):
     phase = snapshot.get("phase")
     if connection_pending:
         state, label, detail, next_action = "preparing", "Applying connection", "Wait for the connection operation. Trading will not start automatically.", "wait"
+    elif checkpoint_reason:
+        state, label, detail, next_action = "needs_attention", "Risk data needs review", "Saved risk information cannot be verified. Contact support before starting trading.", "contact_support"
     elif halted or pending:
         state, label, detail, next_action = "needs_attention", "Technical review needed", "Trading cannot restart until the cause is resolved.", "contact_support"
     elif mismatch:
@@ -118,7 +132,8 @@ def operator_view(row, process):
                                  reason_code="owner_unavailable" if not available else "session_transition" if not matches else
                                  "observation_stale" if observation_old else None),
                 operator=dict(state=state, label=label, detail=detail, next_action=next_action), actions=actions,
-                recovery=dict(halted=halted, pending_mutations=pending, next_action="contact_support" if halted or pending else "none",
-                              detail="Contact support before restarting trading." if halted or pending else "No recovery block is recorded."),
+                recovery=dict(halted=halted, pending_mutations=pending, next_action="contact_support" if halted or pending or checkpoint_reason else "none",
+                              detail="Saved risk information needs technical review." if checkpoint_reason else
+                              "Contact support before restarting trading." if halted or pending else "No recovery block is recorded."),
                 session_configuration_url=f"/api/v1/admin/sessions/{session['id']}/configuration" if session.get("id") else None,
                 markets=markets, drawdown=drawdown)

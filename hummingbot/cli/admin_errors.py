@@ -116,6 +116,8 @@ MESSAGES = {
     "catalogue_changed": "The available configuration changed. Refresh and review it before starting.",
     "idempotency_key_reused": "This retry identity belongs to a different action. Do not retry with a changed request.",
     "recovery_required": "Trading is blocked pending a technical review. Contact your support operator.",
+    "spot_outflow_checkpoint_invalid": "Saved spot risk information cannot be verified. Contact support before starting trading.",
+    "drawdown_checkpoint_invalid": "Saved drawdown risk information cannot be verified. Contact support before starting trading.",
     "drawdown_policy_bound": "The saved risk limits differ from this deployment. A technical review is required.",
     "bootstrap_policy_bound": "The saved listing policy differs from this deployment. A technical review is required.",
     "outflow_policy_bound": "The saved spending policy differs from this deployment. A technical review is required.",

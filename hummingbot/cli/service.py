@@ -512,7 +512,7 @@ class ServiceHost:
             await asyncio.gather(self.outflow_task, return_exceptions=True)
         strategy = self.hb.trading_core.strategy
         if strategy is not None and isinstance(getattr(getattr(strategy, "config", None), "mm_drawdown_scope", None), dict):
-            self.observations.drawdown = strategy.mm_drawdown_status()
+            self.observations.capture_drawdown(strategy, self.availability)
         if self.start_task is not None and not self.start_task.done():
             self.start_task.cancel()
             done, _ = await asyncio.wait({self.start_task}, timeout=0.5)
@@ -575,17 +575,31 @@ class ServiceHost:
             await self.publish_status(row["control_version"])
             return
         guard = getattr(self.owner, "spot_outflow", None)
+        invalid_checkpoint = None
         if guard is None:
             from hummingbot.core.spot_outflow_guard import checkpoint_outflow_status
-            self.observations.outflow = checkpoint_outflow_status((row["recovery_state"] or {}).get("spot_outflow"))
+            if not self.observations.capture_checkpoint(
+                    "spot_outflow", lambda: checkpoint_outflow_status((row["recovery_state"] or {}).get("spot_outflow")),
+                    self.availability):
+                invalid_checkpoint = "spot_outflow_checkpoint_invalid"
         if hasattr(guard, "projection") and guard.projection is not None:
             from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
             if isinstance(guard, SpotOutflowGuard):
                 guard.projection.advance(int(row["database_now"] * 1000))
         from hummingbot.core.mm_drawdown import checkpoint_drawdown_status
-        checkpoint = (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get("life_mm_profiles.yaml", {})
         if getattr(self.hb.trading_core, "strategy", None) is None:
-            self.observations.drawdown = checkpoint_drawdown_status(checkpoint)
+            if not self.observations.capture_checkpoint(
+                    "drawdown", lambda: checkpoint_drawdown_status(
+                        (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get("life_mm_profiles.yaml", {})),
+                    self.availability):
+                invalid_checkpoint = invalid_checkpoint or "drawdown_checkpoint_invalid"
+        if invalid_checkpoint is not None and row["desired_state"] == "running":
+            # Diagnostics cannot turn invalid durable risk data into permission
+            # to start. Reuse HALT/reconciliation, preserving the raw checkpoint.
+            self.owner.allow_new_orders = False
+            if not (row["recovery_state"] or {}).get("halt"):
+                self.owner.require_recovery(invalid_checkpoint)
+            row = self.owner.check_owner()
         if row["config_type"] == "mm-session" and row.get("mm_session"):
             from random import SystemRandom
 

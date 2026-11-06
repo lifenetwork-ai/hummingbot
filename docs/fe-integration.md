@@ -415,6 +415,24 @@ receipt or one market's `ready` field alone.
 | Stopped/expired | MM idle; continue displaying held exposure and reporting freshness |
 | HALT/operator action required | Show reason and runbook; do not offer an unimplemented reset/resume action |
 
+Risk observation failures have separate meanings:
+
+- `spot_outflow_checkpoint_invalid` / `drawdown_checkpoint_invalid`: saved risk
+  data cannot be verified. A fresh operator summary shows **Risk data needs review**,
+  disables Start/Switch and retains Stop. Contact support; do not reset or delete
+  checkpoints through the UI. A stopped service remains available. A running intent
+  is fenced through existing recovery HALT while its original checkpoint is retained.
+- `spot_outflow_observation_unavailable` / `drawdown_observation_unavailable`:
+  the risk panel cannot currently be rendered. Its value may be null; show
+  **Risk status unavailable**, not **Disabled**. Runtime risk checks remain
+  independent and can keep quoting blocked. Retry normal status polling and
+  display the scoped incident; do not auto-start or weaken a guard.
+
+Stale incident observations do not grant or revoke trading authority. Read
+`recovery.halted` separately; a checkpoint warning while stopped does not invent
+a durable HALT. Ownership, recorder and required checkpoint-write failures retain
+their critical recovery behavior.
+
 Quote guards, spread fallback,
 drawdown and spot outflow have separate effects. For example, a spot BUY denial
 does not imply funded SELL or perpetual admission is blocked. A disabled optional

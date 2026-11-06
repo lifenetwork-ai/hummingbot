@@ -11,7 +11,7 @@ from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketEvent, OrderFilledEvent
 from hummingbot.core.order_submission_guard import SubmissionBlocked
-from hummingbot.core.spot_outflow import MAX_FILLS, ZERO, SpotOutflowConfig, SpotOutflowProjection
+from hummingbot.core.spot_outflow import MAX_FILLS, ZERO, SpotOutflowConfig, SpotOutflowPolicy, SpotOutflowProjection
 from hummingbot.model.order import Order
 from hummingbot.model.trade_fill import TradeFill
 
@@ -312,9 +312,16 @@ class SpotOutflowGuard:
 
 
 def checkpoint_outflow_status(checkpoint):
-    if not checkpoint:
+    if checkpoint is None:
         return None
+    policy = SpotOutflowPolicy.model_validate(checkpoint["policy"])
+    binding, coverage = checkpoint["binding"], checkpoint["coverage_start_ms"]
+    if (not isinstance(binding, dict) or set(binding) != {"account_id", "environment", "trading_pair"}
+            or not isinstance(binding["account_id"], str) or not binding["account_id"].strip()
+            or binding["environment"] not in ("live", "demo") or binding["trading_pair"] != policy.trading_pair
+            or not isinstance(coverage, int) or isinstance(coverage, bool) or coverage < 0):
+        raise ValueError("Invalid outflow checkpoint observation")
     return dict(ready=False, stale=True, buy_allowed=False, reason_code="spot_outflow_not_running", observed_at=None,
-                binding=checkpoint["binding"], policy=checkpoint["policy"], recorded_net_outflow_quote=None,
+                binding=binding, policy=policy.model_dump(mode="json"), recorded_net_outflow_quote=None,
                 reserved_quote=None, remaining_quote=None, non_usdt_fees={}, window_start_ms=None, window_end_ms=None,
-                coverage_start_ms=checkpoint["coverage_start_ms"], fill_count=0, last_buy_denial=None, pending_terminal_orders=0)
+                coverage_start_ms=coverage, fill_count=0, last_buy_denial=None, pending_terminal_orders=0)
