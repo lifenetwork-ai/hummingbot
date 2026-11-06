@@ -73,10 +73,25 @@ def progress(store, identity, owner_uuid, generation, *, stage, evidence=None, r
         if locked is None:
             return False
         state, operation, receipt = locked
+        recovery = dict(state["recovery_state"] or {})
         if stage == "closing_positions" and (not fresh(evidence, state, generation)
                                              or evidence.get("orders_terminal_verified") is not True or evidence.get("account_verified") is not True
                                              or evidence.get("position_checkpoints_verified") is not True):
             return False
+        if stage == "closing_positions" and recovery.get("shutdown_incomplete"):
+            # A failed recorder can leave the prior process's shutdown fence.
+            # Only its replacement, after frozen-checkpoint/readback proof, may
+            # retire that process fence. Preserve risk HALTs and all send guards.
+            previous = operation.get("approved_generation")
+            if (not operation.get("checkpoint_frozen") or type(previous) is not int or not 0 < previous < generation
+                    or recovery.get("runtime_active") or recovery.get("pending_mutations")
+                    or evidence.get("remaining_order_count") != 0):
+                return False
+            unresolved = connection.execute(select(Order.id).where(or_(
+                Order.creation_pending.is_(True), Order.last_status.notin_(TERMINAL_STATUSES))).limit(1)).first()
+            if unresolved:
+                return False
+            recovery.pop("shutdown_incomplete", None)
         result = dict(stage=stage, credential_version=operation["version"], reason_code=reason_code,
                       operator_action_required=operator_action_required, owner_generation=generation, **{
                           key: value for key, value in evidence.items() if key != "owner_generation"})
@@ -102,7 +117,7 @@ def progress(store, identity, owner_uuid, generation, *, stage, evidence=None, r
         operation["reason_code"] = reason_code
         if stage == "closing_positions":
             operation["approved_generation"] = generation
-        recovery = {**state["recovery_state"], "credential_operation": operation}
+        recovery["credential_operation"] = operation
         connection.execute(update(BotState).where(BotState.bot_id == store.bot_id).values(recovery_state=recovery))
         connection.execute(update(AdminCommand).where(AdminCommand.id == identity).values(
             status="applying", result=result, error=reason_code, updated_at=func.clock_timestamp()))

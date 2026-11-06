@@ -45,3 +45,26 @@ rollback and prove the intended SQL statement reached the injected failure.
 Disarming drops only the fault schema/trigger, never changes financial or recovery
 rows. These are targeted transaction failures, not evidence of a whole-server
 outage. Native image acceptance of these two fault boundaries is still pending.
+
+## Confirmed recovery defect and TDD fix
+
+Original-image native fill-failure attempt
+`build/e2e-offline/20261106-151728-624919/result.json` safely rolled back the fill
+and retained ciphertext. After ordinary process replacement and API Retry, the
+remaining close was locally blocked, returning `cleanup_failed`. The old process's
+`shutdown_incomplete` fence survived even after the replacement read back the close
+fill and matched exchange/held positions. This is a runtime recovery defect, not a
+failed matching assertion or permission to bypass the close gate.
+
+Six initial PostgreSQL Red cases reproduce the approval/fence mismatch. The fix
+retires only a prior-generation process shutdown fence during fresh scoped cleanup
+approval: frozen checkpoint, earlier approved generation, inactive runtime, no
+pending account mutation, zero reported and actual unresolved orders, and the
+existing fresh terminal/account/position proofs are required. Risk HALT/reason,
+owner/control/key/deadline/final-send checks remain intact. Two additional negative
+regressions cover a locally unresolved intent and missing prior approval.
+
+One separate fixture defect produced blank/zero last-trade fields when republishing
+a filled status. Its Red test proves the wrong terminal trade/fee identity. The
+fixture now retains the actual last fill fields; no production fee parser is changed.
+Final rebuilt-image acceptance must pass before this runtime defect is closed.
