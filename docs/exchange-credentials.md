@@ -46,7 +46,7 @@ a stopped bot stays stopped.
 With a wrong valid-length local KEK, cold loading blocks trading and keeps admin
 health available without replacing ciphertext or falling back to environment keys.
 Restore the original KEK and restart; a previously stopped bot still needs Start.
-The [cold-restart E2E report](../reports/release/admin-managed-environment-e2e.md)
+The [cold-restart E2E report](../reports/archive/README.md#record-164)
 documents the local checks. Run the same isolated scenario against a compatible image:
 
 ```sh
@@ -62,7 +62,7 @@ Additional native lifecycle checks use `--scenario managed-lifecycle`: hard cras
 at close acceptance and after committed close fill, same-account A/B rotation, and
 expired-key Retry/companion/selected-slot repair. Each case uses its own isolated
 database and the shipping image with local encryption. See the
-[lifecycle E2E report](../reports/release/admin-managed-lifecycle-e2e.md); these tests
+[lifecycle E2E report](../reports/archive/README.md#record-166); these tests
 do not operate on the existing Demo account or require real Google/GCP services.
 
 GCP configuration:
@@ -180,7 +180,7 @@ poll the same operation; a read timeout alone does not require replacing the key
 Terminal orders still receive fresh readback, and orders that finish early receive
 a final fill reconciliation after the remaining orders finish. Credentials are not
 removed until the unchanged remote/ledger/flat-position checks succeed. See the
-[polling verification](../reports/performance/admin-cleanup-polling.md).
+[polling verification](../reports/archive/README.md#record-128).
 
 An ownership or operation handoff is reported as `owner_unavailable`, including a
 native ownership-session exception. The old coordinator stops; keep reading the
@@ -191,7 +191,7 @@ If cleanup cannot confirm its runtime stopped, the existing engine-restart fence
 still applies. A stop failure after an already committed removal does not undo the
 root's `succeeded` receipt. Check that durable outcome before requesting Retry;
 do not replace keys or edit database state merely because the old task failed
-during shutdown. See [ownership/shutdown verification](../reports/performance/admin-cleanup-state-review.md).
+during shutdown. See [ownership/shutdown verification](../reports/archive/README.md#record-130).
 
 If a crashed runtime left an unverified checkpoint, automatic closure refuses to
 infer missing exposure. Follow the reviewed [recovery runbook](postgres-runtime.md).
@@ -207,7 +207,7 @@ proof and no unresolved local orders or account mutations. Risk HALT/reason rema
 separate. Missing proof keeps cleanup blocked and credentials retained. A partial
 close is not flat: a live remainder must settle first; a terminal cancelled remainder
 needs fresh proof before only its residual quantity can be submitted.
-The [partial/DB-failure acceptance report](../reports/release/admin-cleanup-fault-e2e.md)
+The [partial/DB-failure acceptance report](../reports/archive/README.md#record-160)
 records the tested replacement/Retry path and its limits.
 
 ## Key or provider transition

@@ -11,14 +11,14 @@ current account has no pending orders and retains a Demo SHORT of **0.0004 BTC**
 the earlier zero-position/unchanged-cash figures below describe the original run.
 
 The subsequently authorized PostgreSQL precision fix is now implemented and
-locally verified in image `1710edfec3fb...`: [precision evidence](../platform/postgres-decimal-precision.json).
+locally verified in image `1710edfec3fb...`: [precision evidence](../archive/README.md#record-153).
 The Demo observations below remain evidence for their original images and
 scaled schema. Their lost digits were not fabricated or backfilled, and the
 original quote-based helper has been retired. The dedicated local Demo service now
 uses the P7 image `f6af2bf561c6...` with trading stopped; its read-only funding
 observer awaits the actual settlement below. Auto migration preserved normalized
 hashes of all 320 orders, five fills and three position records.
-[Current P7 evidence](../implementation/funding-backfill-evidence.json).
+[Current P7 evidence](../archive/README.md#record-036).
 
 The retained runtime before the P7 upgrade was
 `sha256:17d530e26018da8c5d0e4f7c2f769fc29c28dd04f6a3c908f7f6f5568fa49023`,

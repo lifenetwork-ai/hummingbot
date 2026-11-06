@@ -1,17 +1,16 @@
-# Performance and economic experiments
+# Performance and resource evidence
 
-[All reports](../README.md) · [Current release](../release/mm-release-closeout.md)
+[All reports](../README.md) · [Current full load](../release/mm-runtime-followup-load.md)
 
-Load, memory, optimization and synthetic economic measurements.
-Compare runs only within their declared image, fixture and measurement scope.
-
-| Report | Evidence and scope |
+| Report | Scope |
 | --- | --- |
-| [Checkpoint and background polls](mm-checkpoint-poll-optimization.md), [SQL evidence](mm-checkpoint-poll-evidence.json) | Atomic batched position snapshots, non-locking empty reconciliation polls and funding discovery through the existing order index; source-level Red/Green validation, without inherited image/load/Demo acceptance |
-| [Reporting/startup optimization](mm-reporting-startup-optimization.md), [evidence](mm-reporting-startup-evidence.json) | Per-filter bounded daily coalescing, exact lightweight historical rows and transaction-local report resource bound; image39198499 full R1 and matched shipping R2 pass; soak p99 553ms, zero errors and +14.03MiB retained. R1 recovered probes/causal limits remain explicit |
-| [Long-running memory](mm-memory-retention-review.md), [evidence](mm-memory-retention-evidence.json) | Red/Green retention fixes, component heap experiment and scoped image lifecycle/RSS diagnostics |
-| [Full-image soak retest](life-mm-soak-retest.md) | [Gate evidence](life-mm-soak-retest-evidence.json); sixty-minute gate passed; further reproduction closed by user decision |
-| [Load and soak results](life-mm-load-tests.md) | [Original acceptance JSON](life-mm-load-acceptance.json) |
-| [MM optimization review](life-mm-optimization-review.md) | Cache, SQL and task-lifecycle follow-up |
-| [Runtime flow optimization](life-mm-runtime-optimization.md) | All three Nov1 changes complete; native2178/PG268/Swagger and three targeted candidate-image groups pass. Full hour/release scope stays separate. [Review](runtime-flow-review-20261101.json), [implementation](runtime-flow-remediation-20261101.json) |
-| [Pre-listing economic stress](life-mm-economic-stress.md) | [Portable evidence](life-mm-economic-stress-evidence.json); paired 648-case native/Linux replay, synthetic costs/liquidity/PnL, rolling-credit and margin caveats; no profit forecast |
+| [Latest runtime remediation](../implementation/MM_RUNTIME_FOLLOWUP.md), [evidence](../implementation/mm-runtime-followup-evidence.json) | Fresh exposure reads, per-report summaries, readiness and availability boundaries |
+| [Recorder intent projection](mm-intent-checkpoint-projection.md), [evidence](mm-intent-checkpoint-projection-evidence.json) | SQL/payload Red/Green, rejected variants and paired component costs |
+| [Memory retention](mm-memory-retention-review.md), [evidence](mm-memory-retention-evidence.json) | Retention fixes and original scoped heap/resource verification |
+| [Economic stress](life-mm-economic-stress.md), [evidence](life-mm-economic-stress-evidence.json) | Synthetic cost/inventory/liquidity assumptions; no profit forecast |
+| [Original load results](life-mm-load-tests.md), [acceptance](life-mm-load-acceptance.json) | Historical baseline/result definitions, not current-image acceptance |
+| [Worker lanes / stopped Demo](mm-admin-worker-lanes.md), [evidence](mm-admin-worker-lanes-evidence.json) | Original `086454de…` image and stopped-Demo restoration scope |
+
+Other completed experiments, earlier load attempts and measurements are retained
+in the [history archive](../archive/README.md). Component CPU savings and inter-run
+full-load latency have different scopes; preserve both improvements and regressions.

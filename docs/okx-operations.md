@@ -142,7 +142,7 @@ Status exposes the reason rather than promising continuous quote uptime.
 - Lost DB ownership, recorder failure or unsafe cleanup can still require a
   controlled process exit. The existing durable recovery rules apply afterward.
 
-The E6 [availability/load evidence](../reports/implementation/life-mm-e6-verification.md)
+The E6 [availability/load evidence](../reports/archive/README.md#record-058)
 describes the tested runtime artifact and fault scopes. This configuration
 example does not change those runtime rules or certify a new image digest.
 
@@ -263,7 +263,7 @@ charts. The shared application default remains five seconds. A longer interval
 reduces repeated history aggregation and retains the original observation time;
 current balances, positions, trading guards and admin controls use separate
 paths. Set this through the environment file when preparing a new setup. The
-local [measurement report](../reports/investigations/mm-process-isolation-experiment.md) records
+local [measurement report](../reports/archive/README.md#record-110) records
 the tested resource shape and remaining acceptance limits.
 
 Build the normal runtime first if it is unavailable or its runtime source changed.

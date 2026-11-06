@@ -1,7 +1,7 @@
 # New-intent checkpoint projection
 
 Date: 2026-11-07 (Asia/Saigon). Source `c9889da28`.
-[Plan](../../docs/plans/MM_RECORDER_CHECKPOINT_PROJECTION_TDD_PLAN.md),
+[Plan](../archive/README.md#record-016),
 [portable evidence](mm-intent-checkpoint-projection-evidence.json).
 
 ## Accepted change
@@ -16,7 +16,7 @@ fallback and default cold recovery retain full reads.
 No worker, cache, schema, setting, health deadline or dependency is added. Connector
 state stays on the engine loop; the transaction commits before transport, under
 the same owner/control/row fences. This removes redundant work on the intent path
-identified in the preceding [probe audit](../investigations/mm-cleanup-state-probe-code-audit.md).
+identified in the preceding [probe audit](../archive/README.md#record-082).
 The synchronous fill/ownership path, including the retained 336 ms fill callback,
 is not moved off the loop or declared fixed.
 

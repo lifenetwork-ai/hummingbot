@@ -1,0 +1,2008 @@
+{
+  "date": "2026-11-07",
+  "baseline_commit": "4ed4365cd86cd06018d81432343c3cbb9aa34b52",
+  "scope": "Lossless snapshots of superseded plans/reports and prior journals/indexes. Historical open checkboxes retain their image/date scope; archival does not close them.",
+  "archives": [
+    {
+      "path": "reports/archive/history-20261107-demo.zip",
+      "bytes": 1234,
+      "sha256": "55ae08e5b527f6ae929062cd284e593cb2bcf2d63e75e48495b5eaab153c7f0a",
+      "members": 1
+    },
+    {
+      "path": "reports/archive/history-20261107-implementation.zip",
+      "bytes": 305211,
+      "sha256": "1db100436d92b0e8391f9a29510536a6e0557b1a566fa38bf636552ec52975a9",
+      "members": 43
+    },
+    {
+      "path": "reports/archive/history-20261107-index.zip",
+      "bytes": 10407,
+      "sha256": "8124e49f11d548b52113946e266010e9654c9abcdd8c3e294c1b88ae69489c6e",
+      "members": 1
+    },
+    {
+      "path": "reports/archive/history-20261107-investigations.zip",
+      "bytes": 360272,
+      "sha256": "8593ae7407efeb01e47dba33724fdc4654a2264a1160d64607d652af30914584",
+      "members": 54
+    },
+    {
+      "path": "reports/archive/history-20261107-performance.zip",
+      "bytes": 163149,
+      "sha256": "cc863deb5dbce9503c68aff868b3d815d93a70c8c870bdd4a14cf71aacedad4d",
+      "members": 23
+    },
+    {
+      "path": "reports/archive/history-20261107-plans.zip",
+      "bytes": 186061,
+      "sha256": "83563bc4f8ad599045b2dd2e82f2df589dd05011588dccbe731ccd2285b2924f",
+      "members": 26
+    },
+    {
+      "path": "reports/archive/history-20261107-platform.zip",
+      "bytes": 32472,
+      "sha256": "533b25184dcb5be5104fa553b490eb2ded0d45472b08a55735fbc2710ce68d55",
+      "members": 8
+    },
+    {
+      "path": "reports/archive/history-20261107-release.zip",
+      "bytes": 206944,
+      "sha256": "539565f742623fbb16d670e7e24bf603dc6d801ffd1cb1e353282e28b4d29c67",
+      "members": 36
+    }
+  ],
+  "entries": [
+    {
+      "path": "docs/plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md",
+      "sha256": "8982671a5893aa612d051a2bd52c116d159cb99261b2adcb5cba2fe041fa7c82",
+      "bytes": 83346,
+      "historical_open_checkboxes": [
+        "Verify real Google sign-in and a real Cloud KMS key with synthetic credentials\n  when project/client resources are provided. Keep unavailable external checks open;\n  offline mocks cannot close them. Test actual OKX Demo credentials only under an\n  explicitly reviewed cutover, retaining prior ledger and recovery evidence."
+      ],
+      "disposition": "condensed_at_original_path",
+      "anchor": "record-001"
+    },
+    {
+      "path": "docs/plans/ADMIN_OPERATIONS_API_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/ADMIN_OPERATIONS_API_TDD_PLAN.md",
+      "sha256": "6ffebb22457f353877643e4c34f7a9f07a062ebe9ebf95a5d2111518faf63dc2",
+      "bytes": 5488,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-002"
+    },
+    {
+      "path": "docs/plans/LIFE_MM_ECONOMIC_STRESS_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/LIFE_MM_ECONOMIC_STRESS_PLAN.md",
+      "sha256": "64e11babd7e5d3a4799c636c4b5c10e1151aeef072385d7b5052a10d66c66b1c",
+      "bytes": 2707,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-003"
+    },
+    {
+      "path": "docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md",
+      "sha256": "87bd44e1a8dce0f304553d8d035a0d2e565d9f6bb5f449aa8659bd6bfb822541",
+      "bytes": 69250,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-004"
+    },
+    {
+      "path": "docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md",
+      "sha256": "d1a7e2a24e80640c7a75914d5d5eea8450379c127027418c0bd912ecbfe60189",
+      "bytes": 56978,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-005"
+    },
+    {
+      "path": "docs/plans/MM_ADMIN_WORKER_LANES_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_ADMIN_WORKER_LANES_TDD_PLAN.md",
+      "sha256": "2d5c02e6878bd44c82d9ce580e1136b466009e3ba9adc147ac4439e45313cc0c",
+      "bytes": 3428,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-006"
+    },
+    {
+      "path": "docs/plans/MM_CHECKPOINT_POLL_OPTIMIZATION_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_CHECKPOINT_POLL_OPTIMIZATION_TDD_PLAN.md",
+      "sha256": "ac7215b4b64992b42adb0e8580b8fd322bd5c20c79cb81fda9f568a64f3abdc0",
+      "bytes": 5470,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-007"
+    },
+    {
+      "path": "docs/plans/MM_CONTROLLER_PERSISTENCE_OPTIMIZATION_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_CONTROLLER_PERSISTENCE_OPTIMIZATION_TDD_PLAN.md",
+      "sha256": "64ee34a198f885c86c465a1dcc5e27b572928b37d64b24d351ef3e39852922ec",
+      "bytes": 1835,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-008"
+    },
+    {
+      "path": "docs/plans/MM_ENGINE_PROBE_LATENCY_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_ENGINE_PROBE_LATENCY_TDD_PLAN.md",
+      "sha256": "ffbeef306b16b53daddda0639d556ab2031ef553bbb513cf902d8a75ebaca4ce",
+      "bytes": 4653,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-009"
+    },
+    {
+      "path": "docs/plans/MM_ENGINE_RESIDUAL_PROBE_INVESTIGATION.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_ENGINE_RESIDUAL_PROBE_INVESTIGATION.md",
+      "sha256": "605bc3f940ea17d0f7e26f7f8190f0f342f2c36c8d51f73c2589a6a069c95a2f",
+      "bytes": 1928,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-010"
+    },
+    {
+      "path": "docs/plans/MM_ENGINE_STATUS_PUBLICATION_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_ENGINE_STATUS_PUBLICATION_TDD_PLAN.md",
+      "sha256": "321c75198c0e8ea0ff0150896bc06ad2ded193a7c7f68e301383eb27ecfa1fa3",
+      "bytes": 2837,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-011"
+    },
+    {
+      "path": "docs/plans/MM_MEMORY_RETENTION_REVIEW.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_MEMORY_RETENTION_REVIEW.md",
+      "sha256": "8bf4471305e1d1c1a4b102f09b9ffe880ee2a8028749e382ad9b4ba964e9c0b1",
+      "bytes": 836,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-012"
+    },
+    {
+      "path": "docs/plans/MM_OWNER_PUBLICATION_TIMEOUT_INVESTIGATION.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_OWNER_PUBLICATION_TIMEOUT_INVESTIGATION.md",
+      "sha256": "39b7bb7a7de7d28f0eeaf1d24b92ccbce54af1b2005019962cd47ef449347d64",
+      "bytes": 17845,
+      "historical_open_checkboxes": [
+        "Attribute the original historical trigger using a contemporaneous\n  wait/stack witness or equivalent host/storage evidence. The matching controlled\n  reproduction below establishes a mechanism, not exclusive historical attribution."
+      ],
+      "disposition": "archived_and_removed",
+      "anchor": "record-013"
+    },
+    {
+      "path": "docs/plans/MM_QUOTE_ACTIVITY_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_QUOTE_ACTIVITY_TDD_PLAN.md",
+      "sha256": "f06a24023f4b3b35dfb481378a4e9419e297ee501749efa0a80f932580790e97",
+      "bytes": 1799,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-014"
+    },
+    {
+      "path": "docs/plans/MM_QUOTE_WAIT_DIAGNOSTICS_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_QUOTE_WAIT_DIAGNOSTICS_TDD_PLAN.md",
+      "sha256": "37ff47a18615ee80f1a730639b45feb26405da5f0c5a81afb46d766fade9fa4c",
+      "bytes": 1351,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-015"
+    },
+    {
+      "path": "docs/plans/MM_RECORDER_CHECKPOINT_PROJECTION_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_RECORDER_CHECKPOINT_PROJECTION_TDD_PLAN.md",
+      "sha256": "c0c7a1f83d21de1b2b6d0baccae73c22b322165f34c7cd97370ca5f61043a7cf",
+      "bytes": 3607,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-016"
+    },
+    {
+      "path": "docs/plans/MM_REPORTING_LATENCY_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_REPORTING_LATENCY_TDD_PLAN.md",
+      "sha256": "9295e55ac62d5244127fff862aa977b37537df39feade182487aa3a289d900dc",
+      "bytes": 17411,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-017"
+    },
+    {
+      "path": "docs/plans/MM_REPORTING_STARTUP_OPTIMIZATION_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_REPORTING_STARTUP_OPTIMIZATION_TDD_PLAN.md",
+      "sha256": "f4302c50cf3bd6e40db0bdc2c5f36f6819e1f9fa7aa6517fc34984b8e32dc356",
+      "bytes": 2424,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-018"
+    },
+    {
+      "path": "docs/plans/MM_RUNTIME_LOGIC_AUDIT_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_RUNTIME_LOGIC_AUDIT_TDD_PLAN.md",
+      "sha256": "a841efe84a36ed68d558dcef1be7cdd426187e6bedfb3e4cb63b53c9a6a9b700",
+      "bytes": 16031,
+      "historical_open_checkboxes": [
+        "Declare a production quote-coverage SLO separating normal replacement\n  gaps from permitted protective pauses before claiming uninterrupted two-sided\n  coverage. Guard policy is unchanged; local improvement does not certify this SLO."
+      ],
+      "disposition": "archived_and_removed",
+      "anchor": "record-019"
+    },
+    {
+      "path": "docs/plans/MM_SHUTDOWN_CHECKPOINT_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_SHUTDOWN_CHECKPOINT_TDD_PLAN.md",
+      "sha256": "b5485c9fd435ec5287e7c00f010c49969c1ca97da14f9eecf286b03c21db1555",
+      "bytes": 2203,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-020"
+    },
+    {
+      "path": "docs/plans/MM_UNTIL_STOPPED_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_UNTIL_STOPPED_TDD_PLAN.md",
+      "sha256": "026778b5c179847368baa450780c14bba1cb5af9b8cacedb2598ba5c670dfcc2",
+      "bytes": 1616,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-021"
+    },
+    {
+      "path": "docs/plans/MM_VOLATILITY_DEFENSE_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/MM_VOLATILITY_DEFENSE_TDD_PLAN.md",
+      "sha256": "84c084c26453bb7456c2c7eb9d6fdf620916c38bd00eff780dd9888164bd046b",
+      "bytes": 23024,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-022"
+    },
+    {
+      "path": "docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md",
+      "sha256": "5a034861cd53a67aa1392e999e2c5193b749c73ab2d9963523582f945cd2100d",
+      "bytes": 66116,
+      "historical_open_checkboxes": [
+        "Obtain a current-image natural **spot** fill and verify its quantity/fee;\n  filled-active restart across both markets is not yet proven by this run.",
+        "Obtain a clean 60-minute zero-degraded-response run if the unchanged gate\n  is required; investigate a bounded reporting-specific approach before tuning.",
+        "Investigate the retained p99 episode and repeated Demo guard waits; do not\n  weaken the guards or assert uninterrupted quoting based on sampled data."
+      ],
+      "disposition": "condensed_at_original_path",
+      "anchor": "record-023"
+    },
+    {
+      "path": "docs/plans/OKX_EXPIRED_SUBMISSION_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/OKX_EXPIRED_SUBMISSION_TDD_PLAN.md",
+      "sha256": "7cf91ef90bbe8853fd488d33c9f2c9c2bef85ae796184d0ca4d55b40c7a7cd8a",
+      "bytes": 2347,
+      "historical_open_checkboxes": [
+        "Capture/reproduce the actual OKX response shape in an isolated read-safe or\n  controlled Demo scenario. Do not infer that the real response contained an ID."
+      ],
+      "disposition": "archived_and_removed",
+      "anchor": "record-024"
+    },
+    {
+      "path": "docs/plans/OKX_WS_POSITION_STARTUP_TDD_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/OKX_WS_POSITION_STARTUP_TDD_PLAN.md",
+      "sha256": "8d65a8ab89aa0315502c393da10aab581a409b5caba23e99d2b554caf28d74c4",
+      "bytes": 789,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-025"
+    },
+    {
+      "path": "docs/plans/POSTGRES_CLOUD_RUN_PORT_PLAN.md",
+      "archive": "reports/archive/history-20261107-plans.zip",
+      "member": "docs/plans/POSTGRES_CLOUD_RUN_PORT_PLAN.md",
+      "sha256": "2a1e98619deea41e0be98d418321564348ea34df5e8b9a21f1f8610fcb16b2b0",
+      "bytes": 86130,
+      "historical_open_checkboxes": [],
+      "disposition": "condensed_at_original_path",
+      "anchor": "record-026"
+    },
+    {
+      "path": "reports/README.md",
+      "archive": "reports/archive/history-20261107-index.zip",
+      "member": "reports/README.md",
+      "sha256": "08188af9852eed3993ff90df68eeb49c7a757de2b3c528b7b1136fd493ac885a",
+      "bytes": 28619,
+      "historical_open_checkboxes": [],
+      "disposition": "replaced_index",
+      "anchor": "record-027"
+    },
+    {
+      "path": "reports/demo/README.md",
+      "archive": "reports/archive/history-20261107-demo.zip",
+      "member": "reports/demo/README.md",
+      "sha256": "7fe47cdb06c52bb8ad49eb6a81743be48ef431032ec8ba9638fc40316caf53cb",
+      "bytes": 2555,
+      "historical_open_checkboxes": [],
+      "disposition": "replaced_index",
+      "anchor": "record-028"
+    },
+    {
+      "path": "reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md",
+      "sha256": "bb58b2ab3a5acac7a6982fea6bf4e59bc2527c338438f8a1643ecdc223636a17",
+      "bytes": 41000,
+      "historical_open_checkboxes": [],
+      "disposition": "condensed_at_original_path",
+      "anchor": "record-029"
+    },
+    {
+      "path": "reports/implementation/LIFE_OKX_IMPLEMENTATION_AUDIT.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/LIFE_OKX_IMPLEMENTATION_AUDIT.md",
+      "sha256": "243710d442ab12c6b83dc4714479eb70b9abc4892b88633285ffebc56802090f",
+      "bytes": 16606,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-030"
+    },
+    {
+      "path": "reports/implementation/LIFE_OKX_PROGRESS.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/LIFE_OKX_PROGRESS.md",
+      "sha256": "6eaa6f1c0490f1545e6215a7b8e9b326cdcd4a2ac01fc52974e318580da71000",
+      "bytes": 178527,
+      "historical_open_checkboxes": [],
+      "disposition": "condensed_at_original_path",
+      "anchor": "record-031"
+    },
+    {
+      "path": "reports/implementation/README.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/README.md",
+      "sha256": "068da0917deb225107219ad2fc12b475cb196752cc6d00417a837f8a12706825",
+      "bytes": 4079,
+      "historical_open_checkboxes": [],
+      "disposition": "replaced_index",
+      "anchor": "record-032"
+    },
+    {
+      "path": "reports/implementation/admin-api-dashboard-ux-review.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/admin-api-dashboard-ux-review.md",
+      "sha256": "c42fac5dd2e1dd9a25c5fce4d732f12609bd506e123fd75d560427ca3ac6f247",
+      "bytes": 14782,
+      "historical_open_checkboxes": [
+        "U0: choose the browser access route and verify it with trading stopped.",
+        "U4: build the five-screen FE MVP from the integration guide; generate client\n  types from the checked OpenAPI. Test workflows with a real browser and local\n  service/simulator, including auth/CORS, unknown POST outcome, superseded command,\n  stale reporting, stop with held exposure, Decimal/UTC and partial reconciliation."
+      ],
+      "disposition": "archived_and_removed",
+      "anchor": "record-033"
+    },
+    {
+      "path": "reports/implementation/admin-operations-api-evidence.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/admin-operations-api-evidence.json",
+      "sha256": "354ff2a431f141498bdc1a64afb66836500b3d2b5e7b1f7bbd6662ec2864638a",
+      "bytes": 8514,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-034"
+    },
+    {
+      "path": "reports/implementation/admin-operations-api-implementation.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/admin-operations-api-implementation.md",
+      "sha256": "dc0eb27d18aa18787e20cbf7ea0bdbc013f11b59d3158f4c4bda56f813542c25",
+      "bytes": 8948,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-035"
+    },
+    {
+      "path": "reports/implementation/funding-backfill-evidence.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/funding-backfill-evidence.json",
+      "sha256": "7b03511c6218bba80c610559399dcdf2cc2e2874c08f288ea1a916a26fba52f6",
+      "bytes": 12084,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-036"
+    },
+    {
+      "path": "reports/implementation/life-mm-availability-audit-evidence.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-availability-audit-evidence.json",
+      "sha256": "21e426b6d6bfd05d21ea7b323f8ada0c2b506bfeb92bfcb973b0838a64c5b84c",
+      "bytes": 20294,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-037"
+    },
+    {
+      "path": "reports/implementation/life-mm-availability-audit.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-availability-audit.md",
+      "sha256": "e83562cd419d0dcdab8d10bcc9143c4a3a5cbcacb6096e420da44612d6d403d4",
+      "bytes": 11805,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-038"
+    },
+    {
+      "path": "reports/implementation/life-mm-availability-remediation-evidence.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-availability-remediation-evidence.json",
+      "sha256": "12d2e9d67f57b4c96e02a5f3b1c84a7d045b0829dab8974aa192d8a8cb55754f",
+      "bytes": 56563,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-039"
+    },
+    {
+      "path": "reports/implementation/life-mm-availability-remediation.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-availability-remediation.md",
+      "sha256": "24022efeacbe88081d0f17a688980184124743afc58ab09036cf7cfc2b14d609",
+      "bytes": 13799,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-040"
+    },
+    {
+      "path": "reports/implementation/life-mm-e0-availability.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e0-availability.json",
+      "sha256": "3c1cd082892ba41edb711b1473279f0c9ca756a17cdbe2e350f8f8a20ef195e3",
+      "bytes": 14201,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-041"
+    },
+    {
+      "path": "reports/implementation/life-mm-e0-availability.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e0-availability.md",
+      "sha256": "f21939adc703e7c99995abf862ebeb9a16d9247558ca106bdf139649dfcdae67",
+      "bytes": 11135,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-042"
+    },
+    {
+      "path": "reports/implementation/life-mm-e1-quote-guards.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e1-quote-guards.json",
+      "sha256": "3af21e8f85ffc678e2c017dcc91d56c31b3d97a32cb4d9abbee2ed1a31159b44",
+      "bytes": 12408,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-043"
+    },
+    {
+      "path": "reports/implementation/life-mm-e1-quote-guards.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e1-quote-guards.md",
+      "sha256": "36ac0702fee1d299c5f1e30ce6111bcc619864343be3e700e27d2d426affd956",
+      "bytes": 7037,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-044"
+    },
+    {
+      "path": "reports/implementation/life-mm-e2a-drawdown.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e2a-drawdown.json",
+      "sha256": "d95647ed146c27c22f516cd50d1429149d5de8ffb4fd4d0e68635813dbfa69b9",
+      "bytes": 16634,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-045"
+    },
+    {
+      "path": "reports/implementation/life-mm-e2a-drawdown.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e2a-drawdown.md",
+      "sha256": "0b4299dbe10fa6784bf2496069c483a49776a3dae74d2f0edb5eb52241b1af5c",
+      "bytes": 7172,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-046"
+    },
+    {
+      "path": "reports/implementation/life-mm-e2b-spot-outflow.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e2b-spot-outflow.json",
+      "sha256": "930a542f8f812df3dc5a485cafa69ee270e305146e25e1e959715c0d51e1750b",
+      "bytes": 27327,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-047"
+    },
+    {
+      "path": "reports/implementation/life-mm-e2b-spot-outflow.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e2b-spot-outflow.md",
+      "sha256": "54a4e1bafd0d810a5e1e80e0b03383b30069982d307a3d69642cfc4cf31c1a0d",
+      "bytes": 9028,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-048"
+    },
+    {
+      "path": "reports/implementation/life-mm-e2c-listing-bootstrap.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e2c-listing-bootstrap.json",
+      "sha256": "88677678605360d25d70f96eae5cd4e5eee30cab962d3ec629d016920fac038e",
+      "bytes": 12800,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-049"
+    },
+    {
+      "path": "reports/implementation/life-mm-e2c-listing-bootstrap.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e2c-listing-bootstrap.md",
+      "sha256": "a1309af35104e9b7a389ae23e8b1e0c99059042ead62b8b276754fd64100953a",
+      "bytes": 7914,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-050"
+    },
+    {
+      "path": "reports/implementation/life-mm-e3-inventory-skew.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e3-inventory-skew.json",
+      "sha256": "2635b1a35ee05a4ab29885f4456f73bb61533800ce3e4ad62619eb1bb0cda9f1",
+      "bytes": 13266,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-051"
+    },
+    {
+      "path": "reports/implementation/life-mm-e3-inventory-skew.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e3-inventory-skew.md",
+      "sha256": "5fc8a681845617881f3a8d796348da40020257b55f6ce6ac95d8a2357c8ae2e5",
+      "bytes": 7853,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-052"
+    },
+    {
+      "path": "reports/implementation/life-mm-e4-history-liquidity.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e4-history-liquidity.json",
+      "sha256": "70feedce8cf191c9f540f3d9958846c0254a084b74c2bab3532d417e4a87ff2c",
+      "bytes": 386,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-053"
+    },
+    {
+      "path": "reports/implementation/life-mm-e4-history-liquidity.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e4-history-liquidity.md",
+      "sha256": "55fbbbbf0ca506f913ca400014d8a983104084fb8fd34df72ceee80d394faf94",
+      "bytes": 2030,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-054"
+    },
+    {
+      "path": "reports/implementation/life-mm-e5-spread-policy.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e5-spread-policy.json",
+      "sha256": "9fef26fd4b80652880a56a1015a0fdc51f6d24ef410f5c1b324c6786f87f56e9",
+      "bytes": 7399,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-055"
+    },
+    {
+      "path": "reports/implementation/life-mm-e5-spread-policy.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e5-spread-policy.md",
+      "sha256": "23ad88cf1a56048d63850336c9dd95a05d2358262769d934efc0b7c60102c7a4",
+      "bytes": 3564,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-056"
+    },
+    {
+      "path": "reports/implementation/life-mm-e6-verification.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e6-verification.json",
+      "sha256": "d9e90cfc90cf9bf3d8398f258122da05ccf6f7d6af4e6d4e81d22b818413b49d",
+      "bytes": 119753,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-057"
+    },
+    {
+      "path": "reports/implementation/life-mm-e6-verification.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-e6-verification.md",
+      "sha256": "be682b38352be32a661dcac1466ce6b751e01768a58f2b3bc37da055db6cdbc8",
+      "bytes": 25877,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-058"
+    },
+    {
+      "path": "reports/implementation/life-mm-latent-bug-audit-20261101.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-latent-bug-audit-20261101.json",
+      "sha256": "6771c38bea59b94f95b5db3cf38930dfe6e0c43396ccfca771a0ccf16a79cc37",
+      "bytes": 3086,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-059"
+    },
+    {
+      "path": "reports/implementation/life-mm-latent-bug-fixes-20261101.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-latent-bug-fixes-20261101.json",
+      "sha256": "2965691a0fe40e6c58c530d97a7a72fcffeedf5f045788c8cfbfa07c86321825",
+      "bytes": 13378,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-060"
+    },
+    {
+      "path": "reports/implementation/life-mm-logic-review-evidence.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-logic-review-evidence.json",
+      "sha256": "ec4d29e2fe7177dc1b396b05c90edb3d56bc8c2f7765ef4c515c8c5bad10eda6",
+      "bytes": 16694,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-061"
+    },
+    {
+      "path": "reports/implementation/life-mm-logic-review.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-logic-review.md",
+      "sha256": "9c0c0bc6e3f4a206c9cb7d7b5a9a5e33c4d48a7ef99a5535d31000a64b7b9df4",
+      "bytes": 19048,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-062"
+    },
+    {
+      "path": "reports/implementation/life-mm-maintainability.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/life-mm-maintainability.json",
+      "sha256": "c97e00008462b019c058f223e2929d8f28099ebbd59a125a908b7fb2b328e491",
+      "bytes": 26950,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-063"
+    },
+    {
+      "path": "reports/implementation/mm-quote-activity-evidence.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/mm-quote-activity-evidence.json",
+      "sha256": "e059825d9e5df10ac674b491dae7f609bb9660d3d9b35056a9f4146b5c1f8b51",
+      "bytes": 3538,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-064"
+    },
+    {
+      "path": "reports/implementation/mm-quote-activity.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/mm-quote-activity.md",
+      "sha256": "c296634acda12f41ceb76d6ee151a2a3b71b36584c57bda0c08fba4fbea78c28",
+      "bytes": 4641,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-065"
+    },
+    {
+      "path": "reports/implementation/mm-until-stopped-evidence.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/mm-until-stopped-evidence.json",
+      "sha256": "71b732e55be89e4c0eaad82b8eba27ad3a03d468817d15b2b6de62e5cf9f7cf1",
+      "bytes": 11317,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-066"
+    },
+    {
+      "path": "reports/implementation/mm-until-stopped.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/mm-until-stopped.md",
+      "sha256": "14c7ca82a0148b7201ee6058ec3ea0717bd49552d7919525c3ceca266ed51c6f",
+      "bytes": 8214,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-067"
+    },
+    {
+      "path": "reports/implementation/mm-volatility-defense-evidence.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/mm-volatility-defense-evidence.json",
+      "sha256": "f30b7343e03f9f702f34799c8412bb992ffd5be9c704dfbd1f5ba0dc4ec3a6ae",
+      "bytes": 74776,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-068"
+    },
+    {
+      "path": "reports/implementation/mm-volatility-defense.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/mm-volatility-defense.md",
+      "sha256": "a054653b30d36193f05e35c84ce626834f06511a827e9c79465144f827b9010b",
+      "bytes": 46871,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-069"
+    },
+    {
+      "path": "reports/implementation/okx-ws-position-startup-evidence.json",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/okx-ws-position-startup-evidence.json",
+      "sha256": "99005ec58b40adfd71e3e75d8a73ff05977a95f1463e47fafc80bb19312ec11b",
+      "bytes": 6236,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-070"
+    },
+    {
+      "path": "reports/implementation/okx-ws-position-startup.md",
+      "archive": "reports/archive/history-20261107-implementation.zip",
+      "member": "reports/implementation/okx-ws-position-startup.md",
+      "sha256": "5d591f4ca43a47729f362057821b82f632dd74b14664f44c4c3354c72682b6dc",
+      "bytes": 4799,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-071"
+    },
+    {
+      "path": "reports/investigations/README.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/README.md",
+      "sha256": "8e20399d5c72a00bc399f394aeb8e78f879893a0589f9041f50936f42a21ac3b",
+      "bytes": 8545,
+      "historical_open_checkboxes": [],
+      "disposition": "replaced_index",
+      "anchor": "record-072"
+    },
+    {
+      "path": "reports/investigations/life-mm-short-repro-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/life-mm-short-repro-evidence.json",
+      "sha256": "d9ef8939084151dc71adcb0f83d36b1a9403bec171a9a35ea2c0e9d305501ec8",
+      "bytes": 38625,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-073"
+    },
+    {
+      "path": "reports/investigations/life-mm-short-repro-review.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/life-mm-short-repro-review.md",
+      "sha256": "f5c2b823f9874e693f156b5fa159eaffd98a357a6e22cafdbb0680bfa96330ff",
+      "bytes": 7809,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-074"
+    },
+    {
+      "path": "reports/investigations/life-mm-trace-load-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/life-mm-trace-load-evidence.json",
+      "sha256": "e66217812f1b32fb86fb8b430a4b6bf1bdd0dca9865af9c627a8672c878ad309",
+      "bytes": 196891,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-075"
+    },
+    {
+      "path": "reports/investigations/life-mm-trace-load-review.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/life-mm-trace-load-review.md",
+      "sha256": "2af6f682a282a62f12340ce23a7526505c3eca43a6802048024360e840ccaefa",
+      "bytes": 9387,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-076"
+    },
+    {
+      "path": "reports/investigations/mm-burst-followup-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-burst-followup-evidence.json",
+      "sha256": "0bb631ae0c7aafd23aefb29046e9daa247a13c1ed1478184229a7c59831fae54",
+      "bytes": 33945,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-077"
+    },
+    {
+      "path": "reports/investigations/mm-burst-followup.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-burst-followup.md",
+      "sha256": "76c9a271621e4021dcd128543788108a14955aa080f4b50229446fcc6916c631",
+      "bytes": 13149,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-078"
+    },
+    {
+      "path": "reports/investigations/mm-checkpoint-probe-correlation-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-checkpoint-probe-correlation-evidence.json",
+      "sha256": "bdefac45eb81e5026ebd9e33dc34af14a679bd804fb9f641562fe619d989fb22",
+      "bytes": 46730,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-079"
+    },
+    {
+      "path": "reports/investigations/mm-checkpoint-probe-correlation.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-checkpoint-probe-correlation.md",
+      "sha256": "a65cb8af52b920b2508c03e3efd757bb75dee05a17ed515c8e099b0dfd35369b",
+      "bytes": 7004,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-080"
+    },
+    {
+      "path": "reports/investigations/mm-cleanup-state-probe-code-audit-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-cleanup-state-probe-code-audit-evidence.json",
+      "sha256": "c566cdaf1edc18061afa7ddc20bad3bef18ca441c9a7aea91376c59666478e82",
+      "bytes": 28212,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-081"
+    },
+    {
+      "path": "reports/investigations/mm-cleanup-state-probe-code-audit.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-cleanup-state-probe-code-audit.md",
+      "sha256": "2d2485dd1321b82ee3863e91ce02ca4cde802c14db4a8d83d2d7ddb77b223506",
+      "bytes": 8268,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-082"
+    },
+    {
+      "path": "reports/investigations/mm-current-probe-correlation-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-current-probe-correlation-evidence.json",
+      "sha256": "bb60a0e3289c06e188a08484eb64ff643f3eb465443cc97cbe6e9c7a2f0e28a1",
+      "bytes": 73202,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-083"
+    },
+    {
+      "path": "reports/investigations/mm-current-probe-correlation.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-current-probe-correlation.md",
+      "sha256": "564972e65008051c3ac5e5e1085d4d9ab67184a3ab742c659eeeea42d857d819",
+      "bytes": 9419,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-084"
+    },
+    {
+      "path": "reports/investigations/mm-engine-liveness-investigation-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-engine-liveness-investigation-evidence.json",
+      "sha256": "650d378372ba8319a40315531d3336270feab6f20f8a900ac9d2794ab2994457",
+      "bytes": 30823,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-085"
+    },
+    {
+      "path": "reports/investigations/mm-engine-liveness-investigation.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-engine-liveness-investigation.md",
+      "sha256": "ad87dfed00660111140ea211a4d5351d6e52c3196a285792dffb781f4165f769",
+      "bytes": 9652,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-086"
+    },
+    {
+      "path": "reports/investigations/mm-engine-probe-controlled-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-engine-probe-controlled-evidence.json",
+      "sha256": "626a01ca2c90314da8196d98e0c9d2babc9877d507dc9f22f9cd15d86fb560f1",
+      "bytes": 43527,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-087"
+    },
+    {
+      "path": "reports/investigations/mm-engine-probe-controlled.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-engine-probe-controlled.md",
+      "sha256": "92bc7008a95beb810126033d2a20e13b386068319c4f740d81b402dbb72d9636",
+      "bytes": 9257,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-088"
+    },
+    {
+      "path": "reports/investigations/mm-engine-probe-latency-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-engine-probe-latency-evidence.json",
+      "sha256": "044283ed081060b4360589937b186ef2eddf7b6f94261543ac48dfa6a094cb43",
+      "bytes": 11891,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-089"
+    },
+    {
+      "path": "reports/investigations/mm-engine-probe-latency.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-engine-probe-latency.md",
+      "sha256": "e6d370d0e478424cd630fbc7cc778569aaf7448ae9278a3b33999c21a751709e",
+      "bytes": 7833,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-090"
+    },
+    {
+      "path": "reports/investigations/mm-engine-residual-probes-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-engine-residual-probes-evidence.json",
+      "sha256": "55e8f110db3d609f26f61e3864c0e8cbd581a28d66267b8cefc91251014b39b4",
+      "bytes": 16639,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-091"
+    },
+    {
+      "path": "reports/investigations/mm-engine-residual-probes.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-engine-residual-probes.md",
+      "sha256": "8a193599cb0f76a8acd830c1d9984731c889ee97612e8262b3385737cfe681b2",
+      "bytes": 7426,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-092"
+    },
+    {
+      "path": "reports/investigations/mm-engine-status-publication-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-engine-status-publication-evidence.json",
+      "sha256": "7ed97bf415e9fb94a92ed25d570fb3fc940f4a9b871ff893a75a0e0c07f17728",
+      "bytes": 114643,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-093"
+    },
+    {
+      "path": "reports/investigations/mm-engine-status-publication.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-engine-status-publication.md",
+      "sha256": "cf33e1508933949d308751f28b4f49a1553807af953099e9eacb0dcaad0fdf93",
+      "bytes": 11736,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-094"
+    },
+    {
+      "path": "reports/investigations/mm-guard-recovery-coverage-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-guard-recovery-coverage-evidence.json",
+      "sha256": "a18f47df66e770696bb24b0e87e3db57ba89ff255227114f876db2475cfae6af",
+      "bytes": 3371,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-095"
+    },
+    {
+      "path": "reports/investigations/mm-guard-recovery-coverage.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-guard-recovery-coverage.md",
+      "sha256": "8cd6867d42466794e9f55bbaee64229572f4445ffea6e8f04736a968cf6dd170",
+      "bytes": 4878,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-096"
+    },
+    {
+      "path": "reports/investigations/mm-historical-cause-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-historical-cause-evidence.json",
+      "sha256": "8d7b2435f4260e40ba63dc232505edc239582566f754c59f0ee858a330f53de8",
+      "bytes": 7140,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-097"
+    },
+    {
+      "path": "reports/investigations/mm-historical-cause-review.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-historical-cause-review.md",
+      "sha256": "d862baafef4d7cb63f35ddcfb5ff74a0fe9e96c9d151f7762dde41ef8020bbbe",
+      "bytes": 7721,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-098"
+    },
+    {
+      "path": "reports/investigations/mm-incident-investigation-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-incident-investigation-evidence.json",
+      "sha256": "d06a05743ec397c3c34fe1a600711945ff87f15e64745bcae99ad64221460f4d",
+      "bytes": 91909,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-099"
+    },
+    {
+      "path": "reports/investigations/mm-incident-investigation.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-incident-investigation.md",
+      "sha256": "12be6c82b72798a7ee9a927b13e6b43fbbd1243da9cec3846f1103da9957e7be",
+      "bytes": 12852,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-100"
+    },
+    {
+      "path": "reports/investigations/mm-measurement-remediation-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-measurement-remediation-evidence.json",
+      "sha256": "012fc37a10c9d8ba87d065d959c64ebee02373760e4f0e49eda647b86b8eb5b3",
+      "bytes": 13077,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-101"
+    },
+    {
+      "path": "reports/investigations/mm-measurement-remediation.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-measurement-remediation.md",
+      "sha256": "ee8b6586ed64abd69500a0481f0c3c0f5ad2c8d9c112e0284d1d39d9d099a694",
+      "bytes": 7047,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-102"
+    },
+    {
+      "path": "reports/investigations/mm-offline-history-preparation-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-offline-history-preparation-evidence.json",
+      "sha256": "09f2668d720b8fd4b3e9b8938d1cc0d6d3b06c0da116dbaaa6e1a73bd48036ec",
+      "bytes": 15727,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-103"
+    },
+    {
+      "path": "reports/investigations/mm-owner-publication-timeout-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-owner-publication-timeout-evidence.json",
+      "sha256": "ada3ebcf120dffab4133890f26287b53f6a4a31e31ba14bf4e5e0e6d82b3ccd5",
+      "bytes": 13181,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-104"
+    },
+    {
+      "path": "reports/investigations/mm-owner-publication-timeout.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-owner-publication-timeout.md",
+      "sha256": "c4eed923f9eb41028743f136030612af86c2c347fdfd40b8e2680c4854498bad",
+      "bytes": 23422,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-105"
+    },
+    {
+      "path": "reports/investigations/mm-owner-publication-wal-followup-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-owner-publication-wal-followup-evidence.json",
+      "sha256": "613aba26066360347b81c35ffe869c1728d968435b6d21c5c609edfa53744114",
+      "bytes": 45084,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-106"
+    },
+    {
+      "path": "reports/investigations/mm-p99-investigation-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-p99-investigation-evidence.json",
+      "sha256": "c245e3c51777e86ab2d55b619628cfb77740c380d6a9091cbbad3ed9a719a2f3",
+      "bytes": 66479,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-107"
+    },
+    {
+      "path": "reports/investigations/mm-p99-investigation.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-p99-investigation.md",
+      "sha256": "ec05a63d3b6330068b57b6aade6a0d81b7de50cf26742a66b87b8c05e57100d6",
+      "bytes": 11934,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-108"
+    },
+    {
+      "path": "reports/investigations/mm-process-isolation-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-process-isolation-evidence.json",
+      "sha256": "7ad9181ab8dd548faf9970c5d1618e3f26ff122abbf99fdcff1c9ee0972aa1bc",
+      "bytes": 143681,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-109"
+    },
+    {
+      "path": "reports/investigations/mm-process-isolation-experiment.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-process-isolation-experiment.md",
+      "sha256": "d749fb1a49c24d9b790573af9bcfbf981bb2f3987330f24c760fc2a4b8967f9d",
+      "bytes": 24347,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-110"
+    },
+    {
+      "path": "reports/investigations/mm-quote-recovery-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-quote-recovery-evidence.json",
+      "sha256": "372d5ef52f4b6dc81fde589f37c94d08418c77e170cec208dd5d2cd600d62647",
+      "bytes": 15423,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-111"
+    },
+    {
+      "path": "reports/investigations/mm-quote-recovery.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-quote-recovery.md",
+      "sha256": "0fb227f39971bb99058c9dcfbd902055373f6f2d8c2a87880c5f0ed84151aa31",
+      "bytes": 6961,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-112"
+    },
+    {
+      "path": "reports/investigations/mm-quote-wait-diagnostics-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-quote-wait-diagnostics-evidence.json",
+      "sha256": "86a3f5384280d96f49fdf802cc26623877ad6b1fd6fda54db43cffec0cbcbe86",
+      "bytes": 3590,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-113"
+    },
+    {
+      "path": "reports/investigations/mm-quote-wait-diagnostics.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-quote-wait-diagnostics.md",
+      "sha256": "e553c7d1165ef2e2a04f2c5932f2defd556b7f08913feca6e23be1fb34dc4f18",
+      "bytes": 4455,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-114"
+    },
+    {
+      "path": "reports/investigations/mm-random-handover-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-random-handover-evidence.json",
+      "sha256": "5066dd5a1f3ea2a953a6250d8aeda3850078a8f84b662a1947ef4caec03f5cf3",
+      "bytes": 146458,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-115"
+    },
+    {
+      "path": "reports/investigations/mm-random-handover.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-random-handover.md",
+      "sha256": "393ab74a3e46e4dec836959faa9a22893daee51db182e0401bb2e416cb03c88f",
+      "bytes": 16059,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-116"
+    },
+    {
+      "path": "reports/investigations/mm-reporting-fee-candidates.sql",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-reporting-fee-candidates.sql",
+      "sha256": "15a292ee44d93984174269f06bfdfd86be7830726f1061aebac6d073f1bfc6cd",
+      "bytes": 5022,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-117"
+    },
+    {
+      "path": "reports/investigations/mm-reporting-latency-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-reporting-latency-evidence.json",
+      "sha256": "1887368aed716e7e074a3720207defa1de6f1a6c25f0a9cdb7eb79288cb29013",
+      "bytes": 33313,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-118"
+    },
+    {
+      "path": "reports/investigations/mm-reporting-latency.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-reporting-latency.md",
+      "sha256": "7402e482a9e35e9daa1f44d352c5167f4558a3d1e8a3edfe165ac3c17f987ddf",
+      "bytes": 13650,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-119"
+    },
+    {
+      "path": "reports/investigations/mm-runtime-followup-code-review-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-runtime-followup-code-review-evidence.json",
+      "sha256": "04ff9f6968ab63f4c52a78c85106e4f2f54a0c1b326a8d59b806a6c9636eec24",
+      "bytes": 4037,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-120"
+    },
+    {
+      "path": "reports/investigations/mm-runtime-followup-code-review.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-runtime-followup-code-review.md",
+      "sha256": "d84a28093a1b98e728598faa8fe0e3d7d8c813a298791601d104cf34f5e8ee2d",
+      "bytes": 8605,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-121"
+    },
+    {
+      "path": "reports/investigations/mm-runtime-logic-audit-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-runtime-logic-audit-evidence.json",
+      "sha256": "0ae986ed237e0cabd628d35eda81b0ec72cc2e626786d0b14fea7a457af000ad",
+      "bytes": 7406,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-122"
+    },
+    {
+      "path": "reports/investigations/mm-runtime-logic-audit.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-runtime-logic-audit.md",
+      "sha256": "2dbb0f028a84a1cde143f65e8e0c35bac27b90b56d1da6e3762d438ac68ff959",
+      "bytes": 7721,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-123"
+    },
+    {
+      "path": "reports/investigations/mm-trading-continuity-evidence.json",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-trading-continuity-evidence.json",
+      "sha256": "fddcc0856a661a10e5deaa8373334066c156ba0b2b794b00fb2c074c5be03129",
+      "bytes": 38056,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-124"
+    },
+    {
+      "path": "reports/investigations/mm-trading-continuity.md",
+      "archive": "reports/archive/history-20261107-investigations.zip",
+      "member": "reports/investigations/mm-trading-continuity.md",
+      "sha256": "56749b40ede413d0f62b3529bc64b34dac31594f4d7937168e70ef524b8fb423",
+      "bytes": 7692,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-125"
+    },
+    {
+      "path": "reports/performance/README.md",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/README.md",
+      "sha256": "f589e8d007b05b08dddd520b2e4b6100f02cde4a1d4046b59a7be750eb445391",
+      "bytes": 2199,
+      "historical_open_checkboxes": [],
+      "disposition": "replaced_index",
+      "anchor": "record-126"
+    },
+    {
+      "path": "reports/performance/admin-cleanup-polling-evidence.json",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/admin-cleanup-polling-evidence.json",
+      "sha256": "d817a752854ae7e44e1ec8489de11f3897c62a84d17aadb598fce9e9cd9754c4",
+      "bytes": 20173,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-127"
+    },
+    {
+      "path": "reports/performance/admin-cleanup-polling.md",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/admin-cleanup-polling.md",
+      "sha256": "6bfd65bebc31e20cc08e7048d4d2313c243fec08a3a43c33c62ffcac58a221d2",
+      "bytes": 7101,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-128"
+    },
+    {
+      "path": "reports/performance/admin-cleanup-state-evidence.json",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/admin-cleanup-state-evidence.json",
+      "sha256": "cb11e11897df7bf69e7a55e99a724e541e84bee773ad4399d2cf93bfc60c0e07",
+      "bytes": 37859,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-129"
+    },
+    {
+      "path": "reports/performance/admin-cleanup-state-review.md",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/admin-cleanup-state-review.md",
+      "sha256": "a0c7922d7df28c4174492c4e2e46591826db806e437a0a4959fc219ae0304df6",
+      "bytes": 8319,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-130"
+    },
+    {
+      "path": "reports/performance/life-mm-optimization-review.md",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/life-mm-optimization-review.md",
+      "sha256": "6c8ef7c06a11717619c1664b8bc6534618501a663bfab46139cd05951b24b5c4",
+      "bytes": 13061,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-131"
+    },
+    {
+      "path": "reports/performance/life-mm-runtime-optimization.json",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/life-mm-runtime-optimization.json",
+      "sha256": "cc5883a9c27df6c1413bcbfc2bc109c5aef8c206359b53e02a257c5e5d626e5a",
+      "bytes": 95940,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-132"
+    },
+    {
+      "path": "reports/performance/life-mm-runtime-optimization.md",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/life-mm-runtime-optimization.md",
+      "sha256": "77ec30fd6c4c780bb08256da64a6f4f0234d0ab42a2e29689b190fb2731ace8e",
+      "bytes": 24466,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-133"
+    },
+    {
+      "path": "reports/performance/life-mm-soak-retest-evidence.json",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/life-mm-soak-retest-evidence.json",
+      "sha256": "85ae36371738b2e6b6b4e8ad9aed17400e16de1fb862fb96d8fce09b2f09ac72",
+      "bytes": 36367,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-134"
+    },
+    {
+      "path": "reports/performance/life-mm-soak-retest.md",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/life-mm-soak-retest.md",
+      "sha256": "09e7b68de48705c543923bbd7b675f0ec6bcba1b09ff26dc22aead2b3b7f6e43",
+      "bytes": 6559,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-135"
+    },
+    {
+      "path": "reports/performance/mm-checkpoint-poll-evidence.json",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/mm-checkpoint-poll-evidence.json",
+      "sha256": "fff6e3ecb9858cb866595a0a43c3ceb285da7e1ea31cb182beaca647e1381e70",
+      "bytes": 20755,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-136"
+    },
+    {
+      "path": "reports/performance/mm-checkpoint-poll-optimization.md",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/mm-checkpoint-poll-optimization.md",
+      "sha256": "28244e3ed8f7744dfd9f95887c94bff3feb238553f24407eda074963a3a6bfc5",
+      "bytes": 9215,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-137"
+    },
+    {
+      "path": "reports/performance/mm-controller-persistence-evidence.json",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/mm-controller-persistence-evidence.json",
+      "sha256": "e7e604d164ff944b192aca5f4b61f97dc65ebff897b90d04e61c743c53ed860d",
+      "bytes": 99263,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-138"
+    },
+    {
+      "path": "reports/performance/mm-controller-persistence-optimization.md",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/mm-controller-persistence-optimization.md",
+      "sha256": "3c2fcccc2ef1ba2d375e86090941eafa13edeff8d9b01326102e0618b3211193",
+      "bytes": 7021,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-139"
+    },
+    {
+      "path": "reports/performance/mm-daily-conversion-followup-evidence.json",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/mm-daily-conversion-followup-evidence.json",
+      "sha256": "a99fa7d17143496cccfb3b7fa384bbbba2076ece40e56ae3bc22704f2b87b0c0",
+      "bytes": 103423,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-140"
+    },
+    {
+      "path": "reports/performance/mm-daily-conversion-followup.md",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/mm-daily-conversion-followup.md",
+      "sha256": "88038645b520c865dc9554e1b2a4d689514e7a9d5644470358feb5e2ee2e7fc1",
+      "bytes": 26031,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-141"
+    },
+    {
+      "path": "reports/performance/mm-offline-history-soak-evidence.json",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/mm-offline-history-soak-evidence.json",
+      "sha256": "d837d4f806ca0544a85a0763419c2571d8fe99ecf865a46534f22ec64c33ba45",
+      "bytes": 57802,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-142"
+    },
+    {
+      "path": "reports/performance/mm-partial-quote-size-evidence.json",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/mm-partial-quote-size-evidence.json",
+      "sha256": "7c7d9a44e2afe4aeee1604c62f372023e96b5e7709e040ca000d33f1667d4eae",
+      "bytes": 41997,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-143"
+    },
+    {
+      "path": "reports/performance/mm-partial-quote-size.md",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/mm-partial-quote-size.md",
+      "sha256": "db49a6ec40e7251456b3bd58f2c3b27c86f132bc54c03a991f44ce791af36f7c",
+      "bytes": 8319,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-144"
+    },
+    {
+      "path": "reports/performance/mm-reporting-startup-evidence.json",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/mm-reporting-startup-evidence.json",
+      "sha256": "2ce970433d50d99cbb61f447441962122233639d35846eb82d264b4c6b46ab70",
+      "bytes": 33742,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-145"
+    },
+    {
+      "path": "reports/performance/mm-reporting-startup-optimization.md",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/mm-reporting-startup-optimization.md",
+      "sha256": "c9fc8ef949ff6d6000e8ef4df759e44bf0dfc18311849f0a181090e483bfd6d3",
+      "bytes": 12576,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-146"
+    },
+    {
+      "path": "reports/performance/runtime-flow-remediation-20261101.json",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/runtime-flow-remediation-20261101.json",
+      "sha256": "268f91922496bd5437675e27d3ea6b7f4ffe426d4af58abad1f4d8176991aadc",
+      "bytes": 12977,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-147"
+    },
+    {
+      "path": "reports/performance/runtime-flow-review-20261101.json",
+      "archive": "reports/archive/history-20261107-performance.zip",
+      "member": "reports/performance/runtime-flow-review-20261101.json",
+      "sha256": "db935eeca042bf9d032696cab6521b100de04a0f681fa29ad584d9855b2d4e5d",
+      "bytes": 5115,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-148"
+    },
+    {
+      "path": "reports/platform/README.md",
+      "archive": "reports/archive/history-20261107-platform.zip",
+      "member": "reports/platform/README.md",
+      "sha256": "0060aa207906a4d9c2aaeb0b8c917cfb73e50ac8df20e8316b992c3694be12f4",
+      "bytes": 1331,
+      "historical_open_checkboxes": [],
+      "disposition": "replaced_index",
+      "anchor": "record-149"
+    },
+    {
+      "path": "reports/platform/cloudrun-image-optimization.md",
+      "archive": "reports/archive/history-20261107-platform.zip",
+      "member": "reports/platform/cloudrun-image-optimization.md",
+      "sha256": "90d077fc200ab5969c409e3d793de81b8ae7e5d17a1b0460d61235d1ea679564",
+      "bytes": 7424,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-150"
+    },
+    {
+      "path": "reports/platform/cloudrun-logging-verification.json",
+      "archive": "reports/archive/history-20261107-platform.zip",
+      "member": "reports/platform/cloudrun-logging-verification.json",
+      "sha256": "44b8b9cd50e886d1863c7b431129b78e990ee63bc9b2873d652e06ed6298daeb",
+      "bytes": 41040,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-151"
+    },
+    {
+      "path": "reports/platform/cloudrun-logging-verification.md",
+      "archive": "reports/archive/history-20261107-platform.zip",
+      "member": "reports/platform/cloudrun-logging-verification.md",
+      "sha256": "1ab93eb4bc76f61244255e408531a8001fecf4b241805b5b49665f4863ab18d5",
+      "bytes": 4050,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-152"
+    },
+    {
+      "path": "reports/platform/postgres-decimal-precision.json",
+      "archive": "reports/archive/history-20261107-platform.zip",
+      "member": "reports/platform/postgres-decimal-precision.json",
+      "sha256": "4b0c9a7ba16ff348bfdce6b3e1f8c62a9e33e6fca1d89e8cbcab44a5cde0c5e2",
+      "bytes": 8849,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-153"
+    },
+    {
+      "path": "reports/platform/postgres-performance-review.md",
+      "archive": "reports/archive/history-20261107-platform.zip",
+      "member": "reports/platform/postgres-performance-review.md",
+      "sha256": "7b85411c13cfe594cef3da5655500228f36546a71fd7a61c158f796e78186260",
+      "bytes": 8553,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-154"
+    },
+    {
+      "path": "reports/platform/postgres-verification.md",
+      "archive": "reports/archive/history-20261107-platform.zip",
+      "member": "reports/platform/postgres-verification.md",
+      "sha256": "d9b908f06d36e62baba80bb839dcd6868e5a3d4dba2e2ca59cd60ab7ff5db387",
+      "bytes": 20112,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-155"
+    },
+    {
+      "path": "reports/platform/submission-block-logging.md",
+      "archive": "reports/archive/history-20261107-platform.zip",
+      "member": "reports/platform/submission-block-logging.md",
+      "sha256": "594b3aa77f33db94cd37ba5cc956091d437932999b00849364ea41fd657cac36",
+      "bytes": 3774,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-156"
+    },
+    {
+      "path": "reports/release/README.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/README.md",
+      "sha256": "7ceb0f4ab1051e61582cf5f6341e19c7107c7b2d68f357d2d1ee8cefb2061e25",
+      "bytes": 4573,
+      "historical_open_checkboxes": [],
+      "disposition": "replaced_index",
+      "anchor": "record-157"
+    },
+    {
+      "path": "reports/release/admin-access-credentials-acceptance.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/admin-access-credentials-acceptance.md",
+      "sha256": "65c22e97123541f1e54837a73ff33889553d6e7104151e5287bb4ba4bc23f55e",
+      "bytes": 11138,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-158"
+    },
+    {
+      "path": "reports/release/admin-access-credentials-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/admin-access-credentials-evidence.json",
+      "sha256": "12b2440183762e62c87e7671dc773565b2f0502387ceee020bb9aeb2cf074412",
+      "bytes": 29923,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-159"
+    },
+    {
+      "path": "reports/release/admin-cleanup-fault-e2e.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/admin-cleanup-fault-e2e.md",
+      "sha256": "542c870ddfbecd59186222bdce83075f68981f8fcff71b2eceef66179fc544f3",
+      "bytes": 10689,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-160"
+    },
+    {
+      "path": "reports/release/admin-cleanup-fault-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/admin-cleanup-fault-evidence.json",
+      "sha256": "f9e9dff35e7e9c90e78d4d1be80c13c4d3eaf34becc92470198a6829b0f809ab",
+      "bytes": 26020,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-161"
+    },
+    {
+      "path": "reports/release/admin-cleanup-partial-crash-e2e.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/admin-cleanup-partial-crash-e2e.md",
+      "sha256": "add756c5bd5e207a083941d45f3c946e3e9bf5b625dd9601d47831da9520959c",
+      "bytes": 6024,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-162"
+    },
+    {
+      "path": "reports/release/admin-cleanup-partial-crash-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/admin-cleanup-partial-crash-evidence.json",
+      "sha256": "b6c3ae9979755b24529537dd8c0a6a1c1c959d88aef7ed5529b48e3914b3873d",
+      "bytes": 14596,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-163"
+    },
+    {
+      "path": "reports/release/admin-managed-environment-e2e.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/admin-managed-environment-e2e.md",
+      "sha256": "a5d9092baf214ed5fe9c153b92b6c8fcff0016f0841bb8acc1525067ddbef2d7",
+      "bytes": 4986,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-164"
+    },
+    {
+      "path": "reports/release/admin-managed-environment-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/admin-managed-environment-evidence.json",
+      "sha256": "58afdb9844d18c5a7fac440827f8590a36f3da34646e06e031b39fae24e6d5d3",
+      "bytes": 6210,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-165"
+    },
+    {
+      "path": "reports/release/admin-managed-lifecycle-e2e.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/admin-managed-lifecycle-e2e.md",
+      "sha256": "fc6c7b920d4c92d040f2d18482a4b4e14195719f56dc608ffdeabf46b744fed8",
+      "bytes": 8582,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-166"
+    },
+    {
+      "path": "reports/release/admin-managed-lifecycle-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/admin-managed-lifecycle-evidence.json",
+      "sha256": "7621168d4a7dcc140bf089bb4265dbd9458699c81c6c9ee330dd48bf4206023a",
+      "bytes": 9952,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-167"
+    },
+    {
+      "path": "reports/release/e526-release-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/e526-release-evidence.json",
+      "sha256": "2850f800f90db6439f57e39c9dc7947d1f59692c6811e3f914cfeff70e9760f4",
+      "bytes": 29053,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-168"
+    },
+    {
+      "path": "reports/release/e526-release.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/e526-release.md",
+      "sha256": "66658b0f2522b2ef63f3c73c7a063d92664782e5ac802d982635eb4e2fdd2296",
+      "bytes": 10215,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-169"
+    },
+    {
+      "path": "reports/release/mm-checkpoint-final-release-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-checkpoint-final-release-evidence.json",
+      "sha256": "aec8d20cb11889cb1dc37dac131b772286cadeadc42e7885af79ac6aa2b64840",
+      "bytes": 25860,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-170"
+    },
+    {
+      "path": "reports/release/mm-checkpoint-final-release.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-checkpoint-final-release.md",
+      "sha256": "6ea379f173d8a7101eb94ed7b8684ace68663ac66457f9ef5a5cc69066def61a",
+      "bytes": 4375,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-171"
+    },
+    {
+      "path": "reports/release/mm-checkpoint-poll-load-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-checkpoint-poll-load-evidence.json",
+      "sha256": "289bc6d7ab5bf8d886f2c10d2e3c177ccb84f635e24f5e4968a16b47b752d777",
+      "bytes": 19696,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-172"
+    },
+    {
+      "path": "reports/release/mm-checkpoint-poll-load.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-checkpoint-poll-load.md",
+      "sha256": "1977ed54752669dc7581688d3b5fc92e1bff6820895bfeb575375d0377fc5fc6",
+      "bytes": 2040,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-173"
+    },
+    {
+      "path": "reports/release/mm-controller-persistence-release-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-controller-persistence-release-evidence.json",
+      "sha256": "ec9c087ecd1d28c51884f15677831671f156cbef3d7ea713435baaeeb1f4053b",
+      "bytes": 12941,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-174"
+    },
+    {
+      "path": "reports/release/mm-controller-persistence-release.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-controller-persistence-release.md",
+      "sha256": "c2efddb4f75a13b5e8716e1bb4c8542e5535e2af7b5a649bede01edbe5ffc7df",
+      "bytes": 7539,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-175"
+    },
+    {
+      "path": "reports/release/mm-latent-fixes-load-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-latent-fixes-load-evidence.json",
+      "sha256": "792a4f8419fc337729dc9a4424fc3e8b9d58aab8ce74e48a92a158ca1fce7d08",
+      "bytes": 27637,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-176"
+    },
+    {
+      "path": "reports/release/mm-okx-expiry-load-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-okx-expiry-load-evidence.json",
+      "sha256": "8572592fa5ec9ac268af05f9409d54842568774d3a1427ef37078cb6d5593abb",
+      "bytes": 19818,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-177"
+    },
+    {
+      "path": "reports/release/mm-okx-expiry-load.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-okx-expiry-load.md",
+      "sha256": "4254f07d4e48942a1bfac58288b9f020d479dfec8ab2bbd0094900a6586e3e2f",
+      "bytes": 2053,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-178"
+    },
+    {
+      "path": "reports/release/mm-partial-quote-final-soak-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-partial-quote-final-soak-evidence.json",
+      "sha256": "cebc8b914d6111b6a69b815aea0c06c733e7a84405d86459d783d8bce21112e1",
+      "bytes": 147785,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-179"
+    },
+    {
+      "path": "reports/release/mm-partial-quote-final-soak.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-partial-quote-final-soak.md",
+      "sha256": "dff5b68a760c3c6e072661f44da4d2d3dff63b04d2c99de129687834b83830f0",
+      "bytes": 8209,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-180"
+    },
+    {
+      "path": "reports/release/mm-quote-recovery-release-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-quote-recovery-release-evidence.json",
+      "sha256": "102a436e8165f662bd8c38a4e70cfb95eee310ad12b165ace091d2eb26d7e52f",
+      "bytes": 32134,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-181"
+    },
+    {
+      "path": "reports/release/mm-quote-recovery-release.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-quote-recovery-release.md",
+      "sha256": "bdbac39774c00bce705c4b473822fb86669de0169b6682ac4fc3f0cd7d937884",
+      "bytes": 6504,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-182"
+    },
+    {
+      "path": "reports/release/mm-release-closeout-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-release-closeout-evidence.json",
+      "sha256": "3e9c5dd5d9c758a94ecad8762df664e34d6e7fcfdbe87b69ba8be7650fa80f17",
+      "bytes": 43444,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-183"
+    },
+    {
+      "path": "reports/release/mm-release-closeout.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-release-closeout.md",
+      "sha256": "3b633f7caa758a88bffb4c9e48e7d259a39751f5c6b7c1e80ea47aa7124aed36",
+      "bytes": 22926,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-184"
+    },
+    {
+      "path": "reports/release/mm-runtime-logic-release-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-runtime-logic-release-evidence.json",
+      "sha256": "da764784b21bdb2772c3b5cda1feaf0f3a8c38a3b5e1ac9278fb2ac8b4da17b8",
+      "bytes": 28548,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-185"
+    },
+    {
+      "path": "reports/release/mm-runtime-logic-release.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-runtime-logic-release.md",
+      "sha256": "ef2377378c73401e4c232c7d1029b6ca15c2e746d93b64fa77c703203e89dbad",
+      "bytes": 4990,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-186"
+    },
+    {
+      "path": "reports/release/mm-service-supervision-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-service-supervision-evidence.json",
+      "sha256": "d4074a98ce9b44f45ed08f7f1400145e9c7ca11c6293bda14ca1026df5c30efb",
+      "bytes": 67349,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-187"
+    },
+    {
+      "path": "reports/release/mm-service-supervision.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-service-supervision.md",
+      "sha256": "6b8693cfad73e6a68c949cba862f412a742e2087ced642ef5fa7c5ac657af318",
+      "bytes": 30749,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-188"
+    },
+    {
+      "path": "reports/release/mm-submission-log-release-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-submission-log-release-evidence.json",
+      "sha256": "b8e46b10156a1ebe340eca23c33e2c7818d70b041d19609a5e5b6f070c48c3e7",
+      "bytes": 25091,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-189"
+    },
+    {
+      "path": "reports/release/mm-submission-log-release.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/mm-submission-log-release.md",
+      "sha256": "387b117863cfa3b2742e0458d297dd871f1b1f28b356e624f1db3a69dd00d9c1",
+      "bytes": 8502,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-190"
+    },
+    {
+      "path": "reports/release/probe-release-20261030-evidence.json",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/probe-release-20261030-evidence.json",
+      "sha256": "e92a60777e05ab253950dacbb21fa1a793c73d68d579ecada7f7ad469959bd6f",
+      "bytes": 86044,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-191"
+    },
+    {
+      "path": "reports/release/probe-release-20261030.md",
+      "archive": "reports/archive/history-20261107-release.zip",
+      "member": "reports/release/probe-release-20261030.md",
+      "sha256": "4812134b8fc38cca2c9683ea0b1581b141c3084a5ad0ba7b0dddb4cd6b6ad5b4",
+      "bytes": 9846,
+      "historical_open_checkboxes": [],
+      "disposition": "archived_and_removed",
+      "anchor": "record-192"
+    }
+  ],
+  "compaction": {
+    "scope": "Tracked docs/plans and reports working-tree content; Git object history and ignored build logs are not deleted.",
+    "before_files": 232,
+    "before_bytes": 5741031,
+    "plans_before": 27,
+    "plans_after": 5,
+    "reports_before": 205,
+    "reports_active_after": 48,
+    "reports_total_including_archive_after": 58,
+    "archive_members_verified_against_git": 192,
+    "working_tree_source_unchanged": true,
+    "missing_relative_markdown_links": 0,
+    "archive_redirect_anchors_verified": 56,
+    "after_files": 63,
+    "after_bytes": 2550654
+  }
+}

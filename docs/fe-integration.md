@@ -1059,8 +1059,8 @@ service fixtures, then verify the intended hosted route with trading stopped:
 - [ ] Primary English labels/next actions understood by a non-technical operator; raw codes stay in Details.
 
 Backend implementation evidence is in the
-[operations implementation report](../reports/implementation/admin-operations-api-implementation.md).
-The [original API/UX review](../reports/implementation/admin-api-dashboard-ux-review.md) records
+[operations implementation report](../reports/archive/README.md#record-035).
+The [original API/UX review](../reports/archive/README.md#record-033) records
 its historical baseline; this guide and the checked OpenAPI describe current
 integration behavior. Strategy/load/Demo results retain their own image and test
 scope. A dashboard, public Cloud Run route, browser acceptance and real-account

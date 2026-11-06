@@ -20,20 +20,11 @@ under the ignored `build/` directory.
 
 ## Plans and API contract
 
-- [PostgreSQL / Cloud Run port plan](plans/POSTGRES_CLOUD_RUN_PORT_PLAN.md)
-- [LIFE / OKX implementation plan](plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md)
-- [LIFE / OKX incremental enhancements — TDD plan](plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md)
-- [Reporting latency and bounded fallback](plans/MM_REPORTING_LATENCY_TDD_PLAN.md)
-- [MM volatility defense — TDD plan](plans/MM_VOLATILITY_DEFENSE_TDD_PLAN.md) — V0–V5 complete, including final-image hour/fault gates and bounded OKX Demo compatibility
-- [Pre-listing economic stress plan](plans/LIFE_MM_ECONOMIC_STRESS_PLAN.md)
-- [Operations API and configuration ownership plan](plans/ADMIN_OPERATIONS_API_TDD_PLAN.md)
-- [Admin access and encrypted exchange credentials — TDD plan, OKX first](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md) — A1–A5 and local A6 acceptance complete: roles, audit, encryption, managed Set/load and automatic Disconnect; real Google/GCP and reviewed Demo cutover remain open
-- [Runtime availability and reporting follow-up — TDD](plans/MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md)
-- [Checkpoint and background-poll optimization](plans/MM_CHECKPOINT_POLL_OPTIMIZATION_TDD_PLAN.md)
-- [Working-order activity and diagnostics plan](plans/MM_QUOTE_ACTIVITY_TDD_PLAN.md)
-- [Until-stopped MM sessions plan](plans/MM_UNTIL_STOPPED_TDD_PLAN.md)
-- [MM memory retention review plan](plans/MM_MEMORY_RETENTION_REVIEW.md)
-- [OKX WS position startup TDD plan](plans/OKX_WS_POSITION_STARTUP_TDD_PLAN.md)
-- [OpenAPI contract](api/openapi.json), generated from API handlers/models with
-  `make swagger` and checked with `make swagger-check`. This JSON is API
-  documentation, rather than a test-result artifact.
+- [Current delivery and remaining verification](plans/README.md)
+- [PostgreSQL / Cloud Run](plans/POSTGRES_CLOUD_RUN_PORT_PLAN.md)
+- [Admin access / credentials](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md)
+- [Actual Demo versus current offline image](plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md)
+- [Latest runtime TDD checklist](plans/MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md)
+- [Lossless historical plans/reports](../reports/archive/README.md)
+- [OpenAPI contract](api/openapi.json), generated with `make swagger` and checked
+  with `make swagger-check`; this remains API documentation, not a result artifact.
