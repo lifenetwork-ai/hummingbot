@@ -53,5 +53,60 @@ This halves those traversals, not total engine CPU. Logs:
 `/tmp/hbot-runtime-r2-red.log`, `/tmp/hbot-runtime-r2-green.log`,
 `/tmp/hbot-runtime-r2-postgres.log`.
 
-R3 measurement and final frozen-source regression remain in progress. No new
-image/load acceptance is claimed.
+## R3 — Narrow fresh valuation and per-report hold reuse
+
+Valuation readiness uses the existing executor's current filled-quote property
+instead of constructing the full PnL/custom DTO. PositionExecutor's open-base
+fallback still catches exposure awaiting transfer to PositionHold. DTO-only legacy
+adapters retain their interface. Non-finite current/open/retained quantities now
+return not-ready rather than being normalized away or accepted with a valid mark.
+Fresh mark validation, new fills, held exposure, scope checks and critical SQL
+failure propagation remain. No report from a prior tick becomes risk authority.
+
+Unified reports pass the already-computed position summaries to performance
+aggregation, following existing per-report executor DTO reuse. Standalone performance
+calls still compute fresh values. Scope filtering, held fees, PnL and volume remain;
+the next call observes changed prices and rejects stale marks. No resident cache,
+SQL change, connector rewrite, framework, worker or Redis is added.
+
+Eighteen new native cases: initial nine Red failures/four passes, then four held
+non-finite Red failures/one pass. Related native56 pass. The main Make regression
+target includes the new report tests. Correctness checks cover current/held exposure,
+zero exposure, finite values, stale/recovered marks, fee/PnL/volume, scope filters
+and no cross-call reuse. Logs: `/tmp/hbot-runtime-r3-red.log`,
+`/tmp/hbot-runtime-r3-held-red.log`, `/tmp/hbot-runtime-r3-final-green.log`.
+
+### Measurements and deliberately deferred work
+
+[Raw evidence](mm-runtime-followup-evidence.json) retains the before/after sample
+arrays and limitations. Seven alternating warmed pairs, 500 calls per sample,
+compare original methods from `45707b06e` to current methods with separate equivalent
+fixtures in one native process. Actual PositionExecutor/PositionHold methods use
+synthetic connector/order inputs. These are component CPU timings, not engine p99,
+SQL/REST savings, exchange performance or a new load acceptance.
+
+
+- Valuation readiness, 1 resident(s): median CPU 24.93 → 4.10 µs per call.
+- Valuation readiness, 12 resident(s): median CPU 256.87 → 26.98 µs per call.
+- Unified held report, 1 resident(s): median CPU 27.10 → 20.13 µs per call.
+- Unified held report, 12 resident(s): median CPU 195.30 → 113.71 µs per call.
+
+The steady-admission preliminary seven alternating pairs used real LIFE controller
+methods with a fixture provider (500 calls per sample); raw results are retained.
+The robust claim is two reference/exposure traversals become one per controller,
+not that total engine CPU halves.
+
+JSON normalization is unchanged. Preliminary native medians for inner capture /
+outer detach are about 0.010 / 0.005 ms with an empty account, 0.523 / 0.188 ms with
+100 synthetic balances (~14 KB), and 5.065 / 1.829 ms with 1,000 balances (~139 KB).
+Those are per-component samples, not production payload measurements. The copies
+serve NaN rejection and mutation isolation; combining them is deferred without
+representative live payload evidence. Existing detached-publication tests remain.
+
+The first measurement fixture lacked two order metadata attributes; it was fixed
+before measurement. This was a fixture error, not another runtime defect. The
+valuation path with drawdown enabled does not explain the earlier six-probe load
+where drawdown was disabled. No single old probe root cause is claimed.
+
+Final frozen-source native/PostgreSQL regression is pending. No new image/load
+acceptance is claimed.

@@ -71,6 +71,7 @@ test-cloudrun-regression:
 		test/hummingbot/strategy/test_mm_initial_position_bootstrap.py \
 		test/hummingbot/strategy_v2/executors/test_executor_orchestrator.py \
 		test/hummingbot/strategy_v2/executors/test_report_snapshots.py \
+		test/hummingbot/strategy_v2/executors/test_report_cost_boundaries.py \
 		test/hummingbot/strategy_v2/executors/test_mm_drawdown_reports.py \
 		test/hummingbot/strategy_v2/executors/test_executor_retention.py \
 		test/hummingbot/strategy_v2/executors/test_terminal_position_checkpoint.py \

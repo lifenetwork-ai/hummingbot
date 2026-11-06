@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 from hummingbot.strategy_v2.executors.arbitrage_executor.arbitrage_executor import ArbitrageExecutor
 from hummingbot.strategy_v2.executors.data_types import PositionSummary
 from hummingbot.strategy_v2.executors.dca_executor.dca_executor import DCAExecutor
+from hummingbot.strategy_v2.executors.executor_base import ExecutorBase
 from hummingbot.strategy_v2.executors.grid_executor.grid_executor import GridExecutor
 from hummingbot.strategy_v2.executors.lp_executor.lp_executor import LPExecutor
 from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
@@ -274,16 +275,32 @@ class ExecutorOrchestrator:
     def mm_valuation_ready(self):
         if getattr(self, "mm_scope_incomplete", False):
             return False
-        required = {(identity, position.connector_name, position.trading_pair)
-                    for identity, positions in self.positions_held.items() for position in positions if position.net_amount_base}
-        required.update((identity, executor.config.connector_name, executor.config.trading_pair)
-                        for identity, executors in self.active_executors.items() for executor in executors
-                        if executor.executor_info.filled_amount_quote
-                        or (isinstance(executor, PositionExecutor) and executor.open_filled_amount))
+        required = set()
         try:
+            for identity, positions in self.positions_held.items():
+                for position in positions:
+                    amount = Decimal(str(position.net_amount_base))
+                    if not amount.is_finite():
+                        return False
+                    if amount:
+                        required.add((identity, position.connector_name, position.trading_pair))
+            for identity, executors in self.active_executors.items():
+                for executor in executors:
+                    # Read current exposure without constructing PnL/custom DTOs.
+                    # Retain the DTO-only adapter interface for legacy integrations.
+                    filled = Decimal(str(executor.filled_amount_quote if isinstance(executor, ExecutorBase)
+                                         else executor.executor_info.filled_amount_quote))
+                    if not filled.is_finite():
+                        return False
+                    if not filled and isinstance(executor, PositionExecutor):
+                        filled = Decimal(str(executor.open_filled_amount))
+                        if not filled.is_finite():
+                            return False
+                    if filled:
+                        required.add((identity, executor.config.connector_name, executor.config.trading_pair))
             for identity, connector, pair in required:
                 self._mm_mark_price(identity, connector, pair)
-        except ValueError:
+        except (ValueError, ArithmeticError):
             return False
         return True
 
@@ -929,12 +946,14 @@ class ExecutorOrchestrator:
                 "executors": executors_report.get(controller_id, []),
                 "positions": positions_report.get(controller_id, []),
                 "performance": self.generate_performance_report(
-                    controller_id, executor_infos=executors_report.get(controller_id, []))
+                    controller_id, executor_infos=executors_report.get(controller_id, []),
+                    position_summaries=positions_report.get(controller_id, []))
             }
             for controller_id in all_controller_ids
         }
 
-    def generate_performance_report(self, controller_id: str, *, executor_infos=None) -> PerformanceReport:
+    def generate_performance_report(self, controller_id: str, *, executor_infos=None,
+                                    position_summaries=None) -> PerformanceReport:
         # Create a new report starting from cached base values
         report = PerformanceReport()
         cached_report = self.cached_performance.get(controller_id, PerformanceReport())
@@ -947,7 +966,7 @@ class ExecutorOrchestrator:
         # Add data from active executors
         if executor_infos is None:
             executor_infos = (executor.executor_info for executor in self.active_executors.get(controller_id, []))
-        positions = self.positions_held.get(controller_id, [])
+        positions = self.positions_held.get(controller_id, []) if position_summaries is None else position_summaries
 
         for executor_info in executor_infos:
             if not executor_info.is_done:
@@ -974,12 +993,15 @@ class ExecutorOrchestrator:
                 self.logger().warning(f"Skipping position in performance report for {position.connector_name}.{position.trading_pair} - "
                                       f"not available in current strategy markets")
                 continue
-            if self._mm_scope():
-                mid_price = self._mm_mark_price(controller_id, position.connector_name, position.trading_pair) if position.net_amount_base else Decimal("0")
+            if position_summaries is not None:
+                position_summary = position
             else:
-                mid_price = self.strategy.market_data_provider.get_price_by_type(
-                    position.connector_name, position.trading_pair, PriceType.MidPrice)
-            position_summary = position.get_position_summary(mid_price if not mid_price.is_nan() else Decimal("0"))
+                if self._mm_scope():
+                    mid_price = self._mm_mark_price(controller_id, position.connector_name, position.trading_pair) if position.net_amount_base else Decimal("0")
+                else:
+                    mid_price = self.strategy.market_data_provider.get_price_by_type(
+                        position.connector_name, position.trading_pair, PriceType.MidPrice)
+                position_summary = position.get_position_summary(mid_price if not mid_price.is_nan() else Decimal("0"))
 
             # Update report with position data
             # PositionHold realizes trading PnL and stores fees separately. The

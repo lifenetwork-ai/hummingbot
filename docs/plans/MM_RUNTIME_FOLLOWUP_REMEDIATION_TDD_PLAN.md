@@ -32,11 +32,11 @@ real cleanup/checkpoint writes still propagate. Operator guidance is English.
 
 ## R3 — Remaining report costs (F4/F5/F6)
 
-- [ ] Measure actual valuation-ready/report/serialization costs before selecting
+- [x] Measure actual valuation-ready/report/serialization costs before selecting
   further changes. Retain small/large fixture and freshness/error tradeoffs.
-- [ ] TDD any justified narrow optimization; keep new/held exposure, finite-value
+- [x] TDD any justified narrow optimization; keep new/held exposure, finite-value
   rejection, fees, scope filters, strict serialization and mutation isolation.
-- [ ] Document intentionally deferred changes if measurements do not justify them.
+- [x] Document intentionally deferred changes if measurements do not justify them.
 
 ## Verification
 
