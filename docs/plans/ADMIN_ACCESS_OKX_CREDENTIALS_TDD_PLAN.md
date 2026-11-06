@@ -1008,8 +1008,16 @@ and the exact HTTP/DB injection boundaries are retained in the
   bound each refresh by the remaining polling deadline and reuse native readers.
 - [x] Map status-read timeouts to transient `cleanup_orders_pending`, preserving
   tracked identities, credentials, cancellation and final ledger/flat proof gates.
-- [ ] Verify related native/PG cases and shipping-image cleanup recovery; record
+- [x] Verify related native/PG cases and shipping-image cleanup recovery; record
   before/after request counts, exact image scope, results and any limitations.
+
+Final source `f1a7429f4` / image `8cdadb21…`: native 2,719 + 11 subtests, related
+PG 104, six native-image cleanup cases pass. Eleven new cases cover timeout,
+deadline, delayed-fill final readback, cancellation and same-operation retry.
+Controlled refresh counts fall nine → seven (22.2%); no overall MM latency claim,
+new full/hour gate, real Google/GCP or existing Demo changes. See the
+[optimization report](../../reports/performance/admin-cleanup-polling.md) and
+[portable evidence](../../reports/performance/admin-cleanup-polling-evidence.json).
 
 ## Implementation-readiness review
 

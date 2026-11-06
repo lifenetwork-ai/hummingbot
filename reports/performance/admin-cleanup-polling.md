@@ -54,13 +54,61 @@ test against the first five-read optimization; the final seven-read version keep
 the last-pass reconciliation. Its timeout is also tested as a dependency wait,
 never a completed cleanup.
 
-The runtime file has **30 cases**, including nine new cases. Two additional
+The runtime file passes **30 cases**, including nine new cases. Two additional
 PostgreSQL coordinator cases check waiting-for-dependency status, retained keys,
 scheduled retry and eventual same-operation completion for cancel/close readback.
 The adapter and coordinator portions are tested separately: the latter injects
 the mapped error, rather than claiming an actual exchange timeout.
 
-The initial runtime version passes full native regression (2,717 tests plus 11
-subtests) and related PostgreSQL (104 tests). Final-source regression and a
-rebuilt-image cleanup matrix remain pending. No shipping-image, actual OKX, full
-load or hour-soak acceptance is claimed until its corresponding evidence is recorded.
+Final source `f1a7429f4` passes full native regression (**2,719 tests plus 11
+subtests**) and related PostgreSQL (**104 tests**). The initial runtime version's
+2,717 native/104 PG passes are retained separately; final counts are not added to
+them. **Eleven new cases** are added (nine native unit cases and two PG coordinator
+cases). Runtime source SHA-256 is
+`16530ab4489bceabd24afb619d00e634f822a77eb52f6b510a4f08f1cb2e383d`;
+the rebuilt image contains exactly that file.
+
+## Shipping-image cleanup acceptance
+
+Canonical Dockerfile target `cloudrun`, `linux/amd64`, commit `f1a7429f4`:
+
+- Tag: `hummingbot-cloudrun:cleanup-polling`.
+- Config/image ID: `sha256:8cdadb21e6ff302d58de5983b6b5154ee37b70fcbeeb645f12e1c79618b00821`.
+- Registry manifest: `sha256:711ec041a98388030afa5d8872471b53e6c9cb8bf4e2d8e4dd50f8d8da6002d9`.
+- Size: 1,374,439,437 bytes, within the unchanged 1.5 GiB budget.
+- Result: `build/e2e-offline/20261106-165113-cfd613/result.json`.
+
+Runtime smoke (ABI, JIT, TLS, SDK discovery and size), followed by **six of six**
+native-image cleanup cases, passes:
+
+| Scenario | Venue / recorder fills | Physical close attempts |
+| --- | --- | --- |
+| Partial live + WS loss | 6 / 6 | 2 |
+| Partial cancelled + WS loss | 6 / 6 | 3 |
+| Partial live + SIGKILL/restart | 6 / 6 | 3 |
+| Partial cancelled + SIGKILL/restart | 6 / 6 | 3 |
+| Real PG fill-write failure / replacement / Retry | 5 / 5 | 2 |
+| Real PG removal-audit failure / dependency retry | 5 / 5 | 2 |
+
+Each case has its own isolated database and simulator; seed fills are included in
+the counts. Fees match exactly, managed perpetual positions finish flat, spot is
+preserved, selected ciphertext is removed only after verification, companion
+credentials remain and another stopped restart preserves history. Counts include
+every physical POST, including rejected attempts, rather than only accepted IDs.
+The fill-write failure uses ordinary process replacement plus the existing Retry
+path; no ledger repair, health-flag reset or risk-HALT reset is performed.
+
+The request-count improvement is measured by the controlled unit case, not by an
+end-to-end latency benchmark. The image matrix verifies bookkeeping/recovery after
+the optimization; it does not inject a native REST timeout. Unit adapter tests and
+PG coordinator tests cover the timeout classification/retry boundary separately.
+Fault windows deliberately produce errors and may retain recovery HALTs; no
+zero-error-log claim is made. Existing Demo and real Google/GCP/OKX are untouched.
+The gate remains targeted (`release_scope_complete=false`); no new full-image,
+upgrade, retention or hour-soak acceptance is claimed. Earlier qualified probe
+timing evidence is not reclassified or inherited as new-image evidence.
+
+[Portable evidence](admin-cleanup-polling-evidence.json) contains the raw image
+result, source hashes, command summaries, Red/Green failures and final results.
+Disposable test/registry containers are removed. Candidate and rollback images,
+existing service containers and volumes are retained; no broad prune is performed.

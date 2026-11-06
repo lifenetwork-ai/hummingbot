@@ -442,3 +442,25 @@ fault. Existing native-image E2E evidence is preserved, not rerun/inherited as a
 image or hour gate. No existing Demo or external Google/GCP/OKX interaction. Results
 are appended to the existing [report](../release/admin-cleanup-partial-crash-e2e.md)
 and [evidence](../release/admin-cleanup-partial-crash-evidence.json).
+
+### Cleanup polling efficiency and timeout recovery — 2026-11-06
+
+Confirmed with behavioral Red tests: repeated reads of already terminal orders,
+raw status/fill timeouts classified as unexplained failure, independent per-order
+awaits exceeding the remaining poll budget, and an immediate extra close read.
+The first optimization also fails a new delayed-fill check; keep a final read of
+orders that finished early. Final controlled counts fall nine → seven refreshes,
+not five. Eleven new cases cover these paths plus cancellation and PG dependency
+retry. No role/secret cache, new scheduler or MM tick/quote change is introduced.
+
+Commit `f1a7429f4`, canonical image `8cdadb21…`, matching runtime SHA: final full
+native 2,719 + 11 subtests, related PG 104 and all six native-image cleanup/fault
+cases pass. Synthetic fills/fees/positions and every physical close attempt match;
+spot and companion keys survive, selected removal/restart remains verified. The
+PG-fill fault uses existing process replacement/Retry, without SQL ledger repair
+or clearing risk fences. The first-version native 2,717 / PG 104 results and the
+fake-clock test correction stay separate in the evidence. No new full/hour gate,
+real Google/GCP/OKX or existing Demo interaction is claimed. Test containers are
+removed; candidate/rollback images and persistent volumes are retained. See the
+[report](../performance/admin-cleanup-polling.md) and
+[evidence](../performance/admin-cleanup-polling-evidence.json).

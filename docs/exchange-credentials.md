@@ -174,6 +174,14 @@ companion key was removed. A superseded repair finishes as failed/replaced.
 Accepted cleanup retains its original audited authority after logout or role
 removal; new retry/repair requests recheck the actor's current role.
 
+A timeout while reading order status/fills reports `cleanup_orders_pending` and
+uses the existing `waiting_for_dependency` retry. Keep the saved key available and
+poll the same operation; a read timeout alone does not require replacing the key.
+Terminal orders still receive fresh readback, and orders that finish early receive
+a final fill reconciliation after the remaining orders finish. Credentials are not
+removed until the unchanged remote/ledger/flat-position checks succeed. See the
+[polling verification](../reports/performance/admin-cleanup-polling.md).
+
 If a crashed runtime left an unverified checkpoint, automatic closure refuses to
 infer missing exposure. Follow the reviewed [recovery runbook](postgres-runtime.md).
 No API resets a risk HALT or fabricates a flat position. A cold load still needs

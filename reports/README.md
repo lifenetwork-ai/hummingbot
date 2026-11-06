@@ -4,6 +4,14 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Cleanup polling optimized and timeout classification fixed:** image `8cdadb21…`
+  passes six native-image recovery cases; final native 2,719 + 11 subtests and related
+  PG 104 pass. Eleven new tests protect first/final terminal readback, delayed fills,
+  cancellation, remaining-budget caps and automatic dependency retry. Controlled
+  refresh calls fall nine → seven; no new full/hour gate or real Demo interaction.
+  [Report](performance/admin-cleanup-polling.md),
+  [evidence](performance/admin-cleanup-polling-evidence.json).
+
 - **Cleanup API/transaction coverage extended:** ten additional PG cases cover
   lost post-commit HTTP responses, concurrent Retry/Repair, permission revocation
   after preparation and final-removal acknowledgement loss. Related native110/PG102
