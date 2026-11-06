@@ -183,7 +183,7 @@ async def test_cancel_ack_without_terminal_readback_does_not_count_as_cleanup(mo
     instance, connector = runtime()
     order = SimpleNamespace(client_order_id='HB-known', is_done=False)
     instance.orders = {'HB-known': (connector, order)}
-    times = iter([0, 16])
+    times = iter([0, 0, 16])
     monkeypatch.setattr('hummingbot.cli.credential_cleanup_runtime.time', SimpleNamespace(monotonic=lambda: next(times)))
     with pytest.raises(CredentialAdapterError, match='cleanup_orders_pending'):
         await instance.cancel_orders()
@@ -215,3 +215,165 @@ async def test_cleanup_price_read_uses_registered_native_throttle_and_requested_
     await instance.close_position(dict(id='held', side='BUY', trading_pair='BTC-USDT', amount=Decimal('.1')),
                                   dict(id='disconnect', affected_versions={'okx_perpetual': 1}))
     connector.sell.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_poll_defers_terminal_rereads_until_pending_orders_finish(monkeypatch):
+    instance, connector = runtime()
+    fast = SimpleNamespace(client_order_id='fast', is_done=False)
+    slow = SimpleNamespace(client_order_id='slow', is_done=False)
+    already_done = SimpleNamespace(client_order_id='done', is_done=True)
+    instance.orders = {o.client_order_id: (connector, o) for o in (fast, slow, already_done)}
+    reads = []
+
+    async def refresh(client, orders):
+        order, = orders
+        reads.append(order.client_order_id)
+        order.is_done = order is not slow or reads.count('slow') == 3
+
+    instance.owner._refresh_orders.side_effect = refresh
+    monkeypatch.setattr('hummingbot.cli.credential_cleanup_runtime.asyncio.sleep', AsyncMock())
+    await instance.cancel_orders()
+    # Terminal entries get the first read and one final reconciliation, never
+    # another read on every intervening pending-order poll.
+    assert reads.count('done') == reads.count('fast') == 2
+    assert reads.count('slow') == 3
+    assert set(instance.orders) == {'fast', 'slow', 'done'}
+    instance.core.trade_fill_db.assert_persistence_healthy.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('final_timeout', [False, True], ids=['late_fill', 'final_read_timeout'])
+async def test_cleanup_rechecks_early_terminal_fills_before_reporting_all_orders_verified(monkeypatch, final_timeout):
+    instance, connector = runtime()
+    fast = SimpleNamespace(client_order_id='fast', is_done=False)
+    slow = SimpleNamespace(client_order_id='slow', is_done=False)
+    instance.orders = {'fast': (connector, fast), 'slow': (connector, slow)}
+    reads, fills_caught_up = [], []
+
+    async def refresh(client, orders):
+        order, = orders
+        reads.append(order.client_order_id)
+        order.is_done = order is fast or reads.count('slow') == 3
+        if order is fast and slow.is_done:
+            if final_timeout:
+                raise asyncio.TimeoutError()
+            fills_caught_up.append('late partial cancel fill')
+
+    instance.owner._refresh_orders.side_effect = refresh
+    monkeypatch.setattr('hummingbot.cli.credential_cleanup_runtime.asyncio.sleep', AsyncMock())
+    if final_timeout:
+        with pytest.raises(CredentialAdapterError, match='cleanup_orders_pending'):
+            await instance.cancel_orders()
+        assert not fills_caught_up and set(instance.orders) == {'fast', 'slow'}
+        instance.core.trade_fill_db.assert_persistence_healthy.assert_not_called()
+    else:
+        await instance.cancel_orders()
+        assert fills_caught_up == ['late partial cancel fill']
+        instance.core.trade_fill_db.assert_persistence_healthy.assert_called_once()
+    assert reads == ['fast', 'slow', 'slow', 'slow', 'fast']
+
+
+@pytest.mark.asyncio
+async def test_cleanup_refresh_timeout_preserves_tracking_and_reports_retryable_dependency():
+    instance, connector = runtime()
+    order = SimpleNamespace(client_order_id='pending', is_done=False)
+    instance.orders = {'pending': (connector, order)}
+    instance.owner._refresh_orders.side_effect = asyncio.TimeoutError()
+    with pytest.raises(CredentialAdapterError, match='cleanup_orders_pending') as error:
+        await instance.cancel_orders()
+    assert error.value.status == 503
+    assert instance.orders == {'pending': (connector, order)}
+    instance.core.trade_fill_db.assert_persistence_healthy.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_close_readback_timeout_keeps_original_identity_for_recovery():
+    from hummingbot.core.cleanup_authority import current_cleanup_scope
+    instance, connector = runtime()
+    order = SimpleNamespace(client_order_id='close-pending', is_done=False, executed_amount_base=Decimal(0))
+
+    def place(**kwargs):
+        connector.in_flight_orders[order.client_order_id] = order
+        return order.client_order_id
+
+    connector.sell, connector.buy = Mock(side_effect=place), Mock()
+    instance.owner._refresh_orders.side_effect = asyncio.TimeoutError()
+    with pytest.raises(CredentialAdapterError, match='cleanup_orders_pending') as error:
+        await instance.close_position(dict(id='held', side='BUY', trading_pair='BTC-USDT', amount=Decimal('.1')),
+                                      dict(id='disconnect', affected_versions={'okx_perpetual': 1}))
+    assert error.value.status == 503 and current_cleanup_scope() is None
+    assert instance.orders == {'close-pending': (connector, order)}
+    connector.sell.assert_called_once()
+    connector.buy.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_each_refresh_uses_only_the_remaining_poll_deadline(monkeypatch):
+    instance, connector = runtime()
+    orders = [SimpleNamespace(client_order_id=str(i), is_done=False) for i in range(2)]
+    instance.orders = {o.client_order_id: (connector, o) for o in orders}
+    clock = iter([0, 0, 12])
+    monkeypatch.setattr('hummingbot.cli.credential_cleanup_runtime.time', SimpleNamespace(monotonic=lambda: next(clock)))
+    actual_wait_for, timeouts = asyncio.wait_for, []
+
+    async def wait_for(awaitable, timeout):
+        timeouts.append(timeout)
+        return await actual_wait_for(awaitable, timeout)
+
+    async def refresh(client, refreshed):
+        refreshed[0].is_done = True
+
+    monkeypatch.setattr('hummingbot.cli.credential_cleanup_runtime.asyncio.wait_for', wait_for)
+    instance.owner._refresh_orders.side_effect = refresh
+    await instance.cancel_orders()
+    assert timeouts == [10, 3]
+
+
+@pytest.mark.asyncio
+async def test_close_waits_between_unfinished_rest_reads_instead_of_immediately_repeating(monkeypatch):
+    instance, connector = runtime()
+    order = SimpleNamespace(client_order_id='pending', is_done=False, executed_amount_base=Decimal('.1'))
+    events = []
+
+    def place(**kwargs):
+        connector.in_flight_orders['pending'] = order
+        return 'pending'
+
+    async def refresh(client, orders):
+        events.append('read')
+        order.is_done = events.count('read') == 2
+
+    async def sleep(delay):
+        if delay == .1:
+            events.append('poll_wait')
+
+    connector.sell = Mock(side_effect=place)
+    instance.owner._refresh_orders.side_effect = refresh
+    monkeypatch.setattr('hummingbot.cli.credential_cleanup_runtime.asyncio.sleep', sleep)
+    await instance.close_position(dict(id='held', side='BUY', trading_pair='BTC-USDT', amount=Decimal('.1')),
+                                  dict(id='disconnect', affected_versions={'okx_perpetual': 1}))
+    assert events == ['read', 'poll_wait', 'read']
+
+
+@pytest.mark.asyncio
+async def test_expired_cleanup_poll_budget_does_not_start_another_rest_request(monkeypatch):
+    instance, connector = runtime()
+    instance.orders = {'pending': (connector, SimpleNamespace(client_order_id='pending', is_done=False))}
+    clock = iter([0, 16])
+    monkeypatch.setattr('hummingbot.cli.credential_cleanup_runtime.time', SimpleNamespace(monotonic=lambda: next(clock)))
+    with pytest.raises(CredentialAdapterError, match='cleanup_orders_pending'):
+        await instance.cancel_orders()
+    instance.owner._refresh_orders.assert_not_awaited()
+    instance.core.trade_fill_db.assert_persistence_healthy.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_status_read_cancellation_propagates_without_losing_identity():
+    instance, connector = runtime()
+    instance.orders = {'pending': (connector, SimpleNamespace(client_order_id='pending', is_done=False))}
+    instance.owner._refresh_orders.side_effect = asyncio.CancelledError()
+    with pytest.raises(asyncio.CancelledError):
+        await instance.cancel_orders()
+    assert list(instance.orders) == ['pending']
+    instance.core.trade_fill_db.assert_persistence_healthy.assert_not_called()

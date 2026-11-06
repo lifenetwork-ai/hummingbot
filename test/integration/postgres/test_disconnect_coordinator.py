@@ -182,3 +182,33 @@ async def test_lost_final_commit_ack_readback_does_not_repeat_closes_or_completi
         events = connection.execute(select(AdminAuditEvent).where(
             AdminAuditEvent.operation_id == root['id'], AdminAuditEvent.action == 'credentials_disconnect')).mappings().all()
     assert sorted(row['outcome'] for row in events) == ['accepted', 'succeeded']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('boundary', ['cancel_orders', 'close_position'])
+async def test_cleanup_read_timeout_waits_for_dependency_then_resumes_same_operation(managed, monkeypatch, boundary):
+    store, actor = loaded(managed, both=True)
+    positions(store)
+    root = disconnect(store, actor, control=2)
+    runtime = Runtime(store, {('BTC-USDT', 'LONG'): Decimal('.1'), ('BTC-USDT', 'SHORT'): Decimal('.1')})
+    original, attempts = getattr(runtime, boundary), []
+
+    async def fail_once(*args):
+        attempts.append(boundary)
+        if len(attempts) == 1:
+            raise CredentialAdapterError('cleanup_orders_pending', status=503)
+        return await original(*args)
+
+    monkeypatch.setattr(runtime, boundary, fail_once)
+    coordinator = DisconnectCoordinator(store, SimpleNamespace(owner_uuid='owner', generation=1), runtime)
+    assert not await coordinator.run(root['id'])
+    blocked = store.operation(root['id'])
+    assert blocked['result']['stage'] == 'waiting_for_dependency'
+    assert blocked['result']['reason_code'] == 'cleanup_orders_pending'
+    assert not blocked['result']['operator_action_required']
+    assert blocked['result']['next_retry_at'] > float(store.store.read()['database_now'])
+    assert not runtime.detached and store.load('okx', 'okx', 'demo')['envelope'] is not None
+    assert not any(isinstance(call, tuple) for call in runtime.calls)
+    assert await coordinator.run(root['id'])
+    assert sorted(call for call in runtime.calls if isinstance(call, tuple)) == [('BUY', Decimal('.1')), ('SELL', Decimal('.1'))]
+    assert store.operation(root['id'])['status'] == 'succeeded' and not runtime.actual

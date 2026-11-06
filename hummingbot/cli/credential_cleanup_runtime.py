@@ -121,14 +121,29 @@ class CleanupExchangeRuntime:
                     unknown = True
             await connector.cancel_all(5)
         deadline = time.monotonic() + 15
-        while True:
-            for connector, order in list(self.orders.values()):
-                await asyncio.wait_for(self.owner._refresh_orders(connector, [order]), 10)
-            if all(order.is_done for _, order in self.orders.values()):
+        pending = list(self.orders.values())
+        settled_early = []
+        while pending:
+            # Read every recovered order once, including terminal WS/tracker
+            # entries. Only unfinished orders need repeated intermediate polls;
+            # keep all identities for remote-order checks.
+            for connector, order in pending:
+                await self._refresh_order(connector, order, deadline)
+            unfinished = [(connector, order) for connector, order in pending if not order.is_done]
+            if not unfinished:
                 break
+            settled_early.extend((connector, order) for connector, order in pending if order.is_done)
+            pending = unfinished
             if time.monotonic() >= deadline:
                 raise CredentialAdapterError("cleanup_orders_pending", status=503)
             await asyncio.sleep(.2)
+        # Fills can lag a terminal status. Preserve the old loop's last-pass
+        # reconciliation of early terminal orders without rereading them on
+        # every intermediate poll of an unrelated slow order.
+        for connector, order in settled_early:
+            await self._refresh_order(connector, order, deadline)
+            if not order.is_done:
+                raise CredentialAdapterError("cleanup_orders_pending", status=503)
         for connector in self.core.connector_manager.connectors.values():
             for item in await self.owner._open_orders(connector):
                 instrument, identity = item.get("instId", ""), item.get("clOrdId") or ""
@@ -138,6 +153,17 @@ class CleanupExchangeRuntime:
         self.core.trade_fill_db.assert_persistence_healthy()
         if unknown:
             raise CredentialAdapterError("cleanup_unknown_orders", status=409)
+
+    async def _refresh_order(self, connector, order, deadline):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise CredentialAdapterError("cleanup_orders_pending", status=503)
+        try:
+            await asyncio.wait_for(self.owner._refresh_orders(connector, [order]), min(10, remaining))
+        except asyncio.TimeoutError:
+            # A status/fill dependency timeout is not an unexplained cleanup
+            # failure. Preserve tracking and let the existing retry fence wait.
+            raise CredentialAdapterError("cleanup_orders_pending", status=503) from None
 
     async def positions(self):
         connectors = self.core.connector_manager.connectors
@@ -184,9 +210,10 @@ class CleanupExchangeRuntime:
                 raise CredentialAdapterError("cleanup_orders_pending", status=503)
             await asyncio.sleep(.01)
         self.orders[identity] = connector, order
-        await asyncio.wait_for(self.owner._refresh_orders(connector, [order]), 10)
-        while not order.is_done:
-            await asyncio.wait_for(self.owner._refresh_orders(connector, [order]), 10)
+        while True:
+            await self._refresh_order(connector, order, deadline)
+            if order.is_done:
+                break
             if time.monotonic() >= deadline:
                 raise CredentialAdapterError("cleanup_orders_pending", status=503)
             await asyncio.sleep(.1)

@@ -1000,6 +1000,17 @@ defect reproduced or production/image change required. The initial test-field ty
 and the exact HTTP/DB injection boundaries are retained in the
 [existing resilience report](../../reports/release/admin-cleanup-partial-crash-e2e.md#further-cleanup-api-and-transaction-coverage--2026-11-06).
 
+### Cleanup polling efficiency and dependency timeout classification
+
+- [x] Reproduce repeated terminal-order reads and raw status-read timeouts with
+  behavioral tests; retain first-pass REST verification and persistence checks.
+- [x] Poll only orders still pending after their first verified terminal read;
+  bound each refresh by the remaining polling deadline and reuse native readers.
+- [x] Map status-read timeouts to transient `cleanup_orders_pending`, preserving
+  tracked identities, credentials, cancellation and final ledger/flat proof gates.
+- [ ] Verify related native/PG cases and shipping-image cleanup recovery; record
+  before/after request counts, exact image scope, results and any limitations.
+
 ## Implementation-readiness review
 
 The review found design/integration gaps, not newly reproduced runtime defects.
