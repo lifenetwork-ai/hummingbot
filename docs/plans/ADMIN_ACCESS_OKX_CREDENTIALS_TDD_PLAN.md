@@ -983,6 +983,23 @@ two native-image E2E. Both crash cases reconcile six synthetic fills and three
 physical close attempts, preserve spot and complete removal/restart on unchanged
 image `89d5e7c6…`. No runtime fix or new full/hour gate is claimed.
 
+### A6 follow-up — Lost responses and concurrent cleanup requests
+
+- [x] Abort real test HTTP transport after committed Disconnect/Retry/Repair;
+  replay idempotently before and after completion with one correlated child/root.
+- [x] Race two Retry requests and Retry versus Repair against real PostgreSQL;
+  serialize the same fence, reject stale transitions and preserve exact versions.
+- [x] Reject a prepared Repair when the requesting account is disabled/downgraded
+  before commit; preserve ciphertext, receipt, control and audit state.
+- [x] Exercise a final-removal commit followed by an injected lost acknowledgement;
+  durable readback/re-entry must not repeat closes or completion audit.
+- [x] Run related checks, record the precise scope, update this plan and commit.
+
+Ten additional PG cases pass in the related native110/PG102 regression. No runtime
+defect reproduced or production/image change required. The initial test-field typo
+and the exact HTTP/DB injection boundaries are retained in the
+[existing resilience report](../../reports/release/admin-cleanup-partial-crash-e2e.md#further-cleanup-api-and-transaction-coverage--2026-11-06).
+
 ## Implementation-readiness review
 
 The review found design/integration gaps, not newly reproduced runtime defects.

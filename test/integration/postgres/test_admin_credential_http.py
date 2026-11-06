@@ -5,11 +5,12 @@ from unittest.mock import AsyncMock
 import pytest
 from aiohttp import BasicAuth, ServerDisconnectedError, web
 from aiohttp.test_utils import TestClient, TestServer
-from sqlalchemy import func, update
+from sqlalchemy import func, select, update
 
 from hummingbot.cli.admin_api import ADMIN_ACCESS_KEY, ADMIN_PREFIX, AdminAPI, admin_middleware
 from hummingbot.client.config.admin_config import AdminSettings
 from hummingbot.connector.credential_adapters import CredentialAdapterError, CredentialAdapters, OKXCredentialAdapter
+from hummingbot.model.admin_access import AdminAuditEvent
 from hummingbot.model.admin_command import AdminCommand
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import BotStateStore
@@ -22,7 +23,7 @@ BODY = dict(expected_version=0, expected_control_version=0,
 
 
 @asynccontextmanager
-async def client_for(pg_engine, monkeypatch, *, mode="postgres_kms", lose_first_save_response=False):
+async def client_for(pg_engine, monkeypatch, *, mode="postgres_kms", lose_first_save_response=False, lose_response_suffix=None):
     import base64
     monkeypatch.setenv("EXCHANGE_CREDENTIALS_SOURCE", mode)
     monkeypatch.setenv("STORAGE_BACKEND", "postgres")
@@ -40,7 +41,8 @@ async def client_for(pg_engine, monkeypatch, *, mode="postgres_kms", lose_first_
     async def response_loss(request, handler):
         nonlocal lost
         response = await handler(request)
-        if lose_first_save_response and not lost and request.method == 'POST' and response.status == 202:
+        selected = lose_first_save_response or lose_response_suffix is not None and request.path.endswith(lose_response_suffix)
+        if selected and not lost and request.method == 'POST' and response.status == 202:
             lost = True
             request.transport.abort()  # Commit completed, but the client receives no receipt.
         return response
@@ -235,3 +237,69 @@ async def test_disconnect_and_repair_are_typed_versioned_and_never_erase_early(p
         status = await (await client.get(ADMIN_PREFIX + '/credentials/okx', headers=AUTH)).json()
         assert status['slots'][0]['status'] == 'disconnected' and not status['slots'][0]['configured']
         assert 'HTTP-CANARY' not in str(child) + str(status)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('action,suffix', [
+    ('credentials_disconnect', '/revoke'),
+    ('credentials_cleanup_retry', '/retry'),
+    ('credentials_cleanup_key', '/cleanup-credentials'),
+])
+async def test_cleanup_lost_http_response_replays_once_before_and_after_completion(pg_engine, monkeypatch, action, suffix):
+    async with client_for(pg_engine, monkeypatch, lose_response_suffix=suffix) as (client, state, adapter):
+        response = await client.post(ADMIN_PREFIX + '/credentials/okx/okx', headers={**AUTH, 'Idempotency-Key': 'seed'}, json=BODY)
+        assert response.status == 202
+        seed = await response.json()
+        store = CredentialStore(state)
+        with pg_engine.begin() as connection:
+            connection.execute(update(BotState).values(owner_uuid='owner', owner_generation=1))
+        assert store.finish_set(seed['id'], 'owner', 1, versions={'okx': 1})
+        path = ADMIN_PREFIX + '/credentials/okx/okx/revoke'
+        body = dict(expected_version=1, expected_control_version=1)
+        if action != 'credentials_disconnect':
+            response = await client.post(path, headers={**AUTH, 'Idempotency-Key': 'root'}, json=body)
+            assert response.status == 202
+            root = await response.json()
+            assert store.progress_disconnect(root['id'], 'owner', 1, stage='action_required',
+                                             reason_code='exchange_credentials_rejected', operator_action_required=True)
+            body = dict(expected_version=1, expected_control_version=2, expected_operation_version=1)
+            if action == 'credentials_cleanup_retry':
+                path = ADMIN_PREFIX + '/credentials/operations/' + root['id'] + '/retry'
+            else:
+                path = ADMIN_PREFIX + '/credentials/okx/okx/cleanup-credentials'
+                body.update(operation_id=root['id'], credentials=BODY['credentials'])
+        headers = {**AUTH, 'Idempotency-Key': 'lost-cleanup'}
+        with pytest.raises(ServerDisconnectedError):
+            await client.post(path, headers=headers, json=body)
+        with pg_engine.connect() as connection:
+            committed = dict(connection.execute(select(AdminCommand).where(
+                AdminCommand.idempotency_key == 'lost-cleanup')).mappings().one())
+        root_id = committed['id'] if action == 'credentials_disconnect' else root['id']
+        saved = store.load('okx', 'okx', 'demo')
+        control = state.read()['control_version']
+        assert saved['state'] == 'revoking' and saved['envelope'] is not None
+        validation_count = adapter.preflight.await_count
+        response = await client.post(path, headers=headers, json=body)
+        assert response.status == 202, await response.text()
+        replay = await response.json()
+        assert replay['id'] == committed['id'] and replay['action'] == action
+        assert store.load('okx', 'okx', 'demo') == saved and state.read()['control_version'] == control
+        assert adapter.preflight.await_count == validation_count
+        proof = dict(orders_terminal_verified=True, positions_flat_verified=True, ledger_confirmed=True,
+                     consumers_detached=True, observed_at=float(state.read()['database_now']), owner_generation=1)
+        assert store.progress_disconnect(root_id, 'owner', 1, stage='detaching', evidence=proof)
+        assert store.finish_disconnect(root_id, 'owner', 1, evidence=proof)
+        response = await client.post(path, headers=headers, json=body)
+        assert response.status == 202, await response.text()
+        final = await response.json()
+        assert final['id'] == committed['id'] and final['status'] == 'succeeded'
+        assert adapter.preflight.await_count == validation_count and state.read()['control_version'] == control
+        assert store.load('okx', 'okx', 'demo')['envelope'] is None
+        with pg_engine.connect() as connection:
+            assert connection.scalar(select(func.count()).select_from(AdminCommand).where(
+                AdminCommand.idempotency_key == 'lost-cleanup')) == 1
+            events = [dict(row) for row in connection.execute(select(AdminAuditEvent).where(
+                AdminAuditEvent.operation_id == root_id, AdminAuditEvent.action == action)).mappings()]
+        assert sorted(row['outcome'] for row in events) == ['accepted', 'succeeded']
+        assert all(row['actor_id'] == 'basic:operator' and row['request_id'] for row in events)
+        assert 'HTTP-CANARY' not in str(replay) + str(final) + str(events)

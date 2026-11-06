@@ -4,6 +4,12 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Cleanup API/transaction coverage extended:** ten additional PG cases cover
+  lost post-commit HTTP responses, concurrent Retry/Repair, permission revocation
+  after preparation and final-removal acknowledgement loss. Related native110/PG102
+  pass; no runtime/image change or new image/hour acceptance.
+  [Follow-up in the existing report](release/admin-cleanup-partial-crash-e2e.md#further-cleanup-api-and-transaction-coverage--2026-11-06).
+
 - **Partial-close crash coverage extended:** 25 additional cases; related native52,
   PostgreSQL68 and both new native-image E2E pass on unchanged `89d5e7c6…`.
   Live/cancelled partial remainders survive SIGKILL, close only the residual and

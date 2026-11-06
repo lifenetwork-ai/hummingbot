@@ -4,11 +4,14 @@ from test.integration.postgres.test_credential_store import managed as managed_f
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import update
+from sqlalchemy import select, update
+from sqlalchemy.exc import OperationalError
 
 from hummingbot.cli.credential_disconnect import DisconnectCoordinator
 from hummingbot.connector.credential_adapters import CredentialAdapterError
+from hummingbot.model.admin_access import AdminAuditEvent
 from hummingbot.model.bot_state import BotState
+from hummingbot.model.credential_store import CredentialStore
 from hummingbot.model.position import Position
 
 managed = managed_fixture
@@ -143,3 +146,39 @@ async def test_durable_cleanup_boundaries_recover_under_a_new_owner_without_eras
     assert await restarted.run(receipt['id'])
     assert store.load('okx', 'okx', 'demo')['envelope'] is None
     assert store.operation(receipt['id'])['result']['owner_generation'] == 2
+
+
+@pytest.mark.asyncio
+async def test_lost_final_commit_ack_readback_does_not_repeat_closes_or_completion_audit(managed, monkeypatch):
+    store, actor = loaded(managed, both=True)
+    positions(store)
+    root = disconnect(store, actor, control=2)
+    runtime = Runtime(store, {('BTC-USDT', 'LONG'): Decimal('.1'), ('BTC-USDT', 'SHORT'): Decimal('.1')})
+    original_finish = store.finish_disconnect
+    committed = []
+
+    def commit_then_lose_ack(*args, **kwargs):
+        result = original_finish(*args, **kwargs)  # Real PG transaction has committed before the injected exception.
+        assert result
+        committed.append(args[0])
+        raise OperationalError('COMMIT', {}, RuntimeError('injected acknowledgement loss after commit'))
+
+    monkeypatch.setattr(store, 'finish_disconnect', commit_then_lose_ack)
+    coordinator = DisconnectCoordinator(store, SimpleNamespace(owner_uuid='owner', generation=1), runtime)
+    assert not await coordinator.run(root['id'])
+    assert committed == [root['id']]
+    assert store.operation(root['id'])['status'] == 'succeeded'
+    assert 'credential_operation' not in store.store.read()['recovery_state']
+    # A new coordinator/store must read the durable outcome, not close again or
+    # publish Action required over an already completed operation.
+    fresh = CredentialStore(store.store)
+    restarted = DisconnectCoordinator(fresh, SimpleNamespace(owner_uuid='owner', generation=1), runtime)
+    assert not await restarted.run(root['id'])
+    assert sorted(call for call in runtime.calls if isinstance(call, tuple)) == [('BUY', Decimal('.1')), ('SELL', Decimal('.1'))]
+    assert not runtime.actual and fresh.store.read()['desired_state'] == 'stopped'
+    assert fresh.load('okx', 'okx', 'demo')['envelope'] is None
+    assert fresh.load('okx', 'okx_perpetual', 'demo')['envelope'] is not None
+    with store.engine.connect() as connection:
+        events = connection.execute(select(AdminAuditEvent).where(
+            AdminAuditEvent.operation_id == root['id'], AdminAuditEvent.action == 'credentials_disconnect')).mappings().all()
+    assert sorted(row['outcome'] for row in events) == ['accepted', 'succeeded']

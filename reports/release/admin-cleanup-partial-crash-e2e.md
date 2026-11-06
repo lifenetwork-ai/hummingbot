@@ -57,6 +57,32 @@ Raw results:
 
 The [portable evidence](admin-cleanup-partial-crash-evidence.json) embeds both
 results, source hashes and native/PostgreSQL command-result summaries. **25 new
-cases** are added overall (15 unit, eight PostgreSQL, two native-image E2E).
+cases** are added in this partial-close follow-up (15 unit, eight PostgreSQL, two native-image E2E).
 No new runtime defect was reproduced. Disposable containers were removed by the
 test harness; no new bot image was built, so no additional image cleanup is needed.
+
+## Further cleanup API and transaction coverage — 2026-11-06
+
+Ten additional PostgreSQL cases cover different failure boundaries:
+
+| Additional cases | Behavior verified |
+| --- | --- |
+| Three lost HTTP responses: Disconnect, Retry, Repair | Abort the actual test HTTP transport after the handler commits. Replay both before and after completion: same receipt ID, no repeated credential validation, no version/control increase and one accepted/succeeded audit pair. |
+| Four concurrent request races | Same-key Retry replays one receipt. Different-key Retry/Retry, Retry/Repair and Repair/Repair admit one transition/child; the loser receives `operation_version_changed`. Ciphertext and affected credential versions match the winner. |
+| Two permission changes after Repair preparation | Disable or downgrade the actor before acceptance. Fresh authorization rejects the stale principal and preserves key, control, parent receipt and recovery state, with no accepted Repair audit. |
+| One lost final-removal acknowledgement | Commit actual PostgreSQL removal/audit, then inject a SQLAlchemy exception at the coordinator return boundary. Fresh-store readback preserves success; coordinator re-entry sends no extra close and writes no duplicate completion audit. |
+
+Final related regression: **110 native tests and 102 PostgreSQL tests pass**.
+The ten new cases are included in the 102. The first focused attempt passed eight
+and failed two because the new test used `Principal.version` instead of the existing
+`account_version` field; corrected test code passes in the final related run. This
+was a test-authoring error, not a reproduced runtime defect or runtime Red/Green fix.
+
+The HTTP transport loss is real within an aiohttp test server. The final-removal
+acknowledgement exception is deliberately injected after a real DB commit; it does
+not claim a physical PostgreSQL transport interruption. The coordinator test uses
+a fake exchange runtime over real PG state; native-image exchange execution stays
+covered by the earlier two scoped E2E runs, which were not rerun here. No production
+code, image, real Google/GCP, actual OKX or existing Demo data was changed. No new
+full regression/hour-load acceptance is claimed. Evidence for this follow-up is
+appended under `request_resilience_followup` in the same portable evidence file.

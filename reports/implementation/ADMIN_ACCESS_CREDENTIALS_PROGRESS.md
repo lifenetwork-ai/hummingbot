@@ -428,3 +428,17 @@ real Google/GCP/Demo interaction or new full/hour gate is claimed. Disposable
 containers are removed; no new image was built. See the
 [report](../release/admin-cleanup-partial-crash-e2e.md) and
 [evidence](../release/admin-cleanup-partial-crash-evidence.json).
+
+### Further cleanup request resilience coverage — 2026-11-06
+
+Ten additional PostgreSQL cases cover actual lost test-HTTP responses after
+Disconnect/Retry/Repair commit, four concurrent Retry/Repair races, disabled/read
+actors after Repair preparation, and an injected lost final-removal acknowledgement
+after actual PG commit. Related native110 and PG102 pass. The first focused run
+passed eight with two test-field-name errors (`version` vs `account_version`), fixed
+in test code; no runtime defect reproduced or production change needed. The final
+commit exception is an explicit coordinator-boundary injection, not a real PG TCP
+fault. Existing native-image E2E evidence is preserved, not rerun/inherited as a new
+image or hour gate. No existing Demo or external Google/GCP/OKX interaction. Results
+are appended to the existing [report](../release/admin-cleanup-partial-crash-e2e.md)
+and [evidence](../release/admin-cleanup-partial-crash-evidence.json).

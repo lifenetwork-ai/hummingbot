@@ -242,5 +242,65 @@
     "Synthetic venue fills; local KEK; no real Google, GCP KMS or actual OKX trades.",
     "Existing Demo containers/database untouched. No image build or removal needed.",
     "Historical 300 ms observer probe failure remains qualified in the prior report."
-  ]
+  ],
+  "request_resilience_followup": {
+    "date": "2026-11-06",
+    "base_commit": "ec2dd620a88d15878e1b5f075031f15ab59ecd1b",
+    "production_runtime_changed": false,
+    "additional_postgres_cases": 10,
+    "coverage": {
+      "lost_http_responses": 3,
+      "concurrent_request_races": 4,
+      "prepared_repair_permission_changes": 2,
+      "lost_final_commit_ack": 1
+    },
+    "source_sha256": {
+      "test/integration/postgres/test_admin_credential_http.py": "86c6c7eb8e9839aebb40090e96789d79a783c0b93a9322416a27b435b7366413",
+      "test/integration/postgres/test_cleanup_request_races.py": "274ca7d17fdeeae5d566a66ab892cf8e37359e7d6686be22db2c6f4bfeae01da",
+      "test/integration/postgres/test_disconnect_coordinator.py": "49979bf215924fb806fc8a7d4baa2aadd124a16373980acf99dac05f4c6b462e",
+      "hummingbot/model/credential_cleanup.py": "2d95dca80c4297f1b0b6ffb2f4f351f7efa95a28737aa82d7d8d797e5f1f39c0",
+      "hummingbot/model/credential_cleanup_requests.py": "d888b5d6419b7b286e08c6808064ed165e0d429939c220374a8c91787f50a8a3",
+      "hummingbot/model/credential_store.py": "f0ea760696b5b39358f85fb44b7e424f5baa8ac4ef6bc25f2ba7c71d88fe2fcd",
+      "hummingbot/cli/credential_disconnect.py": "a71df2edc988f8b69bfc40ef371344e26f25070a4002868692430185f1fce7b9"
+    },
+    "test_results": [
+      {
+        "scope": "focused_initial",
+        "path": "/tmp/hbot-cleanup-request-extra-initial.log",
+        "sha256": "6ed30d603c981bc5d884da68083882b71fcf782b1f4eef02d8d1450d3b42ebb5",
+        "exit_code": 1,
+        "passed": 8,
+        "failed": 2,
+        "summary": "2 failed, 8 passed, 460 deselected, 6 warnings in 12.12s"
+      },
+      {
+        "scope": "related_postgres",
+        "path": "/tmp/hbot-cleanup-request-extra-postgres.log",
+        "sha256": "cfeef24b9a483c29fcdccf8f3ce1f616ac10a8e65d56a2c4c02b5897b0464a7a",
+        "exit_code": 0,
+        "passed": 102,
+        "failed": 0,
+        "summary": "102 passed, 368 deselected, 6 warnings in 84.70s (0:01:24)"
+      },
+      {
+        "scope": "related_native",
+        "path": "/tmp/hbot-cleanup-request-extra-native.log",
+        "sha256": "3d5d261bbab892220e7c059c57893a18c2361a8d7b1d4210f3f5952528565432",
+        "exit_code": 0,
+        "passed": 110,
+        "failed": 0,
+        "summary": "110 passed, 1049 deselected, 6 warnings in 5.71s"
+      }
+    ],
+    "commands": {
+      "related_native": "python -m pytest -q test/hummingbot/cli -k 'credential or cleanup or admin_access or admin_auth'",
+      "related_postgres": "python scripts/test_postgres.py -k 'cleanup or credential or disconnect_coordinator'"
+    },
+    "qualifications": [
+      "Initial two failures were a new-test Principal.version attribute typo, corrected to account_version; no production bug or runtime Red/Green claimed.",
+      "Real aiohttp test transport aborted after committed handler; final-removal exception is injected at coordinator return boundary after actual PG commit, not a real PG TCP fault.",
+      "Exchange runtime is mocked in the coordinator case; no new native-image or hour/full regression acceptance.",
+      "Existing Demo/OKX and real Google/GCP untouched; no new image built."
+    ]
+  }
 }
