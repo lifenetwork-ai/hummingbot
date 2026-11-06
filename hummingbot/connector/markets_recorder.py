@@ -11,7 +11,7 @@ from typing import Dict, Iterator, List, Optional, Tuple, Union
 import pandas as pd
 from sqlalchemy import or_, tuple_
 from sqlalchemy.engine import Row
-from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm import Query, Session, defer
 
 from hummingbot import data_path
 from hummingbot.client.config.client_config_map import MarketDataCollectionConfigMap
@@ -406,10 +406,17 @@ class MarketsRecorder:
             else:
                 return query.limit(number_of_rows).all()
 
-    def save_market_states(self, config_file_path: str, market: ConnectorBase, session: Session):
-        market_states: Optional[MarketState] = self.get_market_states(config_file_path, market, session=session)
-        timestamp: int = self.db_timestamp
+    def save_market_states(self, config_file_path: str, market: ConnectorBase, session: Session,
+                           *, new_order_id: Optional[str] = None):
         saved_state = dict(market.tracking_states)
+        # A newly persisted identity requires a new snapshot. Avoid decoding
+        # the old JSON unless unresolved identities need merging below. Ordinary
+        # checkpoints retain full reads and unchanged-JSON dirty checking.
+        fresh_tracking = (self._sql_manager.engine.dialect.name == "postgresql"
+                          and new_order_id is not None and new_order_id in saved_state)
+        market_states: Optional[MarketState] = self.get_market_states(
+            config_file_path, market, session=session, include_saved_state=not fresh_tracking)
+        timestamp: int = self.db_timestamp
         pending_ids = None
         if saved_state and self._sql_manager.engine.dialect.name == "postgresql":
             # Tracking begins before queued creates pass the durable send gate.
@@ -472,7 +479,7 @@ class MarketsRecorder:
             # Keep the original side even when a terminal update precedes any
             # Created callback. This records intent, not exchange admission.
             self._add_order_status(session, record, timestamp, record.last_status)
-            self.save_market_states(self._config_file_path, market, session)
+            self.save_market_states(self._config_file_path, market, session, new_order_id=order.client_order_id)
 
     def _event_configuration(self, session, market, order):
         if order is None or order.config_file_path == self._config_file_path:
@@ -513,11 +520,13 @@ class MarketsRecorder:
     def get_market_states(self,
                           config_file_path: str,
                           market: ConnectorBase,
-                          session: Session) -> Optional[MarketState]:
+                          session: Session, *, include_saved_state: bool = True) -> Optional[MarketState]:
         query: Query = (session
                         .query(MarketState)
                         .filter(MarketState.config_file_path == config_file_path,
                                 MarketState.market == market.display_name))
+        if not include_saved_state:
+            query = query.options(defer(MarketState.saved_state))
         market_states: Optional[MarketState] = query.one_or_none()
         return market_states
 
