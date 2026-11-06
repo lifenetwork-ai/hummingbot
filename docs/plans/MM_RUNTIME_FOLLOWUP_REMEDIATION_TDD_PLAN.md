@@ -98,7 +98,13 @@ of interleaved loop work. Keep native owner/session and durable-send fences fres
   savings without attributing all historic probe episodes to this change.
 - [x] Measure funding reader construction/read paths; change only independently
   confirmed unnecessary work, with Red/Green and unchanged freshness/fencing.
-- [ ] Run final source regressions; publish scoped results and commit.
+- [x] Run final source regressions; publish scoped results and commit.
+
+Runtime `e030cfcdc`: native **2,780 + 11 subtests** pass. Full disposable PG run:
+**530 pass / 1 fail** (old steady-fill assertion expected 11 statements, observed
+10). Correct only that exact-count assertion; rerun it with all eight new cases:
+**9 pass / 522 deselected**. The full suite is not rerun after this test-only
+correction; retain both logs in the [evidence](../../reports/performance/mm-fill-flush-evidence.json).
 
 No current-image/hour or new real-Demo acceptance is inherited by changed source.
 No general recorder worker, trading-state cache or new probe timeout is introduced.

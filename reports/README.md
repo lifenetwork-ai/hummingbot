@@ -12,6 +12,10 @@ Mixed/burst timings are slower than the prior run; attribution/continuity limits
 remain explicit. One unused image removed; all container references/volumes retained.
 [Portable evidence](release/mm-runtime-followup-load-evidence.json).
 
+The newer [fill-flush source follow-up](implementation/MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07)
+has separate native/PG verification, including a corrected obsolete query-count
+assertion. It has not replaced this accepted image or inherited its hour gate.
+
 | Topic | Current entry |
 | --- | --- |
 | [Release](release/README.md) | Current candidate and retained rollback, exact image/gate scope |

@@ -158,7 +158,9 @@ when checking existing status, Order/status/fill, then MarketState. The status
 lookup only depends on the stable order identity/timestamp/status, not the pending
 Order update. Suppress autoflush only around that lookup in `_store_fill`; the
 next existing query flushes Order/status/fill with the original fresh owner fence.
-Checkpoint and commit retain their fences. Nothing is cached across operations.
+Cleanup's existing validation query can flush the same batch before checkpoint;
+its dependent sums still see the pending fill. Checkpoint and commit retain their
+fences. Nothing is cached across operations.
 Other history helper call sites retain their original behavior.
 
 Two Red cases fail/5 safety cases pass before the change. Eight new PG cases
@@ -177,6 +179,21 @@ with no networking/task startup. Keep its lifecycle unchanged; adding a reader o
 balance cache is not justified by this measurement. Dedicated owner checks and
 synchronous durable recorder writes are not moved to a general background thread.
 
-[Scoped evidence](../performance/mm-fill-flush-evidence.json). Source is changed;
-final broad native/PG regression is pending. Image `bf4e1f77…` and its existing gate
-retain their original source identity; no new image/hour acceptance is claimed.
+[Scoped evidence](../performance/mm-fill-flush-evidence.json). Runtime `e030cfcdc`
+passes full native **2,780 + 11 subtests**. Full disposable PG: **530 pass / 1 fail**,
+811.37 s. The sole failure is the older steady-fill statement-count assertion:
+11 expected, 10 observed. Steady fills already have an OrderFilled status; this
+change avoids the premature owner-check roundtrip there too. Correct that exact
+expectation to 10, retaining its fill count/sum/persistence assertions. Rerun the
+corrected benchmark and all eight new cases: **9 pass / 522 deselected**, 20.20 s.
+This covers all 531 distinct PG cases across the full run and focused correction;
+it is not a claim of a subsequent single all-green full-suite run. No runtime
+change follows the broad regression. Native warnings include deprecations and
+unawaited AsyncMock warnings; the logs retain them.
+
+Logs: `/tmp/hbot-fill-flush-final-native.log`,
+`/tmp/hbot-fill-flush-final-postgres.log`,
+`/tmp/hbot-fill-flush-final-correction.log`. Image `bf4e1f77…` and its existing gate
+retain their original source identity; no new image/hour or real-Demo acceptance
+is claimed. Archive deletion is separate (`b78f0d25c`); historical evidence remains
+available through the [Git lookup](../README.md#historical-records).

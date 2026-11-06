@@ -10,7 +10,9 @@ unless explicitly listed below. Removing historical files does not mark an unres
 
 - [x] PostgreSQL/Cloud Run source port, three MM scenarios, fixed/Random sessions,
   spot/perpetual/both, operator APIs and risk controls are implemented.
-- [x] Latest source regression: 2,780 native + 11 subtests, PostgreSQL523, Swagger.
+- [x] Runtime `e030cfcdc`: 2,780 native + 11 subtests pass. Full PG530 pass /
+  1 obsolete query-count expectation fail; test-only correction + related rerun9
+  pass (all531 distinct cases). Prior source Swagger pass; accepted image unchanged.
 - [x] Image `bf4e1f77…`: unchanged full baseline, 60-minute soak and five faults;
   four targeted E2E groups and enabled-enhancement diagnostic pass.
 - [x] Soak p99 306.91 ms, zero unexpected healthy errors, 21.89 MiB retained growth,
@@ -42,6 +44,10 @@ in the [original image-scoped Demo plan](../../reports/README.md#historical-reco
 A newer offline pass does not retroactively pass that earlier image or certify a
 new connected Demo run. The latest probes remain an attribution limitation, not
 an assertion of an unobserved live defect.
+
+The fill-flush source follow-up is verified separately from image `bf4e1f77…`;
+rebuild and qualify the changed image before deployment. The retained full PG
+attempt and focused correction are documented in the [source report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07).
 
 ## Retained plans
 

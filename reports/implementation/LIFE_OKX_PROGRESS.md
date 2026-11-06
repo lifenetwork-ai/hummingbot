@@ -22,7 +22,10 @@ and [credential operations](../../docs/exchange-credentials.md).
 
 ## Current verification
 
-Source `504343b9b`: native2,780 + 11 subtests, PG523 and Swagger pass.
+Runtime `e030cfcdc`: native2,780 + 11 subtests pass. Full PG530 pass / 1 outdated
+query-count assertion fail; correct that test only, then benchmark/new-case rerun9
+pass. All531 distinct cases covered; no subsequent all-green full-suite run is
+claimed. Prior `504343b9b` verification includes Swagger.
 Image `bf4e1f77…` from `b6b2f7d1c` separately passes the unchanged full baseline,
 60-minute soak/five faults, four targeted E2E groups and enabled-enhancement90.
 Soak p99 306.91 ms; zero unexpected healthy errors; 21.89 MiB retained growth;

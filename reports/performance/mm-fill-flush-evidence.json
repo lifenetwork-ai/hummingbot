@@ -2,7 +2,6 @@
   "date": "2026-11-07",
   "scope": "Source-only fill flush optimization following three recovered current-image probes; no new image/hour, real exchange or existing-Demo changes.",
   "accepted_baseline_image": "sha256:bf4e1f7798fd6ecea05bd96a63f789a39a21409e51ce9a5cc1ac9843056ab745",
-  "baseline_source": "b78f0d25c",
   "retained_incident_evidence": "reports/release/mm-runtime-followup-load-evidence.json",
   "incident_review": {
     "warmup": {
@@ -511,7 +510,34 @@
   ],
   "source_sha256": {
     "hummingbot/connector/markets_recorder.py": "fc5093c2fae691bb411bf0ecb58911a0906ca2c9c09129da3b0f65205880e931",
-    "test/integration/postgres/test_fill_flush.py": "e9abe5b9ea9bfe2905b928941608c3d04a78bc82e5a5f049b01b0c8b1ee0a117"
+    "test/integration/postgres/test_fill_flush.py": "e9abe5b9ea9bfe2905b928941608c3d04a78bc82e5a5f049b01b0c8b1ee0a117",
+    "test/integration/postgres/test_performance.py": "583aa8fd8fe0825fb2478b7bfca2e5a2cf795b0bfaec59f789d2470a45119705"
   },
-  "final_regression": "pending"
+  "final_regression": {
+    "native": {
+      "passed": 2780,
+      "subtests_passed": 11,
+      "log": "/tmp/hbot-fill-flush-final-native.log"
+    },
+    "postgres_full_attempt": {
+      "exit_code": 1,
+      "passed": 530,
+      "failed": 1,
+      "seconds": 811.37,
+      "failure": "test_performance_fenced_fill_transaction: obsolete statement-count assertion expected 11; observed 10.",
+      "log": "/tmp/hbot-fill-flush-final-postgres.log"
+    },
+    "test_only_correction": "Change the steady-fill exact query count from 11 to 10. Keep economics/persistence assertions. No runtime edits after the broad regression.",
+    "postgres_correction_and_all_new_cases": {
+      "exit_code": 0,
+      "passed": 9,
+      "deselected": 522,
+      "seconds": 20.2,
+      "log": "/tmp/hbot-fill-flush-final-correction.log"
+    },
+    "qualification": "All 531 distinct PG cases covered across full attempt and focused correction. No subsequent single all-green full suite, new image/hour or real-Demo acceptance claimed."
+  },
+  "pre_change_source": "b78f0d25c",
+  "accepted_baseline_image_source": "b6b2f7d1c",
+  "runtime_source": "e030cfcdc"
 }
