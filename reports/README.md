@@ -4,13 +4,15 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
-- **Further runtime review — findings remain open:** two controlled fault cases
-  escape optional/checkpoint projection boundaries; steady admission repeats
-  reference/exposure checks, and drawdown readiness builds full executor DTOs.
-  Fifty existing native checks pass. This review changes no runtime and does
-  not assert current DB corruption, a live crash or a cause for all old probes.
-  [Review](investigations/mm-runtime-followup-code-review.md),
-  [evidence](investigations/mm-runtime-followup-code-review-evidence.json).
+- **Runtime follow-up — source verification complete:** scoped risk/checkpoint
+  diagnostics retain critical failure fences; steady admission avoids its duplicate
+  traversal; valuation reads fresh exposure and reports reuse held summaries.
+  Non-finite exposure is rejected. JSON normalization is measured and deliberately
+  unchanged. Native 2,780 + 11 subtests, PostgreSQL 523 and Swagger pass on
+  `504343b9b`; no new image/load qualification.
+  [Remediation](implementation/MM_RUNTIME_FOLLOWUP.md),
+  [evidence](implementation/mm-runtime-followup-evidence.json),
+  [original review](investigations/mm-runtime-followup-code-review.md).
 
 - **New-intent checkpoint projection — source checks complete:** `c9889da28`
   passes native 2,723 + 11 subtests and full PG 518, including 22 new cases.

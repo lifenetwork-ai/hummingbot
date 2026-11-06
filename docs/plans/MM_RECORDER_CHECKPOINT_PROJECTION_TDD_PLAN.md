@@ -48,5 +48,7 @@ new source. Existing Demo, real exchanges, Google/GCP and production are exclude
 
 The subsequent [read-only runtime review](../../reports/investigations/mm-runtime-followup-code-review.md)
 identifies additional fault-boundary and repeated-readiness/reporting work. Those
-findings remain open; they are not fixes or acceptance items completed by this
-checkpoint projection phase.
+findings are addressed or deliberately deferred in the separate
+[runtime remediation plan](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md) and
+[report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md). They are not fixes
+or acceptance items completed by this checkpoint projection phase.

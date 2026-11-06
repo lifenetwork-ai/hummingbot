@@ -1135,5 +1135,33 @@
     "hummingbot/cli/admin_operations.py": "2b5bce3c58c4381cb1d7adc90f2e0fc4e0fb88bc7b47c82eb90b79024a5fbd73",
     "hummingbot/core/spot_outflow_guard.py": "7025e0c1e8a27ee79fa50baf19239a4440cc1464204fc5311d08fd82bb056fdb",
     "hummingbot/strategy_v2/executors/executor_orchestrator.py": "54d4a52a8a1efd9f32d67492af0b14ded37818264215e74e4f536b60967510a6"
+  },
+  "phase_commits": {
+    "availability": "45707b06e",
+    "steady_readiness": "1f4f19de6",
+    "fresh_valuation_and_summary_reuse": "504343b9b"
+  },
+  "final_verification": {
+    "source_commit": "504343b9b",
+    "native": {
+      "passed": 2780,
+      "subtests_passed": 11,
+      "exit_code": 0,
+      "log": "/tmp/hbot-runtime-followup-final-native.log",
+      "command": "make test-cloudrun-regression PYTHON=/opt/homebrew/Caskroom/miniforge/base/envs/hummingbot/bin/python"
+    },
+    "swagger": {
+      "exit_code": 0,
+      "log": "/tmp/hbot-runtime-followup-swagger.log"
+    },
+    "postgres": {
+      "passed": 523,
+      "warnings": 36,
+      "duration_seconds": 785.07,
+      "exit_code": 0,
+      "log": "/tmp/hbot-runtime-followup-final-postgres.log",
+      "command": "/opt/homebrew/Caskroom/miniforge/base/envs/hummingbot/bin/python scripts/test_postgres.py",
+      "scope": "Full disposable loopback PostgreSQL 14; ignores local .env and removes its own test container."
+    }
   }
 }

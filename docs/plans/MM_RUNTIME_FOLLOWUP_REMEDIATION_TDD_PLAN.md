@@ -40,9 +40,18 @@ real cleanup/checkpoint writes still propagate. Operator guidance is English.
 
 ## Verification
 
-- [ ] Run required final native and PostgreSQL regressions on frozen source;
+- [x] Run required final native and PostgreSQL regressions on frozen source;
   publish findings, retained failures and source/image acceptance limits; commit.
 
 No real Google/GCP/OKX operation, Demo data repair, production deployment or
 inherited new-image/hour acceptance. Rebuild/qualify changed runtime separately
 before deployment. Keep health thresholds, durability and DB pool limits unchanged.
+
+Frozen source `504343b9b`: native **2,780 + 11 subtests**, full disposable
+PostgreSQL **523**, Swagger and formatting/lint pass. New coverage totals 57 native
+and 5 PG, included in those totals. Phase commits: availability `45707b06e`, steady
+readiness `1f4f19de6`, fresh exposure/held summary reuse `504343b9b`.
+See [report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md) and
+[evidence](../../reports/implementation/mm-runtime-followup-evidence.json).
+JSON-copy consolidation is deliberately deferred after measurement. No changed
+image/E2E/hour gate or unique historical-probe attribution is claimed.

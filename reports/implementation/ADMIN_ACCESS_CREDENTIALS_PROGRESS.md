@@ -600,3 +600,27 @@ every physical-send fence must remain. The drawdown-enabled DTO path cannot
 explain the accepted six-probe baseline with drawdown disabled. Findings remain
 open, in the recommended order in the [review](../investigations/mm-runtime-followup-code-review.md)
 and [evidence](../investigations/mm-runtime-followup-code-review-evidence.json).
+
+
+### Runtime follow-up remediation — 2026-11-07
+
+Three sequential source phases follow the previous review:
+
+- `45707b06e`: protect optional risk observation and invalid-checkpoint projection;
+  retain raw data, critical SQL/owner/cancellation behavior and required HALT-write
+  fences. Running invalid checkpoints use existing HALT. Stopped control remains
+  available, with English operator guidance and Start blocked on fresh incidents.
+- `1f4f19de6`: remove duplicate steady no-bootstrap readiness traversal. Preserve
+  preparing/bootstrap double checks, anchor writes and fresh physical-send fences.
+- `504343b9b`: read current executor exposure without constructing full PnL/custom
+  DTOs, reject non-finite active/open/held amounts, reuse held summaries within one
+  unified report and preserve fresh standalone/next-call valuation and fee scope.
+
+New coverage: 57 native and 5 PostgreSQL cases. Red failures are retained, including a
+corrected operator-view test key and the initial benchmark fixture's missing order
+metadata. Paired native measurements quantify component savings; JSON normalization
+remains unchanged. These are not new image/load or actual Demo results. Final frozen-source
+`504343b9b` regression passes native 2,780 + 11 subtests, full PostgreSQL 523 and
+Swagger. See the [report](MM_RUNTIME_FOLLOWUP.md),
+[evidence](mm-runtime-followup-evidence.json) and
+[plan](../../docs/plans/MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md).

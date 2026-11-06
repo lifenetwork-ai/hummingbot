@@ -28,6 +28,7 @@ under the ignored `build/` directory.
 - [Pre-listing economic stress plan](plans/LIFE_MM_ECONOMIC_STRESS_PLAN.md)
 - [Operations API and configuration ownership plan](plans/ADMIN_OPERATIONS_API_TDD_PLAN.md)
 - [Admin access and encrypted exchange credentials — TDD plan, OKX first](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md) — A1–A5 and local A6 acceptance complete: roles, audit, encryption, managed Set/load and automatic Disconnect; real Google/GCP and reviewed Demo cutover remain open
+- [Runtime availability and reporting follow-up — TDD](plans/MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md)
 - [Checkpoint and background-poll optimization](plans/MM_CHECKPOINT_POLL_OPTIMIZATION_TDD_PLAN.md)
 - [Working-order activity and diagnostics plan](plans/MM_QUOTE_ACTIVITY_TDD_PLAN.md)
 - [Until-stopped MM sessions plan](plans/MM_UNTIL_STOPPED_TDD_PLAN.md)

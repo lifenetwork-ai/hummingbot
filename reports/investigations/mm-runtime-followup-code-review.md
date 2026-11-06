@@ -6,6 +6,17 @@ remains unchanged. This is further analysis after the
 No runtime patch, new tests, DB mutation, image build or load run is made.
 [Portable evidence](mm-runtime-followup-code-review-evidence.json).
 
+## Follow-up status
+
+F1/F2 are hardened in `45707b06e`, F3's steady branch in `1f4f19de6`, and F4/F5
+fresh exposure/report reuse in `504343b9b`. Follow-up Red/Green tests also reject
+non-finite current/held exposure. F6 is measured and deliberately deferred:
+normalization and publication detachment retain their distinct correctness roles.
+See [remediation and final verification](../implementation/MM_RUNTIME_FOLLOWUP.md)
+and [evidence](../implementation/mm-runtime-followup-evidence.json).
+The findings below describe the reviewed baseline; they are retained as history.
+They do not establish a unique cause for the previous six probe events.
+
 ## Findings in priority order
 
 ### F1 — P2: malformed stopped outflow checkpoint escapes the observer

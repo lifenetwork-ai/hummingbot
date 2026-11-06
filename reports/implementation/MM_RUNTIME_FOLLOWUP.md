@@ -108,5 +108,26 @@ before measurement. This was a fixture error, not another runtime defect. The
 valuation path with drawdown enabled does not explain the earlier six-probe load
 where drawdown was disabled. No single old probe root cause is claimed.
 
-Final frozen-source native/PostgreSQL regression is pending. No new image/load
-acceptance is claimed.
+## Frozen-source verification
+
+Source is frozen at `504343b9b` after availability `45707b06e` and steady
+readiness `1f4f19de6`. All recorded runtime
+file SHA-256 values match the measured/current files.
+
+- Full `make test-cloudrun-regression`: **2,780 passed + 11 subtests** (202 config,
+  11 client performance, 1,814 runtime/model/connector/executor and 753 remaining
+  strategy/core/guard cases), exit 0.
+- `make swagger-check`: pass, exit 0.
+- Full disposable PostgreSQL suite: **523 passed**, exit 0, 785.07 s.
+  Log: `/tmp/hbot-runtime-followup-final-postgres.log`.
+- Formatting/lint/pre-commit and changed-document relative links pass.
+
+Logs retain Pydantic/AsyncMock and SQLAlchemy deprecation warnings; no test failure
+occurred.
+The five new PostgreSQL cases are included in the full suite, not added to its
+count again. No Demo data change, new migration, API configuration override,
+new dependency or process architecture is introduced.
+
+A changed runtime image still needs its separately identified image/E2E/load
+qualification before deployment. This source result does not inherit the earlier
+accepted image's hour gate or establish that every historical probe cause is fixed.
