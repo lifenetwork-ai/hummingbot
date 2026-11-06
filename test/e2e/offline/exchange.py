@@ -127,6 +127,8 @@ class Exchange:
         self.cleanup_barrier = 'none'
         self.cleanup_barrier_hits = deque(maxlen=16)
         self.cleanup_close_id = None
+        self.cleanup_partial = 'none'
+        self.cleanup_partial_event = None
         self.cleanup_release = asyncio.Event()
         self.cleanup_release.set()
 
@@ -327,6 +329,7 @@ class Exchange:
                                       "observed_at_monotonic": time.monotonic(),
                                       "cleanup_barrier": self.cleanup_barrier,
                                       "cleanup_barrier_hits": list(self.cleanup_barrier_hits),
+                                      "cleanup_partial_event": self.cleanup_partial_event,
                                       "connections": self.connections, "subscriptions": self.subscriptions})
         if path == "/control":
             return await self.control(await request.json())
@@ -442,7 +445,15 @@ class Exchange:
                 # A market order has no wire px; the simulator executes at its
                 # independent current reference and uses the ordinary fill/WS path.
                 order['px'] = self.prices[data['instId'].removesuffix('-SWAP')]
-                await self.control({'fill': dict(clOrdId=client_id, amount=data['sz'], fee='0.000001'), 'duplicate': True})
+                partial = self.cleanup_partial != 'none' and self.cleanup_partial_event is None
+                amount = str(Decimal(data['sz']) * Decimal('.4')) if partial else data['sz']
+                if partial:
+                    self.cleanup_partial_event = dict(clOrdId=client_id, outcome=self.cleanup_partial,
+                                                      closed_socket_count=len(self.sockets), ws_dropped=True, at_ms=millis())
+                    await self.control({'drop_ws': True})
+                await self.control({'fill': dict(clOrdId=client_id, amount=amount, fee='0.000001'), 'duplicate': True})
+                if partial and self.cleanup_partial == 'canceled':
+                    order.update(state='canceled', uTime=millis(), cancel_terminal_ms=millis())
             cancel_before_ack = self.cancel_before_ack and self.cancel_before_ack_remaining != 0
             if cancel_before_ack:
                 if self.cancel_before_ack_remaining is not None:
@@ -488,6 +499,11 @@ class Exchange:
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
 
     async def control(self, data):
+        if 'cleanup_partial' in data:
+            if data['cleanup_partial'] not in ('none', 'live', 'canceled'):
+                return web.json_response({'error': 'invalid_cleanup_partial'}, status=400)
+            self.cleanup_partial = data['cleanup_partial']
+            self.cleanup_partial_event = None
         if 'credential_generations' in data:
             generations = data['credential_generations']
             if not isinstance(generations, list) or any(name not in FIXTURE_KEYS for name in generations):

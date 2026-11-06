@@ -940,6 +940,22 @@ per cleanup case, no rejected duplicate sends). Related native regression passes
 are retained in the report. No runtime fix, new full load gate or external
 Google/GCP/Demo acceptance is claimed.
 
+### A6 follow-up — Partial closes and cleanup database failures
+
+- [x] Add Red/Green simulator checks for one-shot partial native closes, WS loss,
+  both still-live and IOC-cancelled remainders, and independent physical-send truth.
+- [x] Verify partial live close readback after WS loss: keep credentials/operation
+  pending until the original remainder fills; no extra close while it remains live.
+- [x] Verify a terminal partial close is reconciled before a fresh residual-only
+  close, preserving the same operation, exact quantities/fees and spot holdings.
+- [x] Add guarded test-DB transaction faults for cleanup-fill persistence and final
+  removal audit. Prove rollback prevents partial financial state/key erasure.
+- [ ] Exercise both faults on the shipping image; after repair, reconcile through
+  normal recovery/retry or expose a specific safe blocker, never fabricate state.
+- [ ] Run appropriate regressions and final grouped E2E, retain all attempts and
+  source/image hashes, update evidence/runbook/checklist and commit. Real Google,
+  GCP, actual Demo/Live and production deployment remain excluded.
+
 ## Implementation-readiness review
 
 The review found design/integration gaps, not newly reproduced runtime defects.

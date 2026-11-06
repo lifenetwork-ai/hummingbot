@@ -1726,8 +1726,9 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
+    from scripts.mm_cleanup_faults import SCENARIOS as cleanup_fault_scenarios
     from scripts.mm_managed_lifecycle import SCENARIOS as managed_scenarios
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
@@ -1764,7 +1765,7 @@ def main():
                   "architecture": "amd64", "config_sha256": hashlib.sha256((assets / "pmm.yml").read_bytes()).hexdigest(),
                   "fixture_sha256": {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(assets.iterdir())}}
         result['harness_source_sha256'] = {name: hashlib.sha256((ROOT / 'scripts' / name).read_bytes()).hexdigest()
-                                           for name in ('test_e2e_offline.py', 'mm_managed_environment.py', 'mm_managed_lifecycle.py')}
+                                           for name in ('test_e2e_offline.py', 'mm_managed_environment.py', 'mm_managed_lifecycle.py', 'mm_cleanup_faults.py')}
         try:
             print("Offline E2E: runtime ABI, JIT, TLS, SDK discovery and size budget", flush=True)
             smoke = docker("run", "--rm", "--platform", "linux/amd64", "--network", "none", "--read-only",
@@ -1774,9 +1775,11 @@ def main():
             result["runtime_smoke"] = json.loads(smoke.stdout)
             scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense") if args.scenario == "all" else (args.scenario,)
             if args.scenario == 'all':
-                scenarios += managed_scenarios
+                scenarios += managed_scenarios + cleanup_fault_scenarios
             elif args.scenario == 'managed-lifecycle':
                 scenarios = managed_scenarios
+            elif args.scenario == 'managed-cleanup-faults':
+                scenarios = cleanup_fault_scenarios
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
             result["scenarios"] = {}
@@ -1793,6 +1796,13 @@ def main():
                     elif scenario == "managed-environment":
                         from scripts.mm_managed_environment import managed_environment_scenario
                         managed_environment_scenario(harness)
+                    elif scenario in cleanup_fault_scenarios:
+                        from scripts.mm_cleanup_faults import partial_scenario
+                        from scripts.mm_managed_lifecycle import safe_logs
+                        partial_scenario(harness, 'live' if scenario == 'managed-close-partial-ws' else 'canceled')
+                        for container in harness.containers:
+                            if container not in (harness.pg, harness.simulator):
+                                safe_logs(harness, container)
                     elif scenario in managed_scenarios:
                         from scripts.mm_managed_lifecycle import (
                             crash_scenario,

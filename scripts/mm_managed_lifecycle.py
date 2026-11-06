@@ -119,7 +119,7 @@ def audit(harness, port, root, *, children=()):
     return dict(events=len(rows), actor='basic:operator', root=root, children=list(children))
 
 
-def verify_cleanup(harness, port, root, spot):
+def verify_cleanup(harness, port, root, spot, *, expected_sends=None, fill_count=5):
     receipt = completed(harness, port, root['id'])
     assert receipt['result']['stage'] == 'removed'
     assert spot_digest(harness) == spot
@@ -127,14 +127,15 @@ def verify_cleanup(harness, port, root, spot):
     assert harness.sql("SELECT count(*) FROM exchange_credentials WHERE connector='okx_perpetual' AND envelope IS NULL AND state='revoked'") == '1'
     assert harness.sql("SELECT count(*) FROM exchange_credentials WHERE connector='okx' AND envelope IS NOT NULL AND state='active'") == '1'
     closes = [row for row in harness.ledger()['accepted'] if row['ordType'] == 'market']
-    assert len(closes) == 2 and {row['posSide'] for row in closes} == {'long', 'short'}
+    expected_sends = expected_sends or [('long', 'sell', Decimal('1')), ('short', 'buy', Decimal('1'))]
+    assert len(closes) == len(expected_sends) and {row['posSide'] for row in closes} == {'long', 'short'}
     sends = [row['order'] for row in harness.ledger()['requests']
              if row.get('order', {}).get('ordType') == 'market']
-    assert len(sends) == 2 and {row['clOrdId'] for row in sends} == {row['clOrdId'] for row in closes}
-    assert {(row['posSide'], row['side'], Decimal(row['sz'])) for row in sends} == {('long', 'sell', Decimal('1')), ('short', 'buy', Decimal('1'))}
+    assert len(sends) == len(expected_sends) and {row['clOrdId'] for row in sends} == {row['clOrdId'] for row in closes}
+    assert sorted((row['posSide'], row['side'], Decimal(row['sz'])) for row in sends) == sorted(expected_sends)
     assert all(Decimal(row['pos']) == 0 for row in harness.ledger()['positions'])
     assert not [row for row in harness.ledger()['orders'] if row['state'] in ('live', 'partially_filled')]
-    assert harness.sql('SELECT count(*) FROM trade_fills') == '5'
+    assert harness.sql('SELECT count(*) FROM trade_fills') == str(fill_count)
     assert not harness.ledger()['unknown']
     assert harness.state()['desired_state'] == 'stopped'
     # The selected connector is intentionally gone; do not demand a new private
