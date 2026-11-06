@@ -1,0 +1,1747 @@
+{
+  "date": "2026-11-07",
+  "source_commit": "c9889da28",
+  "scope": "New-intent checkpoint projection only; ordinary checkpoints, durability and ownership remain synchronous/unchanged.",
+  "runtime_source_sha256": {
+    "hummingbot/connector/markets_recorder.py": "8f247671084299ef6e23c4451061ce2f69d5c0d08c4c172903577b509557cca5",
+    "test/integration/postgres/test_checkpoint_projection.py": "c5385f27ce014fae758b954531090a478ce41276bafd8d975cdd940aa699fe2e"
+  },
+  "accepted_prior_image": "sha256:f74d2a2abcad64dfdd9ad45c3491823c53a30f930da492b9c7c3ae3cb96526c8",
+  "new_image_qualified": false,
+  "new_load_gate": false,
+  "actual_demo_changed": false,
+  "red": {
+    "log": {
+      "path": "/tmp/hbot-intent-checkpoint-projection-red.log",
+      "sha256": "19765c923c973f0879fe91cf89ebed58266b7b58994ae5f862fc319ad4a8ab22"
+    },
+    "failed": 4,
+    "classification": "Unused old JSON materialization in fresh-intent writes on original source"
+  },
+  "targeted_green": {
+    "log": {
+      "path": "/tmp/hbot-intent-checkpoint-projection-final-green.log",
+      "sha256": "08d0617139613e9bd512e387d93c09bd92c1ab5cb93ca8901669393ff09a294a"
+    },
+    "passed": 22,
+    "behavioral_cases": 18,
+    "measurement_cases": 4
+  },
+  "full_native": {
+    "log": {
+      "path": "/tmp/hbot-intent-checkpoint-final-native.log",
+      "sha256": "f73fae7c486410888fb0f3ce287de3963bcb1971b8ecfa58e86988d199ce867b"
+    },
+    "passed": 2723,
+    "subtests": 11,
+    "suite_counts": [
+      202,
+      11,
+      1757,
+      753
+    ]
+  },
+  "full_postgres": {
+    "log": {
+      "path": "/tmp/hbot-intent-checkpoint-final-postgres.log",
+      "sha256": "a09ab94ea51fd81f1e3c15fc82c4a0273319b477e4273c800f1980c9b008a4e9"
+    },
+    "passed": 518,
+    "qualification": "Includes the 22 new cases; focused results overlap this count."
+  },
+  "final_paired": {
+    "artifact": {
+      "path": "build/checkpoint-projection-20261107/accepted-paired.json",
+      "sha256": "a4a37c838505f5e4e153b7b0bd76dc1ce9cb01fee700c530324ec4c4b262fcab"
+    },
+    "values": {
+      "intent-checkpoint-small_new_intent": {
+        "samples_per_mode": 7,
+        "measurements": {
+          "full": {
+            "durations_ms": [
+              17.348000314086676,
+              19.37599992379546,
+              19.30008316412568,
+              13.22720805183053,
+              13.459667097777128,
+              20.854792091995478,
+              23.589958902448416
+            ],
+            "thread_cpu_ms": [
+              5.893833000000015,
+              9.201292000000194,
+              9.554291999999798,
+              4.025583000000221,
+              4.003541999999971,
+              8.763334000000178,
+              10.639834000000015
+            ],
+            "sql_counts": [
+              11,
+              11,
+              11,
+              11,
+              11,
+              11,
+              11
+            ],
+            "old_json_reads": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "tracking_updates": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "p50_ms": 19.30008316412568,
+            "thread_cpu_p50_ms": 8.763334000000178,
+            "max_ms": 23.589958902448416
+          },
+          "projected": {
+            "durations_ms": [
+              24.716708809137344,
+              24.334500078111887,
+              19.242584239691496,
+              13.419125229120255,
+              15.019542071968317,
+              16.89299987629056,
+              18.428958021104336
+            ],
+            "thread_cpu_ms": [
+              8.191083000000265,
+              8.003374999999924,
+              7.582209000000173,
+              4.344916999999615,
+              4.498707999999851,
+              7.189583000000166,
+              8.072083000000063
+            ],
+            "sql_counts": [
+              11,
+              11,
+              11,
+              11,
+              11,
+              11,
+              11
+            ],
+            "old_json_reads": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "tracking_updates": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "p50_ms": 18.428958021104336,
+            "thread_cpu_p50_ms": 7.582209000000173,
+            "max_ms": 24.716708809137344
+          }
+        },
+        "old_json_compact_bytes": 414
+      },
+      "intent-checkpoint-large_new_intent": {
+        "samples_per_mode": 7,
+        "measurements": {
+          "full": {
+            "durations_ms": [
+              52.94824996963143,
+              61.299209017306566,
+              57.76970786973834,
+              49.67216681689024,
+              52.8546660207212,
+              49.610584042966366,
+              62.118709087371826
+            ],
+            "thread_cpu_ms": [
+              16.505624999999746,
+              13.29870799999977,
+              18.06175000000021,
+              14.778666000000662,
+              15.71812500000025,
+              14.864583000000486,
+              13.51554200000038
+            ],
+            "sql_counts": [
+              11,
+              11,
+              11,
+              11,
+              11,
+              11,
+              11
+            ],
+            "old_json_reads": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "tracking_updates": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "p50_ms": 52.94824996963143,
+            "thread_cpu_p50_ms": 14.864583000000486,
+            "max_ms": 62.118709087371826
+          },
+          "projected": {
+            "durations_ms": [
+              51.23741598799825,
+              46.60716699436307,
+              47.40533325821161,
+              46.222958248108625,
+              45.25670874863863,
+              51.388958003371954,
+              44.27629103884101
+            ],
+            "thread_cpu_ms": [
+              11.60491699999966,
+              13.124916999999847,
+              14.90616699999947,
+              12.82937499999992,
+              16.74325000000021,
+              12.434041999999756,
+              14.244208000000036
+            ],
+            "sql_counts": [
+              11,
+              11,
+              11,
+              11,
+              11,
+              11,
+              11
+            ],
+            "old_json_reads": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "tracking_updates": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "p50_ms": 46.60716699436307,
+            "thread_cpu_p50_ms": 13.124916999999847,
+            "max_ms": 51.388958003371954
+          }
+        },
+        "old_json_compact_bytes": 1049024
+      },
+      "intent-checkpoint-large_unchanged_checkpoint": {
+        "samples_per_mode": 7,
+        "measurements": {
+          "full": {
+            "durations_ms": [
+              19.703625235706568,
+              29.728499706834555,
+              25.80770803615451,
+              21.14704204723239,
+              18.340999726206064,
+              21.454083267599344,
+              16.2364998832345
+            ],
+            "thread_cpu_ms": [
+              9.447707999999722,
+              7.34779200000002,
+              8.540499999999618,
+              7.084458999999654,
+              8.227542000000199,
+              8.777290999999465,
+              6.610832999999872
+            ],
+            "sql_counts": [
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5
+            ],
+            "old_json_reads": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "tracking_updates": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "p50_ms": 21.14704204723239,
+            "thread_cpu_p50_ms": 8.227542000000199,
+            "max_ms": 29.728499706834555
+          },
+          "projected": {
+            "durations_ms": [
+              21.517375018447638,
+              20.302458200603724,
+              17.7111248485744,
+              17.084165941923857,
+              21.183917298913002,
+              19.913624972105026,
+              16.040791291743517
+            ],
+            "thread_cpu_ms": [
+              6.504333999999723,
+              7.663166999999582,
+              5.830708000000406,
+              7.3348329999998185,
+              6.69458299999981,
+              7.850999999999608,
+              5.357582999999444
+            ],
+            "sql_counts": [
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5
+            ],
+            "old_json_reads": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "tracking_updates": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "p50_ms": 19.913624972105026,
+            "thread_cpu_p50_ms": 6.69458299999981,
+            "max_ms": 21.517375018447638
+          }
+        },
+        "old_json_compact_bytes": 1049024
+      },
+      "intent-checkpoint-missing_pending": {
+        "samples_per_mode": 7,
+        "measurements": {
+          "full": {
+            "durations_ms": [
+              58.26812470331788,
+              56.921790819615126,
+              48.11270767822862,
+              49.417666625231504,
+              55.06191588938236,
+              55.25904102250934,
+              47.64883266761899
+            ],
+            "thread_cpu_ms": [
+              21.05358399999968,
+              20.96479200000001,
+              12.197250000000714,
+              13.97395800000023,
+              17.24779200000004,
+              17.50924999999981,
+              12.46270899999935
+            ],
+            "sql_counts": [
+              11,
+              11,
+              11,
+              11,
+              11,
+              11,
+              11
+            ],
+            "old_json_reads": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "tracking_updates": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "p50_ms": 55.06191588938236,
+            "thread_cpu_p50_ms": 17.24779200000004,
+            "max_ms": 58.26812470331788
+          },
+          "projected": {
+            "durations_ms": [
+              58.05270792916417,
+              53.9126661606133,
+              60.78391708433628,
+              49.92908285930753,
+              52.337625063955784,
+              55.3697501309216,
+              61.925457790493965
+            ],
+            "thread_cpu_ms": [
+              21.91341700000038,
+              14.356916999999747,
+              15.538792000000079,
+              14.779625000000074,
+              17.204207999999888,
+              18.84337500000033,
+              20.415290999999947
+            ],
+            "sql_counts": [
+              12,
+              12,
+              12,
+              12,
+              12,
+              12,
+              12
+            ],
+            "old_json_reads": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "tracking_updates": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "p50_ms": 55.3697501309216,
+            "thread_cpu_p50_ms": 17.204207999999888,
+            "max_ms": 61.925457790493965
+          }
+        },
+        "old_json_compact_bytes": 1049024
+      }
+    },
+    "qualification": "Real local PostgreSQL; alternating seven pairs, full/default reader counterfactual versus final projection. Timings are evidence, not thresholds. Scoped DB recorder work, no real exchange/network or MM p99 measurement.",
+    "verification_log": {
+      "path": "/tmp/hbot-intent-checkpoint-accepted-paired.log",
+      "sha256": "15b576e5bc3a1d98c1dee4a5f64ddc50a4d3c34e8b5ed3fa6a7928a293d39b77",
+      "passed": 4,
+      "overlaps_full_postgres": true
+    }
+  },
+  "baseline_generic_diagnostic": {
+    "artifact": {
+      "path": "build/checkpoint-projection-20261107/baseline.json",
+      "sha256": "5a8152665d4afc33e3c53a97bff6bc42233731b9b5ab280f848f43c6082cc769"
+    },
+    "values": {
+      "checkpoint-write-small": {
+        "p50_ms": 13.550583738833666,
+        "max_ms": 19.139499869197607,
+        "samples": 7,
+        "python_peak_bytes": 26456,
+        "sql_statements": 5,
+        "old_json_compact_bytes": 412,
+        "old_json_materialized": true,
+        "statements": [
+          "SELECT market_states.id AS market_states_id, market_states.config_file_path AS market_states_config_file_path, market_states.market AS market_states_market, market_states.timestamp AS market_states_timestamp, market_states.saved_state AS market_states_saved_state \nFROM market_states \nWHERE market_states.config_file_path = %(config_file_path_1)s AND market_states.market = %(market_1)s",
+          "SELECT orders.id AS orders_id, orders.creation_pending AS orders_creation_pending \nFROM orders \nWHERE orders.config_file_path = %(config_file_path_1)s AND orders.market = %(market_1)s AND (orders.id IN (%(id_1_1)s) OR orders.creation_pending IS true)",
+          "\n                SELECT b.bot_id, b.config_file_path, b.config_type, b.desired_state, b.control_version,\n                    b.acknowledged_version, b.owner_uuid, b.owner_generation, b.heartbeat, b.revision,\n                    b.recovery_state, b.mm_session, pg_backend_pid() AS backend_pid,\n                    EXTRACT(EPOCH FROM clock_timestamp()) AS database_now FROM public.bot_state b\n                WHERE bot_id=%(bot_id)s AND owner_uuid=%(owner)s AND owner_generation=%(generation)s\n                AND EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted\n                    AND pid=pg_backend_pid() AND classid=%(namespace)s AND objid=%(key)s AND objsubid=2)\n            ",
+          "SELECT bot_state.owner_generation \nFROM bot_state \nWHERE bot_state.bot_id = %(bot_id_1)s AND bot_state.owner_uuid = %(owner_uuid_1)s AND bot_state.owner_generation = %(owner_generation_1)s FOR SHARE",
+          "UPDATE market_states SET timestamp=%(timestamp)s WHERE market_states.id = %(market_states_id)s"
+        ]
+      },
+      "checkpoint-write-large": {
+        "p50_ms": 37.239667028188705,
+        "max_ms": 39.14124984294176,
+        "samples": 7,
+        "python_peak_bytes": 2118897,
+        "sql_statements": 5,
+        "old_json_compact_bytes": 1049022,
+        "old_json_materialized": true,
+        "statements": [
+          "SELECT market_states.id AS market_states_id, market_states.config_file_path AS market_states_config_file_path, market_states.market AS market_states_market, market_states.timestamp AS market_states_timestamp, market_states.saved_state AS market_states_saved_state \nFROM market_states \nWHERE market_states.config_file_path = %(config_file_path_1)s AND market_states.market = %(market_1)s",
+          "SELECT orders.id AS orders_id, orders.creation_pending AS orders_creation_pending \nFROM orders \nWHERE orders.config_file_path = %(config_file_path_1)s AND orders.market = %(market_1)s AND (orders.id IN (%(id_1_1)s) OR orders.creation_pending IS true)",
+          "\n                SELECT b.bot_id, b.config_file_path, b.config_type, b.desired_state, b.control_version,\n                    b.acknowledged_version, b.owner_uuid, b.owner_generation, b.heartbeat, b.revision,\n                    b.recovery_state, b.mm_session, pg_backend_pid() AS backend_pid,\n                    EXTRACT(EPOCH FROM clock_timestamp()) AS database_now FROM public.bot_state b\n                WHERE bot_id=%(bot_id)s AND owner_uuid=%(owner)s AND owner_generation=%(generation)s\n                AND EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted\n                    AND pid=pg_backend_pid() AND classid=%(namespace)s AND objid=%(key)s AND objsubid=2)\n            ",
+          "SELECT bot_state.owner_generation \nFROM bot_state \nWHERE bot_state.bot_id = %(bot_id_1)s AND bot_state.owner_uuid = %(owner_uuid_1)s AND bot_state.owner_generation = %(owner_generation_1)s FOR SHARE",
+          "UPDATE market_states SET timestamp=%(timestamp)s, saved_state=%(saved_state)s::JSON WHERE market_states.id = %(market_states_id)s"
+        ]
+      }
+    },
+    "qualification": "Original generic checkpoint fixture used to select work; its timings/allocation are not directly compared with fresh-intent benchmark timings."
+  },
+  "rejected_experiments": [
+    {
+      "name": "general_lazy_projection",
+      "metrics": {
+        "checkpoint-paired-small_changed": {
+          "samples_per_mode": 7,
+          "measurements": {
+            "full": {
+              "durations_ms": [
+                12.315500061959028,
+                8.40941583737731,
+                9.354582987725735,
+                9.049917105585337,
+                8.189916145056486,
+                7.314791902899742,
+                8.040708024054766
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "tracking_updates": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "p50_ms": 8.40941583737731,
+              "max_ms": 12.315500061959028
+            },
+            "projected": {
+              "durations_ms": [
+                9.617124684154987,
+                9.894415736198425,
+                9.638415649533272,
+                13.612083159387112,
+                9.067208040505648,
+                11.841499712318182,
+                7.825999986380339
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "tracking_updates": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "p50_ms": 9.638415649533272,
+              "max_ms": 13.612083159387112
+            }
+          },
+          "old_json_compact_bytes": 412,
+          "new_json_compact_bytes": 414
+        },
+        "checkpoint-paired-large_old_changed": {
+          "samples_per_mode": 7,
+          "measurements": {
+            "full": {
+              "durations_ms": [
+                27.152208145707846,
+                21.835834253579378,
+                26.929249987006187,
+                24.54937482252717,
+                32.10716741159558,
+                26.850041933357716,
+                25.323458947241306
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "tracking_updates": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "p50_ms": 26.850041933357716,
+              "max_ms": 32.10716741159558
+            },
+            "projected": {
+              "durations_ms": [
+                12.0430001989007,
+                9.409917052835226,
+                20.27658373117447,
+                20.760834217071533,
+                12.84312503412366,
+                12.587917037308216,
+                17.011708114296198
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "tracking_updates": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "p50_ms": 12.84312503412366,
+              "max_ms": 20.760834217071533
+            }
+          },
+          "old_json_compact_bytes": 1049022,
+          "new_json_compact_bytes": 412
+        },
+        "checkpoint-paired-large_current_unchanged": {
+          "samples_per_mode": 7,
+          "measurements": {
+            "full": {
+              "durations_ms": [
+                22.496875375509262,
+                16.411291901022196,
+                20.113875158131123,
+                16.507249791175127,
+                21.47708274424076,
+                20.414291881024837,
+                21.16758283227682
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "tracking_updates": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "p50_ms": 20.414291881024837,
+              "max_ms": 22.496875375509262
+            },
+            "projected": {
+              "durations_ms": [
+                36.656207870692015,
+                44.33075012639165,
+                46.95525020360947,
+                34.71037466078997,
+                40.00616725534201,
+                45.42437521740794,
+                42.52608306705952
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "tracking_updates": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "p50_ms": 42.52608306705952,
+              "max_ms": 46.95525020360947
+            }
+          },
+          "old_json_compact_bytes": 1049022,
+          "new_json_compact_bytes": 1049022
+        },
+        "checkpoint-paired-missing_pending_large": {
+          "samples_per_mode": 7,
+          "measurements": {
+            "full": {
+              "durations_ms": [
+                22.954083047807217,
+                17.311958130449057,
+                23.87029118835926,
+                19.28091701120138,
+                18.130958080291748,
+                24.90612491965294,
+                23.60445773229003
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "tracking_updates": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "p50_ms": 22.954083047807217,
+              "max_ms": 24.90612491965294
+            },
+            "projected": {
+              "durations_ms": [
+                25.139333214610815,
+                25.682917330414057,
+                23.68583297356963,
+                18.3616247959435,
+                19.787624944001436,
+                20.725791342556477,
+                26.283875107765198
+              ],
+              "sql_counts": [
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6
+              ],
+              "old_json_reads": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "tracking_updates": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "p50_ms": 23.68583297356963,
+              "max_ms": 26.283875107765198
+            }
+          },
+          "old_json_compact_bytes": 1049022,
+          "new_json_compact_bytes": 1049022
+        }
+      },
+      "red_log": {
+        "path": "/tmp/hbot-checkpoint-projection-write-amplification-red.log",
+        "sha256": "d6eccb32a97d260296d0fa37b584c89f7884f597f392e628d8c2d8ec2dceeba8"
+      },
+      "reason": "Unchanged large JSON is rewritten; two Red cases reject that regression. Not shipping."
+    },
+    {
+      "name": "server_equality_projection",
+      "metrics": {
+        "checkpoint-write-small": {
+          "p50_ms": 8.970542345196009,
+          "max_ms": 13.814374804496765,
+          "samples": 7,
+          "python_peak_bytes": 26171,
+          "sql_statements": 5,
+          "old_json_compact_bytes": 412,
+          "old_json_materialized": false,
+          "statements": [
+            "SELECT market_states.id AS market_states_id, market_states.config_file_path AS market_states_config_file_path, market_states.market AS market_states_market, market_states.timestamp AS market_states_timestamp, CAST(market_states.saved_state AS JSONB) = %(param_1)s::JSONB AS anon_1 \nFROM market_states \nWHERE market_states.config_file_path = %(config_file_path_1)s AND market_states.market = %(market_1)s",
+            "SELECT orders.id AS orders_id, orders.creation_pending AS orders_creation_pending \nFROM orders \nWHERE orders.config_file_path = %(config_file_path_1)s AND orders.market = %(market_1)s AND (orders.id IN (%(id_1_1)s) OR orders.creation_pending IS true)",
+            "\n                SELECT b.bot_id, b.config_file_path, b.config_type, b.desired_state, b.control_version,\n                    b.acknowledged_version, b.owner_uuid, b.owner_generation, b.heartbeat, b.revision,\n                    b.recovery_state, b.mm_session, pg_backend_pid() AS backend_pid,\n                    EXTRACT(EPOCH FROM clock_timestamp()) AS database_now FROM public.bot_state b\n                WHERE bot_id=%(bot_id)s AND owner_uuid=%(owner)s AND owner_generation=%(generation)s\n                AND EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted\n                    AND pid=pg_backend_pid() AND classid=%(namespace)s AND objid=%(key)s AND objsubid=2)\n            ",
+            "SELECT bot_state.owner_generation \nFROM bot_state \nWHERE bot_state.bot_id = %(bot_id_1)s AND bot_state.owner_uuid = %(owner_uuid_1)s AND bot_state.owner_generation = %(owner_generation_1)s FOR SHARE",
+            "UPDATE market_states SET timestamp=%(timestamp)s WHERE market_states.id = %(market_states_id)s"
+          ]
+        },
+        "checkpoint-write-large": {
+          "p50_ms": 17.7023746073246,
+          "max_ms": 21.378000266849995,
+          "samples": 7,
+          "python_peak_bytes": 27048,
+          "sql_statements": 5,
+          "old_json_compact_bytes": 1049022,
+          "old_json_materialized": false,
+          "statements": [
+            "SELECT market_states.id AS market_states_id, market_states.config_file_path AS market_states_config_file_path, market_states.market AS market_states_market, market_states.timestamp AS market_states_timestamp, CAST(market_states.saved_state AS JSONB) = %(param_1)s::JSONB AS anon_1 \nFROM market_states \nWHERE market_states.config_file_path = %(config_file_path_1)s AND market_states.market = %(market_1)s",
+            "SELECT orders.id AS orders_id, orders.creation_pending AS orders_creation_pending \nFROM orders \nWHERE orders.config_file_path = %(config_file_path_1)s AND orders.market = %(market_1)s AND (orders.id IN (%(id_1_1)s) OR orders.creation_pending IS true)",
+            "\n                SELECT b.bot_id, b.config_file_path, b.config_type, b.desired_state, b.control_version,\n                    b.acknowledged_version, b.owner_uuid, b.owner_generation, b.heartbeat, b.revision,\n                    b.recovery_state, b.mm_session, pg_backend_pid() AS backend_pid,\n                    EXTRACT(EPOCH FROM clock_timestamp()) AS database_now FROM public.bot_state b\n                WHERE bot_id=%(bot_id)s AND owner_uuid=%(owner)s AND owner_generation=%(generation)s\n                AND EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted\n                    AND pid=pg_backend_pid() AND classid=%(namespace)s AND objid=%(key)s AND objsubid=2)\n            ",
+            "SELECT bot_state.owner_generation \nFROM bot_state \nWHERE bot_state.bot_id = %(bot_id_1)s AND bot_state.owner_uuid = %(owner_uuid_1)s AND bot_state.owner_generation = %(owner_generation_1)s FOR SHARE",
+            "UPDATE market_states SET timestamp=%(timestamp)s, saved_state=%(saved_state)s::JSON WHERE market_states.id = %(market_states_id)s"
+          ]
+        },
+        "checkpoint-paired-small_changed": {
+          "samples_per_mode": 7,
+          "measurements": {
+            "full": {
+              "durations_ms": [
+                9.024416096508503,
+                8.467458188533783,
+                10.138166137039661,
+                8.471500128507614,
+                9.449082892388105,
+                9.739583358168602,
+                9.24762524664402
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "tracking_updates": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "p50_ms": 9.24762524664402,
+              "max_ms": 10.138166137039661
+            },
+            "projected": {
+              "durations_ms": [
+                9.088499937206507,
+                7.970750331878662,
+                6.749917287379503,
+                9.601542260497808,
+                10.773082729429007,
+                14.148833230137825,
+                9.98083408921957
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "tracking_updates": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "p50_ms": 9.601542260497808,
+              "max_ms": 14.148833230137825
+            }
+          },
+          "old_json_compact_bytes": 412,
+          "new_json_compact_bytes": 414
+        },
+        "checkpoint-paired-large_old_changed": {
+          "samples_per_mode": 7,
+          "measurements": {
+            "full": {
+              "durations_ms": [
+                20.1772921718657,
+                18.50354205816984,
+                24.045125115662813,
+                24.31316627189517,
+                18.647666089236736,
+                19.267583265900612,
+                21.27054100856185
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "tracking_updates": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "p50_ms": 20.1772921718657,
+              "max_ms": 24.31316627189517
+            },
+            "projected": {
+              "durations_ms": [
+                15.856458805501461,
+                21.14091720432043,
+                15.765333082526922,
+                16.835874877870083,
+                16.077666077762842,
+                15.74545819312334,
+                19.38654202967882
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "tracking_updates": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "p50_ms": 16.077666077762842,
+              "max_ms": 21.14091720432043
+            }
+          },
+          "old_json_compact_bytes": 1049022,
+          "new_json_compact_bytes": 412
+        },
+        "checkpoint-paired-large_current_unchanged": {
+          "samples_per_mode": 7,
+          "measurements": {
+            "full": {
+              "durations_ms": [
+                25.415665935724974,
+                23.239207919687033,
+                23.489625193178654,
+                19.521708134561777,
+                18.57591699808836,
+                20.143792033195496,
+                21.998832933604717
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "tracking_updates": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "p50_ms": 21.998832933604717,
+              "max_ms": 25.415665935724974
+            },
+            "projected": {
+              "durations_ms": [
+                47.48820886015892,
+                53.87537507340312,
+                42.542374692857265,
+                50.84579112008214,
+                62.040332704782486,
+                42.40258317440748,
+                40.13970773667097
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "tracking_updates": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "p50_ms": 47.48820886015892,
+              "max_ms": 62.040332704782486
+            }
+          },
+          "old_json_compact_bytes": 1049022,
+          "new_json_compact_bytes": 1049022
+        },
+        "checkpoint-paired-missing_pending_large": {
+          "samples_per_mode": 7,
+          "measurements": {
+            "full": {
+              "durations_ms": [
+                19.21204198151827,
+                19.41025024279952,
+                20.152749959379435,
+                18.745750188827515,
+                22.061708383262157,
+                21.87066711485386,
+                19.425792153924704
+              ],
+              "sql_counts": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ],
+              "old_json_reads": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "tracking_updates": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "p50_ms": 19.425792153924704,
+              "max_ms": 22.061708383262157
+            },
+            "projected": {
+              "durations_ms": [
+                22.514374926686287,
+                22.683625109493732,
+                25.655333884060383,
+                33.23295805603266,
+                29.75116716697812,
+                27.429750189185143,
+                28.433125000447035
+              ],
+              "sql_counts": [
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6
+              ],
+              "old_json_reads": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "tracking_updates": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "p50_ms": 27.429750189185143,
+              "max_ms": 33.23295805603266
+            }
+          },
+          "old_json_compact_bytes": 1049022,
+          "new_json_compact_bytes": 1049022
+        }
+      },
+      "source_artifact": {
+        "path": "build/checkpoint-projection-20261107/defer-with-db-equality-experiment.py",
+        "sha256": "e5ac17a1f53bfd8d6a435fb553b50ccddaff11e71031dc178d1578069f1a8f1f"
+      },
+      "reason": "Suppresses unchanged JSON writes but large unchanged checkpoints still cost more. Removed; no new equality/hash/cache remains."
+    },
+    {
+      "name": "overstrict_test_expectation",
+      "log": {
+        "path": "/tmp/hbot-checkpoint-projection-related-pg.log",
+        "sha256": "ccf3b32383f48e19cfed6bf9cb596ebecea3f8c49a99b138b756bbc82af4ab93"
+      },
+      "outcome": "124 passed / 1 failed on intermediate experiment",
+      "reason": "Expected one lazy load across two checkpoint calls; that assumes reuse across ORM flushes. Bound is one read per checkpoint, not an authority/data cache across calls."
+    },
+    {
+      "name": "superseded_broad_runs",
+      "native_log": {
+        "path": "/tmp/hbot-checkpoint-projection-native-regression.log",
+        "sha256": "1d307297800c647caf876eb6e2bfaa77944a933e010f10a596036e169a51a7df"
+      },
+      "postgres_log": {
+        "path": "/tmp/hbot-checkpoint-projection-full-postgres.log",
+        "sha256": "dea50990b3054e9f4e0bb14443eadc4c075aa0ca2f845bd1096ef42634d83594"
+      },
+      "qualification": "Not accepted final-source gates. Source scope changed during exploration; PG run deliberately interrupted after 74 passes. Final frozen-source gates are above."
+    }
+  ],
+  "guarantees": [
+    "Same owner/control/row fences and durable commit before transport; no asynchronous recorder worker.",
+    "Fresh intent skips old JSON only while its identity is present in current tracking.",
+    "Missing pending identities cause a single lazy old-JSON read per checkpoint; full cold restore remains the default.",
+    "Ordinary/unchanged checkpoints and untracked-intent fallback retain the full-reader path.",
+    "Read/commit failures roll back the new intent and preserve prior tracking; owner loss cannot commit it."
+  ],
+  "limitations": [
+    "Large synthetic fixture is not an observed size/root cause for the six prior probe events.",
+    "No claim all small paths are faster, no end-to-end MM latency/uptime or RSS improvement claim.",
+    "Missing pending tracking adds one conditional read; query/payload tradeoffs are retained.",
+    "Native/PG gates do not qualify a new container or replace previous image/load evidence.",
+    "Original synchronous fill/ownership I/O can still delay the engine loop; probe timeout/grace unchanged."
+  ],
+  "earlier_scoped_paired_measurements": {
+    "artifact": "build/checkpoint-projection-20261107/final-intent-source.json",
+    "values": {
+      "intent-checkpoint-small_new_intent": {
+        "samples_per_mode": 7,
+        "measurements": {
+          "full": {
+            "durations_ms": [
+              22.04204211011529,
+              16.682582907378674,
+              16.20699977502227,
+              15.307208057492971,
+              17.700042109936476,
+              23.304749745875597,
+              26.658458169549704
+            ],
+            "thread_cpu_ms": [
+              11.506375000000624,
+              5.586165999999615,
+              5.58095799999947,
+              4.7238329999999,
+              7.30587499999924,
+              9.7885419999999,
+              11.092624999999856
+            ],
+            "sql_counts": [
+              11,
+              11,
+              11,
+              11,
+              11,
+              11,
+              11
+            ],
+            "old_json_reads": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "tracking_updates": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "p50_ms": 17.700042109936476,
+            "thread_cpu_p50_ms": 7.30587499999924,
+            "max_ms": 26.658458169549704
+          },
+          "projected": {
+            "durations_ms": [
+              23.406165651977062,
+              18.915375228971243,
+              20.507665816694498,
+              17.446666955947876,
+              20.94745822250843,
+              20.345875062048435,
+              23.359165992587805
+            ],
+            "thread_cpu_ms": [
+              13.62862499999995,
+              9.09479099999988,
+              10.392207999999847,
+              6.341124999999614,
+              9.872084000000392,
+              9.36783299999977,
+              10.326584000000416
+            ],
+            "sql_counts": [
+              11,
+              11,
+              11,
+              11,
+              11,
+              11,
+              11
+            ],
+            "old_json_reads": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "tracking_updates": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "p50_ms": 20.507665816694498,
+            "thread_cpu_p50_ms": 9.872084000000392,
+            "max_ms": 23.406165651977062
+          }
+        },
+        "old_json_compact_bytes": 414
+      },
+      "intent-checkpoint-large_new_intent": {
+        "samples_per_mode": 7,
+        "measurements": {
+          "full": {
+            "durations_ms": [
+              53.50962467491627,
+              48.56216721236706,
+              53.543874993920326,
+              51.22495908290148,
+              54.71591744571924,
+              49.971332773566246,
+              116.99691694229841
+            ],
+            "thread_cpu_ms": [
+              13.355749999999666,
+              12.878750000000494,
+              19.069999999999254,
+              16.683292000000627,
+              15.868042000000138,
+              14.886083999999578,
+              21.541167000000527
+            ],
+            "sql_counts": [
+              11,
+              11,
+              11,
+              11,
+              11,
+              11,
+              11
+            ],
+            "old_json_reads": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "tracking_updates": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "p50_ms": 53.50962467491627,
+            "thread_cpu_p50_ms": 15.868042000000138,
+            "max_ms": 116.99691694229841
+          },
+          "projected": {
+            "durations_ms": [
+              39.22333335503936,
+              47.99237521365285,
+              48.91808284446597,
+              43.2236660271883,
+              47.30662517249584,
+              42.53279184922576,
+              44.52295880764723
+            ],
+            "thread_cpu_ms": [
+              9.097167000000184,
+              17.756250000000584,
+              15.852457999999459,
+              13.788874999999479,
+              15.76104200000028,
+              12.965499999999963,
+              16.343875000000452
+            ],
+            "sql_counts": [
+              11,
+              11,
+              11,
+              11,
+              11,
+              11,
+              11
+            ],
+            "old_json_reads": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "tracking_updates": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "p50_ms": 44.52295880764723,
+            "thread_cpu_p50_ms": 15.76104200000028,
+            "max_ms": 48.91808284446597
+          }
+        },
+        "old_json_compact_bytes": 1049024
+      },
+      "intent-checkpoint-large_unchanged_checkpoint": {
+        "samples_per_mode": 7,
+        "measurements": {
+          "full": {
+            "durations_ms": [
+              16.792583744972944,
+              18.542500212788582,
+              17.435708083212376,
+              16.009625047445297,
+              15.663790982216597,
+              16.29200018942356,
+              21.074417047202587
+            ],
+            "thread_cpu_ms": [
+              6.994083999999567,
+              8.034084000000163,
+              6.076375000000134,
+              5.1974579999996,
+              5.150750000000315,
+              5.11062499999948,
+              6.921207999999623
+            ],
+            "sql_counts": [
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5
+            ],
+            "old_json_reads": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "tracking_updates": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "p50_ms": 16.792583744972944,
+            "thread_cpu_p50_ms": 6.076375000000134,
+            "max_ms": 21.074417047202587
+          },
+          "projected": {
+            "durations_ms": [
+              18.628417048603296,
+              17.113457899540663,
+              16.83016587048769,
+              16.371249686926603,
+              15.999124851077795,
+              17.891207709908485,
+              17.22245803102851
+            ],
+            "thread_cpu_ms": [
+              7.989208999999775,
+              6.454542000000174,
+              7.45891700000012,
+              5.293291000000089,
+              4.976458000000683,
+              5.060249999999655,
+              7.617167000001146
+            ],
+            "sql_counts": [
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5
+            ],
+            "old_json_reads": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "tracking_updates": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "p50_ms": 17.113457899540663,
+            "thread_cpu_p50_ms": 6.454542000000174,
+            "max_ms": 18.628417048603296
+          }
+        },
+        "old_json_compact_bytes": 1049024
+      },
+      "intent-checkpoint-missing_pending": {
+        "samples_per_mode": 7,
+        "measurements": {
+          "full": {
+            "durations_ms": [
+              48.71375020593405,
+              56.050708051770926,
+              57.77916684746742,
+              55.3785408847034,
+              53.23483282700181,
+              54.68958290293813,
+              58.99033322930336
+            ],
+            "thread_cpu_ms": [
+              13.037125000000316,
+              19.652041999998815,
+              13.266707999999738,
+              17.204916999999043,
+              15.99787500000005,
+              18.9039159999993,
+              20.082916999999867
+            ],
+            "sql_counts": [
+              11,
+              11,
+              11,
+              11,
+              11,
+              11,
+              11
+            ],
+            "old_json_reads": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "tracking_updates": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "p50_ms": 55.3785408847034,
+            "thread_cpu_p50_ms": 17.204916999999043,
+            "max_ms": 58.99033322930336
+          },
+          "projected": {
+            "durations_ms": [
+              61.02900020778179,
+              60.37691608071327,
+              55.349832866340876,
+              62.23833281546831,
+              51.54987517744303,
+              56.86437524855137,
+              53.94995817914605
+            ],
+            "thread_cpu_ms": [
+              19.536708000000402,
+              22.39566699999962,
+              17.391749999999817,
+              17.45004200000011,
+              15.033208000000187,
+              18.540458999998677,
+              17.05466599999994
+            ],
+            "sql_counts": [
+              12,
+              12,
+              12,
+              12,
+              12,
+              12,
+              12
+            ],
+            "old_json_reads": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "tracking_updates": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "p50_ms": 56.86437524855137,
+            "thread_cpu_p50_ms": 17.45004200000011,
+            "max_ms": 62.23833281546831
+          }
+        },
+        "old_json_compact_bytes": 1049024
+      }
+    },
+    "qualification": "Retain all earlier scoped pairs, including slower small-fixture timings. Final measurement is a separately labelled standalone repeat after broad regressions."
+  }
+}

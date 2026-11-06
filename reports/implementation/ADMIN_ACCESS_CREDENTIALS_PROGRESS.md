@@ -547,3 +547,32 @@ load results remain unchanged; no new image/soak or actual Demo operation.
 Findings and measurement-before-fix guidance are in the
 [report](../investigations/mm-cleanup-state-probe-code-audit.md) and
 [evidence](../investigations/mm-cleanup-state-probe-code-audit-evidence.json).
+
+### New-intent checkpoint TDD optimization — 2026-11-07
+
+Measure old-checkpoint reads before selecting a correction. Reject two broader
+variants: general lazy replacement rewrites unchanged large JSON; a server-side
+equality projection still makes that case slower. Two write-amplification Red
+cases and all preliminary measurements remain recorded. An overstrict test
+expectation of one lazy load across two calls is corrected, without adding a
+cross-call cache; exploratory broad runs are excluded from final acceptance.
+
+Four fresh-intent Red cases fail on the original recorder. Commit `c9889da28`
+uses existing SQLAlchemy deferral only when a new intent identity is currently
+tracked. Missing pending identities still load/merge the old JSON. Ordinary
+checkpoints, untracked fallback and cold restore keep full reads, preserving
+unchanged-JSON dirty checking. No new worker, schema, setting, cache or deadline.
+
+All 22 new PG cases pass (18 behavior / four paired measurement). Frozen-source
+native regression passes 2,723 + 11 subtests; full PG passes 518 including those
+22 cases. A separate standalone four-case measurement overlaps that scope.
+Seven alternating pairs: large new-intent p50 52.95 → 46.61 ms, old JSON reads
+1 → 0, SQL statements 11 → 11. Small timings vary across retained runs; missing
+pending tracking keeps one conditional extra read. These are synthetic DB-recorder
+measurements, not MM p99, RSS or proof all prior probe delays are fixed.
+
+Source checklist complete; existing accepted image `f74d2a2a…` is unchanged and
+does not contain this patch. New image qualification remains necessary before
+deployment. No actual Demo/OKX/Google/GCP operation or new hour gate is claimed.
+See the [report](../performance/mm-intent-checkpoint-projection.md) and
+[evidence](../performance/mm-intent-checkpoint-projection-evidence.json).

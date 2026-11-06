@@ -96,3 +96,12 @@ before choosing a narrow projection/batch correction. Any confirmed correction
 needs Red/Green authority, pending-intent, late-fill, commit-failure and restart
 tests before new image qualification. No speculative cache, queue or framework
 replacement is justified by this audit.
+
+## Subsequent scoped TDD change
+
+Source `c9889da28` later reduces unused old-checkpoint JSON reads only for fresh
+tracked intents. General deferral and a server-equality variant are rejected by
+tests/measurements because large unchanged checkpoints regress. Ordinary fill
+checkpoints remain unchanged; this does not close the retained 336 ms fill stall
+or attribute all six probe episodes. Native/PG source checks pass, with new image
+qualification still required. See the [TDD report](../performance/mm-intent-checkpoint-projection.md).

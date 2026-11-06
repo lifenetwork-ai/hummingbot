@@ -1086,6 +1086,14 @@ optimization would require component-level measurement before a narrow TDD fix.
 See the [code audit](../../reports/investigations/mm-cleanup-state-probe-code-audit.md)
 and [evidence](../../reports/investigations/mm-cleanup-state-probe-code-audit-evidence.json).
 
+Subsequent [checkpoint TDD phase](MM_RECORDER_CHECKPOINT_PROJECTION_TDD_PLAN.md)
+completes on source `c9889da28`: defer unused old JSON only for fresh tracked
+intents; ordinary fill/checkpoint and full recovery behavior remain. Native
+2,723 + 11 subtests and full PG 518 pass. General checkpoint deferral/equality
+experiments are rejected, and the six historical probes are not declared fixed.
+This is source acceptance only; the existing `f74d2a2a…` image/hour result does
+not qualify the new source. [Report/evidence](../../reports/performance/mm-intent-checkpoint-projection.md).
+
 ## Implementation-readiness review
 
 The review found design/integration gaps, not newly reproduced runtime defects.

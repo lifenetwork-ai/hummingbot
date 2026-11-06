@@ -4,6 +4,16 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **New-intent checkpoint projection — source checks complete:** `c9889da28`
+  passes native 2,723 + 11 subtests and full PG 518, including 22 new cases.
+  A fresh tracked intent skips unused old JSON; ordinary checkpoints and cold
+  recovery retain their full-reader behavior. Paired synthetic 1 MiB intent p50
+  52.95 → 46.61 ms, with unchanged statement count. Small timings vary; missing
+  pending tracking adds one conditional read. Rejected broader variants remain
+  documented. No new image/hour gate or claim all six probes are fixed.
+  [Report](performance/mm-intent-checkpoint-projection.md),
+  [evidence](performance/mm-intent-checkpoint-projection-evidence.json).
+
 - **Latest cleanup image passes the full load/hour gate:** `f74d2a2a…` passes
   warmup/mixed/burst/3,600-second soak and all five faults. All 97,800 main and
   24,450 auxiliary reads return HTTP 200; soak p99 353.91 ms, retained growth
