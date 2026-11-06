@@ -131,3 +131,13 @@ new dependency or process architecture is introduced.
 A changed runtime image still needs its separately identified image/E2E/load
 qualification before deployment. This source result does not inherit the earlier
 accepted image's hour gate or establish that every historical probe cause is fixed.
+
+## Subsequent image verification — 2026-11-07
+
+New image `bf4e1f77…` separately passes the unchanged full load/hour/five faults,
+four targeted E2E groups and enabled-enhancement90. Soak p99 306.91 ms, zero
+unexpected healthy errors, 21.89 MiB retained growth and 4,885 exact simulated
+fills/fees/positions. Three healthy probes recover without child replacement;
+measurement and attribution limits remain. One unused image removed; all container
+references/volumes retained. [Image report](../release/mm-runtime-followup-load.md),
+[evidence](../release/mm-runtime-followup-load-evidence.json).

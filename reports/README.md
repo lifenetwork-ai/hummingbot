@@ -4,6 +4,17 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **New runtime image full gate passes:** `bf4e1f77…` passes the unchanged full
+  baseline, 60-minute soak, five faults, four targeted image E2E groups and an
+  enabled-enhancement diagnostic. Soak p99 306.91 ms, 97,800 main + 24,450
+  auxiliary HTTP200, zero unexpected healthy errors, 21.89 MiB retained growth,
+  4,885 exact simulated fills. Three healthy probes recover; no healthy ERROR/
+  child restart. Mixed/burst latency is higher than the prior run; causal and
+  quote-continuity limits remain explicit. One unused image removed, all ten
+  containers/fourteen volumes and rollback retained.
+  [Report](release/mm-runtime-followup-load.md),
+  [evidence](release/mm-runtime-followup-load-evidence.json).
+
 - **Runtime follow-up — source verification complete:** scoped risk/checkpoint
   diagnostics retain critical failure fences; steady admission avoids its duplicate
   traversal; valuation reads fresh exposure and reports reuse held summaries.

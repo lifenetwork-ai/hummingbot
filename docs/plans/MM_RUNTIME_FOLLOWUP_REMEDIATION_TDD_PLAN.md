@@ -55,3 +55,26 @@ See [report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md) and
 [evidence](../../reports/implementation/mm-runtime-followup-evidence.json).
 JSON-copy consolidation is deliberately deferred after measurement. No changed
 image/E2E/hour gate or unique historical-probe attribution is claimed.
+
+
+## Image/load follow-up — requested 2026-11-07
+
+The source-only results above retain their original scope. New image verification
+is recorded separately; keep the previous gate's workload, budgets and failures.
+
+- [x] Build/pin an amd64 image from the verified source; record packaged source
+  hashes, runtime smoke and targeted image E2E evidence.
+- [x] Run unchanged full baseline with operations/security and bounded incident
+  capture: warmup300, mixed900, burst90, soak3600 and all five fault windows.
+- [x] Exercise enabled drawdown/report paths in a separate bounded diagnostic;
+  do not use it to replace the unchanged baseline or claim continuous MM activity.
+- [x] Publish image-specific results/limitations and close only verified items.
+- [x] After tests finish, remove exact unused bot images; retain current candidate,
+  accepted rollback, all container-referenced images, other projects and volumes.
+
+Image `bf4e1f77…` passes the new full gate (soak p99 306.91 ms, zero unexpected
+healthy errors, 21.89 MiB retained growth, 4,885 exact simulated fills), four targeted
+E2E groups, enabled-enhancement90 and all five faults. Three recovered healthy
+probes remain qualified. One unused image removed; container/volume inventories
+retained. See [image report](../../reports/release/mm-runtime-followup-load.md) and
+[evidence](../../reports/release/mm-runtime-followup-load-evidence.json).
