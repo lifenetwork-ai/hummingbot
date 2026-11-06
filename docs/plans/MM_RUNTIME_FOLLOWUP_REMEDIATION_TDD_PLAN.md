@@ -78,3 +78,27 @@ E2E groups, enabled-enhancement90 and all five faults. Three recovered healthy
 probes remain qualified. One unused image removed; container/volume inventories
 retained. See [image report](../../reports/release/mm-runtime-followup-load.md) and
 [evidence](../../reports/release/mm-runtime-followup-load-evidence.json).
+
+
+## Probe follow-up — requested 2026-11-07
+
+The three recovered episodes on `bf4e1f77…` retain their accepted gate scope.
+Read raw samples as well as selected spans; asynchronous span CPU is inclusive
+of interleaved loop work. Keep native owner/session and durable-send fences fresh.
+
+- [x] Review warmup/mixed/soak code and retained traces without changing probe,
+  I/O, statement, retry, CPU, pool or load budgets.
+- [x] Red: demonstrate three fill flushes, including one Order-only flush caused
+  by the history lookup, with real PostgreSQL and ownership. Two failures/five
+  safety checks pass on the original code.
+- [x] Green: coalesce the pending Order with status/fill at the next existing
+  checkpoint flush. Preserve atomicity, duplicate/late events, stale-owner and
+  commit failures, ack-after-commit and cleanup behavior.
+- [x] Measure matched statement/flush/ownership counts and timing; qualify
+  savings without attributing all historic probe episodes to this change.
+- [x] Measure funding reader construction/read paths; change only independently
+  confirmed unnecessary work, with Red/Green and unchanged freshness/fencing.
+- [ ] Run final source regressions; publish scoped results and commit.
+
+No current-image/hour or new real-Demo acceptance is inherited by changed source.
+No general recorder worker, trading-state cache or new probe timeout is introduced.

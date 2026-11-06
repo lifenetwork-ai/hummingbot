@@ -141,3 +141,42 @@ fills/fees/positions. Three healthy probes recover without child replacement;
 measurement and attribution limits remain. One unused image removed; all container
 references/volumes retained. [Image report](../release/mm-runtime-followup-load.md),
 [evidence](../release/mm-runtime-followup-load-evidence.json).
+
+
+## Probe follow-up: fill autoflush — 2026-11-07
+
+Review all three accepted-image episodes without broadening one sample into an
+exclusive root cause. Warmup captures fill/checkpoint and an owner libpq wait.
+Mixed overlaps a 1,215 ms asynchronous funding batch; its thread CPU includes
+interleaved callbacks, and one sample is ordinary wallet parsing. Soak's selected
+completed spans mostly precede failure, but raw loop samples at -208/+77/+342 ms
+show bounded libpq waits around it. That is additional sampled context, not proof
+of a continuous 1.05 s wait. The captured 13 ms GC finishes before failure.
+
+A real PostgreSQL Red exposes three recorder flushes per fresh fill: Order alone
+when checking existing status, Order/status/fill, then MarketState. The status
+lookup only depends on the stable order identity/timestamp/status, not the pending
+Order update. Suppress autoflush only around that lookup in `_store_fill`; the
+next existing query flushes Order/status/fill with the original fresh owner fence.
+Checkpoint and commit retain their fences. Nothing is cached across operations.
+Other history helper call sites retain their original behavior.
+
+Two Red cases fail/5 safety cases pass before the change. Eight new PG cases
+(including paired measurement) pass; related recorder/checkpoint/cleanup PG61 pass.
+They cover known/unknown orders, identical-timestamp fills, duplicates/late create,
+physical owner-session loss between flushes, final-commit rollback, and visibility
+before ack. Native file-backend behavior remains in the final broad regression.
+
+Seven alternating warmed real-PG pairs replay the original flush schedule as the
+control: **3→2 flushes/owner checks**, **13→12 SQL statements**, p50 **17.23→15.12 ms**.
+One after sample is slower (24.77 vs20.47 ms); all samples are retained. This is a
+component measurement with synthetic connector tracking, not an MM/probe p99 claim.
+
+Funding reader construction is ~0.27 ms in a warmed native dummy-config benchmark,
+with no networking/task startup. Keep its lifecycle unchanged; adding a reader or
+balance cache is not justified by this measurement. Dedicated owner checks and
+synchronous durable recorder writes are not moved to a general background thread.
+
+[Scoped evidence](../performance/mm-fill-flush-evidence.json). Source is changed;
+final broad native/PG regression is pending. Image `bf4e1f77…` and its existing gate
+retain their original source identity; no new image/hour acceptance is claimed.

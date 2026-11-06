@@ -679,7 +679,11 @@ class MarketsRecorder:
               or order_record.config_file_path != config_file_path):
             raise ValueError("Fill identity conflicts with its recorded order.")
         self._record_latest_status(order_record, status, timestamp)
-        self._add_order_status(session, order_record, timestamp, status)
+        # The status lookup does not depend on the pending Order update. Let
+        # the checkpoint query flush Order/status/fill together, with the usual
+        # ownership fence, rather than first flushing Order alone for this read.
+        with session.no_autoflush:
+            self._add_order_status(session, order_record, timestamp, status)
         try:
             fee_in_quote = evt.trade_fee.fee_amount_in_token(
                 trading_pair=evt.trading_pair,

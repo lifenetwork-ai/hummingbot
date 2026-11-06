@@ -4,6 +4,7 @@
 
 | Report | Scope |
 | --- | --- |
+| [Fill-flush follow-up](../implementation/MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07), [evidence](mm-fill-flush-evidence.json) | Source-only: reduce guarded flushes/SQL, retain failure semantics; final regression pending, accepted image unchanged |
 | [Latest runtime remediation](../implementation/MM_RUNTIME_FOLLOWUP.md), [evidence](../implementation/mm-runtime-followup-evidence.json) | Fresh exposure reads, per-report summaries, readiness and availability boundaries |
 | [Recorder intent projection](mm-intent-checkpoint-projection.md), [evidence](mm-intent-checkpoint-projection-evidence.json) | SQL/payload Red/Green, rejected variants and paired component costs |
 | [Memory retention](mm-memory-retention-review.md), [evidence](mm-memory-retention-evidence.json) | Retention fixes and original scoped heap/resource verification |

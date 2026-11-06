@@ -1,0 +1,517 @@
+{
+  "date": "2026-11-07",
+  "scope": "Source-only fill flush optimization following three recovered current-image probes; no new image/hour, real exchange or existing-Demo changes.",
+  "accepted_baseline_image": "sha256:bf4e1f7798fd6ecea05bd96a63f789a39a21409e51ce9a5cc1ac9843056ab745",
+  "baseline_source": "b78f0d25c",
+  "retained_incident_evidence": "reports/release/mm-runtime-followup-load-evidence.json",
+  "incident_review": {
+    "warmup": {
+      "failure_ns": 299931201199280,
+      "recovery_ns": 299932331365697,
+      "observed_seconds": 1.130166417,
+      "spans": [
+        {
+          "operation": "recorder_ms",
+          "duration_ms": 549.803083,
+          "thread_cpu_ms": 185.609167,
+          "intersects_transition": true
+        },
+        {
+          "operation": "fill_store_ms",
+          "duration_ms": 523.4195,
+          "thread_cpu_ms": 167.717791,
+          "intersects_transition": true
+        },
+        {
+          "operation": "market_checkpoint_ms",
+          "duration_ms": 512.35075,
+          "thread_cpu_ms": 158.688834,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "duration_ms": 110.038542,
+          "thread_cpu_ms": 7.459,
+          "intersects_transition": false
+        },
+        {
+          "operation": "sql",
+          "duration_ms": 27.465,
+          "thread_cpu_ms": 2.313294,
+          "intersects_transition": false
+        }
+      ],
+      "stall_stacks": [
+        {
+          "lag_ms": 504.33737499999995,
+          "intersects_transition": true,
+          "leaf_stacks": [
+            [
+              {
+                "file": "/test-assets/load_trace.py",
+                "line": 117,
+                "function": "measured"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/core/bot_ownership.py",
+                "line": 136,
+                "function": "check_owner"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1494,
+                "function": "execute"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+                "line": 534,
+                "function": "_execute_on_connection"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1714,
+                "function": "_execute_clauseelement"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1868,
+                "function": "_execute_context"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1977,
+                "function": "_exec_single_context"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+                "line": 1192,
+                "function": "do_execute"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+                "line": 55,
+                "function": "bounded_wait"
+              }
+            ]
+          ]
+        },
+        {
+          "lag_ms": 291.557083,
+          "intersects_transition": false,
+          "leaf_stacks": [
+            [
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py",
+                "line": 92,
+                "function": "_save_obj"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py",
+                "line": 1250,
+                "function": "_emit_insert_statements"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1494,
+                "function": "execute"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+                "line": 534,
+                "function": "_execute_on_connection"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1714,
+                "function": "_execute_clauseelement"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1868,
+                "function": "_execute_context"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1977,
+                "function": "_exec_single_context"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+                "line": 1192,
+                "function": "do_execute"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+                "line": 55,
+                "function": "bounded_wait"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    "mixed": {
+      "failure_ns": 300776268108040,
+      "recovery_ns": 300777632201291,
+      "observed_seconds": 1.364093251,
+      "spans": [
+        {
+          "operation": "service.collect_funding",
+          "duration_ms": 1215.091042,
+          "thread_cpu_ms": 418.653745,
+          "intersects_transition": true
+        },
+        {
+          "operation": "recorder_ms",
+          "duration_ms": 250.649541,
+          "thread_cpu_ms": 148.935081,
+          "intersects_transition": false
+        },
+        {
+          "operation": "ownership_check_ms",
+          "duration_ms": 231.980917,
+          "thread_cpu_ms": 40.499209,
+          "intersects_transition": false
+        },
+        {
+          "operation": "service.observe_once",
+          "duration_ms": 218.298376,
+          "thread_cpu_ms": 128.662127,
+          "intersects_transition": false
+        },
+        {
+          "operation": "sql",
+          "duration_ms": 139.800791,
+          "thread_cpu_ms": 34.455999,
+          "intersects_transition": false
+        }
+      ],
+      "stall_stacks": [
+        {
+          "lag_ms": 323.291125,
+          "intersects_transition": true,
+          "leaf_stacks": [
+            [
+              {
+                "file": "/home/hummingbot/hummingbot/cli/service.py",
+                "line": 1127,
+                "function": "serve_role"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+                "line": 196,
+                "function": "run"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+                "line": 119,
+                "function": "run"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+                "line": 713,
+                "function": "run_until_complete"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+                "line": 684,
+                "function": "run_forever"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+                "line": 2061,
+                "function": "_run_once"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/events.py",
+                "line": 89,
+                "function": "_run"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/selector_events.py",
+                "line": 968,
+                "function": "_read_ready"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/selector_events.py",
+                "line": 1011,
+                "function": "_read_ready__data_received"
+              }
+            ]
+          ]
+        },
+        {
+          "lag_ms": 237.8945,
+          "intersects_transition": false,
+          "leaf_stacks": [
+            [
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+                "line": 713,
+                "function": "run_until_complete"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+                "line": 684,
+                "function": "run_forever"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+                "line": 2061,
+                "function": "_run_once"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/events.py",
+                "line": 89,
+                "function": "_run"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/core/utils/async_utils.py",
+                "line": 9,
+                "function": "safe_wrapper"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py",
+                "line": 557,
+                "function": "_user_stream_event_listener"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py",
+                "line": 838,
+                "function": "_process_wallet_event_message"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py",
+                "line": 396,
+                "function": "_update_balance_from_details"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/connector/okx_account_observations.py",
+                "line": 50,
+                "function": "record_balance_details"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    "soak": {
+      "failure_ns": 304542296839464,
+      "recovery_ns": 304543344269797,
+      "observed_seconds": 1.047430333,
+      "spans": [
+        {
+          "operation": "service.observe_once",
+          "duration_ms": 390.047459,
+          "thread_cpu_ms": 292.944665,
+          "intersects_transition": false
+        },
+        {
+          "operation": "pool_checkout_ms",
+          "duration_ms": 8.984167,
+          "thread_cpu_ms": 1.610626,
+          "intersects_transition": false
+        },
+        {
+          "operation": "db_ping_ms",
+          "duration_ms": 8.509917,
+          "thread_cpu_ms": 1.15996,
+          "intersects_transition": false
+        },
+        {
+          "operation": "commit_ms",
+          "duration_ms": 4.865667,
+          "thread_cpu_ms": 0.442085,
+          "intersects_transition": false
+        },
+        {
+          "operation": "ownership_check_ms",
+          "duration_ms": 4.576875,
+          "thread_cpu_ms": 2.868041,
+          "intersects_transition": false
+        }
+      ],
+      "stall_stacks": []
+    }
+  },
+  "raw_soak_samples": {
+    "artifact": "build/mm-load/20261107-022057-f11e53/incidents/engine-incidents.jsonl",
+    "failure_ns": 304542296839464,
+    "loop_db_wait_samples_offset_ms": [
+      -208,
+      77,
+      342
+    ],
+    "qualification": "Samples show a loop-thread bounded libpq wait around the probe; distinct sampling times do not prove one continuous wait or an exclusive cause. The 13 ms GC completed before failure."
+  },
+  "red": {
+    "failed": 2,
+    "passed": 5,
+    "log": "/tmp/hbot-fill-flush-red.log"
+  },
+  "focused_green": {
+    "passed": 61,
+    "log": "/tmp/hbot-fill-flush-green.log"
+  },
+  "paired_green": {
+    "passed": 8,
+    "log": "/tmp/hbot-fill-flush-pairs.log"
+  },
+  "measurement": {
+    "fill_flush_coalescing": {
+      "pairs": [
+        {
+          "before": {
+            "duration_ms": 17.014542128890753,
+            "flushes": 3,
+            "ownership_checks": 3,
+            "sql_statements": 13
+          },
+          "after": {
+            "duration_ms": 15.153874643146992,
+            "flushes": 2,
+            "ownership_checks": 2,
+            "sql_statements": 12
+          }
+        },
+        {
+          "after": {
+            "duration_ms": 15.117791015654802,
+            "flushes": 2,
+            "ownership_checks": 2,
+            "sql_statements": 12
+          },
+          "before": {
+            "duration_ms": 16.730625182390213,
+            "flushes": 3,
+            "ownership_checks": 3,
+            "sql_statements": 13
+          }
+        },
+        {
+          "before": {
+            "duration_ms": 21.08916686847806,
+            "flushes": 3,
+            "ownership_checks": 3,
+            "sql_statements": 13
+          },
+          "after": {
+            "duration_ms": 16.562041826546192,
+            "flushes": 2,
+            "ownership_checks": 2,
+            "sql_statements": 12
+          }
+        },
+        {
+          "after": {
+            "duration_ms": 14.802291058003902,
+            "flushes": 2,
+            "ownership_checks": 2,
+            "sql_statements": 12
+          },
+          "before": {
+            "duration_ms": 17.227249685674906,
+            "flushes": 3,
+            "ownership_checks": 3,
+            "sql_statements": 13
+          }
+        },
+        {
+          "before": {
+            "duration_ms": 20.88220790028572,
+            "flushes": 3,
+            "ownership_checks": 3,
+            "sql_statements": 13
+          },
+          "after": {
+            "duration_ms": 14.73695831373334,
+            "flushes": 2,
+            "ownership_checks": 2,
+            "sql_statements": 12
+          }
+        },
+        {
+          "after": {
+            "duration_ms": 14.514625072479248,
+            "flushes": 2,
+            "ownership_checks": 2,
+            "sql_statements": 12
+          },
+          "before": {
+            "duration_ms": 17.186166252940893,
+            "flushes": 3,
+            "ownership_checks": 3,
+            "sql_statements": 13
+          }
+        },
+        {
+          "before": {
+            "duration_ms": 20.4686657525599,
+            "flushes": 3,
+            "ownership_checks": 3,
+            "sql_statements": 13
+          },
+          "after": {
+            "duration_ms": 24.76887498050928,
+            "flushes": 2,
+            "ownership_checks": 2,
+            "sql_statements": 12
+          }
+        }
+      ],
+      "before_p50_ms": 17.227249685674906,
+      "after_p50_ms": 15.117791015654802,
+      "qualification": "Synthetic connector tracking, real PostgreSQL/recorder/owner fences. Alternating warmed control replays the original flush schedule; component timings have no wall-time threshold or whole-MM/probe attribution."
+    }
+  },
+  "funding_reader": {
+    "scope": "Warmed native read-only connector construction with dummy config; no HTTP, WS, account access or task startup. Does not identify an exclusive probe cause.",
+    "samples": [
+      {
+        "wall_ms": 0.2751729,
+        "cpu_ms": 0.27305
+      },
+      {
+        "wall_ms": 0.26866665,
+        "cpu_ms": 0.2674
+      },
+      {
+        "wall_ms": 0.24747705,
+        "cpu_ms": 0.24755
+      },
+      {
+        "wall_ms": 0.2593,
+        "cpu_ms": 0.25325
+      },
+      {
+        "wall_ms": 0.3154021,
+        "cpu_ms": 0.31345
+      },
+      {
+        "wall_ms": 0.36536875,
+        "cpu_ms": 0.2938
+      },
+      {
+        "wall_ms": 0.2947729,
+        "cpu_ms": 0.28415
+      }
+    ],
+    "median_cpu_ms": 0.27305,
+    "median_wall_ms": 0.2751729
+  },
+  "preserved": [
+    "Every physical ORM flush retains its fresh owner check and transaction write fence.",
+    "Status existence SELECT, duplicate/late fill semantics, fee/quantity precision, cold tracking, cleanup checkpoints and post-commit acknowledgement remain.",
+    "No dedicated owner connection crosses threads; no ownership/report cache, asynchronous recorder worker or probe/I/O/load budget changes."
+  ],
+  "qualifications": [
+    "Async span wall/thread CPU includes interleaved work; the mixed funding parent is not exclusive construction or CPU time.",
+    "One of seven after timings is slower; all pairs are retained, and count reductions are the deterministic claim.",
+    "No claim that the source edit removes all three historical probe events or guarantees continuous quoting."
+  ],
+  "source_sha256": {
+    "hummingbot/connector/markets_recorder.py": "fc5093c2fae691bb411bf0ecb58911a0906ca2c9c09129da3b0f65205880e931",
+    "test/integration/postgres/test_fill_flush.py": "e9abe5b9ea9bfe2905b928941608c3d04a78bc82e5a5f049b01b0c8b1ee0a117"
+  },
+  "final_regression": "pending"
+}
