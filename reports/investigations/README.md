@@ -11,5 +11,5 @@ unrecorded MM activity.
 
 Original stack/SQL/CPU, p99, publication, quote-coverage, test-instrumentation and
 code-audit reports/evidence are preserved byte-for-byte in the
-[history archive](../archive/README.md). Search its catalog by the original filename.
+[Git history](../README.md#historical-records). Use the original path with the pinned Git snapshot.
 Historical unresolved items remain visible in the remaining-work register.

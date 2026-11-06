@@ -12,5 +12,5 @@
 | [Worker lanes / stopped Demo](mm-admin-worker-lanes.md), [evidence](mm-admin-worker-lanes-evidence.json) | Original `086454de…` image and stopped-Demo restoration scope |
 
 Other completed experiments, earlier load attempts and measurements are retained
-in the [history archive](../archive/README.md). Component CPU savings and inter-run
+in the [Git history](../README.md#historical-records). Component CPU savings and inter-run
 full-load latency have different scopes; preserve both improvements and regressions.

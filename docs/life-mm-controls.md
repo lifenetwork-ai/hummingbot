@@ -813,4 +813,4 @@ Cancellation pending is not exchange terminal proof; current working orders
 remain visible separately. WARN/INFO transition logs and existing guard history
 record restrictions/recovery, without per-tick candle storage or FE-triggered
 exchange reads. See [FE integration](fe-integration.md) and the
-[implementation checklist](../reports/archive/README.md#record-022).
+[implementation checklist](../reports/README.md#historical-records) (Git: `docs/plans/MM_VOLATILITY_DEFENSE_TDD_PLAN.md`).

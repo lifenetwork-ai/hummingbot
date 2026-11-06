@@ -1,6 +1,6 @@
 # Admin access and credential delivery status
 
-Updated 2026-11-07. The [full A1–A6 journal](../archive/README.md#record-029) retains detailed
+Updated 2026-11-07. The [full A1–A6 journal](../README.md#historical-records) (Git: `reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md`) retains detailed
 Red/Green runs, lifecycle cases, rejected attempts and image identities.
 [Current credential plan](../../docs/plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md)
 tracks remaining acceptance; [operations](../../docs/exchange-credentials.md) and
@@ -21,5 +21,5 @@ disabled during measurement and managed keys use local encryption without fallba
 [evidence](../release/mm-runtime-followup-load-evidence.json).
 
 Previous managed rotation/partial-close/crash/repair E2E results stay attached to
-their original images in the journal/archive. They are not relabelled as additional
+their original images in the historical journal in Git. They are not relabelled as additional
 current-image scenarios. The existing Demo is not targeted by these tests.

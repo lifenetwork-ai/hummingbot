@@ -8,5 +8,5 @@
 - [Current image acceptance](../release/mm-runtime-followup-load.md)
 
 Completed feature reports, audits, original Red/Green attempts and full chronological
-journals are retained in the [history archive](../archive/README.md). Current API,
+journals are retained in the [Git history](../README.md#historical-records). Current API,
 configuration ownership and operational instructions are in [docs](../../docs/README.md).

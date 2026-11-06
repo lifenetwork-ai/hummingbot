@@ -1,7 +1,7 @@
 # LIFE / OKX delivery status
 
 Updated 2026-11-07. This concise status replaces the chronological journal; the
-[full journal](../archive/README.md#record-031) retains every original phase, attempt and result.
+[full journal](../README.md#historical-records) (Git: `reports/implementation/LIFE_OKX_PROGRESS.md`) retains every original phase, attempt and result.
 Feature/configuration references are in [MM controls](../../docs/life-mm-controls.md),
 [FE integration](../../docs/fe-integration.md), [PostgreSQL](../../docs/postgres-runtime.md)
 and [credential operations](../../docs/exchange-credentials.md).
@@ -34,4 +34,4 @@ child replacement. Source improvements and full-system timings have separate sco
 - [Remaining acceptance/policy/evidence](../../docs/plans/README.md)
 
 No actual-Demo cutover, real Google/GCP or production deployment is inherited from
-these local checks. Historical pass/fail scopes remain in the archive.
+these local checks. Historical pass/fail scopes remain in Git history.

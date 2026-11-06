@@ -1,7 +1,7 @@
 # Runtime follow-up remediation — TDD
 
 Date: 2026-11-07 (Asia/Saigon). Baseline `b9b73366d`, runtime recorder `c9889da28`.
-Follow the [review](../../reports/archive/README.md#record-121).
+Follow the [review](../../reports/README.md#historical-records) (Git: `reports/investigations/mm-runtime-followup-code-review.md`).
 Reuse existing service incidents, risk guards, supervisor and native reports.
 
 ## R1 — Availability boundaries (F1/F2)

@@ -142,13 +142,13 @@ separate follow-up, not suppressed or counted as zero runtime errors. “Zero
 errors” in the table specifically means unexpected HTTP/load-client errors.
 
 See [portable evidence](mm-memory-retention-evidence.json) and the
-[completed checklist](../archive/README.md#record-012). Raw artifacts
+[completed checklist](../README.md#historical-records) (Git: `docs/plans/MM_MEMORY_RETENTION_REVIEW.md`). Raw artifacts
 remain in `build/memory-review/20261028-024013/`. No real exchange, cloud deploy,
 new sixty-minute release gate or multi-day uptime verification was performed.
 
 ## Startup follow-up resolved
 
 The early private-position contract-size issue above was subsequently fixed and
-verified in [the WS startup review](../archive/README.md#record-071). Its new image
+verified in [the WS startup review](../README.md#historical-records) (Git: `reports/implementation/okx-ws-position-startup.md`). Its new image
 lifecycle run recorded zero contract-size/ERROR logs. The historical measurements
 and four errors in this report/evidence remain unchanged.

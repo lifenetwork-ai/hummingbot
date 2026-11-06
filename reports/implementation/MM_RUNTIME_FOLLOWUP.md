@@ -2,7 +2,7 @@
 
 Date: 2026-11-07 (Asia/Saigon). Source phases follow
 [this plan](../../docs/plans/MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md) and the
-[read-only review](../archive/README.md#record-121).
+[read-only review](../README.md#historical-records) (Git: `reports/investigations/mm-runtime-followup-code-review.md`).
 Only local source/native/PostgreSQL verification is performed. No existing Demo,
 real exchange, Google/GCP or production change; no new image/hour qualification.
 

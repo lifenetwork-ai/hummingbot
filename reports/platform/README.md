@@ -8,5 +8,5 @@
 - [Current source/PG verification](../implementation/MM_RUNTIME_FOLLOWUP.md)
 
 Earlier precision, logging, packaging and SQL-performance reports/evidence are in
-the [history archive](../archive/README.md). Local image verification does not imply
+the [Git history](../README.md#historical-records). Local image verification does not imply
 Cloud Run deployment, real Google/GCP acceptance or an actual-Demo cutover.

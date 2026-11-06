@@ -43,4 +43,4 @@ the transaction passed its unchanged-state guards. Stopped startup then passed
 without HALT. The repeated Demo run admitted spot maker quotes; full connected
 acceptance remains in progress. The source retry defect was independently
 reproduced with a failing real-PostgreSQL test; permanent regression work is
-tracked in the [shutdown plan](../archive/README.md#record-020).
+tracked in the [shutdown plan](../README.md#historical-records) (Git: `docs/plans/MM_SHUTDOWN_CHECKPOINT_TDD_PLAN.md`).

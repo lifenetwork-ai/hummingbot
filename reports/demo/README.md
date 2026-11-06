@@ -20,4 +20,4 @@ and [last documented stopped-Demo restoration](../performance/mm-admin-worker-la
 These reports/approvals keep their own account/image/date scope. An old approval
 is not authority for a different database repair. Current maintenance procedure is
 in [PostgreSQL operations](../../docs/postgres-runtime.md). Superseded navigation
-and detailed image plans remain in the [history archive](../archive/README.md).
+and detailed image plans remain in the [Git history](../README.md#historical-records).

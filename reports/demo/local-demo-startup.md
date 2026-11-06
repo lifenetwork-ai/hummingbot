@@ -51,4 +51,4 @@ accepted load evidence retains its original image scope.
 
 FE browser integration, any later cloud deployment and the listing-specific
 instrument/budget review remain pending. The old mixed-window p99 root cause
-remains unconfirmed as recorded in the [availability report](../archive/README.md#record-040).
+remains unconfirmed as recorded in the [availability report](../README.md#historical-records) (Git: `reports/implementation/life-mm-availability-remediation.md`).

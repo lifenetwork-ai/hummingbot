@@ -4,10 +4,10 @@
 The nine-case phase has **zero new natural fills**; the separately scoped
 [current-image natural-fill follow-up below](#bounded-natural-maker-fill-follow-up--2026-11-03)
 subsequently verifies five new fills and active filled restart. [Evidence](okx-demo-quote-recovery-evidence.json),
-[plan](../archive/README.md#record-019).
+[plan](../README.md#historical-records) (Git: `docs/plans/MM_RUNTIME_LOGIC_AUDIT_TDD_PLAN.md`).
 
 Image `660bd38b`, manifest `fefa2546`, contains the terminal-confirmed executor
-wait fix. Its [local regression and matched short diagnostics](../archive/README.md#record-112)
+wait fix. Its [local regression and matched short diagnostics](../README.md#historical-records) (Git: `reports/investigations/mm-quote-recovery.md`)
 retain their own scope. The separate full-load rerun is not inferred from Demo
 success; its first attempt failed the burst API p99 budgets and remains failed.
 
@@ -91,7 +91,7 @@ Cloud Run acceptance.
 
 **Positive current-image fill/fee and filled-restart acceptance passes.**
 [Natural-fill evidence](okx-demo-quote-recovery-natural-fill-evidence.json),
-[completed full R1/R2](../archive/README.md#record-182). The original
+[completed full R1/R2](../README.md#historical-records) (Git: `reports/release/mm-quote-recovery-release.md`). The original
 nine-case JSON above remains unchanged and retains its zero-fill scope.
 
 After load gates and the stopped-service review pass, the previously approved

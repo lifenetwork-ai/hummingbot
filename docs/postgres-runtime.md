@@ -104,7 +104,7 @@ Stopping only an MM session leaves heartbeats and observational writes running;
 stop the full service for an offline import and retain normal startup/recovery
 checks afterwards. Measure WAL/commit latency before changing database settings;
 the tested `wal_init_zero=off` intervention did not remedy the imposed fault.
-[Investigation and limits](../reports/archive/README.md#record-105).
+[Investigation and limits](../reports/README.md#historical-records) (Git: `reports/investigations/mm-owner-publication-timeout.md`).
 
 PostgreSQL runtime connections use UTC and bound idle open transactions to five
 seconds. This releases a paused process's uncommitted row locks after its owner
@@ -148,7 +148,7 @@ and controller-history indexes. With automatic migration disabled, run `make mig
 before deploying this revision. For a large active database, stop trading and
 schedule the index build in a maintenance window: ordinary `CREATE INDEX` can
 wait on/block writers, and the existing bootstrap deadline still applies.
-See [the performance review](../reports/archive/README.md#record-154) for measurements,
+See [the performance review](../reports/README.md#historical-records) (Git: `reports/platform/postgres-performance-review.md`) for measurements,
 query budgets and the decision to retain the existing in-memory caches.
 
 ### Decimal storage
@@ -178,8 +178,8 @@ retained its old image/schema. Its later P7 upgrade and preserved logical-histor
 hashes are recorded in [Demo acceptance](../reports/demo/okx-demo-acceptance.md).
 
 Recorded image/test/precision measurements are in the
-[verification report](../reports/archive/README.md#record-155) and
-[portable precision evidence](../reports/archive/README.md#record-153).
+[verification report](../reports/README.md#historical-records) (Git: `reports/platform/postgres-verification.md`) and
+[portable precision evidence](../reports/README.md#historical-records) (Git: `reports/platform/postgres-decimal-precision.json`).
 
 ## Existing databases
 

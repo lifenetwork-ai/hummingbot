@@ -25,6 +25,6 @@ under the ignored `build/` directory.
 - [Admin access / credentials](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md)
 - [Actual Demo versus current offline image](plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md)
 - [Latest runtime TDD checklist](plans/MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md)
-- [Lossless historical plans/reports](../reports/archive/README.md)
+- [Historical plans/reports in Git](../reports/README.md#historical-records)
 - [OpenAPI contract](api/openapi.json), generated with `make swagger` and checked
   with `make swagger-check`; this remains API documentation, not a result artifact.

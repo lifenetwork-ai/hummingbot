@@ -9,7 +9,7 @@ configuration is pending those inputs.
 Current status (2026-10-30): the local template/review work is complete. Actual
 cloud work below is deferred while the operator prioritizes local verification;
 its open items require deployment inputs and cloud/FE access. They are outside
-the completed [local runtime acceptance](../archive/README.md#record-188), and local
+the completed [local runtime acceptance](../README.md#historical-records) (Git: `reports/release/mm-service-supervision.md`), and local
 test passes do not close them.
 
 ## Completed locally
@@ -84,7 +84,7 @@ The referenced existing E2E result is
 Reviewing its digest does not establish remote-registry availability.
 Application runtime code and packaged trading YAML were not changed; no new image,
 PostgreSQL regression, release soak or exchange test is claimed by this review.
-The completed [availability release evidence](../archive/README.md#record-040)
+The completed [availability release evidence](../README.md#historical-records) (Git: `reports/implementation/life-mm-availability-remediation.md`)
 retains its original runtime scope.
 
 ## Pending actual cloud work

@@ -2,7 +2,7 @@
 
 Implementation complete. Exact phase checklists, Red/Green evidence, rejected
 experiments and original image scopes are retained in the
-[original plan](../../reports/archive/README.md#record-026). This file summarizes current delivery; the
+[original plan](../../reports/README.md#historical-records) (Git: `docs/plans/POSTGRES_CLOUD_RUN_PORT_PLAN.md`). This file summarizes current delivery; the
 [PostgreSQL guide](../postgres-runtime.md) and [Cloud Run guide](../cloudrun.md)
 are the configuration/operations references.
 

@@ -33,7 +33,7 @@ The app has two CPUs / 2 GiB, separate API/engine processes and bounded DB pools
 PostgreSQL has two CPUs / 512 MiB. The amd64 app runs emulated on an arm64 Mac.
 Full tracing, MM activity tracing and enhancement flags are disabled in this
 baseline; bounded incident capture is enabled. The earlier six native-image cleanup
-recovery cases in the [state review](../archive/README.md#record-130)
+recovery cases in the [state review](../README.md#historical-records) (Git: `reports/performance/admin-cleanup-state-review.md`)
 remain separate evidence, not scenarios rerun or inherited into this full gate.
 
 ## Healthy load results
@@ -76,7 +76,7 @@ transition **1.239 seconds**. These supervisor observations are not measured quo
 downtime. Capture has bounded retention/span loss and MM activity tracing is off;
 the result does not establish an exclusive cause or continuous two-sided quoting.
 
-The subsequent [code audit](../archive/README.md#record-082)
+The subsequent [code audit](../README.md#historical-records) (Git: `reports/investigations/mm-cleanup-state-probe-code-audit.md`)
 finds a synchronous recorder/checkpoint DB wait during one timeout and reviews
 all six episodes. It adds source-level findings and focused regressions, without
 changing this runtime, load result or attribution limits.

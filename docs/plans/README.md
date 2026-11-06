@@ -2,9 +2,9 @@
 
 Updated 2026-11-07. Start with the [current image result](../../reports/release/mm-runtime-followup-load.md)
 and [operating guides](../README.md). Detailed completed TDD plans are in the
-[lossless history archive](../../reports/archive/README.md); historical unchecked
+[Git history](../../reports/README.md#historical-records); historical unchecked
 boxes retain their original image/date scope and are not current release blockers
-unless explicitly listed below. Archival does not mark an unresolved item complete.
+unless explicitly listed below. Removing historical files does not mark an unresolved item complete.
 
 ## Current state
 
@@ -29,16 +29,16 @@ unless explicitly listed below. Archival does not mark an unresolved item comple
 
 - [ ] Agree a production quote-coverage SLO separating normal replacement,
   guard-restricted operation and listing bootstrap. HTTP200/PID stability does not
-  establish continuous two-sided quoting. [Original open item](../../reports/archive/README.md#record-019).
+  establish continuous two-sided quoting. [Original open item](../../reports/README.md#historical-records) (Git: `docs/plans/MM_RUNTIME_LOGIC_AUDIT_TDD_PLAN.md`).
 - [ ] Exclusive attribution of the older p99/owner-publication trigger still lacks
   contemporaneous host/storage/wait proof. Controlled WAL/loop evidence establishes
-  mechanisms, not that unique historical cause. [Original investigation](../../reports/archive/README.md#record-013).
+  mechanisms, not that unique historical cause. [Original investigation](../../reports/README.md#historical-records) (Git: `docs/plans/MM_OWNER_PUBLICATION_TIMEOUT_INVESTIGATION.md`).
 - [ ] The actual historical OKX expiry-response shape still lacks the isolated
   witness requested by that plan; simulated transport/parser cases are separate.
-  [Original open item](../../reports/archive/README.md#record-024).
+  [Original open item](../../reports/README.md#historical-records) (Git: `docs/plans/OKX_EXPIRED_SUBMISSION_TDD_PLAN.md`).
 
 The prior controller-image natural-spot/clean-soak/guard-wait boxes are preserved
-in the [original image-scoped Demo plan](../../reports/archive/README.md#record-023).
+in the [original image-scoped Demo plan](../../reports/README.md#historical-records) (Git: `docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md`).
 A newer offline pass does not retroactively pass that earlier image or certify a
 new connected Demo run. The latest probes remain an attribution limitation, not
 an assertion of an unobserved live defect.

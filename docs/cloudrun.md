@@ -33,7 +33,7 @@ engine health binds only to loopback at the adjacent port. Child processes do
 not reload dotenv. API replacement preserves the engine/owner; engine replacement
 retains the existing recovery/HALT gates. Permanent configuration/schema errors
 exit the service; retryable child failures use bounded backoff. Current adoption
-evidence and open gates are in [supervision verification](../reports/archive/README.md#record-188).
+evidence and open gates are in [supervision verification](../reports/README.md#historical-records) (Git: `reports/release/mm-service-supervision.md`).
 
 The initial database desired state is stopped. In another process, select a
 packaged configuration with `hbot start CONFIG.yml`; `hbot stop` persists user
@@ -105,8 +105,8 @@ a network-disabled, read-only container. Release evidence must match the chosen
 image/manifest. Packaging changes require fresh image verification.
 
 Historical sizes, package inventories and startup measurements are in the
-[image optimization report](../reports/archive/README.md#record-150) and
-[PostgreSQL verification report](../reports/archive/README.md#record-155).
+[image optimization report](../reports/README.md#historical-records) (Git: `reports/platform/cloudrun-image-optimization.md`) and
+[PostgreSQL verification report](../reports/README.md#historical-records) (Git: `reports/platform/postgres-verification.md`).
 
 ### Long-running memory
 
@@ -364,7 +364,7 @@ an image to an external registry, or performed a Cloud Run staging deployment.
 
 Use this on the selected service; a separate staging service is not required.
 Cloud-only items stay open until someone checks the actual deployment. The latest
-local release evidence is in the [availability remediation report](../reports/archive/README.md#record-040).
+local release evidence is in the [availability remediation report](../reports/README.md#historical-records) (Git: `reports/implementation/life-mm-availability-remediation.md`).
 A passed local gate does not validate IAM, regional exchange access or Cloud SQL.
 
 ### Deployment worksheet

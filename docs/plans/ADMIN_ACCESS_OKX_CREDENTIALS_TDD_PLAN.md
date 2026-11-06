@@ -2,7 +2,7 @@
 
 A1–A6 local/offline implementation is complete. Full requirements, API matrices,
 Red/Green history and failed/scoped acceptance attempts are retained in the
-[original TDD plan](../../reports/archive/README.md#record-001). Runtime behavior and exact settings are defined
+[original TDD plan](../../reports/README.md#historical-records) (Git: `docs/plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md`). Runtime behavior and exact settings are defined
 in [credential operations](../exchange-credentials.md) and
 [FE integration](../fe-integration.md).
 
@@ -35,7 +35,7 @@ in [credential operations](../exchange-credentials.md) and
 
 - [x] Native source/PG, local encryption, offline signed Google identities, role/
   audit and simulator lifecycle/fault tests. Prior lifecycle cases retain their
-  original image identities in the archive; they are not relabelled as new runs.
+  original image identities in Git history; they are not relabelled as new runs.
 - [x] Current image `bf4e1f77…`: full unchanged baseline/security/operator traffic,
   60-minute soak, five faults, four targeted E2E groups and enabled-enhancement90.
   [Current result](../../reports/release/mm-runtime-followup-load.md).

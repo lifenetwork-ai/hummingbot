@@ -20,9 +20,25 @@ remain explicit. One unused image removed; all container references/volumes reta
 | [Demo](demo/README.md) | Actual OKX evidence, approvals and image/account scope |
 | [Platform](platform/README.md) | Cloud preparation and operating-guide links |
 | [Investigations](investigations/README.md) | Current limits and historical incident lookup |
-| [History archive](archive/README.md) | Lossless completed plans, superseded reports and full journals |
+| [Git history](#historical-records) | Original completed plans, reports and full journals |
 
-Archived JSON/Markdown/SQL bytes and image/date-specific failures are preserved;
-use the archive manifest to locate an old path. Archival does not close unresolved
-items or certify a newer image. Raw logs/ledgers remain under ignored `build/`;
-credentials and private account configuration stay outside the checkout.
+## Historical records
+
+The archive folder and compressed snapshots have been removed. Original
+JSON/Markdown/SQL evidence, image/date-specific failures, full plans and journals
+remain in Git at **`4ed4365cd86cd06018d81432343c3cbb9aa34b52`**, before consolidation.
+Current links identify the original repository path where relevant.
+
+```sh
+# Inspect an original record without restoring files into the checkout:
+git show 4ed4365cd:docs/plans/MM_RUNTIME_LOGIC_AUDIT_TDD_PLAN.md
+git show 4ed4365cd:reports/release/mm-checkpoint-final-release.md
+# Find a historical path:
+git ls-tree -r --name-only 4ed4365cd -- docs/plans reports
+```
+
+The consolidation commit `b7da9f93d` also retains the complete archive snapshot in
+Git history. No Git history rewrite/prune is performed. Historical unchecked boxes
+and scope limits are retained; removing files does not close unresolved items.
+Read the [remaining-work register](../docs/plans/README.md) for current status.
+Raw logs/ledgers remain under ignored `build/`; private credentials stay outside Git.

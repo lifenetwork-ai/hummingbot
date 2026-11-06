@@ -2,7 +2,7 @@
 
 Historical measurements retain their original image, schema and test scope.
 See [the verification guide](../../docs/life-mm-load-tests.md) for commands and budgets,
-[optimization follow-up](../archive/README.md#record-131), and
+[optimization follow-up](../README.md#historical-records) (Git: `reports/performance/life-mm-optimization-review.md`), and
 [Demo acceptance](../demo/okx-demo-acceptance.md) for separate exchange checks.
 
 ## Findings before final acceptance
@@ -185,4 +185,4 @@ daily reporting retains its existing aggregate/cache path.
 This probe supplements the new funding lifecycle/E2E tests; it does not replace
 or claim a repeat of the original full load/soak gate. The first overlapping run
 failed latency/error budgets; its report and passing isolated runs are retained
-in [funding-backfill-evidence.json](../archive/README.md#record-036).
+in [funding-backfill-evidence.json](../README.md#historical-records) (Git: `reports/implementation/funding-backfill-evidence.json`).

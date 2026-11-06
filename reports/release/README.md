@@ -8,6 +8,6 @@
 | [Retained rollback](admin-cleanup-state-load.md), [evidence](admin-cleanup-state-load-evidence.json) | `f74d2a2a…`: previous full gate; original failed attempts and six recovered soak probes retained |
 
 Earlier releases, original checkpoint/expiry reports and partial/managed lifecycle
-acceptance live in the [history archive](../archive/README.md). They retain their
+acceptance live in the [Git history](../README.md#historical-records). They retain their
 original image/date scope and failures; they are not additional current-image gates.
 Actual Demo evidence is separate in [Demo verification](../demo/README.md).

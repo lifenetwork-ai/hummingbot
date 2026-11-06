@@ -1,7 +1,7 @@
 # OKX Demo and current offline image acceptance
 
 Updated 2026-11-07. Prior image-specific checklists, approvals, failures, natural
-fills and REST proofs remain in the [original acceptance history](../../reports/archive/README.md#record-023).
+fills and REST proofs remain in the [original acceptance history](../../reports/README.md#historical-records) (Git: `docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md`).
 A local pass never changes the image/account/date attached to connected evidence.
 
 ## Current image — local/offline
