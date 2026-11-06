@@ -1051,12 +1051,23 @@ not new full/hour or external Google/GCP/Demo acceptance. See the
   warmup failure; use Red/Green tests to align book counter markers with the
   workload instead of financial-ledger preparation. Keep rates/budgets unchanged
   and prove a genuinely slow producer still fails.
-- [ ] Complete warmup 300s, mixed 900s, bursts 90s, soak 3600s and separate fault
+- [x] Complete warmup 300s, mixed 900s, bursts 90s, soak 3600s and separate fault
   windows at the existing rates, latency/error/resource/continuity/ledger budgets.
-- [ ] Preserve failed attempts if any; publish exact source/image/profile scope,
+- [x] Preserve failed attempts if any; publish exact source/image/profile scope,
   latency, retention, faults and independent fill/fee/position evidence.
-- [ ] After verification, inventory all container image references and remove
+- [x] After verification, inventory all container image references and remove
   only unused bot images; retain candidate/rollback, other projects and volumes.
+
+Image `f74d2a2a…` passes the unchanged full baseline, sixty-minute soak and five
+fault windows at `build/mm-load/20261106-203947-19b9f0/result.json`. All 97,800 main
+and 24,450 auxiliary reads return HTTP 200; soak p99 is 353.91 ms and retained growth
+24.88 MiB against 64 MiB. All 4,884 simulated fills/fees/positions reconcile. Six
+soak probe episodes recover (longest observed transition 1.239 s); no healthy-window
+restart or ERROR is observed. Both failed attempts and the test-only measurement
+fix remain documented. Three unused bot images are removed, preserving all ten
+containers and fourteen volumes. See the [full-load report](../../reports/release/admin-cleanup-state-load.md)
+and [portable evidence](../../reports/release/admin-cleanup-state-load-evidence.json).
+Real Google/GCP and reviewed existing-Demo cutover remain outside this local gate.
 
 ## Implementation-readiness review
 

@@ -492,3 +492,36 @@ new full/hour release gate, ledger repair or HALT/health bypass is claimed. Test
 containers are removed; persistent volumes and candidate/rollback images remain.
 See the [state review](../performance/admin-cleanup-state-review.md) and
 [portable evidence](../performance/admin-cleanup-state-evidence.json).
+
+### Full cleanup-state image load and unused-image cleanup — 2026-11-06
+
+Final runtime `2f6cbd257` / image `f74d2a2a…` passes the full established baseline:
+warmup 300s, mixed 900s, burst 90s, soak 3600s and all five separate fault windows. Runner
+exits zero, `passed=true`, `release_scope_complete=true`. All 97,800 main and 24,450
+auxiliary reads return HTTP 200; soak p95/p99 are 67.55/353.91 ms. Independent
+settlement matches 4,884 simulated fills, exact fees, positions, two funding bills
+and three daily snapshots. Security adds 1,467 requests and 489 expected denials.
+
+Soak retains 58 continuous samples (maximum gap 65.50s), unchanged role PIDs, no
+healthy-window ERROR/child lifecycle events and 24.88 MiB growth against 64 MiB on
+the original cgroup retention basis. Six engine probe intervals recover within
+soak, longest 1.239s; observation intervals are not quote downtime or proof of an
+exclusive cause. Original budgets/resources and baseline enhancement flags remain.
+
+Retained failed attempts: `20261106-184747-480917` crosses confirmed clamshell
+sleep with a 5,324.8s sample gap; intervening 51603/replacement/HALT observations
+are preserved without exclusively attributing them to sleep. The continuous
+`20261106-202647-95cca9` warmup fails the unchanged book-rate tolerance, despite
+zero API errors and exact settlement. Two Red cases identify a measurement
+boundary weakness; test-only commit `a22e08d1e` takes independent market markers
+around the workload, separately from financial preparation. Fifty related tests
+pass; an actually slow producer still fails. The runtime image is unchanged and
+earlier failures are not retroactively passed.
+
+After final verification, remove exact unused images `6d9ddbf9…`, `8cdadb21…`
+and `89d5e7c6…` without force. Unique images 17→14; candidate, rollback, all ten
+running/stopped containers, fourteen volumes and other projects remain. Existing
+Demo start timestamps match; no actual OKX/Google/GCP or production operation.
+Checklist closed for this local task; external acceptance remains open. See the
+[report](../release/admin-cleanup-state-load.md) and
+[portable evidence](../release/admin-cleanup-state-load-evidence.json).

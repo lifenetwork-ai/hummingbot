@@ -130,3 +130,15 @@ are removed; candidate/rollback images and persistent volumes are preserved.
 [Portable evidence](admin-cleanup-state-evidence.json) preserves original and
 paired measurements, source hashes, Red/Green summaries, final broad regression
 and both distinct image results.
+
+## Subsequent full load verification
+
+The same final runtime image later passes the unchanged full baseline and
+sixty-minute soak, all five faults, retention and independent settlement checks.
+Soak p99 is 353.91 ms with zero unexpected HTTP errors and retained growth
+24.88 MiB / 64 MiB. Six recovered probe intervals remain qualified; the historical
+failed attempts are retained. This extends acceptance beyond the targeted scope
+above without relabelling those earlier results. Three unused bot images are
+removed afterward with all container references and volumes preserved. See the
+[release report](../release/admin-cleanup-state-load.md) and
+[evidence](../release/admin-cleanup-state-load-evidence.json).

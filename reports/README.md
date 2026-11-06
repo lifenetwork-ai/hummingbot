@@ -4,12 +4,23 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Latest cleanup image passes the full load/hour gate:** `f74d2a2a…` passes
+  warmup/mixed/burst/3,600-second soak and all five faults. All 97,800 main and
+  24,450 auxiliary reads return HTTP 200; soak p99 353.91 ms, retained growth
+  24.88 MiB / 64 MiB, 4,884 exact simulated fills/fees/positions. Six recovered
+  soak probes remain qualified (longest observation 1.239 s); no healthy-window
+  ERROR/restart. Both failed attempts and the test-only rate-marker fix remain
+  recorded. Three unused images removed; all containers/volumes and rollback kept.
+  [Report](release/admin-cleanup-state-load.md),
+  [evidence](release/admin-cleanup-state-load-evidence.json).
+
 - **Cleanup authority/shutdown/snapshot review complete:** final image `f74d2a2a…`
   passes six recovery scenarios; full native 2,721 + 11 subtests and related PG 128
   pass. Twenty-six new cases protect missing snapshots/native ownership loss,
   shutdown/restart truth and unchanged row locks. Large-fixture tracking payload
-  falls 1.06 MB → 0, queries 5 → 4, paired p50 22.74 → 10.34 ms. No MM latency,
-  previous probe-cause, new hour gate or actual Demo claim.
+  falls 1.06 MB → 0, queries 5 → 4, paired p50 22.74 → 10.34 ms. The targeted
+  review makes no MM latency or probe-cause claim; the subsequent full hour gate
+  is linked above. No actual Demo changes.
   [Report](performance/admin-cleanup-state-review.md),
   [evidence](performance/admin-cleanup-state-evidence.json).
 

@@ -1,0 +1,1847 @@
+{
+  "scope": "Local/offline full unchanged baseline, 60-minute soak and five distinct fault windows; no real Google/GCP/OKX Demo or production writes.",
+  "runtime_source_commit": "2f6cbd257",
+  "observer_source_commit": "a22e08d1e",
+  "passed": true,
+  "release_scope_complete": true,
+  "full_load_artifact": "build/mm-load/20261106-203947-19b9f0/result.json",
+  "full_load_sha256": "55b9a47e6bbde6054feddc04a0a60541a1188a190ccc8a0e7f84ff25a243a8fd",
+  "configuration": {
+    "profile": "all",
+    "diagnostic": false,
+    "image_id": "sha256:f74d2a2abcad64dfdd9ad45c3491823c53a30f930da492b9c7c3ae3cb96526c8",
+    "manifest": "sha256:393cfc9f06d0d0c9942a32f56d6525f8d3662cadcc43dbf1a78740723783932f",
+    "host_architecture": "arm64",
+    "image_architecture": "amd64",
+    "emulation": true,
+    "bot_limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648
+    },
+    "postgres_limits": {
+      "cpus": 2,
+      "memory_bytes": 536870912
+    },
+    "simulator_limits": {
+      "cpus": 1,
+      "memory_bytes": 536870912
+    },
+    "client_limits": {
+      "cpus": 1,
+      "memory_bytes": 536870912
+    },
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "memory_retention_policy": {
+      "basis": "cgroup_current_minus_file_plus_shmem",
+      "growth_budget_bytes": 67108864,
+      "absolute_peak_budget_bytes": 1610612736
+    },
+    "enhancements": false,
+    "volatility_defense": false,
+    "operations_reads_per_second": 3,
+    "tracing": false,
+    "strict_quote_guards": false,
+    "drawdown": false,
+    "spot_outflow": false,
+    "listing_bootstrap": false,
+    "inventory_skew": false,
+    "gc_diagnostics": false,
+    "market_diagnostics": false,
+    "mm_activity_diagnostics": false,
+    "incident_diagnostics": true,
+    "incident_max_captures": 32,
+    "daily_cache_ttl_seconds": 15.0,
+    "continue_after_budget_failure": false
+  },
+  "history_preparation": {
+    "history_rows": 100000,
+    "mode": "full_service_offline_seed",
+    "stage": "complete",
+    "owner_generation_before": 2,
+    "control_version": 2,
+    "offline_verified_at": 1793972430.168355,
+    "offline_checks": {
+      "application_connections": 0,
+      "ownership_locks": 0,
+      "pending_orders": 0
+    },
+    "seed_completed_at": 1793972438.343128,
+    "checkpoint_completed_at": 1793972438.861538,
+    "seeded_counts": {
+      "orders": 100000,
+      "fills": 100000
+    },
+    "restarted_at": 1793972438.8615448,
+    "owner_generation_after": 3,
+    "completed_at": 1793972450.3071082,
+    "audit_events": 100000
+  },
+  "source_sha256": {
+    "scripts/test_mm_load.py": "77539772906f99384dfe1a815a132990a8b667f45837da29de54e4b2e0a06838",
+    "scripts/test_e2e_offline.py": "d48e5173505f3a84fb9190c058d5fc689afd087684830185c5e8635a144063a9",
+    "scripts/analyze_mm_load_trace.py": "f6ff4e76ddfeb95098064247a9e68a07185f40671769b5bc28cf29da424c9fda",
+    "scripts/mm_load_budgets.py": "e63c9f4741475bae7bd2fd1b69d70ffb8b7b1fdba8fb7c1e4348d96a841694c7",
+    "scripts/mm_load_faults.py": "849b7b04751d3bb422aa84cbd01320e69fe2b81c1b0ed8ad26b14ff09da58d8e",
+    "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458",
+    "scripts/mm_load_processes.py": "1b939e85a11b7d374cc17dc2111729b72f0775aad2f5161487110f1f516820fa",
+    "scripts/mm_load_preparation.py": "6c879e6d4a2d041ec46f85b76ee44b940416397567ea80f7c5bb30746fbffba5",
+    "test/e2e/offline/load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+    "test/e2e/offline/load_trace.py": "8f287fb21e13b070edc2e162218af974ea6858747e1340479d9b3438f17e40f1",
+    "test/e2e/offline/load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+    "test/e2e/offline/load_service.py": "f2f2a20de65b908bcb70877f6a2ccce6ed9537846bd732d785b843cdb48b0c5d",
+    "test/e2e/offline/load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4"
+  },
+  "fixture_sha256": {
+    "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+    "load_incidents.py": "84f668a82f7d1b57b9ea745d2aba528ebcf08885a3575e7f9ee8957d82d57dcb",
+    "exchange.py": "549fe9822fb5eecf9a83b4c78760679ca8bddb6d6aa52536bc3c8f1b0017bb79",
+    "load_mm_activity.py": "a37e4a1a784bc8426e8ca55aa75469e31544ae4208b3e4b38d6a7a405163247a",
+    "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "google-identities.json": "8d9ccdaa265af9ae9ff2d0fc4c26ee25f7ea360b9c0e268e451d054fe9686315",
+    "load_service.py": "f2f2a20de65b908bcb70877f6a2ccce6ed9537846bd732d785b843cdb48b0c5d",
+    "runtime_smoke.py": "b81a51ad11d3e7e0e90af3532cfc72aee6a47d4c7f57b186825456034fa2cef1",
+    "security_fixture.py": "ebbd28fd690d3c0d55b34ccc79ee8fdfad4825fb38a3eb6f41e982e6e496d184",
+    "life_mm_profiles.yaml": "f7a289fb631dd5040613541bdb4abfa78ef3f6c46425f676fa38c6e67236a0e3",
+    "load_trace.py": "8f287fb21e13b070edc2e162218af974ea6858747e1340479d9b3438f17e40f1",
+    "load_entrypoint.py": "502d2a632d4a551333949e8bbbd0f92591e28d5a4a94e5fec55da591fe6e91e5",
+    "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+    "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "google-certificates.json": "8a4873e4a96cd2cdd00f00fa594c64cb120b21a3af147054fb822c62216839b7",
+    "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+    "load_health.py": "167ed6dc5ae05bafeeaefe0779fe1885c89ebbeda89f8f1c2650e9890fc68c3e",
+    "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+    "load_process_metrics.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+    "load_client.py": "c55fefa6640ab5fe480089220c809526a7532f2b22e4d34659d5d5932a2aeba9"
+  },
+  "security": {
+    "auth": "signed_offline_google",
+    "actual_google": false,
+    "roles": [
+      "admin",
+      "write",
+      "read"
+    ],
+    "certificate_injection": "test_wrapper_only",
+    "basic_disabled_for_measurement": true,
+    "provider_outage_started": {
+      "unavailable": true,
+      "at": 1793972463.628917,
+      "scope": "offline_test_wrapper_only"
+    },
+    "provider_outage_restored": {
+      "unavailable": false,
+      "at": 1793977385.996078,
+      "scope": "offline_test_wrapper_only"
+    }
+  },
+  "windows": {
+    "warmup": {
+      "duration_seconds": 300,
+      "window_start_utc": 1793972464.2710757,
+      "requested_reads": 6000,
+      "completed_reads": 6000,
+      "statuses": {
+        "200": 6000
+      },
+      "read_p95_ms": 75.68905601510778,
+      "read_p99_ms": 419.9182109441608,
+      "command_accept_p95_ms": 30.31800000462681,
+      "unexpected_errors": 0,
+      "completed_reads_per_second": 20.0,
+      "market_updates_per_second": 99.99663312369671,
+      "market_updates_sent": 30000,
+      "market_measurement_seconds": 300.010100968997,
+      "market_measurement_source": "independent_market_metrics",
+      "market_before": {
+        "market_update_count": 188,
+        "observed_at_monotonic": 279443.348767609
+      },
+      "market_after": {
+        "market_update_count": 30188,
+        "observed_at_monotonic": 279743.358868578
+      },
+      "fills_per_second": 1.0,
+      "valid_fills": 300,
+      "fill_target_shortfall": 0,
+      "fill_drain_policy": "await_dispatched_requests_only",
+      "ledger": {
+        "unique_exchange_fills": 300,
+        "unique_recorder_fills": 300,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "auxiliary": {
+        "requested_reads": 1500,
+        "completed_reads": 1500,
+        "statuses": {
+          "200": 1500
+        },
+        "read_p95_ms": 96.52935998747125,
+        "read_p99_ms": 312.41559697082266
+      },
+      "security_workload": {
+        "requests": 90,
+        "expected_denials": 30,
+        "role_cycles": 10
+      },
+      "violations": [],
+      "audit_route_query_max": 1,
+      "credential_status_query_max": 3
+    },
+    "mixed": {
+      "duration_seconds": 900,
+      "window_start_utc": 1793972770.0412886,
+      "requested_reads": 18000,
+      "completed_reads": 18000,
+      "statuses": {
+        "200": 18000
+      },
+      "read_p95_ms": 62.969057937152684,
+      "read_p99_ms": 309.109327965416,
+      "command_accept_p95_ms": 32.45033300481737,
+      "unexpected_errors": 0,
+      "completed_reads_per_second": 19.99985619834539,
+      "market_updates_per_second": 100.00306436829827,
+      "market_updates_sent": 90008,
+      "market_measurement_seconds": 900.052419079002,
+      "market_measurement_source": "independent_market_metrics",
+      "market_before": {
+        "market_update_count": 30760,
+        "observed_at_monotonic": 279749.109676872
+      },
+      "market_after": {
+        "market_update_count": 120768,
+        "observed_at_monotonic": 280649.162095951
+      },
+      "fills_per_second": 1.0,
+      "valid_fills": 900,
+      "fill_target_shortfall": 0,
+      "fill_drain_policy": "await_dispatched_requests_only",
+      "ledger": {
+        "unique_exchange_fills": 1200,
+        "unique_recorder_fills": 1200,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "auxiliary": {
+        "requested_reads": 4500,
+        "completed_reads": 4500,
+        "statuses": {
+          "200": 4500
+        },
+        "read_p95_ms": 76.33898599306121,
+        "read_p99_ms": 145.63129498856142
+      },
+      "security_workload": {
+        "requests": 270,
+        "expected_denials": 90,
+        "role_cycles": 30
+      },
+      "violations": [],
+      "audit_route_query_max": 1,
+      "credential_status_query_max": 3
+    },
+    "bursts": {
+      "duration_seconds": 90,
+      "window_start_utc": 1793973679.5547476,
+      "requested_reads": 1800,
+      "completed_reads": 1800,
+      "statuses": {
+        "200": 1800
+      },
+      "read_p95_ms": 66.14613602869213,
+      "read_p99_ms": 152.62958500534296,
+      "command_accept_p95_ms": 109.7855829866603,
+      "unexpected_errors": 0,
+      "completed_reads_per_second": 20.0,
+      "market_updates_per_second": 144.38731657695504,
+      "market_updates_sent": 12996,
+      "market_measurement_seconds": 90.00790587498341,
+      "market_measurement_source": "independent_market_metrics",
+      "market_before": {
+        "market_update_count": 121708,
+        "observed_at_monotonic": 280658.595287955
+      },
+      "market_after": {
+        "market_update_count": 134704,
+        "observed_at_monotonic": 280748.60319383
+      },
+      "fills_per_second": 1.0,
+      "valid_fills": 90,
+      "fill_target_shortfall": 0,
+      "fill_drain_policy": "await_dispatched_requests_only",
+      "ledger": {
+        "unique_exchange_fills": 1290,
+        "unique_recorder_fills": 1290,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "auxiliary": {
+        "requested_reads": 450,
+        "completed_reads": 450,
+        "statuses": {
+          "200": 450
+        },
+        "read_p95_ms": 79.73731402307749,
+        "read_p99_ms": 114.49195904424414
+      },
+      "security_workload": {
+        "requests": 27,
+        "expected_denials": 9,
+        "role_cycles": 3
+      },
+      "violations": [],
+      "audit_route_query_max": 1,
+      "credential_status_query_max": 3
+    },
+    "soak": {
+      "duration_seconds": 3600,
+      "window_start_utc": 1793973778.0322807,
+      "requested_reads": 72000,
+      "completed_reads": 72000,
+      "statuses": {
+        "200": 72000
+      },
+      "read_p95_ms": 67.55465397145599,
+      "read_p99_ms": 353.91100496053696,
+      "command_accept_p95_ms": 38.053917000070214,
+      "unexpected_errors": 0,
+      "completed_reads_per_second": 20.0,
+      "market_updates_per_second": 99.96606156651428,
+      "market_updates_sent": 359883,
+      "market_measurement_seconds": 3600.0518011859967,
+      "market_measurement_source": "independent_market_metrics",
+      "market_before": {
+        "market_update_count": 135527,
+        "observed_at_monotonic": 280757.070241709
+      },
+      "market_after": {
+        "market_update_count": 495410,
+        "observed_at_monotonic": 284357.122042895
+      },
+      "fills_per_second": 0.9983333333333333,
+      "valid_fills": 3594,
+      "fill_target_shortfall": 6,
+      "fill_drain_policy": "await_dispatched_requests_only",
+      "ledger": {
+        "unique_exchange_fills": 4884,
+        "unique_recorder_fills": 4884,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "auxiliary": {
+        "requested_reads": 18000,
+        "completed_reads": 18000,
+        "statuses": {
+          "200": 18000
+        },
+        "read_p95_ms": 78.906768001616,
+        "read_p99_ms": 152.52776897978038
+      },
+      "security_workload": {
+        "requests": 1080,
+        "expected_denials": 360,
+        "role_cycles": 120
+      },
+      "violations": [],
+      "memory_retention": {
+        "basis": "cgroup_current_minus_file_plus_shmem",
+        "early_median_bytes": 660221952,
+        "late_median_bytes": 686309376,
+        "growth_bytes": 26087424,
+        "budget_bytes": 67108864,
+        "raw_cgroup_growth_bytes": 29986816
+      },
+      "audit_route_query_max": 1,
+      "credential_status_query_max": 3
+    }
+  },
+  "retention": {
+    "warmup": {
+      "samples": 4,
+      "elapsed_seconds": 186.25176572799683,
+      "max_sample_gap_seconds": 65.4990303516388,
+      "all_running": true,
+      "role_processes": {
+        "supervisor": {
+          "pids": [
+            1
+          ],
+          "first": {
+            "pid": 1,
+            "fds": 5,
+            "VmHWM": 131305472,
+            "VmRSS": 131305472,
+            "Threads": 8
+          },
+          "last": {
+            "pid": 1,
+            "fds": 5,
+            "VmHWM": 131305472,
+            "VmRSS": 131305472,
+            "Threads": 8
+          },
+          "max_rss_bytes": 131305472,
+          "max_fds": 5,
+          "max_threads": 8
+        },
+        "engine": {
+          "pids": [
+            31
+          ],
+          "first": {
+            "pid": 31,
+            "fds": 26,
+            "VmHWM": 323031040,
+            "VmRSS": 323031040,
+            "Threads": 14
+          },
+          "last": {
+            "pid": 31,
+            "fds": 26,
+            "VmHWM": 327663616,
+            "VmRSS": 327663616,
+            "Threads": 14
+          },
+          "max_rss_bytes": 327663616,
+          "max_fds": 26,
+          "max_threads": 14
+        },
+        "api": {
+          "pids": [
+            32
+          ],
+          "first": {
+            "pid": 32,
+            "fds": 20,
+            "VmHWM": 323579904,
+            "VmRSS": 323579904,
+            "Threads": 16
+          },
+          "last": {
+            "pid": 32,
+            "fds": 22,
+            "VmHWM": 331706368,
+            "VmRSS": 331706368,
+            "Threads": 16
+          },
+          "max_rss_bytes": 331706368,
+          "max_fds": 22,
+          "max_threads": 16
+        }
+      },
+      "counters_delta": {
+        "book_events": 18628,
+        "executor_update_ms_count": 200,
+        "fill_store_ms_count": 186
+      }
+    },
+    "mixed": {
+      "samples": 14,
+      "elapsed_seconds": 804.7735195159912,
+      "max_sample_gap_seconds": 65.50511646270752,
+      "all_running": true,
+      "role_processes": {
+        "supervisor": {
+          "pids": [
+            1
+          ],
+          "first": {
+            "pid": 1,
+            "fds": 5,
+            "VmHWM": 131305472,
+            "VmRSS": 131305472,
+            "Threads": 8
+          },
+          "last": {
+            "pid": 1,
+            "fds": 5,
+            "VmHWM": 131305472,
+            "VmRSS": 131305472,
+            "Threads": 8
+          },
+          "max_rss_bytes": 131305472,
+          "max_fds": 5,
+          "max_threads": 8
+        },
+        "engine": {
+          "pids": [
+            31
+          ],
+          "first": {
+            "pid": 31,
+            "fds": 26,
+            "VmHWM": 331071488,
+            "VmRSS": 331071488,
+            "Threads": 14
+          },
+          "last": {
+            "pid": 31,
+            "fds": 26,
+            "VmHWM": 340115456,
+            "VmRSS": 340115456,
+            "Threads": 14
+          },
+          "max_rss_bytes": 340115456,
+          "max_fds": 27,
+          "max_threads": 14
+        },
+        "api": {
+          "pids": [
+            32
+          ],
+          "first": {
+            "pid": 32,
+            "fds": 22,
+            "VmHWM": 332713984,
+            "VmRSS": 332713984,
+            "Threads": 16
+          },
+          "last": {
+            "pid": 32,
+            "fds": 22,
+            "VmHWM": 334548992,
+            "VmRSS": 334548992,
+            "Threads": 16
+          },
+          "max_rss_bytes": 334548992,
+          "max_fds": 22,
+          "max_threads": 16
+        }
+      },
+      "counters_delta": {
+        "book_events": 80472,
+        "executor_update_ms_count": 861,
+        "fill_store_ms_count": 804
+      }
+    },
+    "bursts": {
+      "samples": 70,
+      "elapsed_seconds": 90.49630093574524,
+      "max_sample_gap_seconds": 5.0545337200164795,
+      "all_running": false,
+      "role_processes": {
+        "supervisor": {
+          "pids": [
+            1
+          ],
+          "first": {
+            "pid": 1,
+            "fds": 5,
+            "VmHWM": 131305472,
+            "VmRSS": 131305472,
+            "Threads": 8
+          },
+          "last": {
+            "pid": 1,
+            "fds": 5,
+            "VmHWM": 131305472,
+            "VmRSS": 131305472,
+            "Threads": 8
+          },
+          "max_rss_bytes": 131305472,
+          "max_fds": 6,
+          "max_threads": 8
+        },
+        "engine": {
+          "pids": [
+            31
+          ],
+          "first": {
+            "pid": 31,
+            "fds": 26,
+            "VmHWM": 340115456,
+            "VmRSS": 340115456,
+            "Threads": 14
+          },
+          "last": {
+            "pid": 31,
+            "fds": 26,
+            "VmHWM": 345096192,
+            "VmRSS": 345096192,
+            "Threads": 14
+          },
+          "max_rss_bytes": 345096192,
+          "max_fds": 27,
+          "max_threads": 14
+        },
+        "api": {
+          "pids": [
+            32
+          ],
+          "first": {
+            "pid": 32,
+            "fds": 12,
+            "VmHWM": 334548992,
+            "VmRSS": 334548992,
+            "Threads": 16
+          },
+          "last": {
+            "pid": 32,
+            "fds": 25,
+            "VmHWM": 334548992,
+            "VmRSS": 334548992,
+            "Threads": 16
+          },
+          "max_rss_bytes": 334548992,
+          "max_fds": 25,
+          "max_threads": 16
+        }
+      },
+      "counters_delta": {
+        "book_events": 13040,
+        "executor_update_ms_count": 92,
+        "fill_store_ms_count": 88
+      }
+    },
+    "soak": {
+      "samples": 58,
+      "elapsed_seconds": 3531.3617084026337,
+      "max_sample_gap_seconds": 65.50244998931885,
+      "all_running": true,
+      "role_processes": {
+        "supervisor": {
+          "pids": [
+            1
+          ],
+          "first": {
+            "pid": 1,
+            "fds": 5,
+            "VmHWM": 131305472,
+            "VmRSS": 131305472,
+            "Threads": 8
+          },
+          "last": {
+            "pid": 1,
+            "fds": 5,
+            "VmHWM": 131305472,
+            "VmRSS": 131305472,
+            "Threads": 8
+          },
+          "max_rss_bytes": 131305472,
+          "max_fds": 5,
+          "max_threads": 8
+        },
+        "engine": {
+          "pids": [
+            31
+          ],
+          "first": {
+            "pid": 31,
+            "fds": 26,
+            "VmHWM": 345358336,
+            "VmRSS": 345358336,
+            "Threads": 14
+          },
+          "last": {
+            "pid": 31,
+            "fds": 26,
+            "VmHWM": 368615424,
+            "VmRSS": 368615424,
+            "Threads": 14
+          },
+          "max_rss_bytes": 368615424,
+          "max_fds": 34,
+          "max_threads": 14
+        },
+        "api": {
+          "pids": [
+            32
+          ],
+          "first": {
+            "pid": 32,
+            "fds": 23,
+            "VmHWM": 334811136,
+            "VmRSS": 334811136,
+            "Threads": 16
+          },
+          "last": {
+            "pid": 32,
+            "fds": 23,
+            "VmHWM": 345681920,
+            "VmRSS": 341999616,
+            "Threads": 16
+          },
+          "max_rss_bytes": 341999616,
+          "max_fds": 24,
+          "max_threads": 16
+        }
+      },
+      "counters_delta": {
+        "book_events": 353049,
+        "executor_update_ms_count": 3748,
+        "fill_store_ms_count": 3531
+      }
+    }
+  },
+  "probes": {
+    "warmup": {
+      "count": 0,
+      "episodes": [],
+      "runtime_loss_counters": {
+        "engine": {
+          "trace": {
+            "written_records": 268,
+            "written_bytes": 993073,
+            "ordinary_written_bytes": 882986,
+            "reserved_written_bytes": 110087,
+            "dropped_records": 0,
+            "writer_cpu_ms": 41.148711000000006,
+            "dropped_by_kind": {},
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "reserved_bytes": 8388608,
+            "reserved_kinds": [
+              "gc",
+              "loop_stall",
+              "loop_stall_trigger",
+              "probe_failure",
+              "probe_recovered"
+            ],
+            "writer_alive": true,
+            "dropped_spans": 5108,
+            "slow_trace_threshold_ms": 100,
+            "gc_trace": {
+              "pending_events": 0,
+              "max_events": 128,
+              "dropped_events": 0
+            }
+          },
+          "incident_capture": {
+            "incidents": 3,
+            "evicted_records": 1194,
+            "oversize_records": 0,
+            "suppressed_incidents": 0,
+            "buffered_records": 39,
+            "buffered_bytes": 100826,
+            "max_records": 256,
+            "max_bytes": 524288,
+            "history_seconds": 10.0,
+            "tail_seconds": 10.0,
+            "max_incidents": 32
+          },
+          "metrics_export_skipped": 0
+        },
+        "api": {
+          "trace": {
+            "written_records": 81,
+            "written_bytes": 327953,
+            "ordinary_written_bytes": 325021,
+            "reserved_written_bytes": 2932,
+            "dropped_records": 0,
+            "writer_cpu_ms": 5.944914000000001,
+            "dropped_by_kind": {},
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "reserved_bytes": 8388608,
+            "reserved_kinds": [
+              "gc",
+              "loop_stall",
+              "loop_stall_trigger",
+              "probe_failure",
+              "probe_recovered"
+            ],
+            "writer_alive": true,
+            "dropped_spans": 27,
+            "slow_trace_threshold_ms": 100,
+            "gc_trace": {
+              "pending_events": 0,
+              "max_events": 128,
+              "dropped_events": 0
+            }
+          },
+          "incident_capture": {
+            "incidents": 1,
+            "evicted_records": 1248,
+            "oversize_records": 0,
+            "suppressed_incidents": 0,
+            "buffered_records": 43,
+            "buffered_bytes": 167304,
+            "max_records": 256,
+            "max_bytes": 524288,
+            "history_seconds": 10.0,
+            "tail_seconds": 10.0,
+            "max_incidents": 32
+          },
+          "metrics_export_skipped": 0
+        }
+      },
+      "trace_sha256": {
+        "api-incidents.jsonl": "720ca306578ed49b17094c0cf69ceafda37638b0aa02af77e28816c6c6e7f195",
+        "engine-incidents.jsonl": "1ed29fc785c5cf08da453d31ae4aacd4b95c8104b869f6a4bc8d8b7971a782ad"
+      },
+      "interpretation": "Temporal overlap does not establish causation. Transition intervals are supervisor observations, not measured quote downtime. Context includes up to one second before failure; intersects_transition distinguishes preceding work. Captured stacks/spans describe their own sampling times. Missing records and bounded incident/file/queue limits prevent complete attribution; an unpaired failure uses at most 15s context."
+    },
+    "mixed": {
+      "count": 0,
+      "episodes": [],
+      "runtime_loss_counters": {
+        "engine": {
+          "trace": {
+            "written_records": 429,
+            "written_bytes": 1423681,
+            "ordinary_written_bytes": 1305443,
+            "reserved_written_bytes": 118238,
+            "dropped_records": 0,
+            "writer_cpu_ms": 82.60621700000004,
+            "dropped_by_kind": {},
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "reserved_bytes": 8388608,
+            "reserved_kinds": [
+              "gc",
+              "loop_stall",
+              "loop_stall_trigger",
+              "probe_failure",
+              "probe_recovered"
+            ],
+            "writer_alive": true,
+            "dropped_spans": 18868,
+            "slow_trace_threshold_ms": 100,
+            "gc_trace": {
+              "pending_events": 0,
+              "max_events": 128,
+              "dropped_events": 0
+            }
+          },
+          "incident_capture": {
+            "incidents": 5,
+            "evicted_records": 4699,
+            "oversize_records": 0,
+            "suppressed_incidents": 0,
+            "buffered_records": 39,
+            "buffered_bytes": 92447,
+            "max_records": 256,
+            "max_bytes": 524288,
+            "history_seconds": 10.0,
+            "tail_seconds": 10.0,
+            "max_incidents": 32
+          },
+          "metrics_export_skipped": 0
+        },
+        "api": {
+          "trace": {
+            "written_records": 81,
+            "written_bytes": 327953,
+            "ordinary_written_bytes": 325021,
+            "reserved_written_bytes": 2932,
+            "dropped_records": 0,
+            "writer_cpu_ms": 5.944914000000001,
+            "dropped_by_kind": {},
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "reserved_bytes": 8388608,
+            "reserved_kinds": [
+              "gc",
+              "loop_stall",
+              "loop_stall_trigger",
+              "probe_failure",
+              "probe_recovered"
+            ],
+            "writer_alive": true,
+            "dropped_spans": 84,
+            "slow_trace_threshold_ms": 100,
+            "gc_trace": {
+              "pending_events": 0,
+              "max_events": 128,
+              "dropped_events": 0
+            }
+          },
+          "incident_capture": {
+            "incidents": 1,
+            "evicted_records": 4975,
+            "oversize_records": 0,
+            "suppressed_incidents": 0,
+            "buffered_records": 42,
+            "buffered_bytes": 153356,
+            "max_records": 256,
+            "max_bytes": 524288,
+            "history_seconds": 10.0,
+            "tail_seconds": 10.0,
+            "max_incidents": 32
+          },
+          "metrics_export_skipped": 0
+        }
+      },
+      "trace_sha256": {
+        "api-incidents.jsonl": "720ca306578ed49b17094c0cf69ceafda37638b0aa02af77e28816c6c6e7f195",
+        "engine-incidents.jsonl": "1ed29fc785c5cf08da453d31ae4aacd4b95c8104b869f6a4bc8d8b7971a782ad"
+      },
+      "interpretation": "Temporal overlap does not establish causation. Transition intervals are supervisor observations, not measured quote downtime. Context includes up to one second before failure; intersects_transition distinguishes preceding work. Captured stacks/spans describe their own sampling times. Missing records and bounded incident/file/queue limits prevent complete attribution; an unpaired failure uses at most 15s context."
+    },
+    "bursts": {
+      "count": 0,
+      "episodes": [],
+      "runtime_loss_counters": {
+        "engine": {
+          "trace": {
+            "written_records": 429,
+            "written_bytes": 1423681,
+            "ordinary_written_bytes": 1305443,
+            "reserved_written_bytes": 118238,
+            "dropped_records": 0,
+            "writer_cpu_ms": 82.60621700000004,
+            "dropped_by_kind": {},
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "reserved_bytes": 8388608,
+            "reserved_kinds": [
+              "gc",
+              "loop_stall",
+              "loop_stall_trigger",
+              "probe_failure",
+              "probe_recovered"
+            ],
+            "writer_alive": true,
+            "dropped_spans": 20673,
+            "slow_trace_threshold_ms": 100,
+            "gc_trace": {
+              "pending_events": 0,
+              "max_events": 128,
+              "dropped_events": 0
+            }
+          },
+          "incident_capture": {
+            "incidents": 5,
+            "evicted_records": 5089,
+            "oversize_records": 0,
+            "suppressed_incidents": 0,
+            "buffered_records": 39,
+            "buffered_bytes": 102886,
+            "max_records": 256,
+            "max_bytes": 524288,
+            "history_seconds": 10.0,
+            "tail_seconds": 10.0,
+            "max_incidents": 32
+          },
+          "metrics_export_skipped": 0
+        },
+        "api": {
+          "trace": {
+            "written_records": 81,
+            "written_bytes": 327953,
+            "ordinary_written_bytes": 325021,
+            "reserved_written_bytes": 2932,
+            "dropped_records": 0,
+            "writer_cpu_ms": 5.944914000000001,
+            "dropped_by_kind": {},
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "reserved_bytes": 8388608,
+            "reserved_kinds": [
+              "gc",
+              "loop_stall",
+              "loop_stall_trigger",
+              "probe_failure",
+              "probe_recovered"
+            ],
+            "writer_alive": true,
+            "dropped_spans": 149,
+            "slow_trace_threshold_ms": 100,
+            "gc_trace": {
+              "pending_events": 0,
+              "max_events": 128,
+              "dropped_events": 0
+            }
+          },
+          "incident_capture": {
+            "incidents": 1,
+            "evicted_records": 5384,
+            "oversize_records": 0,
+            "suppressed_incidents": 0,
+            "buffered_records": 42,
+            "buffered_bytes": 155722,
+            "max_records": 256,
+            "max_bytes": 524288,
+            "history_seconds": 10.0,
+            "tail_seconds": 10.0,
+            "max_incidents": 32
+          },
+          "metrics_export_skipped": 0
+        }
+      },
+      "trace_sha256": {
+        "api-incidents.jsonl": "720ca306578ed49b17094c0cf69ceafda37638b0aa02af77e28816c6c6e7f195",
+        "engine-incidents.jsonl": "1ed29fc785c5cf08da453d31ae4aacd4b95c8104b869f6a4bc8d8b7971a782ad"
+      },
+      "interpretation": "Temporal overlap does not establish causation. Transition intervals are supervisor observations, not measured quote downtime. Context includes up to one second before failure; intersects_transition distinguishes preceding work. Captured stacks/spans describe their own sampling times. Missing records and bounded incident/file/queue limits prevent complete attribution; an unpaired failure uses at most 15s context."
+    },
+    "soak": {
+      "count": 6,
+      "episodes": [
+        {
+          "role": "engine",
+          "failure_ns": 281865300496965,
+          "recovery_ns": 281866539970882,
+          "observed_transition_seconds": 1.239473917,
+          "recovery_observed_within_window": true
+        },
+        {
+          "role": "engine",
+          "failure_ns": 282332640234845,
+          "recovery_ns": 282333744531304,
+          "observed_transition_seconds": 1.104296459,
+          "recovery_observed_within_window": true
+        },
+        {
+          "role": "engine",
+          "failure_ns": 280880061274807,
+          "recovery_ns": 280881153151682,
+          "observed_transition_seconds": 1.091876875,
+          "recovery_observed_within_window": true
+        },
+        {
+          "role": "engine",
+          "failure_ns": 280851511166669,
+          "recovery_ns": 280852584854211,
+          "observed_transition_seconds": 1.073687542,
+          "recovery_observed_within_window": true
+        },
+        {
+          "role": "engine",
+          "failure_ns": 281959042383799,
+          "recovery_ns": 281960090074924,
+          "observed_transition_seconds": 1.047691125,
+          "recovery_observed_within_window": true
+        },
+        {
+          "role": "engine",
+          "failure_ns": 282509666534302,
+          "recovery_ns": 282510700995385,
+          "observed_transition_seconds": 1.034461083,
+          "recovery_observed_within_window": true
+        }
+      ],
+      "runtime_loss_counters": {
+        "engine": {
+          "trace": {
+            "written_records": 1504,
+            "written_bytes": 4273916,
+            "ordinary_written_bytes": 4106969,
+            "reserved_written_bytes": 166947,
+            "dropped_records": 0,
+            "writer_cpu_ms": 201.13867599999998,
+            "dropped_by_kind": {},
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "reserved_bytes": 8388608,
+            "reserved_kinds": [
+              "gc",
+              "loop_stall",
+              "loop_stall_trigger",
+              "probe_failure",
+              "probe_recovered"
+            ],
+            "writer_alive": true,
+            "dropped_spans": 76151,
+            "slow_trace_threshold_ms": 100,
+            "gc_trace": {
+              "pending_events": 0,
+              "max_events": 128,
+              "dropped_events": 0
+            }
+          },
+          "incident_capture": {
+            "incidents": 18,
+            "evicted_records": 19006,
+            "oversize_records": 0,
+            "suppressed_incidents": 0,
+            "buffered_records": 39,
+            "buffered_bytes": 90160,
+            "max_records": 256,
+            "max_bytes": 524288,
+            "history_seconds": 10.0,
+            "tail_seconds": 10.0,
+            "max_incidents": 32
+          },
+          "metrics_export_skipped": 0
+        },
+        "api": {
+          "trace": {
+            "written_records": 758,
+            "written_bytes": 3175252,
+            "ordinary_written_bytes": 3159150,
+            "reserved_written_bytes": 16102,
+            "dropped_records": 0,
+            "writer_cpu_ms": 122.08486899999986,
+            "dropped_by_kind": {},
+            "queue_depth": 0,
+            "max_bytes": 33554432,
+            "reserved_bytes": 8388608,
+            "reserved_kinds": [
+              "gc",
+              "loop_stall",
+              "loop_stall_trigger",
+              "probe_failure",
+              "probe_recovered"
+            ],
+            "writer_alive": true,
+            "dropped_spans": 7579,
+            "slow_trace_threshold_ms": 100,
+            "gc_trace": {
+              "pending_events": 0,
+              "max_events": 128,
+              "dropped_events": 0
+            }
+          },
+          "incident_capture": {
+            "incidents": 8,
+            "evicted_records": 20274,
+            "oversize_records": 0,
+            "suppressed_incidents": 0,
+            "buffered_records": 39,
+            "buffered_bytes": 133445,
+            "max_records": 256,
+            "max_bytes": 524288,
+            "history_seconds": 10.0,
+            "tail_seconds": 10.0,
+            "max_incidents": 32
+          },
+          "metrics_export_skipped": 0
+        }
+      },
+      "trace_sha256": {
+        "api-incidents.jsonl": "720ca306578ed49b17094c0cf69ceafda37638b0aa02af77e28816c6c6e7f195",
+        "engine-incidents.jsonl": "1ed29fc785c5cf08da453d31ae4aacd4b95c8104b869f6a4bc8d8b7971a782ad"
+      },
+      "interpretation": "Temporal overlap does not establish causation. Transition intervals are supervisor observations, not measured quote downtime. Context includes up to one second before failure; intersects_transition distinguishes preceding work. Captured stacks/spans describe their own sampling times. Missing records and bounded incident/file/queue limits prevent complete attribution; an unpaired failure uses at most 15s context."
+    }
+  },
+  "logs": {
+    "warmup": {
+      "healthy_error_records": [],
+      "child_lifecycle_events": [],
+      "correlated_denials": 20
+    },
+    "mixed": {
+      "healthy_error_records": [],
+      "child_lifecycle_events": [],
+      "correlated_denials": 60
+    },
+    "bursts": {
+      "healthy_error_records": [],
+      "child_lifecycle_events": [],
+      "correlated_denials": 16
+    },
+    "soak": {
+      "healthy_error_records": [],
+      "child_lifecycle_events": [],
+      "correlated_denials": 240
+    }
+  },
+  "faults": {
+    "feed": {
+      "duration_seconds": 45,
+      "classification": "injected_fault_excluded_from_healthy_latency",
+      "statuses": {
+        "200": 900
+      },
+      "unexpected_errors": 0
+    },
+    "owner-restart": {
+      "duration_seconds": 45,
+      "classification": "injected_fault_excluded_from_healthy_latency",
+      "statuses": {
+        "200": 645,
+        "503": 21
+      },
+      "unexpected_errors": 281
+    },
+    "queued-expiry": {
+      "duration_seconds": 75,
+      "classification": "injected_fault_excluded_from_healthy_latency",
+      "statuses": {
+        "200": 1500
+      },
+      "unexpected_errors": 0
+    },
+    "database-delay": {
+      "duration_seconds": 45,
+      "classification": "injected_fault_excluded_from_healthy_latency",
+      "statuses": {
+        "200": 604,
+        "503": 21
+      },
+      "unexpected_errors": 326
+    },
+    "database-failure": {
+      "duration_seconds": 45,
+      "classification": "injected_fault_excluded_from_healthy_latency",
+      "statuses": {
+        "200": 556,
+        "503": 22
+      },
+      "unexpected_errors": 378
+    }
+  },
+  "failed_attempts": [
+    {
+      "artifact": "build/mm-load/20261106-184747-480917/result.json",
+      "sha256": "bfddc44ae6d12d862246b7e4b81a5cccd1d9c977fcad1d7c2f306d4d0fb5660c",
+      "classification": "host_clamshell_interrupted_not_continuous_acceptance",
+      "passed": false,
+      "error": "Timed out: existing V2 held plus active exposure matches independent exchange",
+      "windows": {},
+      "host_interruption": {
+        "classification": "interrupted_host_sleep_not_valid_continuous_load",
+        "sleep_start_local": "2026-11-06T18:51:25+07:00",
+        "wake_local": "2026-11-06T20:18:48+07:00",
+        "max_sample_gap_seconds": 5324.800265789032,
+        "sample_timestamps": [
+          1793965801.5267935,
+          1793965866.8745887,
+          1793971191.6748545
+        ],
+        "engine_pids": [
+          38,
+          38,
+          317
+        ],
+        "raw_result_preserved": true,
+        "qualification": "Host clamshell sleep invalidates this healthy load attempt. Shutdown 51603, engine replacement and HALT are retained observations, not exclusively attributed to sleep or silently declared fixed."
+      },
+      "qualification": "Retain intervening OKXOrderNotFoundError 51603, engine replacement and HALT; host sleep does not exclusively explain each event."
+    },
+    {
+      "artifact": "build/mm-load/20261106-202647-95cca9/result.json",
+      "sha256": "fbf5dba1ba01824e75fe91de6bd58d47d851583bce6c1ff166119b5d78edd595",
+      "classification": "failed_warmup_market_rate_retained",
+      "passed": false,
+      "error": "Declared load budgets failed: market_rate",
+      "windows": {
+        "warmup": {
+          "duration_seconds": 300,
+          "window_start_utc": 1793971688.047103,
+          "requested_reads": 6000,
+          "completed_reads": 6000,
+          "statuses": {
+            "200": 6000
+          },
+          "read_p95_ms": 59.69771498348564,
+          "read_p99_ms": 347.13650395860896,
+          "command_accept_p95_ms": 43.34612499224022,
+          "unexpected_errors": 0,
+          "completed_reads_per_second": 20.0,
+          "market_updates_per_second": 99.97081653250187,
+          "market_updates_sent": 30004,
+          "market_measurement_seconds": 300.12758763699094,
+          "market_measurement_source": null,
+          "fills_per_second": 1.0,
+          "valid_fills": 300,
+          "fill_target_shortfall": 0,
+          "fill_drain_policy": "await_dispatched_requests_only",
+          "auxiliary": {
+            "requested_reads": 1500,
+            "completed_reads": 1500,
+            "statuses": {
+              "200": 1500
+            },
+            "read_p95_ms": 77.19866797560826,
+            "read_p99_ms": 235.40818801848218
+          },
+          "violations": [
+            "market_rate"
+          ],
+          "memory_retention": null,
+          "burst_diagnostics": null
+        }
+      },
+      "qualification": "Counter 30004 over 300.12758763699094 s = 99.97081653250187/s failed the original rate tolerance. Observer-boundary fix does not retroactively pass the run or prove an exclusive host cause."
+    }
+  ],
+  "observer_fix": {
+    "commit": "a22e08d1e",
+    "description": "Read independent /market-metrics immediately around the workload; financial /ledger remains for settlement. Keep rate/tolerance/latency/error budgets unchanged.",
+    "red_log": "/tmp/hbot-load-market-window-red.log",
+    "red_tests_failed": 2,
+    "green_log": "/tmp/hbot-load-market-window-green.log",
+    "green_tests_passed": 50,
+    "slow_producer_still_rejected": true,
+    "runtime_image_changed": false
+  },
+  "cleanup": {
+    "before": {
+      "at": "2026-11-06T15:08:02.986958+00:00",
+      "containers": [
+        {
+          "id": "9dc1b8a65095ae928a3e0136b16781be35b18336f79eb0a099bba37dcef44da6",
+          "name": "hummingbot-local-demo",
+          "image": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+          "status": "running",
+          "started_at": "2026-11-04T17:36:15.889375719Z"
+        },
+        {
+          "id": "2e86bbf12aab99c6ee1127a3c9ee57093d9683d2e9af15e19668dfa20231ae8e",
+          "name": "hummingbot-local-demo-before-controller-persistence-20261104064759",
+          "image": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+          "status": "exited",
+          "started_at": "2026-11-04T06:36:14.601363965Z"
+        },
+        {
+          "id": "3b3e926e04a5b85c252a57cca1cf4975a90fbeb7bf6570de8affce23a57efdbb",
+          "name": "hummingbot-local-demo-before-controller-persistence-20261104043232",
+          "image": "sha256:50f96001df366d350bae6d1db5d195540f7372e7022d4312c3795f3643284cf0",
+          "status": "exited",
+          "started_at": "2026-11-04T04:17:06.753551588Z"
+        },
+        {
+          "id": "79aa80f744e90d53ef76136ea2f26f7fbefc11eda7a21a5b63c7b8c7b006e9e9",
+          "name": "hummingbot-local-demo-before-controller-persistence-20261104005057",
+          "image": "sha256:f1a7eead89fb43f7ae9b126d5258eb991e15577f8cf31f4a292ca29a2dfdfcdf",
+          "status": "exited",
+          "started_at": "2026-11-04T00:41:20.017047543Z"
+        },
+        {
+          "id": "cffb78e0aed05c981edebf7d338793983f16ff0b90a7f733179c70b8eb90981f",
+          "name": "hummingbot-local-demo-before-controller-persistence-20261103205237",
+          "image": "sha256:51d4d879d0f0532b825072483f7ba7cfbb95d80fa31742e34b6fa846e10df83e",
+          "status": "exited",
+          "started_at": "2026-11-03T20:51:36.253097471Z"
+        },
+        {
+          "id": "47c85faf2256e9669357deca7c6d3b65ab3e89c7c6ab1bb7349e28dcd26fa69e",
+          "name": "hummingbot-local-demo-before-cleanup-fix",
+          "image": "sha256:7dca3ce9feddc4c5c9a15aa3b2d52bdd73469eeecb901eef6c9f939b9a16c900",
+          "status": "exited",
+          "started_at": "2026-11-03T09:29:33.187988377Z"
+        },
+        {
+          "id": "c7a1822941b542d3d3d3d6919598b38768d916542b72b1addbb8027e094092a9",
+          "name": "hummingbot-local-demo-incident-preserved",
+          "image": "sha256:e9845e3fa109ee57d8d1ee2db7d57b58c861a45eb576cd67b36c81ba473b6507",
+          "status": "exited",
+          "started_at": "2026-11-03T05:38:46.86041976Z"
+        },
+        {
+          "id": "f8c0c3694cc3862c662e24df84f97a057de9c82544890abe95bc507ac8dc9cfe",
+          "name": "hummingbot-okx-demo-db",
+          "image": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+          "status": "running",
+          "started_at": "2026-11-04T17:36:15.227126635Z"
+        },
+        {
+          "id": "3b6b56bf16c00fe6b7e42dd1af16c2ab05e6194af1e697fd28ceb7494ad73a00",
+          "name": "onchain-handler-app-1",
+          "image": "sha256:06c1441c032f6afbdfa1a627584f4ed49a9c47dc63d929d6b39cf0bb4263fc8e",
+          "status": "exited",
+          "started_at": "2024-12-09T13:41:52.185086753Z"
+        },
+        {
+          "id": "07f9729589fb5458f99fc22eaee9630a658f6a18e1d56f32e040699e51d9a787",
+          "name": "onchain-handler-db-1",
+          "image": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+          "status": "exited",
+          "started_at": "2026-10-07T04:44:11.081546091Z"
+        }
+      ],
+      "images": [
+        {
+          "id": "sha256:f74d2a2abcad64dfdd9ad45c3491823c53a30f930da492b9c7c3ae3cb96526c8",
+          "tags": [
+            "127.0.0.1:59227/hummingbot:offline",
+            "hummingbot-cloudrun:cleanup-state"
+          ],
+          "digests": [
+            "127.0.0.1:59227/hummingbot@sha256:393cfc9f06d0d0c9942a32f56d6525f8d3662cadcc43dbf1a78740723783932f"
+          ],
+          "size_bytes": 1374440316
+        },
+        {
+          "id": "sha256:6d9ddbf99dddfa4ddb646dd00cb71b192be1779347ad8848de9f37eeb5054e5b",
+          "tags": [
+            "127.0.0.1:57703/hummingbot:offline"
+          ],
+          "digests": [
+            "127.0.0.1:57703/hummingbot@sha256:12297f3571ead64d5d11bc8ad1db32a438d53b9f81e7167cbff44ae35d244d1c"
+          ],
+          "size_bytes": 1374440146
+        },
+        {
+          "id": "sha256:8cdadb21e6ff302d58de5983b6b5154ee37b70fcbeeb645f12e1c79618b00821",
+          "tags": [
+            "127.0.0.1:57143/hummingbot:offline",
+            "hummingbot-cloudrun:cleanup-polling"
+          ],
+          "digests": [
+            "127.0.0.1:57143/hummingbot@sha256:711ec041a98388030afa5d8872471b53e6c9cb8bf4e2d8e4dd50f8d8da6002d9"
+          ],
+          "size_bytes": 1374439437
+        },
+        {
+          "id": "sha256:89d5e7c61fcf811f830fe250ba92760edde52887acc62fa9c1e817efe0a6d3be",
+          "tags": [
+            "127.0.0.1:56321/hummingbot:offline",
+            "hummingbot-cloudrun:cleanup-recovery"
+          ],
+          "digests": [
+            "127.0.0.1:56321/hummingbot@sha256:33c374fa6983c618cd94065828259eb0de5156f1620e2be0200a47afba4e6de3"
+          ],
+          "size_bytes": 1374436993
+        },
+        {
+          "id": "sha256:71239bb2f0d8d4cac52dbcf04d6cab45ed1939fbd1fdc69778e55004dac0cdb6",
+          "tags": [
+            "postgres:15-alpine"
+          ],
+          "digests": [
+            "postgres@sha256:7bfdd070376ab11e681f4bf43d3cff1333cf6e6f83723d26a1a6ca95c16e233a"
+          ],
+          "size_bytes": 286013463
+        },
+        {
+          "id": "sha256:1bb946c39830f79044b520b47dd4d324419cf7f0d63271363673e2ce137b57a3",
+          "tags": [
+            "127.0.0.1:57239/hummingbot:offline",
+            "hummingbot-cloudrun:admin-admission-final"
+          ],
+          "digests": [
+            "127.0.0.1:57239/hummingbot@sha256:c92d3d6fefabb18e2d4b2cc2ee78a2b6122989f0d115533166763a667945f2cd"
+          ],
+          "size_bytes": 1374394138
+        },
+        {
+          "id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+          "tags": [
+            "127.0.0.1:58187/hummingbot:offline",
+            "hummingbot-cloudrun:admin-lanes-0f4095671"
+          ],
+          "digests": [
+            "127.0.0.1:58187/hummingbot@sha256:f4a5395ace8bf58e75feda96909081d238f3f30f321bacb08d259418ad2501ca"
+          ],
+          "size_bytes": 1368950745
+        },
+        {
+          "id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+          "tags": [
+            "127.0.0.1:56753/hummingbot:offline",
+            "hummingbot-cloudrun:reporting-retry-d2cdf2a36"
+          ],
+          "digests": [
+            "127.0.0.1:56753/hummingbot@sha256:a7f1d7de2dea766f78f87344bf10b4f3bcc5caa9f6b2629962ea045178e40f5e"
+          ],
+          "size_bytes": 1368948653
+        },
+        {
+          "id": "sha256:50f96001df366d350bae6d1db5d195540f7372e7022d4312c3795f3643284cf0",
+          "tags": [
+            "127.0.0.1:58221/hummingbot:offline",
+            "hummingbot-cloudrun:daily-conversion-14feb47dd"
+          ],
+          "digests": [
+            "127.0.0.1:58221/hummingbot@sha256:ed31d2ae8f8526ded78cf224c772674737990d8beda1c1f93241f9d361348ab6"
+          ],
+          "size_bytes": 1368945433
+        },
+        {
+          "id": "sha256:f1a7eead89fb43f7ae9b126d5258eb991e15577f8cf31f4a292ca29a2dfdfcdf",
+          "tags": [
+            "127.0.0.1:55559/hummingbot:offline",
+            "hummingbot-cloudrun:controller-persistence-4a38bbf09"
+          ],
+          "digests": [
+            "127.0.0.1:55559/hummingbot@sha256:7e98f3e881b9742c9f60e146225e1af51c2f280e9ba0958c15485eea0c5dac95"
+          ],
+          "size_bytes": 1368944866
+        },
+        {
+          "id": "sha256:51d4d879d0f0532b825072483f7ba7cfbb95d80fa31742e34b6fa846e10df83e",
+          "tags": [
+            "127.0.0.1:55751/hummingbot:offline",
+            "127.0.0.1:58147/hummingbot:offline",
+            "hummingbot-cloudrun:checkpoint-poll"
+          ],
+          "digests": [
+            "127.0.0.1:55751/hummingbot@sha256:813813d135e9b83b36c54eced7458fc916a8b102230b101a3c4aa6f76e5c576f",
+            "127.0.0.1:58147/hummingbot@sha256:813813d135e9b83b36c54eced7458fc916a8b102230b101a3c4aa6f76e5c576f"
+          ],
+          "size_bytes": 1378106407
+        },
+        {
+          "id": "sha256:7dca3ce9feddc4c5c9a15aa3b2d52bdd73469eeecb901eef6c9f939b9a16c900",
+          "tags": [
+            "127.0.0.1:60175/hummingbot:offline",
+            "hummingbot-cloudrun:checkpoint-poll-pre-cleanup-fix"
+          ],
+          "digests": [
+            "127.0.0.1:60175/hummingbot@sha256:8412464364c3ca5995d19c65e793f45d4eea6aa516ab2c985a831830afb57713"
+          ],
+          "size_bytes": 1378105587
+        },
+        {
+          "id": "sha256:e9845e3fa109ee57d8d1ee2db7d57b58c861a45eb576cd67b36c81ba473b6507",
+          "tags": [
+            "127.0.0.1:58165/hummingbot:offline",
+            "hummingbot-cloudrun:checkpoint-poll-pre-expiry-fix"
+          ],
+          "digests": [
+            "127.0.0.1:58165/hummingbot@sha256:e79755a108922b0f40c526563fe755bc8c78358fc2d21aa5a0bec03b91258477"
+          ],
+          "size_bytes": 1378102837
+        },
+        {
+          "id": "sha256:06c1441c032f6afbdfa1a627584f4ed49a9c47dc63d929d6b39cf0bb4263fc8e",
+          "tags": [
+            "onchain-handler-app:latest"
+          ],
+          "digests": [],
+          "size_bytes": 1194086030
+        },
+        {
+          "id": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+          "tags": [
+            "postgres:14-alpine"
+          ],
+          "digests": [
+            "postgres@sha256:51ce26e4463d434049b4b83e72eaaa008047a6a6cc65f2f3ee2ff3c183da0621"
+          ],
+          "size_bytes": 254455878
+        },
+        {
+          "id": "sha256:cc66e26ac53c58b683505b0a8f1737c6584cc20b99871fa7695597fe829130fd",
+          "tags": [
+            "testcontainers/ryuk:0.11.0"
+          ],
+          "digests": [
+            "testcontainers/ryuk@sha256:2eaec4fc2cf1f67eb6624d4463467ea8aac999a01b2ff74b5973e9a563b7c2b5"
+          ],
+          "size_bytes": 16144170
+        },
+        {
+          "id": "sha256:33eeff39e0aaabe61ca826fd7502396183462451be0783133e1a8fa944fc7350",
+          "tags": [
+            "registry:2"
+          ],
+          "digests": [
+            "registry@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373"
+          ],
+          "size_bytes": 24955601
+        }
+      ],
+      "volumes": [
+        "028fdff0d1e1c9bd1d68ec2b0bdfd2473729b9de3edfb01fd0b9b92a2cd26c15",
+        "2a63e2197643c7bdf93ce211519d444fd8fb0c4ed7c2a3c9e92922cecb6b6cff",
+        "32c185606c8f77e4c83ddebd1f9f25ede108f6f8eac83bf4e7c9a27a23e9f7b1",
+        "3b176e0d44f65a93788ce3c749bb3d3c848d0e81f61d3228ed4e84cb1a76a3ef",
+        "40380172042f3f952bde505eeacc66f0b9f6b35d3fd8d1d2efd5700042c1a38a",
+        "45e66b5bfca9938e1c541e3efe0a44280181b5598fec1401e4ac6e5f0c2a5730",
+        "4c191f721e1a9d45061352f892fe3026a362cdf284acfd7a3bac58844d670e4e",
+        "4cc4cd54d7370c559b68dd5cee9d3f209be2e3ce6d04990390834324a89c05fd",
+        "64780f78ea36e659d2d9966c161b737a5f524ed88b9345979b962871bbc62c49",
+        "ca7e79633da1b277b3089895e66c2e0e8a0a4222cb5aeac8bfc46336699212fd",
+        "ce28fc01a0f58086f124fc44584435532ed913dd2d6704cbf3639fd3726e625e",
+        "fffc4d8552b50b01bd6f6c7a9a94aae0b5b11ad20e78bd23dfac48b8e0b5c0bc",
+        "hummingbot-okx-demo-data",
+        "onchain-handler_pgdata"
+      ],
+      "disk_usage": "TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE\nImages          17        9         14.81GB   8.174GB (55%)\nContainers      10        2         63B       0B (0%)\nLocal Volumes   14        2         1.287GB   669.3MB (51%)\nBuild Cache     437       0         18.73GB   18.73GB\n"
+    },
+    "removals": [
+      {
+        "id": "sha256:6d9ddbf99dddfa4ddb646dd00cb71b192be1779347ad8848de9f37eeb5054e5b",
+        "tags": [
+          "127.0.0.1:57703/hummingbot:offline"
+        ],
+        "exit_code": 0,
+        "output": "Untagged: 127.0.0.1:57703/hummingbot:offline\nUntagged: 127.0.0.1:57703/hummingbot@sha256:12297f3571ead64d5d11bc8ad1db32a438d53b9f81e7167cbff44ae35d244d1c\nDeleted: sha256:6d9ddbf99dddfa4ddb646dd00cb71b192be1779347ad8848de9f37eeb5054e5b\n",
+        "error": ""
+      },
+      {
+        "id": "sha256:8cdadb21e6ff302d58de5983b6b5154ee37b70fcbeeb645f12e1c79618b00821",
+        "tags": [
+          "127.0.0.1:57143/hummingbot:offline",
+          "hummingbot-cloudrun:cleanup-polling"
+        ],
+        "exit_code": 0,
+        "output": "Untagged: 127.0.0.1:57143/hummingbot:offline\nUntagged: 127.0.0.1:57143/hummingbot@sha256:711ec041a98388030afa5d8872471b53e6c9cb8bf4e2d8e4dd50f8d8da6002d9\nUntagged: hummingbot-cloudrun:cleanup-polling\nDeleted: sha256:8cdadb21e6ff302d58de5983b6b5154ee37b70fcbeeb645f12e1c79618b00821\n",
+        "error": ""
+      },
+      {
+        "id": "sha256:89d5e7c61fcf811f830fe250ba92760edde52887acc62fa9c1e817efe0a6d3be",
+        "tags": [
+          "127.0.0.1:56321/hummingbot:offline",
+          "hummingbot-cloudrun:cleanup-recovery"
+        ],
+        "exit_code": 0,
+        "output": "Untagged: 127.0.0.1:56321/hummingbot:offline\nUntagged: 127.0.0.1:56321/hummingbot@sha256:33c374fa6983c618cd94065828259eb0de5156f1620e2be0200a47afba4e6de3\nUntagged: hummingbot-cloudrun:cleanup-recovery\nDeleted: sha256:89d5e7c61fcf811f830fe250ba92760edde52887acc62fa9c1e817efe0a6d3be\n",
+        "error": ""
+      }
+    ],
+    "after": {
+      "at": "2026-11-06T15:08:04.994989+00:00",
+      "containers": [
+        {
+          "id": "9dc1b8a65095ae928a3e0136b16781be35b18336f79eb0a099bba37dcef44da6",
+          "name": "hummingbot-local-demo",
+          "image": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+          "status": "running",
+          "started_at": "2026-11-04T17:36:15.889375719Z"
+        },
+        {
+          "id": "2e86bbf12aab99c6ee1127a3c9ee57093d9683d2e9af15e19668dfa20231ae8e",
+          "name": "hummingbot-local-demo-before-controller-persistence-20261104064759",
+          "image": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+          "status": "exited",
+          "started_at": "2026-11-04T06:36:14.601363965Z"
+        },
+        {
+          "id": "3b3e926e04a5b85c252a57cca1cf4975a90fbeb7bf6570de8affce23a57efdbb",
+          "name": "hummingbot-local-demo-before-controller-persistence-20261104043232",
+          "image": "sha256:50f96001df366d350bae6d1db5d195540f7372e7022d4312c3795f3643284cf0",
+          "status": "exited",
+          "started_at": "2026-11-04T04:17:06.753551588Z"
+        },
+        {
+          "id": "79aa80f744e90d53ef76136ea2f26f7fbefc11eda7a21a5b63c7b8c7b006e9e9",
+          "name": "hummingbot-local-demo-before-controller-persistence-20261104005057",
+          "image": "sha256:f1a7eead89fb43f7ae9b126d5258eb991e15577f8cf31f4a292ca29a2dfdfcdf",
+          "status": "exited",
+          "started_at": "2026-11-04T00:41:20.017047543Z"
+        },
+        {
+          "id": "cffb78e0aed05c981edebf7d338793983f16ff0b90a7f733179c70b8eb90981f",
+          "name": "hummingbot-local-demo-before-controller-persistence-20261103205237",
+          "image": "sha256:51d4d879d0f0532b825072483f7ba7cfbb95d80fa31742e34b6fa846e10df83e",
+          "status": "exited",
+          "started_at": "2026-11-03T20:51:36.253097471Z"
+        },
+        {
+          "id": "47c85faf2256e9669357deca7c6d3b65ab3e89c7c6ab1bb7349e28dcd26fa69e",
+          "name": "hummingbot-local-demo-before-cleanup-fix",
+          "image": "sha256:7dca3ce9feddc4c5c9a15aa3b2d52bdd73469eeecb901eef6c9f939b9a16c900",
+          "status": "exited",
+          "started_at": "2026-11-03T09:29:33.187988377Z"
+        },
+        {
+          "id": "c7a1822941b542d3d3d3d6919598b38768d916542b72b1addbb8027e094092a9",
+          "name": "hummingbot-local-demo-incident-preserved",
+          "image": "sha256:e9845e3fa109ee57d8d1ee2db7d57b58c861a45eb576cd67b36c81ba473b6507",
+          "status": "exited",
+          "started_at": "2026-11-03T05:38:46.86041976Z"
+        },
+        {
+          "id": "f8c0c3694cc3862c662e24df84f97a057de9c82544890abe95bc507ac8dc9cfe",
+          "name": "hummingbot-okx-demo-db",
+          "image": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+          "status": "running",
+          "started_at": "2026-11-04T17:36:15.227126635Z"
+        },
+        {
+          "id": "3b6b56bf16c00fe6b7e42dd1af16c2ab05e6194af1e697fd28ceb7494ad73a00",
+          "name": "onchain-handler-app-1",
+          "image": "sha256:06c1441c032f6afbdfa1a627584f4ed49a9c47dc63d929d6b39cf0bb4263fc8e",
+          "status": "exited",
+          "started_at": "2024-12-09T13:41:52.185086753Z"
+        },
+        {
+          "id": "07f9729589fb5458f99fc22eaee9630a658f6a18e1d56f32e040699e51d9a787",
+          "name": "onchain-handler-db-1",
+          "image": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+          "status": "exited",
+          "started_at": "2026-10-07T04:44:11.081546091Z"
+        }
+      ],
+      "images": [
+        {
+          "id": "sha256:f74d2a2abcad64dfdd9ad45c3491823c53a30f930da492b9c7c3ae3cb96526c8",
+          "tags": [
+            "127.0.0.1:59227/hummingbot:offline",
+            "hummingbot-cloudrun:cleanup-state"
+          ],
+          "digests": [
+            "127.0.0.1:59227/hummingbot@sha256:393cfc9f06d0d0c9942a32f56d6525f8d3662cadcc43dbf1a78740723783932f"
+          ],
+          "size_bytes": 1374440316
+        },
+        {
+          "id": "sha256:71239bb2f0d8d4cac52dbcf04d6cab45ed1939fbd1fdc69778e55004dac0cdb6",
+          "tags": [
+            "postgres:15-alpine"
+          ],
+          "digests": [
+            "postgres@sha256:7bfdd070376ab11e681f4bf43d3cff1333cf6e6f83723d26a1a6ca95c16e233a"
+          ],
+          "size_bytes": 286013463
+        },
+        {
+          "id": "sha256:1bb946c39830f79044b520b47dd4d324419cf7f0d63271363673e2ce137b57a3",
+          "tags": [
+            "127.0.0.1:57239/hummingbot:offline",
+            "hummingbot-cloudrun:admin-admission-final"
+          ],
+          "digests": [
+            "127.0.0.1:57239/hummingbot@sha256:c92d3d6fefabb18e2d4b2cc2ee78a2b6122989f0d115533166763a667945f2cd"
+          ],
+          "size_bytes": 1374394138
+        },
+        {
+          "id": "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+          "tags": [
+            "127.0.0.1:58187/hummingbot:offline",
+            "hummingbot-cloudrun:admin-lanes-0f4095671"
+          ],
+          "digests": [
+            "127.0.0.1:58187/hummingbot@sha256:f4a5395ace8bf58e75feda96909081d238f3f30f321bacb08d259418ad2501ca"
+          ],
+          "size_bytes": 1368950745
+        },
+        {
+          "id": "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+          "tags": [
+            "127.0.0.1:56753/hummingbot:offline",
+            "hummingbot-cloudrun:reporting-retry-d2cdf2a36"
+          ],
+          "digests": [
+            "127.0.0.1:56753/hummingbot@sha256:a7f1d7de2dea766f78f87344bf10b4f3bcc5caa9f6b2629962ea045178e40f5e"
+          ],
+          "size_bytes": 1368948653
+        },
+        {
+          "id": "sha256:50f96001df366d350bae6d1db5d195540f7372e7022d4312c3795f3643284cf0",
+          "tags": [
+            "127.0.0.1:58221/hummingbot:offline",
+            "hummingbot-cloudrun:daily-conversion-14feb47dd"
+          ],
+          "digests": [
+            "127.0.0.1:58221/hummingbot@sha256:ed31d2ae8f8526ded78cf224c772674737990d8beda1c1f93241f9d361348ab6"
+          ],
+          "size_bytes": 1368945433
+        },
+        {
+          "id": "sha256:f1a7eead89fb43f7ae9b126d5258eb991e15577f8cf31f4a292ca29a2dfdfcdf",
+          "tags": [
+            "127.0.0.1:55559/hummingbot:offline",
+            "hummingbot-cloudrun:controller-persistence-4a38bbf09"
+          ],
+          "digests": [
+            "127.0.0.1:55559/hummingbot@sha256:7e98f3e881b9742c9f60e146225e1af51c2f280e9ba0958c15485eea0c5dac95"
+          ],
+          "size_bytes": 1368944866
+        },
+        {
+          "id": "sha256:51d4d879d0f0532b825072483f7ba7cfbb95d80fa31742e34b6fa846e10df83e",
+          "tags": [
+            "127.0.0.1:55751/hummingbot:offline",
+            "127.0.0.1:58147/hummingbot:offline",
+            "hummingbot-cloudrun:checkpoint-poll"
+          ],
+          "digests": [
+            "127.0.0.1:55751/hummingbot@sha256:813813d135e9b83b36c54eced7458fc916a8b102230b101a3c4aa6f76e5c576f",
+            "127.0.0.1:58147/hummingbot@sha256:813813d135e9b83b36c54eced7458fc916a8b102230b101a3c4aa6f76e5c576f"
+          ],
+          "size_bytes": 1378106407
+        },
+        {
+          "id": "sha256:7dca3ce9feddc4c5c9a15aa3b2d52bdd73469eeecb901eef6c9f939b9a16c900",
+          "tags": [
+            "127.0.0.1:60175/hummingbot:offline",
+            "hummingbot-cloudrun:checkpoint-poll-pre-cleanup-fix"
+          ],
+          "digests": [
+            "127.0.0.1:60175/hummingbot@sha256:8412464364c3ca5995d19c65e793f45d4eea6aa516ab2c985a831830afb57713"
+          ],
+          "size_bytes": 1378105587
+        },
+        {
+          "id": "sha256:e9845e3fa109ee57d8d1ee2db7d57b58c861a45eb576cd67b36c81ba473b6507",
+          "tags": [
+            "127.0.0.1:58165/hummingbot:offline",
+            "hummingbot-cloudrun:checkpoint-poll-pre-expiry-fix"
+          ],
+          "digests": [
+            "127.0.0.1:58165/hummingbot@sha256:e79755a108922b0f40c526563fe755bc8c78358fc2d21aa5a0bec03b91258477"
+          ],
+          "size_bytes": 1378102837
+        },
+        {
+          "id": "sha256:06c1441c032f6afbdfa1a627584f4ed49a9c47dc63d929d6b39cf0bb4263fc8e",
+          "tags": [
+            "onchain-handler-app:latest"
+          ],
+          "digests": [],
+          "size_bytes": 1194086030
+        },
+        {
+          "id": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+          "tags": [
+            "postgres:14-alpine"
+          ],
+          "digests": [
+            "postgres@sha256:51ce26e4463d434049b4b83e72eaaa008047a6a6cc65f2f3ee2ff3c183da0621"
+          ],
+          "size_bytes": 254455878
+        },
+        {
+          "id": "sha256:cc66e26ac53c58b683505b0a8f1737c6584cc20b99871fa7695597fe829130fd",
+          "tags": [
+            "testcontainers/ryuk:0.11.0"
+          ],
+          "digests": [
+            "testcontainers/ryuk@sha256:2eaec4fc2cf1f67eb6624d4463467ea8aac999a01b2ff74b5973e9a563b7c2b5"
+          ],
+          "size_bytes": 16144170
+        },
+        {
+          "id": "sha256:33eeff39e0aaabe61ca826fd7502396183462451be0783133e1a8fa944fc7350",
+          "tags": [
+            "registry:2"
+          ],
+          "digests": [
+            "registry@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373"
+          ],
+          "size_bytes": 24955601
+        }
+      ],
+      "volumes": [
+        "028fdff0d1e1c9bd1d68ec2b0bdfd2473729b9de3edfb01fd0b9b92a2cd26c15",
+        "2a63e2197643c7bdf93ce211519d444fd8fb0c4ed7c2a3c9e92922cecb6b6cff",
+        "32c185606c8f77e4c83ddebd1f9f25ede108f6f8eac83bf4e7c9a27a23e9f7b1",
+        "3b176e0d44f65a93788ce3c749bb3d3c848d0e81f61d3228ed4e84cb1a76a3ef",
+        "40380172042f3f952bde505eeacc66f0b9f6b35d3fd8d1d2efd5700042c1a38a",
+        "45e66b5bfca9938e1c541e3efe0a44280181b5598fec1401e4ac6e5f0c2a5730",
+        "4c191f721e1a9d45061352f892fe3026a362cdf284acfd7a3bac58844d670e4e",
+        "4cc4cd54d7370c559b68dd5cee9d3f209be2e3ce6d04990390834324a89c05fd",
+        "64780f78ea36e659d2d9966c161b737a5f524ed88b9345979b962871bbc62c49",
+        "ca7e79633da1b277b3089895e66c2e0e8a0a4222cb5aeac8bfc46336699212fd",
+        "ce28fc01a0f58086f124fc44584435532ed913dd2d6704cbf3639fd3726e625e",
+        "fffc4d8552b50b01bd6f6c7a9a94aae0b5b11ad20e78bd23dfac48b8e0b5c0bc",
+        "hummingbot-okx-demo-data",
+        "onchain-handler_pgdata"
+      ],
+      "disk_usage": "TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE\nImages          14        9         10.92GB   4.287GB (39%)\nContainers      10        2         63B       0B (0%)\nLocal Volumes   14        2         1.287GB   669.3MB (51%)\nBuild Cache     437       0         22.62GB   22.62GB\n"
+    },
+    "protected_ids": [
+      "sha256:06c1441c032f6afbdfa1a627584f4ed49a9c47dc63d929d6b39cf0bb4263fc8e",
+      "sha256:086454de2ecd476150135d7c91623eec3afa3816a88b0f33fe1a9444fcdedfe2",
+      "sha256:1bb946c39830f79044b520b47dd4d324419cf7f0d63271363673e2ce137b57a3",
+      "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+      "sha256:50f96001df366d350bae6d1db5d195540f7372e7022d4312c3795f3643284cf0",
+      "sha256:51d4d879d0f0532b825072483f7ba7cfbb95d80fa31742e34b6fa846e10df83e",
+      "sha256:7dca3ce9feddc4c5c9a15aa3b2d52bdd73469eeecb901eef6c9f939b9a16c900",
+      "sha256:e9845e3fa109ee57d8d1ee2db7d57b58c861a45eb576cd67b36c81ba473b6507",
+      "sha256:f1a7eead89fb43f7ae9b126d5258eb991e15577f8cf31f4a292ca29a2dfdfcdf",
+      "sha256:f4d90bc77e0c06d9134e2bc82dcda0f28c81e67a2cf6ecce9a96d4514d052f21",
+      "sha256:f74d2a2abcad64dfdd9ad45c3491823c53a30f930da492b9c7c3ae3cb96526c8"
+    ],
+    "volume_inventory_unchanged": true,
+    "container_inventory_unchanged": true,
+    "qualification": "Image logical sizes share layers; no physical reclaimed-byte claim. No force/prune/cache/volume/container deletion."
+  },
+  "external_open": [
+    "Real Google sign-in and certificate discovery",
+    "Real GCP KMS/IAM",
+    "Separately reviewed existing-Demo managed-credential cutover"
+  ],
+  "qualifications": [
+    "Synthetic fills, fees and positions; no real OKX fills.",
+    "Enhancement flags disabled in this established baseline; targeted six-scenario native-image cleanup acceptance is separate, not rerun/relabelled by this full load.",
+    "Recovered supervisor probe intervals do not measure quote downtime or establish an exclusive root cause.",
+    "Bounded incident capture/queue/span loss prevents complete attribution.",
+    "No diagnostic, GC, CPU, DB-pool, error, latency or retention-budget relaxation.",
+    "API and engine are separate processes sharing CPU/PostgreSQL; no absolute uptime guarantee."
+  ]
+}
