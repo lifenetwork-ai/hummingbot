@@ -182,6 +182,17 @@ a final fill reconciliation after the remaining orders finish. Credentials are n
 removed until the unchanged remote/ledger/flat-position checks succeed. See the
 [polling verification](../reports/performance/admin-cleanup-polling.md).
 
+An ownership or operation handoff is reported as `owner_unavailable`, including a
+native ownership-session exception. The old coordinator stops; keep reading the
+same root operation while the replacement owner performs fresh readback. Stale
+authority cannot publish final proof or remove the saved key.
+
+If cleanup cannot confirm its runtime stopped, the existing engine-restart fence
+still applies. A stop failure after an already committed removal does not undo the
+root's `succeeded` receipt. Check that durable outcome before requesting Retry;
+do not replace keys or edit database state merely because the old task failed
+during shutdown. See [ownership/shutdown verification](../reports/performance/admin-cleanup-state-review.md).
+
 If a crashed runtime left an unverified checkpoint, automatic closure refuses to
 infer missing exposure. Follow the reviewed [recovery runbook](postgres-runtime.md).
 No API resets a risk HALT or fabricates a flat position. A cold load still needs

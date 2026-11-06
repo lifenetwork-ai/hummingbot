@@ -1,0 +1,886 @@
+{
+  "date": "2026-11-06",
+  "runtime_commit": "2f6cbd2577107640883a8f3d9eccb844f3688d23",
+  "phase_commits": [
+    "f9a44a2af",
+    "9e3a71f66",
+    "7a4089a61",
+    "2f6cbd257"
+  ],
+  "image": {
+    "tag": "hummingbot-cloudrun:cleanup-state",
+    "id": "sha256:f74d2a2abcad64dfdd9ad45c3491823c53a30f930da492b9c7c3ae3cb96526c8",
+    "manifest": "sha256:393cfc9f06d0d0c9942a32f56d6525f8d3662cadcc43dbf1a78740723783932f",
+    "immutable_reference": "127.0.0.1:59227/hummingbot@sha256:393cfc9f06d0d0c9942a32f56d6525f8d3662cadcc43dbf1a78740723783932f",
+    "size_bytes": 1374440316,
+    "packaged_source_sha256": {
+      "hummingbot/cli/credential_disconnect.py": "9d237072ee34a7dd03674fc776366d654fc851abb36b2a2006b03b565dbfec02",
+      "hummingbot/model/credential_cleanup.py": "87f029ba2f89b2ab0cb9faf740480651833222098ac2d4d9050f36f1453e4051",
+      "hummingbot/model/credential_store.py": "211b20923e3330f0cca7f5dbcbbddd3b902c410c80e587bd87ec3287a5307ab3"
+    }
+  },
+  "additional_cases": {
+    "owner_pg": 8,
+    "shutdown_pg": 3,
+    "snapshot_pg": 13,
+    "host_native": 2,
+    "total": 26
+  },
+  "final_verification": {
+    "native_partitions": [
+      202,
+      11,
+      1755,
+      753
+    ],
+    "native_total": 2721,
+    "native_subtests": 11,
+    "related_postgres": 128,
+    "final_image_e2e": 6
+  },
+  "measurements": {
+    "before_snapshot_change": {
+      "cleanup_full_tracking_snapshot": {
+        "samples": 7,
+        "p50_ms": 21.115542389452457,
+        "p95_ms": 26.373458560556173,
+        "python_peak_mib": 2.154529571533203,
+        "queries": 5,
+        "tracking_bytes": 1056240,
+        "order_rows": 1,
+        "market_state_rows": 1
+      }
+    },
+    "paired_full_and_projected": {
+      "cleanup_full_tracking_snapshot": {
+        "samples": 7,
+        "p50_ms": 22.74104068055749,
+        "p95_ms": 24.314834270626307,
+        "python_peak_mib": 2.154484748840332,
+        "queries": 5,
+        "tracking_bytes": 1056240,
+        "order_rows": 1,
+        "market_state_rows": 1
+      },
+      "cleanup_projected_tracking_snapshot": {
+        "samples": 7,
+        "p50_ms": 10.335250291973352,
+        "p95_ms": 11.887624859809875,
+        "python_peak_mib": 0.056412696838378906,
+        "queries": 4,
+        "tracking_bytes": 0,
+        "order_rows": 1,
+        "market_state_rows": 0
+      }
+    },
+    "timing_is_gate": false,
+    "allocation_is_retained_memory": false,
+    "snapshot_source_before_sha256": "2d95dca80c4297f1b0b6ffb2f4f351f7efa95a28737aa82d7d8d797e5f1f39c0",
+    "snapshot_source_after_sha256": "87f029ba2f89b2ab0cb9faf740480651833222098ac2d4d9050f36f1453e4051"
+  },
+  "source_sha256": {
+    "hummingbot/cli/credential_disconnect.py": "9d237072ee34a7dd03674fc776366d654fc851abb36b2a2006b03b565dbfec02",
+    "hummingbot/model/credential_cleanup.py": "87f029ba2f89b2ab0cb9faf740480651833222098ac2d4d9050f36f1453e4051",
+    "hummingbot/model/credential_store.py": "211b20923e3330f0cca7f5dbcbbddd3b902c410c80e587bd87ec3287a5307ab3",
+    "hummingbot/cli/credential_cleanup_runtime.py": "16530ab4489bceabd24afb619d00e634f822a77eb52f6b510a4f08f1cb2e383d",
+    "hummingbot/core/bot_ownership.py": "ab0d8f1fa4a682d7ca401798961ddc42b783397ee73407d2bf5cd8f4bed11064",
+    "test/integration/postgres/test_cleanup_owner_transitions.py": "731d376c5f096fe41fbbd58b5f0e1a1e976558f3c73fc2aa77aef5726fac64df",
+    "test/integration/postgres/test_cleanup_shutdown_failures.py": "1781f064801dab4c50c9a99fde7aaf008036f703e41f8d20b9a28f462489eaa2",
+    "test/integration/postgres/test_cleanup_snapshot_projection.py": "5d07786ae449ea291cd1e42c3a68d1ea3863fcf081e8ab3d8cba96a282cb974a",
+    "test/hummingbot/cli/test_service_credential_disconnect.py": "48045b1de0b873565ecbee3aea6ab51ac551bfcaaead3631c5333fbf86ccc3c4",
+    "scripts/mm_cleanup_faults.py": "8fbd74b3b810e0049a8a9dd9040fc30f1a7084fdde72fc927410ea688fd054b2",
+    "scripts/test_e2e_offline.py": "d48e5173505f3a84fb9190c058d5fc689afd087684830185c5e8635a144063a9",
+    "test/e2e/offline/exchange.py": "549fe9822fb5eecf9a83b4c78760679ca8bddb6d6aa52536bc3c8f1b0017bb79"
+  },
+  "logs": [
+    {
+      "scope": "owner_snapshot_red",
+      "path": "/tmp/hbot-cleanup-owner-red.log",
+      "sha256": "1080112e144ba732f7f486b3951c8bfd206d4cebece0f2d15e25dbb11209f058",
+      "exit_code": 1,
+      "summaries": [
+        "4 failed, 472 deselected, 6 warnings in 7.02s"
+      ],
+      "failed_tests": [
+        "FAILED test/integration/postgres/test_cleanup_owner_transitions.py::test_cleanup_lost_owner_stops_without_generic_error_and_replacement_resumes[cancel]",
+        "FAILED test/integration/postgres/test_cleanup_owner_transitions.py::test_cleanup_lost_owner_stops_without_generic_error_and_replacement_resumes[close]",
+        "FAILED test/integration/postgres/test_cleanup_owner_transitions.py::test_cleanup_lost_owner_stops_without_generic_error_and_replacement_resumes[verification_cancel]",
+        "FAILED test/integration/postgres/test_cleanup_owner_transitions.py::test_cleanup_lost_owner_stops_without_generic_error_and_replacement_resumes[detach]"
+      ]
+    },
+    {
+      "scope": "owner_snapshot_green",
+      "path": "/tmp/hbot-cleanup-owner-green.log",
+      "sha256": "4d2a58fc2f3a782e4ff95564ba5e70253e8a2e015335b954a02aa7d03f63b3bc",
+      "exit_code": 0,
+      "summaries": [
+        "17 passed, 459 deselected, 6 warnings in 18.35s"
+      ],
+      "failed_tests": []
+    },
+    {
+      "scope": "shutdown_pg",
+      "path": "/tmp/hbot-cleanup-shutdown-boundaries.log",
+      "sha256": "708e6efaf987163a4a92f9b7c7cf1e33339ef44349a4cdff8b7019ff469658f5",
+      "exit_code": 0,
+      "summaries": [
+        "3 passed, 477 deselected, 6 warnings in 5.81s"
+      ],
+      "failed_tests": []
+    },
+    {
+      "scope": "shutdown_host",
+      "path": "/tmp/hbot-cleanup-shutdown-host.log",
+      "sha256": "b92df4b7595e47a57b26c0903ec045426c12aa5109a7b1a423d7201445a85175",
+      "exit_code": 0,
+      "summaries": [
+        "7 passed, 3 warnings in 2.26s"
+      ],
+      "failed_tests": []
+    },
+    {
+      "scope": "snapshot_before",
+      "path": "/tmp/hbot-cleanup-snapshot-before.log",
+      "sha256": "11982ae1cde9ccb37813bef23875430527f906688a054a3fd4b4dd3b1588ab34",
+      "exit_code": 0,
+      "summaries": [
+        "1 passed, 476 deselected, 6 warnings in 4.85s"
+      ],
+      "failed_tests": []
+    },
+    {
+      "scope": "projection_red",
+      "path": "/tmp/hbot-cleanup-projection-red.log",
+      "sha256": "006dfca6a20aa04ab57bc7c63cd3afbb52cf9b134e55dd118355af390c131a42",
+      "exit_code": 1,
+      "summaries": [
+        "1 failed, 480 deselected, 6 warnings in 4.19s"
+      ],
+      "failed_tests": [
+        "FAILED test/integration/postgres/test_cleanup_snapshot_projection.py::test_cleanup_snapshot_can_omit_unused_tracking_json_without_changing_authority_or_ledger"
+      ]
+    },
+    {
+      "scope": "projection_green",
+      "path": "/tmp/hbot-cleanup-projection-green.log",
+      "sha256": "c59d0888aa5b3ea595899ad771558830644b3076445101f933d74e15d20536c7",
+      "exit_code": 0,
+      "summaries": [
+        "12 passed, 479 deselected, 6 warnings in 14.83s"
+      ],
+      "failed_tests": []
+    },
+    {
+      "scope": "combined_targeted",
+      "path": "/tmp/hbot-cleanup-state-targeted-green.log",
+      "sha256": "2ae14c753d26f61deab7e0f706911d304d69c7af18d9a9556c92c16ec64a8a08",
+      "exit_code": 0,
+      "summaries": [
+        "33 passed, 459 deselected, 6 warnings in 34.53s"
+      ],
+      "failed_tests": []
+    },
+    {
+      "scope": "native_owner_red",
+      "path": "/tmp/hbot-cleanup-native-owner-red.log",
+      "sha256": "ff60110adc02656eb85b72ca1cb438ccb1605a2d95c8d99212dc2d2e7f3683b2",
+      "exit_code": 1,
+      "summaries": [
+        "4 failed, 492 deselected, 6 warnings in 7.24s"
+      ],
+      "failed_tests": [
+        "FAILED test/integration/postgres/test_cleanup_owner_transitions.py::test_cleanup_lost_owner_stops_without_generic_error_and_replacement_resumes[native_exception-cancel]",
+        "FAILED test/integration/postgres/test_cleanup_owner_transitions.py::test_cleanup_lost_owner_stops_without_generic_error_and_replacement_resumes[native_exception-close]",
+        "FAILED test/integration/postgres/test_cleanup_owner_transitions.py::test_cleanup_lost_owner_stops_without_generic_error_and_replacement_resumes[native_exception-verification_cancel]",
+        "FAILED test/integration/postgres/test_cleanup_owner_transitions.py::test_cleanup_lost_owner_stops_without_generic_error_and_replacement_resumes[native_exception-detach]"
+      ]
+    },
+    {
+      "scope": "native_owner_green",
+      "path": "/tmp/hbot-cleanup-native-owner-green.log",
+      "sha256": "158b162b519b77080dab1dd9088dc553ef49d8fb4c686122f0eef8208cb7ace5",
+      "exit_code": 0,
+      "summaries": [
+        "8 passed, 488 deselected, 6 warnings in 12.58s"
+      ],
+      "failed_tests": []
+    },
+    {
+      "scope": "intermediate_native",
+      "path": "/tmp/hbot-cleanup-state-final-native.log",
+      "sha256": "ab18ad53e1583e09af3150df47ef22a8c9af5402b9c6949abcfba070bd37a145",
+      "exit_code": 0,
+      "summaries": [
+        "202 passed, 19 warnings in 11.99s",
+        "11 passed, 1 warning in 1.33s",
+        "1755 passed, 33 warnings, 11 subtests passed in 71.71s (0:01:11)",
+        "753 passed, 14 warnings in 76.48s (0:01:16)"
+      ],
+      "failed_tests": []
+    },
+    {
+      "scope": "intermediate_postgres",
+      "path": "/tmp/hbot-cleanup-state-final-postgres.log",
+      "sha256": "6f74e87cf118c547f413b632c1d3ba7249b60c0a5091329d019159cd9cad0d62",
+      "exit_code": 0,
+      "summaries": [
+        "124 passed, 368 deselected, 6 warnings in 166.36s (0:02:46)"
+      ],
+      "failed_tests": []
+    },
+    {
+      "scope": "intermediate_build",
+      "path": "/tmp/hbot-cleanup-state-build.log",
+      "sha256": "96b0b7ff4f82cf52002b3d60f6e1360b738114c7b64ce517550ef289582654ab",
+      "exit_code": 0,
+      "summaries": [],
+      "failed_tests": []
+    },
+    {
+      "scope": "intermediate_e2e",
+      "path": "/tmp/hbot-cleanup-state-e2e.log",
+      "sha256": "b2012dbc95512d4a39b9462c31d9df344567d5719e6f665fba0510ba85940df2",
+      "exit_code": 0,
+      "summaries": [],
+      "failed_tests": []
+    },
+    {
+      "scope": "final_native",
+      "path": "/tmp/hbot-cleanup-state-complete-native.log",
+      "sha256": "995f7443e04e0e0769896ab741454c6dda0a6ede8ae394c54a6539123a042806",
+      "exit_code": 0,
+      "summaries": [
+        "202 passed, 19 warnings in 14.84s",
+        "11 passed, 1 warning in 2.01s",
+        "1755 passed, 33 warnings, 11 subtests passed in 85.27s (0:01:25)",
+        "753 passed, 14 warnings in 79.75s (0:01:19)"
+      ],
+      "failed_tests": []
+    },
+    {
+      "scope": "final_postgres",
+      "path": "/tmp/hbot-cleanup-state-complete-postgres.log",
+      "sha256": "287da8639368f2cb0f26f55ede7a018eaccecaaa15dff29e78a6c22c56cfb53a",
+      "exit_code": 0,
+      "summaries": [
+        "128 passed, 368 deselected, 6 warnings in 243.27s (0:04:03)"
+      ],
+      "failed_tests": []
+    },
+    {
+      "scope": "final_build",
+      "path": "/tmp/hbot-cleanup-state-complete-build.log",
+      "sha256": "0a702143ad86372c7cf449d710cae10951269e8ff797175601c83e324c8b6b76",
+      "exit_code": 0,
+      "summaries": [],
+      "failed_tests": []
+    },
+    {
+      "scope": "final_e2e",
+      "path": "/tmp/hbot-cleanup-state-complete-e2e.log",
+      "sha256": "69d33e706f87206b91798c86202fc3a9ef02aa82898e477748072e288b348053",
+      "exit_code": 0,
+      "summaries": [],
+      "failed_tests": []
+    }
+  ],
+  "image_results": [
+    {
+      "scope": "intermediate_7a4089a61",
+      "path": "build/e2e-offline/20261106-172559-f8f009/result.json",
+      "sha256": "50b7006c7134fabe722674166e6b0582f45862073bfecfad3339571457e6710d",
+      "result": {
+        "image_id": "sha256:6d9ddbf99dddfa4ddb646dd00cb71b192be1779347ad8848de9f37eeb5054e5b",
+        "registry_manifest_digest": "sha256:12297f3571ead64d5d11bc8ad1db32a438d53b9f81e7167cbff44ae35d244d1c",
+        "image_size_bytes": 1374440146,
+        "image_size_budget_bytes": 1610612736,
+        "architecture": "amd64",
+        "config_sha256": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "fixture_sha256": {
+          "999_offline_upgrade.sql": "b1252d16a9aeea808d6bd3857f6613fd53cc23809f152b62fd2d5bd7bd4d1a30",
+          "availability_service.py": "eda43c991ef7eea6174eef67b011ce96988de970a61c6ecaa30d8d18d7441073",
+          "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+          "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+          "exchange.py": "549fe9822fb5eecf9a83b4c78760679ca8bddb6d6aa52536bc3c8f1b0017bb79",
+          "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+          "life_mm_profiles.yaml": "bcfa4738d72a721bdeb5969039dbcd08102a1ca0ff926a2c0ede6946935e6346",
+          "pmm-revised.yml": "44e1cdd0ea6113f620427e0396fb0d8de22ab4e7a4bdac9561d42a02f7277f63",
+          "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+          "runtime_smoke.py": "b81a51ad11d3e7e0e90af3532cfc72aee6a47d4c7f57b186825456034fa2cef1",
+          "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132"
+        },
+        "harness_source_sha256": {
+          "test_e2e_offline.py": "d48e5173505f3a84fb9190c058d5fc689afd087684830185c5e8635a144063a9",
+          "mm_managed_environment.py": "6d01f7f4ebf7e5783ac852f972a7f7ab32b088a4acc611c668d3f58aced26a52",
+          "mm_managed_lifecycle.py": "5c6256c8fa4d0fed07e85c34d1fb8465eebcb6add577c2909b1dedab0af37f8b",
+          "mm_cleanup_faults.py": "8fbd74b3b810e0049a8a9dd9040fc30f1a7084fdde72fc927410ea688fd054b2"
+        },
+        "runtime_smoke": {
+          "passed": true,
+          "numba_jit": true,
+          "ta_lib": true,
+          "tls_trust": true,
+          "connector_count": 63,
+          "sql_scripts": 20,
+          "build_tools_absent": true,
+          "cli_version": "hbot 2.17.0",
+          "environment_bytes": 1273069153,
+          "service_logging": {
+            "passed": true,
+            "all_severities": true,
+            "network_warning": true,
+            "utc_context": true,
+            "redaction": true,
+            "startup_failure_json": true,
+            "python_warning_json": true,
+            "sql_parameters_suppressed": true
+          }
+        },
+        "scenarios": {
+          "managed-close-partial-ws": {
+            "passed": true,
+            "metrics": {
+              "managed-lifecycle_startup_s": 19.854,
+              "lifecycle_shutdown_s": 1.647,
+              "partial-cleanup-restart_startup_s": 27.921,
+              "restart_shutdown_s": 1.795,
+              "managed_partial_cleanup": {
+                "operation_id": "32b88716-ccff-4b75-aa21-ff7ac17c60bd",
+                "outcome": "live",
+                "partial_close_id": "93027a12dac34fBCBLEUT0e62a4dfa3a",
+                "wire_filled": "0.40000",
+                "base_remaining": ".006",
+                "credential_retained": true,
+                "physical_attempts_before_release": 1,
+                "ws_connections_dropped": 4,
+                "ledger": {
+                  "unique_exchange_fills": 6,
+                  "unique_recorder_fills": 6,
+                  "fees_matched": true,
+                  "positions_flat": true,
+                  "physical_close_attempts": 2
+                },
+                "audit": {
+                  "events": 9,
+                  "actor": "basic:operator",
+                  "root": "32b88716-ccff-4b75-aa21-ff7ac17c60bd",
+                  "children": []
+                },
+                "no_duplicate_fill": true,
+                "residual_only": true,
+                "restart_removed": true,
+                "local_kms": true,
+                "actual_okx": false
+              }
+            }
+          },
+          "managed-close-partial-cancel": {
+            "passed": true,
+            "metrics": {
+              "managed-lifecycle_startup_s": 22.313,
+              "lifecycle_shutdown_s": 2.065,
+              "partial-cleanup-restart_startup_s": 19.872,
+              "restart_shutdown_s": 1.255,
+              "managed_partial_cleanup": {
+                "operation_id": "87e027e9-8927-4b9c-812a-17ce6d96dc30",
+                "outcome": "canceled",
+                "partial_close_id": "93027a12dac34fBCSLEUTa760d790541",
+                "wire_filled": "0.40000",
+                "base_remaining": ".006",
+                "credential_retained": true,
+                "physical_attempts_before_release": 1,
+                "ws_connections_dropped": 4,
+                "ledger": {
+                  "unique_exchange_fills": 6,
+                  "unique_recorder_fills": 6,
+                  "fees_matched": true,
+                  "positions_flat": true,
+                  "physical_close_attempts": 3
+                },
+                "audit": {
+                  "events": 14,
+                  "actor": "basic:operator",
+                  "root": "87e027e9-8927-4b9c-812a-17ce6d96dc30",
+                  "children": []
+                },
+                "no_duplicate_fill": true,
+                "residual_only": true,
+                "restart_removed": true,
+                "local_kms": true,
+                "actual_okx": false
+              }
+            }
+          },
+          "managed-close-partial-live-crash": {
+            "passed": true,
+            "metrics": {
+              "managed-lifecycle_startup_s": 24.844,
+              "lifecycle_shutdown_s": 1.446,
+              "partial-cleanup-restart_startup_s": 22.6,
+              "restart_shutdown_s": 1.619,
+              "managed_partial_cleanup": {
+                "operation_id": "1ce793a5-05ec-4682-8fd4-513d2c4cbae1",
+                "outcome": "live",
+                "partial_close_id": "93027a12dac34fBCBLEUT35f8dd5aa63",
+                "wire_filled": "0.40000",
+                "base_remaining": ".006",
+                "credential_retained": true,
+                "physical_attempts_before_release": 1,
+                "ws_connections_dropped": 4,
+                "hard_kill_exit_code": 137,
+                "generation_before": 1,
+                "generation_after": 2,
+                "ledger": {
+                  "unique_exchange_fills": 6,
+                  "unique_recorder_fills": 6,
+                  "fees_matched": true,
+                  "positions_flat": true,
+                  "physical_close_attempts": 3
+                },
+                "audit": {
+                  "events": 13,
+                  "actor": "basic:operator",
+                  "root": "1ce793a5-05ec-4682-8fd4-513d2c4cbae1",
+                  "children": []
+                },
+                "no_duplicate_fill": true,
+                "residual_only": true,
+                "restart_removed": true,
+                "local_kms": true,
+                "actual_okx": false
+              }
+            }
+          },
+          "managed-close-partial-cancel-crash": {
+            "passed": true,
+            "metrics": {
+              "managed-lifecycle_startup_s": 45.735,
+              "lifecycle_shutdown_s": 4.403,
+              "partial-cleanup-restart_startup_s": 40.313,
+              "restart_shutdown_s": 3.027,
+              "managed_partial_cleanup": {
+                "operation_id": "c7516a2d-fc0e-4d7f-a099-3d13213196ca",
+                "outcome": "canceled",
+                "partial_close_id": "93027a12dac34fBCBLEUT94df9f89277",
+                "wire_filled": "0.40000",
+                "base_remaining": ".006",
+                "credential_retained": true,
+                "physical_attempts_before_release": 1,
+                "ws_connections_dropped": 4,
+                "hard_kill_exit_code": 137,
+                "generation_before": 1,
+                "generation_after": 2,
+                "ledger": {
+                  "unique_exchange_fills": 6,
+                  "unique_recorder_fills": 6,
+                  "fees_matched": true,
+                  "positions_flat": true,
+                  "physical_close_attempts": 3
+                },
+                "audit": {
+                  "events": 16,
+                  "actor": "basic:operator",
+                  "root": "c7516a2d-fc0e-4d7f-a099-3d13213196ca",
+                  "children": []
+                },
+                "no_duplicate_fill": true,
+                "residual_only": true,
+                "restart_removed": true,
+                "local_kms": true,
+                "actual_okx": false
+              }
+            }
+          },
+          "managed-cleanup-fill-db-fault": {
+            "passed": true,
+            "metrics": {
+              "managed-lifecycle_startup_s": 35.439,
+              "lifecycle_shutdown_s": 2.871,
+              "database-cleanup-restart_startup_s": 36.373,
+              "restart_shutdown_s": 2.505,
+              "managed_cleanup_database_fault": {
+                "target": "fill",
+                "operation_id": "31434710-ca1b-475b-9701-3c2b888ae7a8",
+                "fault_attempts": 1,
+                "generation_before": 1,
+                "ciphertext_retained": true,
+                "false_success": false,
+                "stage": "action_required",
+                "reason_code": "cleanup_failed",
+                "unique_committed_fills": 3,
+                "ledger": {
+                  "unique_exchange_fills": 5,
+                  "unique_recorder_fills": 5,
+                  "fees_matched": true,
+                  "positions_flat": true,
+                  "physical_close_attempts": 2
+                },
+                "audit": {
+                  "events": 15,
+                  "actor": "basic:operator",
+                  "root": "31434710-ca1b-475b-9701-3c2b888ae7a8",
+                  "children": [
+                    [
+                      "e2e08499-bb94-4471-baba-e3ec6982c9e6",
+                      "credentials_cleanup_retry"
+                    ]
+                  ]
+                },
+                "recovery_process_replacement": true,
+                "restart_removed": true,
+                "local_kms": true,
+                "actual_okx": false
+              }
+            }
+          },
+          "managed-cleanup-removal-db-fault": {
+            "passed": true,
+            "metrics": {
+              "managed-lifecycle_startup_s": 40.929,
+              "lifecycle_shutdown_s": 3.906,
+              "database-cleanup-restart_startup_s": 25.152,
+              "restart_shutdown_s": 2.244,
+              "managed_cleanup_database_fault": {
+                "target": "removal",
+                "operation_id": "73c41ce0-6d05-439e-a37a-56d836fc0ca3",
+                "fault_attempts": 1,
+                "generation_before": 1,
+                "ciphertext_retained": true,
+                "false_success": false,
+                "stage": "waiting_for_dependency",
+                "reason_code": "database_unavailable",
+                "unique_committed_fills": 5,
+                "ledger": {
+                  "unique_exchange_fills": 5,
+                  "unique_recorder_fills": 5,
+                  "fees_matched": true,
+                  "positions_flat": true,
+                  "physical_close_attempts": 2
+                },
+                "audit": {
+                  "events": 15,
+                  "actor": "basic:operator",
+                  "root": "73c41ce0-6d05-439e-a37a-56d836fc0ca3",
+                  "children": []
+                },
+                "recovery_process_replacement": false,
+                "restart_removed": true,
+                "local_kms": true,
+                "actual_okx": false
+              }
+            }
+          }
+        },
+        "passed": true,
+        "release_scope_complete": false
+      }
+    },
+    {
+      "scope": "final_2f6cbd257",
+      "path": "build/e2e-offline/20261106-175344-1a6055/result.json",
+      "sha256": "ef8e40ab7fe35cf09b18bf014fe51f90a2f5b7ea33c93184b05776e9099826ad",
+      "result": {
+        "image_id": "sha256:f74d2a2abcad64dfdd9ad45c3491823c53a30f930da492b9c7c3ae3cb96526c8",
+        "registry_manifest_digest": "sha256:393cfc9f06d0d0c9942a32f56d6525f8d3662cadcc43dbf1a78740723783932f",
+        "image_size_bytes": 1374440316,
+        "image_size_budget_bytes": 1610612736,
+        "architecture": "amd64",
+        "config_sha256": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "fixture_sha256": {
+          "999_offline_upgrade.sql": "b1252d16a9aeea808d6bd3857f6613fd53cc23809f152b62fd2d5bd7bd4d1a30",
+          "availability_service.py": "eda43c991ef7eea6174eef67b011ce96988de970a61c6ecaa30d8d18d7441073",
+          "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+          "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+          "exchange.py": "549fe9822fb5eecf9a83b4c78760679ca8bddb6d6aa52536bc3c8f1b0017bb79",
+          "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+          "life_mm_profiles.yaml": "bcfa4738d72a721bdeb5969039dbcd08102a1ca0ff926a2c0ede6946935e6346",
+          "pmm-revised.yml": "44e1cdd0ea6113f620427e0396fb0d8de22ab4e7a4bdac9561d42a02f7277f63",
+          "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+          "runtime_smoke.py": "b81a51ad11d3e7e0e90af3532cfc72aee6a47d4c7f57b186825456034fa2cef1",
+          "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132"
+        },
+        "harness_source_sha256": {
+          "test_e2e_offline.py": "d48e5173505f3a84fb9190c058d5fc689afd087684830185c5e8635a144063a9",
+          "mm_managed_environment.py": "6d01f7f4ebf7e5783ac852f972a7f7ab32b088a4acc611c668d3f58aced26a52",
+          "mm_managed_lifecycle.py": "5c6256c8fa4d0fed07e85c34d1fb8465eebcb6add577c2909b1dedab0af37f8b",
+          "mm_cleanup_faults.py": "8fbd74b3b810e0049a8a9dd9040fc30f1a7084fdde72fc927410ea688fd054b2"
+        },
+        "runtime_smoke": {
+          "passed": true,
+          "numba_jit": true,
+          "ta_lib": true,
+          "tls_trust": true,
+          "connector_count": 63,
+          "sql_scripts": 20,
+          "build_tools_absent": true,
+          "cli_version": "hbot 2.17.0",
+          "environment_bytes": 1273069153,
+          "service_logging": {
+            "passed": true,
+            "all_severities": true,
+            "network_warning": true,
+            "utc_context": true,
+            "redaction": true,
+            "startup_failure_json": true,
+            "python_warning_json": true,
+            "sql_parameters_suppressed": true
+          }
+        },
+        "scenarios": {
+          "managed-close-partial-ws": {
+            "passed": true,
+            "metrics": {
+              "managed-lifecycle_startup_s": 21.372,
+              "lifecycle_shutdown_s": 2.207,
+              "partial-cleanup-restart_startup_s": 20.394,
+              "restart_shutdown_s": 1.374,
+              "managed_partial_cleanup": {
+                "operation_id": "9904fd1f-f7c8-4bdd-9680-aff56c0f46aa",
+                "outcome": "live",
+                "partial_close_id": "93027a12dac34fBCBLEUT099a33ef99a",
+                "wire_filled": "0.40000",
+                "base_remaining": ".006",
+                "credential_retained": true,
+                "physical_attempts_before_release": 1,
+                "ws_connections_dropped": 4,
+                "ledger": {
+                  "unique_exchange_fills": 6,
+                  "unique_recorder_fills": 6,
+                  "fees_matched": true,
+                  "positions_flat": true,
+                  "physical_close_attempts": 2
+                },
+                "audit": {
+                  "events": 9,
+                  "actor": "basic:operator",
+                  "root": "9904fd1f-f7c8-4bdd-9680-aff56c0f46aa",
+                  "children": []
+                },
+                "no_duplicate_fill": true,
+                "residual_only": true,
+                "restart_removed": true,
+                "local_kms": true,
+                "actual_okx": false
+              }
+            }
+          },
+          "managed-close-partial-cancel": {
+            "passed": true,
+            "metrics": {
+              "managed-lifecycle_startup_s": 25.852,
+              "lifecycle_shutdown_s": 2.1,
+              "partial-cleanup-restart_startup_s": 22.133,
+              "restart_shutdown_s": 1.485,
+              "managed_partial_cleanup": {
+                "operation_id": "3516a555-a509-4723-88ed-ca7e46384cdb",
+                "outcome": "canceled",
+                "partial_close_id": "93027a12dac34fBCSLEUT2814cf05730",
+                "wire_filled": "0.40000",
+                "base_remaining": ".006",
+                "credential_retained": true,
+                "physical_attempts_before_release": 1,
+                "ws_connections_dropped": 4,
+                "ledger": {
+                  "unique_exchange_fills": 6,
+                  "unique_recorder_fills": 6,
+                  "fees_matched": true,
+                  "positions_flat": true,
+                  "physical_close_attempts": 3
+                },
+                "audit": {
+                  "events": 14,
+                  "actor": "basic:operator",
+                  "root": "3516a555-a509-4723-88ed-ca7e46384cdb",
+                  "children": []
+                },
+                "no_duplicate_fill": true,
+                "residual_only": true,
+                "restart_removed": true,
+                "local_kms": true,
+                "actual_okx": false
+              }
+            }
+          },
+          "managed-close-partial-live-crash": {
+            "passed": true,
+            "metrics": {
+              "managed-lifecycle_startup_s": 20.591,
+              "lifecycle_shutdown_s": 2.041,
+              "partial-cleanup-restart_startup_s": 21.809,
+              "restart_shutdown_s": 2.746,
+              "managed_partial_cleanup": {
+                "operation_id": "ef5954a1-aeb2-4e44-ac00-1462ad432ffb",
+                "outcome": "live",
+                "partial_close_id": "93027a12dac34fBCSLEUT50a89a89b78",
+                "wire_filled": "0.40000",
+                "base_remaining": ".006",
+                "credential_retained": true,
+                "physical_attempts_before_release": 1,
+                "ws_connections_dropped": 4,
+                "hard_kill_exit_code": 137,
+                "generation_before": 1,
+                "generation_after": 2,
+                "ledger": {
+                  "unique_exchange_fills": 6,
+                  "unique_recorder_fills": 6,
+                  "fees_matched": true,
+                  "positions_flat": true,
+                  "physical_close_attempts": 3
+                },
+                "audit": {
+                  "events": 13,
+                  "actor": "basic:operator",
+                  "root": "ef5954a1-aeb2-4e44-ac00-1462ad432ffb",
+                  "children": []
+                },
+                "no_duplicate_fill": true,
+                "residual_only": true,
+                "restart_removed": true,
+                "local_kms": true,
+                "actual_okx": false
+              }
+            }
+          },
+          "managed-close-partial-cancel-crash": {
+            "passed": true,
+            "metrics": {
+              "managed-lifecycle_startup_s": 22.51,
+              "lifecycle_shutdown_s": 2.405,
+              "partial-cleanup-restart_startup_s": 23.511,
+              "restart_shutdown_s": 1.637,
+              "managed_partial_cleanup": {
+                "operation_id": "5edc8a20-c2aa-4888-8192-a7da647ddbee",
+                "outcome": "canceled",
+                "partial_close_id": "93027a12dac34fBCSLEUT0a0b4a7799b",
+                "wire_filled": "0.40000",
+                "base_remaining": ".006",
+                "credential_retained": true,
+                "physical_attempts_before_release": 1,
+                "ws_connections_dropped": 4,
+                "hard_kill_exit_code": 137,
+                "generation_before": 1,
+                "generation_after": 2,
+                "ledger": {
+                  "unique_exchange_fills": 6,
+                  "unique_recorder_fills": 6,
+                  "fees_matched": true,
+                  "positions_flat": true,
+                  "physical_close_attempts": 3
+                },
+                "audit": {
+                  "events": 14,
+                  "actor": "basic:operator",
+                  "root": "5edc8a20-c2aa-4888-8192-a7da647ddbee",
+                  "children": []
+                },
+                "no_duplicate_fill": true,
+                "residual_only": true,
+                "restart_removed": true,
+                "local_kms": true,
+                "actual_okx": false
+              }
+            }
+          },
+          "managed-cleanup-fill-db-fault": {
+            "passed": true,
+            "metrics": {
+              "managed-lifecycle_startup_s": 20.915,
+              "lifecycle_shutdown_s": 1.752,
+              "database-cleanup-restart_startup_s": 22.944,
+              "restart_shutdown_s": 1.492,
+              "managed_cleanup_database_fault": {
+                "target": "fill",
+                "operation_id": "4a7f67b0-f052-40ce-a935-6b4cc130cf50",
+                "fault_attempts": 1,
+                "generation_before": 1,
+                "ciphertext_retained": true,
+                "false_success": false,
+                "stage": "action_required",
+                "reason_code": "cleanup_failed",
+                "unique_committed_fills": 3,
+                "ledger": {
+                  "unique_exchange_fills": 5,
+                  "unique_recorder_fills": 5,
+                  "fees_matched": true,
+                  "positions_flat": true,
+                  "physical_close_attempts": 2
+                },
+                "audit": {
+                  "events": 15,
+                  "actor": "basic:operator",
+                  "root": "4a7f67b0-f052-40ce-a935-6b4cc130cf50",
+                  "children": [
+                    [
+                      "3d087faa-e33f-451c-9d9d-6d03e269c4a5",
+                      "credentials_cleanup_retry"
+                    ]
+                  ]
+                },
+                "recovery_process_replacement": true,
+                "restart_removed": true,
+                "local_kms": true,
+                "actual_okx": false
+              }
+            }
+          },
+          "managed-cleanup-removal-db-fault": {
+            "passed": true,
+            "metrics": {
+              "managed-lifecycle_startup_s": 21.551,
+              "lifecycle_shutdown_s": 2.014,
+              "database-cleanup-restart_startup_s": 23.253,
+              "restart_shutdown_s": 1.843,
+              "managed_cleanup_database_fault": {
+                "target": "removal",
+                "operation_id": "2996e781-331b-4ad3-9e11-212e5eb68dd4",
+                "fault_attempts": 1,
+                "generation_before": 1,
+                "ciphertext_retained": true,
+                "false_success": false,
+                "stage": "waiting_for_dependency",
+                "reason_code": "database_unavailable",
+                "unique_committed_fills": 5,
+                "ledger": {
+                  "unique_exchange_fills": 5,
+                  "unique_recorder_fills": 5,
+                  "fees_matched": true,
+                  "positions_flat": true,
+                  "physical_close_attempts": 2
+                },
+                "audit": {
+                  "events": 15,
+                  "actor": "basic:operator",
+                  "root": "2996e781-331b-4ad3-9e11-212e5eb68dd4",
+                  "children": []
+                },
+                "recovery_process_replacement": false,
+                "restart_removed": true,
+                "local_kms": true,
+                "actual_okx": false
+              }
+            }
+          }
+        },
+        "passed": true,
+        "release_scope_complete": false
+      }
+    }
+  ],
+  "commands": {
+    "build": "make build-cloudrun CLOUDRUN_IMAGE=hummingbot-cloudrun:cleanup-state BUILD_JOBS=2",
+    "native": "make test-cloudrun-regression PYTHON=/opt/homebrew/Caskroom/miniforge/base/envs/hummingbot/bin/python",
+    "postgres": "python scripts/test_postgres.py -k 'cleanup or credential or disconnect_coordinator'",
+    "image_matrix": "python scripts/test_e2e_offline.py --image hummingbot-cloudrun:cleanup-state --scenario managed-cleanup-faults --trading-env demo"
+  },
+  "qualifications": [
+    "Initial snapshot-loss Red is four TypeError misclassifications. Additional four Red cases independently cover actual OwnershipLost class lacking code.",
+    "Projection Red initially fails because the private projection option does not yet exist; full-payload cost measured beforehand.",
+    "Owner/shutdown fault injection uses real PG with fake exchange runtime; host tests verify restart signal. Native image matrix separately exercises WS/SQL/crash/restart, not injected native shutdown/advisory-session failures.",
+    "Paired seven-sample fixture contains one order and 256 synthetic tracking entries; latency/allocation measured locally, not Cloud Run/MM performance, retained RSS or prior probe cause.",
+    "Intermediate and targeted results are overlapping, not additive and not substitutes for final-image results.",
+    "Full native regression but related PG only; no new full image/upgrade/retention/hour gate.",
+    "Synthetic fills, local KEK. Existing Demo, actual OKX and real Google/GCP untouched.",
+    "Intentional fault windows may log errors/retain HALTs; no ledger repair/health flag reset/risk-HALT bypass.",
+    "Disposable test and registry containers removed; persistent volumes and candidate/rollback images preserved."
+  ]
+}

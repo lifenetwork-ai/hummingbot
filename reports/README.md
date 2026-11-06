@@ -4,6 +4,15 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Cleanup authority/shutdown/snapshot review complete:** final image `f74d2a2a…`
+  passes six recovery scenarios; full native 2,721 + 11 subtests and related PG 128
+  pass. Twenty-six new cases protect missing snapshots/native ownership loss,
+  shutdown/restart truth and unchanged row locks. Large-fixture tracking payload
+  falls 1.06 MB → 0, queries 5 → 4, paired p50 22.74 → 10.34 ms. No MM latency,
+  previous probe-cause, new hour gate or actual Demo claim.
+  [Report](performance/admin-cleanup-state-review.md),
+  [evidence](performance/admin-cleanup-state-evidence.json).
+
 - **Cleanup polling optimized and timeout classification fixed:** image `8cdadb21…`
   passes six native-image recovery cases; final native 2,719 + 11 subtests and related
   PG 104 pass. Eleven new tests protect first/final terminal readback, delayed fills,

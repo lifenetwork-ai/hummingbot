@@ -74,14 +74,59 @@ succeeds after completion. This verifies the control lock is retained; the chang
 does not remove the ownership fence to improve timings. Projected/full position,
 order, receipt and state values match except the separately sampled DB clock.
 
-## Intermediate regression; final-source/image verification pending
+## Final verification
 
-Intermediate source `7a4089a61` passes full native regression: **2,721 tests plus 11 subtests**.
-Related PostgreSQL scope passes **124 tests**. Twenty-two cases are added across
-those phases (four owner-transition PG, three shutdown PG, thirteen snapshot PG and
-two native host-fence cases). The earlier targeted/benchmark runs overlap these
-counts and are not additive. Rebuilt-image cleanup recovery remains pending. No
-new image, actual OKX, external Google/GCP, existing-Demo, full release or hour-soak
-acceptance is claimed by these source results. Four further native-exception PG
-cases extend the new coverage to 26 cases; final-source broad/image checks remain
-pending after that classification fix.
+Final source `2f6cbd257` passes full native regression: **2,721 tests plus 11
+subtests**. Related PostgreSQL scope passes **128 tests**. Twenty-six cases are
+added across these phases (eight owner-transition PG, three shutdown PG, thirteen
+snapshot PG and two native host-fence cases). Earlier targeted/benchmark and
+intermediate `7a4089a61` native 2,721 / PG 124 runs overlap these counts and are not
+additive.
+
+Canonical `cloudrun` / `linux/amd64` image for source `2f6cbd257`:
+
+- Tag: `hummingbot-cloudrun:cleanup-state`.
+- Image/config ID: `sha256:f74d2a2abcad64dfdd9ad45c3491823c53a30f930da492b9c7c3ae3cb96526c8`.
+- Manifest: `sha256:393cfc9f06d0d0c9942a32f56d6525f8d3662cadcc43dbf1a78740723783932f`.
+- Size: 1,374,440,316 bytes, inside the unchanged 1.5 GiB budget.
+- Raw result: `build/e2e-offline/20261106-175344-1a6055/result.json`.
+
+Packaged coordinator/model file hashes match the checked-in source. Runtime smoke
+(ABI/JIT/TLS/SDK/size) and **six of six native-image recovery scenarios pass**:
+
+| Case | Venue / recorder fills | Physical close attempts |
+| --- | --- | --- |
+| Partial live + WS loss | 6 / 6 | 2 |
+| Partial cancelled + WS loss | 6 / 6 | 3 |
+| Partial live + SIGKILL/restart | 6 / 6 | 3 |
+| Partial cancelled + SIGKILL/restart | 6 / 6 | 3 |
+| PG fill-write fault / replacement / normal Retry path | 5 / 5 | 2 |
+| PG removal-audit fault / dependency retry | 5 / 5 | 2 |
+
+Each case has a separate test database/simulator; seed fills are included. Exact
+fees, flat managed perpetual exposure, retained spot/companion credentials,
+verified selected-key removal and another stopped restart all pass. Counts include
+every physical close POST, not only accepted orders. Native crash recovery also
+verifies full tracking snapshots remain available to runtime preparation. No
+ledger repair, risk-HALT reset or persistence-health bypass is performed.
+
+The intermediate `7a4089a61` image `6d9ddbf9…` separately passes the same six
+scenarios at `build/e2e-offline/20261106-172559-f8f009/result.json`; it predates
+native-exception classification and is not substituted for final-image evidence.
+
+Owner-generation/exception and shutdown-failure injections are PG/coordinator/host
+tests, not actual native shutdown/advisory-session faults injected into this image.
+The image matrix covers the existing real-PG, WS and physical crash stimuli.
+Timing/allocation results are from the local synthetic fixture, not an end-to-end
+MM benchmark or retained-memory test. Fault windows may log errors and retain
+recovery HALTs; no zero-error-log claim is made. Earlier qualified probe results
+are unchanged and are not explained by these measurements.
+
+All fills are synthetic; existing Demo and real Google/GCP/OKX are untouched. This
+is targeted acceptance (`release_scope_complete=false`), not a new full-image,
+upgrade, retention or hour-soak release gate. Disposable test/registry containers
+are removed; candidate/rollback images and persistent volumes are preserved.
+
+[Portable evidence](admin-cleanup-state-evidence.json) preserves original and
+paired measurements, source hashes, Red/Green summaries, final broad regression
+and both distinct image results.

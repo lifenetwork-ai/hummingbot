@@ -1030,8 +1030,17 @@ new full/hour gate, real Google/GCP or existing Demo changes. See the
   fixture before optimizing; avoid loading unused tracking JSON if justified.
 - [x] Preserve full tracking recovery for runtime preparation and all existing
   owner/control/operation fences; verify matching snapshots and stale-owner rejection.
-- [ ] Run final related/native and rebuilt-image recovery checks, record scoped
+- [x] Run final related/native and rebuilt-image recovery checks, record scoped
   results, update documentation/checklists and commit completed phases.
+
+Final source `2f6cbd257` / image `f74d2a2a…`: full native 2,721 + 11 subtests,
+related PG 128 and six native-image recovery cases pass. Twenty-six additional
+cases cover authority loss, shutdown failures and snapshot projection. On the
+controlled 1 MiB checkpoint, queries drop 5 → 4 and paired p50 22.74 → 10.34 ms,
+with owner/control locks retained. This is targeted local/offline verification,
+not new full/hour or external Google/GCP/Demo acceptance. See the
+[state review](../../reports/performance/admin-cleanup-state-review.md) and
+[portable evidence](../../reports/performance/admin-cleanup-state-evidence.json).
 
 ## Implementation-readiness review
 

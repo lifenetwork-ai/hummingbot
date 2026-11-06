@@ -464,3 +464,31 @@ real Google/GCP/OKX or existing Demo interaction is claimed. Test containers are
 removed; candidate/rollback images and persistent volumes are retained. See the
 [report](../performance/admin-cleanup-polling.md) and
 [evidence](../performance/admin-cleanup-polling-evidence.json).
+
+### Cleanup authority, shutdown failures and measured snapshot projection — 2026-11-06
+
+Completed the three follow-ups in order, with phase commits `f9a44a2af`,
+`9e3a71f66` and `7a4089a61`. Missing mandatory snapshots now report lost authority;
+shutdown failures retain the intentional engine-restart fence and durable outcome.
+Measurement justifies omitting unused tracking JSON from coordinator snapshots,
+while default/runtime-preparation reads remain full and all row/owner/control
+fences stay in place. Paired 1 MiB fixture: queries 5 → 4, tracking 1,056,240 → 0 bytes,
+p50 22.74 → 10.34 ms, Python allocation peak 2.154 → 0.056 MiB. These are fixture
+measurements, not MM latency or retained-memory claims.
+
+A later audit reproduces four additional native `OwnershipLost` misclassifications;
+commit `2f6cbd257` handles that actual exception explicitly. All eight ownership
+boundary cases pass. The intermediate source/image results are retained separately,
+not used as substitutes for the final classification fix.
+
+Final source `2f6cbd257`, image `f74d2a2a…`, matching three packaged file hashes:
+full native 2,721 + 11 subtests, related PG 128 and six final-image native recovery
+cases pass. Twenty-six new cases include eight owner PG, three shutdown PG,
+thirteen snapshot PG and two host-fence cases. The intermediate `7a4089a61` image
+also passes six cases but predates native-exception classification. Synthetic
+fills/fees/positions and every physical close attempt reconcile; spot/companion
+keys and verified removal/restart remain correct. No real Demo/OKX/Google/GCP,
+new full/hour release gate, ledger repair or HALT/health bypass is claimed. Test
+containers are removed; persistent volumes and candidate/rollback images remain.
+See the [state review](../performance/admin-cleanup-state-review.md) and
+[portable evidence](../performance/admin-cleanup-state-evidence.json).
