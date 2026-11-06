@@ -283,6 +283,10 @@ async def main(args):
         auxiliary_requested, auxiliary_completed, auxiliary_latencies, auxiliary_statuses = 0, 0, [], Counter()
         fill_candidate_conflicts = 0
         last_completion, completed_in_window = None, 0
+        # Financial ledger serialization and initial status preparation are not
+        # part of the offered book workload. Use the simulator's existing cheap
+        # atomic counter/monotonic endpoint, as the burst measurement already does.
+        market_before = await exchange('/market-metrics')
         origin = time.monotonic()
         origin_utc = time.time()
         filling = True
@@ -426,6 +430,7 @@ async def main(args):
                 await asyncio.wait_for(security_task, timeout=15)
             except Exception as error:
                 errors.append(dict(path='security_workload', error=type(error).__name__))
+        market_after = await exchange('/market-metrics')
         after = await exchange("/ledger")
         drained = time.monotonic() - generation_end
         if all(not worker.cancelled() and not worker.cancelling() for worker in workers):
@@ -444,9 +449,12 @@ async def main(args):
                       queued_reads_at_generation_end=queued_at_end,
                       read_p50_ms=percentile(latencies, .5), read_p95_ms=percentile(latencies, .95), read_p99_ms=percentile(latencies, .99),
                       schedule_lag_p95_ms=percentile(schedule_lag, .95), unexpected_errors=len(errors), errors=errors[:30], statuses=dict(statuses),
-                      market_updates_per_second=(after["market_update_count"] - before["market_update_count"]) / (after["observed_at_monotonic"] - before["observed_at_monotonic"]),
-                      market_updates_sent=after["market_update_count"] - before["market_update_count"],
-                      market_measurement_seconds=after["observed_at_monotonic"] - before["observed_at_monotonic"],
+                      market_updates_per_second=(market_after["market_update_count"] - market_before["market_update_count"]) / (market_after["observed_at_monotonic"] - market_before["observed_at_monotonic"]),
+                      market_updates_sent=market_after["market_update_count"] - market_before["market_update_count"],
+                      market_measurement_seconds=market_after["observed_at_monotonic"] - market_before["observed_at_monotonic"],
+                      market_measurement_source="independent_market_metrics",
+                      market_before={key: market_before[key] for key in ('market_update_count', 'observed_at_monotonic')},
+                      market_after={key: market_after[key] for key in ('market_update_count', 'observed_at_monotonic')},
                       fills_per_second=valid_fills / args.duration, valid_fills=valid_fills, fill_attempts=fill_attempts,
                       fill_counts_by_market_side=dict(fill_counts),
                       fill_target_shortfall=max(0, int(args.duration) - valid_fills),

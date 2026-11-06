@@ -1042,6 +1042,22 @@ not new full/hour or external Google/GCP/Demo acceptance. See the
 [state review](../../reports/performance/admin-cleanup-state-review.md) and
 [portable evidence](../../reports/performance/admin-cleanup-state-evidence.json).
 
+### Latest image full load verification and unused-image cleanup
+
+- [x] Pin `f74d2a2a…` / source `2f6cbd257` and start the unchanged full baseline
+  with offline signed Google identities, local encrypted credentials, operations
+  reads and bounded incident diagnostics; keep the host idle-sleep assertion tied to the run.
+- [x] Retain the clamshell-interrupted attempt and the separate `market_rate`
+  warmup failure; use Red/Green tests to align book counter markers with the
+  workload instead of financial-ledger preparation. Keep rates/budgets unchanged
+  and prove a genuinely slow producer still fails.
+- [ ] Complete warmup 300s, mixed 900s, bursts 90s, soak 3600s and separate fault
+  windows at the existing rates, latency/error/resource/continuity/ledger budgets.
+- [ ] Preserve failed attempts if any; publish exact source/image/profile scope,
+  latency, retention, faults and independent fill/fee/position evidence.
+- [ ] After verification, inventory all container image references and remove
+  only unused bot images; retain candidate/rollback, other projects and volumes.
+
 ## Implementation-readiness review
 
 The review found design/integration gaps, not newly reproduced runtime defects.

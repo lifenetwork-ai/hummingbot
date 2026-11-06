@@ -223,6 +223,15 @@ Offered and achieved rates are separate. Market rate uses the simulator's
 monotonic counter observation interval, with one four-book batch permitted at
 the measurement boundary. A short diagnostic never replaces the full durations.
 
+The normal-window counter markers use the existing lightweight `/market-metrics`
+endpoint, after financial-ledger/status preparation and before final ledger
+collection, matching the burst counter source. Record both actual counter and
+monotonic timestamp snapshots in each result. This avoids charging pre-workload
+ledger serialization to the producer; financial before/after ledgers still verify
+fills and account-read counts. It does not change offered rates, window durations,
+the four-frame tolerance or acceptance limits. A slow producer still fails. Older
+ledger-marked attempts retain their original results and are not reclassified.
+
 Burst book backlog must return to its steady queue within 10 seconds. Peak bot
 memory ≤1.5 GiB. For supervised roles the aggregate uses cgroup current/peak,
 including page cache; separate per-role RSS avoids double-counting shared pages.

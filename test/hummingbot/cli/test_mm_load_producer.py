@@ -50,7 +50,7 @@ class ExchangeSession:
 
     def request(self, method, url, json=None, **kwargs):
         async def body():
-            if url.endswith('/ledger'):
+            if url.endswith(('/ledger', '/market-metrics')):
                 now = time.monotonic()
                 return dict(market_update_count=int(now * 100), observed_at_monotonic=now, requests=[])
             if url.endswith('/working-orders'):
@@ -101,6 +101,46 @@ async def run_client(monkeypatch, tmp_path, mode, *, duration=1):
                                            output=str(output), fills=True, controls=False,
                                            operations=False, burst=False, random_soak=True))
     return session, json.loads(output.read_text())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('updates,passes', [(100, True), (80, False)])
+async def test_market_rate_observes_workload_without_charging_ledger_preparation_to_producer(monkeypatch, tmp_path, updates, passes):
+    class TimedSession(ExchangeSession):
+        def __init__(self):
+            super().__init__('empty')
+            self.snapshots = []
+            self.counts = {'/ledger': 0, '/market-metrics': 0}
+
+        def request(self, method, url, **kwargs):
+            endpoint = next((path for path in self.counts if url.endswith(path)), None)
+            if endpoint is None:
+                return super().request(method, url, **kwargs)
+
+            async def body():
+                self.counts[endpoint] += 1
+                first = self.counts[endpoint] == 1
+                # A 200 ms preparation/serialization pause precedes the actual
+                # one-second workload. Both endpoints observe the same real
+                # counter, but the financial ledger starts before preparation.
+                observed = (0 if endpoint == '/ledger' else .2) if first else 1.2
+                self.snapshots.append(endpoint)
+                return dict(market_update_count=0 if first else updates,
+                            observed_at_monotonic=observed, requests=[])
+            return Response(body)
+
+    session = TimedSession()
+    monkeypatch.setattr(load_client.aiohttp, 'ClientSession', lambda **kwargs: session)
+    output = tmp_path / 'market-window.json'
+    await load_client.main(SimpleNamespace(duration=1, read_rate=20, market_rate=100,
+                                           output=str(output), fills=False, controls=False,
+                                           operations=False, burst=False, random_soak=False))
+    result = json.loads(output.read_text())
+    assert result['market_measurement_seconds'] == pytest.approx(1)
+    assert result['market_updates_sent'] == updates
+    assert result['market_updates_per_second'] == updates
+    assert ('market_rate' not in violations(result)) is passes
+    assert session.snapshots == ['/ledger', '/market-metrics', '/market-metrics', '/ledger']
 
 
 @pytest.mark.asyncio
