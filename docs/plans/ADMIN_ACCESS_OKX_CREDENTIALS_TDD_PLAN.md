@@ -1025,9 +1025,9 @@ new full/hour gate, real Google/GCP or existing Demo changes. See the
   snapshot consumption; classify lost authority without TypeError or stale writes.
 - [x] Test shutdown failures before removal, after completion and during another
   failure; preserve receipt/key/audit semantics and the intentional engine-restart fence.
-- [ ] Measure full snapshot queries/payload/row-lock scope with a large tracking
+- [x] Measure full snapshot queries/payload/row-lock scope with a large tracking
   fixture before optimizing; avoid loading unused tracking JSON if justified.
-- [ ] Preserve full tracking recovery for runtime preparation and all existing
+- [x] Preserve full tracking recovery for runtime preparation and all existing
   owner/control/operation fences; verify matching snapshots and stale-owner rejection.
 - [ ] Run final related/native and rebuilt-image recovery checks, record scoped
   results, update documentation/checklists and commit completed phases.

@@ -23,7 +23,10 @@ class DisconnectCoordinator:
         return await asyncio.to_thread(function, *args, **kwargs)
 
     async def snapshot(self, identity, *, required=False):
-        snapshot = await self.call(self.store.disconnect_snapshot, identity, self.owner.owner_uuid, self.owner.generation)
+        # Only runtime.prepare consumes tracking JSON. Progress/proof reads still
+        # lock and validate the same owner/control/operation and fetch live rows.
+        snapshot = await self.call(self.store.disconnect_snapshot, identity, self.owner.owner_uuid, self.owner.generation,
+                                   include_tracking_states=False)
         if required and snapshot is None:
             raise ControlConflict("Cleanup ownership or operation changed", code="owner_unavailable")
         return snapshot

@@ -206,7 +206,7 @@ def finish_children(store, connection, operation, result):
                            reason_code=error, event_key=child["id"] + ":completed", details={"child_operation_id": child["id"]})
 
 
-def snapshot(store, identity, owner_uuid, generation):
+def snapshot(store, identity, owner_uuid, generation, *, include_tracking_states=True):
     from hummingbot.core.control_errors import ControlConflict
     with store.engine.begin() as connection:
         locked = lock_operation(store, connection, identity, owner_uuid, generation)
@@ -221,5 +221,5 @@ def snapshot(store, identity, owner_uuid, generation):
             raise ControlConflict("Cleanup scope exceeds its safe batch limit", code="cleanup_scope_limit")
         configurations = {row["config_file_path"] for row in orders}
         states = [dict(row) for row in connection.execute(select(MarketState).where(
-            MarketState.config_file_path.in_(configurations))).mappings()] if configurations else []
+            MarketState.config_file_path.in_(configurations))).mappings()] if include_tracking_states and configurations else []
         return dict(state=state, operation=operation, receipt=receipt, positions=positions, orders=orders, tracking_states=states)

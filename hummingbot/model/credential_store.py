@@ -278,9 +278,10 @@ class CredentialStore:
         from hummingbot.model.credential_cleanup import progress as record_progress
         return record_progress(self, identity, owner_uuid, owner_generation, **progress)
 
-    def disconnect_snapshot(self, identity, owner_uuid, owner_generation):
+    def disconnect_snapshot(self, identity, owner_uuid, owner_generation, *, include_tracking_states=True):
+        """Recovery keeps full tracking by default; progress readers may omit it."""
         from hummingbot.model.credential_cleanup import snapshot
-        return snapshot(self, identity, owner_uuid, owner_generation)
+        return snapshot(self, identity, owner_uuid, owner_generation, include_tracking_states=include_tracking_states)
 
     def retry_disconnect(self, actor, identity, **request):
         from hummingbot.model.credential_cleanup_requests import retry
