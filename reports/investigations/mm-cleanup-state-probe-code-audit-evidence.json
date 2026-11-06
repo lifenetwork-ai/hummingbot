@@ -1,0 +1,805 @@
+{
+  "date": "2026-11-07",
+  "scope": "Read production code and reanalyze the six retained current-image healthy-soak probe episodes; run focused existing regressions only.",
+  "runtime_source": "2f6cbd257",
+  "reviewed_checkout": "93ed29fd4",
+  "image_id": "sha256:f74d2a2abcad64dfdd9ad45c3491823c53a30f930da492b9c7c3ae3cb96526c8",
+  "manifest": "sha256:393cfc9f06d0d0c9942a32f56d6525f8d3662cadcc43dbf1a78740723783932f",
+  "runtime_changed": false,
+  "new_image": false,
+  "new_load_run": false,
+  "actual_demo_changed": false,
+  "result_artifact": "build/mm-load/20261106-203947-19b9f0/result.json",
+  "result_sha256": "55b9a47e6bbde6054feddc04a0a60541a1188a190ccc8a0e7f84ff25a243a8fd",
+  "source_sha256": {
+    "hummingbot/cli/service.py": "9a85d1c751b7cdbce1591845d7092bc09b663bd77fbde4197b7ee7680a74b813",
+    "hummingbot/cli/service_processes.py": "c8539e67587142b7481184f9e188a0ec0e1b1171969bf72efb46d487b8d1bd38",
+    "hummingbot/cli/process_supervision.py": "e690399b3e8a848e6425d36b89d44c83eea5ec89f81916d7f0c5f9e850528536",
+    "hummingbot/core/bot_ownership.py": "ab0d8f1fa4a682d7ca401798961ddc42b783397ee73407d2bf5cd8f4bed11064",
+    "hummingbot/connector/markets_recorder.py": "76d7a0b65d80430c50e53b6f3b6f5392acd3b0bc8e5ea885e63fcdbaaa68ef81",
+    "hummingbot/model/db_migration/postgres/io_deadline.py": "e9b56fe77054cf9e76682dda0de0e3d5d3b0ce8080f2cc45f7d1988c21b62129",
+    "hummingbot/cli/admin_observations.py": "4ed8d8a4726e3c0a075e415e6afd0007febc1dacc91e58d65d10e472dbed4c5c"
+  },
+  "trace_sha256": {
+    "api-incidents.jsonl": "720ca306578ed49b17094c0cf69ceafda37638b0aa02af77e28816c6c6e7f195",
+    "engine-incidents.jsonl": "1ed29fc785c5cf08da453d31ae4aacd4b95c8104b869f6a4bc8d8b7971a782ad"
+  },
+  "episodes": [
+    {
+      "failure_utc": "2026-11-06T14:04:32.475584+00:00",
+      "failure_ns": 280851511166669,
+      "recovery_ns": 280852584854211,
+      "role": "engine",
+      "probe_elapsed_ms": 317.219,
+      "probe_reason": "timeout",
+      "observed_transition_seconds": 1.073687542,
+      "recovered_within_window": true,
+      "retained_context_spans": [
+        {
+          "operation": "recorder_ms",
+          "thread_id": 140737476621504,
+          "start_ns": 280851258436502,
+          "end_ns": 280851594327627,
+          "duration_ms": 335.891125,
+          "thread_cpu_ms": 167.165167,
+          "intersects_transition": true
+        },
+        {
+          "operation": "fill_store_ms",
+          "thread_id": 140737476621504,
+          "start_ns": 280851286202335,
+          "end_ns": 280851548190252,
+          "duration_ms": 261.987917,
+          "thread_cpu_ms": 136.768377,
+          "intersects_transition": true
+        },
+        {
+          "operation": "executor_update_ms",
+          "thread_id": 140737476621504,
+          "start_ns": 280851114378793,
+          "end_ns": 280851231169418,
+          "duration_ms": 116.790625,
+          "thread_cpu_ms": 68.158165,
+          "intersects_transition": false
+        },
+        {
+          "operation": "executor_reports_ms",
+          "thread_id": 140737476621504,
+          "start_ns": 280851115197543,
+          "end_ns": 280851230829835,
+          "duration_ms": 115.632292,
+          "thread_cpu_ms": 67.025499,
+          "intersects_transition": false
+        },
+        {
+          "operation": "service.observe_once",
+          "thread_id": 140737476621504,
+          "start_ns": 280851628073669,
+          "end_ns": 280851730103502,
+          "duration_ms": 102.029833,
+          "thread_cpu_ms": 22.280208,
+          "intersects_transition": true
+        }
+      ],
+      "retained_stalls": [
+        {
+          "at_ns": 280851519612585,
+          "offset_from_failure_ms": 8.445916,
+          "lag_ms": 220.75716699999998,
+          "intersects_transition": true,
+          "loop_stack": [
+            {
+              "file": "/home/hummingbot/hummingbot/connector/markets_recorder.py",
+              "line": 710,
+              "function": "_store_fill"
+            },
+            {
+              "file": "/test-assets/load_trace.py",
+              "line": 117,
+              "function": "measured"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/connector/markets_recorder.py",
+              "line": 410,
+              "function": "save_market_states"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/connector/markets_recorder.py",
+              "line": 521,
+              "function": "get_market_states"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/query.py",
+              "line": 2849,
+              "function": "one_or_none"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/query.py",
+              "line": 2921,
+              "function": "_iter"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/session.py",
+              "line": 2555,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/session.py",
+              "line": 2445,
+              "function": "_execute_internal"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/context.py",
+              "line": 322,
+              "function": "orm_execute_statement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1494,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 534,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1714,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1868,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1982,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 49,
+              "function": "bounded_wait"
+            }
+          ]
+        }
+      ],
+      "gc_context": []
+    },
+    {
+      "failure_utc": "2026-11-06T14:05:01.026288+00:00",
+      "failure_ns": 280880061274807,
+      "recovery_ns": 280881153151682,
+      "role": "engine",
+      "probe_elapsed_ms": 303.781,
+      "probe_reason": "timeout",
+      "observed_transition_seconds": 1.091876875,
+      "recovered_within_window": true,
+      "retained_context_spans": [
+        {
+          "operation": "service.observe_once",
+          "thread_id": 140737476621504,
+          "start_ns": 280879736766473,
+          "end_ns": 280880336345348,
+          "duration_ms": 599.578875,
+          "thread_cpu_ms": 426.408627,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "thread_id": 140735944849088,
+          "start_ns": 280880005041973,
+          "end_ns": 280880062412473,
+          "duration_ms": 57.3705,
+          "thread_cpu_ms": 1.303333,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "thread_id": 140735944849088,
+          "start_ns": 280880101822723,
+          "end_ns": 280880131351307,
+          "duration_ms": 29.528584,
+          "thread_cpu_ms": 0.81396,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "thread_id": 140735944849088,
+          "start_ns": 280880074699473,
+          "end_ns": 280880096912973,
+          "duration_ms": 22.2135,
+          "thread_cpu_ms": 2.058126,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "thread_id": 140735944849088,
+          "start_ns": 280880132763390,
+          "end_ns": 280880136791515,
+          "duration_ms": 4.028125,
+          "thread_cpu_ms": 0.549084,
+          "intersects_transition": true
+        }
+      ],
+      "retained_stalls": [
+        {
+          "at_ns": 280879409568348,
+          "offset_from_failure_ms": -651.706459,
+          "lag_ms": 593.049209,
+          "intersects_transition": false,
+          "loop_stack": [
+            {
+              "file": "/home/hummingbot/hummingbot/core/order_submission_guard.py",
+              "line": 77,
+              "function": "before_order"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/core/bot_ownership.py",
+              "line": 261,
+              "function": "before_order"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/connector/markets_recorder.py",
+              "line": 475,
+              "function": "record_order_intent"
+            },
+            {
+              "file": "/test-assets/load_trace.py",
+              "line": 117,
+              "function": "measured"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/connector/markets_recorder.py",
+              "line": 424,
+              "function": "save_market_states"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/operators.py",
+              "line": 748,
+              "function": "__eq__"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/attributes.py",
+              "line": 459,
+              "function": "operate"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/operators.py",
+              "line": 748,
+              "function": "__eq__"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/properties.py",
+              "line": 486,
+              "function": "operate"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/annotation.py",
+              "line": 374,
+              "function": "__eq__"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/operators.py",
+              "line": 748,
+              "function": "__eq__"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 1599,
+              "function": "operate"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/operators.py",
+              "line": 748,
+              "function": "__eq__"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/type_api.py",
+              "line": 273,
+              "function": "operate"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/type_api.py",
+              "line": 227,
+              "function": "_resolve_operator_lookup"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/enum.py",
+              "line": 1609,
+              "function": "__and__"
+            }
+          ]
+        },
+        {
+          "at_ns": 280879163750639,
+          "offset_from_failure_ms": -897.524168,
+          "lag_ms": 347.2315,
+          "intersects_transition": false,
+          "loop_stack": [
+            {
+              "file": "/home/hummingbot/hummingbot/core/bot_ownership.py",
+              "line": 261,
+              "function": "before_order"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/connector/markets_recorder.py",
+              "line": 475,
+              "function": "record_order_intent"
+            },
+            {
+              "file": "/test-assets/load_trace.py",
+              "line": 117,
+              "function": "measured"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/connector/markets_recorder.py",
+              "line": 424,
+              "function": "save_market_states"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/query.py",
+              "line": 2768,
+              "function": "all"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/query.py",
+              "line": 2921,
+              "function": "_iter"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/session.py",
+              "line": 2555,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/session.py",
+              "line": 2445,
+              "function": "_execute_internal"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/context.py",
+              "line": 322,
+              "function": "orm_execute_statement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1494,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 534,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1714,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1868,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1977,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ]
+        }
+      ],
+      "gc_context": [
+        {
+          "kind": "gc",
+          "at": 1793973901.043847,
+          "start_ns": 280880019420140,
+          "duration_ms": 59.3805,
+          "thread_id": 140737476621504,
+          "generation": 1,
+          "collected": 3197,
+          "at_ns": 280880117844682,
+          "capturing_pid": 31,
+          "capturing_role": "engine",
+          "intersects_transition": true
+        }
+      ]
+    },
+    {
+      "failure_utc": "2026-11-06T14:21:26.296396+00:00",
+      "failure_ns": 281865300496965,
+      "recovery_ns": 281866539970882,
+      "role": "engine",
+      "probe_elapsed_ms": 355.734,
+      "probe_reason": "timeout",
+      "observed_transition_seconds": 1.239473917,
+      "recovered_within_window": true,
+      "retained_context_spans": [
+        {
+          "operation": "service.observe_once",
+          "thread_id": 140737476621504,
+          "start_ns": 281865356936548,
+          "end_ns": 281865664576465,
+          "duration_ms": 307.639917,
+          "thread_cpu_ms": 167.234122,
+          "intersects_transition": true
+        },
+        {
+          "operation": "executor_update_ms",
+          "thread_id": 140737476621504,
+          "start_ns": 281865208260798,
+          "end_ns": 281865326277715,
+          "duration_ms": 118.016917,
+          "thread_cpu_ms": 108.436457,
+          "intersects_transition": true
+        },
+        {
+          "operation": "executor_reports_ms",
+          "thread_id": 140737476621504,
+          "start_ns": 281865208360964,
+          "end_ns": 281865325900090,
+          "duration_ms": 117.539126,
+          "thread_cpu_ms": 107.993208,
+          "intersects_transition": true
+        },
+        {
+          "operation": "ownership_check_ms",
+          "thread_id": 140737476621504,
+          "start_ns": 281865357087131,
+          "end_ns": 281865433575965,
+          "duration_ms": 76.488834,
+          "thread_cpu_ms": 25.097583,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "thread_id": 140737476621504,
+          "start_ns": 281865360878381,
+          "end_ns": 281865420930590,
+          "duration_ms": 60.052209,
+          "thread_cpu_ms": 15.711666,
+          "intersects_transition": true
+        }
+      ],
+      "retained_stalls": [],
+      "gc_context": []
+    },
+    {
+      "failure_utc": "2026-11-06T14:23:00.040976+00:00",
+      "failure_ns": 281959042383799,
+      "recovery_ns": 281960090074924,
+      "role": "engine",
+      "probe_elapsed_ms": 301.106,
+      "probe_reason": "timeout",
+      "observed_transition_seconds": 1.047691125,
+      "recovered_within_window": true,
+      "retained_context_spans": [
+        {
+          "operation": "service.observe_once",
+          "thread_id": 140737476621504,
+          "start_ns": 281958950524257,
+          "end_ns": 281959111119924,
+          "duration_ms": 160.595667,
+          "thread_cpu_ms": 112.890201,
+          "intersects_transition": true
+        },
+        {
+          "operation": "pool_checkout_ms",
+          "thread_id": 140736030619328,
+          "start_ns": 281959086040757,
+          "end_ns": 281959088480757,
+          "duration_ms": 2.44,
+          "thread_cpu_ms": 0.516627,
+          "intersects_transition": true
+        },
+        {
+          "operation": "db_ping_ms",
+          "thread_id": 140736030619328,
+          "start_ns": 281959086139216,
+          "end_ns": 281959088447299,
+          "duration_ms": 2.308083,
+          "thread_cpu_ms": 0.391585,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "thread_id": 140736030619328,
+          "start_ns": 281959089031591,
+          "end_ns": 281959091012591,
+          "duration_ms": 1.981,
+          "thread_cpu_ms": 0.386083,
+          "intersects_transition": true
+        },
+        {
+          "operation": "ownership_check_ms",
+          "thread_id": 140737476621504,
+          "start_ns": 281958950560049,
+          "end_ns": 281958952238799,
+          "duration_ms": 1.67875,
+          "thread_cpu_ms": 0.983667,
+          "intersects_transition": false
+        }
+      ],
+      "retained_stalls": [],
+      "gc_context": []
+    },
+    {
+      "failure_utc": "2026-11-06T14:29:13.650434+00:00",
+      "failure_ns": 282332640234845,
+      "recovery_ns": 282333744531304,
+      "role": "engine",
+      "probe_elapsed_ms": 318.692,
+      "probe_reason": "timeout",
+      "observed_transition_seconds": 1.104296459,
+      "recovered_within_window": true,
+      "retained_context_spans": [
+        {
+          "operation": "service.observe_once",
+          "thread_id": 140737476621504,
+          "start_ns": 282332467996304,
+          "end_ns": 282332798454429,
+          "duration_ms": 330.458125,
+          "thread_cpu_ms": 219.687042,
+          "intersects_transition": true
+        },
+        {
+          "operation": "recorder_ms",
+          "thread_id": 140737476621504,
+          "start_ns": 282332574189137,
+          "end_ns": 282332742749095,
+          "duration_ms": 168.559958,
+          "thread_cpu_ms": 82.655249,
+          "intersects_transition": true
+        },
+        {
+          "operation": "fill_store_ms",
+          "thread_id": 140737476621504,
+          "start_ns": 282332597948720,
+          "end_ns": 282332713796304,
+          "duration_ms": 115.847584,
+          "thread_cpu_ms": 62.051335,
+          "intersects_transition": true
+        },
+        {
+          "operation": "market_checkpoint_ms",
+          "thread_id": 140737476621504,
+          "start_ns": 282332622812679,
+          "end_ns": 282332713698637,
+          "duration_ms": 90.885958,
+          "thread_cpu_ms": 43.918083,
+          "intersects_transition": true
+        },
+        {
+          "operation": "ownership_check_ms",
+          "thread_id": 140737476621504,
+          "start_ns": 282332628746845,
+          "end_ns": 282332652689679,
+          "duration_ms": 23.942834,
+          "thread_cpu_ms": 9.195417,
+          "intersects_transition": true
+        }
+      ],
+      "retained_stalls": [],
+      "gc_context": [
+        {
+          "kind": "gc",
+          "at": 1793975353.5406983,
+          "start_ns": 282332520264512,
+          "duration_ms": 10.203125,
+          "thread_id": 140737476621504,
+          "generation": 0,
+          "collected": 1865,
+          "at_ns": 282332540511304,
+          "capturing_pid": 31,
+          "capturing_role": "engine",
+          "intersects_transition": false
+        }
+      ]
+    },
+    {
+      "failure_utc": "2026-11-06T14:32:10.681334+00:00",
+      "failure_ns": 282509666534302,
+      "recovery_ns": 282510700995385,
+      "role": "engine",
+      "probe_elapsed_ms": 301.246,
+      "probe_reason": "timeout",
+      "observed_transition_seconds": 1.034461083,
+      "recovered_within_window": true,
+      "retained_context_spans": [
+        {
+          "operation": "service.observe_once",
+          "thread_id": 140737476621504,
+          "start_ns": 282509689959802,
+          "end_ns": 282509830754635,
+          "duration_ms": 140.794833,
+          "thread_cpu_ms": 102.032002,
+          "intersects_transition": true
+        },
+        {
+          "operation": "pool_checkout_ms",
+          "thread_id": 140736030619328,
+          "start_ns": 282509743712677,
+          "end_ns": 282509746639177,
+          "duration_ms": 2.9265,
+          "thread_cpu_ms": 0.500873,
+          "intersects_transition": true
+        },
+        {
+          "operation": "db_ping_ms",
+          "thread_id": 140736030619328,
+          "start_ns": 282509743818635,
+          "end_ns": 282509746609552,
+          "duration_ms": 2.790917,
+          "thread_cpu_ms": 0.370831,
+          "intersects_transition": true
+        },
+        {
+          "operation": "ownership_check_ms",
+          "thread_id": 140737476621504,
+          "start_ns": 282509689989218,
+          "end_ns": 282509691453427,
+          "duration_ms": 1.464209,
+          "thread_cpu_ms": 0.881917,
+          "intersects_transition": true
+        },
+        {
+          "operation": "commit_ms",
+          "thread_id": 140736030619328,
+          "start_ns": 282509754464510,
+          "end_ns": 282509755891385,
+          "duration_ms": 1.426875,
+          "thread_cpu_ms": 0.179791,
+          "intersects_transition": true
+        }
+      ],
+      "retained_stalls": [],
+      "gc_context": []
+    }
+  ],
+  "runtime_loss_counters": {
+    "engine": {
+      "trace": {
+        "written_records": 1504,
+        "written_bytes": 4273916,
+        "ordinary_written_bytes": 4106969,
+        "reserved_written_bytes": 166947,
+        "dropped_records": 0,
+        "writer_cpu_ms": 201.13867599999998,
+        "dropped_by_kind": {},
+        "queue_depth": 0,
+        "max_bytes": 33554432,
+        "reserved_bytes": 8388608,
+        "reserved_kinds": [
+          "gc",
+          "loop_stall",
+          "loop_stall_trigger",
+          "probe_failure",
+          "probe_recovered"
+        ],
+        "writer_alive": true,
+        "dropped_spans": 76151,
+        "slow_trace_threshold_ms": 100,
+        "gc_trace": {
+          "pending_events": 0,
+          "max_events": 128,
+          "dropped_events": 0
+        }
+      },
+      "incident_capture": {
+        "incidents": 18,
+        "evicted_records": 19006,
+        "oversize_records": 0,
+        "suppressed_incidents": 0,
+        "buffered_records": 39,
+        "buffered_bytes": 90160,
+        "max_records": 256,
+        "max_bytes": 524288,
+        "history_seconds": 10.0,
+        "tail_seconds": 10.0,
+        "max_incidents": 32
+      },
+      "metrics_export_skipped": 0
+    },
+    "api": {
+      "trace": {
+        "written_records": 758,
+        "written_bytes": 3175252,
+        "ordinary_written_bytes": 3159150,
+        "reserved_written_bytes": 16102,
+        "dropped_records": 0,
+        "writer_cpu_ms": 122.08486899999986,
+        "dropped_by_kind": {},
+        "queue_depth": 0,
+        "max_bytes": 33554432,
+        "reserved_bytes": 8388608,
+        "reserved_kinds": [
+          "gc",
+          "loop_stall",
+          "loop_stall_trigger",
+          "probe_failure",
+          "probe_recovered"
+        ],
+        "writer_alive": true,
+        "dropped_spans": 7579,
+        "slow_trace_threshold_ms": 100,
+        "gc_trace": {
+          "pending_events": 0,
+          "max_events": 128,
+          "dropped_events": 0
+        }
+      },
+      "incident_capture": {
+        "incidents": 8,
+        "evicted_records": 20274,
+        "oversize_records": 0,
+        "suppressed_incidents": 0,
+        "buffered_records": 39,
+        "buffered_bytes": 133445,
+        "max_records": 256,
+        "max_bytes": 524288,
+        "history_seconds": 10.0,
+        "tail_seconds": 10.0,
+        "max_incidents": 32
+      },
+      "metrics_export_skipped": 0
+    }
+  },
+  "mechanism": [
+    "/live is an in-memory handler on the same asyncio loop as engine tasks; non-admin middleware bypasses identity/DB work.",
+    "Owner checks, recorder checkpoints, durable intents and fill commits use synchronous SQLAlchemy/psycopg2 on that loop.",
+    "The psycopg wait callback select.select blocks its calling thread until DB readiness/deadline; releasing the GIL does not yield the asyncio loop.",
+    "Status publication DB work is already isolated via asyncio.to_thread; snapshot construction stays loop-owned.",
+    "An async observe_once root includes awaits and interleaved tasks; its wall time is not exclusive synchronous blocking time."
+  ],
+  "tests": [
+    {
+      "log": "/tmp/hbot-probe-code-audit-native.log",
+      "passed": 30,
+      "scope": [
+        "test_service_publication",
+        "test_observer_ownership_reads",
+        "test_process_supervision"
+      ]
+    },
+    {
+      "log": "/tmp/hbot-probe-code-audit-postgres.log",
+      "passed": 2,
+      "scope": [
+        "test_observer_reuses_no_authority_and_avoids_duplicate_acquired_owner_query",
+        "test_observer_ownership_round_trips_fit_private_probe_deadline"
+      ]
+    },
+    {
+      "log": "/tmp/hbot-probe-code-audit-publication.log",
+      "passed": 1,
+      "scope": [
+        "test_delayed_status_query_does_not_timeout_private_health"
+      ]
+    }
+  ],
+  "qualifications": [
+    "One recorder stall stack intersects the failure, two other recorder stalls precede another failure; overlap is not exclusive attribution.",
+    "No CPU/host/OKX/SQL-only exclusive root cause for all six episodes is established.",
+    "Broad observer roots and thread CPU do not isolate components or measure per-coroutine CPU.",
+    "Bounded retained spans omit some work; no missing-stack inference of idle or blocked loop.",
+    "No health threshold, ownership cache, durability fence, concurrency model or runtime/image change."
+  ]
+}

@@ -76,6 +76,11 @@ transition **1.239 seconds**. These supervisor observations are not measured quo
 downtime. Capture has bounded retention/span loss and MM activity tracing is off;
 the result does not establish an exclusive cause or continuous two-sided quoting.
 
+The subsequent [code audit](../investigations/mm-cleanup-state-probe-code-audit.md)
+finds a synchronous recorder/checkpoint DB wait during one timeout and reviews
+all six episodes. It adds source-level findings and focused regressions, without
+changing this runtime, load result or attribution limits.
+
 All five separate fault windows pass: stale feed, owner replacement, queued expiry,
 DB lock delay and DB outage. Owner replacement and DB faults intentionally produce
 503s and may restart/fence the engine; they are excluded from healthy latency.

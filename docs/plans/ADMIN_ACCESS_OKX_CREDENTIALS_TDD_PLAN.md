@@ -1069,6 +1069,23 @@ containers and fourteen volumes. See the [full-load report](../../reports/releas
 and [portable evidence](../../reports/release/admin-cleanup-state-load-evidence.json).
 Real Google/GCP and reviewed existing-Demo cutover remain outside this local gate.
 
+### Current-image recovered-probe code audit — 2026-11-07
+
+- [x] Read the engine health/middleware/supervisor path and identify synchronous
+  work sharing the loop; preserve the existing ownership and durable-send fences.
+- [x] Reanalyze all six current-image soak episodes with bounded stack/span/GC
+  evidence; distinguish async-root overlap, preceding context and missing detail.
+- [x] Rerun focused publication, ownership and supervisor tests; document concrete
+  findings and attribution limits without inventing a runtime fix or new load gate.
+
+The health handler has no SQL/OKX call. One 317 ms failed probe overlaps a 335.89 ms
+synchronous recorder callback and a loop-thread checkpoint SQL wait. Other events
+retain broad observer/executor context without exclusive attribution. Thirty native
+and three focused PG checks pass; runtime/image/thresholds are unchanged. Next
+optimization would require component-level measurement before a narrow TDD fix.
+See the [code audit](../../reports/investigations/mm-cleanup-state-probe-code-audit.md)
+and [evidence](../../reports/investigations/mm-cleanup-state-probe-code-audit-evidence.json).
+
 ## Implementation-readiness review
 
 The review found design/integration gaps, not newly reproduced runtime defects.

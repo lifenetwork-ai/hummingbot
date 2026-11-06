@@ -525,3 +525,25 @@ Demo start timestamps match; no actual OKX/Google/GCP or production operation.
 Checklist closed for this local task; external acceptance remains open. See the
 [report](../release/admin-cleanup-state-load.md) and
 [portable evidence](../release/admin-cleanup-state-load-evidence.json).
+
+### Current-image recovered-probe code audit — 2026-11-07
+
+Read the actual health/middleware/supervisor and engine ownership/recorder paths;
+reanalyze all six retained soak episodes. `/live` is memory-only but shares the
+engine loop with synchronous ownership checks and durable intent/fill/checkpoint
+SQL. One failed 317.219 ms probe overlaps a 335.891 ms recorder callback, with the
+loop-thread stack in checkpoint SQL/psycopg bounded socket wait. This identifies
+a concrete blocking path; it does not exclusively explain all six episodes.
+Other observer roots include awaits and interleaved tasks; their durations/CPU
+cannot be equated to exclusive blocking. Capture count is not exhausted, but
+bounded omitted-span/context limits remain explicit.
+
+Existing regressions pass 30 native and 3 focused real-PG tests. The 400 ms delayed
+publication SELECT leaves health responsive because that write is already on a
+worker. Owner/recorder checks remain synchronous for their ordering/fencing
+requirements. No newly reproduced correctness bug or justified narrow runtime
+fix is established. Runtime `2f6cbd257` / image `f74d2a2a`, health thresholds and original
+load results remain unchanged; no new image/soak or actual Demo operation.
+Findings and measurement-before-fix guidance are in the
+[report](../investigations/mm-cleanup-state-probe-code-audit.md) and
+[evidence](../investigations/mm-cleanup-state-probe-code-audit-evidence.json).

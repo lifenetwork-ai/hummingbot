@@ -13,6 +13,10 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
   recorded. Three unused images removed; all containers/volumes and rollback kept.
   [Report](release/admin-cleanup-state-load.md),
   [evidence](release/admin-cleanup-state-load-evidence.json).
+  Subsequent [probe code audit](investigations/mm-cleanup-state-probe-code-audit.md)
+  identifies a synchronous recorder/checkpoint wait during one timeout; all six
+  still lack an exclusive common cause. Native 30/PG 3 focused checks pass, with
+  no runtime/image/threshold change or new load run.
 
 - **Cleanup authority/shutdown/snapshot review complete:** final image `f74d2a2a…`
   passes six recovery scenarios; full native 2,721 + 11 subtests and related PG 128
