@@ -414,3 +414,17 @@ proof. Targeted checklist is complete. No new full release/upgrade/hour gate or 
 Google/GCP/existing-Demo cutover is claimed. See the
 [report](../release/admin-cleanup-fault-e2e.md) and
 [evidence](../release/admin-cleanup-fault-evidence.json).
+
+### Additional partial-close crash and invalid-readback coverage — 2026-11-06
+
+Added 25 behavioral cases: 15 runtime unit cases for untrusted/unavailable ticker
+reads, owner loss and terminal partial closes; eight PG proof rejection cases;
+two shipping-image cases combining committed partial fills, WS loss and SIGKILL.
+Related native52/PG68 and both E2E pass on unchanged image `89d5e7c6…`. Each E2E
+recovers the same operation under a new owner, sends only the verified residual,
+matches six synthetic fills/fees with three physical close attempts, preserves
+spot and proves removal plus another stopped restart. No runtime change/defect,
+real Google/GCP/Demo interaction or new full/hour gate is claimed. Disposable
+containers are removed; no new image was built. See the
+[report](../release/admin-cleanup-partial-crash-e2e.md) and
+[evidence](../release/admin-cleanup-partial-crash-evidence.json).

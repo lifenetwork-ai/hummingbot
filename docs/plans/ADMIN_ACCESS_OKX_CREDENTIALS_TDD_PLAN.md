@@ -965,6 +965,24 @@ has six focused passing regressions. Ten unused bot images are removed; all
 container references, candidate/rollback and volumes are preserved. This closes
 the targeted follow-up, not a new full-image hour/upgrade acceptance gate.
 
+### A6 follow-up — Partial-close crash and invalid readback coverage
+
+- [x] Kill the shipping service after a partial close is committed, for both live
+  and cancelled remainders; recover the same operation, close only the residual,
+  preserve spot and prove all physical sends, fills, fees and final key removal.
+- [x] Cover stale/wrong-generation/incomplete cleanup proof against PostgreSQL;
+  rejected proof must preserve ciphertext, the shutdown fence and audit state.
+- [x] Cover malformed/unavailable ticker reads and owner loss before close send;
+  reject placement and leave cleanup authority out of the caller context.
+- [x] Record exact image/test scope and results; keep real Google/GCP and existing
+  Demo excluded, and commit the completed coverage.
+
+The [follow-up report](../../reports/release/admin-cleanup-partial-crash-e2e.md)
+records 25 additional cases and final targeted results: native52, PostgreSQL68,
+two native-image E2E. Both crash cases reconcile six synthetic fills and three
+physical close attempts, preserve spot and complete removal/restart on unchanged
+image `89d5e7c6…`. No runtime fix or new full/hour gate is claimed.
+
 ## Implementation-readiness review
 
 The review found design/integration gaps, not newly reproduced runtime defects.

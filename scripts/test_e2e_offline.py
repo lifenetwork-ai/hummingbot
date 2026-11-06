@@ -1799,8 +1799,9 @@ def main():
                     elif scenario in cleanup_fault_scenarios:
                         from scripts.mm_cleanup_faults import database_scenario, partial_scenario
                         from scripts.mm_managed_lifecycle import safe_logs
-                        if scenario in ('managed-close-partial-ws', 'managed-close-partial-cancel'):
-                            partial_scenario(harness, 'live' if scenario == 'managed-close-partial-ws' else 'canceled')
+                        if scenario.startswith('managed-close-partial-'):
+                            partial_scenario(harness, 'canceled' if 'cancel' in scenario else 'live',
+                                             crash=scenario.endswith('-crash'))
                         else:
                             database_scenario(harness, 'fill' if scenario == 'managed-cleanup-fill-db-fault' else 'removal')
                         for container in harness.containers:

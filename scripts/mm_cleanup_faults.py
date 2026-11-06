@@ -16,6 +16,7 @@ from scripts.mm_managed_lifecycle import (
 from scripts.test_e2e_offline import docker, http, poll
 
 SCENARIOS = ('managed-close-partial-ws', 'managed-close-partial-cancel',
+             'managed-close-partial-live-crash', 'managed-close-partial-cancel-crash',
              'managed-cleanup-fill-db-fault', 'managed-cleanup-removal-db-fault')
 
 
@@ -56,10 +57,11 @@ def close_sends(harness):
     return [row['order'] for row in harness.ledger()['requests'] if row.get('order', {}).get('ordType') == 'market']
 
 
-def partial_scenario(harness, outcome):
+def partial_scenario(harness, outcome, *, crash=False):
     print('Offline E2E: native partial close with WS loss, outcome=' + outcome, flush=True)
     bot, port = initialize(harness)
     seed_exposure(harness, port)
+    generation = harness.state()['owner_generation']
     spot = spot_digest(harness)
     harness.control(cleanup_market_closes=True, cleanup_partial=outcome, cleanup_barrier='verified_fill')
     root = disconnect(harness, port)
@@ -83,7 +85,19 @@ def partial_scenario(harness, outcome):
     # remaining position may apply this already committed partial fill twice.
     trade = next(row for row in harness.ledger()['fills'] if row['clOrdId'] == first['clOrdId'])
     harness.control(replay_trade_id=trade['tradeId'])
-    if outcome == 'live':
+    if crash:
+        docker('kill', '--signal', 'KILL', bot)
+        assert json.loads(docker('inspect', bot).stdout)[0]['State']['ExitCode'] == 137
+        # The original live remainder must be cancelled and read back before a
+        # replacement closes exactly .6 contracts, never the original full size.
+        assert len(close_sends(harness)) == 1
+        harness.control(cleanup_barrier='none')
+        docker('start', bot)
+        poll(lambda: http(port, '/startup')[0] == 200, timeout=200, description='partial-close crash recovery startup')
+        poll(lambda: harness.state()['owner_generation'] > generation, description='partial-close replacement owner')
+        checkpoint.update(hard_kill_exit_code=137, generation_before=generation,
+                          generation_after=harness.state()['owner_generation'])
+    if outcome == 'live' and not crash:
         harness.control(fill=dict(clOrdId=first['clOrdId'], amount='.6', fee='.000001'), duplicate=True)
         expected = [('long', 'sell', Decimal('1')), ('short', 'buy', Decimal('1'))]
     else:

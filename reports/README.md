@@ -4,6 +4,14 @@ Start here; operational instructions and active plans are in [docs](../docs/READ
 
 ## Current result
 
+- **Partial-close crash coverage extended:** 25 additional cases; related native52,
+  PostgreSQL68 and both new native-image E2E pass on unchanged `89d5e7c6…`.
+  Live/cancelled partial remainders survive SIGKILL, close only the residual and
+  reconcile six synthetic fills/fees with three physical close attempts per case.
+  No runtime defect reproduced or new full/hour gate claimed.
+  [Report](release/admin-cleanup-partial-crash-e2e.md),
+  [evidence](release/admin-cleanup-partial-crash-evidence.json).
+
 - **Partial/DB cleanup recovery verified on rebuilt `89d5e7c6…`:** a real DB-fill
   failure exposed a prior-owner shutdown fence that blocked recovery; fix `16b268737`
   requires fresh scoped proof and preserves risk HALTs. Four new plus four prior

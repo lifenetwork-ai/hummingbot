@@ -1,3 +1,4 @@
+import asyncio
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -69,6 +70,82 @@ async def test_close_uses_existing_connector_market_close_with_scoped_authority(
                                   dict(id="disconnect", affected_versions={"okx_perpetual": 1}))
     connector.sell.assert_called_once()
     connector.buy.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('ticker', [
+    {'code': '50011', 'data': [{'instId': 'BTC-USDT-SWAP', 'last': '100'}]},
+    {'code': '0', 'data': []},
+    {'code': '0', 'data': [{'instId': 'ETH-USDT-SWAP', 'last': '100'}]},
+    {'code': '0', 'data': [{'instId': 'BTC-USDT-SWAP', 'last': '100'}] * 2},
+    *[{'code': '0', 'data': [{'instId': 'BTC-USDT-SWAP', 'last': price}]}
+      for price in ('0', '-1', 'NaN', 'Infinity', 'invalid')],
+    {'code': '0'},
+], ids=['exchange_error', 'empty', 'wrong_pair', 'ambiguous_pair', 'zero', 'negative', 'nan', 'infinity',
+        'invalid_decimal', 'missing_data'])
+async def test_untrusted_cleanup_price_never_submits_or_leaks_close_authority(ticker):
+    from hummingbot.core.cleanup_authority import current_cleanup_scope
+    instance, connector = runtime()
+    connector._api_get.return_value = ticker
+    connector.buy, connector.sell = Mock(), Mock()
+    with pytest.raises(CredentialAdapterError, match='cleanup_price_unavailable'):
+        await instance.close_position(dict(id='held', side='BUY', trading_pair='BTC-USDT', amount=Decimal('.1')),
+                                      dict(id='disconnect', affected_versions={'okx_perpetual': 1}))
+    connector.buy.assert_not_called()
+    connector.sell.assert_not_called()
+    instance.owner.check_owner.assert_not_called()
+    assert current_cleanup_scope() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', [asyncio.TimeoutError(), OSError('offline transport failure')],
+                         ids=['timeout', 'transport'])
+async def test_cleanup_ticker_dependency_failure_has_safe_error_and_no_submission(failure):
+    instance, connector = runtime()
+    connector._api_get.side_effect = failure
+    connector.buy, connector.sell = Mock(), Mock()
+    with pytest.raises(CredentialAdapterError, match='cleanup_price_unavailable'):
+        await instance.close_position(dict(id='held', side='BUY', trading_pair='BTC-USDT', amount=Decimal('.1')),
+                                      dict(id='disconnect', affected_versions={'okx_perpetual': 1}))
+    connector.buy.assert_not_called()
+    connector.sell.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_owner_loss_during_ticker_read_blocks_close_before_authority_is_installed():
+    from hummingbot.core.cleanup_authority import current_cleanup_scope
+    instance, connector = runtime()
+    instance.owner.check_owner.side_effect = RuntimeError('owner lost while awaiting ticker')
+    connector.buy, connector.sell = Mock(), Mock()
+    with pytest.raises(RuntimeError, match='owner lost'):
+        await instance.close_position(dict(id='held', side='BUY', trading_pair='BTC-USDT', amount=Decimal('.1')),
+                                      dict(id='disconnect', affected_versions={'okx_perpetual': 1}))
+    connector._api_get.assert_awaited_once()
+    connector.buy.assert_not_called()
+    connector.sell.assert_not_called()
+    assert current_cleanup_scope() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('side', ['BUY', 'SELL'])
+async def test_terminal_partial_close_waits_for_reconciliation_without_resubmitting(side):
+    from hummingbot.core.cleanup_authority import current_cleanup_scope
+    instance, connector = runtime()
+    order = SimpleNamespace(client_order_id='partial', is_done=True, executed_amount_base=Decimal('.04'))
+
+    def partial(**kwargs):
+        assert current_cleanup_scope().amount == Decimal('.1')
+        connector.in_flight_orders['partial'] = order
+        return 'partial'
+
+    connector.buy, connector.sell = Mock(side_effect=partial), Mock(side_effect=partial)
+    with pytest.raises(CredentialAdapterError, match='cleanup_orders_pending'):
+        await instance.close_position(dict(id='held', side=side, trading_pair='BTC-USDT', amount=Decimal('.1')),
+                                      dict(id='disconnect', affected_versions={'okx_perpetual': 1}))
+    assert connector.buy.call_count + connector.sell.call_count == 1
+    assert instance.orders['partial'] == (connector, order)
+    instance.owner._refresh_orders.assert_awaited_once()
+    assert current_cleanup_scope() is None
 
 
 def test_recovered_unknown_submission_is_tracked_for_readback_without_sending_again():
