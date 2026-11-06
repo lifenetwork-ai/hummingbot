@@ -81,3 +81,25 @@ async def test_stop_core_called_by_cleanup_does_not_await_its_own_task():
     service.hb.trading_core = SimpleNamespace(strategy=None, connector_manager=SimpleNamespace(connectors={}), _is_running=False)
     service.credential_cleanup_task = asyncio.current_task()
     assert await asyncio.wait_for(service.stop_core(), .1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('operation_present', [True, False], ids=['pending_cleanup', 'already_completed'])
+async def test_cleanup_shutdown_task_failure_reaches_restart_fence_without_starting_another_task(operation_present):
+    from hummingbot.connector.credential_adapters import CredentialAdapterError
+    service = host()
+
+    async def failed_stop():
+        raise CredentialAdapterError('cleanup_runtime_stop_incomplete', status=409)
+
+    failed = asyncio.create_task(failed_stop())
+    await asyncio.gather(failed, return_exceptions=True)
+    service.credential_cleanup_task = failed
+    operation = dict(id='disconnect', action='credentials_disconnect') if operation_present else None
+    row = dict(database_now=1000, mm_session=None, recovery_state={'credential_operation': operation})
+    with patch('hummingbot.cli.credential_disconnect.DisconnectCoordinator') as coordinator:
+        with pytest.raises(CredentialAdapterError, match='cleanup_runtime_stop_incomplete'):
+            await service.observe_credential_operation(row)
+        coordinator.assert_not_called()
+    assert service.credential_cleanup_task is failed and failed.done()
+    service.stop_core.assert_not_awaited()

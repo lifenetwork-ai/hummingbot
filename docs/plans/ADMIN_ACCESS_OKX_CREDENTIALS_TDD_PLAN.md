@@ -1023,7 +1023,7 @@ new full/hour gate, real Google/GCP or existing Demo changes. See the
 
 - [x] Reproduce ownership loss between cancel/close/verification/detachment and
   snapshot consumption; classify lost authority without TypeError or stale writes.
-- [ ] Test shutdown failures before removal, after completion and during another
+- [x] Test shutdown failures before removal, after completion and during another
   failure; preserve receipt/key/audit semantics and the intentional engine-restart fence.
 - [ ] Measure full snapshot queries/payload/row-lock scope with a large tracking
   fixture before optimizing; avoid loading unused tracking JSON if justified.
