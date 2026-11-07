@@ -1,6 +1,8 @@
 """Measurement must not stall the measured loop or accumulate export jobs."""
 import asyncio
 import json
+import math
+import random
 import threading
 from collections import deque
 from test.e2e.offline.load_process_metrics import MetricsExporter, distribution
@@ -11,6 +13,43 @@ import pytest
 def test_distributions_preserve_exact_nearest_rank_and_empty_values():
     assert distribution(()) == dict(count=0, p50=None, p95=None, p99=None, max=None)
     assert distribution((9, 1, 3, 2)) == dict(count=4, p50=2, p95=9, p99=9, max=9)
+
+
+@pytest.mark.parametrize('size', [1, 2, 3, 99, 100, 101, 256, 257, 12000])
+def test_distribution_matches_nearest_rank_without_mutating_samples(size):
+    rng = random.Random(size)
+    values = tuple(rng.uniform(-100, 100) for _ in range(size))
+    original = tuple(values)
+    ordered = sorted(values)
+    expected = dict(count=size, **{name: ordered[max(0, math.ceil(size * fraction) - 1)]
+                    for name, fraction in (('p50', .5), ('p95', .95), ('p99', .99), ('max', 1))})
+    assert json.loads(json.dumps(distribution(values))) == expected
+    assert values == original
+
+
+def test_distribution_keeps_large_integer_values_exact():
+    values = (2**60 + 1, -(2**60), 2**60 + 3, 0)
+    assert distribution(values) == dict(count=4, p50=0, p95=2**60 + 3, p99=2**60 + 3, max=2**60 + 3)
+
+
+def test_four_quantiles_do_not_require_superlinear_comparison_work():
+    """The export worker shares the GIL; a full sort is avoidable measurement work.
+
+    Count scalar comparisons rather than asserting a wall-clock speed on CI.
+    This is a synthetic operation-count witness, not a historical stall diagnosis.
+    """
+    class CountedFloat(float):
+        comparisons = 0
+
+        def __lt__(self, other):
+            type(self).comparisons += 1
+            return super().__lt__(other)
+
+    rng = random.Random(47)
+    values = tuple(CountedFloat(rng.random()) for _ in range(12000))
+    result = distribution(values)
+    assert result['count'] == len(values)
+    assert CountedFloat.comparisons <= 4 * len(values), 'Four exact ranks should not fully sort all samples'
 
 
 @pytest.mark.asyncio

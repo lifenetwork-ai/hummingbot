@@ -332,3 +332,23 @@ absent from simulator ledger. The runner stops before burst/soak/faults. Keep
 the full-gate checkbox open; do not reinterpret the prior 120-second pass as an
 hour pass. The latest failed attempt is the [current report](../../reports/release/mm-runtime-followup-load.md);
 the earlier accepted full gate is retained in Git `dfad4a4d1` at that path.
+
+## Slow-cluster follow-up: quantile export work — requested 2026-11-07
+
+- [x] Inspect the failed minute's retained server/DB/CPU evidence; distinguish
+  request latency, quota throttling and blocking stacks from causal attribution.
+- [x] Red: count avoidable complete-sort work for four quantiles; preserve exact
+  nearest ranks, empty/large/small rings, integer precision and snapshot isolation.
+- [x] Green: reuse installed NumPy to select the four ranks for large rings;
+  retain bounded short-ring sorting and the existing worker/queue/cadence limits.
+- [x] Measure frozen before/after functions on native and the exact amd64 image;
+  retain all alternating pairs, small-ring cost and heartbeat outliers.
+- [ ] Repeat the unchanged full workload with `--keep-going` so any latency
+  failure remains failed while burst/soak/fault evidence is still collected.
+- [ ] Publish full results and scope; close acceptance only if every original
+  budget passes. Do not claim the component explains the entire historical cluster.
+
+The component tests prove excess measurement work, not a unique production bug.
+All production code, image, rate/resource limits, quantile definitions, sample
+counts and health/durability checks retain their original scope. Raw TDD/pairs:
+`build/latency-cluster-fix-20261107/`.

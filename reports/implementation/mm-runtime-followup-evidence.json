@@ -5418,5 +5418,933 @@
       "historical_probe_attribution_closed": false,
       "full_hour_gate_rerun": false
     }
+  },
+  "quantile_export_followup": {
+    "scope": "Test-only quantile compute/worker contention; no unique historical-cause or full-load acceptance claim.",
+    "source_baseline": "f8986e9e7",
+    "red": {
+      "failed": 1,
+      "passed": 12
+    },
+    "green_final": {
+      "passed": 80
+    },
+    "new_cases": 11,
+    "comparison_witness": {
+      "values": 12000,
+      "before_comparisons": 147115,
+      "after_comparisons": 0,
+      "maximum": 48000
+    },
+    "native": {
+      "scope": "Isolated component compute on explicit ring sizes; no HTTP, database, retention or historical-cause claim.",
+      "architecture": "arm64",
+      "python": "3.13.15 | packaged by conda-forge | (main, Sep  2 2026, 21:53:23) [Clang 21.1.8 ]",
+      "results": {
+        "small": {
+          "metrics": 54,
+          "numeric_samples": 1080,
+          "pairs": [
+            {
+              "before": {
+                "wall_ms_per_export": 0.08316666666666667,
+                "cpu_ms_per_export": 0.08301366666666667
+              },
+              "after": {
+                "wall_ms_per_export": 0.13431933333333332,
+                "cpu_ms_per_export": 0.13368033333333332
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_export": 0.11470833333333334,
+                "cpu_ms_per_export": 0.11479166666666667
+              },
+              "before": {
+                "wall_ms_per_export": 0.07794433333333334,
+                "cpu_ms_per_export": 0.078
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_export": 0.07670833333333334,
+                "cpu_ms_per_export": 0.07677766666666667
+              },
+              "after": {
+                "wall_ms_per_export": 0.114,
+                "cpu_ms_per_export": 0.11404166666666667
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_export": 0.11193066666666666,
+                "cpu_ms_per_export": 0.112
+              },
+              "before": {
+                "wall_ms_per_export": 0.07709733333333334,
+                "cpu_ms_per_export": 0.077153
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_export": 0.07640266666666666,
+                "cpu_ms_per_export": 0.07644433333333334
+              },
+              "after": {
+                "wall_ms_per_export": 0.11327766666666667,
+                "cpu_ms_per_export": 0.11333333333333334
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_export": 0.11322233333333333,
+                "cpu_ms_per_export": 0.11326399999999999
+              },
+              "before": {
+                "wall_ms_per_export": 0.07694466666666668,
+                "cpu_ms_per_export": 0.077
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_export": 0.08504166666666667,
+                "cpu_ms_per_export": 0.08508333333333333
+              },
+              "after": {
+                "wall_ms_per_export": 0.11398599999999999,
+                "cpu_ms_per_export": 0.114014
+              }
+            }
+          ],
+          "medians": {
+            "before": {
+              "wall_ms_per_export": 0.07709733333333334,
+              "cpu_ms_per_export": 0.077153
+            },
+            "after": {
+              "wall_ms_per_export": 0.11398599999999999,
+              "cpu_ms_per_export": 0.114014
+            }
+          }
+        },
+        "observed_ring_counts": {
+          "metrics": 54,
+          "numeric_samples": 380006,
+          "pairs": [
+            {
+              "before": {
+                "wall_ms_per_export": 52.447527666666666,
+                "cpu_ms_per_export": 52.447764
+              },
+              "after": {
+                "wall_ms_per_export": 20.811,
+                "cpu_ms_per_export": 20.658638666666665
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_export": 20.563555333333333,
+                "cpu_ms_per_export": 20.559527666666668
+              },
+              "before": {
+                "wall_ms_per_export": 52.51343033333333,
+                "cpu_ms_per_export": 52.49155566666667
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_export": 52.44073633333333,
+                "cpu_ms_per_export": 52.42669466666666
+              },
+              "after": {
+                "wall_ms_per_export": 20.676916666666667,
+                "cpu_ms_per_export": 20.67288866666667
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_export": 20.522625,
+                "cpu_ms_per_export": 20.516111
+              },
+              "before": {
+                "wall_ms_per_export": 52.749486,
+                "cpu_ms_per_export": 52.68954166666666
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_export": 52.48566666666667,
+                "cpu_ms_per_export": 52.47544466666667
+              },
+              "after": {
+                "wall_ms_per_export": 20.93616666666667,
+                "cpu_ms_per_export": 20.833305666666668
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_export": 20.609764000000002,
+                "cpu_ms_per_export": 20.57015266666667
+              },
+              "before": {
+                "wall_ms_per_export": 52.55383333333333,
+                "cpu_ms_per_export": 52.538000000000004
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_export": 52.581583333333334,
+                "cpu_ms_per_export": 52.569847
+              },
+              "after": {
+                "wall_ms_per_export": 20.688264,
+                "cpu_ms_per_export": 20.682263666666667
+              }
+            }
+          ],
+          "medians": {
+            "before": {
+              "wall_ms_per_export": 52.51343033333333,
+              "cpu_ms_per_export": 52.49155566666667
+            },
+            "after": {
+              "wall_ms_per_export": 20.676916666666667,
+              "cpu_ms_per_export": 20.658638666666665
+            }
+          }
+        }
+      },
+      "heartbeat": [
+        {
+          "before": {
+            "samples": 48,
+            "p95_ms": 18.910874966531992,
+            "max_ms": 19.674291722476482
+          },
+          "after": {
+            "samples": 65,
+            "p95_ms": 1.6522499546408653,
+            "max_ms": 1.7304582335054874
+          }
+        },
+        {
+          "after": {
+            "samples": 65,
+            "p95_ms": 1.6449171863496304,
+            "max_ms": 1.735292263329029
+          },
+          "before": {
+            "samples": 49,
+            "p95_ms": 18.786665871739388,
+            "max_ms": 19.067708291113377
+          }
+        },
+        {
+          "before": {
+            "samples": 51,
+            "p95_ms": 19.02904210612178,
+            "max_ms": 91.65562491863966
+          },
+          "after": {
+            "samples": 69,
+            "p95_ms": 34.20674975961447,
+            "max_ms": 132.8814592026174
+          }
+        }
+      ],
+      "sha256": {
+        "before.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+        "after.py": "f5d8def8c69054c5e792edae361aba89ddcb377449eba6737b0485b08ffdb979",
+        "metric-shapes.json": "b61058660f48cb665ef920482a630ef9672c9ea8bcd2433d6044de2de6a7d29c",
+        "benchmark.py": "1301eaa3e2fe652be4119d76bf3a23f69e13d39cea495e7cd3578f2fa5d64163"
+      }
+    },
+    "image": {
+      "scope": "Isolated component compute on explicit ring sizes; no HTTP, database, retention or historical-cause claim.",
+      "architecture": "x86_64",
+      "python": "3.13.18 | packaged by conda-forge | (main, Oct 26 2026, 11:38:18) [GCC 15.3.0]",
+      "results": {
+        "small": {
+          "metrics": 54,
+          "numeric_samples": 1080,
+          "pairs": [
+            {
+              "before": {
+                "wall_ms_per_export": 0.141153,
+                "cpu_ms_per_export": 0.197611
+              },
+              "after": {
+                "wall_ms_per_export": 0.17456966666666665,
+                "cpu_ms_per_export": 0.175125
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_export": 0.163611,
+                "cpu_ms_per_export": 0.16377766666666668
+              },
+              "before": {
+                "wall_ms_per_export": 0.10918066666666666,
+                "cpu_ms_per_export": 0.10936133333333332
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_export": 0.10406933333333333,
+                "cpu_ms_per_export": 0.10418033333333333
+              },
+              "after": {
+                "wall_ms_per_export": 0.16025,
+                "cpu_ms_per_export": 0.160403
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_export": 0.16070833333333334,
+                "cpu_ms_per_export": 0.16091666666666668
+              },
+              "before": {
+                "wall_ms_per_export": 0.10477766666666666,
+                "cpu_ms_per_export": 0.104875
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_export": 0.10629166666666667,
+                "cpu_ms_per_export": 0.10641666666666666
+              },
+              "after": {
+                "wall_ms_per_export": 0.15829166666666666,
+                "cpu_ms_per_export": 0.158403
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_export": 0.15737500000000001,
+                "cpu_ms_per_export": 0.1575
+              },
+              "before": {
+                "wall_ms_per_export": 0.10744433333333332,
+                "cpu_ms_per_export": 0.107597
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_export": 0.10388900000000001,
+                "cpu_ms_per_export": 0.10398600000000001
+              },
+              "after": {
+                "wall_ms_per_export": 0.16104166666666667,
+                "cpu_ms_per_export": 0.16122233333333333
+              }
+            }
+          ],
+          "medians": {
+            "before": {
+              "wall_ms_per_export": 0.10629166666666667,
+              "cpu_ms_per_export": 0.10641666666666666
+            },
+            "after": {
+              "wall_ms_per_export": 0.16070833333333334,
+              "cpu_ms_per_export": 0.16091666666666668
+            }
+          }
+        },
+        "observed_ring_counts": {
+          "metrics": 54,
+          "numeric_samples": 380006,
+          "pairs": [
+            {
+              "before": {
+                "wall_ms_per_export": 77.090125,
+                "cpu_ms_per_export": 77.091694
+              },
+              "after": {
+                "wall_ms_per_export": 39.895486,
+                "cpu_ms_per_export": 39.881750000000004
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_export": 39.79123633333334,
+                "cpu_ms_per_export": 39.79344433333333
+              },
+              "before": {
+                "wall_ms_per_export": 76.86788866666667,
+                "cpu_ms_per_export": 76.858444
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_export": 77.112125,
+                "cpu_ms_per_export": 77.10366633333334
+              },
+              "after": {
+                "wall_ms_per_export": 41.241763999999996,
+                "cpu_ms_per_export": 41.23594433333333
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_export": 42.400930333333335,
+                "cpu_ms_per_export": 42.398958
+              },
+              "before": {
+                "wall_ms_per_export": 80.09890266666666,
+                "cpu_ms_per_export": 80.08008333333333
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_export": 78.31731966666666,
+                "cpu_ms_per_export": 78.31374966666667
+              },
+              "after": {
+                "wall_ms_per_export": 39.95427766666666,
+                "cpu_ms_per_export": 39.93245833333334
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_export": 39.761514,
+                "cpu_ms_per_export": 39.758180333333335
+              },
+              "before": {
+                "wall_ms_per_export": 77.62504166666666,
+                "cpu_ms_per_export": 77.627861
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_export": 76.78331933333332,
+                "cpu_ms_per_export": 76.77580533333334
+              },
+              "after": {
+                "wall_ms_per_export": 39.731264,
+                "cpu_ms_per_export": 39.733486
+              }
+            }
+          ],
+          "medians": {
+            "before": {
+              "wall_ms_per_export": 77.112125,
+              "cpu_ms_per_export": 77.10366633333334
+            },
+            "after": {
+              "wall_ms_per_export": 39.895486,
+              "cpu_ms_per_export": 39.881750000000004
+            }
+          }
+        }
+      },
+      "heartbeat": [
+        {
+          "before": {
+            "samples": 97,
+            "p95_ms": 13.302290991414337,
+            "max_ms": 19.992208986077458
+          },
+          "after": {
+            "samples": 88,
+            "p95_ms": 3.6604999960400164,
+            "max_ms": 3.8022080017253757
+          }
+        },
+        {
+          "after": {
+            "samples": 85,
+            "p95_ms": 4.153582970611751,
+            "max_ms": 4.888417029287666
+          },
+          "before": {
+            "samples": 96,
+            "p95_ms": 17.652874991763383,
+            "max_ms": 20.45683301286772
+          }
+        },
+        {
+          "before": {
+            "samples": 99,
+            "p95_ms": 12.85304199438542,
+            "max_ms": 19.51045799534768
+          },
+          "after": {
+            "samples": 88,
+            "p95_ms": 3.736291027162224,
+            "max_ms": 4.004083985928446
+          }
+        }
+      ],
+      "sha256": {
+        "before.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+        "after.py": "f5d8def8c69054c5e792edae361aba89ddcb377449eba6737b0485b08ffdb979",
+        "metric-shapes.json": "b61058660f48cb665ef920482a630ef9672c9ea8bcd2433d6044de2de6a7d29c",
+        "benchmark.py": "1301eaa3e2fe652be4119d76bf3a23f69e13d39cea495e7cd3578f2fa5d64163"
+      }
+    },
+    "initial_array_draft": {
+      "native": {
+        "scope": "Isolated component compute on explicit ring sizes; no HTTP, database, retention or historical-cause claim.",
+        "architecture": "arm64",
+        "python": "3.13.15 | packaged by conda-forge | (main, Sep  2 2026, 21:53:23) [Clang 21.1.8 ]",
+        "results": {
+          "small": {
+            "metrics": 54,
+            "numeric_samples": 1080,
+            "pairs": [
+              {
+                "before": {
+                  "wall_ms_per_export": 0.10405533333333333,
+                  "cpu_ms_per_export": 0.10377766666666667
+                },
+                "after": {
+                  "wall_ms_per_export": 0.34493066666666666,
+                  "cpu_ms_per_export": 0.34512499999999996
+                }
+              },
+              {
+                "after": {
+                  "wall_ms_per_export": 0.35469466666666666,
+                  "cpu_ms_per_export": 0.3550696666666667
+                },
+                "before": {
+                  "wall_ms_per_export": 0.09848633333333334,
+                  "cpu_ms_per_export": 0.098528
+                }
+              },
+              {
+                "before": {
+                  "wall_ms_per_export": 0.09576366666666668,
+                  "cpu_ms_per_export": 0.09584733333333334
+                },
+                "after": {
+                  "wall_ms_per_export": 0.40177766666666664,
+                  "cpu_ms_per_export": 0.3905416666666666
+                }
+              },
+              {
+                "after": {
+                  "wall_ms_per_export": 0.37306966666666663,
+                  "cpu_ms_per_export": 0.366625
+                },
+                "before": {
+                  "wall_ms_per_export": 0.09940266666666665,
+                  "cpu_ms_per_export": 0.09945833333333333
+                }
+              },
+              {
+                "before": {
+                  "wall_ms_per_export": 0.09184733333333334,
+                  "cpu_ms_per_export": 0.09190266666666667
+                },
+                "after": {
+                  "wall_ms_per_export": 0.3601526666666666,
+                  "cpu_ms_per_export": 0.35920833333333335
+                }
+              },
+              {
+                "after": {
+                  "wall_ms_per_export": 0.35711133333333334,
+                  "cpu_ms_per_export": 0.3572223333333333
+                },
+                "before": {
+                  "wall_ms_per_export": 0.11366666666666668,
+                  "cpu_ms_per_export": 0.113778
+                }
+              },
+              {
+                "before": {
+                  "wall_ms_per_export": 0.09572233333333334,
+                  "cpu_ms_per_export": 0.09577799999999999
+                },
+                "after": {
+                  "wall_ms_per_export": 0.35856933333333335,
+                  "cpu_ms_per_export": 0.35869466666666666
+                }
+              }
+            ],
+            "medians": {
+              "before": {
+                "wall_ms_per_export": 0.09848633333333334,
+                "cpu_ms_per_export": 0.098528
+              },
+              "after": {
+                "wall_ms_per_export": 0.35856933333333335,
+                "cpu_ms_per_export": 0.35869466666666666
+              }
+            }
+          },
+          "observed_ring_counts": {
+            "metrics": 54,
+            "numeric_samples": 380006,
+            "pairs": [
+              {
+                "before": {
+                  "wall_ms_per_export": 86.180611,
+                  "cpu_ms_per_export": 84.46141666666666
+                },
+                "after": {
+                  "wall_ms_per_export": 25.998264000000002,
+                  "cpu_ms_per_export": 25.913444666666667
+                }
+              },
+              {
+                "after": {
+                  "wall_ms_per_export": 23.526444333333334,
+                  "cpu_ms_per_export": 23.407638666666667
+                },
+                "before": {
+                  "wall_ms_per_export": 57.122903,
+                  "cpu_ms_per_export": 56.588861
+                }
+              },
+              {
+                "before": {
+                  "wall_ms_per_export": 53.45094433333333,
+                  "cpu_ms_per_export": 53.023986
+                },
+                "after": {
+                  "wall_ms_per_export": 21.591097,
+                  "cpu_ms_per_export": 21.066569333333334
+                }
+              },
+              {
+                "after": {
+                  "wall_ms_per_export": 20.562208333333334,
+                  "cpu_ms_per_export": 20.556124999999998
+                },
+                "before": {
+                  "wall_ms_per_export": 53.945139000000005,
+                  "cpu_ms_per_export": 52.79443066666667
+                }
+              },
+              {
+                "before": {
+                  "wall_ms_per_export": 53.24375,
+                  "cpu_ms_per_export": 52.771861
+                },
+                "after": {
+                  "wall_ms_per_export": 20.632986,
+                  "cpu_ms_per_export": 20.627861
+                }
+              },
+              {
+                "after": {
+                  "wall_ms_per_export": 20.501027666666666,
+                  "cpu_ms_per_export": 20.497777666666668
+                },
+                "before": {
+                  "wall_ms_per_export": 52.63008333333334,
+                  "cpu_ms_per_export": 52.6095
+                }
+              },
+              {
+                "before": {
+                  "wall_ms_per_export": 52.52743066666667,
+                  "cpu_ms_per_export": 52.51625000000001
+                },
+                "after": {
+                  "wall_ms_per_export": 20.672902666666666,
+                  "cpu_ms_per_export": 20.668444666666666
+                }
+              }
+            ],
+            "medians": {
+              "before": {
+                "wall_ms_per_export": 53.45094433333333,
+                "cpu_ms_per_export": 52.79443066666667
+              },
+              "after": {
+                "wall_ms_per_export": 20.672902666666666,
+                "cpu_ms_per_export": 20.668444666666666
+              }
+            }
+          }
+        },
+        "heartbeat": [
+          {
+            "before": {
+              "samples": 48,
+              "p95_ms": 18.806209210306406,
+              "max_ms": 19.001166690140963
+            },
+            "after": {
+              "samples": 65,
+              "p95_ms": 1.615624763071537,
+              "max_ms": 1.7418753169476986
+            }
+          },
+          {
+            "after": {
+              "samples": 65,
+              "p95_ms": 1.7137908190488815,
+              "max_ms": 1.724500097334385
+            },
+            "before": {
+              "samples": 48,
+              "p95_ms": 18.89258285984397,
+              "max_ms": 19.102583061903715
+            }
+          },
+          {
+            "before": {
+              "samples": 48,
+              "p95_ms": 18.87279225513339,
+              "max_ms": 19.05874989926815
+            },
+            "after": {
+              "samples": 65,
+              "p95_ms": 1.6478750668466091,
+              "max_ms": 1.7398329265415668
+            }
+          }
+        ],
+        "sha256": {
+          "before.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+          "after.py": "5e5ce0d2eda46c6b167a83e0621eb6864095ada0b32d70a895d05d144825d674",
+          "metric-shapes.json": "b61058660f48cb665ef920482a630ef9672c9ea8bcd2433d6044de2de6a7d29c",
+          "benchmark.py": "1301eaa3e2fe652be4119d76bf3a23f69e13d39cea495e7cd3578f2fa5d64163"
+        }
+      },
+      "image": {
+        "scope": "Isolated component compute on explicit ring sizes; no HTTP, database, retention or historical-cause claim.",
+        "architecture": "x86_64",
+        "python": "3.13.18 | packaged by conda-forge | (main, Oct 26 2026, 11:38:18) [GCC 15.3.0]",
+        "results": {
+          "small": {
+            "metrics": 54,
+            "numeric_samples": 1080,
+            "pairs": [
+              {
+                "before": {
+                  "wall_ms_per_export": 0.14238900000000002,
+                  "cpu_ms_per_export": 0.20084733333333335
+                },
+                "after": {
+                  "wall_ms_per_export": 0.5645696666666666,
+                  "cpu_ms_per_export": 0.565389
+                }
+              },
+              {
+                "after": {
+                  "wall_ms_per_export": 0.5388890000000001,
+                  "cpu_ms_per_export": 0.5392916666666666
+                },
+                "before": {
+                  "wall_ms_per_export": 0.11434733333333334,
+                  "cpu_ms_per_export": 0.11448599999999999
+                }
+              },
+              {
+                "before": {
+                  "wall_ms_per_export": 0.10555533333333333,
+                  "cpu_ms_per_export": 0.10565266666666667
+                },
+                "after": {
+                  "wall_ms_per_export": 0.5425833333333333,
+                  "cpu_ms_per_export": 0.5429446666666666
+                }
+              },
+              {
+                "after": {
+                  "wall_ms_per_export": 0.536139,
+                  "cpu_ms_per_export": 0.5364723333333333
+                },
+                "before": {
+                  "wall_ms_per_export": 0.10544466666666667,
+                  "cpu_ms_per_export": 0.10555566666666666
+                }
+              },
+              {
+                "before": {
+                  "wall_ms_per_export": 0.10462500000000001,
+                  "cpu_ms_per_export": 0.10472233333333332
+                },
+                "after": {
+                  "wall_ms_per_export": 0.5373613333333334,
+                  "cpu_ms_per_export": 0.5377083333333333
+                }
+              },
+              {
+                "after": {
+                  "wall_ms_per_export": 0.5326806666666667,
+                  "cpu_ms_per_export": 0.5329863333333333
+                },
+                "before": {
+                  "wall_ms_per_export": 0.10775,
+                  "cpu_ms_per_export": 0.10791666666666666
+                }
+              },
+              {
+                "before": {
+                  "wall_ms_per_export": 0.10325000000000001,
+                  "cpu_ms_per_export": 0.10333333333333333
+                },
+                "after": {
+                  "wall_ms_per_export": 0.5747776666666666,
+                  "cpu_ms_per_export": 0.5753613333333333
+                }
+              }
+            ],
+            "medians": {
+              "before": {
+                "wall_ms_per_export": 0.10555533333333333,
+                "cpu_ms_per_export": 0.10565266666666667
+              },
+              "after": {
+                "wall_ms_per_export": 0.5388890000000001,
+                "cpu_ms_per_export": 0.5392916666666666
+              }
+            }
+          },
+          "observed_ring_counts": {
+            "metrics": 54,
+            "numeric_samples": 380006,
+            "pairs": [
+              {
+                "before": {
+                  "wall_ms_per_export": 78.05629166666667,
+                  "cpu_ms_per_export": 78.04716633333334
+                },
+                "after": {
+                  "wall_ms_per_export": 34.299986,
+                  "cpu_ms_per_export": 34.303736
+                }
+              },
+              {
+                "after": {
+                  "wall_ms_per_export": 33.77695833333333,
+                  "cpu_ms_per_export": 33.77288866666667
+                },
+                "before": {
+                  "wall_ms_per_export": 77.92133333333334,
+                  "cpu_ms_per_export": 77.91068033333333
+                }
+              },
+              {
+                "before": {
+                  "wall_ms_per_export": 79.50552766666667,
+                  "cpu_ms_per_export": 79.489625
+                },
+                "after": {
+                  "wall_ms_per_export": 33.86809733333333,
+                  "cpu_ms_per_export": 33.87141666666667
+                }
+              },
+              {
+                "after": {
+                  "wall_ms_per_export": 34.987611333333334,
+                  "cpu_ms_per_export": 34.98951366666667
+                },
+                "before": {
+                  "wall_ms_per_export": 77.42108333333333,
+                  "cpu_ms_per_export": 77.414069
+                }
+              },
+              {
+                "before": {
+                  "wall_ms_per_export": 77.14406933333333,
+                  "cpu_ms_per_export": 77.14063866666667
+                },
+                "after": {
+                  "wall_ms_per_export": 33.82636133333333,
+                  "cpu_ms_per_export": 33.822111
+                }
+              },
+              {
+                "after": {
+                  "wall_ms_per_export": 33.521,
+                  "cpu_ms_per_export": 33.523208333333336
+                },
+                "before": {
+                  "wall_ms_per_export": 77.95793033333334,
+                  "cpu_ms_per_export": 77.94345833333334
+                }
+              },
+              {
+                "before": {
+                  "wall_ms_per_export": 77.92033333333333,
+                  "cpu_ms_per_export": 77.852569
+                },
+                "after": {
+                  "wall_ms_per_export": 33.935194333333335,
+                  "cpu_ms_per_export": 33.937736
+                }
+              }
+            ],
+            "medians": {
+              "before": {
+                "wall_ms_per_export": 77.92133333333334,
+                "cpu_ms_per_export": 77.91068033333333
+              },
+              "after": {
+                "wall_ms_per_export": 33.86809733333333,
+                "cpu_ms_per_export": 33.87141666666667
+              }
+            }
+          }
+        },
+        "heartbeat": [
+          {
+            "before": {
+              "samples": 96,
+              "p95_ms": 16.516542008612305,
+              "max_ms": 20.56391595862806
+            },
+            "after": {
+              "samples": 88,
+              "p95_ms": 3.7116669747047126,
+              "max_ms": 4.490708995144814
+            }
+          },
+          {
+            "after": {
+              "samples": 87,
+              "p95_ms": 3.8612910476513207,
+              "max_ms": 4.368958999402821
+            },
+            "before": {
+              "samples": 98,
+              "p95_ms": 13.098584027029572,
+              "max_ms": 20.04337503341958
+            }
+          },
+          {
+            "before": {
+              "samples": 98,
+              "p95_ms": 12.851749958936123,
+              "max_ms": 21.51045803213492
+            },
+            "after": {
+              "samples": 87,
+              "p95_ms": 3.791999949607998,
+              "max_ms": 4.115332970395684
+            }
+          }
+        ],
+        "sha256": {
+          "before.py": "466831e6da928773cde8daa2428e1029d91c8e77fe953de02a1bab824cf46ce4",
+          "after.py": "5e5ce0d2eda46c6b167a83e0621eb6864095ada0b32d70a895d05d144825d674",
+          "metric-shapes.json": "b61058660f48cb665ef920482a630ef9672c9ea8bcd2433d6044de2de6a7d29c",
+          "benchmark.py": "1301eaa3e2fe652be4119d76bf3a23f69e13d39cea495e7cd3578f2fa5d64163"
+        }
+      }
+    },
+    "qualifications": [
+      "Synthetic values with observed ring lengths, not the original raw sample values.",
+      "Every paired output matches the frozen full-sort function.",
+      "Short rings cost more in absolute microseconds; the bounded branch reduces the initial draft overhead.",
+      "Native heartbeat third-pair outlier remains. Component savings do not equal whole HTTP/probe improvement.",
+      "No production source/image, cadence, sample capacity, percentile definition or budget change."
+    ],
+    "sha256": {
+      "build/latency-cluster-fix-20261107/metrics-red.log": "0db89645816be06c178398a4e9fec8352a67fe2b8466b6e7f11dbfe8909e6559",
+      "build/latency-cluster-fix-20261107/metrics-green.log": "17682eb7904ec92bf351bbbb0b260498fdf28a1b459ab9a601946d02d3874ecc",
+      "build/latency-cluster-fix-20261107/metrics-green-final.log": "d024974a1334f8bf719b8e5c8ba5dc50685ada0b4fe8ed08517d6215c37199d6",
+      "build/latency-cluster-fix-20261107/style.log": "360c0680ffeedd2aacf06436710a7f51de37e1ca622b4794c532fd6d2b37fbda",
+      "test/e2e/offline/load_process_metrics.py": "f5d8def8c69054c5e792edae361aba89ddcb377449eba6737b0485b08ffdb979",
+      "test/hummingbot/cli/test_mm_metrics_export.py": "47c3b7b15cdbd7f51b4da6b87521af58eda01c3a5446a0c0a21ffd6aba4d615d",
+      "build/latency-cluster-fix-20261107/benchmark.py": "1301eaa3e2fe652be4119d76bf3a23f69e13d39cea495e7cd3578f2fa5d64163"
+    }
   }
 }

@@ -5,13 +5,24 @@ import math
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import numpy as np
+
 
 def distribution(values):
-    ordered = sorted(values)
-    if not ordered:
+    # Export workers share the interpreter/GIL with the measured loop. Select
+    # only the four exact nearest ranks rather than fully sorting each ring.
+    count = len(values)
+    if not count:
         return dict(count=0, p50=None, p95=None, p99=None, max=None)
-    return {"count": len(ordered), **{key: ordered[max(0, math.ceil(len(ordered) * fraction) - 1)]
-            for key, fraction in (("p50", .5), ("p95", .95), ("p99", .99))}, "max": ordered[-1]}
+    ranks = [max(0, math.ceil(count * fraction) - 1) for fraction in (.5, .95, .99, 1)]
+    if count <= 256:
+        # Short-ring sorting is cheaper than creating numeric arrays, and its
+        # maximum comparison work is small. Keep the steady full rings linear.
+        ordered = sorted(values)
+        selected = [ordered[rank] for rank in ranks]
+    else:
+        selected = np.partition(np.asarray(values), ranks)[ranks].tolist()
+    return dict(count=count, **dict(zip(('p50', 'p95', 'p99', 'max'), selected)))
 
 
 def write_metrics_snapshot(path, data, values):

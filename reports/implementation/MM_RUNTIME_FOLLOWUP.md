@@ -504,3 +504,50 @@ of the latency increase. [Failed attempt](../release/mm-runtime-followup-load.md
 [portable evidence](../release/mm-runtime-followup-load-evidence.json), raw
 `build/incident-lock-load-20261107/`. Earlier full-pass evidence remains in Git
 `dfad4a4d1` at those release paths; its source/fixture scope remains intact.
+
+### Quantile export work — 2026-11-07
+
+Further investigation finds quota-throttling counter increases during parts of
+the failed interval, while both roles perform work. This supports CPU contention
+as retained context, without assigning aggregate throttled time to one role or
+proving one cause. The existing metrics exporter runs in a thread in each measured
+process. Its complete sorts share the GIL; moving work to that thread does not
+isolate interpreter CPU contention.
+
+The failed snapshot contains 54 per-role metric rings with 380,006 retained values.
+The exporter fully sorts every ring to retrieve only p50/p95/p99/max every five
+seconds. A deterministic synthetic operation-count test fails on the old function:
+147,115 scalar comparisons for 12,000 values. Replace full ordering of long numeric
+rings with NumPy partition at the same exact nearest-rank indices. Keep sorting
+for rings up to 256 values, bounded immutable snapshots, the single worker and
+in-flight job, five-second cadence, all sample counts and quantile definitions.
+No production code, image, request/risk/authority logic, CPU/pool or test budget changes.
+
+Eleven new cases cover nearest-rank boundary/parity, unchanged input, large-integer
+precision and comparison-work bounds. Initial Red: **1 fail / 12 pass**; final
+targeted instrumentation suite **80 pass**, style passes. The two extra boundary
+cases at 256/257 are added with the measured short-ring branch. All numeric inputs
+in the benchmark match the old function's output exactly.
+
+Seven alternating pairs of three complete quantile exports use synthetic sample
+values with the observed ring lengths. Final medians, before→after:
+
+| Environment / fixture | CPU ms per export | Wall ms per export |
+| --- | ---: | ---: |
+| Native arm64 / 54 small rings, 1,080 values | 0.0772→0.1140 | 0.0771→0.1140 |
+| Native arm64 / observed 380,006-value shape | 52.49→20.66 | 52.51→20.68 |
+| Same amd64 image / 54 small rings | 0.1064→0.1609 | 0.1063→0.1607 |
+| Same amd64 image / observed shape | 77.10→39.88 | 77.11→39.90 |
+
+The small case increases about 0.037/0.054 ms per export; no uniform size-independent
+gain is claimed. The initial all-array draft is retained separately; its small-ring
+overhead motivated the bounded short-ring branch. A separate three-pair synthetic
+worker/heartbeat experiment on the image records before p95 12.85–17.65 ms versus
+after 3.66–4.15 ms. The native experiment has a third-pair outlier: after max 132.88 ms
+versus before 91.66 ms. Keep it; timing is not a deterministic test assertion.
+
+These quantify component CPU/GIL exposure, not a complete export/HTTP/DB benchmark,
+memory-leak result or proof of the 2.6-second minute's unique cause. The direct
+component savings cannot be equated to that whole request cluster. The unchanged
+full workload must be checked separately. [Portable evidence](mm-runtime-followup-evidence.json),
+key `quantile_export_followup`; raw `build/latency-cluster-fix-20261107/`.
