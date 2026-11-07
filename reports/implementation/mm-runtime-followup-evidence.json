@@ -6345,6 +6345,21 @@
       "test/e2e/offline/load_process_metrics.py": "f5d8def8c69054c5e792edae361aba89ddcb377449eba6737b0485b08ffdb979",
       "test/hummingbot/cli/test_mm_metrics_export.py": "47c3b7b15cdbd7f51b4da6b87521af58eda01c3a5446a0c0a21ffd6aba4d615d",
       "build/latency-cluster-fix-20261107/benchmark.py": "1301eaa3e2fe652be4119d76bf3a23f69e13d39cea495e7cd3578f2fa5d64163"
+    },
+    "post_load_precision_case": {
+      "passed": 81,
+      "scope": "Additional long-ring integer-valued case after full load; runtime fixture unchanged.",
+      "test_log_sha256": "de3b4e032d2d96db42f5a581d8ed0fb3ebdc724b58b7486bdae7f82c8ebb5786",
+      "test_source_sha256": "e52ca1463e9f77b4042c10f60e5bb6b0a786e281dc9c2abfade86ec2bbcceb19"
+    },
+    "full_load": {
+      "passed": true,
+      "exit_code": 0,
+      "artifact": "build/mm-load/20261107-230357-1eb5f7/result.json",
+      "sha256": "0c7bec29a73c1a90a5198d1415ce62b3f91c8047db12b633f7e469c3e400dc74",
+      "fixture_commit": "41d290393",
+      "shipping_image": "sha256:a6fe88c0bba185d27ed68d1fbc1f43dfa39c5a560c80df1f28e720f2afeb16b2",
+      "interpretation": "Complete unchanged baseline/soak3600/five faults passes. Host AC versus prior battery differs; no unique historical-cause or continuous-quote claim."
     }
   }
 }

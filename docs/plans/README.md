@@ -1,6 +1,6 @@
 # Plans and remaining verification
 
-Updated 2026-11-07. Start with the [current image result](../../reports/release/mm-runtime-followup-load.md)
+Updated after full quantile-fixture verification. Start with the [current image result](../../reports/release/mm-runtime-followup-load.md)
 and [operating guides](../README.md). Detailed completed TDD plans remain in
 [Git history](../../reports/README.md#historical-records). Historical unchecked
 boxes retain their original image/date scope; removing files does not close
@@ -8,11 +8,16 @@ unresolved work. Current outstanding items are listed below.
 
 ## Current state
 
-- [ ] Latest full-load repeat after the incident-lock fix fails mixed main and
-  auxiliary p99 **1,315.91 / 1,169.10 ms**. Warmup passes; 1,200 exact simulated
-  fills/fees/positions reconcile. Warmup1/mixed6 engine probes recover. Burst,
-  Random soak and faults are unrun. Keep the gate open; prior full-pass entries
-  below retain their earlier fixture/date scope in Git `dfad4a4d1`.
+- [x] Latest quantile-fixture full repeat passes all four windows, Random soak3600
+  and five faults: mixed/burst/soak p99 **366.46 / 168.04 / 287.63 ms**, zero
+  unexpected healthy errors, 4,884 exact simulated fills and 23.16 MiB/64 MiB
+  retained growth. Three engine probes recover without healthy replacement.
+- [x] Quantile-export work: 80 targeted passes before load, 81 after one added
+  long-ring integer case. Paired component CPU decreases on full-size rings;
+  small-ring cost/outliers are retained. No production/image or threshold change.
+- [x] Preserve failed repeat in Git `41d290393`: mixed main/auxiliary p99
+  1,315.91/1,169.10 ms, seven engine probes across warmup/mixed; later phases
+  unrun. The new complete gate does not retroactively pass that attempt.
 - [x] PostgreSQL/Cloud Run source port, three MM scenarios, fixed/Random sessions,
   spot/perpetual/both, operator APIs and risk controls are implemented.
 - [x] Reporting-copy source: native 2,788 + 11 subtests / related PG 36 pass,
@@ -24,7 +29,7 @@ unresolved work. Current outstanding items are listed below.
   and recorder optimizations. All 1,224 packaged hashes match through measurement.
 - [x] Earlier fixture: unchanged baseline, 60-minute Random soak and five faults; four targeted
   E2E groups, enhancement90 and a separate activity300 diagnostic pass first attempts.
-- [x] Healthy soak p99 406.14 ms, zero unexpected errors, 24.26 MiB retained growth;
+- [x] Earlier fixture: soak p99 406.14 ms, zero unexpected errors, 24.26 MiB retained growth;
   4,885 exact simulated fills/fees/positions. Eleven soak engine probes and three
   mixed engine probes recover, without healthy child replacement. Burst p99 and
   measured probe count regress versus rollback `e00cef38…`; no uniform speedup.
@@ -44,20 +49,16 @@ unresolved work. Current outstanding items are listed below.
 
 ## Policy and evidence still unresolved
 
-- [ ] Attribute the latest probe-frequency/burst regression before claiming a
-  whole-system improvement: measured probes 6→14 (soak engine 5→11), burst p99
-  267.47→503.57 ms. All recover and budgets pass; the uncontrolled host comparison
-  and bounded captures do not establish one cause. The separate activity300
-  observes progress during its own probes, not all baseline episodes.
+- [ ] Exclusive attribution of the historical probe-frequency/p99 regression
+  remains unproven. The failed 2.6-second minute, prior 6→14 probe increase and
+  bounded captures retain their original scope in Git `41d290393`. The current
+  full pass has mixed 1 / soak 2 probes; AC power differs from that failed battery
+  run. Lower component CPU/GIL exposure is measured, but it does not establish
+  one historical cause or a uniform whole-system gain.
   [Current evidence and limits](../../reports/release/mm-runtime-followup-load.md#recovered-probes-and-comparison).
-  A subsequent ABBA120 audit keeps this open: B has one recovered engine probe
-  in each run, A none, while API p99 ranges 428–496 ms on B and 449–755 ms on A.
-  A separate Red/Green fix removes an incident-recorder producer-lock dependency;
-  it does not establish the cause of the historical probe increase.
+  The separate activity300 point samples and ABBA120 audit retain their own
+  scopes; they do not instrument the latest baseline retrospectively.
   [Code audit](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#combined-image-regression-audit--2026-11-07).
-  The subsequent full repeat fails mixed latency, with probe counts warmup0→1
-  and mixed3→6 versus that preceding same-image full gate. Slow requests cluster
-  across routes; bounded API/engine/DB evidence does not yet establish one cause.
 - [ ] Agree a production quote-coverage SLO separating normal replacement,
   guard restrictions and listing bootstrap. HTTP200/PID stability and point
   samples do not establish continuous two-sided quotes. The [review criteria](../fe-integration.md#reviewing-quote-availability)

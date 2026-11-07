@@ -551,3 +551,33 @@ memory-leak result or proof of the 2.6-second minute's unique cause. The direct
 component savings cannot be equated to that whole request cluster. The unchanged
 full workload must be checked separately. [Portable evidence](mm-runtime-followup-evidence.json),
 key `quantile_export_followup`; raw `build/latency-cluster-fix-20261107/`.
+
+### Full verification after quantile export correction
+
+The first revised-fixture full attempt on unchanged image `a6fe88c0…` **passes**
+all original windows/thresholds and five injected faults. Healthy main p99:
+warmup 312.31, mixed 366.46, burst 168.04 and Random soak 287.63 ms. All 97,800 main /
+24,450 auxiliary requests return HTTP200 with no unexpected healthy errors/stale
+responses or violations. Reconcile 4,884 exact simulated fills, fees and held/active
+positions, two funding bills and six daily snapshots. No actual exchange is used.
+
+Retained growth 23.16 MiB/64 MiB; 58 running samples, max gap 65.51 s and stable
+PIDs 1/32/33. Healthy logs have zero ERROR/CRITICAL or child lifecycle events.
+Three healthy engine probes remain: mixed 1 and soak 2, recovering in 1.053–1.177 s.
+Bounded captures retain their omissions; this does not prove continuous quotes
+or an exclusive historical cause. Eight ERROR records and two scheduled restarts
+are confined to deliberate fault windows. One fault recovery marker is missing
+and is not paired across replacement to invent downtime.
+
+The full runner uses `--keep-going` without relaxing budgets; no healthy window
+violates them. All 1,224 packaged hashes and recorded fixture hashes remain fixed
+through measurement. All existing 10 containers/14 volumes/image IDs are preserved.
+No new image is built. A supplementary long-ring integer-precision test after
+load expands the frozen 80 instrumentation passes to 81; the fixture is unchanged.
+
+Host AC power differs from the preceding failed battery-powered attempt.
+Component work reduction is established by paired tests; the whole API/probe
+difference cannot be assigned exclusively to code. The failed attempt remains
+in Git `41d290393` at the release paths. [Current report](../release/mm-runtime-followup-load.md),
+[portable evidence](../release/mm-runtime-followup-load-evidence.json); raw
+`build/quantile-export-load-20261107/`. Historical attribution and quote SLO remain open.

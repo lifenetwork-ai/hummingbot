@@ -27,9 +27,12 @@ def test_distribution_matches_nearest_rank_without_mutating_samples(size):
     assert values == original
 
 
-def test_distribution_keeps_large_integer_values_exact():
-    values = (2**60 + 1, -(2**60), 2**60 + 3, 0)
-    assert distribution(values) == dict(count=4, p50=0, p95=2**60 + 3, p99=2**60 + 3, max=2**60 + 3)
+@pytest.mark.parametrize('repeats', [1, 100])
+def test_distribution_keeps_large_integer_values_exact(repeats):
+    # Exercise both short sorting and long numeric selection above the exact
+    # float64 integer range; neither may round these integer-valued samples.
+    values = (2**60 + 1, -(2**60), 2**60 + 3, 0) * repeats
+    assert distribution(values) == dict(count=len(values), p50=0, p95=2**60 + 3, p99=2**60 + 3, max=2**60 + 3)
 
 
 def test_four_quantiles_do_not_require_superlinear_comparison_work():

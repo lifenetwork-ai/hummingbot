@@ -4,26 +4,29 @@ Start with the [current image/load report](release/mm-runtime-followup-load.md)
 and [remaining-work register](../docs/plans/README.md). Operational procedures and
 API/FE contracts live in [docs](../docs/README.md).
 
-The latest full-load repeat on **a6fe88c0… fails** after the test incident-lock
-correction. Warmup passes; mixed main/auxiliary p99 **1,315.91 / 1,169.10 ms**
-exceed the unchanged 1,000 ms limits. All 24,000 main/6,000 auxiliary reads return
-HTTP200 and 1,200 exact simulated fills/fees/positions reconcile. Seven engine
-probes recover across the two measured windows, without healthy child replacement.
-The runner stops before burst, Random soak and faults; no new hour/retention
-acceptance is claimed. All existing containers/volumes/images remain.
+The latest full-load repeat on **a6fe88c0… passes** after quantile-export correction
+in the test fixture: all four windows, the sixty-minute Random soak and five faults.
+Mixed/burst/soak p99 **366.46 / 168.04 / 287.63 ms**; zero unexpected healthy errors,
+4,884 exact simulated fills/fees/positions and 23.16 MiB/64 MiB retained growth.
+Three healthy engine probes recover in 1.053–1.177 s without child replacement.
+Host AC power differs from the preceding failed battery run; the improvement is
+observational, not exclusive code attribution. Existing containers/volumes/images remain.
 
+The failed repeat (mixed main/auxiliary p99 1,315.91/1,169.10 ms, stopped before
+burst/soak/faults) remains in Git **`41d290393`** at the current release paths.
 The earlier same-image full pass (soak p99 406.14 ms, 24.26 MiB retained growth,
 4,885 simulated fills), four targeted E2E groups and separate enhancement/activity
 diagnostics retain their original scope in Git **`dfad4a4d1`** at the current
-report/evidence paths. They do not override the latest failed attempt. Earlier
+report/evidence paths. Earlier
 rollback reports/failures remain in Git `745a86e3c` and `ff6b85ded`.
 [Portable evidence](release/mm-runtime-followup-load-evidence.json).
 
 The follow-up [regression audit](implementation/MM_RUNTIME_FOLLOWUP.md#combined-image-regression-audit--2026-11-07)
 compares immutable images in ABBA order and fixes a reproduced lock dependency
 inside test incident capture. The probe-frequency attribution remains open;
-production trading code is unchanged, and the new failed long attempt is now
-recorded separately from those short results.
+production trading code is unchanged. The subsequent metrics-selection correction
+has 80 frozen targeted passes before load and 81 after an additional precision case.
+Both the failed attempt and new complete gate remain separately attributed.
 
 Source/TDD, rejected drafts and paired component costs retain their own scopes in
 [runtime remediation](implementation/MM_RUNTIME_FOLLOWUP.md). Latest reporting-copy

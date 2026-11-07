@@ -311,9 +311,9 @@ changes/both images; no fresh production optimization or threshold adjustment.
 
 - [x] Pin existing image `a6fe88c0…`, verify all 1,224 packaged hashes and record
   the test-fixture change from the preceding full gate. Preserve its evidence.
-- [ ] Repeat the original full baseline with operations/security and bounded
-  incident capture: warmup300, mixed900, burst90, Random soak3600 and five faults.
-  Keep original rates, resources, thresholds and all failed attempts.
+- [x] Execute the original full baseline attempt with operations/security and
+  bounded incident capture. Preserve its fail-fast mixed failure and unrun
+  burst/soak/fault phases, without changing rates/resources/thresholds.
 - [x] Review all retained probe markers, healthy/fault log phases, exact ledger,
   query-count limits, retention and process identities; disclose capture losses.
 - [x] Publish the comparison and fixture/image scope, verify existing containers
@@ -329,9 +329,10 @@ return HTTP200 and 1,200 exact simulated fills/fees/positions reconcile. Warmup 
 mixed 6 engine probes recover, with zero healthy log errors/replacements. Eight
 premeasurement ERROR records are four distinct local `SubmissionBlocked` IDs,
 absent from simulator ledger. The runner stops before burst/soak/faults. Keep
-the full-gate checkbox open; do not reinterpret the prior 120-second pass as an
-hour pass. The latest failed attempt is the [current report](../../reports/release/mm-runtime-followup-load.md);
-the earlier accepted full gate is retained in Git `dfad4a4d1` at that path.
+this historical attempt failed; do not reinterpret the prior 120-second pass as
+an hour pass. Its report/evidence remain in Git `41d290393` at the current release
+paths. Full coverage with the later quantile fixture is qualified separately below;
+the earlier accepted full gate remains in Git `dfad4a4d1` at those paths.
 
 ## Slow-cluster follow-up: quantile export work — requested 2026-11-07
 
@@ -343,12 +344,28 @@ the earlier accepted full gate is retained in Git `dfad4a4d1` at that path.
   retain bounded short-ring sorting and the existing worker/queue/cadence limits.
 - [x] Measure frozen before/after functions on native and the exact amd64 image;
   retain all alternating pairs, small-ring cost and heartbeat outliers.
-- [ ] Repeat the unchanged full workload with `--keep-going` so any latency
+- [x] Repeat the unchanged full workload with `--keep-going` so any latency
   failure remains failed while burst/soak/fault evidence is still collected.
-- [ ] Publish full results and scope; close acceptance only if every original
+- [x] Publish full results and scope; close acceptance only if every original
   budget passes. Do not claim the component explains the entire historical cluster.
 
 The component tests prove excess measurement work, not a unique production bug.
 All production code, image, rate/resource limits, quantile definitions, sample
 counts and health/durability checks retain their original scope. Raw TDD/pairs:
 `build/latency-cluster-fix-20261107/`.
+
+First revised-fixture full attempt passes all four healthy windows, the complete
+Random soak3600 and five faults. Main p99 warmup/mixed/burst/soak:
+**312.31 / 366.46 / 168.04 / 287.63 ms**. All 97,800 main/24,450 auxiliary HTTP200,
+zero unexpected healthy errors/stale responses or budget violations; 4,884 exact
+simulated fills/fees/positions reconcile. Soak retained growth 23.16 MiB/64 MiB;
+58 running samples, max gap 65.51 s and PIDs 1/32/33. Healthy engine probes remain:
+mixed 1 / soak 2, recovering in 1.053–1.177 s without healthy child replacement.
+
+Source `41d290393`: 80 targeted tests before load, 81 after a supplementary
+long-ring integer-precision case. All 1,224 packaged hashes stay unchanged;
+all existing 10 containers/14 volumes/images retained. Host changed from battery
+on the failed attempt to AC here, so exclusive inter-run causation stays open.
+[Latest full verification](../../reports/release/mm-runtime-followup-load.md),
+[portable evidence](../../reports/release/mm-runtime-followup-load-evidence.json).
+Raw full runner: `build/quantile-export-load-20261107/`.

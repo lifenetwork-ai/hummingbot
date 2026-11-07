@@ -22,12 +22,18 @@ and [credential operations](../../docs/exchange-credentials.md).
 
 ## Current verification
 
-The latest full-load repeat after the test-only incident-lock correction **fails**
-mixed main/auxiliary p99: **1,315.91 / 1,169.10 ms** against 1,000 ms. Warmup passes,
-1,200 exact simulated fills reconcile, and warmup1/mixed6 engine probes recover.
-Healthy logs have zero ERROR/CRITICAL or child lifecycle events. Burst/soak/faults
-are not run; no new retention acceptance. Production source and all 1,224 packaged
-hashes are unchanged. The earlier results below retain their previous fixture scope.
+The latest full repeat with quantile fixture `41d290393` **passes** all four
+healthy windows, Random soak3600 and five faults. Mixed/burst/soak p99
+**366.46 / 168.04 / 287.63 ms**; zero unexpected healthy errors, 4,884 exact
+simulated fills reconcile and retained growth 23.16 MiB/64 MiB. Mixed 1 / soak 2 engine
+probes recover without healthy child replacement; continuous quoting and unique
+historical-cause attribution are not established. Host AC power differs from
+the preceding failed battery run. All 1,224 packaged hashes remain unchanged.
+
+The failed repeat (mixed main/auxiliary p99 1,315.91/1,169.10 ms, later phases
+unrun) remains in Git `41d290393` at the release paths. Source/TDD quantile checks
+are 80 before load/81 after one supplementary long-ring integer-precision case.
+Existing containers, volumes and image IDs are retained.
 
 Source tests remain separately attributed: reporting-copy `745a86e3c` passes
 native 2,788 + 11 subtests / related PG 36; write-fence projection `5c421b121` passes
