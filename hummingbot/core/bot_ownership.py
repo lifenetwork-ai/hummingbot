@@ -32,13 +32,17 @@ ACCOUNT_PATHS = {"/api/v5/account/set-leverage", "/api/v5/account/set-position-m
 def _ownership_read(connection):
     """One fresh SELECT on the lock-owning session, without a read-COMMIT wait.
 
-    Restore write isolation before any recovery mutation can use this connection.
+    Restore transaction mode before any recovery mutation uses this connection.
     SQLAlchemy still ends its logical transaction; DBAPI commit is a no-op only
     inside this read scope. Never reconnect an invalidated ownership session.
     """
-    isolation = connection.get_execution_options().get('isolation_level', connection.default_isolation_level)
+    raw = connection.connection.driver_connection
+    autocommit = raw.autocommit
     try:
-        connection.execution_options(isolation_level='AUTOCOMMIT')
+        # Repeated SQLAlchemy isolation execution_options register unbounded
+        # pool-reset callbacks on this process-lifetime connection. Change only
+        # the documented Psycopg flag; SQLAlchemy's transaction is ended below.
+        raw.autocommit = True
         yield
     finally:
         if not connection.closed:
@@ -48,7 +52,7 @@ def _ownership_read(connection):
                 if connection.invalidated:
                     connection.close()
                 else:
-                    connection.execution_options(isolation_level=isolation)
+                    raw.autocommit = autocommit
             except Exception:
                 # An uncertain isolation mode must never reach a later write.
                 # Closing also prevents release() revalidating a lost session.

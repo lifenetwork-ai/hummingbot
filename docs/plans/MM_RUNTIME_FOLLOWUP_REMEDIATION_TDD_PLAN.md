@@ -149,8 +149,13 @@ container references and fourteen volumes. [Report](../../reports/release/mm-run
 
 Use disposable local PostgreSQL only; no existing-Demo data or credentials change.
 
-Targeted PG **71 pass**, including twelve new cases. Seven paired real-PG rounds
+Targeted PG **72 pass**, including thirteen new cases. Seven paired real-PG rounds
 retain every fresh SELECT and remove the separate read COMMIT. Component p50
-1.982→1.624 ms; all samples retained. A controlled 450ms read-COMMIT delay
+2.067→1.156 ms; all samples retained. A controlled 450ms read-COMMIT delay
 makes the unchanged 300ms production probe time out with the legacy path; scoped
 read mode passes. This does not uniquely attribute the seven historical episodes.
+
+Reject the first isolation-execution-options prototype: 200 reads accumulate
+400 pool-reset callbacks. Scope the documented driver flag instead; the unchanged
+SQLAlchemy isolation metadata and pool reset callbacks remain bounded. Retain the
+prototype Red/Green and intentionally interrupted regression as rejected evidence.

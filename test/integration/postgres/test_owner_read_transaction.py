@@ -134,6 +134,16 @@ def test_repeated_read_scopes_preserve_the_same_session_advisory_lock(owned):
         successor.release()
 
 
+def test_repeated_owner_reads_keep_pool_reset_bookkeeping_bounded(owned):
+    # execution_options(isolation_level=...) registers a pool-return callback
+    # each time. An owner keeps this physical connection for the process lifetime.
+    record = owned.owner.connection.connection._connection_record
+    before = len(record.finalize_callback)
+    for _ in range(200):
+        owned.owner.check_owner(new_risk=True)
+    assert len(record.finalize_callback) == before
+
+
 def test_physical_read_session_loss_cannot_restore_isolation_by_reconnecting(owned):
     connection = owned.owner.connection
     connections = []
