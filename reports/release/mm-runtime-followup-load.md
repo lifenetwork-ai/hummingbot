@@ -135,5 +135,6 @@ component measurements separately from this image gate.
 
 
 The later [write-fence projection](../implementation/MM_RUNTIME_FOLLOWUP.md#fresh-write-fence-identity-projection--2026-11-07)
-has separate source/component verification and is not packaged in this immutable
-image. Its tests do not inherit this image's hour gate.
+and [reporting snapshot copy](../implementation/MM_RUNTIME_FOLLOWUP.md#reporting-snapshot-copy-cost--2026-11-07)
+have separate source/component verification and are not packaged in this immutable
+image. Their tests do not inherit this image's hour gate.

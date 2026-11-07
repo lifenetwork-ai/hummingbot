@@ -22,7 +22,13 @@ and [credential operations](../../docs/exchange-credentials.md).
 
 ## Current verification
 
-Newer source write-fence projection passes native2,780 + 11 subtests and full
+Latest reporting snapshot copy source passes native2,788 + 11 subtests and related
+PG36, with eight new cases. It removes a redundant retained-history traversal while
+keeping strict JSON detachment. Component CPU improves; allocation peaks are mixed.
+See the [follow-up](MM_RUNTIME_FOLLOWUP.md#reporting-snapshot-copy-cost--2026-11-07).
+This change also has no new shipping-image/hour gate.
+
+Earlier source write-fence projection passes native2,780 + 11 subtests and full
 PG556, including nine new cases. It retains fresh checks while omitting unused
 state JSON from write proof. Paired component costs improve; no new shipping-image
 hour gate or unique residual-probe cause is claimed. See the

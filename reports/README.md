@@ -32,6 +32,11 @@ native2,780 + 11 subtests and full PG556 pass; paired component measurements and
 failed drafts are retained. This newer source has no new image/hour qualification
 and does not uniquely explain the remaining probes.
 
+The subsequent [reporting snapshot copy follow-up](implementation/MM_RUNTIME_FOLLOWUP.md#reporting-snapshot-copy-cost--2026-11-07)
+removes a redundant history traversal while preserving JSON detachment. Native2,788
++ 11 subtests and related PG36 pass; source/component CPU improves with mixed
+allocation results. Neither source follow-up has a new shipping-image/hour gate.
+
 | Topic | Current entry |
 | --- | --- |
 | [Release](release/README.md) | Current candidate and retained rollback, exact image/gate scope |

@@ -222,3 +222,23 @@ Zero pool callback growth; serialized result bytes are not network counts.
 [evidence](../../reports/performance/mm-owner-read-evidence.json). This source
 change does not inherit `e00cef38…`'s image/load acceptance or uniquely resolve
 the remaining probes. No new image or existing-Demo operation was performed.
+
+## Reporting snapshot copy cost — requested 2026-11-07
+
+- [x] Red: count redundant traversal of retained reporting history; test that
+  updates/failures never mutate previous snapshots or live connector data.
+- [x] Green: copy only mutated reporting containers, retaining the original
+  strict JSON normalization/detachment boundary and unavailable-state behavior.
+- [x] Measure paired baseline/current capture CPU, wall time and allocation on
+  explicitly sized fixtures; do not attribute old probe/GC episodes to this alone.
+- [x] Run relevant reporting/publication/availability tests and native regression,
+  update evidence/checklists and commit. No new image/load/Demo acceptance implied.
+
+Eight new cases; frozen original-function Red1/7 pass. Native2,788 + 11 subtests
+and related PG36/520 deselected pass. History traversals2→1; paired component
+wall costs0.08774→0.05168ms (small) and2.96243→1.26469ms (larger fixture).
+Allocation peak increases6,984 bytes in the small fixture, decreases95,304 in
+the larger. No whole-engine latency, leak or exclusive probe-cause claim.
+[Report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#reporting-snapshot-copy-cost--2026-11-07),
+[evidence](../../reports/implementation/mm-runtime-followup-evidence.json).
+Accepted image `e00cef38…`, existing Demo, containers and volumes stay unchanged.

@@ -10,7 +10,10 @@ unless explicitly listed below. Removing historical files does not mark an unres
 
 - [x] PostgreSQL/Cloud Run source port, three MM scenarios, fixed/Random sessions,
   spot/perpetual/both, operator APIs and risk controls are implemented.
-- [x] Latest source write-fence projection: 2,780 native + 11 subtests and full
+- [x] Latest reporting snapshot copy source: native2,788 + 11 subtests and related
+  PG36 pass, eight new cases. Strict JSON detachment remains; component CPU improves
+  with mixed allocation results. No new image/hour qualification.
+- [x] Earlier source write-fence projection: 2,780 native + 11 subtests and full
   PG556 pass, nine new cases. Fresh authority remains, unused proof JSON is omitted;
   its component measurements do not qualify a new image.
 - [x] Earlier runtime `d9488143d`: ownership-read TDD preserves fresh authority,
@@ -76,3 +79,7 @@ replacing the accepted candidate; no new connected or cloud test is implied.
 Production deployment and FE browser acceptance remain separate from these local
 checks. Their procedures are in [Cloud Run operations](../cloudrun.md) and
 [FE integration](../fe-integration.md).
+
+The [reporting snapshot copy follow-up](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#reporting-snapshot-copy-cost--2026-11-07)
+is another separately verified source change beyond the accepted image. Its
+component costs do not establish a whole-engine speedup or close probe attribution.

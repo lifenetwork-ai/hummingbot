@@ -1163,5 +1163,748 @@
       "command": "/opt/homebrew/Caskroom/miniforge/base/envs/hummingbot/bin/python scripts/test_postgres.py",
       "scope": "Full disposable loopback PostgreSQL 14; ignores local .env and removes its own test container."
     }
+  },
+  "reporting_snapshot_copy_followup": {
+    "base_commit": "5c421b121",
+    "scope": "Source/component follow-up; reporting only. No new image, hour load, Demo, Google/GCP or deployment qualification.",
+    "change": "Copy only mutated reporting containers; retain strict allow_nan=False JSON normalization and detached outputs. No inter-tick cache.",
+    "traversals": {
+      "before": 2,
+      "after": 1,
+      "meaning": "Instrumented retained position list, including the original final JSON serialization."
+    },
+    "tests": {
+      "new_cases": 8,
+      "initial_draft_red": {
+        "failed": 2,
+        "passed": 5,
+        "fixture_error": "Expected a missing-timestamp error on a newly seen currency, which uses the new-entry short circuit; add the prior currency to exercise the intended comparison."
+      },
+      "corrected_initial_red": {
+        "failed": 1,
+        "passed": 6
+      },
+      "frozen_baseline_red": {
+        "failed": 1,
+        "passed": 7
+      },
+      "early_targeted_green": {
+        "passed": 46,
+        "new_cases_at_that_point": 7
+      },
+      "native": {
+        "passed": 2788,
+        "subtests": 11
+      },
+      "targeted_postgres": {
+        "passed": 36,
+        "deselected": 520,
+        "selection": "service_availability or admin_daily or admin_reporting or admin_http_workflow or admin_store"
+      },
+      "prior_full_postgres": {
+        "passed": 556,
+        "source_commit": "5c421b121",
+        "qualification": "Earlier write-fence source verification, not a full PG rerun for the reporting change."
+      }
+    },
+    "logs": {
+      "draft-red": {
+        "path": "/tmp/hbot-reporting-copy-draft-red.log",
+        "sha256": "a22c4d3dd9d841229f573459998e049cd1cfbda421fa788ff2544020c42de8c2",
+        "summaries": [
+          "2 failed, 5 passed in 0.82s"
+        ]
+      },
+      "red": {
+        "path": "/tmp/hbot-reporting-copy-red.log",
+        "sha256": "efb3a778c964d5fc4bc3cf08b82abbf5ccf151a61e6e530d657a55de50145a2b",
+        "summaries": [
+          "1 failed, 6 passed in 0.65s"
+        ]
+      },
+      "frozen-red": {
+        "path": "/tmp/hbot-reporting-copy-frozen-red.log",
+        "sha256": "a7ccb1ef5298f6429c2270e9235d0c21906f84d5e430a6d610cb824037fad586",
+        "summaries": [
+          "1 failed, 7 passed in 0.09s"
+        ]
+      },
+      "green": {
+        "path": "/tmp/hbot-reporting-copy-green.log",
+        "sha256": "ef024a9a8812ba70db25a685c7511b675cce62082a4d5e5a474ff8809795ff62",
+        "summaries": [
+          "46 passed, 6 warnings in 4.21s"
+        ]
+      },
+      "native": {
+        "path": "/tmp/hbot-reporting-copy-native.log",
+        "sha256": "24474cd4834fdb761067fdd7c31456e69cc934e75a0a2f84a5083e2538199725",
+        "summaries": [
+          "202 passed, 19 warnings in 8.92s",
+          "11 passed, 1 warning in 1.05s",
+          "1822 passed, 35 warnings, 11 subtests passed in 51.20s",
+          "753 passed, 14 warnings in 71.67s (0:01:11)"
+        ]
+      },
+      "postgres": {
+        "path": "/tmp/hbot-reporting-copy-postgres.log",
+        "sha256": "ea01fcedd0ab5059e867d5c5d4984ca1e773944154dd1ea96482415bac2bb9e4",
+        "summaries": [
+          "36 passed, 520 deselected, 30 warnings in 69.14s (0:01:09)"
+        ]
+      },
+      "precommit": {
+        "path": "/tmp/hbot-reporting-copy-precommit.log",
+        "sha256": "360c0680ffeedd2aacf06436710a7f51de37e1ca622b4794c532fd6d2b37fbda",
+        "summaries": []
+      }
+    },
+    "measurements": {
+      "baseline_commit": "5c421b121",
+      "baseline_source_sha256": "4ed8d8a4726e3c0a075e415e6afd0007febc1dacc91e58d65d10e472dbed4c5c",
+      "source_sha256": {
+        "hummingbot/cli/admin_observations.py": "58b526d4f92d1a158c186790dbeb230306b519b1ee8955e1902a90cda490dc7d",
+        "test/hummingbot/cli/test_reporting_snapshot_copy.py": "8a7b68098ee4f7a9155ae9138962fc036009b034d6a84b7ebd23f67d16bd78bc"
+      },
+      "gc_enabled": true,
+      "gc_thresholds": [
+        2000,
+        10,
+        10
+      ],
+      "results": [
+        {
+          "balances_per_shared_account": 2,
+          "retained_position_rows": 2,
+          "retained_performance_position_rows": 2,
+          "active_controllers": 2,
+          "pairs": [
+            {
+              "before": {
+                "wall_ms_per_capture": 0.08836583,
+                "cpu_ms_per_capture": 0.08837292
+              },
+              "after": {
+                "wall_ms_per_capture": 0.051581669999999996,
+                "cpu_ms_per_capture": 0.051585410000000005
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_capture": 0.05167958,
+                "cpu_ms_per_capture": 0.051685
+              },
+              "before": {
+                "wall_ms_per_capture": 0.0876925,
+                "cpu_ms_per_capture": 0.08769792
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_capture": 0.08755875,
+                "cpu_ms_per_capture": 0.08756291000000001
+              },
+              "after": {
+                "wall_ms_per_capture": 0.051937910000000004,
+                "cpu_ms_per_capture": 0.05194208
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_capture": 0.05135875,
+                "cpu_ms_per_capture": 0.05136167
+              },
+              "before": {
+                "wall_ms_per_capture": 0.08768125,
+                "cpu_ms_per_capture": 0.08768541
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_capture": 0.08773958,
+                "cpu_ms_per_capture": 0.08774958000000001
+              },
+              "after": {
+                "wall_ms_per_capture": 0.051691669999999995,
+                "cpu_ms_per_capture": 0.05169875
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_capture": 0.05154792,
+                "cpu_ms_per_capture": 0.05155458
+              },
+              "before": {
+                "wall_ms_per_capture": 0.08996791,
+                "cpu_ms_per_capture": 0.08991666000000001
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_capture": 0.53109833,
+                "cpu_ms_per_capture": 0.10544458
+              },
+              "after": {
+                "wall_ms_per_capture": 0.12910459,
+                "cpu_ms_per_capture": 0.09958833
+              }
+            }
+          ],
+          "allocation_pairs": [
+            {
+              "before": {
+                "current_bytes": 10640,
+                "peak_bytes": 24898,
+                "captures": 25
+              },
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 31882,
+                "captures": 25
+              }
+            },
+            {
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 31882,
+                "captures": 25
+              },
+              "before": {
+                "current_bytes": 10640,
+                "peak_bytes": 24898,
+                "captures": 25
+              }
+            },
+            {
+              "before": {
+                "current_bytes": 10640,
+                "peak_bytes": 24898,
+                "captures": 25
+              },
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 31882,
+                "captures": 25
+              }
+            },
+            {
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 31882,
+                "captures": 25
+              },
+              "before": {
+                "current_bytes": 10640,
+                "peak_bytes": 24898,
+                "captures": 25
+              }
+            },
+            {
+              "before": {
+                "current_bytes": 10640,
+                "peak_bytes": 24898,
+                "captures": 25
+              },
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 31882,
+                "captures": 25
+              }
+            },
+            {
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 31882,
+                "captures": 25
+              },
+              "before": {
+                "current_bytes": 10640,
+                "peak_bytes": 24898,
+                "captures": 25
+              }
+            },
+            {
+              "before": {
+                "current_bytes": 10640,
+                "peak_bytes": 24898,
+                "captures": 25
+              },
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 31882,
+                "captures": 25
+              }
+            }
+          ],
+          "allocations": {
+            "before": {
+              "current_bytes": 10640,
+              "peak_bytes": 24898
+            },
+            "after": {
+              "current_bytes": 17432,
+              "peak_bytes": 31882
+            }
+          },
+          "output_equal": true,
+          "previous_unchanged": true,
+          "medians": {
+            "before": {
+              "wall_ms_per_capture": 0.08773958,
+              "cpu_ms_per_capture": 0.08774958000000001
+            },
+            "after": {
+              "wall_ms_per_capture": 0.05167958,
+              "cpu_ms_per_capture": 0.051685
+            }
+          }
+        },
+        {
+          "balances_per_shared_account": 100,
+          "retained_position_rows": 200,
+          "retained_performance_position_rows": 200,
+          "active_controllers": 2,
+          "pairs": [
+            {
+              "before": {
+                "wall_ms_per_capture": 3.11310958,
+                "cpu_ms_per_capture": 2.98663
+              },
+              "after": {
+                "wall_ms_per_capture": 1.26303125,
+                "cpu_ms_per_capture": 1.26305791
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_capture": 1.264685,
+                "cpu_ms_per_capture": 1.26447792
+              },
+              "before": {
+                "wall_ms_per_capture": 2.9618425,
+                "cpu_ms_per_capture": 2.96053583
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_capture": 2.9624275,
+                "cpu_ms_per_capture": 2.95665041
+              },
+              "after": {
+                "wall_ms_per_capture": 1.2727341699999999,
+                "cpu_ms_per_capture": 1.27204333
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_capture": 1.26268333,
+                "cpu_ms_per_capture": 1.2625495800000002
+              },
+              "before": {
+                "wall_ms_per_capture": 2.94432375,
+                "cpu_ms_per_capture": 2.94422542
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_capture": 2.96075584,
+                "cpu_ms_per_capture": 2.95997667
+              },
+              "after": {
+                "wall_ms_per_capture": 1.2693058400000001,
+                "cpu_ms_per_capture": 1.26916125
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_capture": 1.2636329199999998,
+                "cpu_ms_per_capture": 1.2635108400000001
+              },
+              "before": {
+                "wall_ms_per_capture": 2.9734125,
+                "cpu_ms_per_capture": 2.96820125
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_capture": 3.3653804199999997,
+                "cpu_ms_per_capture": 3.1483825
+              },
+              "after": {
+                "wall_ms_per_capture": 1.26944334,
+                "cpu_ms_per_capture": 1.26927959
+              }
+            }
+          ],
+          "allocation_pairs": [
+            {
+              "before": {
+                "current_bytes": 17600,
+                "peak_bytes": 473748,
+                "captures": 25
+              },
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 378444,
+                "captures": 25
+              }
+            },
+            {
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 378444,
+                "captures": 25
+              },
+              "before": {
+                "current_bytes": 17600,
+                "peak_bytes": 473748,
+                "captures": 25
+              }
+            },
+            {
+              "before": {
+                "current_bytes": 17600,
+                "peak_bytes": 473748,
+                "captures": 25
+              },
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 378444,
+                "captures": 25
+              }
+            },
+            {
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 378444,
+                "captures": 25
+              },
+              "before": {
+                "current_bytes": 17600,
+                "peak_bytes": 473748,
+                "captures": 25
+              }
+            },
+            {
+              "before": {
+                "current_bytes": 17600,
+                "peak_bytes": 473748,
+                "captures": 25
+              },
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 378444,
+                "captures": 25
+              }
+            },
+            {
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 378444,
+                "captures": 25
+              },
+              "before": {
+                "current_bytes": 17600,
+                "peak_bytes": 473748,
+                "captures": 25
+              }
+            },
+            {
+              "before": {
+                "current_bytes": 17600,
+                "peak_bytes": 473748,
+                "captures": 25
+              },
+              "after": {
+                "current_bytes": 17432,
+                "peak_bytes": 378444,
+                "captures": 25
+              }
+            }
+          ],
+          "allocations": {
+            "before": {
+              "current_bytes": 17600,
+              "peak_bytes": 473748
+            },
+            "after": {
+              "current_bytes": 17432,
+              "peak_bytes": 378444
+            }
+          },
+          "output_equal": true,
+          "previous_unchanged": true,
+          "medians": {
+            "before": {
+              "wall_ms_per_capture": 2.9624275,
+              "cpu_ms_per_capture": 2.96053583
+            },
+            "after": {
+              "wall_ms_per_capture": 1.264685,
+              "cpu_ms_per_capture": 1.26447792
+            }
+          }
+        }
+      ],
+      "scope": "Warmed native component; seven alternating pairs of 100 captures, synthetic shared-wallet fixtures with two active controllers. Allocation medians use seven alternating pairs of separate 25-call tracemalloc experiments, not process RSS or retained growth. Medians of batch means are not request p50/p99. No whole-engine/probe or actual production-size claim."
+    },
+    "preliminary_measurements": {
+      "baseline_commit": "5c421b121",
+      "baseline_source_sha256": "4ed8d8a4726e3c0a075e415e6afd0007febc1dacc91e58d65d10e472dbed4c5c",
+      "source_sha256": {
+        "hummingbot/cli/admin_observations.py": "58b526d4f92d1a158c186790dbeb230306b519b1ee8955e1902a90cda490dc7d",
+        "test/hummingbot/cli/test_reporting_snapshot_copy.py": "85cd5fb2db3835f93943e87cff2cdfe98a98ec35c2ca0896ab4e7be4baaa582e"
+      },
+      "gc_enabled": true,
+      "gc_thresholds": [
+        2000,
+        10,
+        10
+      ],
+      "results": [
+        {
+          "balances_per_shared_account": 2,
+          "retained_position_rows": 2,
+          "retained_performance_position_rows": 2,
+          "active_controllers": 2,
+          "pairs": [
+            {
+              "before": {
+                "wall_ms_per_capture": 0.08821458,
+                "cpu_ms_per_capture": 0.08822375
+              },
+              "after": {
+                "wall_ms_per_capture": 0.05203208,
+                "cpu_ms_per_capture": 0.0520375
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_capture": 0.052145,
+                "cpu_ms_per_capture": 0.052154160000000005
+              },
+              "before": {
+                "wall_ms_per_capture": 0.08849917,
+                "cpu_ms_per_capture": 0.08850375
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_capture": 0.08813458,
+                "cpu_ms_per_capture": 0.08813958
+              },
+              "after": {
+                "wall_ms_per_capture": 0.05199625,
+                "cpu_ms_per_capture": 0.05200125
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_capture": 0.051919160000000006,
+                "cpu_ms_per_capture": 0.051925410000000005
+              },
+              "before": {
+                "wall_ms_per_capture": 0.09132875,
+                "cpu_ms_per_capture": 0.0913
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_capture": 0.08967083,
+                "cpu_ms_per_capture": 0.08964416
+              },
+              "after": {
+                "wall_ms_per_capture": 0.05233083,
+                "cpu_ms_per_capture": 0.05235125
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_capture": 0.05256583,
+                "cpu_ms_per_capture": 0.05257709
+              },
+              "before": {
+                "wall_ms_per_capture": 0.09715084,
+                "cpu_ms_per_capture": 0.09603125
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_capture": 0.11734875,
+                "cpu_ms_per_capture": 0.09734208999999999
+              },
+              "after": {
+                "wall_ms_per_capture": 0.14022541,
+                "cpu_ms_per_capture": 0.08599917
+              }
+            }
+          ],
+          "allocations": {
+            "before": {
+              "current_bytes": 10640,
+              "peak_bytes": 24898,
+              "captures": 25
+            },
+            "after": {
+              "current_bytes": 17432,
+              "peak_bytes": 31882,
+              "captures": 25
+            }
+          },
+          "output_equal": true,
+          "previous_unchanged": true,
+          "medians": {
+            "before": {
+              "wall_ms_per_capture": 0.08967083,
+              "cpu_ms_per_capture": 0.08964416
+            },
+            "after": {
+              "wall_ms_per_capture": 0.052145,
+              "cpu_ms_per_capture": 0.052154160000000005
+            }
+          }
+        },
+        {
+          "balances_per_shared_account": 100,
+          "retained_position_rows": 200,
+          "retained_performance_position_rows": 200,
+          "active_controllers": 2,
+          "pairs": [
+            {
+              "before": {
+                "wall_ms_per_capture": 3.98794625,
+                "cpu_ms_per_capture": 3.97421292
+              },
+              "after": {
+                "wall_ms_per_capture": 1.34897417,
+                "cpu_ms_per_capture": 1.34781959
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_capture": 1.27472334,
+                "cpu_ms_per_capture": 1.27232958
+              },
+              "before": {
+                "wall_ms_per_capture": 2.99481666,
+                "cpu_ms_per_capture": 2.98741125
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_capture": 2.94344,
+                "cpu_ms_per_capture": 2.94299
+              },
+              "after": {
+                "wall_ms_per_capture": 1.2611533400000001,
+                "cpu_ms_per_capture": 1.2609608300000001
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_capture": 1.26174625,
+                "cpu_ms_per_capture": 1.26157125
+              },
+              "before": {
+                "wall_ms_per_capture": 2.9485175,
+                "cpu_ms_per_capture": 2.94804833
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_capture": 2.94615875,
+                "cpu_ms_per_capture": 2.94357625
+              },
+              "after": {
+                "wall_ms_per_capture": 1.25981792,
+                "cpu_ms_per_capture": 1.25975334
+              }
+            },
+            {
+              "after": {
+                "wall_ms_per_capture": 1.26007917,
+                "cpu_ms_per_capture": 1.25991334
+              },
+              "before": {
+                "wall_ms_per_capture": 2.95578458,
+                "cpu_ms_per_capture": 2.95341833
+              }
+            },
+            {
+              "before": {
+                "wall_ms_per_capture": 2.962905,
+                "cpu_ms_per_capture": 2.96238792
+              },
+              "after": {
+                "wall_ms_per_capture": 1.26439209,
+                "cpu_ms_per_capture": 1.26409125
+              }
+            }
+          ],
+          "allocations": {
+            "before": {
+              "current_bytes": 17600,
+              "peak_bytes": 473748,
+              "captures": 25
+            },
+            "after": {
+              "current_bytes": 17432,
+              "peak_bytes": 378444,
+              "captures": 25
+            }
+          },
+          "output_equal": true,
+          "previous_unchanged": true,
+          "medians": {
+            "before": {
+              "wall_ms_per_capture": 2.95578458,
+              "cpu_ms_per_capture": 2.95341833
+            },
+            "after": {
+              "wall_ms_per_capture": 1.26174625,
+              "cpu_ms_per_capture": 1.26157125
+            }
+          }
+        }
+      ],
+      "scope": "Warmed native component; seven alternating pairs of 100 captures, synthetic shared-wallet fixtures with two active controllers. Allocation peaks are separate 25-call tracemalloc experiments, not process RSS or retained growth. Medians of batch means are not request p50/p99. No whole-engine/probe or actual production-size claim."
+    },
+    "artifacts": {
+      "paired": {
+        "path": "build/reporting-copy-20261107/paired.json",
+        "sha256": "149d75460c893df299e0c4937bea9a5d4f26ab69fb49a504251981434785eee0"
+      },
+      "measure_helper": {
+        "path": "build/reporting-copy-20261107/measure.py",
+        "sha256": "3e65fe562230311aad6d556751476f525cf82dfed79b57648dcaee187d8b3094"
+      }
+    },
+    "limits": [
+      "CPU/wall costs are warmed native component measurements with explicit synthetic sizes, not whole-engine/probe latency.",
+      "Small-fixture tracemalloc peak increases 24898 to 31882 bytes; large-fixture peak decreases 473748 to 378444 bytes. No uniform memory reduction or RSS/leak claim.",
+      "Allocation medians use seven alternating pairs of 25-call tracemalloc experiments, with gc.collect before each separate allocation experiment. GC stays enabled at the existing thresholds.",
+      "Connector/strategy reads stay on the event-loop thread; the final strict JSON boundary and detached status publication remain.",
+      "Existing accepted e00cef38 image predates both this source change and the prior write-fence projection. Remaining probe attribution is not closed."
+    ],
+    "post_verification_inventory": {
+      "existing_containers_preserved": {
+        "hummingbot-local-demo": true,
+        "hummingbot-local-demo-before-controller-persistence-20261104064759": true,
+        "hummingbot-local-demo-before-controller-persistence-20261104043232": true,
+        "hummingbot-local-demo-before-controller-persistence-20261104005057": true,
+        "hummingbot-local-demo-before-controller-persistence-20261103205237": true,
+        "hummingbot-local-demo-before-cleanup-fix": true,
+        "hummingbot-local-demo-incident-preserved": true,
+        "hummingbot-okx-demo-db": true,
+        "onchain-handler-app-1": true,
+        "onchain-handler-db-1": true
+      },
+      "containers": 10,
+      "images": 14,
+      "volumes": 14,
+      "volume_inventory_unchanged": true,
+      "all_preexisting_images_retained": true,
+      "no_new_bot_image": true
+    }
   }
 }

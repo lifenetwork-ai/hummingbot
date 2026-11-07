@@ -12,7 +12,7 @@ scoped Set/load/rotation, cancel/close/remove cleanup, durable Retry/Repair,
 correlated audit, secret-free status/errors and bounded workers/query counts.
 Real Google/GCP and reviewed existing-Demo cutover remain open.
 
-Latest source `d9488143d` passes native2,780 + 11 subtests and full PG547. See
+Ownership-read source `d9488143d` passes native2,780 + 11 subtests and full PG547. See
 [source details](MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07);
 image `e00cef38…` separately passes the unchanged full security/operator load,
 sixty-minute soak/five faults, four targeted E2E groups on first attempts, and

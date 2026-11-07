@@ -4,6 +4,7 @@
 
 | Report | Scope |
 | --- | --- |
+| [Reporting snapshot copy](../implementation/MM_RUNTIME_FOLLOWUP.md#reporting-snapshot-copy-cost--2026-11-07), [evidence](../implementation/mm-runtime-followup-evidence.json) | One retained-history traversal instead of two; paired component CPU improves, allocation peaks mixed; native2,788 + 11 subtests / related PG36 pass; no new image gate |
 | [Ownership reads / write-fence projection](../implementation/MM_RUNTIME_FOLLOWUP.md#fresh-write-fence-identity-projection--2026-11-07), [evidence](mm-owner-read-evidence.json) | Component/source: fresh write proof columns14→1, paired payload costs, original read-COMMIT TDD and failure semantics; latest native2,780 + 11 subtests / full PG556 pass; accepted image precedes projection |
 | [Fill-flush follow-up](../implementation/MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07), [evidence](mm-fill-flush-evidence.json) | Component counts/timing and failure semantics; native passes, PG530 + corrected benchmark/new-case rerun9 pass; image load measured separately |
 | [Latest runtime remediation](../implementation/MM_RUNTIME_FOLLOWUP.md), [evidence](../implementation/mm-runtime-followup-evidence.json) | Fresh exposure reads, per-report summaries, readiness and availability boundaries |

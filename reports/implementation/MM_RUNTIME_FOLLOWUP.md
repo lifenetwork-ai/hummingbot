@@ -334,3 +334,43 @@ No speculative thread move, trace-lock rewrite or GC tuning is applied. The new
 source has **no new image E2E/hour load/Demo/GCP qualification**; accepted image
 `e00cef38…` still contains `d9488143d`. Existing Demo and image inventory remain
 unchanged; the disposable test database is removed.
+
+### Reporting snapshot copy cost — 2026-11-07
+
+`capture_reporting` recursively copied every previous reporting observation, then
+used its existing JSON round trip to normalize/detach everything again. It now
+copies the account/balance containers it edits and the positions/performance maps
+it replaces entries in. Retained history is read-only until the same final strict
+JSON boundary. No cache, connector threading, serialization-policy, API/schema,
+trading/risk or publication-authority changes.
+
+Eight new cases cover one traversal of retained history instead of two, balance
+replacement/missing assets, detached live and prior positions/performance,
+verified-account replacement, malformed observations and nonfinite JSON samples.
+The initial draft includes one mistaken missing-timestamp fixture; its new-currency
+short circuit did not exercise that comparison. Correct the fixture, retain its
+failure, and verify the final test set on the original function: **Red1/7 pass**.
+Source checks: early targeted46 (seven new cases at that point), frozen native
+**2,788 + 11 subtests** and reporting/publication/API PG **36 pass / 520 deselected**.
+The earlier full PG556 remains attributed to `5c421b121`, not this new source.
+[Portable evidence](mm-runtime-followup-evidence.json), key
+`reporting_snapshot_copy_followup`, preserves failed drafts, hashes and all pairs.
+
+| Synthetic shared-wallet fixture, two active controllers | Median batch mean wall ms/capture, before→after | Thread CPU ms/capture, before→after | Tracemalloc peak bytes, before→after |
+| --- | ---: | ---: | ---: |
+| 2 balances / 2 retained positions and performance rows | 0.08774→0.05168 | 0.08775→0.05169 | 24,898→31,882 |
+| 100 balances / 200 retained positions and performance rows | 2.96243→1.26469 | 2.96054→1.26448 | 473,748→378,444 |
+
+Seven warmed alternating pairs of 100 captures show about **41% / 57% component
+CPU savings**. Both outputs match the original function and leave prior data
+unchanged. Allocation medians are seven separate alternating pairs of 25-call
+tracemalloc experiments; collection occurs before each allocation experiment.
+The small fixture's peak increases **6,984 bytes**; the larger peak decreases
+**95,304 bytes**. This does not establish uniform memory savings, process RSS,
+retained growth or a leak fix. Batch means are not request p50/p99, and the fixture
+sizes are not an observed production distribution.
+
+The smaller case saves about **0.036 ms per capture**; this is not an explanation
+for the previous second-scale probe observations. Other observer/recorder I/O and
+trace/GC context remain unproven attribution. No new image/E2E/hour load/Demo/GCP
+run is claimed; accepted image `e00cef38…` still predates both recent source changes.

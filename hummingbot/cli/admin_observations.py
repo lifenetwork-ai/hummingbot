@@ -1,5 +1,4 @@
 """Read-only projections of connector observations and existing V2 report caches."""
-import copy
 import json
 
 # Preserve the existing import while storage uses the neutral projection directly.
@@ -7,14 +6,21 @@ from hummingbot.core.reporting import reporting_view  # noqa: F401
 
 
 def capture_reporting(core, previous):
-    result = copy.deepcopy(previous or {})
+    # Only these containers are mutated below. Retained history is read-only;
+    # the existing strict JSON round trip detaches every branch at the end.
+    result = dict(previous or {})
     result.setdefault("accounts", [])
     result.setdefault("positions", {})
     result.setdefault("performance", {})
+    for key in ("positions", "performance"):
+        if isinstance(result[key], dict):
+            result[key] = result[key].copy()
     connectors = core.connector_manager.connectors
     result["active_connectors"] = sorted(connectors)
     result["ready_controller_ids"] = []
-    accounts = {(row["account_id"], row["environment"]): row for row in result["accounts"]}
+    accounts = {(row["account_id"], row["environment"]):
+                {**row, "balances": [dict(balance) for balance in row["balances"]]}
+                for row in result["accounts"]}
     for name, connector in connectors.items():
         if name not in ("okx", "okx_perpetual"):
             continue
