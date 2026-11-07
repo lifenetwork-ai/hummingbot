@@ -4,30 +4,32 @@ Start with the [current image/load report](release/mm-runtime-followup-load.md)
 and [remaining-work register](../docs/plans/README.md). Operational procedures and
 API/FE contracts live in [docs](../docs/README.md).
 
-Current image **a6fe88c0…** packages the write-fence projection and reporting-copy
-optimizations. It passes the unchanged full load/60-minute soak/five faults,
-four targeted E2E groups, enhancement90 and a separate activity300 diagnostic.
-Soak p99 **406.14 ms**, zero unexpected healthy errors, **24.26 MiB** retained
-growth and **4,885 simulated fills** reconcile. Eleven soak engine probes and
-three mixed engine probes recover without healthy child replacement. Burst p99
-and measured probe frequency regress versus rollback **e00cef38…**, despite
-component savings; no uniform speedup or continuous-quote claim. The separate
-activity diagnostic records completed cycles and working-order point samples
-during its two probes, with finite coverage limits. One unused image removed;
-all container references/volumes retained. Prior reports/attempts remain in Git
-`745a86e3c` and `ff6b85ded` at their original report/evidence paths.
+The latest full-load repeat on **a6fe88c0… fails** after the test incident-lock
+correction. Warmup passes; mixed main/auxiliary p99 **1,315.91 / 1,169.10 ms**
+exceed the unchanged 1,000 ms limits. All 24,000 main/6,000 auxiliary reads return
+HTTP200 and 1,200 exact simulated fills/fees/positions reconcile. Seven engine
+probes recover across the two measured windows, without healthy child replacement.
+The runner stops before burst, Random soak and faults; no new hour/retention
+acceptance is claimed. All existing containers/volumes/images remain.
+
+The earlier same-image full pass (soak p99 406.14 ms, 24.26 MiB retained growth,
+4,885 simulated fills), four targeted E2E groups and separate enhancement/activity
+diagnostics retain their original scope in Git **`dfad4a4d1`** at the current
+report/evidence paths. They do not override the latest failed attempt. Earlier
+rollback reports/failures remain in Git `745a86e3c` and `ff6b85ded`.
 [Portable evidence](release/mm-runtime-followup-load-evidence.json).
 
 The follow-up [regression audit](implementation/MM_RUNTIME_FOLLOWUP.md#combined-image-regression-audit--2026-11-07)
 compares immutable images in ABBA order and fixes a reproduced lock dependency
 inside test incident capture. The probe-frequency attribution remains open;
-production trading code and current full-gate evidence are unchanged.
+production trading code is unchanged, and the new failed long attempt is now
+recorded separately from those short results.
 
 Source/TDD, rejected drafts and paired component costs retain their own scopes in
 [runtime remediation](implementation/MM_RUNTIME_FOLLOWUP.md). Latest reporting-copy
 source: native 2,788 + 11 subtests / related PG 36; preceding write-fence projection:
 native 2,780 + 11 / full PG 556. They are now separately packaged/qualified by the
-current image gate. No real Google/GCP, connected Demo or production deployment
+earlier image gate. No real Google/GCP, connected Demo or production deployment
 is inherited from these local results.
 
 | Topic | Current entry |

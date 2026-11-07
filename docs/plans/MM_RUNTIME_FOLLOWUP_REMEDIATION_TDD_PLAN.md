@@ -306,3 +306,29 @@ attribution. All 1,224 packaged runtime hashes stay unchanged. Keep the producti
 changes/both images; no fresh production optimization or threshold adjustment.
 [Audit and decision](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#combined-image-regression-audit--2026-11-07),
 [portable evidence](../../reports/implementation/mm-runtime-followup-evidence.json).
+
+## Full load after incident-lock fix — requested 2026-11-07
+
+- [x] Pin existing image `a6fe88c0…`, verify all 1,224 packaged hashes and record
+  the test-fixture change from the preceding full gate. Preserve its evidence.
+- [ ] Repeat the original full baseline with operations/security and bounded
+  incident capture: warmup300, mixed900, burst90, Random soak3600 and five faults.
+  Keep original rates, resources, thresholds and all failed attempts.
+- [x] Review all retained probe markers, healthy/fault log phases, exact ledger,
+  query-count limits, retention and process identities; disclose capture losses.
+- [x] Publish the comparison and fixture/image scope, verify existing containers
+  and volumes are preserved, update current checklists and commit.
+
+Raw runner/evidence: `build/incident-lock-load-20261107/`. The mounted fixture uses
+the incident-lock correction from `dfad4a4d1`; no new image, extra stage timers,
+MM activity/full trace, actual OKX/Google/GCP or deployment action is included.
+
+First attempt exits 1 on mixed `read_p99` and `auxiliary_read_p99`: **1,315.91 /
+1,169.10 ms** against 1,000 ms. Warmup passes; all 24,000 main/6,000 auxiliary reads
+return HTTP200 and 1,200 exact simulated fills/fees/positions reconcile. Warmup 1 /
+mixed 6 engine probes recover, with zero healthy log errors/replacements. Eight
+premeasurement ERROR records are four distinct local `SubmissionBlocked` IDs,
+absent from simulator ledger. The runner stops before burst/soak/faults. Keep
+the full-gate checkbox open; do not reinterpret the prior 120-second pass as an
+hour pass. The latest failed attempt is the [current report](../../reports/release/mm-runtime-followup-load.md);
+the earlier accepted full gate is retained in Git `dfad4a4d1` at that path.

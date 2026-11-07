@@ -476,3 +476,31 @@ does not eliminate GIL/sink overhead or establish that previous stalls were all
 test artifacts. Raw artifacts: `build/runtime-regression-audit-20261107/`;
 portable evidence is under `combined_image_regression_audit` in the
 [existing evidence file](mm-runtime-followup-evidence.json).
+
+### Full load after incident-lock fix — 2026-11-07
+
+The first unchanged full repeat on the same `a6fe88c0…` image **fails** in the
+mixed window: main/auxiliary p99 **1,315.91 / 1,169.10 ms** exceed the original
+1,000 ms limits. Warmup p99 394.79 ms passes. The runner exits 1 before burst,
+Random soak and all five fault windows; no new hour/retention result exists.
+There is no automatic retry, threshold relaxation or fresh production change.
+
+All 24,000 main/6,000 auxiliary requests return HTTP200, and 1,200 exact simulated
+fills/fees/positions reconcile. Warmup one/mixed six engine probes recover;
+healthy logs have zero ERROR/CRITICAL and zero child lifecycle events. Four and
+fourteen minute samples retain PIDs 1/38/39. Eight premeasurement ERROR events
+are connector/executor `SubmissionBlocked` reports for four IDs absent from the
+simulator ledger; their generic safety reason does not prove the precise earlier
+control transition. All existing containers, volumes and image IDs are retained.
+
+The slow minute ending at 480 seconds has p95 2,596.61 ms across many routes.
+Retained API request spans reach 1,462 ms; engine ownership/SQL waits and event-loop
+work overlap. Low thread CPU relative to wall time points to waits/descheduling
+as part of the observed work, without uniquely establishing DB, host or fixture
+causation. The short 258 ms diagnostic did not predict this cluster. Pause further
+optimization until a controlled before/after witness is established; do not call
+this run a whole-system improvement or claim the producer-lock fix caused all
+of the latency increase. [Failed attempt](../release/mm-runtime-followup-load.md),
+[portable evidence](../release/mm-runtime-followup-load-evidence.json), raw
+`build/incident-lock-load-20261107/`. Earlier full-pass evidence remains in Git
+`dfad4a4d1` at those release paths; its source/fixture scope remains intact.

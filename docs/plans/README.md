@@ -8,6 +8,11 @@ unresolved work. Current outstanding items are listed below.
 
 ## Current state
 
+- [ ] Latest full-load repeat after the incident-lock fix fails mixed main and
+  auxiliary p99 **1,315.91 / 1,169.10 ms**. Warmup passes; 1,200 exact simulated
+  fills/fees/positions reconcile. Warmup1/mixed6 engine probes recover. Burst,
+  Random soak and faults are unrun. Keep the gate open; prior full-pass entries
+  below retain their earlier fixture/date scope in Git `dfad4a4d1`.
 - [x] PostgreSQL/Cloud Run source port, three MM scenarios, fixed/Random sessions,
   spot/perpetual/both, operator APIs and risk controls are implemented.
 - [x] Reporting-copy source: native 2,788 + 11 subtests / related PG 36 pass,
@@ -17,7 +22,7 @@ unresolved work. Current outstanding items are listed below.
   nine new cases. Fresh authority remains; unused proof JSON is omitted.
 - [x] Image `a6fe88c0…` now packages both changes, including earlier ownership-read
   and recorder optimizations. All 1,224 packaged hashes match through measurement.
-- [x] Unchanged baseline, 60-minute Random soak and five faults; four targeted
+- [x] Earlier fixture: unchanged baseline, 60-minute Random soak and five faults; four targeted
   E2E groups, enhancement90 and a separate activity300 diagnostic pass first attempts.
 - [x] Healthy soak p99 406.14 ms, zero unexpected errors, 24.26 MiB retained growth;
   4,885 exact simulated fills/fees/positions. Eleven soak engine probes and three
@@ -50,6 +55,9 @@ unresolved work. Current outstanding items are listed below.
   A separate Red/Green fix removes an incident-recorder producer-lock dependency;
   it does not establish the cause of the historical probe increase.
   [Code audit](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#combined-image-regression-audit--2026-11-07).
+  The subsequent full repeat fails mixed latency, with probe counts warmup0→1
+  and mixed3→6 versus that preceding same-image full gate. Slow requests cluster
+  across routes; bounded API/engine/DB evidence does not yet establish one cause.
 - [ ] Agree a production quote-coverage SLO separating normal replacement,
   guard restrictions and listing bootstrap. HTTP200/PID stability and point
   samples do not establish continuous two-sided quotes. The [review criteria](../fe-integration.md#reviewing-quote-availability)

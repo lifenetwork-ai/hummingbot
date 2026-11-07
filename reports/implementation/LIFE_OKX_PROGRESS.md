@@ -22,13 +22,20 @@ and [credential operations](../../docs/exchange-credentials.md).
 
 ## Current verification
 
+The latest full-load repeat after the test-only incident-lock correction **fails**
+mixed main/auxiliary p99: **1,315.91 / 1,169.10 ms** against 1,000 ms. Warmup passes,
+1,200 exact simulated fills reconcile, and warmup1/mixed6 engine probes recover.
+Healthy logs have zero ERROR/CRITICAL or child lifecycle events. Burst/soak/faults
+are not run; no new retention acceptance. Production source and all 1,224 packaged
+hashes are unchanged. The earlier results below retain their previous fixture scope.
+
 Source tests remain separately attributed: reporting-copy `745a86e3c` passes
 native 2,788 + 11 subtests / related PG 36; write-fence projection `5c421b121` passes
 native 2,780 + 11 / full PG 556. Fresh authority, transactions, strict JSON
 normalization and bounded pools remain. Paired component savings and mixed
 allocation outcomes are in the [source report](MM_RUNTIME_FOLLOWUP.md).
 
-Image `a6fe88c0…`, build `745a86e3c`, now packages both changes and passes the
+Earlier fixture: image `a6fe88c0…`, build `745a86e3c`, packages both changes and passes the
 unchanged full baseline/soak3600/five faults, four targeted E2E groups,
 enhancement90 and a separate activity300 diagnostic, all first attempts. Soak
 p99 **406.14 ms**, zero unexpected healthy errors, **24.26 MiB** retained growth;

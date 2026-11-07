@@ -1,192 +1,113 @@
-# Combined runtime image: full local load gate
+# Current image: latest full-load repeat failed
 
-Image **`a6fe88c0…` passes** the unchanged baseline, sixty-minute Random soak,
-five fault windows and four targeted E2E groups on their first attempts. It
-packages the fresh write-fence projection and reporting-copy optimizations.
-**Probe frequency and burst p99 regress** versus the preceding accepted image;
-this pass does not close probe attribution or establish continuous quoting.
-
-The later [code audit and ABBA comparison](../implementation/MM_RUNTIME_FOLLOWUP.md#combined-image-regression-audit--2026-11-07)
-retain this full gate unchanged. They identify and fix a test incident-recorder
-lock dependency, without establishing it as the cause of the earlier probe
-increase. New short diagnostics do not replace this hour-long acceptance scope.
+The latest attempt on **`a6fe88c0…` fails** the mixed-window main and auxiliary
+API p99 budgets. The runner stops before burst, Random soak and fault injection.
+The earlier full pass remains in Git `dfad4a4d1` at this report/evidence path;
+it used the preceding incident fixture and does not pass this new attempt.
 
 ## Candidate and scope
 
-- Tag `hummingbot-cloudrun:runtime-copy`; amd64; **1,374,449,982 bytes** (~1.37 GB).
-- Image `sha256:a6fe88c0bba185d27ed68d1fbc1f43dfa39c5a560c80df1f28e720f2afeb16b2`.
-- Manifest `sha256:7e615f650e8c7a6c5265bef45f685e74aae7b2096ebdf5d895916a8deb20e6aa`.
-- Build commit `745a86e3c`, including write-fence projection `5c421b121`, reporting
-  copy `745a86e3c`, ownership reads `d9488143d` and recorder `e030cfcdc`.
-  All **1,224 packaged source/config hashes** match and remain unchanged through
-  measurement. No probe, I/O, retry, pool, cache, CPU or load budget changes.
-- Full result `build/mm-load/20261107-184132-b32ad7/result.json`;
-  preparation/E2E/diagnostics/cleanup `build/runtime-copy-release-20261107/`.
-- [Portable evidence](mm-runtime-followup-load-evidence.json) records image,
-  source/fixture/log hashes, raw artifact hashes, incidents, role resources,
-  preceding gate comparison and guarded cleanup. The complete runner exits zero.
+- Same amd64 image `sha256:a6fe88c0bba185d27ed68d1fbc1f43dfa39c5a560c80df1f28e720f2afeb16b2`;
+  build `745a86e3c`, 1,374,449,982 bytes, tag `hummingbot-cloudrun:runtime-copy`.
+- Same cached immutable manifest
+  `sha256:7e615f650e8c7a6c5265bef45f685e74aae7b2096ebdf5d895916a8deb20e6aa`.
+- Test-fixture commit `dfad4a4d1`: only `test/e2e/offline/load_incidents.py` differs
+  among recorded harness sources from the preceding full gate. All **1,224**
+  packaged source/config hashes match before and after the attempt.
+- Exact baseline: `all --operations --security --incident-diagnostics --cpus 2
+  --daily-cache-ttl-seconds 15`, without diagnostic mode, extra stage timers,
+  full tracing or MM activity instrumentation. No resource/rate/probe/I/O/pool
+  or acceptance-budget changes. No automatic retry or winning-run selection.
+- 100k orders/100k fills/100k audit events; 20 main and 5 auxiliary reads/s,
+  100 book updates/s and one synthetic fill/s. Bot 2 CPUs/2 GiB; PostgreSQL
+  2 CPUs/512 MiB, client and simulator each 1 CPU/512 MiB. amd64 is emulated
+  on an arm64 Mac. The host remains on battery during the measured attempt.
+- Raw result `build/mm-load/20261107-221644-b1d037/result.json`;
+  runner, inventory and analysis `build/incident-lock-load-20261107/`.
+  [Portable evidence](mm-runtime-followup-load-evidence.json) retains the failed
+  exit, measurements, hashes, earlier same-image checks and scope limitations.
 
-The unchanged `all --security --operations --incident-diagnostics --cpus 2
---daily-cache-ttl-seconds 15` baseline uses 20 main reads/s, five auxiliary reads/s,
-100 book updates/s, one synthetic fill/s and a 500-update/s burst. It seeds
-100,000 orders, 100,000 fills and 100,000 audit events while stopped. Bot limits
-are two CPUs/2 GiB, PostgreSQL two CPUs/512 MiB; amd64 is emulated on an arm64 Mac.
-Full tracing and MM activity diagnostics remain disabled in the baseline;
-incident capture is bounded. Separate diagnostic runs are identified below.
+## Measured windows
 
-## Healthy load
+| Window | Seconds | Main reads | Main p95 / p99 (ms) | Auxiliary p99 (ms) | Unexpected HTTP errors | New simulated fills | Result |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| warmup | 300 | 6,000 | 56.12 / 394.79 | 170.16 | 0 | 300 | pass |
+| mixed | 900 | 18,000 | 206.09 / 1,315.91 | 1,169.10 | 0 | 900 | fail |
+| burst | — | — | — | — | — | — | not run |
+| Random soak | — | — | — | — | — | — | not run |
+| five injected faults | — | — | — | — | — | — | not run |
 
-| Window | Seconds | Main reads | p95 / p99 (ms) | Unexpected errors |
-| --- | ---: | ---: | --- | ---: |
-| warmup | 300 | 6,000 | 57.01 / 315.63 | 0 |
-| mixed | 900 | 18,000 | 62.84 / 353.23 | 0 |
-| bursts | 90 | 1,800 | 110.93 / 503.57 | 0 |
-| soak | 3,600 | 72,000 | 68.88 / 406.14 | 0 |
-
-All **97,800 main / 24,450 auxiliary** reads return HTTP200, with no unexpected
-stale response or declared budget violation. Healthy parsed logs contain zero
-ERROR/CRITICAL and zero child lifecycle events. Burst drain is **3.31 s / 10 s**.
-**4,885 unique simulated fills**, exact fees and positions reconcile, with two
-identified funding bills and three daily snapshots. These are simulator fills,
-not transactions on OKX Demo. Random admission gaps retain the existing fill
-policy; fixed mixed retains its original throughput checks.
-
-All **58 valid soak samples** are running; maximum sampling gap **65.50 s** and
-role PIDs **1/32/33** remain unchanged. Retained growth is **24.26 MiB / 64 MiB**
-on the unchanged `cgroup_current_minus_file_plus_shmem` basis. Engine FDs 27→28
-(range 26–36), API 24→25; engine/API threads remain 14/16. The finite resource gate
-passes; it does not prove unlimited leak-free operation or uninterrupted quotes.
+All **24,000 main / 6,000 auxiliary** requests return HTTP200. Both completed
+windows meet their fixed market/fill-rate, backlog, command and query-count
+checks. The final **1,200 unique simulated fills**, exact fees and positions
+reconcile. These are offline simulator records, not OKX Demo trades. The main
+and auxiliary p99 limits remain **1,000 ms**; the mixed window exceeds them by
+**315.91 / 169.10 ms**, respectively. No sixty-minute retention result exists
+for this attempt, so no new leak/soak acceptance is claimed.
 
 ## Recovered probes and comparison
 
-| Measured window | Role and episodes | Supervisor error→recovery interval |
-| --- | --- | ---: |
-| warmup | none | — |
-| mixed | engine: 3 | 1.024–1.060 s |
-| bursts | none | — |
-| soak | engine: 11 | 1.048–1.454 s |
+| Window | Prior same-image main p99 (ms) | Latest main p99 (ms) | Prior → latest engine probes |
+| --- | ---: | ---: | ---: |
+| warmup | 315.63 | 394.79 | 0 → 1 |
+| mixed | 353.23 | 1,315.91 | 3 → 6 |
 
-All fourteen recover within their measured windows, without a healthy engine
-restart. No additional probe marker appears between healthy windows in retained
-records. An injected DB-delay marker has no retained recovery transition and is
-reported separately, not paired across replacement to invent an interval.
+The single warmup probe recovers in **1.059 s**; six mixed engine probes recover
+in **1.025–1.722 s**. The retained marker inventory has no additional failure
+between/before/after these measured windows. Intervals are supervisor
+observations, not measured quote downtime. Full MM activity instrumentation is
+disabled, so these results cannot establish continuous quotes during each gap.
 
-These intervals are supervisor observations, not measured quote downtime. The
-baseline does not contain MM activity records, so its healthy PIDs and reconciled
-ledger cannot establish continuous quoting during every probe. At soak end,
-engine context capture reaches 32 and suppresses 4 captures; sink drops are zero,
-but bounded span/history recording is incomplete. The evidence retains these
-limits and the all-phase marker inventory.
+Four warmup and fourteen mixed runtime samples all record `running`, with fixed
+supervisor/engine/API PIDs **1/38/39** and maximum sample gaps **65.45 / 65.52 s**.
+Parsed healthy logs contain **zero ERROR/CRITICAL and zero child lifecycle
+events**; post-window shutdown also has zero errors. Before measurement there
+are **8 ERROR `order_submission_blocked`** records: connector/executor reports
+for four distinct locally blocked order IDs, all `SubmissionBlocked`. None of
+the IDs appears in the simulator ledger. Their generic safety reason does not
+uniquely identify the earlier control transition; keep them explicit rather
+than describing every phase as error-free. Six initial child starts belong to
+preparation/seed/security startup, outside the measured windows.
 
-Compared with accepted rollback `e00cef38…`:
+## What the retained data establishes
 
-| Measurement | Previous | Current |
-| --- | ---: | ---: |
-| Warmup p99 (ms) | 327.65 | 315.63 |
-| Mixed p99 (ms) | 387.34 | 353.23 |
-| Burst p99 (ms) | 267.47 | 503.57 |
-| Soak p99 (ms) | 410.20 | 406.14 |
-| Burst drain (s) | 0.95 | 3.31 |
-| Retained growth (MiB) | 28.59 | 24.26 |
-| Soak engine probes | 5 | 11 |
-| All measured-window probes | 6 | 14 |
-| Additional probe between healthy windows | 1 | 0 |
+The mixed minute ending at 480 seconds has a **2,596.61 ms p95**, versus about
+58 ms in the first minute. Tail latency rises across all sixteen routes,
+including `/status` at 1,191 ms p99, order/fill pages around 1,189–1,704 ms and
+daily statistics at 1,743 ms. This is not evidence for one uniquely slow
+aggregation query. The group of delayed requests raises the overall p99.
 
-Warmup/mixed/soak p99 and retained growth improve observationally; burst latency,
-drain time and measured probe frequency worsen, within existing budgets. The
-host is not a fully controlled paired experiment. **No uniform or causal
-whole-engine speedup is claimed.** Probe/burst regressions remain visible in the
-[remaining-work register](../../docs/plans/README.md#policy-and-evidence-still-unresolved).
-Previous image evidence remains in Git **`745a86e3c`** under this report's path and
-the corresponding evidence JSON. The still earlier shutdown poll failure and its
-unchanged retry remain in Git `ff6b85ded`; this new pass does not erase them.
+Bounded traces include synchronous engine PostgreSQL/ownership waits and
+observer/admission work. One ownership check takes **470.23 ms wall / 37.25 ms
+thread CPU**; another SQL span is **426.33 / 60.12 ms**. Around the slow minute,
+retained API request spans reach **1,462 ms**, so the retained evidence includes
+server-side delay as well as client-observed latency. API GC events and waits
+also overlap, but overlap is not a unique causal diagnosis. Async inclusive
+spans, rolling/cumulative distributions and omitted spans must not be added
+or treated as a complete timeline. Engine/API sink drops and incident-limit
+suppression are zero at mixed end; detailed child-span omission remains.
 
-## Separate MM activity diagnostic
+The source change removes a tested producer-lock dependency. This long repeat
+does **not** demonstrate a whole-system performance improvement or establish
+that the lock change caused the regression. The previous short diagnostic's
+258 ms p99/zero probes did not predict this longer-window cluster. Do not blame
+host power, GC, one query or the fixture without a matching controlled witness.
 
-A **300-second** diagnostic on the same image uses the original 60-second refresh
-and adds `--mm-activity`. Result:
-`build/mm-load/20261107-183445-413329/result.json`. It passes with p99 **442.35 ms**,
-zero unexpected API errors and 300 exact simulated fills. Two engine probe
-transitions have direct, aligned observations:
+## Remaining work and preserved environment
 
-| Probe interval | Completed tick/controller cycles inside interval | Venue observation inside interval |
-| --- | ---: | --- |
-| 1.186 s | 5 | Both spot/perpetual have 4 working orders, two-sided |
-| 1.040 s | 3 | Both spot/perpetual have 4 working orders, two-sided |
+The latest gate stays **failed**. Further optimization is paused pending a
+controlled before/after witness of the slow request cluster. Preserve fresh
+authority/durability checks and all latency thresholds. Once any confirmed
+cause is addressed with Red/Green tests, repeat the complete unchanged gate;
+the unrun burst/soak/fault phases remain open.
 
-This establishes engine progress and resting orders at those observed points.
-It does not prove that every instant was covered. Maximum controller start gap
-near the first transition is **1.583 s**, while the strategy tick gap there is
-**1.001 s**; some scheduling delay remains. Across the whole window: 300 completed
-ticks, 596 controller cycles, 32 submit returns and 32 cancel returns, all successful.
-Maximum connector-call durations are **318 ms submit / 241 ms cancel**; a return
-is not independent proof of an exchange acknowledgement at every instant.
+All **10 existing container identities/start states and 14 volumes** are
+preserved, including the running Demo service/database. The harness removes
+only its disposable containers. No image was built or removed; candidate
+`a6fe88c0…`, rollback `e00cef38…` and all existing image IDs remain. No actual
+OKX, Google/GCP or deployment operation occurs.
 
-There are **298 aligned venue point samples** per market: spot 296 two-sided,
-1 one-sided, 1 empty; perpetual 295 two-sided, 3 empty. All five non-two-sided
-market observations have refresh stop proposals and submit/cancel activity within
-±2 seconds. Isolated empty samples give no measured continuous absence duration;
-`max_empty_sample_span_ms=0` does not mean zero actual quote gap. Point samples,
-bounded traces and the shared simulator kernel clock cannot establish a numeric
-production quote-coverage SLO or remote OKX latency.
-
-One cumulative `SessionSubmissionBlocked` occurs during diagnostic startup,
-about 9.7 seconds before the measured window; it is retained in the evidence.
-Window-scoped submit returns contain no exception. Do not combine cumulative
-startup counts with measured counts. MM/venue sinks report no overflow or observer
-errors. This diagnostic does not add activity proof retroactively to the full soak.
-
-The [FE/operator quote review guidance](../../docs/fe-integration.md#reviewing-quote-availability)
-separates replacement progress, deliberate guard restrictions and unknown/stale
-observations. The existing 120-second warning is not an agreed quote replacement
-SLO; numeric production policy remains open.
-
-## E2E, enhancement and fault scope
-
-Availability, drawdown, MM recovery/DB restart and initial-position restart pass
-on the same image. Each includes runtime ABI/JIT/TLS/SDK/size smoke. These are
-four targeted groups, **not the full E2E/scenario/upgrade matrix**. Initial-position
-restart retains two exact fills/fees/positions and a pinned session; measured
-shutdowns are **2.034 / 1.378 s**.
-
-A separate enabled-enhancement90 diagnostic passes: p99 **426.54 ms**, zero
-unexpected errors, 90 exact simulated fills, two funding bills and three snapshots.
-Local encryption, offline signed identities and security/operator reads are used;
-Basic is disabled during the measured security workload. No real Google/GCP or
-fallback to environment credentials is exercised.
-
-All five faults pass: feed, owner restart, queued expiry, DB catalog-lock delay
-and DB outage. The raw HTTP workload counters are deliberately retained:
-
-| Injected fault | HTTP200 / HTTP503 main reads | Raw `unexpected_errors` counter |
-| --- | --- | ---: |
-| feed | 900 / 0 | 0 |
-| owner restart | 639 / 26 | 287 |
-| queued expiry | 1,500 / 0 | 0 |
-| DB delay | 631 / 22 | 296 |
-| DB outage | 552 / 33 | 382 |
-
-The fault counters include connection failures and auxiliary requests; they are
-not a count derived only from the HTTP status column. Fault classification
-excludes them from healthy latency/error acceptance, without relabelling them as
-zero. DB faults produce two ownership-lost failures, fail-closed starts awaiting
-recovery, and supervised replacements. The existing simulator-only reviewed
-recovery keeps HALT until the explicit fixture reset. All-phase parsed logs show
-six pre-window child starts for preparation/seed services, no pre-window ERROR,
-and the disclosed DB-fault errors/restarts; no additional transition restart is
-hidden outside healthy measurement. Existing Demo is never targeted.
-
-## Cleanup and remaining scope
-
-After the successful runner exit, unused image **`837e7997…`** and its local tags
-are removed without force. Unique images **15→14**. New candidate **`a6fe88c0…`**,
-accepted rollback **`e00cef38…`**, all referenced running/stopped container images
-and other projects remain. All **10 containers / 14 volumes**, including Demo
-identities/images/start timestamps, are unchanged. No container/volume/cache
-pruning; shared image sizes do not establish physically reclaimed bytes.
-
-The [source/TDD report](../implementation/MM_RUNTIME_FOLLOWUP.md#reporting-snapshot-copy-cost--2026-11-07)
-keeps component savings, rejected drafts and native/PG scopes separate from this
-image gate. No actual OKX/Demo session, Google/GCP acceptance, managed-Demo cutover
-or production deployment is included. No exclusive historical probe cause or
-continuous-quote guarantee is established.
+Earlier same-image targeted E2E, enhancement90/activity300 and the original
+full pass retain their scope in Git `dfad4a4d1`; the corresponding evidence
+entries are labelled as prior measurements. The [source audit](../implementation/MM_RUNTIME_FOLLOWUP.md#combined-image-regression-audit--2026-11-07)
+retains the native/TDD and short ABBA results separately.

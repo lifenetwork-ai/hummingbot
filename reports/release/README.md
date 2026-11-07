@@ -4,7 +4,7 @@
 
 | Report | Scope |
 | --- | --- |
-| [Current image/load](mm-runtime-followup-load.md), [evidence](mm-runtime-followup-load-evidence.json) | `a6fe88c0…`: unchanged full baseline, soak3600/five faults, four targeted E2E groups, enhancement90/activity300; soak engine11/mixed engine3 recover; burst p99/probe frequency regress |
+| [Current image/load](mm-runtime-followup-load.md), [evidence](mm-runtime-followup-load-evidence.json) | Latest `a6fe88c0…` repeat fails mixed main/aux p99 1,315.91/1,169.10 ms; warmup passes, 1,200 simulated fills reconcile, seven engine probes recover. Burst/soak/faults not run. Prior same-image full pass and targeted E2E/diagnostics remain in Git `dfad4a4d1`. |
 | [Retained rollback](../README.md#historical-records) | `e00cef38…`: previous unchanged full gate; Git `745a86e3c:reports/release/mm-runtime-followup-load.md` and corresponding evidence JSON. Earlier shutdown failure/retry remains in Git `ff6b85ded` |
 
 Superseded unused `837e7997…` is removed after the new gate; candidate and rollback remain. The still earlier
