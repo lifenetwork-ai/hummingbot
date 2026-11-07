@@ -4,6 +4,7 @@
 
 | Report | Scope |
 | --- | --- |
+| [Ownership reads](../implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07), [evidence](mm-owner-read-evidence.json) | Source-only: controlled real-probe COMMIT jitter, fresh guarded reads, transactional writes and bounded connection bookkeeping; native2,780 + 11 subtests / full PG547 pass; no new image gate |
 | [Fill-flush follow-up](../implementation/MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07), [evidence](mm-fill-flush-evidence.json) | Component counts/timing and failure semantics; native passes, PG530 + corrected benchmark/new-case rerun9 pass; image load measured separately |
 | [Latest runtime remediation](../implementation/MM_RUNTIME_FOLLOWUP.md), [evidence](../implementation/mm-runtime-followup-evidence.json) | Fresh exposure reads, per-report summaries, readiness and availability boundaries |
 | [Recorder intent projection](mm-intent-checkpoint-projection.md), [evidence](mm-intent-checkpoint-projection-evidence.json) | SQL/payload Red/Green, rejected variants and paired component costs |

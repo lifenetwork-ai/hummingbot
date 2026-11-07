@@ -22,10 +22,12 @@ and [credential operations](../../docs/exchange-credentials.md).
 
 ## Current verification
 
-Runtime `e030cfcdc`: native2,780 + 11 subtests pass. Full PG530 pass / 1 outdated
-query-count assertion fail; correct that test only, then benchmark/new-case rerun9
-pass. All531 distinct cases covered; no subsequent all-green full-suite run is
-claimed. Prior `504343b9b` verification includes Swagger.
+Runtime `d9488143d`: native2,780 + 11 subtests and full PG547 pass. Ownership reads
+avoid a separate read COMMIT for idle scopes while keeping fresh authority,
+write transactions, loss deadlines and bounded connection bookkeeping. The
+controlled real-probe test and rejected variants retain their own scope in the
+[source report](MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07).
+This newer source has no new shipping-image/hour qualification.
 Image `837e7997…` from `9ca14a148` separately passes the unchanged full baseline,
 60-minute soak/five faults, four targeted E2E groups (one disclosed restart retry)
 and enhancement90. Soak p99 360.68 ms; zero unexpected healthy errors; 24.05 MiB

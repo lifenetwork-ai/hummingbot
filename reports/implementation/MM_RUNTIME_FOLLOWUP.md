@@ -211,3 +211,63 @@ probe cause is established. Image `f74d2a2a…` removed; candidate, rollback
 `bf4e1f77…` and all ten container references/fourteen volumes retained.
 [Image report](../release/mm-runtime-followup-load.md),
 [evidence](../release/mm-runtime-followup-load-evidence.json).
+
+## Residual probes: ownership reads — 2026-11-07
+
+The increase from one to seven soak probes on `837e7997…` is not uniquely
+attributed. Both runs create exactly 32/112/16/472 healthy orders in the four
+windows. All seven soak failures are socket timeouts; six have a sampled engine
+stack in libpq I/O within/adjacent to the request, one in executor PnL work.
+Five sampled contexts have no additional cgroup throttling, and none has a
+selected GC interval. This bounds those explanations without ruling out host
+scheduling, unobserved work or Random trajectory/alignment differences. Selected
+spans beginning after the timeout are not labelled its cause. Request-time CPU
+samples, offsets and source hashes are retained in [evidence](../performance/mm-owner-read-evidence.json).
+
+One confirmed mechanism is the fresh ownership read's separate transaction and
+read COMMIT, performed synchronously on the engine loop. Scope Psycopg's
+autocommit flag around that single SELECT, retain SQLAlchemy's logical commit,
+then restore transaction mode. Keep the physical backend/advisory lock, query
+contents and fresh control/version/risk checks; no cached authority or new
+thread/process. Already-open SQLAlchemy/DBAPI read transactions retain their original behavior;
+only idle reads change mode. Original write isolation stays unchanged. Read failure still
+closes submissions. Invalidated sessions close permanently; release of a dead
+session closes without reconnecting or attempting a new-session write.
+The driver behavior is documented by [Psycopg](https://www.psycopg.org/docs/connection.html#connection.autocommit)
+and the logical/physical distinction by [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/connections.html#understanding-the-dbapi-level-autocommit-isolation-level).
+
+Corrected Red: 4 fail/2 pass on the original path; the first draft's nonexistent
+store.load call was corrected before the valid Red and is not runtime evidence.
+Real PG checks cover both isolation levels, atomic recovery-write rollback,
+fresh Stop/version changes, lock preservation, query/physical loss, no reconnect,
+dead-session release and bounded pool bookkeeping. Targeted final source:
+**80 pass**, including **16 new cases** and all five loss-of-response modes. A controlled 450ms delay in the separate
+read COMMIT makes the actual 300ms production probe time out at 302.3ms; the same
+production health handler/probe returns 200 at 2.2ms with scoped read mode. The
+test uses real PG and a local health app; it is not a full MM engine or proof of
+the unique historical cause.
+
+Seven alternating real-PG pairs in the frozen full regression preserve all 25
+fresh SELECTs per round and reduce separate read COMMITs 25→0 for idle scopes.
+The median of seven batch-mean read durations is **2.209→1.210ms** (~45% lower).
+The preceding targeted measurement is 2.262→1.219ms. All samples are retained;
+there is no timing pass threshold or whole-MM/p99 claim.
+
+Reject the first SQLAlchemy-isolation-execution-options prototype (`2409579d5`):
+200 reads accumulate 400 pool-reset callbacks on the process-lifetime connection.
+Its timings and passing early tests do not qualify it. The corrected source
+`d9488143d` changes only the documented driver flag, preserves isolation metadata
+and passes the unchanged callback-count assertion. The first prototype's native
+result and interrupted PG run (185 pass; intentional SIGINT) remain separate.
+An intermediate dead-connection release failure is retained and resolved.
+If restoring mode fails, discard the physical connection before closing: plain
+SQLAlchemy close could return an uncertain mode to the pool. Another interrupted
+full run retains one old permanent-closure assertion failure/418 passes. Its
+three-second deadline was not loosened; the owner assertion now requires permanent
+logical closure as well as a closed physical session. Other I/O modes still
+require invalidation.
+
+Frozen source `d9488143d`: native **2,780 + 11 subtests**, full disposable PG
+**547 pass** (772.09s), formatting/lint pass. Native logs retain existing
+deprecation/AsyncMock warnings. Log paths/hashes and source hashes are in evidence. No new image/hour gate or
+real-Demo qualification is inherited; accepted image `837e7997…` is unchanged.

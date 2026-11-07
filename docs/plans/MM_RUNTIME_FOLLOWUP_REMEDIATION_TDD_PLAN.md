@@ -144,7 +144,7 @@ container references and fourteen volumes. [Report](../../reports/release/mm-run
 - [x] TDD a narrowly scoped fresh ownership read without a separate read COMMIT;
   retain the physical advisory-lock session, fresh authority checks, rollback and
   original isolation for every write. Measure before keeping the change.
-- [ ] Run targeted ownership/recorder/recovery checks and source regressions;
+- [x] Run targeted ownership/recorder/recovery checks and source regressions;
   publish failed attempts, measurements and remaining image/probe limitations.
 
 Use disposable local PostgreSQL only; no existing-Demo data or credentials change.
@@ -164,3 +164,10 @@ Keep legacy behavior for existing SQLAlchemy/DBAPI read transactions; mode is
 changed only for an idle read scope. Preserve the original three-second loss-of-
 response deadline; the owner connection is now permanently closed. Discard a
 physical session if restoring transaction mode fails, rather than pooling it.
+
+Frozen source `d9488143d`: native **2,780 + 11 subtests**, full PG **547 pass**
+(772.09s). Frozen paired batch means/read 2.209→1.210ms; injected read-COMMIT
+delay still times out the unchanged probe on the legacy path (302.3ms), scoped
+read returns 200 at 2.2ms. All source/image limits remain explicit: no new image
+or hour gate is claimed. [Investigation](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07),
+[evidence](../../reports/performance/mm-owner-read-evidence.json).

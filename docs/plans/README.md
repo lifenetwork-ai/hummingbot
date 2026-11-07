@@ -10,9 +10,9 @@ unless explicitly listed below. Removing historical files does not mark an unres
 
 - [x] PostgreSQL/Cloud Run source port, three MM scenarios, fixed/Random sessions,
   spot/perpetual/both, operator APIs and risk controls are implemented.
-- [x] Runtime `e030cfcdc`: 2,780 native + 11 subtests pass. Full PG530 pass /
-  1 obsolete query-count expectation fail; test-only correction + related rerun9
-  pass (all531 distinct cases). Prior source Swagger pass; image checked separately.
+- [x] Latest runtime `d9488143d`: 2,780 native + 11 subtests and full PG547 pass.
+  Ownership-read TDD preserves fresh authority, write transactions, I/O deadlines
+  and bounded pool bookkeeping. This source is newer than the accepted image.
 - [x] Image `837e7997…`: unchanged full baseline, 60-minute soak and five faults;
   four targeted E2E groups after one disclosed retry, enhancement diagnostic pass.
 - [x] Soak p99 360.68 ms, zero unexpected healthy errors, 24.05 MiB retained growth,
@@ -50,6 +50,11 @@ Image `837e7997…` separately qualifies the changed fill-flush runtime; rollbac
 remains unexplained; an unchanged-image/unchanged-budget retry passes. Preserve its
 failure evidence and capture the Docker/PID exit-state timeline if it recurs.
 The full PG attempt and focused correction remain in the [source report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07).
+
+The newer [ownership-read source](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07)
+reproduces and removes a redundant read-COMMIT delay for idle scopes. It does not
+uniquely explain every old probe or inherit a shipping-image/hour gate. Rebuild
+and qualify that source separately before deployment.
 
 ## Retained plans
 

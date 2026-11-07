@@ -12,9 +12,9 @@ scoped Set/load/rotation, cancel/close/remove cleanup, durable Retry/Repair,
 correlated audit, secret-free status/errors and bounded workers/query counts.
 Real Google/GCP and reviewed existing-Demo cutover remain open.
 
-Source verification retains native2,780 + 11 subtests and full PG530 pass / one
-obsolete query-count assertion failure, corrected in a focused9-case pass. See
-[source details](MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07).
+Latest source `d9488143d` passes native2,780 + 11 subtests and full PG547. See
+[source details](MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07);
+this does not inherit the preceding image's hour gate.
 Image `837e7997…` passes the unchanged full security/operator load, sixty-minute
 soak/five faults, four targeted E2E groups after one disclosed restart retry, and
 enhancement90. Signed Google

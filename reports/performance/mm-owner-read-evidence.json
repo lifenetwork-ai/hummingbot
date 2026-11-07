@@ -1,0 +1,2793 @@
+{
+  "date": "2026-11-07",
+  "scope": "Source investigation/TDD only after the 837e7997 local load; no new shipping-image/hour or existing-Demo acceptance.",
+  "runtime_source": "d9488143d",
+  "accepted_image": "sha256:837e7997478e1d477046763067cf15f2ea63d1c50df4b3442cd235fb2afca712",
+  "incident_files_sha256": {
+    "api-incidents.jsonl": "8090301f1afad07fdda2f48351b51490338339a40a83584a0294040e85410eb5",
+    "engine-incidents.jsonl": "21a32964b5aa614395cb03946d88bbb03b17ceae0d9f5c6aa8c4704f9b114e99"
+  },
+  "episodes": [
+    {
+      "number": 1,
+      "failure_ns": 315781722390748,
+      "reason": "timeout",
+      "request_elapsed_ms": 301.079,
+      "estimated_request_start_ns": 315781421311748,
+      "observed_recovery_seconds": 1.037103417,
+      "samples": [
+        {
+          "offset_ms": -718.577583,
+          "heartbeat": {
+            "at": 1794008801.3064578,
+            "at_ns": 315781003915540,
+            "sample_started_ns": 315781003915165,
+            "sample_ended_ns": 315781003917415,
+            "last_beat_ns": 315780999763040,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 315781003914248,
+          "context_ended_ns": 315781004223165,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_service.py",
+              "line": 520,
+              "function": "<module>"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1142,
+              "function": "main"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1127,
+              "function": "serve_role"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 196,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 119,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 713,
+              "function": "run_until_complete"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 684,
+              "function": "run_forever"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 2023,
+              "function": "_run_once"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/selectors.py",
+              "line": 452,
+              "function": "select"
+            }
+          ],
+          "active_operations": [],
+          "cgroup_cpu": {
+            "usage_usec": 1321963074,
+            "user_usec": 1217019823,
+            "system_usec": 104943250,
+            "nr_periods": 28476,
+            "nr_throttled": 176,
+            "throttled_usec": 17014316,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": -462.514417,
+          "heartbeat": {
+            "at": 1794008801.5625215,
+            "at_ns": 315781259978498,
+            "sample_started_ns": 315781259977956,
+            "sample_ended_ns": 315781259980873,
+            "last_beat_ns": 315781248396081,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 315781259976873,
+          "context_ended_ns": 315781260263040,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_service.py",
+              "line": 520,
+              "function": "<module>"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1142,
+              "function": "main"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1127,
+              "function": "serve_role"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 196,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 119,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 713,
+              "function": "run_until_complete"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 684,
+              "function": "run_forever"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 2023,
+              "function": "_run_once"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/selectors.py",
+              "line": 452,
+              "function": "select"
+            }
+          ],
+          "active_operations": [],
+          "cgroup_cpu": {
+            "usage_usec": 1322174934,
+            "user_usec": 1217214769,
+            "system_usec": 104960165,
+            "nr_periods": 28479,
+            "nr_throttled": 176,
+            "throttled_usec": 17014316,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": -168.783875,
+          "heartbeat": {
+            "at": 1794008801.85626,
+            "at_ns": 315781553717415,
+            "sample_started_ns": 315781553716831,
+            "sample_ended_ns": 315781553719790,
+            "last_beat_ns": 315781503495331,
+            "consistent": true,
+            "lag_ms": 0.2220840000000024
+          },
+          "context_started_ns": 315781553713956,
+          "context_ended_ns": 315781555063706,
+          "loop_stack": [
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py",
+              "line": 84,
+              "function": "_save_obj"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py",
+              "line": 929,
+              "function": "_emit_update_statements"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1494,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 534,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1714,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1868,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1977,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "sql"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 1322496379,
+            "user_usec": 1217512010,
+            "system_usec": 104984369,
+            "nr_periods": 28482,
+            "nr_throttled": 176,
+            "throttled_usec": 17014316,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": 95.178625,
+          "heartbeat": {
+            "at": 1794008802.1206791,
+            "at_ns": 315781818136998,
+            "sample_started_ns": 315781818136707,
+            "sample_ended_ns": 315781818139040,
+            "last_beat_ns": 315781785762665,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 315781818135373,
+          "context_ended_ns": 315781818598332,
+          "loop_stack": [
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/session.py",
+              "line": 2445,
+              "function": "_execute_internal"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/context.py",
+              "line": 322,
+              "function": "orm_execute_statement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1494,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 534,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1714,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1868,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1977,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "service.observe_once",
+            "sql"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 1322803251,
+            "user_usec": 1217800494,
+            "system_usec": 105002756,
+            "nr_periods": 28485,
+            "nr_throttled": 176,
+            "throttled_usec": 17014316,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        }
+      ],
+      "context_throttled_delta_usec": 0,
+      "selected_spans": [
+        {
+          "operation": "service.observe_once",
+          "start_ns": 315781779311248,
+          "end_ns": 315781924835790,
+          "duration_ms": 145.524542,
+          "thread_cpu_ms": 100.812738,
+          "intersects_transition": true
+        },
+        {
+          "operation": "pool_checkout_ms",
+          "start_ns": 315781835600623,
+          "end_ns": 315781840756915,
+          "duration_ms": 5.156292,
+          "thread_cpu_ms": 0.533044,
+          "intersects_transition": true
+        },
+        {
+          "operation": "db_ping_ms",
+          "start_ns": 315781835700707,
+          "end_ns": 315781840726582,
+          "duration_ms": 5.025875,
+          "thread_cpu_ms": 0.407294,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "start_ns": 315781843422832,
+          "end_ns": 315781845072748,
+          "duration_ms": 1.649916,
+          "thread_cpu_ms": 0.287917,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "start_ns": 315781851871498,
+          "end_ns": 315781853393290,
+          "duration_ms": 1.521792,
+          "thread_cpu_ms": 0.345792,
+          "intersects_transition": true
+        }
+      ],
+      "captured_gc": []
+    },
+    {
+      "number": 2,
+      "failure_ns": 315820150548557,
+      "reason": "timeout",
+      "request_elapsed_ms": 495.609,
+      "estimated_request_start_ns": 315819654939557,
+      "observed_recovery_seconds": 1.053341834,
+      "samples": [
+        {
+          "offset_ms": -192.587542,
+          "heartbeat": {
+            "at": 1794008840.264655,
+            "at_ns": 315819963786098,
+            "sample_started_ns": 315819963783723,
+            "sample_ended_ns": 315819963791223,
+            "last_beat_ns": 315819941674015,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 315819963777223,
+          "context_ended_ns": 315819984951348,
+          "loop_stack": [
+            {
+              "file": "/home/hummingbot/hummingbot/core/bot_ownership.py",
+              "line": 146,
+              "function": "check_owner"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1052,
+              "function": "commit"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 2628,
+              "function": "commit"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 2733,
+              "function": "_do_commit"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 2704,
+              "function": "_connection_commit_impl"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1201,
+              "function": "_commit_impl"
+            },
+            {
+              "file": "/test-assets/load_trace.py",
+              "line": 117,
+              "function": "measured"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 954,
+              "function": "do_commit"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "service.observe_once",
+            "ownership_check_ms",
+            "commit_ms"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 1342383665,
+            "user_usec": 1235840750,
+            "system_usec": 106542915,
+            "nr_periods": 28866,
+            "nr_throttled": 179,
+            "throttled_usec": 17472616,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": 109.799708,
+          "heartbeat": {
+            "at": 1794008840.5637658,
+            "at_ns": 315820262898807,
+            "sample_started_ns": 315820262897890,
+            "sample_ended_ns": 315820262901474,
+            "last_beat_ns": 315820262341557,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 315820262896182,
+          "context_ended_ns": 315820265580974,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_service.py",
+              "line": 520,
+              "function": "<module>"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1142,
+              "function": "main"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1127,
+              "function": "serve_role"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 196,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 119,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 713,
+              "function": "run_until_complete"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 684,
+              "function": "run_forever"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 2023,
+              "function": "_run_once"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/selectors.py",
+              "line": 452,
+              "function": "select"
+            }
+          ],
+          "active_operations": [
+            "sql"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 1342954292,
+            "user_usec": 1236357148,
+            "system_usec": 106597144,
+            "nr_periods": 28869,
+            "nr_throttled": 181,
+            "throttled_usec": 17496526,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        }
+      ],
+      "context_throttled_delta_usec": 23910,
+      "selected_spans": [
+        {
+          "operation": "service.observe_once",
+          "start_ns": 315819954196140,
+          "end_ns": 315820256189099,
+          "duration_ms": 301.992959,
+          "thread_cpu_ms": 204.834124,
+          "intersects_transition": true
+        },
+        {
+          "operation": "recorder_ms",
+          "start_ns": 315820122998515,
+          "end_ns": 315820234215849,
+          "duration_ms": 111.217334,
+          "thread_cpu_ms": 49.848168,
+          "intersects_transition": true
+        },
+        {
+          "operation": "fill_store_ms",
+          "start_ns": 315820149188057,
+          "end_ns": 315820207162932,
+          "duration_ms": 57.974875,
+          "thread_cpu_ms": 28.052126,
+          "intersects_transition": true
+        },
+        {
+          "operation": "market_checkpoint_ms",
+          "start_ns": 315820155445140,
+          "end_ns": 315820207132599,
+          "duration_ms": 51.687459,
+          "thread_cpu_ms": 22.585626,
+          "intersects_transition": true
+        },
+        {
+          "operation": "ownership_check_ms",
+          "start_ns": 315820158030682,
+          "end_ns": 315820181150057,
+          "duration_ms": 23.119375,
+          "thread_cpu_ms": 2.707042,
+          "intersects_transition": true
+        }
+      ],
+      "captured_gc": []
+    },
+    {
+      "number": 3,
+      "failure_ns": 316653963479941,
+      "reason": "timeout",
+      "request_elapsed_ms": 339.797,
+      "estimated_request_start_ns": 316653623682941,
+      "observed_recovery_seconds": 1.120350333,
+      "samples": [
+        {
+          "offset_ms": -558.427042,
+          "heartbeat": {
+            "at": 1794009673.711878,
+            "at_ns": 316653405217440,
+            "sample_started_ns": 316653405216149,
+            "sample_ended_ns": 316653405220815,
+            "last_beat_ns": 316653398080232,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 316653405214232,
+          "context_ended_ns": 316653408789524,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_service.py",
+              "line": 520,
+              "function": "<module>"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1142,
+              "function": "main"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1127,
+              "function": "serve_role"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 196,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 119,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 713,
+              "function": "run_until_complete"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 684,
+              "function": "run_forever"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 2023,
+              "function": "_run_once"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/selectors.py",
+              "line": 452,
+              "function": "select"
+            }
+          ],
+          "active_operations": [],
+          "cgroup_cpu": {
+            "usage_usec": 1727883935,
+            "user_usec": 1591396685,
+            "system_usec": 136487249,
+            "nr_periods": 37201,
+            "nr_throttled": 190,
+            "throttled_usec": 17810603,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": -194.175167,
+          "heartbeat": {
+            "at": 1794009674.120041,
+            "at_ns": 316653813373315,
+            "sample_started_ns": 316653813364232,
+            "sample_ended_ns": 316653813391107,
+            "last_beat_ns": 316653758380190,
+            "consistent": true,
+            "lag_ms": 4.993124999999999
+          },
+          "context_started_ns": 316653813350774,
+          "context_ended_ns": 316654032721149,
+          "loop_stack": [
+            {
+              "file": "/home/hummingbot/hummingbot/strategy_v2/executors/position_executor/position_executor.py",
+              "line": 281,
+              "function": "get_net_pnl_pct"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/strategy_v2/executors/executor_base.py",
+              "line": 286,
+              "function": "net_pnl_quote"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/strategy_v2/executors/position_executor/position_executor.py",
+              "line": 262,
+              "function": "get_net_pnl_quote"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/strategy_v2/executors/position_executor/position_executor.py",
+              "line": 254,
+              "function": "trade_pnl_quote"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/strategy_v2/executors/position_executor/position_executor.py",
+              "line": 241,
+              "function": "trade_pnl_pct"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/strategy_v2/executors/position_executor/position_executor.py",
+              "line": 179,
+              "function": "entry_price"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/strategy_v2/models/executors.py",
+              "line": 106,
+              "function": "is_done"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/core/data_type/in_flight_order.py",
+              "line": 187,
+              "function": "is_done"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/enum.py",
+              "line": 1314,
+              "function": "__hash__"
+            }
+          ],
+          "active_operations": [
+            "executor_update_ms",
+            "executor_reports_ms"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 1728272674,
+            "user_usec": 1591760648,
+            "system_usec": 136512026,
+            "nr_periods": 37204,
+            "nr_throttled": 190,
+            "throttled_usec": 17810603,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": 168.325291,
+          "heartbeat": {
+            "at": 1794009674.4402292,
+            "at_ns": 316654133563441,
+            "sample_started_ns": 316654133559607,
+            "sample_ended_ns": 316654133572857,
+            "last_beat_ns": 316654078934566,
+            "consistent": true,
+            "lag_ms": 4.628875000000001
+          },
+          "context_started_ns": 316654133549982,
+          "context_ended_ns": 316654165334274,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_trace.py",
+              "line": 117,
+              "function": "measured"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/core/bot_ownership.py",
+              "line": 136,
+              "function": "check_owner"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1494,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 534,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1714,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1868,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1977,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "service.observe_once",
+            "ownership_check_ms",
+            "sql"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 1728912871,
+            "user_usec": 1592302256,
+            "system_usec": 136610615,
+            "nr_periods": 37208,
+            "nr_throttled": 191,
+            "throttled_usec": 17826800,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        }
+      ],
+      "context_throttled_delta_usec": 16197,
+      "selected_spans": [
+        {
+          "operation": "recorder_ms",
+          "start_ns": 316653576212399,
+          "end_ns": 316653717077190,
+          "duration_ms": 140.864791,
+          "thread_cpu_ms": 45.447336,
+          "intersects_transition": false
+        },
+        {
+          "operation": "service.observe_once",
+          "start_ns": 316654723398524,
+          "end_ns": 316654849330816,
+          "duration_ms": 125.932292,
+          "thread_cpu_ms": 88.575916,
+          "intersects_transition": true
+        },
+        {
+          "operation": "service.observe_once",
+          "start_ns": 316654098902899,
+          "end_ns": 316654220431982,
+          "duration_ms": 121.529083,
+          "thread_cpu_ms": 48.552293,
+          "intersects_transition": true
+        },
+        {
+          "operation": "recorder_ms",
+          "start_ns": 316654589477858,
+          "end_ns": 316654694739149,
+          "duration_ms": 105.261291,
+          "thread_cpu_ms": 89.925874,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "start_ns": 316653635843065,
+          "end_ns": 316653701280857,
+          "duration_ms": 65.437792,
+          "thread_cpu_ms": 0.859208,
+          "intersects_transition": false
+        }
+      ],
+      "captured_gc": []
+    },
+    {
+      "number": 4,
+      "failure_ns": 317166053064758,
+      "reason": "timeout",
+      "request_elapsed_ms": 303.094,
+      "estimated_request_start_ns": 317165749970758,
+      "observed_recovery_seconds": 1.012180292,
+      "samples": [
+        {
+          "offset_ms": -543.305292,
+          "heartbeat": {
+            "at": 1794010185.8204627,
+            "at_ns": 317165509997341,
+            "sample_started_ns": 317165509996341,
+            "sample_ended_ns": 317165509999633,
+            "last_beat_ns": 317165347989924,
+            "consistent": true,
+            "lag_ms": 112.007417
+          },
+          "context_started_ns": 317165509994883,
+          "context_ended_ns": 317165511418966,
+          "loop_stack": [
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py",
+              "line": 84,
+              "function": "_save_obj"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py",
+              "line": 929,
+              "function": "_emit_update_statements"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1494,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 534,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1714,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1868,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1977,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "sql"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 1969383659,
+            "user_usec": 1813802539,
+            "system_usec": 155581120,
+            "nr_periods": 42322,
+            "nr_throttled": 201,
+            "throttled_usec": 18360752,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": -264.221042,
+          "heartbeat": {
+            "at": 1794010186.1041276,
+            "at_ns": 317165793659799,
+            "sample_started_ns": 317165793656716,
+            "sample_ended_ns": 317165793665258,
+            "last_beat_ns": 317165521735924,
+            "consistent": true,
+            "lag_ms": 221.923875
+          },
+          "context_started_ns": 317165793642091,
+          "context_ended_ns": 317165800130508,
+          "loop_stack": [
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py",
+              "line": 92,
+              "function": "_save_obj"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py",
+              "line": 1250,
+              "function": "_emit_insert_statements"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1494,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 534,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1714,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1868,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1977,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "market_checkpoint_ms",
+            "sql"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 1969879721,
+            "user_usec": 1814244097,
+            "system_usec": 155635624,
+            "nr_periods": 42324,
+            "nr_throttled": 201,
+            "throttled_usec": 18360752,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": -13.713,
+          "heartbeat": {
+            "at": 1794010186.3506792,
+            "at_ns": 317166040213299,
+            "sample_started_ns": 317166040212049,
+            "sample_ended_ns": 317166040216091,
+            "last_beat_ns": 317166033480383,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 317166040209466,
+          "context_ended_ns": 317166041333924,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_trace.py",
+              "line": 117,
+              "function": "measured"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/core/bot_ownership.py",
+              "line": 136,
+              "function": "check_owner"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1494,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 534,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1714,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1868,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1977,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "service.observe_once",
+            "ownership_check_ms",
+            "sql",
+            "pool_checkout_ms",
+            "db_ping_ms"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 1970339451,
+            "user_usec": 1814652930,
+            "system_usec": 155686521,
+            "nr_periods": 42327,
+            "nr_throttled": 201,
+            "throttled_usec": 18360752,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": 249.975083,
+          "heartbeat": {
+            "at": 1794010186.613606,
+            "at_ns": 317166303141133,
+            "sample_started_ns": 317166303140258,
+            "sample_ended_ns": 317166303142800,
+            "last_beat_ns": 317166244300300,
+            "consistent": true,
+            "lag_ms": 8.840833000000003
+          },
+          "context_started_ns": 317166303139341,
+          "context_ended_ns": 317166304663258,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_trace.py",
+              "line": 117,
+              "function": "measured"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/core/bot_ownership.py",
+              "line": 136,
+              "function": "check_owner"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1494,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 534,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1714,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1868,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1977,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "service.collect_funding",
+            "ownership_check_ms",
+            "sql"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 1970725817,
+            "user_usec": 1815003269,
+            "system_usec": 155722547,
+            "nr_periods": 42329,
+            "nr_throttled": 201,
+            "throttled_usec": 18360752,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        }
+      ],
+      "context_throttled_delta_usec": 0,
+      "selected_spans": [
+        {
+          "operation": "service.observe_once",
+          "start_ns": 317166018148174,
+          "end_ns": 317166179524133,
+          "duration_ms": 161.375959,
+          "thread_cpu_ms": 119.27095,
+          "intersects_transition": true
+        },
+        {
+          "operation": "ownership_check_ms",
+          "start_ns": 317165600849924,
+          "end_ns": 317165701468341,
+          "duration_ms": 100.618417,
+          "thread_cpu_ms": 57.466375,
+          "intersects_transition": false
+        },
+        {
+          "operation": "sql",
+          "start_ns": 317165651638133,
+          "end_ns": 317165695744424,
+          "duration_ms": 44.106291,
+          "thread_cpu_ms": 1.119251,
+          "intersects_transition": false
+        },
+        {
+          "operation": "pool_checkout_ms",
+          "start_ns": 317166039955383,
+          "end_ns": 317166044836883,
+          "duration_ms": 4.8815,
+          "thread_cpu_ms": 0.892918,
+          "intersects_transition": false
+        },
+        {
+          "operation": "db_ping_ms",
+          "start_ns": 317166040126341,
+          "end_ns": 317166044805049,
+          "duration_ms": 4.678708,
+          "thread_cpu_ms": 0.697376,
+          "intersects_transition": false
+        }
+      ],
+      "captured_gc": []
+    },
+    {
+      "number": 5,
+      "failure_ns": 317337118535710,
+      "reason": "timeout",
+      "request_elapsed_ms": 301.296,
+      "estimated_request_start_ns": 317336817239710,
+      "observed_recovery_seconds": 1.016763084,
+      "samples": [
+        {
+          "offset_ms": -759.050709,
+          "heartbeat": {
+            "at": 1794010356.666443,
+            "at_ns": 317336359591751,
+            "sample_started_ns": 317336359591210,
+            "sample_ended_ns": 317336359594085,
+            "last_beat_ns": 317336353061960,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 317336359590085,
+          "context_ended_ns": 317336359875168,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_service.py",
+              "line": 520,
+              "function": "<module>"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1142,
+              "function": "main"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1127,
+              "function": "serve_role"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 196,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 119,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 713,
+              "function": "run_until_complete"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 684,
+              "function": "run_forever"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 2023,
+              "function": "_run_once"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/selectors.py",
+              "line": 452,
+              "function": "select"
+            }
+          ],
+          "active_operations": [],
+          "cgroup_cpu": {
+            "usage_usec": 2049610637,
+            "user_usec": 1887747613,
+            "system_usec": 161863024,
+            "nr_periods": 44030,
+            "nr_throttled": 202,
+            "throttled_usec": 18361102,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": -503.157375,
+          "heartbeat": {
+            "at": 1794010356.9223206,
+            "at_ns": 317336615469668,
+            "sample_started_ns": 317336615468835,
+            "sample_ended_ns": 317336615471668,
+            "last_beat_ns": 317336600584918,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 317336615467918,
+          "context_ended_ns": 317336615724960,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_service.py",
+              "line": 520,
+              "function": "<module>"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1142,
+              "function": "main"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1127,
+              "function": "serve_role"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 196,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 119,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 713,
+              "function": "run_until_complete"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 684,
+              "function": "run_forever"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 2023,
+              "function": "_run_once"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/selectors.py",
+              "line": 452,
+              "function": "select"
+            }
+          ],
+          "active_operations": [],
+          "cgroup_cpu": {
+            "usage_usec": 2049736738,
+            "user_usec": 1887856236,
+            "system_usec": 161880501,
+            "nr_periods": 44033,
+            "nr_throttled": 202,
+            "throttled_usec": 18361102,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": -234.335459,
+          "heartbeat": {
+            "at": 1794010357.1911879,
+            "at_ns": 317336884337418,
+            "sample_started_ns": 317336884336710,
+            "sample_ended_ns": 317336884339043,
+            "last_beat_ns": 317336749487668,
+            "consistent": true,
+            "lag_ms": 84.84975
+          },
+          "context_started_ns": 317336884335460,
+          "context_ended_ns": 317336885457710,
+          "loop_stack": [
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/session.py",
+              "line": 2445,
+              "function": "_execute_internal"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/context.py",
+              "line": 322,
+              "function": "orm_execute_statement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1494,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 534,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1714,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1868,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1977,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "market_checkpoint_ms",
+            "sql"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 2049923377,
+            "user_usec": 1888032748,
+            "system_usec": 161890628,
+            "nr_periods": 44035,
+            "nr_throttled": 202,
+            "throttled_usec": 18361102,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": 51.890208,
+          "heartbeat": {
+            "at": 1794010357.4774368,
+            "at_ns": 317337170585835,
+            "sample_started_ns": 317337170584877,
+            "sample_ended_ns": 317337170587710,
+            "last_beat_ns": 317337124351710,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 317337170583710,
+          "context_ended_ns": 317337172183377,
+          "loop_stack": [
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/session.py",
+              "line": 2445,
+              "function": "_execute_internal"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/context.py",
+              "line": 322,
+              "function": "orm_execute_statement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1494,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 534,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1714,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1868,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1977,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "service.observe_once",
+            "market_checkpoint_ms",
+            "sql"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 2050210222,
+            "user_usec": 1888298669,
+            "system_usec": 161911552,
+            "nr_periods": 44038,
+            "nr_throttled": 202,
+            "throttled_usec": 18361102,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": 315.301542,
+          "heartbeat": {
+            "at": 1794010357.7407858,
+            "at_ns": 317337433934877,
+            "sample_started_ns": 317337433934002,
+            "sample_ended_ns": 317337433936960,
+            "last_beat_ns": 317337399492418,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 317337433933085,
+          "context_ended_ns": 317337434307585,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_service.py",
+              "line": 520,
+              "function": "<module>"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1142,
+              "function": "main"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1127,
+              "function": "serve_role"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 196,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 119,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 713,
+              "function": "run_until_complete"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 684,
+              "function": "run_forever"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 2023,
+              "function": "_run_once"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/selectors.py",
+              "line": 452,
+              "function": "select"
+            }
+          ],
+          "active_operations": [],
+          "cgroup_cpu": {
+            "usage_usec": 2050433475,
+            "user_usec": 1888500050,
+            "system_usec": 161933425,
+            "nr_periods": 44041,
+            "nr_throttled": 202,
+            "throttled_usec": 18361102,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        }
+      ],
+      "context_throttled_delta_usec": 0,
+      "selected_spans": [
+        {
+          "operation": "service.observe_once",
+          "start_ns": 317337124452502,
+          "end_ns": 317337304919293,
+          "duration_ms": 180.466791,
+          "thread_cpu_ms": 129.286251,
+          "intersects_transition": true
+        },
+        {
+          "operation": "pool_checkout_ms",
+          "start_ns": 317337213532043,
+          "end_ns": 317337218416252,
+          "duration_ms": 4.884209,
+          "thread_cpu_ms": 0.729208,
+          "intersects_transition": true
+        },
+        {
+          "operation": "db_ping_ms",
+          "start_ns": 317337213658585,
+          "end_ns": 317337218365502,
+          "duration_ms": 4.706917,
+          "thread_cpu_ms": 0.558874,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "start_ns": 317337223241752,
+          "end_ns": 317337226259793,
+          "duration_ms": 3.018041,
+          "thread_cpu_ms": 0.641334,
+          "intersects_transition": true
+        },
+        {
+          "operation": "ownership_check_ms",
+          "start_ns": 317337124507960,
+          "end_ns": 317337126817752,
+          "duration_ms": 2.309792,
+          "thread_cpu_ms": 1.23996,
+          "intersects_transition": true
+        }
+      ],
+      "captured_gc": []
+    },
+    {
+      "number": 6,
+      "failure_ns": 317520751813628,
+      "reason": "timeout",
+      "request_elapsed_ms": 301.796,
+      "estimated_request_start_ns": 317520450017628,
+      "observed_recovery_seconds": 1.070250875,
+      "samples": [
+        {
+          "offset_ms": -690.277959,
+          "heartbeat": {
+            "at": 1794010540.3652506,
+            "at_ns": 317520061642627,
+            "sample_started_ns": 317520061641419,
+            "sample_ended_ns": 317520061645044,
+            "last_beat_ns": 317520048304419,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 317520061640127,
+          "context_ended_ns": 317520061922544,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_service.py",
+              "line": 520,
+              "function": "<module>"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1142,
+              "function": "main"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1127,
+              "function": "serve_role"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 196,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 119,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 713,
+              "function": "run_until_complete"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 684,
+              "function": "run_forever"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 2023,
+              "function": "_run_once"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/selectors.py",
+              "line": 452,
+              "function": "select"
+            }
+          ],
+          "active_operations": [],
+          "cgroup_cpu": {
+            "usage_usec": 2133926290,
+            "user_usec": 1965625508,
+            "system_usec": 168300781,
+            "nr_periods": 45867,
+            "nr_throttled": 203,
+            "throttled_usec": 18383839,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": -434.311834,
+          "heartbeat": {
+            "at": 1794010540.6212158,
+            "at_ns": 317520317607669,
+            "sample_started_ns": 317520317607002,
+            "sample_ended_ns": 317520317610127,
+            "last_beat_ns": 317520298608544,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 317520317605919,
+          "context_ended_ns": 317520317876419,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_service.py",
+              "line": 520,
+              "function": "<module>"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1142,
+              "function": "main"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1127,
+              "function": "serve_role"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 196,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 119,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 713,
+              "function": "run_until_complete"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 684,
+              "function": "run_forever"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 2023,
+              "function": "_run_once"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/selectors.py",
+              "line": 452,
+              "function": "select"
+            }
+          ],
+          "active_operations": [],
+          "cgroup_cpu": {
+            "usage_usec": 2133994132,
+            "user_usec": 1965681972,
+            "system_usec": 168312160,
+            "nr_periods": 45870,
+            "nr_throttled": 203,
+            "throttled_usec": 18383839,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": -175.933084,
+          "heartbeat": {
+            "at": 1794010540.8796046,
+            "at_ns": 317520575997544,
+            "sample_started_ns": 317520575996794,
+            "sample_ended_ns": 317520575999086,
+            "last_beat_ns": 317520398400752,
+            "consistent": true,
+            "lag_ms": 127.596792
+          },
+          "context_started_ns": 317520575995669,
+          "context_ended_ns": 317520577494461,
+          "loop_stack": [
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/session.py",
+              "line": 2445,
+              "function": "_execute_internal"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/context.py",
+              "line": 322,
+              "function": "orm_execute_statement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1494,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 534,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1714,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1868,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1977,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "market_checkpoint_ms",
+            "sql"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 2134237198,
+            "user_usec": 1965906846,
+            "system_usec": 168330351,
+            "nr_periods": 45872,
+            "nr_throttled": 203,
+            "throttled_usec": 18383839,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": 89.69975,
+          "heartbeat": {
+            "at": 1794010541.145739,
+            "at_ns": 317520842131544,
+            "sample_started_ns": 317520842130753,
+            "sample_ended_ns": 317520842133544,
+            "last_beat_ns": 317520815922753,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 317520842129586,
+          "context_ended_ns": 317520843185419,
+          "loop_stack": [
+            {
+              "file": "/home/hummingbot/hummingbot/core/bot_ownership.py",
+              "line": 146,
+              "function": "check_owner"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1052,
+              "function": "commit"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 2628,
+              "function": "commit"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 2733,
+              "function": "_do_commit"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 2704,
+              "function": "_connection_commit_impl"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1201,
+              "function": "_commit_impl"
+            },
+            {
+              "file": "/test-assets/load_trace.py",
+              "line": 117,
+              "function": "measured"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 954,
+              "function": "do_commit"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "ownership_check_ms",
+            "commit_ms"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 2134516427,
+            "user_usec": 1966169611,
+            "system_usec": 168346816,
+            "nr_periods": 45875,
+            "nr_throttled": 203,
+            "throttled_usec": 18383839,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        }
+      ],
+      "context_throttled_delta_usec": 0,
+      "selected_spans": [],
+      "captured_gc": []
+    },
+    {
+      "number": 7,
+      "failure_ns": 317827045435809,
+      "reason": "timeout",
+      "request_elapsed_ms": 301.138,
+      "estimated_request_start_ns": 317826744297809,
+      "observed_recovery_seconds": 1.050669251,
+      "samples": [
+        {
+          "offset_ms": -782.696917,
+          "heartbeat": {
+            "at": 1794010846.56056,
+            "at_ns": 317826262857601,
+            "sample_started_ns": 317826262856809,
+            "sample_ended_ns": 317826262859726,
+            "last_beat_ns": 317826251972351,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 317826262855642,
+          "context_ended_ns": 317826263135267,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_service.py",
+              "line": 520,
+              "function": "<module>"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1142,
+              "function": "main"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1127,
+              "function": "serve_role"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 196,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 119,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 713,
+              "function": "run_until_complete"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 684,
+              "function": "run_forever"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 2023,
+              "function": "_run_once"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/selectors.py",
+              "line": 452,
+              "function": "select"
+            }
+          ],
+          "active_operations": [],
+          "cgroup_cpu": {
+            "usage_usec": 2275079722,
+            "user_usec": 2095677347,
+            "system_usec": 179402375,
+            "nr_periods": 48929,
+            "nr_throttled": 207,
+            "throttled_usec": 18565739,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": -519.666,
+          "heartbeat": {
+            "at": 1794010846.823603,
+            "at_ns": 317826525899684,
+            "sample_started_ns": 317826525898726,
+            "sample_ended_ns": 317826525902851,
+            "last_beat_ns": 317826497455101,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 317826525896809,
+          "context_ended_ns": 317826526269601,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_service.py",
+              "line": 520,
+              "function": "<module>"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1142,
+              "function": "main"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1127,
+              "function": "serve_role"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 196,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 119,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 713,
+              "function": "run_until_complete"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 684,
+              "function": "run_forever"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 2023,
+              "function": "_run_once"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/selectors.py",
+              "line": 452,
+              "function": "select"
+            }
+          ],
+          "active_operations": [],
+          "cgroup_cpu": {
+            "usage_usec": 2275139507,
+            "user_usec": 2095734160,
+            "system_usec": 179405347,
+            "nr_periods": 48932,
+            "nr_throttled": 207,
+            "throttled_usec": 18565739,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": -260.477292,
+          "heartbeat": {
+            "at": 1794010847.0827973,
+            "at_ns": 317826785095767,
+            "sample_started_ns": 317826785095059,
+            "sample_ended_ns": 317826785097184,
+            "last_beat_ns": 317826731078601,
+            "consistent": true,
+            "lag_ms": 4.017166000000003
+          },
+          "context_started_ns": 317826785094059,
+          "context_ended_ns": 317826785517851,
+          "loop_stack": [
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 154,
+              "function": "__init__"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 3303,
+              "function": "raw_connection"
+            },
+            {
+              "file": "/test-assets/load_trace.py",
+              "line": 117,
+              "function": "measured"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/pool/base.py",
+              "line": 445,
+              "function": "connect"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/pool/base.py",
+              "line": 1377,
+              "function": "_checkout"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 968,
+              "function": "_do_ping_w_event"
+            },
+            {
+              "file": "/test-assets/load_trace.py",
+              "line": 117,
+              "function": "measured"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/dialects/postgresql/_psycopg_common.py",
+              "line": 190,
+              "function": "do_ping"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "pool_checkout_ms",
+            "db_ping_ms"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 2275346440,
+            "user_usec": 2095927364,
+            "system_usec": 179419075,
+            "nr_periods": 48934,
+            "nr_throttled": 207,
+            "throttled_usec": 18565739,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": 4.03575,
+          "heartbeat": {
+            "at": 1794010847.3482125,
+            "at_ns": 317827050510351,
+            "sample_started_ns": 317827050509643,
+            "sample_ended_ns": 317827050512309,
+            "last_beat_ns": 317826731078601,
+            "consistent": true,
+            "lag_ms": 269.43175
+          },
+          "context_started_ns": 317827050508393,
+          "context_ended_ns": 317827053095976,
+          "loop_stack": [
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/session.py",
+              "line": 2445,
+              "function": "_execute_internal"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/orm/context.py",
+              "line": 322,
+              "function": "orm_execute_statement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1494,
+              "function": "execute"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+              "line": 534,
+              "function": "_execute_on_connection"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1714,
+              "function": "_execute_clauseelement"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1868,
+              "function": "_execute_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+              "line": 1977,
+              "function": "_exec_single_context"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+              "line": 1192,
+              "function": "do_execute"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/model/db_migration/postgres/io_deadline.py",
+              "line": 55,
+              "function": "bounded_wait"
+            }
+          ],
+          "active_operations": [
+            "sql"
+          ],
+          "cgroup_cpu": {
+            "usage_usec": 2275606827,
+            "user_usec": 2096168137,
+            "system_usec": 179438689,
+            "nr_periods": 48937,
+            "nr_throttled": 207,
+            "throttled_usec": 18565739,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        },
+        {
+          "offset_ms": 267.492334,
+          "heartbeat": {
+            "at": 1794010847.6107478,
+            "at_ns": 317827313045809,
+            "sample_started_ns": 317827313045059,
+            "sample_ended_ns": 317827313047601,
+            "last_beat_ns": 317827300516309,
+            "consistent": true,
+            "lag_ms": 0
+          },
+          "context_started_ns": 317827313043851,
+          "context_ended_ns": 317827313411393,
+          "loop_stack": [
+            {
+              "file": "/test-assets/load_service.py",
+              "line": 520,
+              "function": "<module>"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1142,
+              "function": "main"
+            },
+            {
+              "file": "/home/hummingbot/hummingbot/cli/service.py",
+              "line": 1127,
+              "function": "serve_role"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 196,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/runners.py",
+              "line": 119,
+              "function": "run"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 713,
+              "function": "run_until_complete"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 684,
+              "function": "run_forever"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+              "line": 2023,
+              "function": "_run_once"
+            },
+            {
+              "file": "/opt/conda/envs/hummingbot/lib/python3.13/selectors.py",
+              "line": 452,
+              "function": "select"
+            }
+          ],
+          "active_operations": [],
+          "cgroup_cpu": {
+            "usage_usec": 2275857452,
+            "user_usec": 2096403636,
+            "system_usec": 179453815,
+            "nr_periods": 48940,
+            "nr_throttled": 207,
+            "throttled_usec": 18565739,
+            "nr_bursts": 0,
+            "burst_usec": 0
+          }
+        }
+      ],
+      "context_throttled_delta_usec": 0,
+      "selected_spans": [
+        {
+          "operation": "service.observe_once",
+          "start_ns": 317827092894351,
+          "end_ns": 317827261525143,
+          "duration_ms": 168.630792,
+          "thread_cpu_ms": 126.22683,
+          "intersects_transition": true
+        },
+        {
+          "operation": "pool_checkout_ms",
+          "start_ns": 317827176031893,
+          "end_ns": 317827180557851,
+          "duration_ms": 4.525958,
+          "thread_cpu_ms": 0.723043,
+          "intersects_transition": true
+        },
+        {
+          "operation": "db_ping_ms",
+          "start_ns": 317827176172434,
+          "end_ns": 317827180518226,
+          "duration_ms": 4.345792,
+          "thread_cpu_ms": 0.542293,
+          "intersects_transition": true
+        },
+        {
+          "operation": "sql",
+          "start_ns": 317827184460601,
+          "end_ns": 317827187304809,
+          "duration_ms": 2.844208,
+          "thread_cpu_ms": 0.316041,
+          "intersects_transition": true
+        },
+        {
+          "operation": "ownership_check_ms",
+          "start_ns": 317827092934976,
+          "end_ns": 317827095319559,
+          "duration_ms": 2.384583,
+          "thread_cpu_ms": 1.657208,
+          "intersects_transition": true
+        }
+      ],
+      "captured_gc": []
+    }
+  ],
+  "comparative_workload": [
+    {
+      "run": "20261107-022057-f11e53",
+      "image": "sha256:bf4e1f7798fd6ecea05bd96a63f789a39a21409e51ce9a5cc1ac9843056ab745",
+      "healthy_created_orders": {
+        "warmup": 32,
+        "mixed": 112,
+        "bursts": 16,
+        "soak": 472
+      },
+      "all_mutations": 34
+    },
+    {
+      "run": "20261107-055822-faab3f",
+      "image": "sha256:837e7997478e1d477046763067cf15f2ea63d1c50df4b3442cd235fb2afca712",
+      "healthy_created_orders": {
+        "warmup": 32,
+        "mixed": 112,
+        "bursts": 16,
+        "soak": 472
+      },
+      "all_mutations": 34
+    }
+  ],
+  "findings": [
+    "All seven soak probe failures are socket timeouts, not HTTP503.",
+    "Six episodes have an engine loop sample in libpq I/O within or adjacent to the probe request; one samples executor PnL computation. Sampling does not explain every millisecond.",
+    "No selected GC interval is captured for these episodes. Five of seven sampled context intervals have no additional cgroup throttling; the other increments are small. This does not exclude host scheduling or prove one exclusive cause.",
+    "Healthy created-order counts are identical across both runs; increased quote count does not explain the probe count difference. Host conditions, scheduling and Random trajectories were not replay-controlled.",
+    "The fresh ownership SELECT previously opened a read transaction and waited on COMMIT. A scoped Psycopg autocommit flag preserves the same backend/advisory-lock checks and unchanged SQLAlchemy isolation metadata, restores transaction mode, and registers no pool-reset callbacks. No authority cache or probe budget change.",
+    "Teardown of a closed/invalidated owner now closes without reconnecting or attempting a new-session write.",
+    "Already-open SQLAlchemy or direct DBAPI read transactions retain their original check/commit behavior. Idle reads use scoped driver autocommit; write isolation and client deadlines are unchanged."
+  ],
+  "targeted_component": {
+    "samples": [
+      {
+        "before": {
+          "ms_per_read": 2.19646664,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 1.26813,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      },
+      {
+        "before": {
+          "ms_per_read": 2.26388,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 1.407575,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      },
+      {
+        "before": {
+          "ms_per_read": 2.390335,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 1.12527668,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      },
+      {
+        "before": {
+          "ms_per_read": 2.52362332,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 1.078785,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      },
+      {
+        "before": {
+          "ms_per_read": 2.10357168,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 1.218665,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      },
+      {
+        "before": {
+          "ms_per_read": 2.23720664,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 1.09639168,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      },
+      {
+        "before": {
+          "ms_per_read": 2.26245668,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 1.27586,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      }
+    ],
+    "before_p50_ms": 2.26245668,
+    "after_p50_ms": 1.218665,
+    "scope": "Warmed native recorder-owner fixture on real PostgreSQL; no whole-engine/probe latency claim."
+  },
+  "controlled_probe": {
+    "injected_read_commit_seconds": 0.45,
+    "unchanged_probe_timeout_seconds": 0.3,
+    "results": [
+      {
+        "legacy": true,
+        "healthy": false,
+        "reason": "timeout",
+        "status": null,
+        "elapsed_ms": 313.351
+      },
+      {
+        "legacy": false,
+        "healthy": true,
+        "reason": "healthy",
+        "status": 200,
+        "elapsed_ms": 1.497
+      }
+    ],
+    "scope": "Real local PostgreSQL owner and production health/probe functions; controlled COMMIT jitter, not a full MM or historical-cause proof."
+  },
+  "tests": {
+    "corrected_red": {
+      "failed": 4,
+      "passed": 2,
+      "log": "/tmp/hbot-owner-read-red-corrected.log"
+    },
+    "invalid_draft": {
+      "log": "/tmp/hbot-owner-read-red.log",
+      "note": "One first-draft test used nonexistent store.load; corrected to read before the valid Red run. Not runtime-defect proof."
+    },
+    "loss_red": {
+      "failed": 1,
+      "log": "/tmp/hbot-owner-read-loss-red.log"
+    },
+    "intermediate_failure": {
+      "log": "/tmp/hbot-owner-read-green-final.log",
+      "note": "Read scope passed; release of the closed connection raised ResourceClosedError. Resolved with explicit no-reconnect teardown; retained failure."
+    },
+    "targeted_green": {
+      "passed": 80,
+      "deselected": 467,
+      "new_cases": 16,
+      "seconds": 80.57,
+      "log": "/tmp/hbot-owner-read-final-targeted.log"
+    },
+    "final_regression": {
+      "source": "d9488143d",
+      "native": {
+        "exit_code": 0,
+        "passed": 2780,
+        "subtests": 11,
+        "log": "/tmp/hbot-owner-read-final-native.log",
+        "sha256": "6009b7945c54a2b5a869c667b1dc7e8b6e168684eda3868c65efc12316d2b225"
+      },
+      "postgres": {
+        "exit_code": 0,
+        "passed": 547,
+        "seconds": 772.09,
+        "log": "/tmp/hbot-owner-read-final-postgres.log",
+        "sha256": "decc14c3d9bbe60f529c6722fc268c0f8097442a52e94184db37de7135648c6f"
+      },
+      "swagger": {
+        "exit_code": 0,
+        "log": "/tmp/hbot-owner-read-swagger.log",
+        "sha256": "3e38a232de7da785c02fbaadc20de432bb439ca80a7ccbd717aaef9a19523edb"
+      }
+    },
+    "mode_restore_red": {
+      "failed": 1,
+      "log": "/tmp/hbot-owner-read-restore-red.log",
+      "reason": "A plain SQLAlchemy close returned the mode-uncertain live DBAPI connection to its pool. Corrected to invalidate/discard before closing."
+    },
+    "io_deadline_closed_state": {
+      "log": "/tmp/hbot-owner-read-io-focused.log",
+      "note": "Original 3s deadline passed, but the old assertion required invalidated=True; permanent close sets that False. Owner now requires physical closure and permanent logical closure; other modes retain invalidation checks."
+    },
+    "superseded_bounded_regression": {
+      "artifact": "build/probe-regression-review-20261107/postgres-bounded-variant-interrupted.log",
+      "failed": 1,
+      "passed": 418,
+      "exit_code": 2,
+      "seconds": 635.2,
+      "note": "Intentionally interrupted after the permanent-closure assertion failure; final compatibility/cleanup checks and frozen regressions supersede it."
+    }
+  },
+  "source_sha256": {
+    "hummingbot/core/bot_ownership.py": "31fe1b2d5981b1df80a8db0e0ef761a892ff048e04a167632f517d4dda302220",
+    "test/integration/postgres/test_owner_read_transaction.py": "e7523614814b7b0f8d61fde9838b6a2f90e754a380c3481ee52611801762460a",
+    "test/integration/postgres/io_deadline_worker.py": "6da4071dc2eec37d1d483c0cd90bcb736c26d2f70df12611d009dbafa8c35fb3",
+    "test/integration/postgres/test_database_io_deadline.py": "c9975b272727fe73f6b88c11e6d775a8748e23169968745640462ed25976df3f"
+  },
+  "references": [
+    "https://docs.sqlalchemy.org/en/20/core/connections.html#understanding-the-dbapi-level-autocommit-isolation-level",
+    "https://www.psycopg.org/docs/connection.html#connection.autocommit"
+  ],
+  "qualifications": [
+    "A matched controlled read-COMMIT fault establishes that mechanism, not the unique cause of seven older production-style episodes.",
+    "The controlled app uses the real health/probe functions and real PostgreSQL ownership, but does not run a full market-making strategy.",
+    "Component timings use a native local process and a real disposable PostgreSQL server; no whole-image/p99 speedup is claimed.",
+    "Source changes do not inherit the accepted 837e7997 image hour gate.",
+    "Reported read timing medians are over seven 25-read batch means, not individual-request p50/tail or a whole-engine benchmark."
+  ],
+  "rejected_prototype": {
+    "source": "2409579d5",
+    "sqlalchemy_version": "2.1.1",
+    "issue": "Changing isolation through execution_options appends connection pool-return reset callbacks for each change.",
+    "memory_red": {
+      "reads": 200,
+      "before_callbacks": 4,
+      "after_callbacks": 404,
+      "log": "/tmp/hbot-owner-read-bookkeeping-red.log"
+    },
+    "component": {
+      "samples": [
+        {
+          "before": {
+            "ms_per_read": 1.942345,
+            "selects": 25,
+            "explicit_read_commits": 25
+          },
+          "after": {
+            "ms_per_read": 1.68021664,
+            "selects": 25,
+            "explicit_read_commits": 0
+          }
+        },
+        {
+          "before": {
+            "ms_per_read": 2.02414832,
+            "selects": 25,
+            "explicit_read_commits": 25
+          },
+          "after": {
+            "ms_per_read": 1.62446664,
+            "selects": 25,
+            "explicit_read_commits": 0
+          }
+        },
+        {
+          "before": {
+            "ms_per_read": 2.06663336,
+            "selects": 25,
+            "explicit_read_commits": 25
+          },
+          "after": {
+            "ms_per_read": 1.673505,
+            "selects": 25,
+            "explicit_read_commits": 0
+          }
+        },
+        {
+          "before": {
+            "ms_per_read": 1.84488668,
+            "selects": 25,
+            "explicit_read_commits": 25
+          },
+          "after": {
+            "ms_per_read": 1.61289,
+            "selects": 25,
+            "explicit_read_commits": 0
+          }
+        },
+        {
+          "before": {
+            "ms_per_read": 1.981665,
+            "selects": 25,
+            "explicit_read_commits": 25
+          },
+          "after": {
+            "ms_per_read": 1.53992,
+            "selects": 25,
+            "explicit_read_commits": 0
+          }
+        },
+        {
+          "before": {
+            "ms_per_read": 1.96709332,
+            "selects": 25,
+            "explicit_read_commits": 25
+          },
+          "after": {
+            "ms_per_read": 1.58755,
+            "selects": 25,
+            "explicit_read_commits": 0
+          }
+        },
+        {
+          "before": {
+            "ms_per_read": 2.03223168,
+            "selects": 25,
+            "explicit_read_commits": 25
+          },
+          "after": {
+            "ms_per_read": 2.68856168,
+            "selects": 25,
+            "explicit_read_commits": 0
+          }
+        }
+      ],
+      "before_p50_ms": 1.981665,
+      "after_p50_ms": 1.62446664,
+      "scope": "Warmed native recorder-owner fixture on real PostgreSQL; no whole-engine/probe latency claim."
+    },
+    "native_log": "build/probe-regression-review-20261107/native-rejected-variant.log",
+    "interrupted_postgres": {
+      "passed": 185,
+      "exit_code": 2,
+      "seconds": 276.46,
+      "log": "build/probe-regression-review-20261107/postgres-rejected-variant-interrupted.log",
+      "reason": "Intentionally interrupted to reject unbounded reset callbacks; not a completed regression or acceptance run."
+    }
+  },
+  "frozen_component": {
+    "samples": [
+      {
+        "before": {
+          "ms_per_read": 2.19875668,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 1.21036668,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      },
+      {
+        "before": {
+          "ms_per_read": 2.52966832,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 1.31266836,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      },
+      {
+        "before": {
+          "ms_per_read": 2.56155668,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 0.99897668,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      },
+      {
+        "before": {
+          "ms_per_read": 1.71412,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 0.92724336,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      },
+      {
+        "before": {
+          "ms_per_read": 1.999625,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 1.28281164,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      },
+      {
+        "before": {
+          "ms_per_read": 2.40385332,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 1.29875332,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      },
+      {
+        "before": {
+          "ms_per_read": 2.20871168,
+          "selects": 25,
+          "explicit_read_commits": 25
+        },
+        "after": {
+          "ms_per_read": 1.18517668,
+          "selects": 25,
+          "explicit_read_commits": 0
+        }
+      }
+    ],
+    "before_p50_ms": 2.20871168,
+    "after_p50_ms": 1.21036668,
+    "scope": "Warmed native recorder-owner fixture on real PostgreSQL; no whole-engine/probe latency claim."
+  },
+  "frozen_controlled_probe": {
+    "injected_read_commit_seconds": 0.45,
+    "unchanged_probe_timeout_seconds": 0.3,
+    "results": [
+      {
+        "legacy": true,
+        "healthy": false,
+        "reason": "timeout",
+        "status": null,
+        "elapsed_ms": 302.255
+      },
+      {
+        "legacy": false,
+        "healthy": true,
+        "reason": "healthy",
+        "status": 200,
+        "elapsed_ms": 2.167
+      }
+    ],
+    "scope": "Real local PostgreSQL owner and production health/probe functions; controlled COMMIT jitter, not a full MM or historical-cause proof."
+  }
+}

@@ -18,6 +18,12 @@ The [fill-flush source follow-up](implementation/MM_RUNTIME_FOLLOWUP.md#probe-fo
 has separate native/PG verification, including a corrected obsolete query-count
 assertion. This image gate identifies its own build and packaged source hashes.
 
+Newer [ownership-read source verification](implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07)
+passes native2,780 + 11 subtests and full PG547. It removes a controlled redundant
+read-COMMIT delay, rejects unbounded pool bookkeeping, and preserves transactional
+writes/fresh fences. It does not uniquely attribute the old probe count increase
+or replace the accepted image's qualification.
+
 | Topic | Current entry |
 | --- | --- |
 | [Release](release/README.md) | Current candidate and retained rollback, exact image/gate scope |
