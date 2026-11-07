@@ -404,3 +404,75 @@ After success remove only unused `837e7997…`; retain current candidate, accept
 rollback `e00cef38…`, all 10 containers and 14 volumes, including unchanged Demo.
 Prior accepted evidence remains in Git `745a86e3c`, earlier failures in
 `ff6b85ded`. No existing-Demo/Google/GCP/deployment operation is performed.
+
+### Combined-image regression audit — 2026-11-07
+
+The preceding soak's engine probes **5→11** and burst p99 **267.47→503.57 ms**
+remain regressions in those measurements. Component benchmarks do not establish
+a whole-system improvement. Review of 1,224 packaged source/config hashes finds
+exactly two changed files: `bot_ownership.py` and `admin_observations.py`.
+Fresh ownership checks, generation/session/advisory-lock predicates and final
+JSON detachment remain intact; the changes do not introduce another DB read.
+This source comparison does not assert that every binary/image layer is identical.
+
+Run immutable images A=`e00cef38…`, B=`a6fe88c0…` in **ABBA** order, each with a
+fresh disposable DB and a 120-second measurement. Same 100k histories, 20 main
+and 5 auxiliary reads/s, 100 book updates/s, one synthetic fill/s, CPU/memory,
+cache and acceptance limits. The common fixture adds five bounded stage timings;
+its ownership hook selects the available reader on each version. That hook's
+boundary differs slightly (old public guard versus new internal reader), so it
+is not an isolated ownership-method benchmark. Offline certificate fixtures are
+generated per run. Host scheduling and short, sparse incidents remain limitations.
+
+| Order / image | API p95 / p99 (ms) | Engine probe episodes | Exact simulated fills |
+| --- | ---: | ---: | ---: |
+| 1 / A | 58.39 / 449.07 | 0 | 120 |
+| 2 / B | 61.09 / 427.69 | 1, recovered in 1.187 s | 120 |
+| 3 / B | 59.52 / 495.84 | 1, recovered in 1.056 s | 120 |
+| 4 / A | 71.72 / 755.18 | 0 | 120 |
+
+All four pass, with 2,400 main/600 auxiliary reads each, zero unexpected HTTP
+errors and exact fill/fee/position reconciliation. Both B runs have a probe
+episode; neither A does. Retain that adverse signal. It is insufficient to prove
+or exclude a causal regression with two short samples per version. The old image
+also has the worst API p99; blanket claims that either version is uniformly
+faster are unsupported. Reporting capture medians are about 0.425 ms on A and
+0.294–0.299 ms on B; publication-preparation p99 is 3.18–6.22 ms on A and
+4.21–4.25 ms on B. These end-of-run stage distributions are rolling/cumulative,
+not exclusively the HTTP window or proof of second-scale probe causation.
+
+Code review still finds synchronous owner/recorder PostgreSQL waits on the
+engine loop. Prior bounded stacks often sample driver waits; one retained SQL
+span is 372.7 ms wall versus 1.6 ms thread CPU. This establishes a blocking path,
+not a unique database/host explanation for all probes. Async `observe_once`
+duration/CPU includes other work while it yields. Do not add nested spans or
+attribute all of that inclusive time to status collection.
+
+The reproducible defect is in **test instrumentation**: `IncidentBuffer` held a
+shared producer lock across JSON decoding and sink callbacks. A delayed watchdog
+flush could therefore block engine-side trace emission or even summary reads.
+Six barrier-based regressions fail on the original code (**6 fail / 22 pass**).
+Move decoding/output outside the lock after capturing bounded immutable history
+and updating incident state. Preserve ring/byte/age/count limits, detached values,
+tail capture and concurrent eviction/recovery without duplicated history.
+Add reversed-publication-order analysis coverage and keep the GC callback test
+inside an actual locked critical section. **82 targeted tests pass**; style passes.
+The barriers prove the lock dependency, not its duration on a historical run.
+
+The first post-fix 120-second diagnostic on the same B image and timing fixture
+passes: API p95/p99 **54.46/258.09 ms**, 2,400 main/600 auxiliary HTTP200,
+zero unexpected errors, zero retained probe transitions in the measured window
+and **120 exact simulated fills/fees/positions**. The changed mounted fixture is
+`load_incidents.py`; fresh offline certificate/identity fixtures also differ.
+The 1,224 packaged runtime/config hashes are unchanged. This single short run
+verifies fixture integration, not a causal latency gain or a replacement hour
+gate. No new image is built and no image or existing volume is removed.
+
+Decision: retain the two production changes and their safety checks; no new
+production optimization, rollback, threshold change or architectural rewrite is
+justified by this audit. Fix the demonstrated diagnostic lock dependency. Keep
+both images and the long-run probe attribution item open. The diagnostic change
+does not eliminate GIL/sink overhead or establish that previous stalls were all
+test artifacts. Raw artifacts: `build/runtime-regression-audit-20261107/`;
+portable evidence is under `combined_image_regression_audit` in the
+[existing evidence file](mm-runtime-followup-evidence.json).

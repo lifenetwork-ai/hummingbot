@@ -1,6 +1,7 @@
 """Incident capture preserves bounded context without changing health decisions."""
 import json
 import signal
+import threading
 from test.e2e.offline.load_incidents import IncidentBuffer, ProbeIncidentPublisher, ProbeStackSampler, capture_limit
 from types import SimpleNamespace
 
@@ -134,3 +135,116 @@ def test_loop_stall_and_probe_failure_share_one_incident_without_duplicate_histo
     capture.trigger({'kind': 'probe_failure', 'at_ns': 2_000_000_000})
     assert [row['kind'] for row in rows] == ['sample', 'loop_stall_trigger', 'probe_failure']
     assert capture.summary()['incidents'] == 1
+
+
+@pytest.mark.parametrize('path,blocked_stage', [
+    ('history', 'decode'), ('history', 'sink'), ('tail', 'decode'), ('tail', 'sink'), ('marker', 'sink'),
+])
+def test_slow_incident_output_does_not_hold_the_producer_lock(monkeypatch, path, blocked_stage):
+    """A watchdog output stall must not make an engine producer wait on its lock."""
+    entered, release, progressed = threading.Event(), threading.Event(), threading.Event()
+    rows, errors = [], []
+    original_loads = json.loads
+
+    def block(record, stage):
+        if record['kind'] == 'blocked' and stage == blocked_stage:
+            entered.set()
+            assert release.wait(5), 'Test did not release the output barrier'
+        return record
+
+    def sink(record):
+        rows.append(block(record, 'sink'))
+
+    capture = IncidentBuffer(sink)
+    if path == 'history':
+        capture.emit({'kind': 'blocked', 'at_ns': 0})
+    elif path == 'tail':
+        capture.trigger({'kind': 'start', 'at_ns': 0})
+    monkeypatch.setattr(json, 'loads', lambda line: block(original_loads(line), 'decode'))
+
+    def output():
+        if path == 'history':
+            capture.trigger({'kind': 'probe_failure', 'at_ns': 1_000_000_000})
+        elif path == 'tail':
+            capture.emit({'kind': 'blocked', 'at_ns': 1_000_000_000})
+        else:
+            capture.trigger({'kind': 'blocked', 'at_ns': 1_000_000_000})
+
+    def producer():
+        capture.summary()
+        capture.emit({'kind': 'concurrent', 'at_ns': 1_500_000_000})
+        progressed.set()
+
+    def guarded(call):
+        try:
+            call()
+        except BaseException as error:
+            errors.append(error)
+
+    output_thread = threading.Thread(target=guarded, args=(output,))
+    producer_thread = threading.Thread(target=guarded, args=(producer,))
+    output_thread.start()
+    try:
+        assert entered.wait(2), 'Output did not reach the barrier'
+        producer_thread.start()
+        assert progressed.wait(1), 'Incident output holds the lock needed by the engine producer'
+    finally:
+        release.set()
+        output_thread.join(3)
+        if producer_thread.ident is not None:
+            producer_thread.join(3)
+    assert not output_thread.is_alive() and not producer_thread.is_alive()
+    assert not errors
+    assert [row['kind'] for row in rows].count('blocked') == 1
+    assert [row['kind'] for row in rows].count('concurrent') == 1
+
+
+def test_incident_history_snapshot_survives_concurrent_eviction_and_recovery():
+    entered, release, progressed = threading.Event(), threading.Event(), threading.Event()
+    rows, errors = [], []
+
+    def sink(record):
+        if record['kind'] == 'first':
+            entered.set()
+            assert release.wait(5)
+        rows.append(record)
+
+    capture = IncidentBuffer(sink, max_records=2)
+    capture.emit({'kind': 'first', 'at_ns': 0})
+    capture.emit({'kind': 'second', 'at_ns': 1_000_000_000})
+
+    def flush():
+        capture.trigger({'kind': 'probe_failure', 'at_ns': 2_000_000_000})
+
+    def producer():
+        capture.emit({'kind': 'live_one', 'at_ns': 3_000_000_000})
+        capture.emit({'kind': 'live_two', 'at_ns': 4_000_000_000})
+        capture.trigger({'kind': 'probe_recovered', 'at_ns': 5_000_000_000})
+        progressed.set()
+
+    def guarded(call):
+        try:
+            call()
+        except BaseException as error:
+            errors.append(error)
+
+    threads = [threading.Thread(target=guarded, args=(call,)) for call in (flush, producer)]
+    threads[0].start()
+    try:
+        assert entered.wait(2)
+        threads[1].start()
+        assert progressed.wait(1), 'History flush prevents concurrent eviction/recovery'
+    finally:
+        release.set()
+        for thread in threads:
+            if thread.ident is not None:
+                thread.join(3)
+    assert all(not thread.is_alive() for thread in threads)
+    assert not errors
+    # Concurrent publication order is not event order; consumers use at_ns.
+    assert [row['kind'] for row in sorted(rows, key=lambda row: row['at_ns'])] == [
+        'first', 'second', 'probe_failure', 'live_one', 'live_two', 'probe_recovered']
+    assert [row['capture_incident'] for row in rows if 'capture_incident' in row] == [1, 1]
+    assert capture.summary()['incidents'] == 1
+    assert capture.summary()['buffered_records'] == 2
+    assert capture.summary()['evicted_records'] == 2

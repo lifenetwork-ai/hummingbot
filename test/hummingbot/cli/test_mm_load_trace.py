@@ -33,10 +33,11 @@ def test_stack_sampling_keeps_existing_oldest_to_newest_order_and_limit():
 
 
 def test_gc_callback_does_not_reenter_incident_lock_during_capture():
-    # A real collection at JSON decoding/allocation inside trigger's lock.
+    # Force a real collection inside the critical section even when JSON
+    # decoding moves outside it. Keep guarding against callback lock reentry.
     # Isolate the regression so a broken callback cannot deadlock pytest itself.
     program = '''
-import gc,json,time
+import gc,time
 from test.e2e.offline.load_trace import DeferredGCTrace
 from test.e2e.offline.load_incidents import IncidentBuffer
 events=[]
@@ -45,14 +46,15 @@ gc_trace=DeferredGCTrace(minimum_ms=0)
 gc.disable()
 gc.callbacks.append(gc_trace)
 capture.emit({'kind':'before','at_ns':time.monotonic_ns()})
-original=json.loads
-def collect_inside_capture(line):
+original=capture._expire
+def collect_inside_capture(now):
+    assert capture.lock.locked()
     gc.collect()
-    return original(line)
-json.loads=collect_inside_capture
+    return original(now)
+capture._expire=collect_inside_capture
 capture.trigger({'kind':'probe_failure','at_ns':time.monotonic_ns()})
 gc.callbacks.remove(gc_trace)
-json.loads=original
+capture._expire=original
 gc_trace.drain(capture.emit)
 assert any(row['kind']=='gc' for row in events)
 assert capture.summary()['incidents']==1

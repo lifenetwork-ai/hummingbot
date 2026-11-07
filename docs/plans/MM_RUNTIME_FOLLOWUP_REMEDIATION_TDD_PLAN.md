@@ -274,3 +274,35 @@ No continuous-quote or exclusive-cause claim. The 120-second warning is not a
 production replacement SLO. Only unused `837e7997…` removed; all 10 containers /
 14 volumes retained. [Report](../../reports/release/mm-runtime-followup-load.md),
 [evidence](../../reports/release/mm-runtime-followup-load-evidence.json).
+
+
+## Combined-image regression audit — requested 2026-11-07
+
+- [x] Compare the exact packaged before/after source and hot-path call structure;
+  inspect ownership freshness, reporting detachment and unchanged budgets.
+- [x] Reconcile probe intervals with retained stacks/spans and distinguish async
+  inclusive duration, rolling metric distributions and per-window API latency.
+- [x] Run an ABBA short comparison of immutable `e00cef38…` / `a6fe88c0…` images
+  with the same isolated fixture, additional bounded stage timings and frozen
+  rates/resources. Keep every attempt and both improvements/regressions.
+- [x] Review loop-blocking diagnostic code and reproduce any confirmed defect
+  before changing runtime or instrumentation. Do not identify one old incident's
+  cause from a stack overlap alone.
+- [x] Publish the measured decision to keep/revert/fix, scoped verification and
+  unresolved attribution; preserve current release evidence and commit.
+
+The short comparison is diagnostic, not a replacement release/soak gate. Current
+source and immutable images stay fixed during comparison. No existing Demo or
+cloud account is used. Artifacts: `build/runtime-regression-audit-20261107/`.
+
+ABBA120 all pass: A p99 449.07/755.18 ms, B 427.69/495.84 ms; both B runs have
+one recovered engine probe, A none. Retain the signal without declaring an
+exclusive cause or uniform speedup. Six Red failures reproduce test incident
+output holding the producer lock; bounded history snapshot/output separation,
+GC lock-reentry coverage and out-of-order analysis yield 82 targeted passes.
+The first updated-fixture B diagnostic passes with p99 258.09 ms, zero measured
+probe transitions and 120 exact simulated fills; it does not close hour-gate
+attribution. All 1,224 packaged runtime hashes stay unchanged. Keep the production
+changes/both images; no fresh production optimization or threshold adjustment.
+[Audit and decision](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#combined-image-regression-audit--2026-11-07),
+[portable evidence](../../reports/implementation/mm-runtime-followup-evidence.json).

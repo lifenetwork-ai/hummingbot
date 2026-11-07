@@ -45,6 +45,11 @@ unresolved work. Current outstanding items are listed below.
   and bounded captures do not establish one cause. The separate activity300
   observes progress during its own probes, not all baseline episodes.
   [Current evidence and limits](../../reports/release/mm-runtime-followup-load.md#recovered-probes-and-comparison).
+  A subsequent ABBA120 audit keeps this open: B has one recovered engine probe
+  in each run, A none, while API p99 ranges 428–496 ms on B and 449–755 ms on A.
+  A separate Red/Green fix removes an incident-recorder producer-lock dependency;
+  it does not establish the cause of the historical probe increase.
+  [Code audit](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#combined-image-regression-audit--2026-11-07).
 - [ ] Agree a production quote-coverage SLO separating normal replacement,
   guard restrictions and listing bootstrap. HTTP200/PID stability and point
   samples do not establish continuous two-sided quotes. The [review criteria](../fe-integration.md#reviewing-quote-availability)

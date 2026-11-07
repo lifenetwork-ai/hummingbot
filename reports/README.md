@@ -18,6 +18,11 @@ all container references/volumes retained. Prior reports/attempts remain in Git
 `745a86e3c` and `ff6b85ded` at their original report/evidence paths.
 [Portable evidence](release/mm-runtime-followup-load-evidence.json).
 
+The follow-up [regression audit](implementation/MM_RUNTIME_FOLLOWUP.md#combined-image-regression-audit--2026-11-07)
+compares immutable images in ABBA order and fixes a reproduced lock dependency
+inside test incident capture. The probe-frequency attribution remains open;
+production trading code and current full-gate evidence are unchanged.
+
 Source/TDD, rejected drafts and paired component costs retain their own scopes in
 [runtime remediation](implementation/MM_RUNTIME_FOLLOWUP.md). Latest reporting-copy
 source: native 2,788 + 11 subtests / related PG 36; preceding write-fence projection:

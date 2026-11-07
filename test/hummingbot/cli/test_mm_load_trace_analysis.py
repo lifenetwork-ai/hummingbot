@@ -1,9 +1,13 @@
 import json
 
+import pytest
+
 from scripts.analyze_mm_load_trace import analyze
 
 
-def test_incident_analysis_deduplicates_cross_role_markers_and_keeps_matching_context(tmp_path):
+@pytest.mark.parametrize('reverse_publication_order', [False, True])
+def test_incident_analysis_deduplicates_cross_role_markers_and_keeps_matching_context(
+        tmp_path, reverse_publication_order):
     from scripts.analyze_mm_load_trace import analyze_incidents
     incident = tmp_path / 'incidents'
     incident.mkdir()
@@ -16,6 +20,8 @@ def test_incident_analysis_deduplicates_cross_role_markers_and_keeps_matching_co
     rows = [failure, recovered, dict(kind='trace', spans=[span]),
             dict(kind='gc', start_ns=2_200_000_000, duration_ms=20),
             dict(kind='probe_failure', role='engine', sequence=3, at_ns=6_000_000_000)]
+    if reverse_publication_order:
+        rows.reverse()  # A concurrent producer may publish before a history flush completes.
     for role in ('engine', 'api'):
         (incident / (role + '-incidents.jsonl')).write_text('\n'.join(
             json.dumps({**row, 'capturing_role': role, 'capturing_pid': 11 if role == 'engine' else 12}) for row in rows))

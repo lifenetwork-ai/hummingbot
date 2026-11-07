@@ -72,11 +72,13 @@ class IncidentBuffer:
             self.history.append((now, line, size))
             self.bytes += size
             self._expire(now)
-            if now <= self.until:
-                self.sink(json.loads(line))
+            forward = now <= self.until
+        if forward:
+            self.sink(json.loads(line))
 
     def trigger(self, event):
         now = event['at_ns']
+        history = ()
         with self.lock:
             self._expire(now)
             if now > self.until:
@@ -84,10 +86,16 @@ class IncidentBuffer:
                     self.counts['suppressed_incidents'] += 1
                     return
                 self.counts['incidents'] += 1
-                for _, line, _ in self.history:
-                    self.sink(json.loads(line))
+                # Keep bounded immutable lines alive if another producer evicts
+                # them. Never hold the producer lock across decoding or output.
+                history = tuple(line for _, line, _ in self.history)
             self.until = max(self.until, now + self.tail_ns)
-            self.sink({**event, 'capture_incident': self.counts['incidents']})
+            marker = {**event, 'capture_incident': self.counts['incidents']}
+        # A live producer may publish before this history flush completes.
+        # Consumers order observations by at_ns, not physical sink order.
+        for line in history:
+            self.sink(json.loads(line))
+        self.sink(marker)
 
     def summary(self):
         with self.lock:

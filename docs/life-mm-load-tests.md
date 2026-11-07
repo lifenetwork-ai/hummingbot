@@ -314,6 +314,14 @@ counts existing bytes before admitting more records. Retained child spans are
 the longest within the existing capacity (16 in incident mode,128 in full trace),
 returned in completion order with omitted-span counters.
 
+Incident capture holds its producer lock only for bounded history/state updates.
+It snapshots immutable serialized history, then decodes and submits it outside
+the lock so watchdog output cannot hold up an engine producer acquiring that
+lock. A flush can temporarily retain one additional bounded history snapshot.
+Concurrent live events may reach the sink before older history; analyzers use
+event timestamps rather than file order. This removes that lock dependency,
+not all tracing CPU, GIL contention or sink overhead.
+
 Every outflow-advance call contributes scalar timing/count metrics, while only
 completed calls lasting at least100ms allocate detailed leaf spans. In-progress
 work remains visible through enclosing spans and watchdog stacks. Phase timings

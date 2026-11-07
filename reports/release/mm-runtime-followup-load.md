@@ -6,6 +6,11 @@ packages the fresh write-fence projection and reporting-copy optimizations.
 **Probe frequency and burst p99 regress** versus the preceding accepted image;
 this pass does not close probe attribution or establish continuous quoting.
 
+The later [code audit and ABBA comparison](../implementation/MM_RUNTIME_FOLLOWUP.md#combined-image-regression-audit--2026-11-07)
+retain this full gate unchanged. They identify and fix a test incident-recorder
+lock dependency, without establishing it as the cause of the earlier probe
+increase. New short diagnostics do not replace this hour-long acceptance scope.
+
 ## Candidate and scope
 
 - Tag `hummingbot-cloudrun:runtime-copy`; amd64; **1,374,449,982 bytes** (~1.37 GB).
