@@ -271,3 +271,21 @@ Frozen source `d9488143d`: native **2,780 + 11 subtests**, full disposable PG
 **547 pass** (772.09s), formatting/lint pass. Native logs retain existing
 deprecation/AsyncMock warnings. Log paths/hashes and source hashes are in evidence. No new image/hour gate or
 real-Demo qualification is inherited; accepted image `837e7997…` is unchanged.
+
+
+### Subsequent ownership-read image gate — 2026-11-07
+
+Image `e00cef38…`, built from `ff6b85ded` with runtime `d9488143d`, separately passes
+four targeted E2E groups on first attempts, enhancement90 and the unchanged full
+baseline/Random soak3600/five faults. All 1,224 packaged hashes stay unchanged.
+Soak p99 410.20ms, zero unexpected healthy errors, retention 28.59/64MiB, exact
+4,884 simulated fills/fees/positions. Five engine probes in soak (previous seven),
+one API probe in mixed and one engine probe between windows recover. Mixed/burst
+improve; warmup/soak latency and retention regress within budgets. This does not
+uniquely attribute the historical count increase or prove continuous quoting.
+Bounded engine capture reaches32 and suppresses four further context captures;
+markers/sink limits remain disclosed. The full [image report](../release/mm-runtime-followup-load.md)
+and [evidence](../release/mm-runtime-followup-load-evidence.json) distinguish this
+from the component experiment and retain the prior image at Git `ff6b85ded`.
+Remove unused `bf4e1f77…`; retain accepted rollback `837e7997…`, all ten containers
+and fourteen volumes, with the existing actual Demo unchanged.

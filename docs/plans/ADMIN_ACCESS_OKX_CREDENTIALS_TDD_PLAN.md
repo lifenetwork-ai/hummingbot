@@ -36,9 +36,10 @@ in [credential operations](../exchange-credentials.md) and
 - [x] Native source/PG, local encryption, offline signed Google identities, role/
   audit and simulator lifecycle/fault tests. Prior lifecycle cases retain their
   original image identities in Git history; they are not relabelled as new runs.
-- [x] Current image `837e7997…`: full unchanged baseline/security/operator traffic,
-  60-minute soak, five faults, four targeted E2E groups after one disclosed restart
-  retry, and enhancement90.
+- [x] Current image `e00cef38…`: full unchanged baseline/security/operator traffic,
+  60-minute soak, five faults, four targeted E2E groups on first attempts and
+  enhancement90. Zero unexpected healthy errors; residual recovered probes remain
+  explicit. Prior-image failed attempts stay in Git `ff6b85ded`.
   [Current result](../../reports/release/mm-runtime-followup-load.md).
 - [ ] Real Google login/certificate discovery and real GCP KMS/IAM using synthetic
   credentials when resources are provided. Local/offline verification cannot close this.

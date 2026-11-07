@@ -4,25 +4,27 @@ Start with the [current image/load report](release/mm-runtime-followup-load.md)
 and [remaining-work register](../docs/plans/README.md). Operational procedures and
 API/FE contracts live in [docs](../docs/README.md).
 
-Current image **837e7997…** passes the unchanged full load/60-minute soak/five faults,
-four targeted E2E groups (one initial restart retry) and enabled-enhancement90.
-Soak p99 **360.68 ms**, zero unexpected healthy errors, **24.05 MiB** retained
-growth and **4,884 simulated fills** reconcile. Eight healthy probes recover;
-no healthy ERROR/child restart. Warmup/mixed improve, burst/soak and probe count
-regress versus the preceding run, within unchanged budgets. Attribution/continuity
-limits and the failed first E2E attempt remain explicit. One unused image removed;
-all container references/volumes retained.
+Current image **e00cef38…** passes the unchanged full load/60-minute soak/five
+faults, four targeted E2E groups on first attempts and enabled-enhancement90.
+Soak p99 **410.20 ms**, zero unexpected healthy errors, **28.59 MiB** retained
+growth and **4,884 simulated fills** reconcile. Five soak engine probes, one
+mixed API probe and one engine probe between windows recover; no healthy ERROR
+or child replacement. Mixed/burst and probe counts improve versus `837e7997…`,
+while warmup/soak latency and retention regress within unchanged budgets. No
+uniform speedup or continuous-quote claim. One unused image removed; all container
+references/volumes retained. The preceding report and failed shutdown attempt
+remain in Git `ff6b85ded` under the same report/evidence paths.
 [Portable evidence](release/mm-runtime-followup-load-evidence.json).
 
 The [fill-flush source follow-up](implementation/MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07)
 has separate native/PG verification, including a corrected obsolete query-count
 assertion. This image gate identifies its own build and packaged source hashes.
 
-Newer [ownership-read source verification](implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07)
+The [ownership-read source verification](implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07)
 passes native2,780 + 11 subtests and full PG547. It removes a controlled redundant
 read-COMMIT delay, rejects unbounded pool bookkeeping, and preserves transactional
 writes/fresh fences. It does not uniquely attribute the old probe count increase
-or replace the accepted image's qualification.
+or replace the separately measured image qualification above.
 
 | Topic | Current entry |
 | --- | --- |

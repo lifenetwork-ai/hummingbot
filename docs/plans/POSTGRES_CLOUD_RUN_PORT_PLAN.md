@@ -24,10 +24,11 @@ are the configuration/operations references.
 
 ## Latest verification
 
-Image `837e7997…` separately passes the full local baseline and 60-minute soak,
-five faults, four targeted E2E groups after one disclosed restart retry and
-enhancement90. Newer source `d9488143d` separately passes native2,780 + 11 subtests
-and full PG547; it has no new shipping-image/hour qualification. See the
+Source `d9488143d` passes native2,780 + 11 subtests and full PG547. Image
+`e00cef38…` from `ff6b85ded` separately passes the full local baseline and 60-minute
+soak, five faults, four targeted E2E groups on first attempts and enhancement90.
+Soak p99 410.20ms, zero unexpected healthy errors, 28.59MiB retained growth;
+five soak probes plus mixed API1/transition engine1 recover. See the
 [current image report](../../reports/release/mm-runtime-followup-load.md).
 This does not imply real cloud deployment or unlimited uptime. Known external
 acceptance and attribution limits are in the [remaining-work register](README.md).

@@ -12,11 +12,12 @@ unless explicitly listed below. Removing historical files does not mark an unres
   spot/perpetual/both, operator APIs and risk controls are implemented.
 - [x] Latest runtime `d9488143d`: 2,780 native + 11 subtests and full PG547 pass.
   Ownership-read TDD preserves fresh authority, write transactions, I/O deadlines
-  and bounded pool bookkeeping. This source is newer than the accepted image.
-- [x] Image `837e7997…`: unchanged full baseline, 60-minute soak and five faults;
-  four targeted E2E groups after one disclosed retry, enhancement diagnostic pass.
-- [x] Soak p99 360.68 ms, zero unexpected healthy errors, 24.05 MiB retained growth,
-  4,884 exact simulated fills/fees/positions. Eight healthy probes recover.
+  and bounded pool bookkeeping; the image below now separately qualifies it.
+- [x] Image `e00cef38…`: unchanged full baseline, 60-minute soak and five faults;
+  four targeted E2E groups on first attempts, enhancement diagnostic pass.
+- [x] Soak p99 410.20ms, zero unexpected healthy errors, 28.59MiB retained growth,
+  4,884 exact simulated fills/fees/positions. Five soak engine probes, one mixed
+  API probe and one engine probe between healthy windows recover.
 - [x] One unused image removed; all existing container references/volumes preserved.
 
 ## Remaining external acceptance
@@ -45,16 +46,19 @@ A newer offline pass does not retroactively pass that earlier image or certify a
 new connected Demo run. The latest probes remain an attribution limitation, not
 an assertion of an unobserved live defect.
 
-Image `837e7997…` separately qualifies the changed fill-flush runtime; rollback
-`bf4e1f77…` retains its original gate. The first 9.5s PID1 shutdown poll timeout
-remains unexplained; an unchanged-image/unchanged-budget retry passes. Preserve its
-failure evidence and capture the Docker/PID exit-state timeline if it recurs.
+Image `e00cef38…` separately qualifies the ownership-read runtime; rollback
+`837e7997…` retains its original gate. The rollback image's first 9.5s PID1 shutdown
+poll timeout remains unexplained; its unchanged-image/unchanged-budget retry
+passed. That evidence remains in Git `ff6b85ded` at the current report/evidence
+paths. The new image passes initial-position restart on its first attempt;
+capture the Docker/PID exit-state timeline if the earlier failure recurs.
 The full PG attempt and focused correction remain in the [source report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07).
 
-The newer [ownership-read source](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07)
+The [ownership-read source](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07)
 reproduces and removes a redundant read-COMMIT delay for idle scopes. It does not
-uniquely explain every old probe or inherit a shipping-image/hour gate. Rebuild
-and qualify that source separately before deployment.
+uniquely explain every old probe. Its new image's unchanged hour gate passes;
+soak probes fall 7→5 while soak p99/retention regress within budgets. Keep the
+component improvement and mixed full-system observations separate.
 
 ## Retained plans
 

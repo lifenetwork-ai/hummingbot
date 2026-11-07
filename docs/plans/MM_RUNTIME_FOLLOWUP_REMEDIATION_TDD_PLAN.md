@@ -168,6 +168,34 @@ physical session if restoring transaction mode fails, rather than pooling it.
 Frozen source `d9488143d`: native **2,780 + 11 subtests**, full PG **547 pass**
 (772.09s). Frozen paired batch means/read 2.209→1.210ms; injected read-COMMIT
 delay still times out the unchanged probe on the legacy path (302.3ms), scoped
-read returns 200 at 2.2ms. All source/image limits remain explicit: no new image
-or hour gate is claimed. [Investigation](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07),
+read returns 200 at 2.2ms. At this source-only checkpoint, no new image or hour gate was claimed;
+the subsequent image gate is recorded below. [Investigation](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07),
 [evidence](../../reports/performance/mm-owner-read-evidence.json).
+
+## Ownership-read image load — requested 2026-11-07
+
+- [x] Build/pin the new amd64 image; verify packaged source/config hashes.
+- [x] Run targeted availability, drawdown, recovery and initial-position restart
+  E2E, followed by the enabled-enhancement90 diagnostic.
+- [x] Repeat the unchanged full baseline, security/operations, Random soak3600
+  and all five fault windows; retain probe, latency, memory and exact ledger results.
+- [x] Publish scoped comparison and failures; close only verified items and commit.
+- [x] After successful gates, remove superseded unused bot images; retain the new
+  candidate, preceding accepted rollback, all container references and volumes.
+
+Raw preparation/run artifacts: `build/owner-read-release-20261107/`. Existing Demo
+remains outside the test network and is not queried or modified.
+
+Image `e00cef38…` (build `ff6b85ded`, runtime `d9488143d`) passes all gates on
+first attempts: four targeted E2E groups, enhancement90 and unchanged full
+baseline/soak3600/five faults. Soak p99 **410.20 ms**, zero unexpected healthy
+errors, **28.59 MiB / 64 MiB** retained growth and **4,884 exact simulated fills**.
+Measured probes: mixed API1, soak engine5, plus one engine probe between warmup
+and mixed; all recover. Compared with preceding `837e7997…`, soak probes fall
+7→5 but soak p99 rises 360.68→410.20ms and retention 24.05→28.59MiB. No uniform
+speedup, continuous-quote or unique-cause claim. Remove unused `bf4e1f77…`;
+retain new candidate, accepted rollback `837e7997…`, all ten containers and
+fourteen volumes. [Current report](../../reports/release/mm-runtime-followup-load.md),
+[evidence](../../reports/release/mm-runtime-followup-load-evidence.json).
+The earlier fill-flush image report and disclosed retry remain at Git `ff6b85ded`
+under those paths; newer gates do not erase earlier attempts.

@@ -14,10 +14,11 @@ Real Google/GCP and reviewed existing-Demo cutover remain open.
 
 Latest source `d9488143d` passes native2,780 + 11 subtests and full PG547. See
 [source details](MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07);
-this does not inherit the preceding image's hour gate.
-Image `837e7997…` passes the unchanged full security/operator load, sixty-minute
-soak/five faults, four targeted E2E groups after one disclosed restart retry, and
-enhancement90. Signed Google
+image `e00cef38…` separately passes the unchanged full security/operator load,
+sixty-minute soak/five faults, four targeted E2E groups on first attempts, and
+enhancement90. Soak p99 410.20ms, zero unexpected healthy errors, 4,884 exact
+simulated fills; five soak probes plus mixed API1/transition engine1 recover.
+The prior image's failed shutdown attempt stays in Git `ff6b85ded`. Signed Google
 identities/certificates and KMS in this run are local/offline fixtures; Basic is
 disabled during measurement and managed keys use local encryption without fallback.
 [Current image report](../release/mm-runtime-followup-load.md),
