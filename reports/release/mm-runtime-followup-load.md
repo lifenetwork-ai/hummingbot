@@ -1,140 +1,187 @@
-# Ownership-read image: full local load gate
+# Combined runtime image: full local load gate
 
-Image **`e00cef38…` passes** the unchanged full offline load gate, sixty-minute
-Random soak and all five fault windows. Four targeted E2E groups pass on their
-first attempts. Recovered probes remain: five engine episodes in soak, one API
-episode in mixed, plus one engine episode between warmup and mixed. One
-superseded unused image is removed.
+Image **`a6fe88c0…` passes** the unchanged baseline, sixty-minute Random soak,
+five fault windows and four targeted E2E groups on their first attempts. It
+packages the fresh write-fence projection and reporting-copy optimizations.
+**Probe frequency and burst p99 regress** versus the preceding accepted image;
+this pass does not close probe attribution or establish continuous quoting.
 
 ## Candidate and scope
 
-- Tag `hummingbot-cloudrun:owner-read`; amd64; **1,374,449,073 bytes** (~1.37 GB).
-- Image `sha256:e00cef387eec20aed77ca5411caadf8eaf65c08e527492037fd0392fb7e8d5ca`.
-- Manifest `sha256:c24f760350bac7cf86af0ba05fc77c44e98fe6c438b5741a1f5600dd7e377327`.
-- Build commit `ff6b85ded`; ownership-read runtime `d9488143d`, including recorder
-  optimization `e030cfcdc`. All **1,224 packaged source/config hashes** match and
-  remain unchanged through measurement. No probe, I/O, retry, pool, CPU or load
-  budget changes.
-- Full result `build/mm-load/20261107-130723-e97f9b/result.json`;
-  preparation/E2E/cleanup `build/owner-read-release-20261107/`.
-- [Portable evidence](mm-runtime-followup-load-evidence.json) retains results,
-  source/fixture/log hashes, incidents, role resources, preceding gate comparison
-  and guarded image cleanup. The full runner exits successfully; no attempt on
-  this image needs a retry.
+- Tag `hummingbot-cloudrun:runtime-copy`; amd64; **1,374,449,982 bytes** (~1.37 GB).
+- Image `sha256:a6fe88c0bba185d27ed68d1fbc1f43dfa39c5a560c80df1f28e720f2afeb16b2`.
+- Manifest `sha256:7e615f650e8c7a6c5265bef45f685e74aae7b2096ebdf5d895916a8deb20e6aa`.
+- Build commit `745a86e3c`, including write-fence projection `5c421b121`, reporting
+  copy `745a86e3c`, ownership reads `d9488143d` and recorder `e030cfcdc`.
+  All **1,224 packaged source/config hashes** match and remain unchanged through
+  measurement. No probe, I/O, retry, pool, cache, CPU or load budget changes.
+- Full result `build/mm-load/20261107-184132-b32ad7/result.json`;
+  preparation/E2E/diagnostics/cleanup `build/runtime-copy-release-20261107/`.
+- [Portable evidence](mm-runtime-followup-load-evidence.json) records image,
+  source/fixture/log hashes, raw artifact hashes, incidents, role resources,
+  preceding gate comparison and guarded cleanup. The complete runner exits zero.
 
 The unchanged `all --security --operations --incident-diagnostics --cpus 2
 --daily-cache-ttl-seconds 15` baseline uses 20 main reads/s, five auxiliary reads/s,
-100 book updates/s, one synthetic fill/s and the 500-update/s burst. It seeds
-100,000 orders, 100,000 fills and 100,000 audit events while the service is stopped.
-Bot limits are two CPUs/2 GiB, PostgreSQL two CPUs/512 MiB; amd64 is emulated on
-an arm64 Mac. Full tracing and MM activity diagnostics remain disabled; incident
-capture is bounded. Real OKX/Demo, Google/GCP and deployment are outside this run.
+100 book updates/s, one synthetic fill/s and a 500-update/s burst. It seeds
+100,000 orders, 100,000 fills and 100,000 audit events while stopped. Bot limits
+are two CPUs/2 GiB, PostgreSQL two CPUs/512 MiB; amd64 is emulated on an arm64 Mac.
+Full tracing and MM activity diagnostics remain disabled in the baseline;
+incident capture is bounded. Separate diagnostic runs are identified below.
 
 ## Healthy load
 
 | Window | Seconds | Main reads | p95 / p99 (ms) | Unexpected errors |
 | --- | ---: | ---: | --- | ---: |
-| warmup | 300 | 6,000 | 60.64 / 327.65 | 0 |
-| mixed | 900 | 18,000 | 68.41 / 387.34 | 0 |
-| bursts | 90 | 1,800 | 70.30 / 267.47 | 0 |
-| soak | 3,600 | 72,000 | 83.72 / 410.20 | 0 |
+| warmup | 300 | 6,000 | 57.01 / 315.63 | 0 |
+| mixed | 900 | 18,000 | 62.84 / 353.23 | 0 |
+| bursts | 90 | 1,800 | 110.93 / 503.57 | 0 |
+| soak | 3,600 | 72,000 | 68.88 / 406.14 | 0 |
 
-All **97,800 main** and **24,450 auxiliary** reads return HTTP200; no unexpected
-stale response or declared budget violation. Healthy parsed logs contain no
-ERROR/CRITICAL or child lifecycle event. Burst backlog drains in **0.95 s** against
-the unchanged ten-second budget. **4,884 independent simulated fills**, exact fees
-and positions reconcile; two identified funding bills and three daily snapshots
-also match. These are simulator fills, not trades on an actual OKX Demo account.
-Soak throughput is observed; intentional Random-step admission gaps retain the
-existing policy, and fixed mixed enforces its original rate checks.
+All **97,800 main / 24,450 auxiliary** reads return HTTP200, with no unexpected
+stale response or declared budget violation. Healthy parsed logs contain zero
+ERROR/CRITICAL and zero child lifecycle events. Burst drain is **3.31 s / 10 s**.
+**4,885 unique simulated fills**, exact fees and positions reconcile, with two
+identified funding bills and three daily snapshots. These are simulator fills,
+not transactions on OKX Demo. Random admission gaps retain the existing fill
+policy; fixed mixed retains its original throughput checks.
 
-All **58 valid soak samples** are running; maximum gap **65.61 s**, role PIDs
-**1/32/33** remain unchanged. Retained growth is **28.59 MiB / 64 MiB**, using the
-unchanged `cgroup_current_minus_file_plus_shmem` basis. Engine FDs 25→31 (range
-25–34), API 22→23; engine/API threads stay 14/16. The resource gate passes; a finite
-hour does not prove unlimited leak-free operation or continuous two-sided quoting.
+All **58 valid soak samples** are running; maximum sampling gap **65.50 s** and
+role PIDs **1/32/33** remain unchanged. Retained growth is **24.26 MiB / 64 MiB**
+on the unchanged `cgroup_current_minus_file_plus_shmem` basis. Engine FDs 27→28
+(range 26–36), API 24→25; engine/API threads remain 14/16. The finite resource gate
+passes; it does not prove unlimited leak-free operation or uninterrupted quotes.
 
 ## Recovered probes and comparison
 
-| Measured window | Role and episodes | Longest supervisor error→recovery interval |
+| Measured window | Role and episodes | Supervisor error→recovery interval |
 | --- | --- | ---: |
 | warmup | none | — |
-| mixed | API: 1 | 1.310 s |
+| mixed | engine: 3 | 1.024–1.060 s |
 | bursts | none | — |
-| soak | engine: 5 | 1.068 s |
+| soak | engine: 11 | 1.048–1.454 s |
 
-All six recover within their windows. Soak intervals range **1.041–1.068 s**.
-An additional engine timeout between warmup and mixed recovers in **1.056 s**;
-it is outside both measured windows and is disclosed separately. Seven recovered
-probe episodes are therefore retained across healthy measurement and its internal
-transition. Fault-window and post-fault markers are separately classified in
-`probe_marker_inventory`; a superseded failure is not paired across a later
-failure/replacement to invent a recovery interval.
+All fourteen recover within their measured windows, without a healthy engine
+restart. No additional probe marker appears between healthy windows in retained
+records. An injected DB-delay marker has no retained recovery transition and is
+reported separately, not paired across replacement to invent an interval.
 
-These are supervisor observations, not measured quote downtime. Bounded captures
-and disabled MM activity diagnostics do not establish uninterrupted quoting or a
-unique cause. The engine incident recorder reaches its 32-capture limit and
-suppresses four further context captures; its sink reports zero dropped records.
-Retained markers do not provide complete stack/span history.
+These intervals are supervisor observations, not measured quote downtime. The
+baseline does not contain MM activity records, so its healthy PIDs and reconciled
+ledger cannot establish continuous quoting during every probe. At soak end,
+engine context capture reaches 32 and suppresses 4 captures; sink drops are zero,
+but bounded span/history recording is incomplete. The evidence retains these
+limits and the all-phase marker inventory.
 
-Compared with preceding accepted image `837e7997…`:
+Compared with accepted rollback `e00cef38…`:
 
 | Measurement | Previous | Current |
 | --- | ---: | ---: |
-| Warmup p99 (ms) | 298.12 | 327.65 |
-| Mixed p99 (ms) | 494.03 | 387.34 |
-| Burst p99 (ms) | 362.80 | 267.47 |
-| Soak p99 (ms) | 360.68 | 410.20 |
-| Retained growth (MiB) | 24.05 | 28.59 |
-| Soak engine probe episodes | 7 | 5 |
-| Measured-window probe episodes | 8 | 6 |
-| Extra probe between healthy windows | 0 | 1 |
+| Warmup p99 (ms) | 327.65 | 315.63 |
+| Mixed p99 (ms) | 387.34 | 353.23 |
+| Burst p99 (ms) | 267.47 | 503.57 |
+| Soak p99 (ms) | 410.20 | 406.14 |
+| Burst drain (s) | 0.95 | 3.31 |
+| Retained growth (MiB) | 28.59 | 24.26 |
+| Soak engine probes | 5 | 11 |
+| All measured-window probes | 6 | 14 |
+| Additional probe between healthy windows | 1 | 0 |
 
-Mixed/burst latency, burst drain and probe counts improve; warmup/soak latency and
-retention regress, all within unchanged budgets. Host conditions are not fully
-controlled, so these observations do not establish a causal uniform speedup.
-The separate controlled ownership-read result (fresh SELECT retained, no separate
-read COMMIT, paired batch means/read 2.209→1.210 ms) does not uniquely explain every
-historical timeout. Preceding full evidence, including its first failed shutdown
-poll and passing unchanged retry, remains in Git **`ff6b85ded`** under this report's
-path and `reports/release/mm-runtime-followup-load-evidence.json`.
+Warmup/mixed/soak p99 and retained growth improve observationally; burst latency,
+drain time and measured probe frequency worsen, within existing budgets. The
+host is not a fully controlled paired experiment. **No uniform or causal
+whole-engine speedup is claimed.** Probe/burst regressions remain visible in the
+[remaining-work register](../../docs/plans/README.md#policy-and-evidence-still-unresolved).
+Previous image evidence remains in Git **`745a86e3c`** under this report's path and
+the corresponding evidence JSON. The still earlier shutdown poll failure and its
+unchanged retry remain in Git `ff6b85ded`; this new pass does not erase them.
 
-## E2E and fault scope
+## Separate MM activity diagnostic
+
+A **300-second** diagnostic on the same image uses the original 60-second refresh
+and adds `--mm-activity`. Result:
+`build/mm-load/20261107-183445-413329/result.json`. It passes with p99 **442.35 ms**,
+zero unexpected API errors and 300 exact simulated fills. Two engine probe
+transitions have direct, aligned observations:
+
+| Probe interval | Completed tick/controller cycles inside interval | Venue observation inside interval |
+| --- | ---: | --- |
+| 1.186 s | 5 | Both spot/perpetual have 4 working orders, two-sided |
+| 1.040 s | 3 | Both spot/perpetual have 4 working orders, two-sided |
+
+This establishes engine progress and resting orders at those observed points.
+It does not prove that every instant was covered. Maximum controller start gap
+near the first transition is **1.583 s**, while the strategy tick gap there is
+**1.001 s**; some scheduling delay remains. Across the whole window: 300 completed
+ticks, 596 controller cycles, 32 submit returns and 32 cancel returns, all successful.
+Maximum connector-call durations are **318 ms submit / 241 ms cancel**; a return
+is not independent proof of an exchange acknowledgement at every instant.
+
+There are **298 aligned venue point samples** per market: spot 296 two-sided,
+1 one-sided, 1 empty; perpetual 295 two-sided, 3 empty. All five non-two-sided
+market observations have refresh stop proposals and submit/cancel activity within
+±2 seconds. Isolated empty samples give no measured continuous absence duration;
+`max_empty_sample_span_ms=0` does not mean zero actual quote gap. Point samples,
+bounded traces and the shared simulator kernel clock cannot establish a numeric
+production quote-coverage SLO or remote OKX latency.
+
+One cumulative `SessionSubmissionBlocked` occurs during diagnostic startup,
+about 9.7 seconds before the measured window; it is retained in the evidence.
+Window-scoped submit returns contain no exception. Do not combine cumulative
+startup counts with measured counts. MM/venue sinks report no overflow or observer
+errors. This diagnostic does not add activity proof retroactively to the full soak.
+
+The [FE/operator quote review guidance](../../docs/fe-integration.md#reviewing-quote-availability)
+separates replacement progress, deliberate guard restrictions and unknown/stale
+observations. The existing 120-second warning is not an agreed quote replacement
+SLO; numeric production policy remains open.
+
+## E2E, enhancement and fault scope
 
 Availability, drawdown, MM recovery/DB restart and initial-position restart pass
-on the same image, all on their first attempts. Each includes runtime ABI/JIT/TLS/
-SDK and size smoke; these four groups are not the full E2E/upgrade matrix.
-Initial-position restart retains two exact fills/fees/positions and a pinned
-session; shutdowns measure **2.299/1.333 s**. The preceding image's unexplained 9.5s
-shutdown poll timeout is historical evidence, not erased by this new pass.
+on the same image. Each includes runtime ABI/JIT/TLS/SDK/size smoke. These are
+four targeted groups, **not the full E2E/scenario/upgrade matrix**. Initial-position
+restart retains two exact fills/fees/positions and a pinned session; measured
+shutdowns are **2.034 / 1.378 s**.
 
-A separate enabled-enhancement90 diagnostic passes: p99 **437.62 ms**, zero
-unexpected errors, **90 exact simulated fills**, funding bills and daily snapshots.
-It exercises drawdown/outflow/bootstrap/reporting paths with local encryption and
-security/operations; it does not replace the baseline.
+A separate enabled-enhancement90 diagnostic passes: p99 **426.54 ms**, zero
+unexpected errors, 90 exact simulated fills, two funding bills and three snapshots.
+Local encryption, offline signed identities and security/operator reads are used;
+Basic is disabled during the measured security workload. No real Google/GCP or
+fallback to environment credentials is exercised.
 
-All five fault windows pass: feed, owner restart, queued expiry, DB catalog-lock
-delay and DB outage. Their intentional errors/503s/restarts are separate from
-healthy latency and retained in the evidence. The existing simulator-only reviewed
-recovery preserves HALT before its reset; no fault changes the existing Demo
-database or grants live authority.
+All five faults pass: feed, owner restart, queued expiry, DB catalog-lock delay
+and DB outage. The raw HTTP workload counters are deliberately retained:
+
+| Injected fault | HTTP200 / HTTP503 main reads | Raw `unexpected_errors` counter |
+| --- | --- | ---: |
+| feed | 900 / 0 | 0 |
+| owner restart | 639 / 26 | 287 |
+| queued expiry | 1,500 / 0 | 0 |
+| DB delay | 631 / 22 | 296 |
+| DB outage | 552 / 33 | 382 |
+
+The fault counters include connection failures and auxiliary requests; they are
+not a count derived only from the HTTP status column. Fault classification
+excludes them from healthy latency/error acceptance, without relabelling them as
+zero. DB faults produce two ownership-lost failures, fail-closed starts awaiting
+recovery, and supervised replacements. The existing simulator-only reviewed
+recovery keeps HALT until the explicit fixture reset. All-phase parsed logs show
+six pre-window child starts for preparation/seed services, no pre-window ERROR,
+and the disclosed DB-fault errors/restarts; no additional transition restart is
+hidden outside healthy measurement. Existing Demo is never targeted.
 
 ## Cleanup and remaining scope
 
-After successful gates and runner exit, image `bf4e1f77…` and its two local tags
-are removed without force. Unique images **15→14**. New candidate `e00cef38…`,
-accepted rollback `837e7997…`, every running/stopped container image and other
-projects remain. All **10 containers / 14 volumes**, including Demo IDs/images/
-start timestamps, match before and after. No volume/container/cache pruning;
-shared logical image sizes do not establish physically reclaimed bytes.
+After the successful runner exit, unused image **`837e7997…`** and its local tags
+are removed without force. Unique images **15→14**. New candidate **`a6fe88c0…`**,
+accepted rollback **`e00cef38…`**, all referenced running/stopped container images
+and other projects remain. All **10 containers / 14 volumes**, including Demo
+identities/images/start timestamps, are unchanged. No container/volume/cache
+pruning; shared image sizes do not establish physically reclaimed bytes.
 
-No real Google/GCP, reviewed managed-Demo cutover, connected OKX test or production
-deployment is included. [Source/TDD verification](../implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07)
-retains the rejected variants, full native/PG verification and controlled
-component measurements separately from this image gate.
-
-
-The later [write-fence projection](../implementation/MM_RUNTIME_FOLLOWUP.md#fresh-write-fence-identity-projection--2026-11-07)
-and [reporting snapshot copy](../implementation/MM_RUNTIME_FOLLOWUP.md#reporting-snapshot-copy-cost--2026-11-07)
-have separate source/component verification and are not packaged in this immutable
-image. Their tests do not inherit this image's hour gate.
+The [source/TDD report](../implementation/MM_RUNTIME_FOLLOWUP.md#reporting-snapshot-copy-cost--2026-11-07)
+keeps component savings, rejected drafts and native/PG scopes separate from this
+image gate. No actual OKX/Demo session, Google/GCP acceptance, managed-Demo cutover
+or production deployment is included. No exclusive historical probe cause or
+continuous-quote guarantee is established.

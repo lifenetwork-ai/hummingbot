@@ -524,6 +524,34 @@ These are API/log signals, not email/Slack notifications or automatic repair.
 All diagnostic paths reuse existing quote decisions and the order tracker. They
 do not restart sessions, reset deadlines/HALT, change limits or submit trades.
 
+### Reviewing quote availability
+
+Keep service health, working-order availability and fill activity as separate UI
+signals. Review each market and each side using the existing fields above:
+
+| Situation | Evidence and operator interpretation |
+|---|---|
+| Session admitted, fresh data, both sides funded and unconstrained | Fresh acknowledged working orders on both sides are the expected MM outcome. A running process alone does not satisfy this check. |
+| Replacement after refresh, fill or a changed safe quote | Show pending creation/cancellation, executor-report or cooldown progress and sampled stage age. A brief empty sample is possible; do not treat an old order's age as an engine delay or allow a pending stage to explain an indefinite wait. |
+| Guard, inventory, collateral or spending limit restricts a side | Show the affected side, fresh reason and `next_action`. One-sided/no orders can be intentional; do not weaken the guard or automatically restart to obtain two-sided orders. |
+| Observer/feed/owner evidence is stale or incomplete | Show unavailable/stale. Neither a last-good book nor HTTP200 establishes present working orders. Unknown samples are not proof of either continuous quoting or continuous absence. |
+| Session stopped/expired | Show idle and inspect outstanding orders/exposure separately. This status does not by itself prove that an account is flat. |
+
+For a slow-probe review, correlate the actual transition timestamps with engine
+ticks/controller cycles, submission/cancellation outcomes and independent venue
+observations when retained. Distinguish a method attempt/return from exchange
+acceptance or terminal readback. Samples before/after an incident do not prove
+what happened between them; missing/overflowed captures remain unknown. The local
+activity diagnostic observes a simulator on a shared clock, not a remote OKX
+server, and does not retroactively add activity evidence to another load run.
+
+These are interpretation/acceptance criteria for the existing API contract.
+`MM_NO_QUOTE_WARNING_SECONDS` (default **120 seconds**) remains a monitoring threshold, not a
+maximum quote-replacement time or a production quote-coverage SLO. Numeric
+coverage/absence targets, eligible-market periods and guard/bootstrap exceptions
+still require an explicit operating policy; no new numeric SLO is silently agreed
+or enforced by this documentation.
+
 ### Session freshness and operator messages
 
 Use `server_time` and absolute expiry for a local countdown, periodically resynced;

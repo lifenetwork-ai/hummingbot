@@ -24,11 +24,14 @@ are the configuration/operations references.
 
 ## Latest verification
 
-Source `d9488143d` passes native2,780 + 11 subtests and full PG547. Image
-`e00cef38…` from `ff6b85ded` separately passes the full local baseline and 60-minute
-soak, five faults, four targeted E2E groups on first attempts and enhancement90.
-Soak p99 410.20ms, zero unexpected healthy errors, 28.59MiB retained growth;
-five soak probes plus mixed API1/transition engine1 recover. See the
-[current image report](../../reports/release/mm-runtime-followup-load.md).
+Image `a6fe88c0…` from `745a86e3c` packages the fresh write-fence projection and
+reporting-copy follow-ups. It passes the unchanged full local baseline,
+60-minute soak/five faults, four targeted E2E groups, enhancement90 and separate
+activity300. Soak p99 406.14 ms, zero unexpected healthy errors, 24.26 MiB retained
+growth and 4,885 exact simulated fills. Eleven soak engine and three mixed engine
+probes recover; probe frequency and burst p99 regress versus rollback `e00cef38…`.
+No uniform speedup or continuous-quote proof is claimed. See the
+[current image report](../../reports/release/mm-runtime-followup-load.md) and
+[separate source verification](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md).
 This does not imply real cloud deployment or unlimited uptime. Known external
 acceptance and attribution limits are in the [remaining-work register](README.md).

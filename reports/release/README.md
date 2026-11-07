@@ -4,10 +4,10 @@
 
 | Report | Scope |
 | --- | --- |
-| [Current image/load](mm-runtime-followup-load.md), [evidence](mm-runtime-followup-load-evidence.json) | `e00cef38…`: unchanged full baseline, soak3600/five faults, four targeted E2E groups on first attempts, enhancement90; five soak probes plus mixed API1/transition engine1 |
-| [Retained rollback in Git](../README.md#historical-records) | `837e7997…`: previous full gate with disclosed retry; Git `ff6b85ded:reports/release/mm-runtime-followup-load.md` and corresponding evidence JSON |
+| [Current image/load](mm-runtime-followup-load.md), [evidence](mm-runtime-followup-load-evidence.json) | `a6fe88c0…`: unchanged full baseline, soak3600/five faults, four targeted E2E groups, enhancement90/activity300; soak engine11/mixed engine3 recover; burst p99/probe frequency regress |
+| [Retained rollback](../README.md#historical-records) | `e00cef38…`: previous unchanged full gate; Git `745a86e3c:reports/release/mm-runtime-followup-load.md` and corresponding evidence JSON. Earlier shutdown failure/retry remains in Git `ff6b85ded` |
 
-Superseded unused `bf4e1f77…` is removed after the new gate. The still earlier
+Superseded unused `837e7997…` is removed after the new gate; candidate and rollback remain. The still earlier
 `f74d2a2a…` image was removed previously; its original
 [measurement](admin-cleanup-state-load.md) and [evidence](admin-cleanup-state-load-evidence.json)
 retain their historical scope.

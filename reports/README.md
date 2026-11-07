@@ -4,38 +4,26 @@ Start with the [current image/load report](release/mm-runtime-followup-load.md)
 and [remaining-work register](../docs/plans/README.md). Operational procedures and
 API/FE contracts live in [docs](../docs/README.md).
 
-Current image **e00cef38…** passes the unchanged full load/60-minute soak/five
-faults, four targeted E2E groups on first attempts and enabled-enhancement90.
-Soak p99 **410.20 ms**, zero unexpected healthy errors, **28.59 MiB** retained
-growth and **4,884 simulated fills** reconcile. Five soak engine probes, one
-mixed API probe and one engine probe between windows recover; no healthy ERROR
-or child replacement. Mixed/burst and probe counts improve versus `837e7997…`,
-while warmup/soak latency and retention regress within unchanged budgets. No
-uniform speedup or continuous-quote claim. One unused image removed; all container
-references/volumes retained. The preceding report and failed shutdown attempt
-remain in Git `ff6b85ded` under the same report/evidence paths.
+Current image **a6fe88c0…** packages the write-fence projection and reporting-copy
+optimizations. It passes the unchanged full load/60-minute soak/five faults,
+four targeted E2E groups, enhancement90 and a separate activity300 diagnostic.
+Soak p99 **406.14 ms**, zero unexpected healthy errors, **24.26 MiB** retained
+growth and **4,885 simulated fills** reconcile. Eleven soak engine probes and
+three mixed engine probes recover without healthy child replacement. Burst p99
+and measured probe frequency regress versus rollback **e00cef38…**, despite
+component savings; no uniform speedup or continuous-quote claim. The separate
+activity diagnostic records completed cycles and working-order point samples
+during its two probes, with finite coverage limits. One unused image removed;
+all container references/volumes retained. Prior reports/attempts remain in Git
+`745a86e3c` and `ff6b85ded` at their original report/evidence paths.
 [Portable evidence](release/mm-runtime-followup-load-evidence.json).
 
-The [fill-flush source follow-up](implementation/MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07)
-has separate native/PG verification, including a corrected obsolete query-count
-assertion. This image gate identifies its own build and packaged source hashes.
-
-The [ownership-read source verification](implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07)
-passes native2,780 + 11 subtests and full PG547. It removes a controlled redundant
-read-COMMIT delay, rejects unbounded pool bookkeeping, and preserves transactional
-writes/fresh fences. It does not uniquely attribute the old probe count increase
-or replace the separately measured image qualification above.
-
-The subsequent [write-fence projection](implementation/MM_RUNTIME_FOLLOWUP.md#fresh-write-fence-identity-projection--2026-11-07)
-removes unused state JSON from fresh write proofs (14 columns→1). Nine new cases,
-native2,780 + 11 subtests and full PG556 pass; paired component measurements and
-failed drafts are retained. This newer source has no new image/hour qualification
-and does not uniquely explain the remaining probes.
-
-The subsequent [reporting snapshot copy follow-up](implementation/MM_RUNTIME_FOLLOWUP.md#reporting-snapshot-copy-cost--2026-11-07)
-removes a redundant history traversal while preserving JSON detachment. Native2,788
-+ 11 subtests and related PG36 pass; source/component CPU improves with mixed
-allocation results. Neither source follow-up has a new shipping-image/hour gate.
+Source/TDD, rejected drafts and paired component costs retain their own scopes in
+[runtime remediation](implementation/MM_RUNTIME_FOLLOWUP.md). Latest reporting-copy
+source: native 2,788 + 11 subtests / related PG 36; preceding write-fence projection:
+native 2,780 + 11 / full PG 556. They are now separately packaged/qualified by the
+current image gate. No real Google/GCP, connected Demo or production deployment
+is inherited from these local results.
 
 | Topic | Current entry |
 | --- | --- |

@@ -3,15 +3,18 @@
 [All reports](../README.md) · [Remaining work](../../docs/plans/README.md)
 
 Current conclusions are in the [runtime remediation](../implementation/MM_RUNTIME_FOLLOWUP.md)
-and [current image report](../release/mm-runtime-followup-load.md). Five soak
-engine probes, one mixed API probe and one engine probe between windows recover;
-their intervals are supervisor observations, not quote downtime. Mixed/burst and
-probe counts improve versus `837e7997…`, but warmup/soak latency and retention
-regress within budgets; no uniform speedup is claimed. The previous image's first
-shutdown poll timeout remains unexplained and retained in Git `ff6b85ded` despite
-its passing unchanged retry. The new image passes all targeted E2E first attempts.
-No unique historical probe/p99/publication trigger is established; bounded captures
-cannot reconstruct unrecorded MM activity.
+and [current image report](../release/mm-runtime-followup-load.md). Current image
+`a6fe88c0…` has eleven recovered soak engine probes and three mixed engine probes,
+without healthy child replacement. Probe frequency and burst p99 regress versus
+rollback `e00cef38…`; unchanged budgets still pass. Supervisor intervals are not
+quote downtime. Separate activity300 records completed cycles and two-sided
+working-order point samples during its two probes, but also non-two-sided refresh
+observations; it does not establish continuous quotes or full-soak activity.
+
+The previous accepted report remains in Git `745a86e3c`; the still earlier failed
+shutdown poll and unchanged retry remain in Git `ff6b85ded`. Current targeted
+E2E passes first attempts. No exclusive historical or current probe cause is
+established; bounded captures cannot reconstruct unrecorded activity.
 
 The [ownership-read investigation](../implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07)
 reproduces a read-COMMIT probe delay and tests a scoped driver change. Its first

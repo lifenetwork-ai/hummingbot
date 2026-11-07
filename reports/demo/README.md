@@ -4,7 +4,7 @@
 
 The latest local gate never targets the existing Demo service/database. Its
 container/image/start timestamps are preserved; it does not create new natural
-fills or move actual Demo to `e00cef38…`. See the
+fills or move actual Demo to `a6fe88c0…`. See the
 [current Demo/image status](../../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md)
 and [last documented stopped-Demo restoration](../performance/mm-admin-worker-lanes.md).
 

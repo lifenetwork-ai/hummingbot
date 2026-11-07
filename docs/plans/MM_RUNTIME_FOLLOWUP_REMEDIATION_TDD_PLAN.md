@@ -213,8 +213,8 @@ under those paths; newer gates do not erase earlier attempts.
   commit. The accepted `e00cef38…` image remains unchanged until a new image gate.
 
 Red1/4 pass; initial draft2 failures/73 pass retained (old spy and SQL-prefix
-injection mismatch). Corrected targeted87, native2,780 + 11 subtests and full
-PG556 pass. Every fresh SELECT remains; write-proof result columns14→1.
+injection mismatch). Corrected targeted87, native 2,780 + 11 subtests and full
+PG 556 pass. Every fresh SELECT remains; write-proof result columns14→1.
 Seven alternating pairs, 25 reads per batch: median batch means/read
 1.187→0.969ms (two empty JSON payload fields), 2.871→0.967ms (two64KiB fields).
 Zero pool callback growth; serialized result bytes are not network counts.
@@ -235,10 +235,42 @@ the remaining probes. No new image or existing-Demo operation was performed.
   update evidence/checklists and commit. No new image/load/Demo acceptance implied.
 
 Eight new cases; frozen original-function Red1/7 pass. Native2,788 + 11 subtests
-and related PG36/520 deselected pass. History traversals2→1; paired component
+and related PG 36/520 deselected pass. History traversals2→1; paired component
 wall costs0.08774→0.05168ms (small) and2.96243→1.26469ms (larger fixture).
 Allocation peak increases6,984 bytes in the small fixture, decreases95,304 in
 the larger. No whole-engine latency, leak or exclusive probe-cause claim.
 [Report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#reporting-snapshot-copy-cost--2026-11-07),
 [evidence](../../reports/implementation/mm-runtime-followup-evidence.json).
 Accepted image `e00cef38…`, existing Demo, containers and volumes stay unchanged.
+
+## Combined write-fence / reporting image gate — requested 2026-11-07
+
+- [x] Build/pin the amd64 image containing `5c421b121` and `745a86e3c`; verify all
+  packaged source/config hashes and retain the preceding accepted evidence.
+- [x] Run the four targeted image E2E groups and enabled-enhancement90 diagnostic.
+- [x] Run a separate activity300 diagnostic with original refresh timing, capturing
+  MM cycles, submit/cancel timing and independent simulator quote observations;
+  distinguish missing evidence, guard waits, replacement and actual cycle delays.
+- [x] Repeat the unchanged baseline/security/operator mix, Random soak3600 and five
+  fault windows; retain failures, probe/latency/resource and exact ledger results.
+- [x] Publish comparison and quote-observation acceptance guidance without silently
+  agreeing a numeric production quote-coverage SLO or claiming continuous quotes.
+- [x] After success, remove only superseded unused bot images, keep the new image,
+  preceding accepted rollback, all container references/volumes; update and commit.
+
+Raw preparation/run artifacts: `build/runtime-copy-release-20261107/`. Existing
+Demo and real Google/GCP remain outside these local image tests. The unchanged
+baseline does not enable MM activity instrumentation; the extra diagnostic cannot
+replace its sixty-minute acceptance gate or retroactively prove quote continuity.
+
+Result: image `a6fe88c0…`, build `745a86e3c`, passes all stages on first attempts.
+97,800 main/24,450 auxiliary healthy HTTP200; soak p99 406.14 ms, 24.26 MiB retained
+growth and 4,885 exact simulated fills/fees/positions. Eleven soak engine and three
+mixed engine probes recover without healthy child replacement. Their frequency
+and burst p99 503.57 ms regress versus rollback `e00cef38…`; attribution remains
+open. Activity300 shows completed cycles and two-sided venue point samples during
+its two probes, with finite/non-two-sided refresh observations elsewhere.
+No continuous-quote or exclusive-cause claim. The 120-second warning is not a
+production replacement SLO. Only unused `837e7997…` removed; all 10 containers /
+14 volumes retained. [Report](../../reports/release/mm-runtime-followup-load.md),
+[evidence](../../reports/release/mm-runtime-followup-load-evidence.json).

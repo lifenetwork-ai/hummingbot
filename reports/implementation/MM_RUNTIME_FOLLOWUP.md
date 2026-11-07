@@ -3,8 +3,10 @@
 Date: 2026-11-07 (Asia/Saigon). Source phases follow
 [this plan](../../docs/plans/MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md) and the
 [read-only review](../README.md#historical-records) (Git: `reports/investigations/mm-runtime-followup-code-review.md`).
-Only local source/native/PostgreSQL verification is performed. No existing Demo,
-real exchange, Google/GCP or production change; no new image/hour qualification.
+Source/native/PostgreSQL phases and subsequent image/load gates retain separate
+scopes below. The [current combined image gate](../release/mm-runtime-followup-load.md)
+includes both latest optimizations. No existing Demo, real exchange, Google/GCP
+or production change is performed.
 
 ## R1 — Availability boundaries
 
@@ -283,7 +285,7 @@ Soak p99 410.20ms, zero unexpected healthy errors, retention 28.59/64MiB, exact
 one API probe in mixed and one engine probe between windows recover. Mixed/burst
 improve; warmup/soak latency and retention regress within budgets. This does not
 uniquely attribute the historical count increase or prove continuous quoting.
-Bounded engine capture reaches32 and suppresses four further context captures;
+Bounded engine capture reaches 32 and suppresses four further context captures;
 markers/sink limits remain disclosed. The full [image report](../release/mm-runtime-followup-load.md)
 and [evidence](../release/mm-runtime-followup-load-evidence.json) distinguish this
 from the component experiment and retain the prior image at Git `ff6b85ded`.
@@ -330,8 +332,8 @@ measurements are also retained; no hard timing assertion chooses a winning run.
 The latest engine traces also show observer/recorder work, driver waits and one
 sample inside the test trace recorder's `_finish`; the API episode overlaps GC
 and request work. Those samples are temporal context, not one exclusive cause.
-No speculative thread move, trace-lock rewrite or GC tuning is applied. The new
-source has **no new image E2E/hour load/Demo/GCP qualification**; accepted image
+No speculative thread move, trace-lock rewrite or GC tuning is applied. At that source-only phase, the new
+source had **no new image E2E/hour load/Demo/GCP qualification**; accepted image
 `e00cef38…` still contains `d9488143d`. Existing Demo and image inventory remain
 unchanged; the disposable test database is removed.
 
@@ -352,7 +354,7 @@ short circuit did not exercise that comparison. Correct the fixture, retain its
 failure, and verify the final test set on the original function: **Red1/7 pass**.
 Source checks: early targeted46 (seven new cases at that point), frozen native
 **2,788 + 11 subtests** and reporting/publication/API PG **36 pass / 520 deselected**.
-The earlier full PG556 remains attributed to `5c421b121`, not this new source.
+The earlier full PG 556 remains attributed to `5c421b121`, not this new source.
 [Portable evidence](mm-runtime-followup-evidence.json), key
 `reporting_snapshot_copy_followup`, preserves failed drafts, hashes and all pairs.
 
@@ -372,5 +374,33 @@ sizes are not an observed production distribution.
 
 The smaller case saves about **0.036 ms per capture**; this is not an explanation
 for the previous second-scale probe observations. Other observer/recorder I/O and
-trace/GC context remain unproven attribution. No new image/E2E/hour load/Demo/GCP
-run is claimed; accepted image `e00cef38…` still predates both recent source changes.
+trace/GC context remain unproven attribution. At that source-only phase, no new image/E2E/hour load/Demo/GCP
+run was claimed; accepted image `e00cef38…` predated both changes. The subsequent
+combined gate below qualifies a new image separately.
+
+
+### Combined image qualification — 2026-11-07
+
+Image `a6fe88c0…` (build `745a86e3c`) now packages both the write-fence projection
+and reporting-copy changes. All 1,224 packaged hashes match through measurement.
+Four targeted E2E groups, enhancement90, activity300 and the unchanged full
+baseline/Random soak3600/five faults pass on first attempts. Soak p99 406.14 ms,
+zero unexpected healthy errors, 24.26 MiB retained growth and 4,885 exact simulated
+fills/fees/positions. Eleven soak engine probes and three mixed engine probes
+recover without healthy child replacement. Burst p99 and measured probe count
+regress versus accepted rollback `e00cef38…`; component savings do not establish
+a uniform whole-system speedup or one exclusive probe cause.
+
+The separate 300-second diagnostic records completed tick/controller cycles and
+two-sided simulator order samples during both recovered probes. Five other
+market point observations are non-two-sided near refresh, and one controller
+gap reaches 1.583 s. These observations do not prove continuous quotes, remote
+OKX timings or baseline-soak activity. Numeric quote-coverage policy stays open.
+[Current image report](../release/mm-runtime-followup-load.md),
+[portable evidence](../release/mm-runtime-followup-load-evidence.json),
+[operator guidance](../../docs/fe-integration.md#reviewing-quote-availability).
+
+After success remove only unused `837e7997…`; retain current candidate, accepted
+rollback `e00cef38…`, all 10 containers and 14 volumes, including unchanged Demo.
+Prior accepted evidence remains in Git `745a86e3c`, earlier failures in
+`ff6b85ded`. No existing-Demo/Google/GCP/deployment operation is performed.
