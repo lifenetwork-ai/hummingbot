@@ -4,6 +4,7 @@ import json
 import time
 import uuid
 import weakref
+from contextlib import contextmanager
 from datetime import datetime
 from decimal import Decimal
 from urllib.parse import urlparse
@@ -25,6 +26,34 @@ OWNER_KEY = 1
 ORDER_PATH = "/api/v5/trade/order"
 CANCEL_PATHS = {"/api/v5/trade/cancel-order", "/api/v5/trade/cancel-batch-orders"}
 ACCOUNT_PATHS = {"/api/v5/account/set-leverage", "/api/v5/account/set-position-mode"}
+
+
+@contextmanager
+def _ownership_read(connection):
+    """One fresh SELECT on the lock-owning session, without a read-COMMIT wait.
+
+    Restore write isolation before any recovery mutation can use this connection.
+    SQLAlchemy still ends its logical transaction; DBAPI commit is a no-op only
+    inside this read scope. Never reconnect an invalidated ownership session.
+    """
+    isolation = connection.get_execution_options().get('isolation_level', connection.default_isolation_level)
+    try:
+        connection.execution_options(isolation_level='AUTOCOMMIT')
+        yield
+    finally:
+        if not connection.closed:
+            try:
+                if connection.in_transaction():
+                    connection.rollback()
+                if connection.invalidated:
+                    connection.close()
+                else:
+                    connection.execution_options(isolation_level=isolation)
+            except Exception:
+                # An uncertain isolation mode must never reach a later write.
+                # Closing also prevents release() revalidating a lost session.
+                connection.close()
+                raise
 
 
 class OwnershipLost(SubmissionBlocked):
@@ -133,17 +162,18 @@ class BotOwnership:
             self.allow_new_orders = False
             raise OwnershipLost("The bot ownership session is unavailable.")
         try:
-            row = connection.execute(text("""
-                SELECT b.bot_id, b.config_file_path, b.config_type, b.desired_state, b.control_version,
-                    b.acknowledged_version, b.owner_uuid, b.owner_generation, b.heartbeat, b.revision,
-                    b.recovery_state, b.mm_session, pg_backend_pid() AS backend_pid,
-                    EXTRACT(EPOCH FROM clock_timestamp()) AS database_now FROM public.bot_state b
-                WHERE bot_id=:bot_id AND owner_uuid=:owner AND owner_generation=:generation
-                AND EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted
-                    AND pid=pg_backend_pid() AND classid=:namespace AND objid=:key AND objsubid=2)
-            """), {"bot_id": self.store.bot_id, "owner": self.owner_uuid, "generation": self.generation,
-                   "namespace": OWNER_NAMESPACE, "key": OWNER_KEY}).mappings().first()
-            connection.commit()
+            with _ownership_read(connection):
+                row = connection.execute(text("""
+                    SELECT b.bot_id, b.config_file_path, b.config_type, b.desired_state, b.control_version,
+                        b.acknowledged_version, b.owner_uuid, b.owner_generation, b.heartbeat, b.revision,
+                        b.recovery_state, b.mm_session, pg_backend_pid() AS backend_pid,
+                        EXTRACT(EPOCH FROM clock_timestamp()) AS database_now FROM public.bot_state b
+                    WHERE bot_id=:bot_id AND owner_uuid=:owner AND owner_generation=:generation
+                    AND EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted
+                        AND pid=pg_backend_pid() AND classid=:namespace AND objid=:key AND objsubid=2)
+                """), {"bot_id": self.store.bot_id, "owner": self.owner_uuid, "generation": self.generation,
+                       "namespace": OWNER_NAMESPACE, "key": OWNER_KEY}).mappings().first()
+                connection.commit()
             if not row or row["backend_pid"] != self.backend_pid:
                 raise OwnershipLost("The bot ownership lock/generation no longer matches.")
         except Exception:
@@ -724,6 +754,11 @@ class BotOwnership:
             raise SubmissionBlocked("Stop all order-producing/transport tasks before releasing ownership.")
         connection, self.connection = self.connection, None
         if connection is not None:
+            if connection.closed or connection.invalidated:
+                # A new physical connection cannot release the old session's
+                # advisory lock. Teardown must not reconnect or mutate through it.
+                connection.close()
+                return
             try:
                 connection.rollback()
                 statement = update(BotState).where(

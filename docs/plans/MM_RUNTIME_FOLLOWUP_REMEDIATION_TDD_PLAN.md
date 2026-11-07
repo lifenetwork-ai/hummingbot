@@ -135,3 +135,22 @@ recover (mixed1, soak7); this does not establish uninterrupted quoting or their
 unique cause. Image `f74d2a2a…` removed; retain rollback `bf4e1f77…`, all ten
 container references and fourteen volumes. [Report](../../reports/release/mm-runtime-followup-load.md),
 [evidence](../../reports/release/mm-runtime-followup-load-evidence.json).
+
+## Residual probe investigation — requested 2026-11-07
+
+- [x] Inspect all seven current soak episodes and actual request-time stacks,
+  including captures omitted by the selected-span summary. Preserve uncertainty
+  about the inter-run count increase; no threshold/budget changes.
+- [x] TDD a narrowly scoped fresh ownership read without a separate read COMMIT;
+  retain the physical advisory-lock session, fresh authority checks, rollback and
+  original isolation for every write. Measure before keeping the change.
+- [ ] Run targeted ownership/recorder/recovery checks and source regressions;
+  publish failed attempts, measurements and remaining image/probe limitations.
+
+Use disposable local PostgreSQL only; no existing-Demo data or credentials change.
+
+Targeted PG **71 pass**, including twelve new cases. Seven paired real-PG rounds
+retain every fresh SELECT and remove the separate read COMMIT. Component p50
+1.982→1.624 ms; all samples retained. A controlled 450ms read-COMMIT delay
+makes the unchanged 300ms production probe time out with the legacy path; scoped
+read mode passes. This does not uniquely attribute the seven historical episodes.
