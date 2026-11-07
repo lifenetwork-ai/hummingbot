@@ -289,3 +289,48 @@ and [evidence](../release/mm-runtime-followup-load-evidence.json) distinguish th
 from the component experiment and retain the prior image at Git `ff6b85ded`.
 Remove unused `bf4e1f77…`; retain accepted rollback `837e7997…`, all ten containers
 and fourteen volumes, with the existing actual Demo unchanged.
+
+### Fresh write-fence identity projection — 2026-11-07
+
+The write fence fetched all fourteen owner-state columns, including recovery and
+session JSON, then ignored the payload. It now requests only the physical backend
+PID while preserving fresh owner UUID/generation/advisory-lock predicates on every
+call. It still checks before reusing a transaction's shared row fence. Observer,
+admission and final-send checks retain the full fresh row. Same connection,
+transaction restoration, rollback, loss deadlines and submission closure; no
+owner cache, threshold/pool changes, migration or exchange mutation.
+
+Nine new real-PG cases cover result projection, full-state compatibility, repeated
+fresh checks inside a transaction, physical lock/generation loss, closed/invalidated
+sessions, actual recorder flush rejection, bounded bookkeeping and paired cost.
+Red: one payload-shape failure, four existing-safety passes. The first Green draft
+has two failures: an old spy counted the public method rather than the common
+reader; leading projection whitespace prevented the existing latency injector's
+SQL-prefix match. Correct the spy and preserve the original full-query prefix;
+do not loosen its deadline. Retain both failed logs in the
+[portable evidence](../performance/mm-owner-read-evidence.json) under
+`identity_projection_followup`.
+
+Frozen source: targeted **87 pass**, native **2,780 + 11 subtests**, full PG
+**556 pass** (836.05s). Changed Python hashes remain fixed through verification.
+The load fixture times the common reader so full/projected ownership reads remain
+represented; metric time excludes public guard-only rejections that execute no read.
+
+| Synthetic payload per JSON field | Median of seven full-read batch means | Projected | Serialized result bytes, full→projected |
+| --- | ---: | ---: | ---: |
+| 0 bytes | 1.187 ms/read | 0.969 ms/read | 471→20 |
+| 65,536 bytes | 2.871 ms/read | 0.967 ms/read | 131,543→20 |
+
+Each pair alternates order and performs 25 fresh reads per batch. Both cases keep
+every SELECT, same backend and zero pool-reset callback growth. This is a bounded
+component test; the JSON sizes are explicit fixtures, serialized results are not
+network byte counts, and batch means are not request p50/p99. Earlier targeted
+measurements are also retained; no hard timing assertion chooses a winning run.
+
+The latest engine traces also show observer/recorder work, driver waits and one
+sample inside the test trace recorder's `_finish`; the API episode overlaps GC
+and request work. Those samples are temporal context, not one exclusive cause.
+No speculative thread move, trace-lock rewrite or GC tuning is applied. The new
+source has **no new image E2E/hour load/Demo/GCP qualification**; accepted image
+`e00cef38…` still contains `d9488143d`. Existing Demo and image inventory remain
+unchanged; the disposable test database is removed.

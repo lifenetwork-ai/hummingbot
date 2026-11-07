@@ -164,21 +164,25 @@ class BotOwnership:
         self.config_file_path = config_file_path
         self._mutate_recovery(lambda state: state.update(runtime_active=True))
 
-    def check_owner(self, *, new_risk=False, allow_setup=False):
-        if new_risk:
-            self._check_shutdown()
+    def _read_owner(self, *, identity_only=False):
+        """Fresh proof on the physical owner session; writes need no state JSON."""
         connection = self.connection
         if self.lost or connection is None or connection.closed or connection.invalidated:
             self.lost = True
             self.allow_new_orders = False
             raise OwnershipLost("The bot ownership session is unavailable.")
         try:
+            # Only this internal write-fence path omits the state payload. The
+            # observer and submission gates always retain their complete fresh
+            # row. Neither projection reuses authority or changes the lock query.
+            columns = "pg_backend_pid() AS backend_pid" if identity_only else """
+                b.bot_id, b.config_file_path, b.config_type, b.desired_state, b.control_version,
+                b.acknowledged_version, b.owner_uuid, b.owner_generation, b.heartbeat, b.revision,
+                b.recovery_state, b.mm_session, pg_backend_pid() AS backend_pid,
+                EXTRACT(EPOCH FROM clock_timestamp()) AS database_now""".strip()
             with _ownership_read(connection):
-                row = connection.execute(text("""
-                    SELECT b.bot_id, b.config_file_path, b.config_type, b.desired_state, b.control_version,
-                        b.acknowledged_version, b.owner_uuid, b.owner_generation, b.heartbeat, b.revision,
-                        b.recovery_state, b.mm_session, pg_backend_pid() AS backend_pid,
-                        EXTRACT(EPOCH FROM clock_timestamp()) AS database_now FROM public.bot_state b
+                row = connection.execute(text(f"""
+                    SELECT {columns} FROM public.bot_state b
                     WHERE bot_id=:bot_id AND owner_uuid=:owner AND owner_generation=:generation
                     AND EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted
                         AND pid=pg_backend_pid() AND classid=:namespace AND objid=:key AND objsubid=2)
@@ -191,6 +195,12 @@ class BotOwnership:
             self.lost = True
             self.allow_new_orders = False
             raise OwnershipLost("The bot ownership session failed; submissions are closed.") from None
+        return dict(row)
+
+    def check_owner(self, *, new_risk=False, allow_setup=False):
+        if new_risk:
+            self._check_shutdown()
+        row = self._read_owner()
         # A signal can arrive while the synchronous database check is in flight.
         if new_risk:
             self._check_shutdown()
@@ -366,7 +376,7 @@ class BotOwnership:
             self.transport_tasks.pop(task, None)
 
     def fence_session(self, session):
-        self.check_owner()
+        self._read_owner(identity_only=True)
         transaction = session.get_transaction()
         if transaction is not None and session.info.get("ownership_fenced_transaction") is transaction:
             return

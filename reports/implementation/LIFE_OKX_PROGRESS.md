@@ -22,12 +22,18 @@ and [credential operations](../../docs/exchange-credentials.md).
 
 ## Current verification
 
+Newer source write-fence projection passes native2,780 + 11 subtests and full
+PG556, including nine new cases. It retains fresh checks while omitting unused
+state JSON from write proof. Paired component costs improve; no new shipping-image
+hour gate or unique residual-probe cause is claimed. See the
+[follow-up](MM_RUNTIME_FOLLOWUP.md#fresh-write-fence-identity-projection--2026-11-07).
+
 Runtime `d9488143d`: native2,780 + 11 subtests and full PG547 pass. Ownership reads
 avoid a separate read COMMIT for idle scopes while keeping fresh authority,
 write transactions, loss deadlines and bounded connection bookkeeping. The
 controlled real-probe test and rejected variants retain their own scope in the
 [source report](MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07).
-Image `e00cef38…` from `ff6b85ded` now qualifies that runtime separately: unchanged
+Image `e00cef38…` from `ff6b85ded` qualifies the earlier `d9488143d` runtime separately: unchanged
 full baseline/soak3600/five faults, four targeted E2E groups on first attempts and
 enhancement90. Soak p99 410.20ms, zero unexpected healthy errors, 28.59MiB retained
 growth, 4,884 exact simulated fills/fees/positions. Five soak engine probes and

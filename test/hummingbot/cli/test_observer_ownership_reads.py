@@ -44,6 +44,7 @@ async def test_existing_unusable_owner_cannot_observe_or_publish(monkeypatch, st
     item.owner.connection = MagicMock(closed=state == 'closed', invalidated=state == 'invalidated')
     item.owner.lost = state == 'lost'
     item.owner.allow_new_orders = state != 'lost'
+    item.owner._read_owner.side_effect = MethodType(BotOwnership._read_owner, item.owner)
     item.owner.check_owner.side_effect = MethodType(BotOwnership.check_owner, item.owner)
     item.owner.try_acquire.side_effect = MethodType(BotOwnership.try_acquire, item.owner)
     item.publish_status = AsyncMock()

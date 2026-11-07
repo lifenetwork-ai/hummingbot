@@ -28,7 +28,7 @@ def test_batch_uses_one_lookup_and_one_ownership_fence_for_all_rows(owned):
             queries.append(statement)
     event.listen(owned.engine, 'before_cursor_execute', count)
     try:
-        with patch.object(owned.owner, 'check_owner', wraps=owned.owner.check_owner) as fence:
+        with patch.object(owned.owner, '_read_owner', wraps=owned.owner._read_owner) as fence:
             owned.recorder.store_or_update_executors([executor(str(i)) for i in range(32)])
         assert fence.call_count == 1
         assert len(queries) == 1

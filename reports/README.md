@@ -26,6 +26,12 @@ read-COMMIT delay, rejects unbounded pool bookkeeping, and preserves transaction
 writes/fresh fences. It does not uniquely attribute the old probe count increase
 or replace the separately measured image qualification above.
 
+The subsequent [write-fence projection](implementation/MM_RUNTIME_FOLLOWUP.md#fresh-write-fence-identity-projection--2026-11-07)
+removes unused state JSON from fresh write proofs (14 columns→1). Nine new cases,
+native2,780 + 11 subtests and full PG556 pass; paired component measurements and
+failed drafts are retained. This newer source has no new image/hour qualification
+and does not uniquely explain the remaining probes.
+
 | Topic | Current entry |
 | --- | --- |
 | [Release](release/README.md) | Current candidate and retained rollback, exact image/gate scope |

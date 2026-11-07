@@ -10,9 +10,12 @@ unless explicitly listed below. Removing historical files does not mark an unres
 
 - [x] PostgreSQL/Cloud Run source port, three MM scenarios, fixed/Random sessions,
   spot/perpetual/both, operator APIs and risk controls are implemented.
-- [x] Latest runtime `d9488143d`: 2,780 native + 11 subtests and full PG547 pass.
-  Ownership-read TDD preserves fresh authority, write transactions, I/O deadlines
-  and bounded pool bookkeeping; the image below now separately qualifies it.
+- [x] Latest source write-fence projection: 2,780 native + 11 subtests and full
+  PG556 pass, nine new cases. Fresh authority remains, unused proof JSON is omitted;
+  its component measurements do not qualify a new image.
+- [x] Earlier runtime `d9488143d`: ownership-read TDD preserves fresh authority,
+  write transactions, I/O deadlines and bounded pool bookkeeping. The image below
+  separately qualifies that earlier runtime.
 - [x] Image `e00cef38…`: unchanged full baseline, 60-minute soak and five faults;
   four targeted E2E groups on first attempts, enhancement diagnostic pass.
 - [x] Soak p99 410.20ms, zero unexpected healthy errors, 28.59MiB retained growth,
@@ -59,6 +62,9 @@ reproduces and removes a redundant read-COMMIT delay for idle scopes. It does no
 uniquely explain every old probe. Its new image's unchanged hour gate passes;
 soak probes fall 7→5 while soak p99/retention regress within budgets. Keep the
 component improvement and mixed full-system observations separate.
+The later [write-fence projection](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#fresh-write-fence-identity-projection--2026-11-07)
+passes source regressions but still needs separate image qualification before
+replacing the accepted candidate; no new connected or cloud test is implied.
 
 ## Retained plans
 

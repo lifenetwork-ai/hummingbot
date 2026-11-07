@@ -199,3 +199,26 @@ fourteen volumes. [Current report](../../reports/release/mm-runtime-followup-loa
 [evidence](../../reports/release/mm-runtime-followup-load-evidence.json).
 The earlier fill-flush image report and disclosed retry remain at Git `ff6b85ded`
 under those paths; newer gates do not erase earlier attempts.
+
+## Fresh write-fence identity projection — requested 2026-11-07
+
+- [x] Red: prove a write fence currently retrieves unused recovery/session JSON;
+  preserve a fresh owner/session/advisory-lock check on every call, including
+  later flushes in an already-fenced transaction.
+- [x] Green: project only owner-session proof for write fencing; preserve full
+  state for observer/admission, original transaction modes, deadlines and losses.
+- [x] Measure paired full/projection reads on disposable PG with explicit payload
+  sizes; keep timing separate from full-image latency and residual attribution.
+- [x] Run ownership/recorder/recovery regressions, document failures/limits and
+  commit. The accepted `e00cef38…` image remains unchanged until a new image gate.
+
+Red1/4 pass; initial draft2 failures/73 pass retained (old spy and SQL-prefix
+injection mismatch). Corrected targeted87, native2,780 + 11 subtests and full
+PG556 pass. Every fresh SELECT remains; write-proof result columns14→1.
+Seven alternating pairs, 25 reads per batch: median batch means/read
+1.187→0.969ms (two empty JSON payload fields), 2.871→0.967ms (two64KiB fields).
+Zero pool callback growth; serialized result bytes are not network counts.
+[Report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#fresh-write-fence-identity-projection--2026-11-07),
+[evidence](../../reports/performance/mm-owner-read-evidence.json). This source
+change does not inherit `e00cef38…`'s image/load acceptance or uniquely resolve
+the remaining probes. No new image or existing-Demo operation was performed.

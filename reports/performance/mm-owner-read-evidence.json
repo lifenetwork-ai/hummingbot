@@ -2789,5 +2789,576 @@
       }
     ],
     "scope": "Real local PostgreSQL owner and production health/probe functions; controlled COMMIT jitter, not a full MM or historical-cause proof."
+  },
+  "identity_projection_followup": {
+    "title": "Project fresh identity only for recorder write fences",
+    "based_on_commit": "d278481ef",
+    "source_sha256": {
+      "hummingbot/core/bot_ownership.py": "5625006cbd83ef87cb6ad4b6e42f14bc7edcae5b45b3f94e1e3857dddd90b7f7",
+      "test/e2e/offline/load_service.py": "025cf356abd9b25e0e198955245e52aff3b59e611d9cc366ce92f6b32aa7e8ca",
+      "test/hummingbot/cli/test_observer_ownership_reads.py": "a81576bab88ac839b7a55a25d1ac9fa3b0bcc4fb00f2ac5d5832599d05dd2f2c",
+      "test/integration/postgres/test_executor_batch.py": "a7e1df53d8ce08fbf2aa6e5f6e3bcebd3ff68a766561375ff288b72101a9a3c3",
+      "test/integration/postgres/test_fill_flush.py": "a5be1a10f4afd758217518bfbd5926b48b910fe68e64e12a6ddf682cab9b4cab",
+      "test/integration/postgres/test_owner_fence_projection.py": "9206a3df629a116abba7aec12a7cd4b1666a62ab0cbed37c7f0bca148b1b3b94"
+    },
+    "no_new_image_qualification": true,
+    "accepted_unchanged_image": {
+      "Id": "sha256:e00cef387eec20aed77ca5411caadf8eaf65c08e527492037fd0392fb7e8d5ca",
+      "Size": 1374449073,
+      "Architecture": "amd64",
+      "Created": "2026-11-07T05:52:50.285064884Z",
+      "labels": {
+        "branch": "",
+        "commit": "ff6b85ded662fc8c90ccad10900b07460017f606",
+        "date": ""
+      },
+      "pinned": "127.0.0.1:57607/hummingbot@sha256:c24f760350bac7cf86af0ba05fc77c44e98fe6c438b5741a1f5600dd7e377327"
+    },
+    "audited_load_artifact": "build/mm-load/20261107-130723-e97f9b/result.json",
+    "audited_load_sha256": "71be44d729379f049fb4ac26bda08cd93cbab4716a0af8fde45c35d99a4dcaa7",
+    "prior_shape": "14 owner-state columns, including unused recovery/session JSON, for every write fence.",
+    "new_shape": "One backend_pid column on the same physical owner session; same owner/generation and advisory-lock predicates, every call.",
+    "preserved": [
+      "Fresh check precedes per-transaction row-fence reuse.",
+      "Observer, order admission and final-send continue to fetch the complete fresh state.",
+      "Shared bot_state row lock, owner-loss closure, rollback and physical connection deadlines remain unchanged.",
+      "No cache, threshold, pool, CPU, migration, exchange authority or existing-Demo changes."
+    ],
+    "instrumentation": "Time the common _read_owner method so both full-state and projected checks remain included in ownership_check_ms. No reduced capture budget.",
+    "red": {
+      "failed": 1,
+      "passed": 4,
+      "deselected": 547,
+      "reason": "Expected backend_pid-only result; actual owner SELECT returned fourteen columns."
+    },
+    "first_green_attempt": {
+      "failed": 2,
+      "passed": 73,
+      "deselected": 477,
+      "reasons": [
+        "Old batch spy counted public check_owner instead of the shared physical owner read.",
+        "Leading SQL projection whitespace prevented an existing latency injector matching its SELECT prefix; preserve the original full-query prefix."
+      ],
+      "qualification": "Retained failed draft. No threshold was increased or production loss behavior weakened."
+    },
+    "targeted": {
+      "passed": 87,
+      "deselected": 469
+    },
+    "native": {
+      "passed": 2780,
+      "subtests": 11
+    },
+    "full_postgres": {
+      "passed": 556
+    },
+    "logs": {
+      "red": {
+        "path": "/tmp/hbot-owner-projection-red.log",
+        "sha256": "fe2766a604f2585784d5bf96e14f3c6e5fcb43f41190a281662217a26e51f9b5",
+        "summary_lines": [
+          "1 failed, 4 passed, 547 deselected, 6 warnings in 7.72s"
+        ]
+      },
+      "targeted": {
+        "path": "/tmp/hbot-owner-projection-targeted.log",
+        "sha256": "d0e6fcc2d74c3981ac0a140b86264ca80b98886433bdf5bcf05e5043ed3784c8",
+        "summary_lines": [
+          "2 failed, 73 passed, 477 deselected, 6 warnings in 67.62s (0:01:07)"
+        ]
+      },
+      "green": {
+        "path": "/tmp/hbot-owner-projection-green.log",
+        "sha256": "737f1c442de751209d5a45cae000097fbcaece72f0f95e352679a3e170ec9ffe",
+        "summary_lines": [
+          "87 passed, 469 deselected, 6 warnings in 74.52s (0:01:14)"
+        ]
+      },
+      "native": {
+        "path": "/tmp/hbot-owner-projection-native.log",
+        "sha256": "5be41184f56def23153cbcb17c70704bc0720c6f4d2769c00e04ecf33247e5f2",
+        "summary_lines": [
+          "202 passed, 19 warnings in 9.17s",
+          "11 passed, 1 warning in 1.01s",
+          "1814 passed, 35 warnings, 11 subtests passed in 52.17s",
+          "753 passed, 14 warnings in 72.08s (0:01:12)"
+        ]
+      },
+      "postgres": {
+        "path": "/tmp/hbot-owner-projection-postgres.log",
+        "sha256": "6a0389b36b9fb28b706e71740c9c4e4fa3d488df1cb449d8255128f90b58d8dc",
+        "summary_lines": [
+          "556 passed, 36 warnings in 836.05s (0:13:56)"
+        ]
+      }
+    },
+    "frozen_full_suite_pairs": {
+      "0": {
+        "payload_size_per_json_field": 0,
+        "reads_per_batch": 25,
+        "samples": [
+          {
+            "before": {
+              "ms_per_read": 1.15492,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            },
+            "after": {
+              "ms_per_read": 1.06204,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          },
+          {
+            "after": {
+              "ms_per_read": 0.92949,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            },
+            "before": {
+              "ms_per_read": 1.197245,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            }
+          },
+          {
+            "before": {
+              "ms_per_read": 1.187385,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            },
+            "after": {
+              "ms_per_read": 1.04540168,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          },
+          {
+            "after": {
+              "ms_per_read": 1.04475832,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            },
+            "before": {
+              "ms_per_read": 1.18796668,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            }
+          },
+          {
+            "before": {
+              "ms_per_read": 1.18649,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            },
+            "after": {
+              "ms_per_read": 0.94784832,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          },
+          {
+            "after": {
+              "ms_per_read": 0.96942,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            },
+            "before": {
+              "ms_per_read": 1.24217164,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            }
+          },
+          {
+            "before": {
+              "ms_per_read": 1.11778836,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            },
+            "after": {
+              "ms_per_read": 0.92936336,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          }
+        ],
+        "before_median_batch_mean_ms": 1.187385,
+        "after_median_batch_mean_ms": 0.96942,
+        "pool_reset_callback_growth": 0,
+        "scope": "Disposable real PostgreSQL; warmed seven alternating batch pairs, each with 25 fresh owner reads. Two synthetic JSON payload fields, not a measured production distribution. Serialized result bytes are not network byte counts. Not a whole-engine/probe latency or historical root-cause proof."
+      },
+      "65536": {
+        "payload_size_per_json_field": 65536,
+        "reads_per_batch": 25,
+        "samples": [
+          {
+            "before": {
+              "ms_per_read": 2.39408332,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            },
+            "after": {
+              "ms_per_read": 0.79719832,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          },
+          {
+            "after": {
+              "ms_per_read": 0.88323836,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            },
+            "before": {
+              "ms_per_read": 2.65428332,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            }
+          },
+          {
+            "before": {
+              "ms_per_read": 2.87077664,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            },
+            "after": {
+              "ms_per_read": 1.01965,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          },
+          {
+            "after": {
+              "ms_per_read": 1.05537,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            },
+            "before": {
+              "ms_per_read": 2.87820332,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            }
+          },
+          {
+            "before": {
+              "ms_per_read": 3.1516,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            },
+            "after": {
+              "ms_per_read": 0.94424332,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          },
+          {
+            "after": {
+              "ms_per_read": 1.08458336,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            },
+            "before": {
+              "ms_per_read": 2.83035,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            }
+          },
+          {
+            "before": {
+              "ms_per_read": 2.92912832,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            },
+            "after": {
+              "ms_per_read": 0.967275,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          }
+        ],
+        "before_median_batch_mean_ms": 2.87077664,
+        "after_median_batch_mean_ms": 0.967275,
+        "pool_reset_callback_growth": 0,
+        "scope": "Disposable real PostgreSQL; warmed seven alternating batch pairs, each with 25 fresh owner reads. Two synthetic JSON payload fields, not a measured production distribution. Serialized result bytes are not network byte counts. Not a whole-engine/probe latency or historical root-cause proof."
+      }
+    },
+    "earlier_targeted_pairs": {
+      "0": {
+        "payload_size_per_json_field": 0,
+        "reads_per_batch": 25,
+        "samples": [
+          {
+            "before": {
+              "ms_per_read": 1.18194336,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            },
+            "after": {
+              "ms_per_read": 0.990865,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          },
+          {
+            "after": {
+              "ms_per_read": 1.151155,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            },
+            "before": {
+              "ms_per_read": 1.27396332,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            }
+          },
+          {
+            "before": {
+              "ms_per_read": 1.102495,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            },
+            "after": {
+              "ms_per_read": 1.06984,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          },
+          {
+            "after": {
+              "ms_per_read": 1.31904168,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            },
+            "before": {
+              "ms_per_read": 1.25699832,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            }
+          },
+          {
+            "before": {
+              "ms_per_read": 2.41215164,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            },
+            "after": {
+              "ms_per_read": 0.97419168,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          },
+          {
+            "after": {
+              "ms_per_read": 1.04952832,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            },
+            "before": {
+              "ms_per_read": 1.15386168,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            }
+          },
+          {
+            "before": {
+              "ms_per_read": 0.97543832,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 471
+            },
+            "after": {
+              "ms_per_read": 0.85151168,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          }
+        ],
+        "before_median_batch_mean_ms": 1.18194336,
+        "after_median_batch_mean_ms": 1.04952832,
+        "pool_reset_callback_growth": 0,
+        "scope": "Disposable real PostgreSQL; warmed seven alternating batch pairs, each with 25 fresh owner reads. Two synthetic JSON payload fields, not a measured production distribution. Serialized result bytes are not network byte counts. Not a whole-engine/probe latency or historical root-cause proof."
+      },
+      "65536": {
+        "payload_size_per_json_field": 65536,
+        "reads_per_batch": 25,
+        "samples": [
+          {
+            "before": {
+              "ms_per_read": 2.61390836,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            },
+            "after": {
+              "ms_per_read": 0.99997664,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          },
+          {
+            "after": {
+              "ms_per_read": 1.033215,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            },
+            "before": {
+              "ms_per_read": 3.33934,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            }
+          },
+          {
+            "before": {
+              "ms_per_read": 3.16480332,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            },
+            "after": {
+              "ms_per_read": 0.93855332,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          },
+          {
+            "after": {
+              "ms_per_read": 1.02045164,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            },
+            "before": {
+              "ms_per_read": 2.68242336,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            }
+          },
+          {
+            "before": {
+              "ms_per_read": 3.11527,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            },
+            "after": {
+              "ms_per_read": 1.08730332,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          },
+          {
+            "after": {
+              "ms_per_read": 0.96945164,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            },
+            "before": {
+              "ms_per_read": 3.107875,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            }
+          },
+          {
+            "before": {
+              "ms_per_read": 3.02429668,
+              "fresh_selects": 25,
+              "columns": 14,
+              "serialized_result_bytes": 131543
+            },
+            "after": {
+              "ms_per_read": 0.93652332,
+              "fresh_selects": 25,
+              "columns": 1,
+              "serialized_result_bytes": 20
+            }
+          }
+        ],
+        "before_median_batch_mean_ms": 3.107875,
+        "after_median_batch_mean_ms": 0.99997664,
+        "pool_reset_callback_growth": 0,
+        "scope": "Disposable real PostgreSQL; warmed seven alternating batch pairs, each with 25 fresh owner reads. Two synthetic JSON payload fields, not a measured production distribution. Serialized result bytes are not network byte counts. Not a whole-engine/probe latency or historical root-cause proof."
+      }
+    },
+    "measurement_limits": [
+      "Seven warmed alternating batch pairs, 25 reads per batch; median of batch means is not individual-request p50/p99.",
+      "Synthetic zero/64KiB fields are explicit fixture sizes, not observed production payload distributions.",
+      "Serialized result bytes are not PostgreSQL protocol/network byte counts.",
+      "Component improvement does not prove a faster engine or that remaining probes were fixed."
+    ],
+    "residual_code_audit": [
+      "One captured slow engine sample is in TraceRecorder._finish after SQL; other samples are in driver wait or recorder flush.",
+      "Observer still needs full control/risk/session state; it is not moved onto another thread sharing the dedicated owner session.",
+      "The mixed API episode overlaps request work and GC; causal allocation/GC attribution is not established.",
+      "The accepted image gate remains at d9488143d; this source change has no new image E2E/load/Demo/GCP qualification."
+    ],
+    "post_verification_inventory": {
+      "existing_containers_preserved": {
+        "hummingbot-local-demo": true,
+        "hummingbot-local-demo-before-controller-persistence-20261104064759": true,
+        "hummingbot-local-demo-before-controller-persistence-20261104043232": true,
+        "hummingbot-local-demo-before-controller-persistence-20261104005057": true,
+        "hummingbot-local-demo-before-controller-persistence-20261103205237": true,
+        "hummingbot-local-demo-before-cleanup-fix": true,
+        "hummingbot-local-demo-incident-preserved": true,
+        "hummingbot-okx-demo-db": true,
+        "onchain-handler-app-1": true,
+        "onchain-handler-db-1": true
+      },
+      "containers": 10,
+      "images": 14,
+      "volumes": 14,
+      "volume_inventory_unchanged": true,
+      "all_preexisting_images_retained": true,
+      "no_new_bot_image": true
+    }
   }
 }

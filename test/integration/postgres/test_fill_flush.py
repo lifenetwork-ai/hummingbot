@@ -46,7 +46,7 @@ def test_fill_coalesces_order_and_status_before_checkpoint_without_an_extra_owne
         flushed.append(sorted({type(row).__name__ for row in set(session.new) | set(session.dirty)}))
     event.listen(owned.manager._session_cls, 'before_flush', observe)
     try:
-        with patch.object(owned.owner, 'check_owner', wraps=owned.owner.check_owner) as guard, \
+        with patch.object(owned.owner, '_read_owner', wraps=owned.owner._read_owner) as guard, \
                 queries(owned.engine) as statements:
             owned.recorder._did_fill_order(MarketEvent.OrderFilled.value, owned.market, fill())
     finally:
@@ -154,7 +154,7 @@ def test_paired_fill_measurement_retains_fresh_checks_and_removes_one_statement(
         try:
             with patch.object(MarketsRecorder, '_add_order_status', staticmethod(legacy_flush if legacy else original)), \
                     queries(owned.engine) as statements, \
-                    patch.object(owned.owner, 'check_owner', wraps=owned.owner.check_owner) as checks:
+                    patch.object(owned.owner, '_read_owner', wraps=owned.owner._read_owner) as checks:
                 started = time.perf_counter()
                 owned.recorder._did_fill_order(MarketEvent.OrderFilled.value, owned.market,
                                                fill(exchange_trade_id='paired-' + str(serial),
