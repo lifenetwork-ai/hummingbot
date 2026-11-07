@@ -36,13 +36,19 @@ def _ownership_read(connection):
     SQLAlchemy still ends its logical transaction; DBAPI commit is a no-op only
     inside this read scope. Never reconnect an invalidated ownership session.
     """
+    from psycopg2.extensions import TRANSACTION_STATUS_IDLE
+
     raw = connection.connection.driver_connection
     autocommit = raw.autocommit
+    # Preserve the original SELECT/commit behavior for an already-open read
+    # transaction, including one opened by a direct DBAPI cursor.
+    change_mode = not connection.in_transaction() and raw.get_transaction_status() == TRANSACTION_STATUS_IDLE
     try:
         # Repeated SQLAlchemy isolation execution_options register unbounded
         # pool-reset callbacks on this process-lifetime connection. Change only
         # the documented Psycopg flag; SQLAlchemy's transaction is ended below.
-        raw.autocommit = True
+        if change_mode:
+            raw.autocommit = True
         yield
     finally:
         if not connection.closed:
@@ -51,11 +57,12 @@ def _ownership_read(connection):
                     connection.rollback()
                 if connection.invalidated:
                     connection.close()
-                else:
+                elif change_mode:
                     raw.autocommit = autocommit
             except Exception:
-                # An uncertain isolation mode must never reach a later write.
-                # Closing also prevents release() revalidating a lost session.
+                # close() alone returns a live DBAPI session to the pool. Discard
+                # an uncertain mode before it can reach any later writer.
+                connection.invalidate()
                 connection.close()
                 raise
 

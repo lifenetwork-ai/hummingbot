@@ -49,7 +49,8 @@ def main():
             owner.check_owner()
     except (DBAPIError, OwnershipLost) as error:
         output = dict(elapsed=time.monotonic() - started, error_type=type(error).__name__,
-                      closed=bool(raw.closed), invalidated=connection.invalidated)
+                      closed=bool(raw.closed), invalidated=connection.invalidated,
+                      connection_closed=connection.closed)
         if owner is not None:
             output.update(lost=owner.lost, allow_new_orders=owner.allow_new_orders)
             try:

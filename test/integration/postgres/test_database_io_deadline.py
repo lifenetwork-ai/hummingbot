@@ -41,9 +41,14 @@ async def test_database_io_deadline_discards_unresponsive_session(pg_engine, mod
                 pytest.fail('Established DB operation exceeded the client I/O deadline')
             result = json.loads(line)
             assert 2.5 <= result['elapsed'] < 4.5
-            assert result['closed'] and result['invalidated']
+            assert result['closed']
             if mode == 'owner':
+                # Ownership loss permanently closes the SQLAlchemy connection,
+                # rather than leaving it invalidated and able to revalidate.
+                assert result['connection_closed']
                 assert result['lost'] and not result['allow_new_orders'] and result['reacquire_blocked']
+            else:
+                assert result['invalidated']
             assert await asyncio.to_thread(process.wait, timeout=3) == 0
         finally:
             if process.poll() is None:

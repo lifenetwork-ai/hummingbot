@@ -144,6 +144,33 @@ def test_repeated_owner_reads_keep_pool_reset_bookkeeping_bounded(owned):
     assert len(record.finalize_callback) == before
 
 
+@pytest.mark.parametrize('mode', ['sqlalchemy', 'dbapi'])
+def test_existing_read_transaction_keeps_legacy_behavior_then_returns_to_idle_read_scopes(owned, mode):
+    connection = owned.owner.connection
+    raw = connection.connection.driver_connection
+    if mode == 'sqlalchemy':
+        connection.exec_driver_sql('SELECT 1')
+    else:
+        with raw.cursor() as cursor:
+            cursor.execute('SELECT 1')
+    assert raw.get_transaction_status() == TRANSACTION_STATUS_INTRANS
+    observed = []
+
+    def after(conn, cursor, statement, *args):
+        if conn is connection and 'pg_backend_pid() AS backend_pid' in statement:
+            observed.append(raw.autocommit)
+
+    event.listen(owned.engine, 'after_cursor_execute', after)
+    try:
+        assert owned.owner.check_owner(new_risk=True)['control_version'] == 1
+        assert not connection.in_transaction() and raw.get_transaction_status() == TRANSACTION_STATUS_IDLE
+        assert owned.owner.check_owner(new_risk=True)['control_version'] == 1
+    finally:
+        event.remove(owned.engine, 'after_cursor_execute', after)
+    assert observed == [False, True]
+    assert not raw.autocommit
+
+
 def test_physical_read_session_loss_cannot_restore_isolation_by_reconnecting(owned):
     connection = owned.owner.connection
     connections = []
@@ -185,6 +212,29 @@ def test_release_of_a_dead_owner_session_never_reconnects(owned, state):
         event.remove(owned.engine, 'connect', opened)
     assert not connections and connection.closed
     assert owned.owner.connection is None and not owned.owner.allow_new_orders
+
+
+def test_failed_mode_restore_discards_physical_session_instead_of_returning_autocommit_to_pool(owned, monkeypatch):
+    connection = owned.owner.connection
+    raw = connection.connection.driver_connection
+    descriptor = DeadlineConnection.autocommit
+
+    def get(conn):
+        return descriptor.__get__(conn, type(conn))
+
+    def set_mode(conn, value):
+        if conn is raw and value is False:
+            raise OSError('Injected driver mode restore failure')
+        descriptor.__set__(conn, value)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(DeadlineConnection, 'autocommit', property(get, set_mode))
+        with pytest.raises(OwnershipLost):
+            owned.owner.check_owner(new_risk=True)
+    assert connection.closed and raw.closed
+    assert owned.owner.lost and not owned.owner.allow_new_orders
+    with owned.engine.connect() as replacement:
+        assert not replacement.connection.driver_connection.autocommit
 
 
 def test_paired_owner_read_keeps_every_select_and_avoids_explicit_read_commits(owned, monkeypatch):
