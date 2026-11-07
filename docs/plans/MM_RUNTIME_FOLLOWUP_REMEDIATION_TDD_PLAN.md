@@ -108,3 +108,30 @@ correction; retain both logs in the [evidence](../../reports/performance/mm-fill
 
 No current-image/hour or new real-Demo acceptance is inherited by changed source.
 No general recorder worker, trading-state cache or new probe timeout is introduced.
+
+## Fill-flush image/load follow-up — requested 2026-11-07
+
+- [x] Build/pin the changed amd64 image and verify packaged source identities.
+- [x] Run the four targeted image E2E groups and enabled-enhancement diagnostic.
+
+The first initial-position restart attempt times out waiting for PID1 shutdown
+(9.5s). Retain that result; an unchanged-image/unchanged-budget retry passes,
+shutdown1.489/1.630s. This does not establish the first failure's exclusive cause.
+
+- [x] Repeat the unchanged full baseline: warmup300, mixed900, burst90,
+  Random soak3600, security/operations and all five fault windows.
+- [x] Publish this image's measured results, failures and probe/continuity limits.
+- [x] After successful gates, remove superseded unused bot images; retain the new
+  candidate, one accepted rollback, all container references and volumes.
+
+Keep existing Demo unchanged. Preparation and raw runner output live in
+`build/fill-flush-release-20261107/`; do not transfer the prior image's pass.
+
+Image `837e7997…` (build `9ca14a148`, recorder `e030cfcdc`) passes the new full
+gate/five faults, four targeted E2E groups after the disclosed restart retry,
+and enhancement90. Soak p99 **360.68 ms**, zero unexpected healthy errors,
+**24.05 MiB** retained growth and **4,884 exact simulated fills**. Eight probes
+recover (mixed1, soak7); this does not establish uninterrupted quoting or their
+unique cause. Image `f74d2a2a…` removed; retain rollback `bf4e1f77…`, all ten
+container references and fourteen volumes. [Report](../../reports/release/mm-runtime-followup-load.md),
+[evidence](../../reports/release/mm-runtime-followup-load-evidence.json).

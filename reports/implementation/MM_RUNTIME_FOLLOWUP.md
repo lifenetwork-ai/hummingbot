@@ -197,3 +197,17 @@ Logs: `/tmp/hbot-fill-flush-final-native.log`,
 retain their original source identity; no new image/hour or real-Demo acceptance
 is claimed. Archive deletion is separate (`b78f0d25c`); historical evidence remains
 available through the [Git lookup](../README.md#historical-records).
+
+## Fill-flush image gate — 2026-11-07
+
+Image `837e7997…`, build `9ca14a148`, separately passes the unchanged full local
+load/soak3600/five faults, four targeted E2E groups after one restart retry, and
+enhancement90. Soak p99 **360.68 ms**, zero unexpected healthy errors, **24.05 MiB**
+retained growth, **4,884 exact simulated fills**. Eight probes recover (mixed1,
+soak7); no healthy child replacement. The failed first 9.5s shutdown poll remains
+unexplained and retained. Warmup/mixed improve versus `bf4e1f77…`, burst/soak and
+probe count regress within unchanged budgets; no uniform system speedup or unique
+probe cause is established. Image `f74d2a2a…` removed; candidate, rollback
+`bf4e1f77…` and all ten container references/fourteen volumes retained.
+[Image report](../release/mm-runtime-followup-load.md),
+[evidence](../release/mm-runtime-followup-load-evidence.json).

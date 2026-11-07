@@ -4,17 +4,19 @@ Start with the [current image/load report](release/mm-runtime-followup-load.md)
 and [remaining-work register](../docs/plans/README.md). Operational procedures and
 API/FE contracts live in [docs](../docs/README.md).
 
-Current image **bf4e1f77…** passes the unchanged full load/60-minute soak/five faults,
-four targeted E2E groups and enabled-enhancement90. Soak p99 **306.91 ms**, zero
-unexpected healthy errors, **21.89 MiB** retained growth and **4,885 simulated fills**
-reconcile. Three healthy probe episodes recover; no healthy ERROR/child restart.
-Mixed/burst timings are slower than the prior run; attribution/continuity limits
-remain explicit. One unused image removed; all container references/volumes retained.
+Current image **837e7997…** passes the unchanged full load/60-minute soak/five faults,
+four targeted E2E groups (one initial restart retry) and enabled-enhancement90.
+Soak p99 **360.68 ms**, zero unexpected healthy errors, **24.05 MiB** retained
+growth and **4,884 simulated fills** reconcile. Eight healthy probes recover;
+no healthy ERROR/child restart. Warmup/mixed improve, burst/soak and probe count
+regress versus the preceding run, within unchanged budgets. Attribution/continuity
+limits and the failed first E2E attempt remain explicit. One unused image removed;
+all container references/volumes retained.
 [Portable evidence](release/mm-runtime-followup-load-evidence.json).
 
-The newer [fill-flush source follow-up](implementation/MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07)
+The [fill-flush source follow-up](implementation/MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07)
 has separate native/PG verification, including a corrected obsolete query-count
-assertion. It has not replaced this accepted image or inherited its hour gate.
+assertion. This image gate identifies its own build and packaged source hashes.
 
 | Topic | Current entry |
 | --- | --- |

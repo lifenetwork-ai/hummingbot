@@ -24,9 +24,11 @@ are the configuration/operations references.
 
 ## Latest verification
 
-Image `bf4e1f77…` separately passes the full local baseline and 60-minute soak,
-five faults, four targeted E2E groups and enabled-enhancement90. Source checks
-pass native2,780 + 11 subtests, PG523 and Swagger. See the
+Image `837e7997…` separately passes the full local baseline and 60-minute soak,
+five faults, four targeted E2E groups after one disclosed restart retry and
+enhancement90. Separate source verification retains native2,780 + 11 subtests,
+full PG530 pass / one obsolete query-count assertion failure and focused9-case
+correction. See the
 [current image report](../../reports/release/mm-runtime-followup-load.md).
 This does not imply real cloud deployment or unlimited uptime. Known external
 acceptance and attribution limits are in the [remaining-work register](README.md).

@@ -12,9 +12,12 @@ scoped Set/load/rotation, cancel/close/remove cleanup, durable Retry/Repair,
 correlated audit, secret-free status/errors and bounded workers/query counts.
 Real Google/GCP and reviewed existing-Demo cutover remain open.
 
-Current source tests pass native2,780 + 11 subtests, PostgreSQL523 and Swagger.
-Image `bf4e1f77…` passes the unchanged full security/operator load, sixty-minute
-soak/five faults, four targeted E2E groups and enabled-enhancement90. Signed Google
+Source verification retains native2,780 + 11 subtests and full PG530 pass / one
+obsolete query-count assertion failure, corrected in a focused9-case pass. See
+[source details](MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07).
+Image `837e7997…` passes the unchanged full security/operator load, sixty-minute
+soak/five faults, four targeted E2E groups after one disclosed restart retry, and
+enhancement90. Signed Google
 identities/certificates and KMS in this run are local/offline fixtures; Basic is
 disabled during measurement and managed keys use local encryption without fallback.
 [Current image report](../release/mm-runtime-followup-load.md),

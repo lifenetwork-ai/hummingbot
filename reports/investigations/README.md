@@ -3,9 +3,11 @@
 [All reports](../README.md) · [Remaining work](../../docs/plans/README.md)
 
 Current conclusions are in the [runtime remediation](../implementation/MM_RUNTIME_FOLLOWUP.md)
-and [current image report](../release/mm-runtime-followup-load.md). Three short
+and [current image report](../release/mm-runtime-followup-load.md). Eight short
 healthy probe episodes recover; their intervals are supervisor observations, not
-quote downtime. Mixed/burst latency is not uniformly faster. No unique historical
+quote downtime. Warmup/mixed improve while burst/soak and probe count regress
+versus the preceding run; no uniform speedup is claimed. The first shutdown poll
+timeout remains unexplained despite a passing unchanged retry. No unique historical
 probe/p99/publication trigger is established; bounded captures cannot reconstruct
 unrecorded MM activity.
 

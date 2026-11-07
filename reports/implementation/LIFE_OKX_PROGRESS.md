@@ -26,11 +26,13 @@ Runtime `e030cfcdc`: native2,780 + 11 subtests pass. Full PG530 pass / 1 outdate
 query-count assertion fail; correct that test only, then benchmark/new-case rerun9
 pass. All531 distinct cases covered; no subsequent all-green full-suite run is
 claimed. Prior `504343b9b` verification includes Swagger.
-Image `bf4e1f77…` from `b6b2f7d1c` separately passes the unchanged full baseline,
-60-minute soak/five faults, four targeted E2E groups and enabled-enhancement90.
-Soak p99 306.91 ms; zero unexpected healthy errors; 21.89 MiB retained growth;
-4,885 exact simulated fills/fees/positions. Three probes recover without healthy
-child replacement. Source improvements and full-system timings have separate scope.
+Image `837e7997…` from `9ca14a148` separately passes the unchanged full baseline,
+60-minute soak/five faults, four targeted E2E groups (one disclosed restart retry)
+and enhancement90. Soak p99 360.68 ms; zero unexpected healthy errors; 24.05 MiB
+retained growth; 4,884 exact simulated fills/fees/positions. Eight probes recover
+without healthy child replacement. Burst/soak and probe count regress versus the
+preceding run; source component savings do not establish uniform system speedup.
+Image `f74d2a2a…` removed; rollback `bf4e1f77…`, all containers/volumes retained.
 
 - [Current image report](../release/mm-runtime-followup-load.md)
 - [Latest source remediation](MM_RUNTIME_FOLLOWUP.md)

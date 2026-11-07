@@ -4,8 +4,12 @@
 
 | Report | Scope |
 | --- | --- |
-| [Current image/load](mm-runtime-followup-load.md), [evidence](mm-runtime-followup-load-evidence.json) | `bf4e1f77…`: unchanged full baseline, soak3600/five faults, four targeted E2E groups, enabled-enhancement90; scoped probe/latency limits |
-| [Retained rollback](admin-cleanup-state-load.md), [evidence](admin-cleanup-state-load-evidence.json) | `f74d2a2a…`: previous full gate; original failed attempts and six recovered soak probes retained |
+| [Current image/load](mm-runtime-followup-load.md), [evidence](mm-runtime-followup-load-evidence.json) | `837e7997…`: unchanged full baseline, soak3600/five faults, targeted E2E with disclosed retry, enhancement90; eight recovered probes |
+| [Retained rollback in Git](../README.md#historical-records) | `bf4e1f77…`: previous full gate; Git `9ca14a148:reports/release/mm-runtime-followup-load.md` and corresponding evidence JSON |
+
+Earlier `f74d2a2a…` image is removed after the new gate; its original
+[measurement](admin-cleanup-state-load.md) and [evidence](admin-cleanup-state-load-evidence.json)
+retain their historical scope.
 
 Earlier releases, original checkpoint/expiry reports and partial/managed lifecycle
 acceptance live in the [Git history](../README.md#historical-records). They retain their

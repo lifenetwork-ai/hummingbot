@@ -6,16 +6,17 @@ A local pass never changes the image/account/date attached to connected evidence
 
 ## Current image — local/offline
 
-- [x] Build/pin `bf4e1f77…`, match 1,224 packaged source/config hashes and retain
+- [x] Build/pin `837e7997…`, match 1,224 packaged source/config hashes and retain
   those hashes unchanged through testing.
 - [x] Runtime ABI/JIT/TLS/SDK/size smoke; four targeted image E2E groups covering
   availability, drawdown, MM recovery/DB restart and initial-position restart.
+  The last group requires one unchanged retry; its failed first shutdown poll is retained.
 - [x] Enabled-enhancement90 with drawdown/outflow/bootstrap, offline security,
   local encryption and operator reads: 90 exact simulated fills/fees/positions.
 - [x] Unchanged full baseline, 60-minute Random soak and five faults: 97,800 main +
-  24,450 auxiliary HTTP200, zero unexpected healthy errors, soak p99 306.91 ms,
-  21.89 MiB retained growth and 4,885 exact simulated fills/fees/positions.
-- [x] Three healthy probes recover; their supervisor intervals are not quote
+  24,450 auxiliary HTTP200, zero unexpected healthy errors, soak p99 360.68 ms,
+  24.05 MiB retained growth and 4,884 exact simulated fills/fees/positions.
+- [x] Eight healthy probes recover; their supervisor intervals are not quote
   downtime. Query/latency/resource budgets remain unchanged.
 - [x] Unused image cleanup protects existing container references and volumes.
 
@@ -34,7 +35,7 @@ session there, or replace its image/configuration. The
 and [connected evidence index](../../reports/demo/README.md) retain their own scope.
 
 Current-image connected preflight, controlled sessions, natural fills and restart
-on `bf4e1f77…` have not been performed by this task. Existing historical positive
+on `837e7997…` have not been performed by this task. Existing historical positive
 fill/REST evidence stays attributed to its original images. Historical unchecked
 controller-image spot/soak/guard-wait items are preserved in the original plan;
 newer local gates do not retroactively complete them.

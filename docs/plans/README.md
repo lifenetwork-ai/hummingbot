@@ -12,11 +12,11 @@ unless explicitly listed below. Removing historical files does not mark an unres
   spot/perpetual/both, operator APIs and risk controls are implemented.
 - [x] Runtime `e030cfcdc`: 2,780 native + 11 subtests pass. Full PG530 pass /
   1 obsolete query-count expectation fail; test-only correction + related rerun9
-  pass (all531 distinct cases). Prior source Swagger pass; accepted image unchanged.
-- [x] Image `bf4e1f77…`: unchanged full baseline, 60-minute soak and five faults;
-  four targeted E2E groups and enabled-enhancement diagnostic pass.
-- [x] Soak p99 306.91 ms, zero unexpected healthy errors, 21.89 MiB retained growth,
-  4,885 exact simulated fills/fees/positions. Three healthy probes recover.
+  pass (all531 distinct cases). Prior source Swagger pass; image checked separately.
+- [x] Image `837e7997…`: unchanged full baseline, 60-minute soak and five faults;
+  four targeted E2E groups after one disclosed retry, enhancement diagnostic pass.
+- [x] Soak p99 360.68 ms, zero unexpected healthy errors, 24.05 MiB retained growth,
+  4,884 exact simulated fills/fees/positions. Eight healthy probes recover.
 - [x] One unused image removed; all existing container references/volumes preserved.
 
 ## Remaining external acceptance
@@ -45,9 +45,11 @@ A newer offline pass does not retroactively pass that earlier image or certify a
 new connected Demo run. The latest probes remain an attribution limitation, not
 an assertion of an unobserved live defect.
 
-The fill-flush source follow-up is verified separately from image `bf4e1f77…`;
-rebuild and qualify the changed image before deployment. The retained full PG
-attempt and focused correction are documented in the [source report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07).
+Image `837e7997…` separately qualifies the changed fill-flush runtime; rollback
+`bf4e1f77…` retains its original gate. The first 9.5s PID1 shutdown poll timeout
+remains unexplained; an unchanged-image/unchanged-budget retry passes. Preserve its
+failure evidence and capture the Docker/PID exit-state timeline if it recurs.
+The full PG attempt and focused correction remain in the [source report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md#probe-follow-up-fill-autoflush--2026-11-07).
 
 ## Retained plans
 
