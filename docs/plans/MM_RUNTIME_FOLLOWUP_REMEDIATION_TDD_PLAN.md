@@ -424,3 +424,53 @@ CPU 49.30→22.84 µs; bootstrap + spread 75.04→33.32 µs. Empty bid / 400 ask
 [Measured report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md),
 [evidence](../../reports/implementation/mm-runtime-followup-evidence.json).
 No new image or full load acceptance is implied by this source phase.
+
+## New-image verification on battery power — requested 2026-11-08
+
+- [x] Record clean source `8544488ef`, initial Docker inventory and host power.
+  Battery initially 82%; Low Power Mode remains enabled. Prior bot/rollback
+  images are absent from this Docker daemon; unrelated images/volume are retained.
+- [x] Build the amd64 Cloud Run target from current source, check size/runtime
+  imports and record immutable image/config hashes.
+- [ ] Run available offline E2E scenarios on that exact manifest, including spread,
+  bootstrap, volatility sizing and lifecycle. Keep upgrade/rollback unverified
+  without an actual compatible previous image; do not substitute the candidate.
+- [x] Run the unchanged full load profile with operations/security and bounded
+  incident diagnostics, including sixty-minute Random soak and five faults.
+- [ ] Review all measured windows, ledger/fees/positions, process identities,
+  retention/probes and power/sleep observations; retain failed attempts.
+- [ ] Publish image/fixture scope, remaining limits and acceptance; commit results.
+
+Artifacts: `build/quote-runtime-release-20261108/`. Battery/Low Power Mode are
+observed, not changed. Idle sleep is inhibited for the runner; lid closure,
+forced sleep or exhausted battery can still interrupt the gate. No live/Demo
+exchange, real Google/GCP, deployment or existing data maintenance is authorized
+by this offline verification phase.
+
+First execution: image `96368970…`, build `8544488ef`, 1,374,595,562 bytes,
+1,225 source/config hashes verified. Warmup/mixed/soak pass; all five faults pass.
+Burst remains **failed**: main p99 1,084.01 ms / auxiliary 1,151.07 ms against
+1,000 ms. Zero unexpected healthy read errors; soak retention 26.09 MiB/64 MiB,
+4,884 exact simulated fills and matching positions. Host changed from battery
+82→53% to AC at 2026-11-08T17:16:58Z during soak; do not claim battery-only scope
+or unique power causation. Original failed execution and all artifacts retained.
+
+First E2E stops after six completed groups at `initial-position-restart`:
+its live-mode fixture omitted the dummy perpetual credentials, while demo
+constructor already provides the dedicated demo set. Runtime rejects Start with
+configuration_unavailable, with zero accepted venue orders. Existing fixture
+introduced in `1ee10e01bc`; this predates the new production optimizations.
+
+- [x] Red: exercise actual seed scenario up to first boot with the real credential
+  adapter; live fails missing all three perpetual variables, demo passes.
+- [x] Green: supply the same dummy perpetual credentials as other both-market
+  fixtures; 14 related native tests pass, including both live/demo cases.
+- [ ] Rerun available E2E matrix on the same immutable runtime with corrected host
+  fixture; preserve the first failed attempt and explicitly unrun upgrade scope.
+
+Only host runner `scripts/test_e2e_offline.py` and its test are corrected. The
+image remains build `8544488ef`; that host-only runner is bundled by the existing
+Dockerfile but is never its service entrypoint. Report its corrected external
+fixture hash separately; no engine/controller/recorder, credentials gate or
+runtime setting changes. The full-load runner retained its pre-fix loaded source
+for the entire measurement, with all 1,254 captured source hashes unchanged.

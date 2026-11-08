@@ -725,6 +725,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                                              avgPx='0.1', notionalUsd='10', lever='1', upl='0')
                                         for side in ('long', 'short')])
         self.env.update(ADMIN_API_ENABLED='true', ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')
+        for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
+            self.env["HBOT_OKX_PERPETUAL_" + field] = value
         first, port = self.start('initial-seed')
         self.mm_command(port, 'start', market_mode='both', selection='fixed', profile_id='sideways', duration_seconds=600)
         session = self.state()['mm_session']
