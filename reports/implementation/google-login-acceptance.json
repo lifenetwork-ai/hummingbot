@@ -1,0 +1,44 @@
+{
+  "scope": "Real Google admin browser login using the loopback helper and a dedicated PostgreSQL auth database; no trading engine",
+  "checked_at": "2026-11-08T22:10:28.933103+00:00",
+  "verification": {
+    "public_certificate_discovery_http_status": 200,
+    "invited_account_active": true,
+    "subject_bound": true,
+    "role": "admin",
+    "first_real_login_utc": "2026-11-08T22:07:39.754690Z",
+    "post_restart_login": {
+      "id": 4,
+      "request_id": "40d574e389914515b1019280572b9ad8",
+      "actor_kind": "google",
+      "actor_id": "ecdd7c52-987a-4d28-b72f-c35a6f2708b7",
+      "actor_role": "admin",
+      "action": "login",
+      "outcome": "succeeded",
+      "created_at": "2026-11-08T22:09:59.629386+00:00"
+    },
+    "operator_post_restart_bootstrap": {
+      "basic_auth_enabled": false,
+      "google_auth_enabled": true,
+      "google_admin_ready": true,
+      "active_google_admins": 1
+    },
+    "basic_credential_after_restart": {
+      "http_status": 401,
+      "code": "basic_auth_disabled"
+    }
+  },
+  "evidence_sources": [
+    "Operator browser JSON before and after restart",
+    "Existing account/bootstrap/audit API checks before restart",
+    "Independent dedicated-database audit read after restart",
+    "Existing HTTP middleware rejects Basic after restart"
+  ],
+  "no_tokens_or_credentials_recorded": true,
+  "excluded": [
+    "Actual Google-account read/write role changes or denied-account browser matrix",
+    "Real GCP KMS/IAM",
+    "Production FE/gateway/Cloud Run integration",
+    "Exchange trading or production database provisioning"
+  ]
+}

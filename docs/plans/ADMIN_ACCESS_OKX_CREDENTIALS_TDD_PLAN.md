@@ -46,15 +46,17 @@ in [credential operations](../exchange-credentials.md) and
 - [x] Prepare loopback-only real-Google sign-in helper with the existing verifier,
   access handlers and audit; isolate a local auth DB, block trading routes, and
   check real Google public-certificate discovery (HTTP 200, two certificates on
-  2026-11-09). Helper/identity suite: 53 passes. No browser login claimed.
+  2026-11-09). Helper/identity suite: 53 passes; browser checks are recorded below.
 - [x] Real Google browser sign-in with the supplied client succeeds in the
   isolated auth database. Bound active `admin`, matching email, correlated
   `account_bound` and `login` audit verified at `2026-11-08T22:07:39Z`.
 - [x] Disable Basic in the helper's private env and restart it. The previous
   Basic credential returns HTTP 401 `basic_auth_disabled`; trading `.env` is
   unchanged. Real public-certificate discovery also succeeds.
-- [ ] Complete a Google-authenticated browser request after the Google-only
-  helper restart. No ID token is requested from the operator or saved to evidence.
+- [x] Real Google browser login after Google-only helper restart succeeds at
+  `2026-11-08T22:09:59.629386Z`. Operator result and durable login audit agree;
+  Basic remains rejected. No ID token is requested or saved to evidence.
+  [Acceptance evidence](../../reports/implementation/google-login-acceptance.json).
 - [ ] Real GCP KMS/IAM using synthetic credentials when resources are provided.
   User deferred this; local encryption does not close it.
 - [ ] Actual-Demo managed-credential cutover if chosen, with the documented account/
