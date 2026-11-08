@@ -22,7 +22,15 @@ attributed to the shutdown-only correction or to power.
 [source/TDD](implementation/MM_RUNTIME_FOLLOWUP.md). The failed `96368970…` burst
 and `all` shutdown attempts remain in Git **`d0791e563`** at the same release
 paths; older accepted `a6fe88c0…` records remain in **`8544488ef`**. Neither failed
-predecessor is retrospectively passed. No real Demo/Google/GCP/deployment occurs.
+predecessor is retrospectively passed. That offline qualification did not contact
+real Demo/Google/GCP or deploy a service.
+
+Separate 2026-11-09 follow-up: [real Google login](implementation/google-login-acceptance.json)
+and Google-only helper restart pass. The [reviewed managed-Demo cutover](demo/managed-local-cutover-proposal.md)
+has passed real read-only preflight, binding application, API Set/load and stopped
+cold restart; controlled connected sessions are in progress. The
+[quote diagnostics](performance/mm-managed-local-quote-activity.md) retain sampled
+refresh gaps and distinguish policy agreement from thirty-minute qualification.
 
 | Topic | Current entry |
 | --- | --- |

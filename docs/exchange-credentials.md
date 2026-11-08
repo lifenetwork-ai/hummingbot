@@ -2,7 +2,8 @@
 
 A1–A6 implement identity/audit, encrypted storage/providers, managed Set/load and
 automatic Disconnect with durable cleanup recovery. Local/offline acceptance is complete;
-real Google/GCP and reviewed existing-Demo cutover remain open. Environment
+real GCP KMS/IAM and reviewed existing-Demo cutover remain open. Real Google admin
+login and Google-only restart pass in the isolated auth helper. Environment
 credentials remain the default; managed mode must be explicitly selected. See the [implementation status](../reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
 
 Strategy YAML and routing stay deployment-owned. An exchange adapter validates

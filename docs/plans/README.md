@@ -52,9 +52,11 @@ Removing old files does not close unresolved evidence or policy items.
 
 ## Unresolved policy and historical attribution
 
-- [ ] Agree a production quote-coverage SLO separating normal replacement, guard
-  restriction and listing bootstrap. HTTP200/PID stability do not prove continuous
-  two-sided quotes; this baseline has no MM activity overlay. The
+- [x] Operator approved initial quote targets on 2026-11-09: at least 99% sampled
+  two-sided coverage in eligible 30-minute periods, unexpected absence warning
+  after 20 seconds/escalation after 60, with explicit guard/bootstrap/unknown
+  classification. This is policy agreement, not a claim that the short local
+  diagnostic qualifies 30 minutes or guarantees continuous quoting. The
   [review criteria](../fe-integration.md#reviewing-quote-availability) distinguish
   replacement, guards and stale/unknown evidence without inventing numeric targets.
 - [ ] Exclusive historical probe/p99 attribution remains unproven. Current AC

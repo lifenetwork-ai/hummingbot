@@ -579,6 +579,32 @@ coverage/absence targets, eligible-market periods and guard/bootstrap exceptions
 still require an explicit operating policy; no new numeric SLO is silently agreed
 or enforced by this documentation.
 
+#### Initial operating targets (approved 2026-11-09)
+
+The operator approved the following initial targets on 2026-11-09. Agreement on
+the policy does not claim that a three-minute diagnostic qualifies its
+thirty-minute measurement window:
+
+| Target | Measurement and interpretation |
+|---|---|
+| At least 99% sampled two-sided availability over 30 minutes | Evaluate each market separately while the session is admitted, both sides are funded, and no fresh explicit guard/inventory/bootstrap restriction applies. Ordinary replacement remains in this denominator. |
+| Unexpected absence longer than 20 seconds | Warn and inspect pending submission/cancellation, cooldown and the current denial diagnosis. Do not infer an engine failure from an old order's age. |
+| Unexpected absence longer than 60 seconds | Escalate for operator investigation; no automatic guard relaxation, repeated Start or blind order resubmission. |
+| Stale/missing observations | Report unknown separately. Unknown time cannot count as successful quoting; coverage reports must show both unknown and explicitly restricted time rather than hiding them in an eligible-only percentage. |
+
+Keep the total session-time availability view beside the eligible-period target.
+An intentional restriction can preserve service availability while removing a
+quote side, and must remain visible to the operator. A short diagnostic with
+180/180 two-sided samples is finite point-sample evidence, not proof of continuous
+exchange quoting or an approved listing configuration.
+
+Deployments adopting these targets must intentionally select the warning threshold
+through `MM_NO_QUOTE_WARNING_SECONDS=20`; the compatible default remains 120.
+The 60-second escalation and 30-minute review window are operating/FE
+rules, not new engine timers. No production or repository `.env` was changed by
+this policy agreement. Policy acceptance and measured qualification remain
+separate; the local diagnostic is not a thirty-minute qualification.
+
 ### Session freshness and operator messages
 
 Use `server_time` and absolute expiry for a local countdown, periodically resynced;

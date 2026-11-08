@@ -1,0 +1,90 @@
+{
+  "scope": "Read-only OKX Demo preflight and restored local clone, before reviewed managed-account cutover",
+  "rest_ws": {
+    "okx": "passed",
+    "okx_perpetual": "passed"
+  },
+  "pending_spot_orders": 0,
+  "pending_swap_orders": 0,
+  "account_matches_saved_daily_snapshot": true,
+  "btc_cash_matches_saved_daily_snapshot": true,
+  "long_btc": "0.0100",
+  "short_btc": "0.0032",
+  "contract_value_btc": "0.01",
+  "restored_bot_stopped": true,
+  "control_version": 126,
+  "acknowledged_version": 126,
+  "recovery_halt": false,
+  "runtime_active": false,
+  "pending_mutations": false,
+  "old_risk_stop_flag": false,
+  "history": {
+    "orders": 3513,
+    "fills": 23,
+    "positions": 3
+  },
+  "binding_rows_before_and_after_rolled_back_dry_run": 0,
+  "confirmed_existing_ledger_set_fence": "account_binding_required",
+  "exchange_mutations_sent": 0,
+  "operator_cutover_approval": "Explicit operator approval received; applied exactly as reviewed",
+  "raw_hashes": {
+    "preflight-private.json": "38ddb8a34aee71f1856e78e586a8fadce9a4adb5fe497e90e9efc63d6e634e10",
+    "baseline-private.json": "ca7044de67aae8e235e00e5587539cd1754db6502b663681db7334b042f9ac38",
+    "instrument-proof.json": "6aa7a4e9cd1798ba2a3c2aee1ae566eea8ad086802d98716ec1b12dd0e0a619d",
+    "before-offline-soak.dump": "8ac83b936f70051f5b99ead919639584a365b5871c7f5672b442a3a2662c4d7e",
+    "preflight-before-bindings-private.json": "b2948b0d9fe266427dcdb2fb1114c936ec91e1da82691f458c7bdb40e833958f"
+  },
+  "diagnostic_attempts": [
+    "Initial read-only helper query used an unknown perpetual throttle ID; helper corrected to an existing GET account-config throttle ID. This was not a trading-runtime failure.",
+    "Initial clone inspection used singular position table and pre-migration account tables; corrected to canonical positions and existing migrations. No history repair was performed."
+  ],
+  "binding_application": {
+    "approved": true,
+    "rows_added": 2,
+    "audit_request_id": "c778b61886ed4957813d73a24004b537",
+    "history_fingerprints_unchanged": {
+      "orders": [
+        3513,
+        "2a13f60c5349913c52277b7e0b30361e"
+      ],
+      "trade_fills": [
+        23,
+        "0d30f4ba2ae36a1226620a7b837ab60d"
+      ],
+      "positions": [
+        3,
+        "0a3c28c0aeddeaa4fb3dc7ac408e0444"
+      ]
+    }
+  },
+  "encrypted_storage_proof": {
+    "rows": [
+      {
+        "connector": "okx",
+        "version": 2,
+        "state": "active"
+      },
+      {
+        "connector": "okx_perpetual",
+        "version": 2,
+        "state": "active"
+      }
+    ],
+    "plaintext_candidates_absent": true,
+    "envelopes_present": true
+  },
+  "cold_restart": {
+    "passed": true,
+    "trading_stayed_stopped": true,
+    "all_slots_connected": true,
+    "slot_versions": {
+      "okx": 2,
+      "okx_perpetual": 2
+    },
+    "exchange_key_environment_fallback_available": false,
+    "exit_code": 0,
+    "oom_killed": false,
+    "dynamic_published_port_client_refreshed": true
+  },
+  "exchange_mutations_sent_scope": "Preflight and binding/Set/stopped-restart phases only; subsequent trading acceptance is separate"
+}

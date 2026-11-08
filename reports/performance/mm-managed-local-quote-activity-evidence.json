@@ -1,0 +1,297 @@
+{
+  "scope": "180-second offline diagnostic; not a repeated release gate or a production SLO qualification",
+  "image_id": "sha256:b090430c8ee89f61e189f1dc50c22dcccd00c32208e130deb4701446980b1d3d",
+  "manifest": null,
+  "duration_seconds": 180,
+  "read_p99_ms": 55.8162940000102,
+  "unexpected_errors": 0,
+  "passed": true,
+  "activity_measurement_window": {
+    "start_ns": 840112473174,
+    "end_ns": 1020112473174
+  },
+  "activity": {
+    "controller.cycle": {
+      "starts": 360,
+      "ends": 360,
+      "max_start_gap_ms": 1007.015751,
+      "max_duration_ms": 1.8645,
+      "outcomes": {
+        "returned": 360
+      }
+    },
+    "controller.stop_proposal": {
+      "starts": 4,
+      "ends": 4,
+      "max_start_gap_ms": 61162.661777,
+      "max_duration_ms": 0.092791,
+      "outcomes": {
+        "returned": 4
+      }
+    },
+    "executor.shutdown": {
+      "starts": 32,
+      "ends": 32,
+      "max_start_gap_ms": 1356.205792,
+      "max_duration_ms": 354.320917,
+      "outcomes": {
+        "returned": 32
+      }
+    },
+    "order.cancel": {
+      "starts": 16,
+      "ends": 16,
+      "max_start_gap_ms": 61154.066902,
+      "max_duration_ms": 174.0225,
+      "outcomes": {
+        "returned": 16
+      }
+    },
+    "order.submit": {
+      "starts": 16,
+      "ends": 16,
+      "max_start_gap_ms": 61108.594568,
+      "max_duration_ms": 250.458042,
+      "outcomes": {
+        "returned": 16
+      }
+    },
+    "strategy.tick": {
+      "starts": 180,
+      "ends": 180,
+      "max_start_gap_ms": 1179.708917,
+      "max_duration_ms": 4.224417,
+      "outcomes": {
+        "returned": 180
+      }
+    }
+  },
+  "venue": {
+    "LIFE-USDT": {
+      "samples": 180,
+      "two_sided_samples": 180
+    },
+    "LIFE-USDT-SWAP": {
+      "samples": 180,
+      "two_sided_samples": 180
+    }
+  },
+  "venue_observer": {
+    "samples": 180,
+    "errors": 0,
+    "clock_errors": 0,
+    "sink_errors": 0,
+    "max_sample_gap_ms": 1021.08025,
+    "nominal_sample_interval_ms": 1000,
+    "clock": "shared Linux-kernel monotonic clock",
+    "sink": {
+      "written_records": 180,
+      "written_bytes": 913347,
+      "ordinary_written_bytes": 913347,
+      "reserved_written_bytes": 0,
+      "dropped_records": 0,
+      "writer_cpu_ms": 33.591835000000025,
+      "dropped_by_kind": {},
+      "queue_depth": 0,
+      "max_bytes": 16777216,
+      "reserved_bytes": 0,
+      "reserved_kinds": [],
+      "writer_alive": false
+    }
+  },
+  "engine_sink_at_last_sample": {
+    "written_records": 1324,
+    "written_bytes": 402957,
+    "ordinary_written_bytes": 402957,
+    "reserved_written_bytes": 0,
+    "dropped_records": 0,
+    "writer_cpu_ms": 42.044450000000076,
+    "dropped_by_kind": {},
+    "queue_depth": 0,
+    "max_bytes": 8388608,
+    "reserved_bytes": 0,
+    "reserved_kinds": [],
+    "writer_alive": true
+  },
+  "raw_hashes": {
+    "result.json": "02b7808b5643eab0ee9dc665f5add9731e1474f62294fa69e6293e16f54251e2",
+    "incidents/mm-activity.jsonl": "42b2717aeb22b26276297469cf81f62de3416f5d99f1ea454771221da1573b00",
+    "incidents/venue-activity.jsonl": "f03bccd7750c1f7f004eabd0f2d794db670d335d90d11c2dc7b7bf1b3512d8c6"
+  },
+  "limitations": [
+    "Discrete shared-clock samples do not prove continuous remote OKX quoting",
+    "No production thirty-minute SLO window measured",
+    "One SessionSubmissionBlocked attempt occurred before the measurement window during setup, not accepted by the simulated exchange",
+    "Final shared mm-activity-summary.json is overwritten by the API process with zero events; use engine metrics and actual JSONL counts instead"
+  ],
+  "strict_managed_followup": {
+    "scope": "Separate 180-second managed/local-encryption/Google-fixture/operations/strict-guard/volatility diagnostic; not production qualification",
+    "image_id": "sha256:b090430c8ee89f61e189f1dc50c22dcccd00c32208e130deb4701446980b1d3d",
+    "manifest": null,
+    "passed": true,
+    "read_p99_ms": 505.4053639998983,
+    "main_reads": 3600,
+    "auxiliary_reads": 900,
+    "unexpected_errors": 0,
+    "valid_simulated_fills": 180,
+    "venue_observer": {
+      "samples": 179,
+      "errors": 0,
+      "clock_errors": 0,
+      "sink_errors": 0,
+      "max_sample_gap_ms": 1805.681335,
+      "nominal_sample_interval_ms": 1000,
+      "clock": "shared Linux-kernel monotonic clock",
+      "sink": {
+        "written_records": 179,
+        "written_bytes": 688455,
+        "ordinary_written_bytes": 688455,
+        "reserved_written_bytes": 0,
+        "dropped_records": 0,
+        "writer_cpu_ms": 27.709677000000003,
+        "dropped_by_kind": {},
+        "queue_depth": 0,
+        "max_bytes": 16777216,
+        "reserved_bytes": 0,
+        "reserved_kinds": [],
+        "writer_alive": false
+      }
+    },
+    "two_sided_samples_per_market": {
+      "LIFE-USDT": 175,
+      "LIFE-USDT-SWAP": 175
+    },
+    "total_venue_samples": 179,
+    "raw_two_sided_sample_fraction": 0.9776536312849162,
+    "empty_groups": [
+      {
+        "empty_samples": 2,
+        "first_empty_relative_seconds": 59.163578569,
+        "last_empty_relative_seconds": 60.167487861,
+        "previous_and_next_two_sided_sample_bracket_ms": 3008.607126
+      },
+      {
+        "empty_samples": 2,
+        "first_empty_relative_seconds": 122.188912889,
+        "last_empty_relative_seconds": 123.194694723,
+        "previous_and_next_two_sided_sample_bracket_ms": 3012.767502
+      }
+    ],
+    "refresh_explanation": "Both empty groups follow controller.stop_proposal source=executor_refresh around 57.5s and 120.8s; ordinary replacement samples remain in the approved eligible-period denominator. No 30-minute qualification is claimed.",
+    "prewindow_probe": {
+      "role": "engine",
+      "failure_ns": 1313957370517,
+      "recovery_ns": 1315144893851,
+      "relative_failure_seconds": -12.166534089,
+      "relative_recovery_seconds": -10.979010755,
+      "activity": {
+        "status": "partial",
+        "context_start_ns": 1311957370517,
+        "context_end_ns": 1317144893851,
+        "evidence_overflow": false,
+        "venue_observer_errors": 0,
+        "invalid_venue_clock_samples": 0,
+        "venue_tracking_incomplete": false,
+        "has_venue_sample_before_failure": false,
+        "has_venue_sample_after_recovery": false,
+        "max_venue_sample_gap_ms": null,
+        "observed_empty_venue_samples": 0,
+        "min_observed_live_orders": null,
+        "max_empty_sample_span_ms": null,
+        "empty_group_max_gap_ms": 1500,
+        "max_strategy_tick_start_gap_ms": 1106.375667,
+        "max_controller_cycle_start_gap_ms": 1693.885751,
+        "max_observed_live_order_age_ms": null,
+        "order_call_returns": [
+          {
+            "kind": "mm_activity",
+            "operation": "order.submit",
+            "phase": "end",
+            "event_id": 10,
+            "process_id": 32,
+            "instance": 4,
+            "at_ns": 1315044815059,
+            "previous_start_ns": null,
+            "gap_ms": null,
+            "order_id": "93027a12dac34fBCBLEUT18c570fc5a0",
+            "connector": "okx",
+            "start_ns": 1315041872851,
+            "duration_ms": 2.942208,
+            "outcome": "SessionSubmissionBlocked",
+            "capturing_pid": 32,
+            "capturing_role": "engine",
+            "intersects_probe_transition": true
+          }
+        ],
+        "venue_terminals": [],
+        "continuous_quoting_proven": false,
+        "interpretation": "Attempt gaps and resting-order ages are not quote downtime. A completed tick does not prove admission; a connector return is not terminal venue readback. Samples are discrete and incident capture is bounded; inspect runtime/file loss and observer gaps. Clocks align only on the shared Linux kernel, not a remote OKX server. API incidents also use engine activity as an independent observation."
+      }
+    },
+    "activity_counters": {
+      "controller.cycle": {
+        "started": 378,
+        "completed": 378,
+        "errors": 0,
+        "returned_false": 0,
+        "max_duration_ms": 688.993625,
+        "max_start_gap_ms": 1807.428292
+      },
+      "strategy.tick": {
+        "started": 190,
+        "completed": 190,
+        "errors": 0,
+        "returned_false": 0,
+        "max_duration_ms": 35.982084,
+        "max_start_gap_ms": 1626.968084
+      },
+      "order.submit": {
+        "started": 37,
+        "completed": 37,
+        "errors": 1,
+        "returned_false": 0,
+        "max_duration_ms": 244.868792,
+        "max_start_gap_ms": 63483.323196
+      },
+      "order.cancel": {
+        "started": 26,
+        "completed": 26,
+        "errors": 0,
+        "returned_false": 0,
+        "max_duration_ms": 135.945667,
+        "max_start_gap_ms": 64595.573739
+      },
+      "controller.stop_proposal": {
+        "started": 4,
+        "completed": 4,
+        "errors": 0,
+        "returned_false": 0,
+        "max_duration_ms": 0.073208,
+        "max_start_gap_ms": 63280.655071
+      },
+      "executor.shutdown": {
+        "started": 48,
+        "completed": 48,
+        "errors": 0,
+        "returned_false": 0,
+        "max_duration_ms": 176.223792,
+        "max_start_gap_ms": 1180.699459
+      }
+    },
+    "engine_sink_at_last_sample": {
+      "written_records": 1366,
+      "written_bytes": 421842,
+      "ordinary_written_bytes": 421842,
+      "reserved_written_bytes": 0,
+      "dropped_records": 0,
+      "writer_cpu_ms": 44.162480999999985,
+      "dropped_by_kind": {},
+      "queue_depth": 0,
+      "max_bytes": 8388608,
+      "reserved_bytes": 0,
+      "reserved_kinds": [],
+      "writer_alive": true
+    },
+    "raw_run": "build/mm-load/20261109-052609-677acf"
+  }
+}

@@ -2,9 +2,11 @@
 
 [All reports](../README.md) · [Current offline image](../release/mm-runtime-followup-load.md)
 
-The latest local gate never targets the existing Demo service/database. Its
-container/image/start timestamps are preserved; it does not create new natural
-fills or move actual Demo to `a6fe88c0…`. See the
+The current separately requested managed-Demo follow-up has passed read-only
+REST/WS preflight and restored the latest available backup into a new isolated
+database. Account binding requires review before managed Set or trading. See the
+[cutover proposal](managed-local-cutover-proposal.md). Earlier local load gates
+did not operate on the real Demo account or change their image/date scopes. See the
 [current Demo/image status](../../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md)
 and [last documented stopped-Demo restoration](../performance/mm-admin-worker-lanes.md).
 

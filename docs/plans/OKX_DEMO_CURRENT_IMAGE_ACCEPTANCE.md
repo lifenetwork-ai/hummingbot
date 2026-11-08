@@ -37,17 +37,36 @@ The [connected evidence index](../../reports/demo/README.md) and
 [last documented stopped-Demo restoration](../../reports/performance/mm-admin-worker-lanes.md)
 retain historical account/image scope. Earlier inventories preserved the then
 existing `086454de…` Demo service and PostgreSQL; that statement does not describe
-the present daemon. This run neither queries a real OKX account nor repairs,
-starts or migrates a Demo ledger.
+the present daemon. The original offline release did not query a real OKX
+account. The separately requested managed-Demo follow-up below now performs
+read-only Demo checks and restores a backup into an isolated database.
 
-Current-image connected preflight, controlled sessions, natural fills and restart
-have not been performed on `b090430c…`. Historical positive fill/REST evidence and
+Current-image controlled sessions, natural fills and restart have not yet been
+performed on `b090430c…`. Historical positive fill/REST evidence and
 unchecked controller-image spot/soak/guard-wait items keep their original dates
 and images; new offline gates do not retroactively complete them.
 
-- [ ] Reviewed existing-Demo managed-credential cutover, if selected. See the
+- [x] Read-only source-connector preflight on 2026-11-09: both dedicated Demo
+  keys authenticate REST/private WS; Futures/Hedge mode, zero pending orders,
+  BTC contract size verified. Both keys resolve to the backup's account identity.
+- [x] Restore the newest available Nov-04 backup into a separate local database
+  and run existing SQL migrations. Preserve 3,513 orders, 23 fills and three
+  positions; long/short base quantities and observed BTC cash match the venue.
+  The restored bot is stopped/acknowledged, without HALT or pending mutations.
+- [x] Prepare and roll back the exact account-binding dry run. The shipping
+  `account_binding_required` fence remains intact; no real order was submitted.
+  [Reviewable proposal](../../reports/demo/managed-local-cutover-proposal.md).
+- [x] Operator approved and applied the exact binding transaction: two metadata
+  rows plus one audit, with immutable order/fill/position fingerprints preserved.
+- [x] Shipping-image API Set/load and stopped cold restart pass for both slots
+  with `postgres_kms`/local KEK. Versions `2` are connected; service has no exchange
+  credential environment variables. Stored envelopes contain no plaintext key
+  candidates. First restart inspection corrected the client's changed dynamic
+  published port; the service itself restarted successfully.
+- [ ] Complete controlled sessions/Stop/Random, active restart and reconciliation.
+  See the
   [credential plan](ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md) and
   [PostgreSQL maintenance rules](../postgres-runtime.md).
 
-Real Google/GCP, production quote-coverage policy and unresolved historical/probe
+Real GCP KMS, production quote-coverage policy and unresolved historical/probe
 attribution are in the [remaining-work register](README.md).
