@@ -59,9 +59,13 @@ in [credential operations](../exchange-credentials.md) and
   [Acceptance evidence](../../reports/implementation/google-login-acceptance.json).
 - [ ] Real GCP KMS/IAM using synthetic credentials when resources are provided.
   User deferred this; local encryption does not close it.
-- [ ] Actual-Demo managed-credential cutover if chosen, with the documented account/
-  ledger review. No new real-account cutover, DB repair or production deployment
-  is performed by this local task.
+- [x] Explicitly reviewed actual-Demo account binding was applied without editing
+  old history/positions. Both managed slot Set/load and stopped cold restart pass.
+  Nine fixed profile/mode cases pass; three new natural spot fills have individual
+  REST/aggregate quantity and original-fee proof. No production deployment.
+- [ ] Complete the connected Random/restart/cleanup follow-up after remediating
+  the observed step-shutdown timeout and separately reviewed HALT recovery.
+  [Runtime follow-up](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md#managed-demo-random-shutdown-follow-up--2026-11-09).
 
 Three healthy engine probes recover in 1.06–1.12 s. Baseline activity overlay is off,
 so these are not measured quote-stop intervals. No exclusive performance/power

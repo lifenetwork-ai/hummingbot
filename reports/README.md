@@ -27,8 +27,11 @@ real Demo/Google/GCP or deploy a service.
 
 Separate 2026-11-09 follow-up: [real Google login](implementation/google-login-acceptance.json)
 and Google-only helper restart pass. The [reviewed managed-Demo cutover](demo/managed-local-cutover-proposal.md)
-has passed real read-only preflight, binding application, API Set/load and stopped
-cold restart; controlled connected sessions are in progress. The
+has passed real read-only preflight, binding application, API Set/load/stopped
+cold restart and nine fixed profile/mode cases. Three natural spot fills match
+REST proof. Subsequent Random step cleanup fails after initial active restart;
+[new recovery](demo/managed-local-random-recovery-proposal.md) remains unapproved,
+and bounded-readback source remediation is in verification. The
 [quote diagnostics](performance/mm-managed-local-quote-activity.md) retain sampled
 refresh gaps and distinguish policy agreement from thirty-minute qualification.
 

@@ -1,0 +1,344 @@
+{
+  "image_id": "sha256:b090430c8ee89f61e189f1dc50c22dcccd00c32208e130deb4701446980b1d3d",
+  "scope": "Real dedicated OKX Demo account, local PostgreSQL and local KEK; no live/production trading",
+  "fixed_cases": [
+    {
+      "market_mode": "spot",
+      "profile_id": "sideways",
+      "receipt_status": "succeeded",
+      "session_id": "1c0606ec-bcb7-4f30-be66-6f1bad09876a",
+      "samples": 9,
+      "last_market_observations": {
+        "spot": {
+          "valid": true,
+          "two_sided": true,
+          "buy_order_count": 1,
+          "sell_order_count": 1
+        }
+      },
+      "venue_pending_counts": {
+        "SPOT": 2,
+        "SWAP": 0
+      },
+      "all_observed_pending_post_only": true
+    },
+    {
+      "market_mode": "spot",
+      "profile_id": "follow_market",
+      "receipt_status": "succeeded",
+      "session_id": "1c8e12b8-7e62-4be1-b90d-8641bce1fbb3",
+      "samples": 9,
+      "last_market_observations": {
+        "spot": {
+          "valid": true,
+          "two_sided": true,
+          "buy_order_count": 1,
+          "sell_order_count": 1
+        }
+      },
+      "venue_pending_counts": {
+        "SPOT": 2,
+        "SWAP": 0
+      },
+      "all_observed_pending_post_only": true
+    },
+    {
+      "market_mode": "spot",
+      "profile_id": "follow_token",
+      "receipt_status": "succeeded",
+      "session_id": "0f0d843d-ae1d-4491-be07-92881a4a7d78",
+      "samples": 9,
+      "last_market_observations": {
+        "spot": {
+          "valid": true,
+          "two_sided": false,
+          "buy_order_count": 1,
+          "sell_order_count": 0
+        }
+      },
+      "venue_pending_counts": {
+        "SPOT": 1,
+        "SWAP": 0
+      },
+      "all_observed_pending_post_only": true
+    },
+    {
+      "market_mode": "perpetual",
+      "profile_id": "sideways",
+      "receipt_status": "succeeded",
+      "session_id": "e17b64d1-76f2-408b-b9f6-884360abf778",
+      "samples": 9,
+      "last_market_observations": {
+        "perpetual": {
+          "valid": true,
+          "two_sided": false,
+          "buy_order_count": 0,
+          "sell_order_count": 1
+        }
+      },
+      "venue_pending_counts": {
+        "SPOT": 0,
+        "SWAP": 1
+      },
+      "all_observed_pending_post_only": true
+    },
+    {
+      "market_mode": "perpetual",
+      "profile_id": "follow_market",
+      "receipt_status": "succeeded",
+      "session_id": "00f0f1b3-19b6-42ce-8f83-d7ba8a5ae80b",
+      "samples": 9,
+      "last_market_observations": {
+        "perpetual": {
+          "valid": true,
+          "two_sided": false,
+          "buy_order_count": 0,
+          "sell_order_count": 1
+        }
+      },
+      "venue_pending_counts": {
+        "SPOT": 0,
+        "SWAP": 1
+      },
+      "all_observed_pending_post_only": true
+    },
+    {
+      "market_mode": "perpetual",
+      "profile_id": "follow_token",
+      "receipt_status": "succeeded",
+      "session_id": "450c4699-10ef-4bf1-a4a0-c6e0db51c4fb",
+      "samples": 9,
+      "last_market_observations": {
+        "perpetual": {
+          "valid": true,
+          "two_sided": false,
+          "buy_order_count": 0,
+          "sell_order_count": 1
+        }
+      },
+      "venue_pending_counts": {
+        "SPOT": 0,
+        "SWAP": 1
+      },
+      "all_observed_pending_post_only": true
+    },
+    {
+      "market_mode": "both",
+      "profile_id": "sideways",
+      "receipt_status": "succeeded",
+      "session_id": "f9f77b80-af4c-4f93-ab38-8b308e652df4",
+      "samples": 9,
+      "last_market_observations": {
+        "spot": {
+          "valid": true,
+          "two_sided": true,
+          "buy_order_count": 1,
+          "sell_order_count": 1
+        },
+        "perpetual": {
+          "valid": true,
+          "two_sided": false,
+          "buy_order_count": 0,
+          "sell_order_count": 1
+        }
+      },
+      "venue_pending_counts": {
+        "SPOT": 2,
+        "SWAP": 1
+      },
+      "all_observed_pending_post_only": true
+    },
+    {
+      "market_mode": "both",
+      "profile_id": "follow_market",
+      "receipt_status": "succeeded",
+      "session_id": "72c096d3-8fff-47ee-a07b-d7ea8b0b8af2",
+      "samples": 9,
+      "last_market_observations": {
+        "spot": {
+          "valid": true,
+          "two_sided": true,
+          "buy_order_count": 1,
+          "sell_order_count": 1
+        },
+        "perpetual": {
+          "valid": true,
+          "two_sided": false,
+          "buy_order_count": 0,
+          "sell_order_count": 1
+        }
+      },
+      "venue_pending_counts": {
+        "SPOT": 2,
+        "SWAP": 1
+      },
+      "all_observed_pending_post_only": true
+    },
+    {
+      "market_mode": "both",
+      "profile_id": "follow_token",
+      "receipt_status": "succeeded",
+      "session_id": "649b17ed-1306-43bf-81d6-42532f85a783",
+      "samples": 9,
+      "last_market_observations": {
+        "spot": {
+          "valid": true,
+          "two_sided": true,
+          "buy_order_count": 1,
+          "sell_order_count": 1
+        },
+        "perpetual": {
+          "valid": true,
+          "two_sided": false,
+          "buy_order_count": 0,
+          "sell_order_count": 1
+        }
+      },
+      "venue_pending_counts": {
+        "SPOT": 2,
+        "SWAP": 1
+      },
+      "all_observed_pending_post_only": true
+    }
+  ],
+  "perpetual_buy_restriction": "inventory_limit, long cap retained at 0.01 BTC",
+  "new_real_fills": [
+    {
+      "id": "okx:93027a12dac34fBCBBCUT4ed88646654:1419545393",
+      "trade_id": "1419545393",
+      "market": "okx",
+      "side": "BUY",
+      "amount": "0.00026962",
+      "order_id": "93027a12dac34fBCBBCUT4ed88646654",
+      "exchange_order_id": "4082734567627575296",
+      "original_fee": {
+        "fee_type": "AddedToCost",
+        "percent": "0",
+        "percent_token": "BTC",
+        "flat_fees": [
+          {
+            "token": "BTC",
+            "amount": "2.15696E-7"
+          }
+        ]
+      },
+      "individual_rest_match": true
+    },
+    {
+      "id": "okx:93027a12dac34fBCSBCUT8c36b02d3ff:1419545885",
+      "trade_id": "1419545885",
+      "market": "okx",
+      "side": "SELL",
+      "amount": "0.00026888",
+      "order_id": "93027a12dac34fBCSBCUT8c36b02d3ff",
+      "exchange_order_id": "4082741120707481600",
+      "original_fee": {
+        "fee_type": "DeductedFromReturns",
+        "percent": "0",
+        "percent_token": "USDT",
+        "flat_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0159997151552"
+          }
+        ]
+      },
+      "individual_rest_match": true
+    },
+    {
+      "id": "okx:93027a12dac34fBCSBCUTc5c49524f37:1419547272",
+      "trade_id": "1419547272",
+      "market": "okx",
+      "side": "SELL",
+      "amount": "0.00026906",
+      "order_id": "93027a12dac34fBCSBCUTc5c49524f37",
+      "exchange_order_id": "4082749353388036096",
+      "original_fee": {
+        "fee_type": "DeductedFromReturns",
+        "percent": "0",
+        "percent_token": "USDT",
+        "flat_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.015999599088"
+          }
+        ]
+      },
+      "individual_rest_match": true
+    }
+  ],
+  "order_aggregate_proof": [
+    {
+      "instrument": "BTC-USDT",
+      "order_id": "4082734567627575296",
+      "matched_quantity": "0.00026962",
+      "original_fee_currency": "BTC",
+      "matched_original_fee": "2.15696E-7",
+      "venue_state": "filled",
+      "venue_order_type": "post_only"
+    },
+    {
+      "instrument": "BTC-USDT",
+      "order_id": "4082741120707481600",
+      "matched_quantity": "0.00026888",
+      "original_fee_currency": "USDT",
+      "matched_original_fee": "0.0159997151552",
+      "venue_state": "filled",
+      "venue_order_type": "post_only"
+    },
+    {
+      "instrument": "BTC-USDT",
+      "order_id": "4082749353388036096",
+      "matched_quantity": "0.00026906",
+      "original_fee_currency": "USDT",
+      "matched_original_fee": "0.015999599088",
+      "venue_state": "filled",
+      "venue_order_type": "post_only"
+    }
+  ],
+  "original_ledger_reconciliation": {
+    "old_fill_rows_preserved": 23,
+    "old_order_ids_preserved": 3513,
+    "new_real_fill_rows": 3,
+    "fee_adjusted_btc_cash_matches": true,
+    "fee_adjusted_btc_cash": "0.998960180584",
+    "recovery_dry_run_database": "okx_demo_incident_review",
+    "reviewed_change_candidate": "Remove only halt flag; append one maintenance audit after explicit operator approval",
+    "rollback_retains_halt": true,
+    "control_version": 144,
+    "acknowledged_version": 144,
+    "risk_stop_false": true,
+    "pending_creations": 0,
+    "actual_demo_recovery_applied": false
+  },
+  "random_attempt": {
+    "passed": false,
+    "same_session_active_restart_passed": true,
+    "observed_step_indexes": [
+      0,
+      1
+    ],
+    "subsequent_step_cleanup_failed": true,
+    "engine_restarted_and_halt_retained": true,
+    "final_desired_state": "stopped",
+    "final_control_acknowledgement": [
+      144,
+      144
+    ],
+    "actual_pending_spot_swap_orders": [
+      0,
+      0
+    ],
+    "held_perpetual_btc": {
+      "long": "0.0100",
+      "short": "0.0032"
+    },
+    "recovery_applied": false
+  },
+  "limitations": [
+    "Nine fixed smoke cases do not qualify thirty-minute quote availability",
+    "The failed Random run is not passed by its successful initial restart",
+    "No new natural perpetual fill or actual cleanup close fill yet",
+    "Google-authenticated connected trading API requests were not exercised; Basic was used for isolated Demo controls"
+  ]
+}

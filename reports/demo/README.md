@@ -2,10 +2,13 @@
 
 [All reports](../README.md) · [Current offline image](../release/mm-runtime-followup-load.md)
 
-The current separately requested managed-Demo follow-up has passed read-only
-REST/WS preflight and restored the latest available backup into a new isolated
-database. Account binding requires review before managed Set or trading. See the
-[cutover proposal](managed-local-cutover-proposal.md). Earlier local load gates
+The current separately requested managed-Demo follow-up passed read-only REST/WS,
+reviewed binding, encrypted Set/stopped restart and nine fixed profile/mode cases.
+Three natural spot fills match individual REST proof. Subsequent Random step
+cleanup failed after an initially successful active restart; Demo is stopped with
+HALT retained. See the [connected evidence](managed-local-connected-evidence.json),
+[applied cutover](managed-local-cutover-proposal.md) and
+[new recovery proposal](managed-local-random-recovery-proposal.md). Earlier local load gates
 did not operate on the real Demo account or change their image/date scopes. See the
 [current Demo/image status](../../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md)
 and [last documented stopped-Demo restoration](../performance/mm-admin-worker-lanes.md).

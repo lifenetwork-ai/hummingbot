@@ -1,6 +1,7 @@
 """Dedicated PostgreSQL session ownership and conservative exchange recovery."""
 import asyncio
 import json
+import logging
 import time
 import uuid
 import weakref
@@ -702,14 +703,32 @@ class BotOwnership:
 
     @staticmethod
     async def _refresh_orders(connector, orders):
-        for order in orders:
-            status = await connector._request_order_status(order)
-            if status.exchange_order_id:
-                order.update_exchange_order_id(status.exchange_order_id)
-            fills = await connector._all_trade_updates_for_order(order)
-            for fill in fills:
-                connector._order_tracker.process_trade_update(fill)
-            await connector._order_tracker.process_order_update(status)
+        # Failed maker attempts remain part of terminal checkpoint proof. Read
+        # every order, but do not serialize their network latency across the
+        # unchanged shutdown deadline. A fixed worker bound avoids one task per
+        # historical attempt; connector throttling still controls both endpoints.
+        pending = iter(orders)
+
+        async def refresh():
+            for order in pending:
+                status = await connector._request_order_status(order)
+                if status.exchange_order_id:
+                    order.update_exchange_order_id(status.exchange_order_id)
+                fills = await connector._all_trade_updates_for_order(order)
+                for fill in fills:
+                    connector._order_tracker.process_trade_update(fill)
+                # Apply fills before terminal state for each individual order.
+                await connector._order_tracker.process_order_update(status)
+
+        workers = [asyncio.create_task(refresh()) for _ in range(min(3, len(orders)))]
+        try:
+            await asyncio.gather(*workers)
+        finally:
+            # A failed/cancelled read cannot leave sibling network requests
+            # mutating the tracker after the checkpoint caller has returned.
+            for worker in workers:
+                worker.cancel()
+            await asyncio.gather(*workers, return_exceptions=True)
 
     @staticmethod
     async def _open_orders(connector, max_pages=100):
@@ -845,6 +864,7 @@ class BotOwnership:
 
         async def read_terminal_orders():
             for connector, orders in tracked:
+                remote_orders = []
                 for order in orders:
                     # A create can be rejected by our final send gate while
                     # shutdown is already awaiting earlier cancels. Such a
@@ -855,7 +875,9 @@ class BotOwnership:
                                            or self.expired_rejections.get(order.client_order_id) is order) and not order.exchange_order_id
                             and order.client_order_id not in self.sent_intents):
                         continue
-                    await self._refresh_orders(connector, [order])
+                    remote_orders.append(order)
+                if remote_orders:
+                    await self._refresh_orders(connector, remote_orders)
                 while any(not order.is_done for order in orders):
                     self.check_owner()
                     await asyncio.sleep(0.1)
@@ -911,6 +933,11 @@ class BotOwnership:
         done, pending = await asyncio.wait({shutdown}, timeout=max(0, deadline - asyncio.get_running_loop().time()))
         if pending:
             shutdown.cancel()
+            logging.getLogger(__name__).error(
+                "Runtime shutdown exceeded deadline timeout_s=%.3f tracked_orders=%d; ownership and recovery fence retained.",
+                timeout, sum(len(orders) for _, orders in tracked),
+                extra={"event": "runtime_shutdown_timeout", "reason_code": "runtime_shutdown_timeout",
+                       "tracked_order_count": sum(len(orders) for _, orders in tracked), "timeout_seconds": timeout})
             return False
         if not shutdown.result():
             return False

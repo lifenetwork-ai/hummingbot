@@ -61,6 +61,11 @@ Stop and report any changed account/exposure, unexpected order, immutable
 fingerprint mismatch or new recovery blocker. Approval of this proposal does not
 authorize another ledger repair or resetting a risk stop.
 
+The later controlled matrix passed all nine fixed profile/mode cases, with three
+natural spot fills independently matched by REST. The subsequent Random step
+cleanup failed after active restart and retained a new HALT. The initial cutover
+approval does not clear it; see the [separate recovery proposal](managed-local-random-recovery-proposal.md).
+
 The explicit review rule is documented in
 [PostgreSQL operations](../../docs/postgres-runtime.md#ownership-and-unresolved-exchange-effects)
 and the [managed Set contract](../../docs/exchange-credentials.md#managed-set-and-runtime-loading).

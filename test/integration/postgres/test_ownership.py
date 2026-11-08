@@ -593,7 +593,54 @@ def test_observer_prior_halt_finishes_restored_order_reconciliation(owned, monke
     owned.loop.run_until_complete(exercise())
 
 
-def test_incomplete_shutdown_preserves_owner_and_durable_halt(owned):
+def test_terminal_checkpoint_drains_many_maker_attempts_with_bounded_parallel_reads(owned):
+    core = reconciliation_core(owned)
+    core.strategy.executor_orchestrator = object()
+    orders = [intent(owned, f"maker-attempt-{i}") for i in range(12)]
+    with owned.manager.get_new_session() as session, session.begin():
+        for order in orders:
+            session.get(Order, order.client_order_id).creation_pending = False
+    barrier = asyncio.Event()
+    active = peak = 0
+
+    async def status(order):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        if active == 3:
+            barrier.set()
+        try:
+            await barrier.wait()
+            return SimpleNamespace(exchange_order_id=order.client_order_id, order=order)
+        finally:
+            active -= 1
+
+    async def apply(row):
+        row.order.current_state = OrderState.CANCELED
+
+    owned.market._request_order_status = AsyncMock(side_effect=status)
+    owned.market._all_trade_updates_for_order = AsyncMock(return_value=[])
+    owned.market._order_tracker.process_order_update = AsyncMock(side_effect=apply)
+    core.cancel_outstanding_orders = AsyncMock(return_value=True)
+
+    async def shutdown(**kwargs):
+        proof = await core.before_position_checkpoint({order.client_order_id: ("okx", order) for order in orders})
+        assert len(proof) == len(orders)
+        await core.after_order_cancellation()
+        return True
+
+    core.shutdown = AsyncMock(side_effect=shutdown)
+    assert owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
+    assert peak == 3 and active == 0
+    # Both fresh proof stages read every order; never cache terminal evidence.
+    assert owned.market._request_order_status.await_count == 24
+    assert owned.market._all_trade_updates_for_order.await_count == 24
+    state = owned.store.read()["recovery_state"]
+    assert not state.get("halt") and not state["runtime_active"]
+    assert not state.get("shutdown_incomplete")
+
+
+def test_incomplete_shutdown_preserves_owner_and_durable_halt(owned, caplog):
     core = reconciliation_core(owned)
 
     async def stuck_shutdown(**kwargs):
@@ -605,6 +652,15 @@ def test_incomplete_shutdown_preserves_owner_and_durable_halt(owned):
     assert recovery["halt"] and recovery["shutdown_incomplete"] and recovery["runtime_active"]
     successor = BotOwnership(owned.engine, "hummingbot")
     assert not successor.try_acquire()
+
+    assert any(getattr(record, 'event', None) == 'runtime_shutdown_timeout'
+               and record.tracked_order_count == 0 and record.timeout_seconds == 0.02
+               for record in caplog.records)
+    from hummingbot.logger.service_logging import ServiceFormatter
+    record = next(record for record in caplog.records if getattr(record, 'event', None) == 'runtime_shutdown_timeout')
+    payload = json.loads(ServiceFormatter('json', {}).format(record))
+    assert payload['severity'] == 'ERROR' and payload['reason_code'] == 'runtime_shutdown_timeout'
+    assert 'timeout_s=0.020 tracked_orders=0' in payload['message']
 
 
 @pytest.mark.parametrize("transport_attempted", [False, True])

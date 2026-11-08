@@ -543,3 +543,39 @@ images `96368970…` → `b090430c…` → `96368970…`, preserving one dedupli
 fill/fee and the additive nullable fixture column. The all 27 raw upgrade flag remains false; combined local groups 28
 are covered across two commands. This does not qualify `96368970…` as production rollback.
 Unrelated containers/images/volume remain; real external acceptance is deferred.
+
+## Managed Demo Random shutdown follow-up — 2026-11-09
+
+- [x] Preserve the real-image failure: after active Random restart, a step change
+  reaches the existing eight-second cleanup budget, engine exits/restarts and
+  durable HALT remains. The helper's finally block issues Stop; actual account
+  readback has no pending orders. Do not count this as a passing Random run.
+- [x] Confirm the sequential `_refresh_orders` implementation dates to
+  `dcaa46fd4d` (2026-10-24), before Google/KMS setup. Maker cancellation/retry
+  accumulates retained order references requiring fresh terminal proof.
+- [x] Native Red1 proves blocked sequential read progress; PostgreSQL Red1
+  reproduces incomplete shutdown with twelve retained maker attempts. A separate
+  PG Red1 identifies missing safe timeout diagnostics.
+- [x] Reuse existing per-order status/fill APIs with at most three scoped async
+  workers. Batch the shutdown call site; retain both fresh proof passes, exact
+  proven-unsent exclusions, per-order fills-before-terminal ordering, the eight-
+  second deadline, HALT, ownership and checkpoint guards. Cancel/drain siblings
+  on error or cancellation. Emit safe `runtime_shutdown_timeout` metadata.
+- [x] Related native22 / PG15 pass. Canonical native2,868 + 16 subtests pass.
+  The preceding four dotenv-contamination test failures and two fixture-directory
+  failures are retained separately; CLI tests now isolate developer settings
+  without weakening runtime no-file assertions.
+- [x] Full PostgreSQL regression557 passes; final targeted proof/log-format2
+  also passes. Timeout reason, deadline and order count survive JSON formatting.
+- [ ] Commit/build/pin the remediated image and pass packaged lifecycle/recovery
+  checks before connected recovery.
+- [ ] Obtain separate operator review before clearing only this incident's HALT,
+  then repeat real Demo Random transitions/restart and credential cleanup checks.
+  The approved account-binding cutover does not authorize a new HALT reset.
+
+Incident and pre-cutover backups/KEK are retained in the private
+`~/.config/hummingbot/managed-demo-local-20261109` folder. Actual held long/short
+positions remain `0.0100/0.0032 BTC`. All 23 old fills and 3,513 old order IDs are
+preserved; three new spot fills match individual REST quantity/price/original fee
+and order aggregates, with fee-adjusted BTC cash exactly matched. No recovery
+checkpoint or risk-stop flag has been edited.

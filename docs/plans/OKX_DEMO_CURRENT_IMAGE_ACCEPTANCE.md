@@ -41,8 +41,10 @@ the present daemon. The original offline release did not query a real OKX
 account. The separately requested managed-Demo follow-up below now performs
 read-only Demo checks and restores a backup into an isolated database.
 
-Current-image controlled sessions, natural fills and restart have not yet been
-performed on `b090430c…`. Historical positive fill/REST evidence and
+The connected follow-up below exercised controlled sessions, three natural spot
+fills and active restart on `b090430c…`, then observed a subsequent Random step
+cleanup failure. This image is not fully connected-Demo-qualified. Earlier
+historical positive fill/REST evidence and
 unchecked controller-image spot/soak/guard-wait items keep their original dates
 and images; new offline gates do not retroactively complete them.
 
@@ -63,7 +65,15 @@ and images; new offline gates do not retroactively complete them.
   credential environment variables. Stored envelopes contain no plaintext key
   candidates. First restart inspection corrected the client's changed dynamic
   published port; the service itself restarted successfully.
-- [ ] Complete controlled sessions/Stop/Random, active restart and reconciliation.
+- [x] Nine fixed profile/mode combinations and Stop pass. REST confirms post-only
+  pending orders; perpetual BUY is explicitly blocked by `inventory_limit` at the
+  preserved long cap. Three new natural spot fills match individual REST and order
+  aggregate quantity/price/original fees; all 23 older fills remain unchanged.
+- [x] Initial active Random restart resumes the same until-stopped session and
+  loads the same two credential versions. Subsequent Random step cleanup fails;
+  the full Random/restart acceptance is not passed.
+- [ ] Remediate/requalify the observed Random step-shutdown failure, obtain
+  separate incident recovery review and finish Random/credential cleanup tests.
   See the
   [credential plan](ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md) and
   [PostgreSQL maintenance rules](../postgres-runtime.md).

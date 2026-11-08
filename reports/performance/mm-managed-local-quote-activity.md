@@ -73,6 +73,9 @@ qualification. The dedicated Demo service uses the existing environment warning
 setting of 20 seconds; no production/repository `.env` is changed.
 
 The exact account-binding maintenance was separately approved and applied. API
-Set/load and stopped cold restart now pass on the shipping image with no exchange
-key environment fallback. Controlled connected sessions and lifecycle checks
-remain in progress and will be reported with their own scope and real fills.
+Set/load and stopped cold restart pass on the shipping image with no exchange
+key environment fallback. Nine fixed profile/mode cases and three natural spot
+fill REST proofs pass, but subsequent Random step cleanup fails after an initially
+successful active restart. The source bounded-readback remediation passes native/
+PG tests; packaged/recovered connected acceptance remains pending. See the
+[separate incident/recovery scope](../demo/managed-local-random-recovery-proposal.md).

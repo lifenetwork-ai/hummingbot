@@ -5,6 +5,11 @@ and [operating guides](../README.md). Detailed phase checklists, rejected attemp
 and original image/date scopes remain in [Git history](../../reports/README.md#historical-records).
 Removing old files does not close unresolved evidence or policy items.
 
+The subsequent real Demo follow-up found a Random step-cleanup failure on
+`b090430c…`; that offline-qualified image is not fully connected-Demo-qualified.
+The bounded terminal-readback fix is in verification. See the
+[active follow-up](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md#managed-demo-random-shutdown-follow-up--2026-11-09).
+
 ## Current local qualification
 
 - [x] Reuse Hummingbot engine/connectors/V2 executors; PostgreSQL/UTC/Decimal,
@@ -46,8 +51,13 @@ Removing old files does not close unresolved evidence or policy items.
 - [ ] Real GCP KMS/IAM with synthetic credentials remains deferred;
   local encryption does not close it.
   [Credential plan](ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md).
-- [ ] Reviewed actual-Demo managed-credential cutover, if chosen. This local task
-  neither trades a real account nor repairs an existing ledger.
+- [x] Operator-reviewed actual-Demo managed-credential cutover, shipping-image
+  Set/load/stopped cold restart and nine profile/mode combinations pass. Original
+  order/fill history is preserved; three new natural spot fills have individual
+  REST/order aggregate proof. Initial active Random restart resumes the same
+  session, but the subsequent Random step run fails cleanup and retains HALT.
+- [ ] Qualify bounded-readback remediation on a new image; separately review
+  this incident's HALT recovery and complete Random/restart/cleanup acceptance.
   [Demo scope](OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
 
 ## Unresolved policy and historical attribution

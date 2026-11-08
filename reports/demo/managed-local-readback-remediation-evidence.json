@@ -1,0 +1,45 @@
+{
+  "preexisting_source_commit": "dcaa46fd4d",
+  "preexisting_source_date": "2026-10-24",
+  "native_progress_red_failures": 1,
+  "postgres_shutdown_progress_red_failures": 1,
+  "postgres_timeout_logging_red_failures": 1,
+  "related_native_green": 22,
+  "related_postgres_green": 15,
+  "canonical_native": {
+    "passed": 2868,
+    "subtests_passed": 16,
+    "clean_rerun_log": "native-regression.log"
+  },
+  "prior_native_attempts": [
+    {
+      "file": "native-regression-first-attempt.log",
+      "failures": 4,
+      "cause": "CLI tests loaded developer dotenv with newly enabled Google settings; isolated test env required"
+    },
+    {
+      "file": "native-regression-fixture-attempt.log",
+      "failures": 2,
+      "cause": "Fixture created its empty env file in tests working directory; moved it outside that directory without weakening no-file assertions"
+    }
+  ],
+  "postgres_full_regression": {
+    "passed": 557,
+    "seconds": 804.6
+  },
+  "runtime_deadline_seconds": 8,
+  "readback_concurrency_max": 3,
+  "fresh_terminal_proof_passes": 2,
+  "existing_demo_halt_reset": false,
+  "final_targeted_logging_and_proof_checks": {
+    "passed": 2,
+    "overlaps_full_postgres": true
+  },
+  "log_sha256": {
+    "native-regression.log": "6b1eacf069b17f853abc42a8685885730d1f7ef2f3c664c70677cb2c42adae3b",
+    "postgres-regression.log": "81e62b42fd23b2a46a3f271a5e3375df2fce147f0c443550f894020414cc1996",
+    "postgres-final-logging.log": "217e7700d41ea12c130f80b0da4ce2a781bccaf13a5c204a609039398aa13e16",
+    "native-regression-first-attempt.log": "2ab984b74ec8351163d28f2499fc1b2c7a438818b503f1ca89e6969201d92363",
+    "native-regression-fixture-attempt.log": "1a1b39219ba01182d983a327bfe98e736893e02695b9f9800a388f5a9793e5b7"
+  }
+}
