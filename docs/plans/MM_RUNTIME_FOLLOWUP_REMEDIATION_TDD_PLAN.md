@@ -396,3 +396,23 @@ both cache states; disabled-debug text/precision and PnL/dedup are covered.
 [Measured source report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md),
 [evidence](../../reports/implementation/mm-runtime-followup-evidence.json).
 No full-load result is inherited by this source delta.
+
+## Quote calculation and anchor fallback — 2026-11-08
+
+- [x] Red: count repeated allocation reads while comparing exact Decimal prices
+  and quantities across side/level, budget changes, context precision and bootstrap.
+- [x] Green: skip the superseded upstream formula only for enabled spread policy;
+  reuse that invocation's allocations for bootstrap, preserving rounding order.
+- [ ] Red/Green: check book emptiness without complete snapshot/DataFrame creation;
+  preserve fresh timestamp gates, explicit anchor requirements and invalid-book rejection.
+- [ ] Run controller/guard/executor regressions and paired native component
+  measurements; retain disabled-policy costs and all attempts; commit each phase.
+
+The existing image gate still predates this source delta. No persistent quote,
+price, allocation or authority cache is added. Volatility window selection is
+outside this change; retain existing NATR, candle gaps and freshness behavior.
+
+Quote phase source checks: Red **8 fail / 8 pass**; Green **134 pass** across
+spread/inventory/volatility/bootstrap suites. Sixteen new parameter cases include
+three levels and two successive budgets each; quote values remain exact at
+Decimal precision 9/28 with ROUND_UP and the existing bootstrap ROUND_DOWN.

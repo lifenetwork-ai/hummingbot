@@ -285,3 +285,54 @@ def test_candle_gap_recovers_once_required_contiguous_tail_returns():
     source._candles.extend(tail._candles)
     policy.refresh(source, 1680)
     assert policy.multiplier(1680) is not None
+
+
+@pytest.mark.parametrize('bootstrap', [False, True])
+@pytest.mark.parametrize('enabled', [False, True])
+@pytest.mark.parametrize('side', [TradeType.BUY, TradeType.SELL])
+@pytest.mark.parametrize('precision', [9, 28])
+def test_quote_calculation_keeps_decimal_results_with_one_effective_allocation_read(
+        monkeypatch, bootstrap, enabled, side, precision):
+    from decimal import ROUND_DOWN, ROUND_UP, localcontext
+    from test.hummingbot.strategy_v2.controllers.test_listing_bootstrap import guard
+
+    updates = dict(buy_spreads=[.004, .009, .018], sell_spreads=[.005, .012, .02],
+                   buy_amounts_pct=['.5', '.3', '.2'], sell_amounts_pct=['.4', '.35', '.25'],
+                   total_amount_quote='123.456789', spread_policy={'fee_floor': enabled})
+    if bootstrap:
+        updates.update(quote_guards=guard().config.model_dump(), runtime_config_managed=True,
+                       mm_session_id='session', mm_generation=0)
+    item, _ = make_controller(configuration(**updates))
+    item.processed_data = dict(reference_price=Decimal('.123456789123456789'), spread_multiplier=Decimal('1.2'))
+    item._effective_spreads = ([Decimal('.006'), Decimal('.011'), Decimal('.021')],
+                               [Decimal('.007'), Decimal('.014'), Decimal('.023')])
+    original = type(item.config).get_spreads_and_amounts_in_quote
+    reads = []
+
+    def measured(config, trade_type):
+        reads.append(trade_type)
+        return original(config, trade_type)
+
+    monkeypatch.setattr(type(item.config), 'get_spreads_and_amounts_in_quote', measured)
+    for budget in ('123.456789', '145.678912'):
+        item.config.total_amount_quote = Decimal(budget)
+        with localcontext() as ctx:
+            ctx.prec, ctx.rounding = precision, ROUND_UP
+            bases, allocations = original(item.config, side)
+            for index in range(3):
+                sign = -1 if side == TradeType.BUY else 1
+                spread = item._effective_spreads[0 if sign == -1 else 1][index] if enabled else (
+                    Decimal(str(bases[index])) * item.processed_data['spread_multiplier'])
+                expected_price = item.processed_data['reference_price'] * (1 + sign * spread)
+                expected_amount = Decimal(allocations[index]) / expected_price
+                if bootstrap:
+                    with localcontext() as inner:
+                        inner.rounding = ROUND_DOWN
+                        expected_amount = (Decimal(allocations[index]) * item.config.quote_guards.bootstrap.max_quote
+                                           / item.config.total_amount_quote / expected_price)
+                reads.clear()
+                actual = item._baseline_price_and_amount(f'{side.name.lower()}_{index}')
+                assert actual == (expected_price, expected_amount)
+                # The disabled-policy branch retains upstream delegation. Only
+                # effective-spread quotes must avoid the superseded calculation.
+                assert reads == [side] * (2 if bootstrap and not enabled else 1)

@@ -898,7 +898,6 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         super().on_stop()
 
     def _baseline_price_and_amount(self, level_id):
-        price, amount = super().get_price_and_amount(level_id)
         if self.config.spread_policy.enabled:
             side = self.get_trade_type_from_level_id(level_id)
             index = int(self.get_level_from_level_id(level_id))
@@ -906,9 +905,12 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             price = self.processed_data["reference_price"] * (1 + (-1 if side == TradeType.BUY else 1) * spread)
             _, allocations = self.config.get_spreads_and_amounts_in_quote(side)
             amount = Decimal(allocations[index]) / price
+        else:
+            price, amount = super().get_price_and_amount(level_id)
         if self._bootstrap is not None and not self._bootstrap.market_qualified:
-            side = self.get_trade_type_from_level_id(level_id)
-            _, allocations = self.config.get_spreads_and_amounts_in_quote(side)
+            if not self.config.spread_policy.enabled:
+                side = self.get_trade_type_from_level_id(level_id)
+                _, allocations = self.config.get_spreads_and_amounts_in_quote(side)
             with localcontext() as context:
                 context.rounding = ROUND_DOWN
                 amount = (Decimal(allocations[int(self.get_level_from_level_id(level_id))])
