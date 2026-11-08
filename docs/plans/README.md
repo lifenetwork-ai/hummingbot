@@ -39,10 +39,11 @@ Removing old files does not close unresolved evidence or policy items.
 
 ## Deferred external acceptance
 
-- [ ] Real Google sign-in/subject binding, role/audit and Google-only restart.
-  Loopback auth helper and a dedicated invitation are prepared; real public-key
-  discovery passes, but browser sign-in is still pending. Real GCP KMS/IAM with
-  synthetic credentials remains deferred; local encryption does not close it.
+- [ ] Complete a Google browser request after the Google-only helper restart.
+  Real sign-in, subject binding, admin role and correlated login audit now pass
+  in the dedicated auth database. After restart, the previous Basic credential
+  is rejected. Real GCP KMS/IAM with synthetic credentials remains deferred;
+  local encryption does not close it.
   [Credential plan](ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md).
 - [ ] Reviewed actual-Demo managed-credential cutover, if chosen. This local task
   neither trades a real account nor repairs an existing ledger.

@@ -16,9 +16,17 @@ Real Google/GCP and reviewed existing-Demo cutover remain open.
 the existing admin handlers/verifier/audit, with a separate `hbot_auth_google`
 PostgreSQL database and an operator-specified admin invitation. No trading engine
 or exchange-credential endpoints are exposed. Helper/identity tests: 53 pass;
-real public-certificate discovery: HTTP 200 with two certificates. Browser login,
-subject binding and Google-only restart remain pending; no real-login acceptance
-is claimed and no account is provisioned in a trading ledger.
+real public-certificate discovery: HTTP 200 with two certificates.
+
+Real browser login succeeded at `2026-11-08T22:07:39.754690Z`. The operator-pasted
+result was independently checked through the existing account/bootstrap/audit
+APIs: active bound Google admin, expected email and role, and `account_bound` /
+`login` succeeded with the same request ID. Only the helper's private env was
+changed to disable Basic; after restart, the previous Basic credential returns
+401 `basic_auth_disabled`. A Google-authenticated browser request after this
+restart is still pending. Local evidence without tokens/secrets is retained at
+`build/google-login-local/real-login-evidence.json`; no account is provisioned in
+a trading ledger and no trading service settings were changed.
 
 Current image **`b090430c…`** passes canonical native 2,861 + 16, all 27 available
 E2E in one all execution and unchanged security/operator full load/soak3600/five
