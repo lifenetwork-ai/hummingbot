@@ -36,11 +36,13 @@ in [credential operations](../exchange-credentials.md) and
 - [x] Native source/PG, local encryption, offline signed Google identities, role/
   audit and simulator lifecycle/fault tests. Prior lifecycle cases retain their
   original image identities in Git history; they are not relabelled as new runs.
-- [x] Current image `a6fe88c0…`: unchanged baseline/security/operator traffic,
-  60-minute soak, five faults, four targeted E2E groups, enhancement90/activity300.
-  Zero unexpected healthy errors; soak engine11/mixed engine3 probes recover.
-  Probe frequency/burst p99 regress; no continuous-quote claim. Previous evidence
-  stays in Git `745a86e3c`, earlier failed attempts in `ff6b85ded`.
+- [x] Previous image `a6fe88c0…` qualified with its original fixture scope;
+  evidence remains in Git `8544488ef` at current release paths.
+- [x] New `96368970…` runs unchanged security/operator load and passes soak3600/
+  five fault assertions; 4,884 simulated fills reconcile, no healthy replacement.
+- [ ] New image full-performance acceptance: burst main/auxiliary p99
+  1,084.01/1,151.07 ms exceed 1,000 ms. Corrected `all` fails inventory shutdown; remaining targets pass;
+  upgrade is unrun without a compatible previous image.
   [Current result](../../reports/release/mm-runtime-followup-load.md).
 - [ ] Real Google login/certificate discovery and real GCP KMS/IAM using synthetic
   credentials when resources are provided. Local/offline verification cannot close this.
@@ -50,3 +52,11 @@ in [credential operations](../exchange-credentials.md) and
 
 The Basic-disable/identity, deployment routing, account binding and cleanup rules
 remain unchanged by this documentation consolidation. [Remaining-work register](README.md).
+
+Shutdown follow-up: corrected `all` E2E passes fourteen groups before a nonzero
+inventory-skew shutdown; all thirteen remaining/targeted groups pass, covering twenty-seven unique
+groups across attempts. The failed `all` remains failed. A real-signal
+TDD reproducer confirms an Event-lock hazard, fixed in source `1916e048e` (75 related
+passes). This is a possible mechanism, not proof of the old exit's unique cause.
+`96368970…` predates the fix; new-image qualification remains open. See the
+[runtime checklist](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md).

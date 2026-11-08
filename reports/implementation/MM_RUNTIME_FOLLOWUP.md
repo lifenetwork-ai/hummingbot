@@ -712,3 +712,82 @@ fresh authority/risk checks and NATR window selection are unchanged. Raw pairs,
 traced allocations, failed draft and test logs: `build/quote-calculation-20261108/`;
 [portable evidence](mm-runtime-followup-evidence.json). New-image qualification
 stays open in the [register](../../docs/plans/README.md).
+
+## Quote-runtime image verification — 2026-11-08/09
+
+The preceding production changes are now packaged as **`96368970…`**, build
+`8544488ef`, 1,374,595,562 bytes. The build-tree check covers 1,225 packaged
+source/config hashes; 1,254 captured source/fixture hashes stay frozen through
+measurement. Four image counter/behavior contracts pass. They complement the
+1,010 native passes + 9 subtests and paired component measurements above.
+
+The unchanged full load **fails burst main/auxiliary p99**: **1,084.01 /
+1,151.07 ms** against 1,000 ms. Warmup, mixed, soak3600 and five fault assertions
+pass. The soak reconciles 4,884 simulated fills/fees/positions; retained growth
+26.09 MiB/64 MiB. Twelve healthy probe transitions recover without child
+replacement. Battery changes to AC during soak; runtime dependencies were
+resolved again on the cold build. A uniform system speedup or unique p99/probe
+cause is not established. Keep this failed performance gate open.
+
+The first offline E2E also exposes a pre-existing **host fixture bug**, separate
+from those production changes. `initial-position-restart` requests both markets
+but lacks dummy live perpetual credentials; the demo constructor already supplies
+both dedicated demo sets. Start correctly returns `configuration_unavailable`
+before any accepted venue order. Git `1ee10e01bc` introduced this fixture before
+the present source changes.
+
+Two new tests invoke the actual seed scenario up to first boot, using the real
+credential adapter and no network. Red: live fails missing the three perpetual
+variables, demo passes. Green: **14 related native tests pass** after commit
+**`556d30bb7`** adds those same dummy variables supplied by other both-market
+fixtures. Shipping credential gates and engine/controller/recorder code stay
+unchanged. The corrected external host fixture has its own hash. `.dockerignore` excludes
+that runner from the image; all 1,225 packaged hashes match fixture checkpoint
+`683773d34`, before the later runtime signal fix.
+
+Corrected `all`: fourteen groups pass, then inventory-skew nonzero shutdown
+fails. All thirteen targeted/remaining groups pass on the same image, covering
+twenty-seven unique available groups across attempts. The failed `all` remains
+failed; see the shutdown follow-up below. Upgrade/rollback remains unrun without a
+compatible prior image. The earlier accepted `a6fe88c0…` gate remains in Git
+`8544488ef` at the [current release paths](../release/mm-runtime-followup-load.md),
+with its original host/fixture scope. New load, power, logs and limits are in the
+[current release report](../release/mm-runtime-followup-load.md) and
+[portable evidence](../release/mm-runtime-followup-load-evidence.json). No actual
+OKX/Demo, Google/GCP, deployment or existing database repair occurs here.
+
+## Supervisor signal lock — source TDD 2026-11-09
+
+During the corrected `all` E2E, fourteen groups pass before inventory-skew shutdown
+returns nonzero. The retained log ends after trading-core cleanup; no original
+Docker State survives cleanup. A targeted same-image retry passes with exit0,
+no OOM and a 1.30-second first shutdown, using host diagnostic `683773d34`.
+That retry does not retroactively pass the failed attempt or establish its cause.
+
+Code review confirms a separate reproducible shutdown hazard: SIGTERM may interrupt
+`threading.Event.wait()` while its non-reentrant condition is held. Calling
+`Event.set()` from that signal handler attempts the same lock. A real-signal
+subprocess reproducer prints only its pre-signal marker and exits1 at the hard
+deadline, with no Python traceback. This is a demonstrated mechanism, not exclusive
+attribution of the preceding image's observed nonzero exit.
+
+TDD **Red1 / related Green75**, commit **`1916e048e`**. The handler records a plain
+request flag; the supervisor checks it before/after child launch and at its existing
+50 ms poll. Normal cleanup still notifies Event waiters. Async self-pipe wakeup,
+independent hard deadline, child ownership/reaping and shutdown budgets remain.
+No new thread, cache, retry, worker or trading-loop behavior is added. Supervisor
+signal recognition may wait the existing poll interval rather than notifying the
+same Event from the handler; tests retain stop-during-launch and idle-async cases.
+
+The branch predates the quote optimization: `6de4001cde` (2026-10-29), with
+original deadline machinery from `9f7ea36c4b` (2026-10-24).
+
+The new regression delivers an actual OS signal while holding the exact Event
+condition, then verifies ordinary cleanup still sets the Event and restores
+handlers. Existing tests retain hard-deadline termination of blocking cleanup.
+Native logs/reproducer: `build/quote-runtime-release-20261108/`.
+
+**Source-only for this signal fix:** image `96368970…` predates it. A new canonical
+image, native/available-E2E and unchanged full load/soak/fault qualification are
+required. Its predecessor burst p99 failure stays failed; no probe/p99 improvement
+is attributed to this shutdown correction.

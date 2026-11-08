@@ -437,9 +437,9 @@ No new image or full load acceptance is implied by this source phase.
   without an actual compatible previous image; do not substitute the candidate.
 - [x] Run the unchanged full load profile with operations/security and bounded
   incident diagnostics, including sixty-minute Random soak and five faults.
-- [ ] Review all measured windows, ledger/fees/positions, process identities,
+- [x] Review all measured windows, ledger/fees/positions, process identities,
   retention/probes and power/sleep observations; retain failed attempts.
-- [ ] Publish image/fixture scope, remaining limits and acceptance; commit results.
+- [x] Publish image/fixture scope, remaining limits and acceptance; commit results.
 
 Artifacts: `build/quote-runtime-release-20261108/`. Battery/Low Power Mode are
 observed, not changed. Idle sleep is inhibited for the runner; lid closure,
@@ -469,8 +469,43 @@ introduced in `1ee10e01bc`; this predates the new production optimizations.
   fixture; preserve the first failed attempt and explicitly unrun upgrade scope.
 
 Only host runner `scripts/test_e2e_offline.py` and its test are corrected. The
-image remains build `8544488ef`; that host-only runner is bundled by the existing
-Dockerfile but is never its service entrypoint. Report its corrected external
-fixture hash separately; no engine/controller/recorder, credentials gate or
+image remains build `8544488ef`; `.dockerignore` excludes the host E2E runner
+from the image. All 1,225 packaged hashes still match the corrected checkout.
+Report its corrected external fixture hash separately; no engine/controller/recorder, credentials gate or
 runtime setting changes. The full-load runner retained its pre-fix loaded source
 for the entire measurement, with all 1,254 captured source hashes unchanged.
+
+## Shutdown signal follow-up — 2026-11-09
+
+The corrected `all` E2E attempt passes fourteen groups, then fails inventory skew
+at the unchanged nonzero-exit shutdown assertion. The trading core logs shutdown
+complete, but Docker State was not saved before cleanup. A bounded Docker event
+query returns no retained events; it cannot recover the original exit number or
+prove a unique cause. Preserve this failed attempt.
+
+- [x] Add bounded shutdown State evidence to the host fixture before cleanup,
+  including timeout paths. Red 4 failures; related Green 18 passes; `683773d34`.
+  Preserve 9.5 s, exit-zero/OOM checks, and exclude Config.Env/health bodies.
+- [x] Reproduce a real signal while holding the supervisor Event condition:
+  existing handler re-enters its non-reentrant lock and the hard deadline exits1.
+- [x] Red/Green fix (`1916e048e`): signal handler records the request flag;
+  supervisor checks it at existing 50 ms waits and before/after child launch.
+  Ordinary cleanup still sets the Event; async self-pipe wakeup stays unchanged.
+  No new thread, lock, deadline or restart policy. Red 1 fail; related Green75.
+- [x] Finish the thirteen remaining/targeted old-image E2E groups (all pass). A passing retry
+  does not retrospectively pass the failed `all` attempt or prove its cause.
+- [ ] Build/pin a new canonical image with the signal fix, verify packaged source,
+  and rerun native/available E2E plus the unchanged full load/soak/fault gate.
+- [ ] Publish both failed predecessors and the new verification separately;
+  retain original p99/probe attribution limits and unrun previous-image upgrade.
+
+The event-lock bug is confirmed by deterministic real-signal Red/Green. It is a
+possible mechanism for the observed shutdown, not proof of that historical
+failure. Image `96368970…` predates the fix. Its burst p99 failure is independent
+and remains failed; the shutdown fix makes no latency or probe-cause claim.
+
+Old-image execution closed: fourteen groups pass in the corrected `all` attempt
+before inventory-skew shutdown failure; all thirteen individual remaining/targeted
+groups pass afterward. Twenty-seven unique groups covered, no compatible prior
+image for upgrade. This is composite coverage, not a passing `all` execution.
+Full load remains failed on burst p99; the new signal fix still needs its new image.

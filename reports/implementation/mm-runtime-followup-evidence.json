@@ -9579,5 +9579,81 @@
       "No new persistent cache, dependency, thread, I/O/health budget change, NATR or fresh ownership change.",
       "Existing a6fe88c0 image gate predates both this phase and prior 08eaa2bf9 source changes."
     ]
+  },
+  "quote_runtime_image_verification_20261109": {
+    "image_id": "sha256:96368970cb862da4dae1877f9f4e2808a8f4674b855226fd16f956f5a86f503a",
+    "build_commit": "8544488ef0a8e0cbd3b9cccb0f8cd755de2c1142",
+    "fixture_fix_commit": "556d30bb7bf5b2a9278edc52cd288f7424bae75c",
+    "full_performance_gate_passed": false,
+    "failed_budgets": {
+      "burst_main_p99_ms": 1084.00923399995,
+      "burst_auxiliary_p99_ms": 1151.0699000000386,
+      "budget_ms": 1000
+    },
+    "source_regression": {
+      "passes": 1010,
+      "subtests": 9
+    },
+    "fixture_regression": {
+      "red": {
+        "live": "missing perpetual dummy credentials",
+        "demo": "passed"
+      },
+      "green_passes": 14
+    },
+    "image_hash_checks": 1225,
+    "frozen_load_source_and_fixture_files": 1254,
+    "healthy_reads": {
+      "main": 97800,
+      "auxiliary": 24450,
+      "unexpected_errors": 0
+    },
+    "soak": {
+      "seconds": 3600,
+      "passed": true,
+      "p99_ms": 547.2950329995001,
+      "unique_simulated_fills": 4884,
+      "positions_matched": true,
+      "retained_growth_bytes": 27357184,
+      "growth_budget_bytes": 67108864
+    },
+    "healthy_recovered_probes": {
+      "engine": 10,
+      "api": 2,
+      "quote_downtime_measured": false
+    },
+    "corrected_available_e2e": {
+      "all_attempt_passed": false,
+      "completed_all_groups": 14,
+      "target_groups": 13,
+      "target_groups_passed": true,
+      "unique_groups_covered": 27,
+      "original_shutdown_exclusive_cause_proven": false
+    },
+    "upgrade_e2e": "unrun: no compatible prior image",
+    "scope": "No production runtime fix for the E2E omission. Host E2E runner is excluded from image by .dockerignore; all 1225 packaged hashes still match corrected checkout. No exclusive p99/probe attribution or real OKX/Demo/Google/GCP/deployment.",
+    "release_report": "reports/release/mm-runtime-followup-load.md",
+    "portable_evidence": "reports/release/mm-runtime-followup-load-evidence.json",
+    "shutdown_state_capture": {
+      "commit": "683773d34771b3bc2f6b7ab04c52704798b32cf1",
+      "red_failures": 4,
+      "related_green_passes": 18,
+      "shutdown_budget_seconds": 9.5,
+      "runtime_changed": false
+    }
+  },
+  "supervisor_signal_lock_tdd_20261109": {
+    "commit": "1916e048e",
+    "source_only": true,
+    "not_in_image": "96368970\u2026",
+    "red_failures": 1,
+    "related_green_passes": 75,
+    "proof": "Real SIGTERM under Event condition causes reentrant Event.set deadlock and hard deadline exit1 beforefix; flag/poll handling exits0 afterfix.",
+    "change": "Signal handler sets requested flag; supervisor checks before/after child launch and existing50ms waits. Ordinary cleanup notifies Event, async self-pipe/hard deadline unchanged. No new thread.",
+    "original_e2e_shutdown_unique_cause_proven": false,
+    "new_image_qualification": "pending",
+    "raw_artifacts": "build/quote-runtime-release-20261108/shutdown-signal-{red,green}.log",
+    "preexisting_branch_commit": "6de4001cde",
+    "original_deadline_commit": "9f7ea36c4b"
   }
 }

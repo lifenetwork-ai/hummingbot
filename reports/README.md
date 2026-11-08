@@ -4,47 +4,32 @@ Start with the [current image/load report](release/mm-runtime-followup-load.md)
 and [remaining-work register](../docs/plans/README.md). Operational procedures and
 API/FE contracts live in [docs](../docs/README.md).
 
-New source-only work (2026-11-08) bounds market-data collection and removes
-unused report/debug allocations: **972 native passes + 9 subtests** and paired
-component measurements. It is **not in the accepted image yet**; new-image
-qualification remains open. [Source scope](implementation/MM_RUNTIME_FOLLOWUP.md).
+The new **`96368970…`** image packages the quote/anchor/recorder allocation
+changes, but its **full load gate fails burst p99**: main **1,084.01 ms** and
+auxiliary **1,151.07 ms**, both against 1,000 ms. Warmup/mixed/soak and all five
+fault assertions pass. Soak p99 **547.30 ms**, 4,884 exact simulated fills,
+26.09 MiB/64 MiB retained growth; twelve healthy probes recover without child
+replacement. All 97,800 main / 24,450 auxiliary healthy reads complete HTTP200.
+Battery-to-AC host conditions and cold-build dependencies differ from the prior
+accepted image; exclusive attribution remains open.
 
-The subsequent quote/anchor phase has **1,010 native passes + 9 subtests**:
-current allocation reads are reused within a quote calculation, and explicit
-anchor fallback reads at most one row on each book side. Its seven paired
-component comparisons and unchanged-path costs are in the same source report.
-This phase also awaits new-image qualification.
+Source verification: **1,010 native passes + 9 subtests** and paired component
+measurements. The first E2E exposed missing dummy perpetual credentials in an
+older live-mode seed fixture. TDD reproduces it, then 14 related native tests pass
+with fixture commit `556d30bb7`. The corrected `all` fails inventory shutdown; targeted remaining groups pass;
+upgrade remains unrun without a compatible prior image. Shipping runtime stays
+build `8544488ef`; the host fixture correction does not change the engine.
+[Current report](release/mm-runtime-followup-load.md),
+[portable evidence](release/mm-runtime-followup-load-evidence.json),
+[source/TDD](implementation/MM_RUNTIME_FOLLOWUP.md).
 
-The latest full-load repeat on **a6fe88c0… passes** after quantile-export correction
-in the test fixture: all four windows, the sixty-minute Random soak and five faults.
-Mixed/burst/soak p99 **366.46 / 168.04 / 287.63 ms**; zero unexpected healthy errors,
-4,884 exact simulated fills/fees/positions and 23.16 MiB/64 MiB retained growth.
-Three healthy engine probes recover in 1.053–1.177 s without child replacement.
-Host AC power differs from the preceding failed battery run; the improvement is
-observational, not exclusive code attribution. Existing containers/volumes/images remain.
-
-The failed repeat (mixed main/auxiliary p99 1,315.91/1,169.10 ms, stopped before
-burst/soak/faults) remains in Git **`41d290393`** at the current release paths.
-The earlier same-image full pass (soak p99 406.14 ms, 24.26 MiB retained growth,
-4,885 simulated fills), four targeted E2E groups and separate enhancement/activity
-diagnostics retain their original scope in Git **`dfad4a4d1`** at the current
-report/evidence paths. Earlier
-rollback reports/failures remain in Git `745a86e3c` and `ff6b85ded`.
-[Portable evidence](release/mm-runtime-followup-load-evidence.json).
-
-The follow-up [regression audit](implementation/MM_RUNTIME_FOLLOWUP.md#combined-image-regression-audit--2026-11-07)
-compares immutable images in ABBA order and fixes a reproduced lock dependency
-inside test incident capture. The probe-frequency attribution remains open;
-that audit changed only fixture code. The subsequent metrics-selection correction
-has 80 frozen targeted passes before load and 81 after an additional precision case.
-Both the failed attempt and new complete gate remain separately attributed.
-
-Source/TDD, rejected drafts and paired component costs retain their own scopes in
-[runtime remediation](implementation/MM_RUNTIME_FOLLOWUP.md). Latest reporting-copy
-source: native 2,788 + 11 subtests / related PG 36; preceding write-fence projection:
-native 2,780 + 11 / full PG 556. They are now separately packaged/qualified by the
-earlier image gate. No real Google/GCP, connected Demo or production deployment
-is inherited from these local results.
+The preceding accepted `a6fe88c0…` quantile-fixture gate remains in Git
+**`8544488ef`** at the same release report/evidence paths. Its mixed/burst/soak p99
+was 366.46/168.04/287.63 ms with three recovered probes. Earlier failed attempts
+remain in Git `41d290393` and `ff6b85ded`; previous scoped full/E2E/activity
+results remain in `dfad4a4d1` and `745a86e3c`. These are historical records, not
+images guaranteed to remain in the current daemon. No connected Demo, real
+Google/GCP or production deployment is inherited from offline verification.
 
 | Topic | Current entry |
 | --- | --- |
@@ -76,3 +61,11 @@ Git history. No Git history rewrite/prune is performed. Historical unchecked box
 and scope limits are retained; removing files does not close unresolved items.
 Read the [remaining-work register](../docs/plans/README.md) for current status.
 Raw logs/ledgers remain under ignored `build/`; private credentials stay outside Git.
+
+Shutdown follow-up: corrected `all` E2E passes fourteen groups before a nonzero
+inventory-skew shutdown; all thirteen remaining/targeted groups pass, covering twenty-seven unique
+groups across attempts. The failed `all` remains failed. A real-signal
+TDD reproducer confirms an Event-lock hazard, fixed in source `1916e048e` (75 related
+passes). This is a possible mechanism, not proof of the old exit's unique cause.
+`96368970…` predates the fix; new-image qualification remains open. See the
+[runtime checklist](../docs/plans/MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md).
