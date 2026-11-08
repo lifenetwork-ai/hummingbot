@@ -12,6 +12,14 @@ scoped Set/load/rotation, cancel/close/remove cleanup, durable Retry/Repair,
 correlated audit, secret-free status/errors and bounded workers/query counts.
 Real Google/GCP and reviewed existing-Demo cutover remain open.
 
+2026-11-09 real-Google preparation: added a loopback-only acceptance page reusing
+the existing admin handlers/verifier/audit, with a separate `hbot_auth_google`
+PostgreSQL database and an operator-specified admin invitation. No trading engine
+or exchange-credential endpoints are exposed. Helper/identity tests: 53 pass;
+real public-certificate discovery: HTTP 200 with two certificates. Browser login,
+subject binding and Google-only restart remain pending; no real-login acceptance
+is claimed and no account is provisioned in a trading ledger.
+
 Current image **`b090430c…`** passes canonical native 2,861 + 16, all 27 available
 E2E in one all execution and unchanged security/operator full load/soak3600/five
 faults. Separate technical upgrade/takeover/rollback with a distinct schema-

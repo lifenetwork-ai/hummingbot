@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Google sign-in acceptance</title>
+<style>
+body{font:17px system-ui;max-width:760px;margin:60px auto;padding:0 24px;color:#243044;background:#f5f7fa}
+main{background:white;padding:32px;border-radius:16px}h1{font-size:26px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f0f3f7;padding:16px;border-radius:8px}button{padding:10px;margin:16px 8px 0 0}#status{min-height:2em}
+</style>
+<main>
+<h1>Google sign-in acceptance</h1>
+<p>This local tool checks Google identity, account permissions and audit history. No trading engine is running in this tool.</p>
+<div id="google-button"></div>
+<p id="status" role="status">Loading Google sign-in…</p>
+<button id="refresh" disabled>Check access again</button>
+<button id="clear" disabled>Clear local sign-in</button>
+<pre id="result">No sign-in result yet.</pre>
+<p>Tokens stay in page memory and are cleared on reload. Clearing this page does not sign out of Google or revoke account access.</p>
+</main>
+<script src="/app.js" defer></script>
+</html>

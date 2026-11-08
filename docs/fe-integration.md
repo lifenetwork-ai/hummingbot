@@ -171,6 +171,33 @@ and ask the operator to reconnect.
 
 ### Accounts, roles and audit
 
+For real Google sign-in acceptance before the dashboard exists, use the
+[loopback helper](../scripts/google_login_local.py):
+
+```sh
+python -m scripts.google_login_local --env-file /path/to/auth-local.env
+```
+
+This helper serves `http://localhost:3000`, reuses the production Google verifier,
+access handlers and PostgreSQL audit, and never starts the trading engine. Only
+access/bootstrap/account-list/account-invitation/audit routes are exposed; trading
+and exchange-credential routes return 404. It requires a separate PostgreSQL
+database named `hbot_auth_*` on `localhost` or `127.0.0.1`, applies existing SQL
+migrations there, and uses the supplied env file without loading exchange secrets
+from the shell or repository `.env`. Include `DATABASE_URL`, `STORAGE_BACKEND=postgres`,
+`BOT_ID`, `ADMIN_API_ENABLED=true`, the Google settings above, and the temporary
+Basic bootstrap settings in this private env file. Keep it outside Git.
+
+Register `http://localhost:3000` as a Google JavaScript origin. Invite the test
+email through the existing account API using Basic before sign-in. Tokens are
+kept in page memory only; the page displays identity, bootstrap readiness and the
+latest ten audit entries. Clearing the page is not Google sign-out or revocation.
+An invitation (`bound=false`) and successful public-certificate discovery do not
+close real-login acceptance: the operator must complete Google sign-in, then
+verify identity/role/audit and Google-only access after disabling Basic and
+restarting the helper. This separate auth database does not provision accounts
+in the eventual trading service database.
+
 | API | Permission | FE behavior |
 | --- | --- | --- |
 | `POST /access/login` | Verified enabled identity | Header-only sign-in; returns identity, English role label and permissions; records sign-in |

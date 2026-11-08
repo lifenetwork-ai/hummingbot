@@ -43,9 +43,15 @@ in [credential operations](../exchange-credentials.md) and
   old/new Linux-image behavior; original observed shutdown's unique cause remains
   unproven. Preserve failed963 gate in Git `d0791e563`, accepted a6 in `8544488ef`.
   [Current report](../../reports/release/mm-runtime-followup-load.md).
-- [ ] Real Google login/certificate discovery and real GCP KMS/IAM using synthetic
-  credentials when resources are provided. User deferred this; offline checks do
-  not close it.
+- [x] Prepare loopback-only real-Google sign-in helper with the existing verifier,
+  access handlers and audit; isolate a local auth DB, block trading routes, and
+  check real Google public-certificate discovery (HTTP 200, two certificates on
+  2026-11-09). Helper/identity suite: 53 passes. No browser login claimed.
+- [ ] Complete real Google sign-in, subject binding, role/audit review and a
+  Google-only restart with the supplied client. The local helper and invitation
+  are prepared; browser interaction remains pending.
+- [ ] Real GCP KMS/IAM using synthetic credentials when resources are provided.
+  User deferred this; local encryption does not close it.
 - [ ] Actual-Demo managed-credential cutover if chosen, with the documented account/
   ledger review. No new real-account cutover, DB repair or production deployment
   is performed by this local task.
