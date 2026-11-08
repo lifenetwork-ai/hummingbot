@@ -291,15 +291,36 @@ else:
         self.terminate(name, success=False)
 
     def terminate(self, name, *, success=True):
-        started = time.monotonic()
+        started, requested_at = time.monotonic(), time.time()
         docker("kill", "--signal", "TERM", name)
-        poll(lambda: json.loads(docker("inspect", name).stdout)[0]["State"]["Status"] == "exited",
-             timeout=9.5, description="PID 1 shutdown")
-        state = json.loads(docker("inspect", name).stdout)[0]["State"]
+        try:
+            poll(lambda: json.loads(docker("inspect", name).stdout)[0]["State"]["Status"] == "exited",
+                 timeout=9.5, description="PID 1 shutdown")
+        finally:
+            state = self.record_shutdown_state(name, started, requested_at)
         assert not state['OOMKilled']
         if success:
             assert state["ExitCode"] == 0, docker("logs", name, check=False).stdout[-2000:]
         self.metrics[name.rsplit("-", 1)[-1] + "_shutdown_s"] = round(time.monotonic() - started, 3)
+
+    def record_shutdown_state(self, name, started, requested_at):
+        row = dict(container=name, requested_at_utc_seconds=requested_at,
+                   elapsed_seconds=round(time.monotonic() - started, 6))
+        state = {}
+        try:
+            inspected = docker("inspect", name, check=False)
+            if inspected.returncode == 0:
+                source = json.loads(inspected.stdout)[0]["State"]
+                state = {key: source[key] for key in (
+                    "Status", "Running", "Pid", "OOMKilled", "Dead", "ExitCode", "StartedAt", "FinishedAt") if key in source}
+            else:
+                row["inspect_exit_code"] = inspected.returncode
+        except (OSError, ValueError, KeyError, IndexError) as error:
+            row["inspect_error_type"] = type(error).__name__
+        row["state"] = state
+        self.report.mkdir(parents=True, exist_ok=True)
+        self.report.joinpath(name + "-shutdown-state.json").write_text(json.dumps(row, indent=2) + "\n")
+        return state
 
     def wait_orders(self, count):
         ledger = poll(lambda: (value if len((value := self.ledger())["accepted"]) >= count else None),
