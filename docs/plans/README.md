@@ -7,7 +7,8 @@ Removing old files does not close unresolved evidence or policy items.
 
 The subsequent real Demo follow-up found a Random step-cleanup failure on
 `b090430c…`; that offline-qualified image is not fully connected-Demo-qualified.
-The bounded terminal-readback fix is in verification. See the
+The bounded terminal-readback fix passes source regressions and targeted packaged
+Random/lifecycle E2E on `4451974e…`; real Demo recovery/retest is pending. See the
 [active follow-up](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md#managed-demo-random-shutdown-follow-up--2026-11-09).
 
 ## Current local qualification
@@ -56,8 +57,11 @@ The bounded terminal-readback fix is in verification. See the
   order/fill history is preserved; three new natural spot fills have individual
   REST/order aggregate proof. Initial active Random restart resumes the same
   session, but the subsequent Random step run fails cleanup and retains HALT.
-- [ ] Qualify bounded-readback remediation on a new image; separately review
-  this incident's HALT recovery and complete Random/restart/cleanup acceptance.
+- [x] Qualify bounded-readback remediation on `4451974e…` with native2,868 +16
+  subtests, PG557, package/signal proof and targeted Random/lifecycle E2E. This
+  does not transfer the old image's full release/soak results.
+- [ ] Separately review this incident's HALT recovery and complete connected
+  Random/restart/cleanup acceptance.
   [Demo scope](OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
 
 ## Unresolved policy and historical attribution

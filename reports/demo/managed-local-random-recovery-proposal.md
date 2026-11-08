@@ -34,6 +34,14 @@ fill is claimed for this run.
 Private incident backup: `managed-demo-local-20261109/random-restart-halt.dump`.
 The retained local KEK and env files stay outside the repository/build folder.
 
+## Remediated candidate checks
+
+Commit `aba5d745a`, image `4451974e…`: native2,868 +16 subtests, PostgreSQL557,
+all1,229 packaged source files matching, real-signal smoke and paired controlled
+readback witness pass. Targeted until-stopped Random/restart/Stop and managed
+lifecycle E2E pass on the pinned candidate. This is not a new full release/soak,
+or proof of the original incident's individual remote-call timings.
+
 ## Concrete proposed maintenance
 
 After the remediated image passes its local/package checks and operator approval:

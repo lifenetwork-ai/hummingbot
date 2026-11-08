@@ -72,7 +72,10 @@ and images; new offline gates do not retroactively complete them.
 - [x] Initial active Random restart resumes the same until-stopped session and
   loads the same two credential versions. Subsequent Random step cleanup fails;
   the full Random/restart acceptance is not passed.
-- [ ] Remediate/requalify the observed Random step-shutdown failure, obtain
+- [x] Bounded terminal-readback source fix `aba5d745a`: native2,868 + 16 subtests,
+  PG557, packaged signal/readback proof and targeted Random/lifecycle E2E pass on
+  `4451974e…`. All 1,229 packaged files match. New full release/soak not yet run.
+- [ ] Finish connected requalification of the Random step-shutdown failure, obtain
   separate incident recovery review and finish Random/credential cleanup tests.
   See the
   [credential plan](ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md) and

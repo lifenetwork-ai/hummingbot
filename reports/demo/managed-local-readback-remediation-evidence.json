@@ -41,5 +41,33 @@
     "postgres-final-logging.log": "217e7700d41ea12c130f80b0da4ce2a781bccaf13a5c204a609039398aa13e16",
     "native-regression-first-attempt.log": "2ab984b74ec8351163d28f2499fc1b2c7a438818b503f1ca89e6969201d92363",
     "native-regression-fixture-attempt.log": "1a1b39219ba01182d983a327bfe98e736893e02695b9f9800a388f5a9793e5b7"
+  },
+  "remediated_image": {
+    "image_id": "sha256:4451974e9d980a9d4eab3522f35eef897343f056b1ef3774651609926d6cbb0c",
+    "source_commit": "aba5d745a",
+    "manifest_digest": "sha256:0b7befd936db79ddbbe189e76a8329f016777903b5b8bfe878e3a99793f4bc8f",
+    "size_bytes": 1374605855,
+    "packaged_files_match": 1229,
+    "real_signal_smoke_passed": true,
+    "paired_blocked_read_witness": {
+      "old_exit_code": 1,
+      "new_exit_code": 0,
+      "max_readers": 3,
+      "scope": "Controlled witness, not historical per-RPC attribution"
+    },
+    "targeted_offline_e2e": {
+      "until-stopped": {
+        "passed": true,
+        "release_scope_complete": false,
+        "log_sha256": "23995f4478efb923eeb7501b00617e2816a59ddc860281dc2ee01e33106c98be"
+      },
+      "managed-lifecycle": {
+        "passed": true,
+        "release_scope_complete": false,
+        "log_sha256": "040494d351ea65ea8a164f4fe6c0ee008403c72a83162f0417604abe3ada74dc"
+      }
+    },
+    "new_full_release_and_soak_run": false,
+    "connected_recovery_applied": false
   }
 }

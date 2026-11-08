@@ -567,8 +567,10 @@ Unrelated containers/images/volume remain; real external acceptance is deferred.
   without weakening runtime no-file assertions.
 - [x] Full PostgreSQL regression557 passes; final targeted proof/log-format2
   also passes. Timeout reason, deadline and order count survive JSON formatting.
-- [ ] Commit/build/pin the remediated image and pass packaged lifecycle/recovery
-  checks before connected recovery.
+- [x] Commit `aba5d745a`, build/pin `4451974e…` (1,374,605,855 bytes); all 1,229
+  packaged files match. Real-signal smoke and paired blocked-read witness pass.
+  Targeted until-stopped Random/restart/Stop and managed lifecycle E2E pass on
+  the pinned manifest. These are not a new all-case release or sixty-minute soak.
 - [ ] Obtain separate operator review before clearing only this incident's HALT,
   then repeat real Demo Random transitions/restart and credential cleanup checks.
   The approved account-binding cutover does not authorize a new HALT reset.
