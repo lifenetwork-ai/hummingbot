@@ -117,3 +117,30 @@ def test_postgres_controller_identity_cannot_be_empty_or_duplicated(tmp_path, mo
     config = StrategyV2ConfigBase(script_file_name="v2_with_controllers.py", controllers_config=["first.yml", "second.yml"])
     with pytest.raises(ValueError, match="stable IDs"):
         config.load_controller_configs()
+
+
+def test_sigterm_does_not_reenter_supervisor_event_lock(tmp_path):
+    program = """
+import os, signal, threading
+from hummingbot.cli.service import ShutdownDeadline
+stop = threading.Event()
+deadline = ShutdownDeadline(stop, seconds=.25)
+deadline.install()
+try:
+    # Event.wait() reacquires this non-reentrant condition before returning.
+    # Deliver the real signal at that exact otherwise hard-to-hit boundary.
+    with stop._cond:
+        os.kill(os.getpid(), signal.SIGTERM)
+        assert deadline.requested
+    # Normal supervisor cleanup still notifies any ordinary event waiters.
+    deadline.request()
+    assert stop.is_set()
+finally:
+    deadline.close()
+"""
+    env = {**os.environ, 'PYTHONPATH': str(Path(__file__).resolve().parents[3]),
+           'PYTHONDONTWRITEBYTECODE': '1'}
+    result = subprocess.run([sys.executable, '-c', program], env=env, cwd=tmp_path,
+                            capture_output=True, timeout=5)
+    assert result.returncode == 0, result.stderr.decode()
+    assert not list(tmp_path.iterdir())

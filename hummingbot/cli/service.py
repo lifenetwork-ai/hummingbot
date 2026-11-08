@@ -30,14 +30,20 @@ class ShutdownDeadline:
         self.timer = None
         self.previous = {}
         self.loop = None
+        self.requested = False
 
-    def request(self, *_):
+    def request(self, signum=None, _frame=None):
+        self.requested = True
         if self.timer is None:
             self.timer = threading.Timer(self.seconds, os._exit, args=(1,))
             self.timer.daemon = True
             self.timer.start()
         if self.loop is None:
-            self.stop.set()
+            # SIGTERM can interrupt Event.wait() while its non-reentrant
+            # condition is held. The supervisor observes requested at its
+            # existing 50 ms poll; ordinary cleanup may safely notify waiters.
+            if signum is None:
+                self.stop.set()
         else:
             # A Python signal handler may run while the loop is inside select.
             # Event.set() alone queues callbacks without waking that selector.

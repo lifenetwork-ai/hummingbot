@@ -120,11 +120,11 @@ def run_supervisor():
         AdminSettings.from_environment()  # Reject invalid auth before launching either child.
 
         def launch(role):
-            if deadline.stop.is_set():
+            if deadline.requested or deadline.stop.is_set():
                 owner.stopping = True
                 raise OSError('Service is stopping')
             child = subprocess.Popen(child_command(role), env=child_environment(role, os.environ))
-            if deadline.stop.is_set():
+            if deadline.requested or deadline.stop.is_set():
                 owner.stopping = True
             return child
 
@@ -132,11 +132,11 @@ def run_supervisor():
         watchdog = HealthWatchdog(owner)
         next_probe = 0
         LOGGER.info('Service supervisor starting', extra={'event': 'service_supervisor_starting'})
-        while not deadline.stop.is_set() and not owner.stopping:
+        while not deadline.requested and not deadline.stop.is_set() and not owner.stopping:
             owner.tick()
             if time.monotonic() >= next_probe and not owner.stopping:
                 for role in owner.ROLES:
-                    if deadline.stop.is_set():
+                    if deadline.requested or deadline.stop.is_set():
                         break
                     port = layout.engine.port if role == 'engine' else layout.api.port
                     healthy, details = probe_health(port, probe_path(watchdog, role))
