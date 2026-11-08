@@ -6361,5 +6361,2029 @@
       "shipping_image": "sha256:a6fe88c0bba185d27ed68d1fbc1f43dfa39c5a560c80df1f28e720f2afeb16b2",
       "interpretation": "Complete unchanged baseline/soak3600/five faults passes. Host AC versus prior battery differs; no unique historical-cause or continuous-quote claim."
     }
+  },
+  "hot_path_allocation_audit_20261108": {
+    "scope": "Shipping source only. No new image, full load, connected Demo or deployment; prior a6fe88c0 gate unchanged.",
+    "baseline_git": "883e69e92",
+    "changes": [
+      "Bound market-data iterator before list materialization, retaining depth + 1.",
+      "Skip PositionHold DEBUG formatting and debug-only field lookups when disabled.",
+      "Reuse fresh returned PerformanceReport for zero defaults rather than allocating a discarded second DTO."
+    ],
+    "tdd": {
+      "book": "Corrected Red: two deep-book subtests fail; three shallow/empty pass. Initial test-only MarketData.id lookup corrected before valid Red.",
+      "debug": "Four disabled-format cases fail; two DEBUG-output cases pass before correction.",
+      "report": "Both cached/missing eager-default constructor cases fail before correction.",
+      "targeted": "104 pass + 5 subtests.",
+      "regression": "972 pass + 9 subtests, eight pre-existing dependency warnings."
+    },
+    "benchmark": {
+      "baseline_git": "883e69e92",
+      "environment": "native arm64 Python; paired isolated components, no exchange, SQL, Docker or whole-load timing",
+      "logging_level": "INFO",
+      "source_sha256": {
+        "old_orchestrator": "54d4a52a8a1efd9f32d67492af0b14ded37818264215e74e4f536b60967510a6",
+        "new_orchestrator": "8db7a6e5874876df88ff2a2f186382471c08213c6d8d1d99978279c2665c37d8",
+        "old_recorder": "fc5093c2fae691bb411bf0ecb58911a0906ca2c9c09129da3b0f65205880e931",
+        "new_recorder": "4d10ef7c4d97366ac976cdf52a80b372c91132c78d32cff7a3bdc63d9099cdd3"
+      },
+      "cases": {
+        "book_0_levels_depth_20_plus_1": {
+          "loops_per_batch": 1000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 0.695,
+                "wall_us_per_call": 0.675791
+              },
+              "after": {
+                "cpu_us_per_call": 0.746,
+                "wall_us_per_call": 0.746916
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 0.778,
+                "wall_us_per_call": 0.7858339999999999
+              },
+              "before": {
+                "cpu_us_per_call": 0.768,
+                "wall_us_per_call": 0.79925
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 0.833,
+                "wall_us_per_call": 0.9237089999999999
+              },
+              "after": {
+                "cpu_us_per_call": 0.801,
+                "wall_us_per_call": 0.813166
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 0.763,
+                "wall_us_per_call": 0.762875
+              },
+              "before": {
+                "cpu_us_per_call": 0.667,
+                "wall_us_per_call": 0.668042
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 0.661,
+                "wall_us_per_call": 0.6601670000000001
+              },
+              "after": {
+                "cpu_us_per_call": 0.762,
+                "wall_us_per_call": 0.7625
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 0.78,
+                "wall_us_per_call": 0.779792
+              },
+              "before": {
+                "cpu_us_per_call": 0.65,
+                "wall_us_per_call": 0.651167
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 0.652,
+                "wall_us_per_call": 0.651083
+              },
+              "after": {
+                "cpu_us_per_call": 0.771,
+                "wall_us_per_call": 0.771208
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 0.667,
+              "wall_us_per_call": 0.668042
+            },
+            "after": {
+              "cpu_us_per_call": 0.771,
+              "wall_us_per_call": 0.771208
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 56,
+                "peak_bytes": 328
+              },
+              {
+                "current_bytes": 56,
+                "peak_bytes": 328
+              },
+              {
+                "current_bytes": 56,
+                "peak_bytes": 328
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 56,
+                "peak_bytes": 400
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 400
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 400
+              }
+            ]
+          }
+        },
+        "book_20_levels_depth_20_plus_1": {
+          "loops_per_batch": 40,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 11.825,
+                "wall_us_per_call": 11.830200000000001
+              },
+              "after": {
+                "cpu_us_per_call": 11.8,
+                "wall_us_per_call": 11.810424999999999
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 11.825,
+                "wall_us_per_call": 11.7979
+              },
+              "before": {
+                "cpu_us_per_call": 12.65,
+                "wall_us_per_call": 13.616674999999999
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 11.75,
+                "wall_us_per_call": 11.75
+              },
+              "after": {
+                "cpu_us_per_call": 11.85,
+                "wall_us_per_call": 11.8479
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 11.775,
+                "wall_us_per_call": 11.805200000000001
+              },
+              "before": {
+                "cpu_us_per_call": 11.75,
+                "wall_us_per_call": 11.73855
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 11.7,
+                "wall_us_per_call": 11.71355
+              },
+              "after": {
+                "cpu_us_per_call": 11.8,
+                "wall_us_per_call": 11.78335
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 11.775,
+                "wall_us_per_call": 11.7875
+              },
+              "before": {
+                "cpu_us_per_call": 11.725,
+                "wall_us_per_call": 11.74375
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 11.725,
+                "wall_us_per_call": 11.73125
+              },
+              "after": {
+                "cpu_us_per_call": 11.8,
+                "wall_us_per_call": 11.7979
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 11.75,
+              "wall_us_per_call": 11.74375
+            },
+            "after": {
+              "cpu_us_per_call": 11.8,
+              "wall_us_per_call": 11.7979
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 104,
+                "peak_bytes": 4192
+              },
+              {
+                "current_bytes": 56,
+                "peak_bytes": 4144
+              },
+              {
+                "current_bytes": 56,
+                "peak_bytes": 4144
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 56,
+                "peak_bytes": 4240
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 4240
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 4240
+              }
+            ]
+          }
+        },
+        "book_400_levels_depth_20_plus_1": {
+          "loops_per_batch": 40,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 246.625,
+                "wall_us_per_call": 248.366675
+              },
+              "after": {
+                "cpu_us_per_call": 13.275,
+                "wall_us_per_call": 13.28125
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 12.925,
+                "wall_us_per_call": 12.933325
+              },
+              "before": {
+                "cpu_us_per_call": 251.425,
+                "wall_us_per_call": 256.3052
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 246.775,
+                "wall_us_per_call": 249.741675
+              },
+              "after": {
+                "cpu_us_per_call": 13.3,
+                "wall_us_per_call": 13.305200000000001
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 12.9,
+                "wall_us_per_call": 12.91875
+              },
+              "before": {
+                "cpu_us_per_call": 242.825,
+                "wall_us_per_call": 243.640625
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 254.225,
+                "wall_us_per_call": 257.896875
+              },
+              "after": {
+                "cpu_us_per_call": 13.275,
+                "wall_us_per_call": 13.265625
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 12.9,
+                "wall_us_per_call": 12.890625
+              },
+              "before": {
+                "cpu_us_per_call": 257.25,
+                "wall_us_per_call": 263.89477500000004
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 249.325,
+                "wall_us_per_call": 254.084375
+              },
+              "after": {
+                "cpu_us_per_call": 13.1,
+                "wall_us_per_call": 13.098975000000001
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 249.325,
+              "wall_us_per_call": 254.084375
+            },
+            "after": {
+              "cpu_us_per_call": 13.1,
+              "wall_us_per_call": 13.098975000000001
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 2640,
+                "peak_bytes": 59896
+              },
+              {
+                "current_bytes": 2640,
+                "peak_bytes": 59896
+              },
+              {
+                "current_bytes": 2640,
+                "peak_bytes": 59896
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 240,
+                "peak_bytes": 4880
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 4880
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 4880
+              }
+            ]
+          }
+        },
+        "book_20000_levels_depth_20_plus_1": {
+          "loops_per_batch": 40,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 25208.6,
+                "wall_us_per_call": 28525.704175
+              },
+              "after": {
+                "cpu_us_per_call": 13.325,
+                "wall_us_per_call": 13.360425
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 13.275,
+                "wall_us_per_call": 13.272924999999999
+              },
+              "before": {
+                "cpu_us_per_call": 26413.125,
+                "wall_us_per_call": 27072.415625
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 24230.925,
+                "wall_us_per_call": 24669.870850000003
+              },
+              "after": {
+                "cpu_us_per_call": 18.85,
+                "wall_us_per_call": 22.15
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 13.525,
+                "wall_us_per_call": 13.778125
+              },
+              "before": {
+                "cpu_us_per_call": 26149.85,
+                "wall_us_per_call": 28150.207274999997
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 24556.925,
+                "wall_us_per_call": 25097.925
+              },
+              "after": {
+                "cpu_us_per_call": 13.3,
+                "wall_us_per_call": 13.309375
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 13.0,
+                "wall_us_per_call": 13.070825000000001
+              },
+              "before": {
+                "cpu_us_per_call": 24711.05,
+                "wall_us_per_call": 27992.765625
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 25919.775,
+                "wall_us_per_call": 26429.470825
+              },
+              "after": {
+                "cpu_us_per_call": 13.325,
+                "wall_us_per_call": 13.33125
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 25208.6,
+              "wall_us_per_call": 27072.415625
+            },
+            "after": {
+              "cpu_us_per_call": 13.325,
+              "wall_us_per_call": 13.33125
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 2696,
+                "peak_bytes": 2895312
+              },
+              {
+                "current_bytes": 2640,
+                "peak_bytes": 2895256
+              },
+              {
+                "current_bytes": 2640,
+                "peak_bytes": 2895256
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 240,
+                "peak_bytes": 4880
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 4880
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 4880
+              }
+            ]
+          }
+        },
+        "position_summary_debug_disabled": {
+          "loops_per_batch": 10000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 4.9638,
+                "wall_us_per_call": 5.0267124999999995
+              },
+              "after": {
+                "cpu_us_per_call": 3.4704,
+                "wall_us_per_call": 3.557625
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 3.4129,
+                "wall_us_per_call": 3.4654499999999997
+              },
+              "before": {
+                "cpu_us_per_call": 5.0395,
+                "wall_us_per_call": 5.1512
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 5.0126,
+                "wall_us_per_call": 5.0967625
+              },
+              "after": {
+                "cpu_us_per_call": 3.4691,
+                "wall_us_per_call": 3.5587625
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 3.4284,
+                "wall_us_per_call": 3.4951541
+              },
+              "before": {
+                "cpu_us_per_call": 5.0406,
+                "wall_us_per_call": 5.1541083
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 5.009,
+                "wall_us_per_call": 5.095475
+              },
+              "after": {
+                "cpu_us_per_call": 3.4271,
+                "wall_us_per_call": 3.5193041
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 3.4666,
+                "wall_us_per_call": 3.526
+              },
+              "before": {
+                "cpu_us_per_call": 4.9968,
+                "wall_us_per_call": 5.0722040999999995
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 5.0205,
+                "wall_us_per_call": 5.088991699999999
+              },
+              "after": {
+                "cpu_us_per_call": 3.467,
+                "wall_us_per_call": 3.5287833
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 5.0126,
+              "wall_us_per_call": 5.095475
+            },
+            "after": {
+              "cpu_us_per_call": 3.4666,
+              "wall_us_per_call": 3.526
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 312,
+                "peak_bytes": 2064
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 1936
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 1936
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 184,
+                "peak_bytes": 1936
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 1936
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 1936
+              }
+            ]
+          }
+        },
+        "position_ingest_debug_disabled": {
+          "loops_per_batch": 5000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 6.5462,
+                "wall_us_per_call": 6.640925
+              },
+              "after": {
+                "cpu_us_per_call": 4.1692,
+                "wall_us_per_call": 4.3166834
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 4.0914,
+                "wall_us_per_call": 4.213541599999999
+              },
+              "before": {
+                "cpu_us_per_call": 6.568,
+                "wall_us_per_call": 6.6624666
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 6.6872,
+                "wall_us_per_call": 6.7978084
+              },
+              "after": {
+                "cpu_us_per_call": 4.1373999999999995,
+                "wall_us_per_call": 4.228791599999999
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 4.1011999999999995,
+                "wall_us_per_call": 4.17945
+              },
+              "before": {
+                "cpu_us_per_call": 6.7188,
+                "wall_us_per_call": 6.86395
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 6.6373999999999995,
+                "wall_us_per_call": 6.724125
+              },
+              "after": {
+                "cpu_us_per_call": 4.05,
+                "wall_us_per_call": 4.1694417999999995
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 3.9994,
+                "wall_us_per_call": 4.064075
+              },
+              "before": {
+                "cpu_us_per_call": 6.953600000000001,
+                "wall_us_per_call": 7.1575
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 6.7986,
+                "wall_us_per_call": 6.9386
+              },
+              "after": {
+                "cpu_us_per_call": 4.1884,
+                "wall_us_per_call": 4.2918166
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 6.6872,
+              "wall_us_per_call": 6.7978084
+            },
+            "after": {
+              "cpu_us_per_call": 4.1011999999999995,
+              "wall_us_per_call": 4.213541599999999
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 64,
+                "peak_bytes": 2301
+              },
+              {
+                "current_bytes": 64,
+                "peak_bytes": 2301
+              },
+              {
+                "current_bytes": 64,
+                "peak_bytes": 2301
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 0,
+                "peak_bytes": 2016
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 2016
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 2016
+              }
+            ]
+          }
+        },
+        "duplicate_ingest_debug_disabled": {
+          "loops_per_batch": 10000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 0.8712000000000001,
+                "wall_us_per_call": 0.8811334000000001
+              },
+              "after": {
+                "cpu_us_per_call": 0.8216,
+                "wall_us_per_call": 0.851825
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 0.775,
+                "wall_us_per_call": 0.7794417
+              },
+              "before": {
+                "cpu_us_per_call": 0.9087999999999999,
+                "wall_us_per_call": 0.9322292
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 0.8605,
+                "wall_us_per_call": 0.863
+              },
+              "after": {
+                "cpu_us_per_call": 0.805,
+                "wall_us_per_call": 0.8430833
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 0.7805,
+                "wall_us_per_call": 0.7840542
+              },
+              "before": {
+                "cpu_us_per_call": 0.9086000000000001,
+                "wall_us_per_call": 0.9676625
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 0.8677999999999999,
+                "wall_us_per_call": 0.8727374999999999
+              },
+              "after": {
+                "cpu_us_per_call": 0.8147000000000001,
+                "wall_us_per_call": 0.8432292
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 0.7787000000000001,
+                "wall_us_per_call": 0.7799292
+              },
+              "before": {
+                "cpu_us_per_call": 0.9126000000000001,
+                "wall_us_per_call": 0.9404
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 0.8533999999999999,
+                "wall_us_per_call": 0.8536417000000001
+              },
+              "after": {
+                "cpu_us_per_call": 0.8104,
+                "wall_us_per_call": 0.8418166
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 0.8712000000000001,
+              "wall_us_per_call": 0.8811334000000001
+            },
+            "after": {
+              "cpu_us_per_call": 0.805,
+              "wall_us_per_call": 0.8418166
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 64,
+                "peak_bytes": 208
+              },
+              {
+                "current_bytes": 64,
+                "peak_bytes": 208
+              },
+              {
+                "current_bytes": 64,
+                "peak_bytes": 208
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 0,
+                "peak_bytes": 144
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 144
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 144
+              }
+            ]
+          }
+        },
+        "performance_report_cache_False": {
+          "loops_per_batch": 5000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 8.920399999999999,
+                "wall_us_per_call": 9.255008400000001
+              },
+              "after": {
+                "cpu_us_per_call": 5.961600000000001,
+                "wall_us_per_call": 6.024225
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 6.1766000000000005,
+                "wall_us_per_call": 6.3379834
+              },
+              "before": {
+                "cpu_us_per_call": 8.9424,
+                "wall_us_per_call": 9.1440918
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 8.866200000000001,
+                "wall_us_per_call": 9.088899999999999
+              },
+              "after": {
+                "cpu_us_per_call": 6.288600000000001,
+                "wall_us_per_call": 6.506075
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 6.1812,
+                "wall_us_per_call": 6.2768584
+              },
+              "before": {
+                "cpu_us_per_call": 8.8224,
+                "wall_us_per_call": 9.046391600000002
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 8.896799999999999,
+                "wall_us_per_call": 9.2084084
+              },
+              "after": {
+                "cpu_us_per_call": 6.0262,
+                "wall_us_per_call": 6.1451416
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 6.0344,
+                "wall_us_per_call": 6.2607084
+              },
+              "before": {
+                "cpu_us_per_call": 8.6368,
+                "wall_us_per_call": 8.7257832
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 8.8566,
+                "wall_us_per_call": 9.043325000000001
+              },
+              "after": {
+                "cpu_us_per_call": 6.0628,
+                "wall_us_per_call": 6.1547084000000005
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 8.866200000000001,
+              "wall_us_per_call": 9.088899999999999
+            },
+            "after": {
+              "cpu_us_per_call": 6.0628,
+              "wall_us_per_call": 6.2607084
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 504,
+                "peak_bytes": 2680
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 2360
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 2360
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 120,
+                "peak_bytes": 1800
+              },
+              {
+                "current_bytes": 120,
+                "peak_bytes": 1800
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 1864
+              }
+            ]
+          }
+        },
+        "performance_report_cache_True": {
+          "loops_per_batch": 5000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 9.414399999999999,
+                "wall_us_per_call": 9.5501834
+              },
+              "after": {
+                "cpu_us_per_call": 6.7558,
+                "wall_us_per_call": 6.910741600000001
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 6.617,
+                "wall_us_per_call": 6.7242416
+              },
+              "before": {
+                "cpu_us_per_call": 9.471,
+                "wall_us_per_call": 9.6344666
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 9.433399999999999,
+                "wall_us_per_call": 9.61655
+              },
+              "after": {
+                "cpu_us_per_call": 6.653,
+                "wall_us_per_call": 6.7950168
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 6.9286,
+                "wall_us_per_call": 7.1439166
+              },
+              "before": {
+                "cpu_us_per_call": 9.3092,
+                "wall_us_per_call": 9.441708199999999
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 9.358,
+                "wall_us_per_call": 9.5292584
+              },
+              "after": {
+                "cpu_us_per_call": 6.623600000000001,
+                "wall_us_per_call": 6.742100000000001
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 6.6888000000000005,
+                "wall_us_per_call": 6.7942582
+              },
+              "before": {
+                "cpu_us_per_call": 9.4316,
+                "wall_us_per_call": 9.6448582
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 9.3708,
+                "wall_us_per_call": 9.4599
+              },
+              "after": {
+                "cpu_us_per_call": 6.9352,
+                "wall_us_per_call": 7.23775
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 9.414399999999999,
+              "wall_us_per_call": 9.5501834
+            },
+            "after": {
+              "cpu_us_per_call": 6.6888000000000005,
+              "wall_us_per_call": 6.7950168
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 504,
+                "peak_bytes": 2424
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 2104
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 2104
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 120,
+                "peak_bytes": 2040
+              },
+              {
+                "current_bytes": 120,
+                "peak_bytes": 2040
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 2104
+              }
+            ]
+          }
+        }
+      }
+    },
+    "earlier_component_attempt": {
+      "baseline_git": "883e69e92",
+      "environment": "native arm64 Python; paired isolated components, no exchange, SQL, Docker or whole-load timing",
+      "logging_level": "INFO",
+      "source_sha256": {
+        "old_orchestrator": "54d4a52a8a1efd9f32d67492af0b14ded37818264215e74e4f536b60967510a6",
+        "new_orchestrator": "8db7a6e5874876df88ff2a2f186382471c08213c6d8d1d99978279c2665c37d8",
+        "old_recorder": "fc5093c2fae691bb411bf0ecb58911a0906ca2c9c09129da3b0f65205880e931",
+        "new_recorder": "4d10ef7c4d97366ac976cdf52a80b372c91132c78d32cff7a3bdc63d9099cdd3"
+      },
+      "cases": {
+        "book_0_levels_depth_20_plus_1": {
+          "loops_per_batch": 1000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 0.868,
+                "wall_us_per_call": 0.856
+              },
+              "after": {
+                "cpu_us_per_call": 1.212,
+                "wall_us_per_call": 1.349041
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 1.061,
+                "wall_us_per_call": 1.1209580000000001
+              },
+              "before": {
+                "cpu_us_per_call": 0.751,
+                "wall_us_per_call": 0.774833
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 0.738,
+                "wall_us_per_call": 0.7384160000000001
+              },
+              "after": {
+                "cpu_us_per_call": 0.841,
+                "wall_us_per_call": 0.8414579999999999
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 0.841,
+                "wall_us_per_call": 0.840708
+              },
+              "before": {
+                "cpu_us_per_call": 0.78,
+                "wall_us_per_call": 0.806292
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 0.738,
+                "wall_us_per_call": 0.7375
+              },
+              "after": {
+                "cpu_us_per_call": 0.923,
+                "wall_us_per_call": 0.946209
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 1.214,
+                "wall_us_per_call": 1.2313340000000002
+              },
+              "before": {
+                "cpu_us_per_call": 0.866,
+                "wall_us_per_call": 0.893667
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 0.802,
+                "wall_us_per_call": 0.830792
+              },
+              "after": {
+                "cpu_us_per_call": 0.894,
+                "wall_us_per_call": 0.907208
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 0.78,
+              "wall_us_per_call": 0.806292
+            },
+            "after": {
+              "cpu_us_per_call": 0.923,
+              "wall_us_per_call": 0.946209
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 56,
+                "peak_bytes": 328
+              },
+              {
+                "current_bytes": 56,
+                "peak_bytes": 328
+              },
+              {
+                "current_bytes": 56,
+                "peak_bytes": 328
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 56,
+                "peak_bytes": 400
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 400
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 400
+              }
+            ]
+          }
+        },
+        "book_20_levels_depth_20_plus_1": {
+          "loops_per_batch": 40,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 14.1,
+                "wall_us_per_call": 14.142700000000001
+              },
+              "after": {
+                "cpu_us_per_call": 14.6,
+                "wall_us_per_call": 14.75835
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 15.525,
+                "wall_us_per_call": 15.55
+              },
+              "before": {
+                "cpu_us_per_call": 15.425,
+                "wall_us_per_call": 15.4427
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 17.125,
+                "wall_us_per_call": 17.83125
+              },
+              "after": {
+                "cpu_us_per_call": 15.375,
+                "wall_us_per_call": 15.409375
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 19.95,
+                "wall_us_per_call": 31.35105
+              },
+              "before": {
+                "cpu_us_per_call": 18.7,
+                "wall_us_per_call": 20.720825
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 21.075,
+                "wall_us_per_call": 22.803125
+              },
+              "after": {
+                "cpu_us_per_call": 20.55,
+                "wall_us_per_call": 22.079175
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 20.125,
+                "wall_us_per_call": 20.15
+              },
+              "before": {
+                "cpu_us_per_call": 22.0,
+                "wall_us_per_call": 110.907275
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 20.375,
+                "wall_us_per_call": 20.85105
+              },
+              "after": {
+                "cpu_us_per_call": 22.9,
+                "wall_us_per_call": 33.757275
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 18.7,
+              "wall_us_per_call": 20.720825
+            },
+            "after": {
+              "cpu_us_per_call": 19.95,
+              "wall_us_per_call": 20.15
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 104,
+                "peak_bytes": 4192
+              },
+              {
+                "current_bytes": 56,
+                "peak_bytes": 4144
+              },
+              {
+                "current_bytes": 56,
+                "peak_bytes": 4144
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 56,
+                "peak_bytes": 4240
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 4240
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 4240
+              }
+            ]
+          }
+        },
+        "book_20000_levels_depth_20_plus_1": {
+          "loops_per_batch": 40,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 33459.55,
+                "wall_us_per_call": 34578.654174999996
+              },
+              "after": {
+                "cpu_us_per_call": 24.95,
+                "wall_us_per_call": 24.9802
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 24.675,
+                "wall_us_per_call": 38.377075
+              },
+              "before": {
+                "cpu_us_per_call": 35890.175,
+                "wall_us_per_call": 36941.826049999996
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 35419.275,
+                "wall_us_per_call": 42147.50625
+              },
+              "after": {
+                "cpu_us_per_call": 26.575,
+                "wall_us_per_call": 27.225
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 25.95,
+                "wall_us_per_call": 27.21875
+              },
+              "before": {
+                "cpu_us_per_call": 39634.175,
+                "wall_us_per_call": 41388.426049999995
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 35196.35,
+                "wall_us_per_call": 36305.841674999996
+              },
+              "after": {
+                "cpu_us_per_call": 26.925,
+                "wall_us_per_call": 30.220825
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 21.975,
+                "wall_us_per_call": 22.27915
+              },
+              "before": {
+                "cpu_us_per_call": 36370.7,
+                "wall_us_per_call": 40553.795825
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 36894.175,
+                "wall_us_per_call": 38065.89895
+              },
+              "after": {
+                "cpu_us_per_call": 17.275,
+                "wall_us_per_call": 17.303125
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 35890.175,
+              "wall_us_per_call": 38065.89895
+            },
+            "after": {
+              "cpu_us_per_call": 24.95,
+              "wall_us_per_call": 27.21875
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 2696,
+                "peak_bytes": 2895312
+              },
+              {
+                "current_bytes": 2640,
+                "peak_bytes": 2895256
+              },
+              {
+                "current_bytes": 2640,
+                "peak_bytes": 2895256
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 240,
+                "peak_bytes": 4880
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 4880
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 4880
+              }
+            ]
+          }
+        },
+        "position_summary_debug_disabled": {
+          "loops_per_batch": 10000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 7.1162,
+                "wall_us_per_call": 7.2496334
+              },
+              "after": {
+                "cpu_us_per_call": 4.5511,
+                "wall_us_per_call": 4.724070800000001
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 4.9556000000000004,
+                "wall_us_per_call": 5.1247833
+              },
+              "before": {
+                "cpu_us_per_call": 6.6393,
+                "wall_us_per_call": 6.799325
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 7.2493,
+                "wall_us_per_call": 7.4363167
+              },
+              "after": {
+                "cpu_us_per_call": 5.2832,
+                "wall_us_per_call": 5.37275
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 5.3607,
+                "wall_us_per_call": 5.5134083
+              },
+              "before": {
+                "cpu_us_per_call": 7.916600000000001,
+                "wall_us_per_call": 8.1113417
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 7.980899999999999,
+                "wall_us_per_call": 8.177837499999999
+              },
+              "after": {
+                "cpu_us_per_call": 5.7733,
+                "wall_us_per_call": 5.95155
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 5.1837,
+                "wall_us_per_call": 5.2905
+              },
+              "before": {
+                "cpu_us_per_call": 6.3436,
+                "wall_us_per_call": 6.70845
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 5.71,
+                "wall_us_per_call": 5.7848584
+              },
+              "after": {
+                "cpu_us_per_call": 3.867,
+                "wall_us_per_call": 3.9331333
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 7.1162,
+              "wall_us_per_call": 7.2496334
+            },
+            "after": {
+              "cpu_us_per_call": 5.1837,
+              "wall_us_per_call": 5.2905
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 312,
+                "peak_bytes": 2064
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 1936
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 1936
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 184,
+                "peak_bytes": 1936
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 1936
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 1936
+              }
+            ]
+          }
+        },
+        "position_ingest_debug_disabled": {
+          "loops_per_batch": 5000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 7.2896,
+                "wall_us_per_call": 7.422275
+              },
+              "after": {
+                "cpu_us_per_call": 4.045,
+                "wall_us_per_call": 4.1039334
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 4.1858,
+                "wall_us_per_call": 4.38825
+              },
+              "before": {
+                "cpu_us_per_call": 6.6213999999999995,
+                "wall_us_per_call": 6.7519584
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 6.5884,
+                "wall_us_per_call": 6.6898083999999995
+              },
+              "after": {
+                "cpu_us_per_call": 3.998,
+                "wall_us_per_call": 4.0612666
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 3.9674,
+                "wall_us_per_call": 4.0224666000000004
+              },
+              "before": {
+                "cpu_us_per_call": 6.6632,
+                "wall_us_per_call": 6.7672416
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 6.506600000000001,
+                "wall_us_per_call": 6.604025
+              },
+              "after": {
+                "cpu_us_per_call": 4.0032,
+                "wall_us_per_call": 4.0423166
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 4.1486,
+                "wall_us_per_call": 4.2623999999999995
+              },
+              "before": {
+                "cpu_us_per_call": 6.5266,
+                "wall_us_per_call": 6.611958400000001
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 6.6428,
+                "wall_us_per_call": 6.7681499999999994
+              },
+              "after": {
+                "cpu_us_per_call": 3.9922,
+                "wall_us_per_call": 4.0422582
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 6.6213999999999995,
+              "wall_us_per_call": 6.7519584
+            },
+            "after": {
+              "cpu_us_per_call": 4.0032,
+              "wall_us_per_call": 4.0612666
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 64,
+                "peak_bytes": 2301
+              },
+              {
+                "current_bytes": 64,
+                "peak_bytes": 2301
+              },
+              {
+                "current_bytes": 64,
+                "peak_bytes": 2301
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 0,
+                "peak_bytes": 2016
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 2016
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 2016
+              }
+            ]
+          }
+        },
+        "duplicate_ingest_debug_disabled": {
+          "loops_per_batch": 10000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 0.8438,
+                "wall_us_per_call": 0.8435458
+              },
+              "after": {
+                "cpu_us_per_call": 0.7781,
+                "wall_us_per_call": 0.8058584
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 0.7485,
+                "wall_us_per_call": 0.7484917
+              },
+              "before": {
+                "cpu_us_per_call": 0.9138999999999999,
+                "wall_us_per_call": 0.9624792
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 0.8408,
+                "wall_us_per_call": 0.8410042
+              },
+              "after": {
+                "cpu_us_per_call": 0.7967000000000001,
+                "wall_us_per_call": 0.8162084
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 0.7516,
+                "wall_us_per_call": 0.7519
+              },
+              "before": {
+                "cpu_us_per_call": 0.8635,
+                "wall_us_per_call": 0.8811833
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 0.8402999999999999,
+                "wall_us_per_call": 0.8403667
+              },
+              "after": {
+                "cpu_us_per_call": 0.7998,
+                "wall_us_per_call": 0.8304874999999999
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 0.7485,
+                "wall_us_per_call": 0.7484083
+              },
+              "before": {
+                "cpu_us_per_call": 0.8962,
+                "wall_us_per_call": 0.9242916999999999
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 0.8376,
+                "wall_us_per_call": 0.8384375
+              },
+              "after": {
+                "cpu_us_per_call": 0.7767000000000001,
+                "wall_us_per_call": 0.8016958
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 0.8438,
+              "wall_us_per_call": 0.8435458
+            },
+            "after": {
+              "cpu_us_per_call": 0.7767000000000001,
+              "wall_us_per_call": 0.8016958
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 64,
+                "peak_bytes": 208
+              },
+              {
+                "current_bytes": 64,
+                "peak_bytes": 208
+              },
+              {
+                "current_bytes": 64,
+                "peak_bytes": 208
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 0,
+                "peak_bytes": 144
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 144
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 144
+              }
+            ]
+          }
+        },
+        "performance_report_cache_False": {
+          "loops_per_batch": 5000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 8.529200000000001,
+                "wall_us_per_call": 8.6509584
+              },
+              "after": {
+                "cpu_us_per_call": 6.0572,
+                "wall_us_per_call": 6.1832582
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 6.0012,
+                "wall_us_per_call": 6.1084166
+              },
+              "before": {
+                "cpu_us_per_call": 8.654200000000001,
+                "wall_us_per_call": 8.7964916
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 8.6546,
+                "wall_us_per_call": 8.7887834
+              },
+              "after": {
+                "cpu_us_per_call": 5.998399999999999,
+                "wall_us_per_call": 6.1094918
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 6.0962,
+                "wall_us_per_call": 6.269816799999999
+              },
+              "before": {
+                "cpu_us_per_call": 8.580200000000001,
+                "wall_us_per_call": 8.6959084
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 8.715200000000001,
+                "wall_us_per_call": 8.8911
+              },
+              "after": {
+                "cpu_us_per_call": 6.011,
+                "wall_us_per_call": 6.07625
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 6.138199999999999,
+                "wall_us_per_call": 6.2865
+              },
+              "before": {
+                "cpu_us_per_call": 8.7744,
+                "wall_us_per_call": 8.9747418
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 8.7838,
+                "wall_us_per_call": 8.907725000000001
+              },
+              "after": {
+                "cpu_us_per_call": 6.1882,
+                "wall_us_per_call": 6.3517
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 8.6546,
+              "wall_us_per_call": 8.7964916
+            },
+            "after": {
+              "cpu_us_per_call": 6.0572,
+              "wall_us_per_call": 6.1832582
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 504,
+                "peak_bytes": 2680
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 2360
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 2360
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 120,
+                "peak_bytes": 1800
+              },
+              {
+                "current_bytes": 120,
+                "peak_bytes": 1800
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 1864
+              }
+            ]
+          }
+        },
+        "performance_report_cache_True": {
+          "loops_per_batch": 5000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 9.446,
+                "wall_us_per_call": 9.6148332
+              },
+              "after": {
+                "cpu_us_per_call": 7.163600000000001,
+                "wall_us_per_call": 7.441991600000001
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 6.8784,
+                "wall_us_per_call": 7.070916599999999
+              },
+              "before": {
+                "cpu_us_per_call": 9.551200000000001,
+                "wall_us_per_call": 9.7688334
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 9.3184,
+                "wall_us_per_call": 9.499916800000001
+              },
+              "after": {
+                "cpu_us_per_call": 6.5502,
+                "wall_us_per_call": 6.6400749999999995
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 6.775600000000001,
+                "wall_us_per_call": 6.9167916
+              },
+              "before": {
+                "cpu_us_per_call": 9.3186,
+                "wall_us_per_call": 9.4937666
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 9.3128,
+                "wall_us_per_call": 9.517691600000001
+              },
+              "after": {
+                "cpu_us_per_call": 6.7078,
+                "wall_us_per_call": 6.8778584
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 6.607399999999999,
+                "wall_us_per_call": 6.7689416
+              },
+              "before": {
+                "cpu_us_per_call": 10.8448,
+                "wall_us_per_call": 11.386524999999999
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 10.8802,
+                "wall_us_per_call": 11.2816084
+              },
+              "after": {
+                "cpu_us_per_call": 7.8222,
+                "wall_us_per_call": 8.125175
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 9.446,
+              "wall_us_per_call": 9.6148332
+            },
+            "after": {
+              "cpu_us_per_call": 6.775600000000001,
+              "wall_us_per_call": 6.9167916
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 504,
+                "peak_bytes": 2424
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 2104
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 2104
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 120,
+                "peak_bytes": 2040
+              },
+              {
+                "current_bytes": 120,
+                "peak_bytes": 2040
+              },
+              {
+                "current_bytes": 184,
+                "peak_bytes": 2104
+              }
+            ]
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "build/runtime-hotpaths-20261108/after-executor_orchestrator.py": "8db7a6e5874876df88ff2a2f186382471c08213c6d8d1d99978279c2665c37d8",
+      "build/runtime-hotpaths-20261108/after-markets_recorder.py": "4d10ef7c4d97366ac976cdf52a80b372c91132c78d32cff7a3bdc63d9099cdd3",
+      "build/runtime-hotpaths-20261108/before-executor_orchestrator.py": "54d4a52a8a1efd9f32d67492af0b14ded37818264215e74e4f536b60967510a6",
+      "build/runtime-hotpaths-20261108/before-markets_recorder.py": "fc5093c2fae691bb411bf0ecb58911a0906ca2c9c09129da3b0f65205880e931",
+      "build/runtime-hotpaths-20261108/benchmark-first.json": "a1fa68acba9c42c6c2433a4337ddafeab95382d3587105cf6cdd1c00e9e21914",
+      "build/runtime-hotpaths-20261108/benchmark-first.log": "5b0077817d4fe76abf07c7e20c830477acca744ed36c5e1eeb8350c0ab4d8921",
+      "build/runtime-hotpaths-20261108/benchmark.json": "a7a4f9f85342dfe6c0af305aaa3f49e14239bba1ab513f3c222f6689f0b603e3",
+      "build/runtime-hotpaths-20261108/benchmark.log": "0432cec32e7faa80019fe515df95b9401d9de8a23b85f680915a11a8dea91310",
+      "build/runtime-hotpaths-20261108/benchmark.py": "4c56981608128a373e182a615afea14216497c4ccab4de4109dc9d4997ed780c",
+      "build/runtime-hotpaths-20261108/book-green.log": "b1f33b657c5d1795d82704bb71776966b9b7d84daebc8b9a54ebe49f37246de5",
+      "build/runtime-hotpaths-20261108/book-red-corrected.log": "1a1c015cb61ede3721a5ee996f7fc667525c14efa86c7327c5b8fc47142a4466",
+      "build/runtime-hotpaths-20261108/book-red.log": "c05c5f1eec27655773e4831e3c9a499998adc0718ffc7444884d84f0bcbe43e6",
+      "build/runtime-hotpaths-20261108/green-final.log": "dd69b397fc29ac79f2a065b0beaa8a216abaec41c5976070e8739016dc156897",
+      "build/runtime-hotpaths-20261108/green.log": "4f6b929d48ab64ac38f178aa88d081df1bd412f32cfe507b95f23b3af1388f79",
+      "build/runtime-hotpaths-20261108/logging-red.log": "5dcc53874abe50c1faec8daabb532b4434a240ef83f4c8a91730554c84616581",
+      "build/runtime-hotpaths-20261108/regression.log": "c74d401fa553f077a248e2092eaea0433f52caf4f3f82126bb6936dd52639a0c",
+      "build/runtime-hotpaths-20261108/report-red.log": "5ad37bfc08ba03a3f561d9d2324aec0174ca53253c4fdfbd8863bfa7887c7d4e",
+      "build/runtime-hotpaths-20261108/style.log": "3ce7360c530a73e485a5ba89fa2ddf1d94d96078dfcc8525f117b8f0f2e13af7"
+    },
+    "limitations": [
+      "Native arm64 isolated components, not emulated production image or end-to-end latency.",
+      "Collection is disabled by default; benefit applies only when enabled and books exceed requested depth.",
+      "Retain empty/shallow costs and both benchmark attempts; do not claim uniform speedup.",
+      "Fresh ownership, risk/mark validation, SQL transactions, prices, NATR and publication cadence unchanged.",
+      "No unique attribution of historical slow probes. New production image acceptance pending."
+    ]
   }
 }

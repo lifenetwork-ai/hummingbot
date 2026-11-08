@@ -442,6 +442,42 @@ class MarketsRecorderTests(IsolatedAsyncioWrapperTestCase):
         self.assertEqual(market_data[0].best_bid, Decimal("99"))
         self.assertEqual(market_data[0].mid_price, Decimal("100"))
 
+    @patch("hummingbot.connector.markets_recorder.MarketsRecorder._sleep")
+    def test_market_data_collection_only_consumes_requested_depth(self, sleep_mock):
+        # Record real SQL rows while instrumenting iterator consumption, rather
+        # than checking the choice of helper used to truncate the book.
+        for size in (0, 2, 3, 21, 10000):
+            with self.subTest(book_levels=size):
+                sleep_mock.side_effect = asyncio.CancelledError
+                config = MarketDataCollectionConfigMap(
+                    market_data_collection_enabled=True, market_data_collection_interval=1,
+                    market_data_collection_depth=2,
+                )
+                recorder = MarketsRecorder(self.manager, [self], self.config_file_path, self.strategy_name, config)
+                consumed = {"bid": 0, "ask": 0}
+
+                def entries(side):
+                    for index in range(size):
+                        consumed[side] += 1
+                        yield [100 - index if side == "bid" else 101 + index, 1, index]
+
+                book = MagicMock()
+                book.bid_entries.side_effect = lambda: entries("bid")
+                book.ask_entries.side_effect = lambda: entries("ask")
+                with patch.object(self, "get_price_by_type", return_value=Decimal("100")), \
+                        patch.object(self, "get_order_book", return_value=book), \
+                        patch.object(MarketsRecorder, "db_timestamp", new_callable=PropertyMock, return_value=1000 + size):
+                    with self.assertRaises(asyncio.CancelledError):
+                        self.async_run_with_timeout(recorder._record_market_data())
+                expected_count = min(size, 3)  # Keep the original configured depth + 1.
+                self.assertEqual(consumed, {"bid": expected_count, "ask": expected_count})
+                with self.manager.get_new_session() as session:
+                    recorded = session.query(MarketData).order_by(MarketData.timestamp.desc()).first()
+                    self.assertEqual(recorded.order_book, {
+                        side: [[100 - index if side == "bid" else 101 + index, 1, index]
+                               for index in range(expected_count)] for side in ("bid", "ask")})
+                    self.assertEqual(recorded.mid_price, Decimal("100"))
+
     def test_store_position(self):
         recorder = MarketsRecorder(
             sql=self.manager,

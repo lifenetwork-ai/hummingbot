@@ -1,12 +1,18 @@
 # Plans and remaining verification
 
-Updated after full quantile-fixture verification. Start with the [current image result](../../reports/release/mm-runtime-followup-load.md)
+Updated 2026-11-08 after source hot-path verification. Start with the [current image result](../../reports/release/mm-runtime-followup-load.md)
 and [operating guides](../README.md). Detailed completed TDD plans remain in
 [Git history](../../reports/README.md#historical-records). Historical unchecked
 boxes retain their original image/date scope; removing files does not close
 unresolved work. Current outstanding items are listed below.
 
 ## Current state
+
+- [x] New source hot-path allocation phase: bounded book payload collection,
+  disabled-debug formatting and discarded performance defaults; native 972 pass
+  + 9 subtests. [Measured scope](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md).
+- [ ] Package and qualify this 2026-11-08 production-source delta on a new image
+  before promotion. The accepted `a6fe88c0…` gate below predates these changes.
 
 - [x] Latest quantile-fixture full repeat passes all four windows, Random soak3600
   and five faults: mixed/burst/soak p99 **366.46 / 168.04 / 287.63 ms**, zero

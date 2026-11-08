@@ -581,3 +581,70 @@ difference cannot be assigned exclusively to code. The failed attempt remains
 in Git `41d290393` at the release paths. [Current report](../release/mm-runtime-followup-load.md),
 [portable evidence](../release/mm-runtime-followup-load-evidence.json); raw
 `build/quantile-export-load-20261107/`. Historical attribution and quote SLO remain open.
+
+## Native hot-path allocation audit — 2026-11-08
+
+Three production-source changes follow the accepted `a6fe88c0…` image. They are
+**source-verified; not packaged or load-qualified yet**. The prior full gate keeps
+its exact image/fixture scope. No Docker, connected Demo, live account, Google/GCP
+or deployment action is performed in this phase.
+
+The market-data collector used `list(book entries)[:depth]`, constructing every
+Cython OrderBookRow before discarding the tail. `islice` now limits consumption
+before materialization. It keeps the original **configured depth + 1**, price
+fields, row order, SQL transaction/cadence and cancellation semantics. Real SQL
+payload tests cover empty, short, exact-boundary and deep iterators. Collection
+remains disabled by default; this cannot explain prior probes when it was off.
+
+PositionHold used eager f-strings and Decimal formatting even when DEBUG was
+filtered. The existing logger level now gates those strings and debug-only field
+lookups. INFO/WARNING/ERROR avoid that work; DEBUG retains the same message text
+and numeric precision. PnL, volume, fees, fresh marks and duplicate order handling
+are unchanged. No cached summary or price is introduced.
+
+`generate_performance_report` also eagerly constructed a discarded default DTO
+on every `dict.get`. The already-new output report supplies zero defaults on a
+miss. Cache hits still copy the mutable close-type counters; result mutation and
+subsequent report calls cannot change the cached base. Only one DTO is built per
+call, including misses. All financial accumulation remains in the same order.
+
+Corrected Red: two deep-book subtests fail, three shallow/empty pass. A first test
+draft queried nonexistent `MarketData.id`; that test-only mistake was corrected
+before the valid Red. Four disabled-debug cases fail while both enabled-debug
+cases pass. Both eager-report construction cases fail. Green: **104 targeted
+passes + 5 subtests**; expanded executor/controller/drawdown/recorder suites:
+**972 passes + 9 subtests**. The latter includes the targeted suites. Existing
+Pydantic/pandas/asyncio warnings remain. No new SQL or schema change is involved.
+
+Seven alternating before/after pairs use frozen `883e69e92` methods and current
+source, installed native arm64/Cython OrderBook, warmed fixtures and INFO logging.
+Values below are median CPU microseconds per component invocation. Book timings
+measure only payload materialization, excluding prices, model construction and
+SQL; report timings exclude connectors/SQL. Timing is evidence, not a test
+assertion. Both measurement attempts and every pair are retained; empty/shallow
+cost increases are not omitted.
+
+| Component | Before CPU µs | After CPU µs |
+| --- | ---: | ---: |
+| Book empty; collect 21 per side | 0.667 | 0.771 |
+| Book 20 levels/side; collect 21 | 11.750 | 11.800 |
+| Book 400 levels/side; collect 21 | 249.325 | 13.100 |
+| Book 20,000 levels/side; collect 21 | 25208.600 | 13.325 |
+| Position summary, DEBUG disabled | 5.013 | 3.467 |
+| New held order, DEBUG disabled | 6.687 | 4.101 |
+| Duplicate held order, DEBUG disabled | 0.871 | 0.805 |
+| Performance report, cache miss | 8.866 | 6.063 |
+| Performance report, cache hit | 9.414 | 6.689 |
+
+For the 20,000-level synthetic stress book, three traced peak allocation samples
+are [2895312, 2895256, 2895256] bytes before and [4880, 4880, 4880] after. Tracemalloc peak
+is component allocation, not process RSS or a long-running retention result.
+The first component attempt has different absolute timings; both show less work
+on deep books and disabled-debug/report paths. This is not an overall bot CPU,
+p99, continuous-quote or historical-probe-cause claim.
+
+Artifacts: `build/runtime-hotpaths-20261108/`; portable pairs/hashes are retained
+in [consolidated evidence](mm-runtime-followup-evidence.json). Keep the existing
+candidate and rollback; qualify these production changes on a new image before
+promoting them. No budget, pool, retry, authority, risk, stream or refresh setting
+was relaxed, and no dependency/thread/cache adapter was added.

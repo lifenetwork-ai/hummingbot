@@ -1,6 +1,6 @@
 # LIFE / OKX delivery status
 
-Updated 2026-11-07. This concise status replaces the chronological journal; the
+Updated 2026-11-08. This concise status replaces the chronological journal; the
 [full journal](../README.md#historical-records) (Git: `reports/implementation/LIFE_OKX_PROGRESS.md`) retains every original phase, attempt and result.
 Feature/configuration references are in [MM controls](../../docs/life-mm-controls.md),
 [FE integration](../../docs/fe-integration.md), [PostgreSQL](../../docs/postgres-runtime.md)
@@ -21,6 +21,12 @@ and [credential operations](../../docs/exchange-credentials.md).
   adapters and recoverable cancel/close/remove credentials operations.
 
 ## Current verification
+
+New source-only allocation work: bounded recorder book traversal, disabled DEBUG
+formatting and redundant default report DTOs. **972 native passes + 9 subtests**;
+paired component costs and shallow-book overhead retained in the
+[source report](MM_RUNTIME_FOLLOWUP.md). These changes are not yet packaged or
+load-qualified. The accepted image result below retains its original source.
 
 The latest full repeat with quantile fixture `41d290393` **passes** all four
 healthy windows, Random soak3600 and five faults. Mixed/burst/soak p99

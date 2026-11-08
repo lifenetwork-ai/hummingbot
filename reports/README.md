@@ -4,6 +4,11 @@ Start with the [current image/load report](release/mm-runtime-followup-load.md)
 and [remaining-work register](../docs/plans/README.md). Operational procedures and
 API/FE contracts live in [docs](../docs/README.md).
 
+New source-only work (2026-11-08) bounds market-data collection and removes
+unused report/debug allocations: **972 native passes + 9 subtests** and paired
+component measurements. It is **not in the accepted image yet**; new-image
+qualification remains open. [Source scope](implementation/MM_RUNTIME_FOLLOWUP.md).
+
 The latest full-load repeat on **a6fe88c0… passes** after quantile-export correction
 in the test fixture: all four windows, the sixty-minute Random soak and five faults.
 Mixed/burst/soak p99 **366.46 / 168.04 / 287.63 ms**; zero unexpected healthy errors,
@@ -24,7 +29,7 @@ rollback reports/failures remain in Git `745a86e3c` and `ff6b85ded`.
 The follow-up [regression audit](implementation/MM_RUNTIME_FOLLOWUP.md#combined-image-regression-audit--2026-11-07)
 compares immutable images in ABBA order and fixes a reproduced lock dependency
 inside test incident capture. The probe-frequency attribution remains open;
-production trading code is unchanged. The subsequent metrics-selection correction
+that audit changed only fixture code. The subsequent metrics-selection correction
 has 80 frozen targeted passes before load and 81 after an additional precision case.
 Both the failed attempt and new complete gate remain separately attributed.
 

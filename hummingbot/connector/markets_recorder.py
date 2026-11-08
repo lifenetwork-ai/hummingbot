@@ -5,6 +5,7 @@ import os.path
 import threading
 import time
 from decimal import Decimal
+from itertools import islice
 from shutil import move
 from typing import Dict, Iterator, List, Optional, Tuple, Union
 
@@ -140,8 +141,8 @@ class MarketsRecorder:
                                         best_bid=best_bid,
                                         best_ask=best_ask,
                                         order_book={
-                                            "bid": list(order_book.bid_entries())[:depth],
-                                            "ask": list(order_book.ask_entries())[:depth]}
+                                            "bid": list(islice(order_book.bid_entries(), depth)),
+                                            "ask": list(islice(order_book.ask_entries(), depth))}
                                     )
                                     session.add(market_data)
             except asyncio.CancelledError:

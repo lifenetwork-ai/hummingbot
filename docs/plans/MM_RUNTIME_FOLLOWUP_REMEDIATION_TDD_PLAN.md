@@ -369,3 +369,30 @@ on the failed attempt to AC here, so exclusive inter-run causation stays open.
 [Latest full verification](../../reports/release/mm-runtime-followup-load.md),
 [portable evidence](../../reports/release/mm-runtime-followup-load-evidence.json).
 Raw full runner: `build/quantile-export-load-20261107/`.
+
+## Bounded book collection and disabled-debug work — 2026-11-08
+
+- [x] Audit synchronous recorder/report paths for avoidable traversal/formatting;
+  preserve fresh ownership, risk validation and strict report detachment.
+- [x] Red: verify market-data collection consumes only the existing configured
+  depth + 1 per side, with unchanged persisted empty/short/deep book payloads.
+- [x] Green: bound the collector iterator before materialization; preserve SQL,
+  collection cadence, disabled default and cancellation behavior.
+- [x] Red/Green: eliminate disabled DEBUG formatting in PositionHold without
+  changing financial calculations, duplicate handling or enabled log messages.
+- [x] Measure isolated component costs and run the affected regression suites;
+  publish results and scope without borrowing the earlier image's load pass.
+
+The prior full gate applies to shipping source through `745a86e3c` and mounted
+quantile fixture `41d290393`. Any production change here remains source-verified
+until separately qualified on a new image. No automatic Demo or image cleanup.
+
+- [x] Red/Green: construct only the returned performance DTO for cache hit/miss;
+  preserve cached PnL/counter detachment and fresh accumulation across calls.
+
+Native result: **972 passes + 9 subtests** (104 targeted + 5 included). Seven
+alternating paired component samples retain every empty/shallow/deep book and
+both cache states; disabled-debug text/precision and PnL/dedup are covered.
+[Measured source report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md),
+[evidence](../../reports/implementation/mm-runtime-followup-evidence.json).
+No full-load result is inherited by this source delta.

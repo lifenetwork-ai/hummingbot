@@ -125,3 +125,10 @@ No real OKX, Google/GCP or production deployment occurs.
 The full workload acceptance is closed for this fixture/image. Exclusive
 historical-cause attribution and the production continuous-quote SLO remain
 open in the [remaining-work register](../../docs/plans/README.md).
+
+
+Source follow-up 2026-11-08: the subsequent book/debug/report allocation changes
+have native and component verification only. They are not packaged in this image
+and inherit none of this load acceptance. See the
+[source report](../implementation/MM_RUNTIME_FOLLOWUP.md) and pending new-image
+item in the remaining-work register.

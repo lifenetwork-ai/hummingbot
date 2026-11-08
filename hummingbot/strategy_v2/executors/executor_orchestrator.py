@@ -113,6 +113,8 @@ class PositionHold:
                 self.net_amount_base = new_abs if is_buy else -new_abs
 
     def add_orders_from_executor(self, executor: ExecutorInfo):
+        logger = logging.getLogger(__name__)
+        debug = logger.isEnabledFor(logging.DEBUG)
         custom_info = executor.custom_info
         if "held_position_orders" not in custom_info or len(custom_info["held_position_orders"]) == 0:
             logging.getLogger(__name__).warning(
@@ -126,9 +128,10 @@ class PositionHold:
             # Skip if we've already processed this order
             order_id = order.get("client_order_id")
             if order_id in self.order_ids:
-                logging.getLogger(__name__).debug(
-                    f"PositionHold.add_orders: skipping duplicate order {order_id}"
-                )
+                if debug:
+                    logger.debug(
+                        f"PositionHold.add_orders: skipping duplicate order {order_id}"
+                    )
                 continue
 
             # Add the order ID to our set
@@ -140,11 +143,10 @@ class PositionHold:
             executed_amount_quote = Decimal(str(order.get("executed_amount_quote", 0)))
 
             is_buy = order.get("trade_type") == "BUY"
-            order_type_label = order.get("order_type", "N/A")
-            position_action = order.get("position", "N/A")
-
-            # Snapshot before
-            prev_net = self.net_amount_base
+            if debug:
+                order_type_label = order.get("order_type", "N/A")
+                position_action = order.get("position", "N/A")
+                prev_net = self.net_amount_base
 
             # Update volume traded in quote
             self.volume_traded_quote += executed_amount_quote
@@ -163,19 +165,22 @@ class PositionHold:
             # Process order for incremental PnL calculation
             self._process_order(is_buy, executed_amount_base, executed_amount_quote)
 
-            logging.getLogger(__name__).debug(
-                f"PositionHold.add_orders: {self.trading_pair} | "
-                f"order={order_id[:12] if order_id else 'N/A'} | "
-                f"trade_type={'BUY' if is_buy else 'SELL'} | "
-                f"order_type={order_type_label} | position_action={position_action} | "
-                f"amount_base={executed_amount_base} amount_quote={executed_amount_quote:.2f} | "
-                f"executor_side={executor.config.side} level={custom_info.get('level_id', 'N/A')} | "
-                f"net_before={prev_net} -> net_after={self.net_amount_base} | "
-                f"avg_entry={self.avg_entry_price:.4f} realized_pnl={self.realized_pnl_quote:.4f} | "
-                f"buy_total={self.buy_amount_base} sell_total={self.sell_amount_base}"
-            )
+            if debug:
+                logger.debug(
+                    f"PositionHold.add_orders: {self.trading_pair} | "
+                    f"order={order_id[:12] if order_id else 'N/A'} | "
+                    f"trade_type={'BUY' if is_buy else 'SELL'} | "
+                    f"order_type={order_type_label} | position_action={position_action} | "
+                    f"amount_base={executed_amount_base} amount_quote={executed_amount_quote:.2f} | "
+                    f"executor_side={executor.config.side} level={custom_info.get('level_id', 'N/A')} | "
+                    f"net_before={prev_net} -> net_after={self.net_amount_base} | "
+                    f"avg_entry={self.avg_entry_price:.4f} realized_pnl={self.realized_pnl_quote:.4f} | "
+                    f"buy_total={self.buy_amount_base} sell_total={self.sell_amount_base}"
+                )
 
     def get_position_summary(self, mid_price: Decimal):
+        logger = logging.getLogger(__name__)
+        debug = logger.isEnabledFor(logging.DEBUG)
         abs_amount = abs(self.net_amount_base)
         is_net_long = self.net_amount_base >= 0
 
@@ -198,12 +203,13 @@ class PositionHold:
             realized_pnl_quote=self.realized_pnl_quote,
             cum_fees_quote=self.cum_fees_quote)
 
-        logging.getLogger(__name__).debug(
-            f"PositionHold.summary: {self.trading_pair} | "
-            f"net={'LONG' if is_net_long else 'SHORT'} {abs_amount} @ entry={self.avg_entry_price:.4f} | "
-            f"unrealized_pnl={unrealized_pnl_quote:.4f} realized_pnl={self.realized_pnl_quote:.4f} | "
-            f"mid_price={mid_price:.4f} orders={len(self.order_ids)}"
-        )
+        if debug:
+            logger.debug(
+                f"PositionHold.summary: {self.trading_pair} | "
+                f"net={'LONG' if is_net_long else 'SHORT'} {abs_amount} @ entry={self.avg_entry_price:.4f} | "
+                f"unrealized_pnl={unrealized_pnl_quote:.4f} realized_pnl={self.realized_pnl_quote:.4f} | "
+                f"mid_price={mid_price:.4f} orders={len(self.order_ids)}"
+            )
         return summary
 
 
@@ -956,7 +962,8 @@ class ExecutorOrchestrator:
                                     position_summaries=None) -> PerformanceReport:
         # Create a new report starting from cached base values
         report = PerformanceReport()
-        cached_report = self.cached_performance.get(controller_id, PerformanceReport())
+        # The fresh output already supplies zero defaults on a cache miss.
+        cached_report = self.cached_performance.get(controller_id, report)
 
         # Start with cached values (from DB)
         report.realized_pnl_quote = cached_report.realized_pnl_quote

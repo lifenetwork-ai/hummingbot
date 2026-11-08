@@ -140,3 +140,88 @@ def test_zero_retained_exposure_does_not_require_an_available_mark():
     item.positions_held['life_perpetual'] = [PositionHold('okx_perpetual', 'LIFE-USDT')]
     price.stamp = 0
     assert item.mm_valuation_ready()
+
+
+@pytest.mark.parametrize('level', ['INFO', 'WARNING', 'ERROR', 'DEBUG'])
+def test_position_summary_only_formats_decimal_for_enabled_debug(caplog, level):
+    import logging
+
+    from hummingbot.strategy_v2.executors.executor_orchestrator import PositionHold
+
+    class CountedDecimal(Decimal):
+        formats = 0
+
+        def __format__(self, spec):
+            type(self).formats += 1
+            return super().__format__(spec)
+
+    caplog.set_level(getattr(logging, level), logger=PositionHold.__module__)
+    hold = PositionHold('okx', 'LIFE-USDT')
+    hold.net_amount_base = Decimal('2')
+    hold.avg_entry_price = Decimal('100')
+    first = hold.get_position_summary(CountedDecimal('110'))
+    assert CountedDecimal.formats == (1 if level == 'DEBUG' else 0)
+    second = hold.get_position_summary(CountedDecimal('120'))
+    assert first.unrealized_pnl_quote == Decimal('20')
+    assert second.unrealized_pnl_quote == Decimal('40')
+    if level == 'DEBUG':
+        assert 'net=LONG 2 @ entry=100.0000' in caplog.text
+        assert 'mid_price=110.0000 orders=0' in caplog.text
+        assert 'mid_price=120.0000 orders=0' in caplog.text
+
+
+@pytest.mark.parametrize('level', ['INFO', 'DEBUG'])
+def test_position_hold_ingestion_only_formats_enabled_debug_and_keeps_dedup(caplog, level):
+    import logging
+
+    from hummingbot.strategy_v2.executors.executor_orchestrator import PositionHold
+
+    class CountedLabel(str):
+        formats = 0
+
+        def __format__(self, spec):
+            type(self).formats += 1
+            return super().__format__(spec)
+
+    caplog.set_level(getattr(logging, level), logger=PositionHold.__module__)
+    hold = PositionHold('okx', 'LIFE-USDT')
+    order_id = CountedLabel('order-test')
+    config = ChangingExecutor('held').config
+    executor = SimpleNamespace(id='executor-test', config=config, custom_info={'held_position_orders': [dict(
+        client_order_id=order_id, trade_type='BUY', order_type=CountedLabel('LIMIT_MAKER'),
+        position='OPEN', executed_amount_base='2', executed_amount_quote='200', cumulative_fee_paid_quote='1')]})
+    hold.add_orders_from_executor(executor)
+    assert CountedLabel.formats == (1 if level == 'DEBUG' else 0)
+    hold.add_orders_from_executor(executor)
+    assert CountedLabel.formats == (2 if level == 'DEBUG' else 0)
+    assert hold.net_amount_base == Decimal('2')
+    assert hold.volume_traded_quote == Decimal('200')
+    assert hold.cum_fees_quote == Decimal('1')
+    assert hold.order_ids == {order_id}
+    if level == 'DEBUG':
+        assert 'order_type=LIMIT_MAKER | position_action=OPEN' in caplog.text
+        assert 'skipping duplicate order order-test' in caplog.text
+
+
+@pytest.mark.parametrize('has_cached', [False, True])
+def test_performance_report_constructs_only_returned_dto_and_detaches_cache(monkeypatch, has_cached):
+    import hummingbot.strategy_v2.executors.executor_orchestrator as module
+    item, _ = orchestrator([])
+    report_type = module.PerformanceReport
+    cached = report_type(realized_pnl_quote=Decimal('3'), volume_traded=Decimal('100'),
+                         close_type_counts={CloseType.EARLY_STOP: 2})
+    item.cached_performance = {'life_perpetual': cached} if has_cached else {}
+    constructor = MagicMock(wraps=report_type)
+    monkeypatch.setattr(module, 'PerformanceReport', constructor)
+    result = item.generate_performance_report('life_perpetual')
+    assert constructor.call_count == 1
+    assert result.realized_pnl_quote == (Decimal('3') if has_cached else Decimal('0'))
+    assert result.global_pnl_pct == (Decimal('3') if has_cached else Decimal('0'))
+    result.close_type_counts[CloseType.EARLY_STOP] = 99
+    result.realized_pnl_quote = Decimal('9')
+    assert cached.close_type_counts == {CloseType.EARLY_STOP: 2}
+    assert cached.realized_pnl_quote == Decimal('3')
+    next_result = item.generate_performance_report('life_perpetual')
+    assert constructor.call_count == 2
+    assert next_result.realized_pnl_quote == (Decimal('3') if has_cached else Decimal('0'))
+    assert next_result.close_type_counts == ({CloseType.EARLY_STOP: 2} if has_cached else {})
