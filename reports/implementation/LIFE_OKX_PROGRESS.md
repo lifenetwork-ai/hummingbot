@@ -22,34 +22,30 @@ and [credential operations](../../docs/exchange-credentials.md).
 
 ## Current verification
 
-Image **`96368970…`**, build `8544488ef`, now packages the recorder/quote/
-anchor hot-path changes. **1,010 native passes + 9 subtests** and paired component
-measurements retain exact-value and failure checks; **1,225 packaged hashes**
-match the build tree, and **1,254 measured source/fixture hashes** remain frozen.
+Image **`b090430c…`**, build `d0791e563`, packages the earlier recorder/quote/
+anchor allocation changes and signal-lock fix `1916e048e`. Canonical native
+**2,861 passes + 16 subtests**, paired Linux signal contracts and **27 available
+E2E groups in one all execution** pass. All 1,225 packaged hashes match; all
+1,254 measured source/fixture hashes remain unchanged.
 
-The new full load gate **fails burst main/auxiliary p99** at **1,084.01 /
-1,151.07 ms** against 1,000 ms. Warmup, mixed, sixty-minute Random soak and all
-five fault assertions pass. Soak p99 **547.30 ms**, 4,884 simulated fills/fees/
-positions reconcile, retained growth **26.09 MiB / 64 MiB**. Healthy reads:
-97,800 main / 24,450 auxiliary HTTP200, zero unexpected errors. Twelve healthy
-probes recover in **1.031–1.248 s** with no healthy child replacement. These
-observations do not prove continuous quotes or an exclusive latency cause.
+The unchanged full gate **passes** all four windows, Random soak3600 and all five
+fault assertions. Main p99 warmup/mixed/burst/soak **569.69/273.48/297.81/313.00 ms**;
+burst auxiliary 133.70 ms. All 97,800 main/24,450 auxiliary healthy reads return
+HTTP200 without unexpected stale responses. **4,885 simulated fills/fees/positions**
+reconcile; retained growth **30.33 MiB/64 MiB**.
 
-First E2E: six groups pass before an older seed fixture omits dummy live perpetual
-credentials. TDD proves live fail/demo pass; fixture `556d30bb7` supplies the same
-fields as other both-market fixtures, with 14 related native tests passing.
-Corrected `all` fails shutdown after fourteen groups; thirteen remaining/targeted
-groups subsequently pass on the unchanged image. Upgrade remains unrun
-without an actual prior image. The fixture fix does not weaken credential gates.
+Three healthy engine probes recover in 1.116/1.083/1.057 s without replacement.
+All eight ERROR records belong to injected DB faults. No baseline activity
+overlay: continuous quoting and exclusive historical cause are not established.
+The whole observed run is AC; warmup p99 and retained growth are higher than the
+failed predecessor, so no uniform speedup or exclusive power effect is claimed.
 
-Power changes from battery to AC during soak; no power settings are changed.
-Eight ERROR records belong to injected DB faults only. Existing unrelated images
-and volume are retained; no connected Demo/Google/GCP or deployment occurs.
-
-The previous accepted `a6fe88c0…` report/evidence remains in Git `8544488ef` at the
-current release paths, including source, quantile fixture and historical limits.
-The previous daemon's rollback images/containers no longer exist here; historical
-verification is retained in Git, not silently relabeled as current-image evidence.
+The pre-existing Event-lock hazard is demonstrated by real-signal Red/Green and
+old/new image behavior. The predecessor's observed shutdown cause remains
+unproven. Failed `96368970…` reports remain in Git `d0791e563`; earlier accepted
+`a6fe88c0…` records remain in `8544488ef`, at current release paths. Unrelated
+container IDs/states, image IDs and volume are retained. No connected Demo,
+Google/GCP or deployment occurs.
 
 - [Current image report](../release/mm-runtime-followup-load.md)
 - [Latest source remediation](MM_RUNTIME_FOLLOWUP.md)
@@ -57,11 +53,3 @@ verification is retained in Git, not silently relabeled as current-image evidenc
 
 No actual-Demo cutover, real Google/GCP or production deployment is inherited from
 these local checks. Historical pass/fail scopes remain in Git history.
-
-Shutdown follow-up: corrected `all` E2E passes fourteen groups before a nonzero
-inventory-skew shutdown; all thirteen remaining/targeted groups pass, covering twenty-seven unique
-groups across attempts. The failed `all` remains failed. A real-signal
-TDD reproducer confirms an Event-lock hazard, fixed in source `1916e048e` (75 related
-passes). This is a possible mechanism, not proof of the old exit's unique cause.
-`96368970…` predates the fix; new-image qualification remains open. See the
-[runtime checklist](../../docs/plans/MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md).

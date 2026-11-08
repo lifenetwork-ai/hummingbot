@@ -9644,16 +9644,27 @@
   },
   "supervisor_signal_lock_tdd_20261109": {
     "commit": "1916e048e",
-    "source_only": true,
+    "source_only": false,
     "not_in_image": "96368970\u2026",
     "red_failures": 1,
     "related_green_passes": 75,
     "proof": "Real SIGTERM under Event condition causes reentrant Event.set deadlock and hard deadline exit1 beforefix; flag/poll handling exits0 afterfix.",
     "change": "Signal handler sets requested flag; supervisor checks before/after child launch and existing50ms waits. Ordinary cleanup notifies Event, async self-pipe/hard deadline unchanged. No new thread.",
     "original_e2e_shutdown_unique_cause_proven": false,
-    "new_image_qualification": "pending",
+    "new_image_qualification": "All requested local gates plus separate technical upgrade pass; real external/production acceptance unrun",
     "raw_artifacts": "build/quote-runtime-release-20261108/shutdown-signal-{red,green}.log",
     "preexisting_branch_commit": "6de4001cde",
-    "original_deadline_commit": "9f7ea36c4b"
+    "original_deadline_commit": "9f7ea36c4b",
+    "packaged_image_id": "sha256:b090430c8ee89f61e189f1dc50c22dcccd00c32208e130deb4701446980b1d3d",
+    "build_commit": "d0791e56358beedef8a19ab6ac37ecf49b8e31cf",
+    "canonical_native": {
+      "passes": 2861,
+      "subtests": 16
+    },
+    "e2e_groups": 27,
+    "full_load_gate_passed": true,
+    "current_report": "reports/release/mm-runtime-followup-load.md",
+    "current_evidence": "reports/release/mm-runtime-followup-load-evidence.json",
+    "technical_upgrade_passed": true
   }
 }

@@ -4,32 +4,25 @@ Start with the [current image/load report](release/mm-runtime-followup-load.md)
 and [remaining-work register](../docs/plans/README.md). Operational procedures and
 API/FE contracts live in [docs](../docs/README.md).
 
-The new **`96368970…`** image packages the quote/anchor/recorder allocation
-changes, but its **full load gate fails burst p99**: main **1,084.01 ms** and
-auxiliary **1,151.07 ms**, both against 1,000 ms. Warmup/mixed/soak and all five
-fault assertions pass. Soak p99 **547.30 ms**, 4,884 exact simulated fills,
-26.09 MiB/64 MiB retained growth; twelve healthy probes recover without child
-replacement. All 97,800 main / 24,450 auxiliary healthy reads complete HTTP200.
-Battery-to-AC host conditions and cold-build dependencies differ from the prior
-accepted image; exclusive attribution remains open.
+Current image **`b090430c…`** passes canonical native **2,861 + 16 subtests**,
+all **27 available E2E groups in one `all` attempt**, four unchanged load windows,
+Random soak3600 and five faults. Mixed/burst/soak p99 **273.48 / 297.81 / 313.00 ms**;
+zero unexpected healthy errors, **4,885 simulated fills** reconcile, retained
+growth **30.33 MiB / 64 MiB**. Three healthy engine probes recover in 1.06–1.12 s
+without healthy replacement. Original budgets remain.
 
-Source verification: **1,010 native passes + 9 subtests** and paired component
-measurements. The first E2E exposed missing dummy perpetual credentials in an
-older live-mode seed fixture. TDD reproduces it, then 14 related native tests pass
-with fixture commit `556d30bb7`. The corrected `all` fails inventory shutdown; targeted remaining groups pass;
-upgrade remains unrun without a compatible prior image. Shipping runtime stays
-build `8544488ef`; the host fixture correction does not change the engine.
+Runtime fix `1916e048e` removes a confirmed pre-existing signal/Event-lock hazard;
+paired Linux-image real-signal contracts reproduce old exit1/new exit0. All 1,225
+packaged hashes match build `d0791e563`; 1,254 measured source/fixture hashes stay
+frozen. The observed run is AC. Healthy latency differences are not uniquely
+attributed to the shutdown-only correction or to power.
+
 [Current report](release/mm-runtime-followup-load.md),
 [portable evidence](release/mm-runtime-followup-load-evidence.json),
-[source/TDD](implementation/MM_RUNTIME_FOLLOWUP.md).
-
-The preceding accepted `a6fe88c0…` quantile-fixture gate remains in Git
-**`8544488ef`** at the same release report/evidence paths. Its mixed/burst/soak p99
-was 366.46/168.04/287.63 ms with three recovered probes. Earlier failed attempts
-remain in Git `41d290393` and `ff6b85ded`; previous scoped full/E2E/activity
-results remain in `dfad4a4d1` and `745a86e3c`. These are historical records, not
-images guaranteed to remain in the current daemon. No connected Demo, real
-Google/GCP or production deployment is inherited from offline verification.
+[source/TDD](implementation/MM_RUNTIME_FOLLOWUP.md). The failed `96368970…` burst
+and `all` shutdown attempts remain in Git **`d0791e563`** at the same release
+paths; older accepted `a6fe88c0…` records remain in **`8544488ef`**. Neither failed
+predecessor is retrospectively passed. No real Demo/Google/GCP/deployment occurs.
 
 | Topic | Current entry |
 | --- | --- |
@@ -61,11 +54,3 @@ Git history. No Git history rewrite/prune is performed. Historical unchecked box
 and scope limits are retained; removing files does not close unresolved items.
 Read the [remaining-work register](../docs/plans/README.md) for current status.
 Raw logs/ledgers remain under ignored `build/`; private credentials stay outside Git.
-
-Shutdown follow-up: corrected `all` E2E passes fourteen groups before a nonzero
-inventory-skew shutdown; all thirteen remaining/targeted groups pass, covering twenty-seven unique
-groups across attempts. The failed `all` remains failed. A real-signal
-TDD reproducer confirms an Event-lock hazard, fixed in source `1916e048e` (75 related
-passes). This is a possible mechanism, not proof of the old exit's unique cause.
-`96368970…` predates the fix; new-image qualification remains open. See the
-[runtime checklist](../docs/plans/MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md).

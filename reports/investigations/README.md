@@ -2,20 +2,20 @@
 
 [All reports](../README.md) · [Remaining work](../../docs/plans/README.md)
 
-Current conclusions are in the [runtime remediation](../implementation/MM_RUNTIME_FOLLOWUP.md)
-and [current image report](../release/mm-runtime-followup-load.md). New image
-`96368970…` has twelve recovered healthy probe transitions (ten engine/two API)
-and **fails burst main/auxiliary p99**, while soak3600/five fault assertions pass.
-No healthy child replacement occurs. Inclusive observer/recorder timings, GC and
-sampled SQL stacks show overlap, not an exclusive latency cause. Bounded omitted
-spans and absent baseline MM activity prevent complete quote-downtime attribution.
+Current conclusions are in the [source/TDD report](../implementation/MM_RUNTIME_FOLLOWUP.md)
+and [current image report](../release/mm-runtime-followup-load.md). `b090430c…`
+passes native/E2E and the unchanged full load/soak/five faults. The confirmed
+pre-existing signal/Event-lock hazard is fixed and demonstrated in paired real
+Linux-image signal tests. The observed old shutdown's exact cause is not proven.
 
-The preceding accepted gate remains in Git `8544488ef` at current release paths;
-older failure/retry evidence remains in `41d290393`/`ff6b85ded`. Earlier separate
-activity300 point samples retain their own image/date scope and do not instrument
-this baseline retrospectively. Corrected `all` fails inventory shutdown after fixing
-an older dummy-credential fixture omission; upgrade is unrun without a previous
-compatible image. No current failure is silently passed by an older result.
+Three healthy engine probes recover in 1.06–1.12 s without child replacement.
+No baseline MM activity overlay, so observation intervals are not measured quote
+stoppage. Warmup p99 and retained growth rise versus the failed predecessor; other
+latencies/probe count improve on AC. There is no exclusive performance/power cause.
+
+The failed `96368970…` gate remains in Git `d0791e563`, older accepted `a6fe88c0…`
+in `8544488ef`, at current release report/evidence paths. Older activity point
+samples retain their own image/date scope. No failed attempt is silently passed.
 
 The [ownership-read investigation](../implementation/MM_RUNTIME_FOLLOWUP.md#residual-probes-ownership-reads--2026-11-07)
 reproduces a read-COMMIT probe delay and tests a scoped driver change. Its first
@@ -27,11 +27,3 @@ Original stack/SQL/CPU, p99, publication, quote-coverage, test-instrumentation a
 code-audit reports/evidence are preserved byte-for-byte in the
 [Git history](../README.md#historical-records). Use the original path with the pinned Git snapshot.
 Historical unresolved items remain visible in the remaining-work register.
-
-Shutdown follow-up: corrected `all` E2E passes fourteen groups before a nonzero
-inventory-skew shutdown; all thirteen remaining/targeted groups pass, covering twenty-seven unique
-groups across attempts. The failed `all` remains failed. A real-signal
-TDD reproducer confirms an Event-lock hazard, fixed in source `1916e048e` (75 related
-passes). This is a possible mechanism, not proof of the old exit's unique cause.
-`96368970…` predates the fix; new-image qualification remains open. See the
-[runtime checklist](../../docs/plans/MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md).

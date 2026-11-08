@@ -34,29 +34,23 @@ in [credential operations](../exchange-credentials.md) and
 ## Verification and remaining acceptance
 
 - [x] Native source/PG, local encryption, offline signed Google identities, role/
-  audit and simulator lifecycle/fault tests. Prior lifecycle cases retain their
-  original image identities in Git history; they are not relabelled as new runs.
-- [x] Previous image `a6fe88c0…` qualified with its original fixture scope;
-  evidence remains in Git `8544488ef` at current release paths.
-- [x] New `96368970…` runs unchanged security/operator load and passes soak3600/
-  five fault assertions; 4,884 simulated fills reconcile, no healthy replacement.
-- [ ] New image full-performance acceptance: burst main/auxiliary p99
-  1,084.01/1,151.07 ms exceed 1,000 ms. Corrected `all` fails inventory shutdown; remaining targets pass;
-  upgrade is unrun without a compatible previous image.
-  [Current result](../../reports/release/mm-runtime-followup-load.md).
+  audit and lifecycle/fault evidence. Original image/date scopes remain in Git.
+- [x] Current image `b090430c…`: canonical native 2,861 + 16 subtests, all 27 available
+  E2E in one all execution, full unchanged security/operator load/soak3600/five
+  faults. No unexpected healthy errors or healthy child replacement; 4,885 exact
+  simulated fills/fees/positions. Separate technical upgrade/rollback passes.
+- [x] TDD-confirm/fix pre-existing signal/Event-lock hazard (`1916e048e`) and verify
+  old/new Linux-image behavior; original observed shutdown's unique cause remains
+  unproven. Preserve failed963 gate in Git `d0791e563`, accepted a6 in `8544488ef`.
+  [Current report](../../reports/release/mm-runtime-followup-load.md).
 - [ ] Real Google login/certificate discovery and real GCP KMS/IAM using synthetic
-  credentials when resources are provided. Local/offline verification cannot close this.
-- [ ] Existing-Demo managed-credential cutover if chosen, under the documented
-  operator review and account/ledger checks. No new cutover or production deployment
-  was performed by the latest local tests.
+  credentials when resources are provided. User deferred this; offline checks do
+  not close it.
+- [ ] Actual-Demo managed-credential cutover if chosen, with the documented account/
+  ledger review. No new real-account cutover, DB repair or production deployment
+  is performed by this local task.
 
-The Basic-disable/identity, deployment routing, account binding and cleanup rules
-remain unchanged by this documentation consolidation. [Remaining-work register](README.md).
-
-Shutdown follow-up: corrected `all` E2E passes fourteen groups before a nonzero
-inventory-skew shutdown; all thirteen remaining/targeted groups pass, covering twenty-seven unique
-groups across attempts. The failed `all` remains failed. A real-signal
-TDD reproducer confirms an Event-lock hazard, fixed in source `1916e048e` (75 related
-passes). This is a possible mechanism, not proof of the old exit's unique cause.
-`96368970…` predates the fix; new-image qualification remains open. See the
-[runtime checklist](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md).
+Three healthy engine probes recover in 1.06–1.12 s. Baseline activity overlay is off,
+so these are not measured quote-stop intervals. No exclusive performance/power
+cause or qualified production rollback is inferred. Remaining policy/evidence
+items are centralized in the [register](README.md).

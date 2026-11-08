@@ -264,7 +264,7 @@ baseline does not enable MM activity instrumentation; the extra diagnostic canno
 replace its sixty-minute acceptance gate or retroactively prove quote continuity.
 
 Result: image `a6fe88c0…`, build `745a86e3c`, passes all stages on first attempts.
-97,800 main/24,450 auxiliary healthy HTTP200; soak p99 406.14 ms, 24.26 MiB retained
+97,800 main / 24,450 auxiliary healthy HTTP200; soak p99 406.14 ms, 24.26 MiB retained
 growth and 4,885 exact simulated fills/fees/positions. Eleven soak engine and three
 mixed engine probes recover without healthy child replacement. Their frequency
 and burst p99 503.57 ms regress versus rollback `e00cef38…`; attribution remains
@@ -356,7 +356,7 @@ counts and health/durability checks retain their original scope. Raw TDD/pairs:
 
 First revised-fixture full attempt passes all four healthy windows, the complete
 Random soak3600 and five faults. Main p99 warmup/mixed/burst/soak:
-**312.31 / 366.46 / 168.04 / 287.63 ms**. All 97,800 main/24,450 auxiliary HTTP200,
+**312.31 / 366.46 / 168.04 / 287.63 ms**. All 97,800 main / 24,450 auxiliary HTTP200,
 zero unexpected healthy errors/stale responses or budget violations; 4,884 exact
 simulated fills/fees/positions reconcile. Soak retained growth 23.16 MiB/64 MiB;
 58 running samples, max gap 65.51 s and PIDs 1/32/33. Healthy engine probes remain:
@@ -432,9 +432,11 @@ No new image or full load acceptance is implied by this source phase.
   images are absent from this Docker daemon; unrelated images/volume are retained.
 - [x] Build the amd64 Cloud Run target from current source, check size/runtime
   imports and record immutable image/config hashes.
-- [ ] Run available offline E2E scenarios on that exact manifest, including spread,
-  bootstrap, volatility sizing and lifecycle. Keep upgrade/rollback unverified
-  without an actual compatible previous image; do not substitute the candidate.
+- [x] Execute available offline E2E scenarios on that manifest, retaining the failed
+  all attempt and thirteen passing remaining targets; current replacement all
+  also passes. Coverage includes spread, bootstrap, volatility sizing and
+  lifecycle. The original attempt omits upgrade; the later distinct-image check
+  is recorded below. The candidate is never its own comparison image.
 - [x] Run the unchanged full load profile with operations/security and bounded
   incident diagnostics, including sixty-minute Random soak and five faults.
 - [x] Review all measured windows, ledger/fees/positions, process identities,
@@ -465,12 +467,14 @@ introduced in `1ee10e01bc`; this predates the new production optimizations.
   adapter; live fails missing all three perpetual variables, demo passes.
 - [x] Green: supply the same dummy perpetual credentials as other both-market
   fixtures; 14 related native tests pass, including both live/demo cases.
-- [ ] Rerun available E2E matrix on the same immutable runtime with corrected host
-  fixture; preserve the first failed attempt and explicitly unrun upgrade scope.
+- [x] Execute the corrected-host E2E rerun on the same immutable runtime; retain
+  its failed inventory shutdown and thirteen passing targets. Preserve the first
+  missing-credential failure and original attempt scope separately.
 
 Only host runner `scripts/test_e2e_offline.py` and its test are corrected. The
 image remains build `8544488ef`; `.dockerignore` excludes the host E2E runner
-from the image. All 1,225 packaged hashes still match the corrected checkout.
+from the image. All 1,225 packaged hashes match the host-fixture checkpoint
+`683773d34`, before the later runtime signal fix.
 Report its corrected external fixture hash separately; no engine/controller/recorder, credentials gate or
 runtime setting changes. The full-load runner retained its pre-fix loaded source
 for the entire measurement, with all 1,254 captured source hashes unchanged.
@@ -494,10 +498,11 @@ prove a unique cause. Preserve this failed attempt.
   No new thread, lock, deadline or restart policy. Red 1 fail; related Green75.
 - [x] Finish the thirteen remaining/targeted old-image E2E groups (all pass). A passing retry
   does not retrospectively pass the failed `all` attempt or prove its cause.
-- [ ] Build/pin a new canonical image with the signal fix, verify packaged source,
+- [x] Build/pin a new canonical image with the signal fix, verify packaged source,
   and rerun native/available E2E plus the unchanged full load/soak/fault gate.
-- [ ] Publish both failed predecessors and the new verification separately;
-  retain original p99/probe attribution limits and unrun previous-image upgrade.
+- [x] Publish both failed predecessors and the new verification separately;
+  retain original p99/probe attribution limits and original unrun upgrade scope.
+  A separate technical upgrade passes later, without endorsing the failed predecessor.
 
 The event-lock bug is confirmed by deterministic real-signal Red/Green. It is a
 possible mechanism for the observed shutdown, not proof of that historical
@@ -506,6 +511,35 @@ and remains failed; the shutdown fix makes no latency or probe-cause claim.
 
 Old-image execution closed: fourteen groups pass in the corrected `all` attempt
 before inventory-skew shutdown failure; all thirteen individual remaining/targeted
-groups pass afterward. Twenty-seven unique groups covered, no compatible prior
-image for upgrade. This is composite coverage, not a passing `all` execution.
-Full load remains failed on burst p99; the new signal fix still needs its new image.
+groups pass afterward. Twenty-seven unique groups are covered across attempts;
+upgrade is omitted at that checkpoint. This is composite coverage, not a passing
+`all` execution. Its full load stays failed on burst p99. The source fix at that
+checkpoint requires the separately qualified replacement image recorded below.
+
+## Final signal-safe candidate — 2026-11-09
+
+- [x] Build `d0791e563`, image `b090430c…`, 1,374,595,999 bytes; 1,225 packaged
+  hashes match and all 1,254 measured source/fixture hashes remain unchanged.
+- [x] Canonical native 2,861 + 16 subtests; paired old/new Linux-image real-signal
+  contract confirms old exit1/new exit0. No threshold/deadline/resource relaxation.
+- [x] All 27 available E2E groups pass in one all attempt; inventory shutdown
+  exit0/non-OOM, 1.308-second exit observation/1.34-second complete helper metric.
+- [x] All unchanged load windows and five faults pass: main p99
+  569.69/273.48/297.81/313.00 ms; 97,800 main / 24,450 auxiliary healthy HTTP200,
+  4,885 exact simulated fills/fees/positions. Retained growth 30.33 MiB/64 MiB.
+- [x] Disclose three recovered healthy engine probes 1.116/1.083/1.057 s, no healthy
+  replacement/errors, eight ERROR records limited to injected DB faults. No
+  continuous-quote proof or exclusive power/p99/old-shutdown-cause claim.
+- [x] Finish separate technical upgrade/takeover/rollback with distinct compatible
+  test predecessor `96368970…`. This does not qualify that failed image as production rollback.
+
+The failed `96368970…` burst/all attempts remain in Git `d0791e563` at current release
+report/evidence paths; accepted a6 records remain in `8544488ef`. New AC results
+do not retroactively pass old failures. Real Google/GCP, connected Demo and
+production quote-coverage policy retain their external/historical scope.
+
+Standalone technical upgrade subsequently passes with distinct compatible test
+images `96368970…` → `b090430c…` → `96368970…`, preserving one deduplicated
+fill/fee and the additive nullable fixture column. The all 27 raw upgrade flag remains false; combined local groups 28
+are covered across two commands. This does not qualify `96368970…` as production rollback.
+Unrelated containers/images/volume remain; real external acceptance is deferred.

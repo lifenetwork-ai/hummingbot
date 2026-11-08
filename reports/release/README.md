@@ -4,19 +4,11 @@
 
 | Report | Scope |
 | --- | --- |
-| [Current image/load](mm-runtime-followup-load.md), [evidence](mm-runtime-followup-load-evidence.json) | `96368970…`: **burst p99 fails** (main 1,084.01 / auxiliary 1,151.07 ms). Warmup/mixed/soak3600/five faults pass; 4,884 simulated fills, 26.09 MiB retained growth, twelve recovered healthy probes. Corrected `all` fails shutdown; targeted remaining groups pass; upgrade unrun. |
-| [Previous accepted record](../README.md#historical-records) | `a6fe88c0…`, Git `8544488ef` at the current report/evidence paths: quantile-fixture full gate passes. No previous bot/rollback image exists in the current daemon. |
+| [Current image/load](mm-runtime-followup-load.md), [evidence](mm-runtime-followup-load-evidence.json) | `b090430c…`, build `d0791e563`: native2,861+16, all27 available E2E, full unchanged load/Random soak3600/five faults pass. Burst/soak p99 297.81/313.00 ms; 4,885 simulated fills, 30.33 MiB retained growth, three recovered healthy engine probes. |
+| [Failed predecessor](../README.md#historical-records) | `96368970…`, Git `d0791e563` at current release paths: burst p99 failed; corrected `all` failed shutdown after fourteen groups, then thirteen individual targets passed. Retained comparison image, not an accepted production rollback. |
+| [Earlier accepted record](../README.md#historical-records) | `a6fe88c0…`, Git `8544488ef` at the current release paths, original quantile-fixture/host scope. Image is absent from the current daemon. |
 
-Earlier release attempts, checkpoint/expiry reports and partial/managed lifecycle
-acceptance remain in Git history with their original failures and image/date
-scope. This verification preserves unrelated local images/volume; no image prune
-or connected Demo activity occurs. Actual exchange evidence is separate in
-[Demo verification](../demo/README.md).
-
-Shutdown follow-up: corrected `all` E2E passes fourteen groups before a nonzero
-inventory-skew shutdown; all thirteen remaining/targeted groups pass, covering twenty-seven unique
-groups across attempts. The failed `all` remains failed. A real-signal
-TDD reproducer confirms an Event-lock hazard, fixed in source `1916e048e` (75 related
-passes). This is a possible mechanism, not proof of the old exit's unique cause.
-`96368970…` predates the fix; new-image qualification remains open. See the
-[runtime checklist](../../docs/plans/MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md).
+The signal-lock mechanism is proven fixed; the predecessor's observed nonzero
+exit still lacks exclusive historical attribution. Baseline probe intervals are
+not independent quote-downtime measurements. Real external acceptance remains
+separate in the register and [Demo verification](../demo/README.md).

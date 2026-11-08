@@ -24,22 +24,19 @@ are the configuration/operations references.
 
 ## Latest verification
 
-New image `96368970…`, build `8544488ef`, packages subsequent recorder/quote/
-anchor allocation work. The unchanged full gate **fails burst main/auxiliary p99**
-at 1,084.01/1,151.07 ms against 1,000 ms. Warmup/mixed/soak3600/five faults pass;
-4,884 simulated fills reconcile and retained growth is 26.09 MiB/64 MiB. The older missing-credential fixture is fixed; corrected `all` later fails
-inventory shutdown, with remaining individual targets passing; upgrade remains unrun without a compatible prior image.
+Image `b090430c…`, build `d0791e563`, includes signal-lock fix `1916e048e`.
+Canonical native **2,861 + 16 subtests**, all 27 available E2E in one all execution,
+unchanged full load/soak3600/five faults all pass. Separate distinct-image
+technical upgrade/takeover/rollback also passes using963 as a compatible test
+predecessor; it does not endorse that failed artifact as production rollback.
 
-The previous accepted `a6fe88c0…` gate remains in Git `8544488ef` at current release
-report/evidence paths. See the [current image report](../../reports/release/mm-runtime-followup-load.md)
-and [source verification](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md).
-This does not imply real cloud deployment or unlimited uptime. Known external
-acceptance and attribution limits remain in the [register](README.md).
+All 97,800 main / 24,450 auxiliary healthy reads return HTTP200 without unexpected
+stale responses. Mixed/burst/soak p99 **273.48/297.81/313.00 ms**; 4,885 simulated
+fills/fees/positions reconcile, retained growth 30.33 MiB/64 MiB. Three healthy engine
+probes recover without replacement. Continuous-quote coverage and exclusive
+historical cause remain unproven; no real cloud deployment is implied.
 
-Shutdown follow-up: corrected `all` E2E passes fourteen groups before a nonzero
-inventory-skew shutdown; all thirteen remaining/targeted groups pass, covering twenty-seven unique
-groups across attempts. The failed `all` remains failed. A real-signal
-TDD reproducer confirms an Event-lock hazard, fixed in source `1916e048e` (75 related
-passes). This is a possible mechanism, not proof of the old exit's unique cause.
-`96368970…` predates the fix; new-image qualification remains open. See the
-[runtime checklist](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md).
+Failed963 evidence stays in Git `d0791e563`; accepted a6 records in `8544488ef`,
+at the [current release paths](../../reports/release/mm-runtime-followup-load.md).
+Source/TDD and capture limits are in the [source report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md)
+and [remaining-work register](README.md).

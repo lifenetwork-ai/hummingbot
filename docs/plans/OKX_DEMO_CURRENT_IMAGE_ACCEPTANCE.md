@@ -7,28 +7,29 @@ the image/account/date attached to connected evidence.
 
 ## Current image — local/offline
 
-- [x] Build/pin `96368970…` from `8544488ef`, verify 1,225 packaged hashes and
-  four packaged counter/behavior contracts; size 1,374,595,562 bytes.
-- [x] Run unchanged full baseline/security/operator load, sixty-minute Random
-  soak and five faults. All 97,800 main/24,450 auxiliary healthy reads complete
-  HTTP200; 4,884 simulated fills reconcile; retention 26.09 MiB/64 MiB.
-- [ ] Full-performance gate: burst main/auxiliary p99 **1,084.01/1,151.07 ms**
-  exceed 1,000 ms. Later passing windows do not close this failed gate.
-- [x] Disclose twelve healthy recovered probe transitions, ten engine/two API,
-  approximately 1.031–1.248 s, no healthy replacement. No baseline activity
-  overlay; these intervals are not independently measured quote downtime.
-- [x] TDD-fix the older initial-position fixture's missing dummy live perpetual
-  credentials (`556d30bb7`); 14 related native tests pass, no runtime gate change.
-- [ ] Complete corrected available-E2E matrix on the same immutable image.
-- [ ] Upgrade/rollback E2E: unrun without a compatible prior image.
+- [x] Build/pin `b090430c…` at `d0791e563`, 1,374,595,999 bytes; 1,225 packaged
+  hashes match; 1,254 measured source/fixture hashes remain unchanged.
+- [x] Canonical native 2,861 + 16 subtests; paired real-signal Linux-image contract
+  confirms the pre-existing Event-lock hazard fixed in `1916e048e`.
+- [x] All27 available E2E groups pass in one all execution, including inventory
+  shutdown/restart. Standalone distinct-image technical upgrade/takeover/rollback
+  passes against963, without qualifying that failed image as production rollback.
+- [x] Unchanged full warmup/mixed/burst/Random soak3600/five faults pass: main p99
+  **569.69/273.48/297.81/313.00 ms**, burst auxiliary 133.70 ms. All 97,800 main / 24,450
+  auxiliary healthy reads HTTP200, zero unexpected stale responses.
+- [x] 4,885 exact simulated fills/fees/positions reconcile; retained growth
+  **30.33 MiB/64 MiB**, 58 soak samples running with PIDs 1/32/33 unchanged.
+- [x] Disclose three recovered healthy engine probes 1.116/1.083/1.057 s; no healthy
+  ERROR/replacement. No baseline activity overlay or exact quote-downtime proof.
+- [x] Preserve failed963 burst/all attempts in Git `d0791e563`, accepted a6 records
+  in `8544488ef`, at current release paths. All existing unrelated container IDs/
+  states, image IDs and volume remain; no image prune.
 
-[Current image report](../../reports/release/mm-runtime-followup-load.md),
+[Current report](../../reports/release/mm-runtime-followup-load.md),
 [portable evidence](../../reports/release/mm-runtime-followup-load-evidence.json).
-All trading is simulated with dummy credentials. The previous accepted
-`a6fe88c0…` gate remains in Git `8544488ef` at those release paths; separate earlier
-enhancement/activity diagnostics retain their original scope. No old bot/rollback
-image or Demo container exists in the current daemon. Unrelated local images and
-volume are preserved; no image prune occurs.
+All trading is simulated with dummy credentials. Actual Demo acceptance is
+separate. The 27-case all command omits previous-image; its raw upgrade flag is
+false, with the separate passing upgrade run retained explicitly.
 
 ## Actual Demo acceptance
 
@@ -40,7 +41,7 @@ the present daemon. This run neither queries a real OKX account nor repairs,
 starts or migrates a Demo ledger.
 
 Current-image connected preflight, controlled sessions, natural fills and restart
-have not been performed on `96368970…`. Historical positive fill/REST evidence and
+have not been performed on `b090430c…`. Historical positive fill/REST evidence and
 unchecked controller-image spot/soak/guard-wait items keep their original dates
 and images; new offline gates do not retroactively complete them.
 
@@ -50,11 +51,3 @@ and images; new offline gates do not retroactively complete them.
 
 Real Google/GCP, production quote-coverage policy and unresolved historical/probe
 attribution are in the [remaining-work register](README.md).
-
-Shutdown follow-up: corrected `all` E2E passes fourteen groups before a nonzero
-inventory-skew shutdown; all thirteen remaining/targeted groups pass, covering twenty-seven unique
-groups across attempts. The failed `all` remains failed. A real-signal
-TDD reproducer confirms an Event-lock hazard, fixed in source `1916e048e` (75 related
-passes). This is a possible mechanism, not proof of the old exit's unique cause.
-`96368970…` predates the fix; new-image qualification remains open. See the
-[runtime checklist](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md).

@@ -280,7 +280,7 @@ real-Demo qualification is inherited; accepted image `837e7997…` is unchanged.
 Image `e00cef38…`, built from `ff6b85ded` with runtime `d9488143d`, separately passes
 four targeted E2E groups on first attempts, enhancement90 and the unchanged full
 baseline/Random soak3600/five faults. All 1,224 packaged hashes stay unchanged.
-Soak p99 410.20ms, zero unexpected healthy errors, retention 28.59/64MiB, exact
+Soak p99 410.20ms, zero unexpected healthy errors, retention 28.59/64 MiB, exact
 4,884 simulated fills/fees/positions. Five engine probes in soak (previous seven),
 one API probe in mixed and one engine probe between windows recover. Mixed/burst
 improve; warmup/soak latency and retention regress within budgets. This does not
@@ -787,7 +787,52 @@ condition, then verifies ordinary cleanup still sets the Event and restores
 handlers. Existing tests retain hard-deadline termination of blocking cleanup.
 Native logs/reproducer: `build/quote-runtime-release-20261108/`.
 
-**Source-only for this signal fix:** image `96368970…` predates it. A new canonical
+**At the 75-test source checkpoint:** image `96368970…` predates this fix. A new canonical
 image, native/available-E2E and unchanged full load/soak/fault qualification are
 required. Its predecessor burst p99 failure stays failed; no probe/p99 improvement
 is attributed to this shutdown correction.
+
+## Signal-safe image qualification — 2026-11-09
+
+Canonical image **`b090430c…`**, build `d0791e563`, now packages `1916e048e`.
+All 1,225 hashes match and all 1,254 measured source/fixture hashes remain frozen.
+Only two packaged source files differ from predecessor `96368970…`: `service.py`
+and `service_processes.py`. Selected installed dependency versions match. Image
+size 1,374,595,999 bytes, 437 bytes above the predecessor.
+
+Canonical native **2,861 pass + 16 subtests**; paired Linux-image real-signal
+contract confirms old exit1/new exit0. All **27 available E2E groups pass in one
+all execution**, including inventory shutdown/restart. Existing hard-deadline and
+9.5-second/exit-zero/OOM fixture gates remain. The all 27 command initially omits previous-image; the separate technical
+upgrade recorded below subsequently passes.
+
+Unchanged warmup/mixed/burst/soak3600 and all five faults pass. Main p99
+569.69/273.48/297.81/313.00 ms; burst auxiliary 133.70 ms. All 97,800 main / 24,450
+auxiliary healthy reads return HTTP200 without unexpected stale responses.
+**4,885 simulated fills** reconcile exactly with fees/positions, two identified
+funding bills and three daily snapshots. Retained growth **30.33 MiB / 64 MiB**;
+58 soak samples all running with PIDs 1/32/33, no healthy replacement.
+
+Three engine probes recover in 1.116 s (warmup), 1.083/1.057 s (soak); no baseline
+MM activity overlay, so these are not measured quote-stop intervals. All eight
+ERROR logs belong to injected DB faults; healthy/preparation/inter-window logs
+have none. Bounded child spans remain omitted. All recorded power samples are AC.
+Warmup p99 and retained growth are higher than the failed predecessor, while
+mixed/burst/soak p99 and probe count improve. No uniform speedup or exclusive
+power/p99 attribution is established; the shutdown-only correction is not a
+proven explanation of healthy latency changes.
+
+The failed predecessor's exact report/evidence remains in Git **`d0791e563`** at
+current release paths; earlier accepted `a6fe88c0…` records remain in `8544488ef`.
+No actual OKX/Demo/Google/GCP/deployment or image prune occurs. Existing unrelated
+container IDs/states, image IDs and volume remain unchanged.
+[Current report](../release/mm-runtime-followup-load.md),
+[portable evidence](../release/mm-runtime-followup-load-evidence.json).
+
+A subsequent standalone upgrade case also passes between distinct, schema-
+compatible `96368970…` → `b090430c…` → `96368970…`, preserving an additive
+nullable fixture column and the
+original deduplicated fill/fee. The all 27 command's raw upgrade flag remains
+false; combined local groups 28 across two commands. The predecessor still failed its original
+gate, so this technical compatibility test does not endorse it as production
+rollback. Upgrade artifacts are retained in the current evidence.

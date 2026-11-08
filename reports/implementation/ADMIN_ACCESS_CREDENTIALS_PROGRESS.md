@@ -12,26 +12,21 @@ scoped Set/load/rotation, cancel/close/remove cleanup, durable Retry/Repair,
 correlated audit, secret-free status/errors and bounded workers/query counts.
 Real Google/GCP and reviewed existing-Demo cutover remain open.
 
-The new runtime image `96368970…` completes unchanged security/operator load and
-passes soak3600/five fault assertions, but **fails burst main/auxiliary p99**.
-Soak reconciles 4,884 simulated fills with zero unexpected healthy errors and
-26.09 MiB retained growth. Twelve healthy probe transitions recover without child
-replacement. Corrected `all` fails inventory shutdown; remaining targets pass; a separate host fixture fix
-supplies dummy live perpetual credentials, without changing runtime gates.
+Current image **`b090430c…`** passes canonical native 2,861 + 16, all 27 available
+E2E in one all execution and unchanged security/operator full load/soak3600/five
+faults. Separate technical upgrade/takeover/rollback with a distinct schema-
+compatible test predecessor also passes; that failed predecessor is not endorsed
+as production rollback.
 
-The previous accepted `a6fe88c0…` gate and earlier scoped lifecycle evidence remain
-in Git `8544488ef` and original journals. Offline signed identities/certificates
-and local encryption do not replace real Google/GCP acceptance. The current
-daemon has no existing Demo service/database; this run does not target a real
-account, perform cutover or repair historical Demo data.
-[Current image report](../release/mm-runtime-followup-load.md),
+Zero unexpected healthy errors,4,885 exact simulated fills,30.33 MiB retained
+growth. Three healthy engine probes recover without replacement. The pre-existing
+signal/Event-lock mechanism is fixed in `1916e048e` and verified in both Linux images;
+exclusive historical shutdown/p99 attribution remains unproven.
+
+Failed963 records remain in Git `d0791e563` and earlier accepted a6 in `8544488ef`,
+at current release paths. Offline signed identities/local encryption do not close
+real Google/GCP or actual-Demo cutover. No existing real ledger is queried or
+repaired; unrelated local container IDs/states and volume are retained.
+[Current report](../release/mm-runtime-followup-load.md),
 [evidence](../release/mm-runtime-followup-load-evidence.json),
-[source verification](MM_RUNTIME_FOLLOWUP.md).
-
-Shutdown follow-up: corrected `all` E2E passes fourteen groups before a nonzero
-inventory-skew shutdown; all thirteen remaining/targeted groups pass, covering twenty-seven unique
-groups across attempts. The failed `all` remains failed. A real-signal
-TDD reproducer confirms an Event-lock hazard, fixed in source `1916e048e` (75 related
-passes). This is a possible mechanism, not proof of the old exit's unique cause.
-`96368970…` predates the fix; new-image qualification remains open. See the
-[runtime checklist](../../docs/plans/MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md).
+[source/TDD](MM_RUNTIME_FOLLOWUP.md).
