@@ -9,6 +9,12 @@ unused report/debug allocations: **972 native passes + 9 subtests** and paired
 component measurements. It is **not in the accepted image yet**; new-image
 qualification remains open. [Source scope](implementation/MM_RUNTIME_FOLLOWUP.md).
 
+The subsequent quote/anchor phase has **1,010 native passes + 9 subtests**:
+current allocation reads are reused within a quote calculation, and explicit
+anchor fallback reads at most one row on each book side. Its seven paired
+component comparisons and unchanged-path costs are in the same source report.
+This phase also awaits new-image qualification.
+
 The latest full-load repeat on **a6fe88c0… passes** after quantile-export correction
 in the test fixture: all four windows, the sixty-minute Random soak and five faults.
 Mixed/burst/soak p99 **366.46 / 168.04 / 287.63 ms**; zero unexpected healthy errors,

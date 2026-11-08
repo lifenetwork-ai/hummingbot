@@ -414,8 +414,11 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             bid, ask = Decimal("NaN"), Decimal("NaN")
         if not bid.is_finite() or not ask.is_finite() or not 0 < bid <= ask:
             if initial_anchor is not None:
-                bids, asks = book.snapshot
-                if len(bids) == 0 or len(asks) == 0:
+                # Read both sides before deciding: an empty side must not hide
+                # a failure reading the other side. No complete book/DataFrames.
+                bid = next(iter(book.bid_entries()), None)
+                ask = next(iter(book.ask_entries()), None)
+                if bid is None or ask is None:
                     return initial_anchor
             raise ValueError(f"invalid_book:{connector_name}:{pair}")
         return (bid + ask) / 2

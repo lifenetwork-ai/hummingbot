@@ -11,6 +11,9 @@ unresolved work. Current outstanding items are listed below.
 - [x] New source hot-path allocation phase: bounded book payload collection,
   disabled-debug formatting and discarded performance defaults; native 972 pass
   + 9 subtests. [Measured scope](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md).
+- [x] Quote/anchor source phase: remove superseded spread calculations, reuse
+  current bootstrap allocations and avoid whole-book/DataFrame anchor fallback.
+  Native **1,010 pass + 9 subtests**; exact Decimal and failure behavior covered.
 - [ ] Package and qualify this 2026-11-08 production-source delta on a new image
   before promotion. The accepted `a6fe88c0…` gate below predates these changes.
 

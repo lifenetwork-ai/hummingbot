@@ -28,6 +28,11 @@ paired component costs and shallow-book overhead retained in the
 [source report](MM_RUNTIME_FOLLOWUP.md). These changes are not yet packaged or
 load-qualified. The accepted image result below retains its original source.
 
+Quote/anchor follow-up: **1,010 native passes + 9 subtests**, 38 new parameter
+cases, seven alternating component pairs. Effective-spread calculations avoid
+superseded upstream work; anchor fallback avoids whole-book projection while
+preserving failure/freshness gates. Source-only; no new image/load acceptance.
+
 The latest full repeat with quantile fixture `41d290393` **passes** all four
 healthy windows, Random soak3600 and five faults. Mixed/burst/soak p99
 **366.46 / 168.04 / 287.63 ms**; zero unexpected healthy errors, 4,884 exact

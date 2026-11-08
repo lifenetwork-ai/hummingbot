@@ -8385,5 +8385,1199 @@
       "Fresh ownership, risk/mark validation, SQL transactions, prices, NATR and publication cadence unchanged.",
       "No unique attribution of historical slow probes. New production image acceptance pending."
     ]
+  },
+  "quote_and_anchor_allocation_audit_20261108": {
+    "scope": "Native production source only; not packaged/full-load-qualified. No Docker or connected exchange action.",
+    "baseline_git": "08eaa2bf9",
+    "quote_phase_commit": "18fa29c12",
+    "tdd": {
+      "quote_red": "8 fail / 8 pass",
+      "quote_green": "134 pass",
+      "anchor_red": "16 fail / 6 pass",
+      "regression": "1010 pass + 9 subtests; 8 existing dependency warnings",
+      "new_cases": "16 quote parameter cases (six consecutive values each); 22 anchor fallback/error/freshness cases"
+    },
+    "benchmark": {
+      "baseline_git": "08eaa2bf9",
+      "scope": "Native arm64 frozen controller methods; no SQL, connector transport, whole-load timing or Docker.",
+      "source_sha256": {
+        "before": "0169f19fe6066ff37fbe1cca05db991051ec0cd0415250a024ab9f33b3ad7ee1",
+        "after": "239f9f49a05aa441f8165218c7bc7e4919e2dbf1c599686ae9e6bce1bbbc3061"
+      },
+      "cases": {
+        "six_level_quote_plain": {
+          "loops_per_batch": 2000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 27.824,
+                "wall_us_per_call": 27.8389375
+              },
+              "after": {
+                "cpu_us_per_call": 28.418,
+                "wall_us_per_call": 28.6735625
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 29.7355,
+                "wall_us_per_call": 30.344082999999998
+              },
+              "before": {
+                "cpu_us_per_call": 28.528,
+                "wall_us_per_call": 28.9602705
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 28.1855,
+                "wall_us_per_call": 28.5493335
+              },
+              "after": {
+                "cpu_us_per_call": 28.327,
+                "wall_us_per_call": 28.563
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 28.2605,
+                "wall_us_per_call": 28.420958
+              },
+              "before": {
+                "cpu_us_per_call": 28.013,
+                "wall_us_per_call": 28.1618545
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 28.1005,
+                "wall_us_per_call": 28.3057085
+              },
+              "after": {
+                "cpu_us_per_call": 27.857,
+                "wall_us_per_call": 27.862625
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 28.301,
+                "wall_us_per_call": 28.402583
+              },
+              "before": {
+                "cpu_us_per_call": 28.5635,
+                "wall_us_per_call": 28.965125
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 28.2,
+                "wall_us_per_call": 28.4455625
+              },
+              "after": {
+                "cpu_us_per_call": 28.0465,
+                "wall_us_per_call": 28.120542
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 28.1855,
+              "wall_us_per_call": 28.4455625
+            },
+            "after": {
+              "cpu_us_per_call": 28.301,
+              "wall_us_per_call": 28.420958
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 53,
+                "peak_bytes": 2781
+              },
+              {
+                "current_bytes": 315,
+                "peak_bytes": 3043
+              },
+              {
+                "current_bytes": 315,
+                "peak_bytes": 3043
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 157,
+                "peak_bytes": 2885
+              },
+              {
+                "current_bytes": 157,
+                "peak_bytes": 2885
+              },
+              {
+                "current_bytes": 315,
+                "peak_bytes": 3043
+              }
+            ]
+          }
+        },
+        "six_level_quote_fee": {
+          "loops_per_batch": 2000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 49.238,
+                "wall_us_per_call": 49.582125
+              },
+              "after": {
+                "cpu_us_per_call": 22.676,
+                "wall_us_per_call": 22.679333500000002
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 22.651,
+                "wall_us_per_call": 22.6519585
+              },
+              "before": {
+                "cpu_us_per_call": 48.676,
+                "wall_us_per_call": 48.697333
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 49.525,
+                "wall_us_per_call": 50.2639165
+              },
+              "after": {
+                "cpu_us_per_call": 23.3475,
+                "wall_us_per_call": 23.682354
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 23.0245,
+                "wall_us_per_call": 23.1799585
+              },
+              "before": {
+                "cpu_us_per_call": 49.789,
+                "wall_us_per_call": 50.373979500000004
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 49.7155,
+                "wall_us_per_call": 50.2874375
+              },
+              "after": {
+                "cpu_us_per_call": 23.1195,
+                "wall_us_per_call": 23.238979
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 22.843,
+                "wall_us_per_call": 23.013521
+              },
+              "before": {
+                "cpu_us_per_call": 49.3005,
+                "wall_us_per_call": 49.6658955
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 48.7365,
+                "wall_us_per_call": 48.8265
+              },
+              "after": {
+                "cpu_us_per_call": 22.569,
+                "wall_us_per_call": 22.5744375
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 49.3005,
+              "wall_us_per_call": 49.6658955
+            },
+            "after": {
+              "cpu_us_per_call": 22.843,
+              "wall_us_per_call": 23.013521
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 53,
+                "peak_bytes": 2981
+              },
+              {
+                "current_bytes": 53,
+                "peak_bytes": 2981
+              },
+              {
+                "current_bytes": 53,
+                "peak_bytes": 2981
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 315,
+                "peak_bytes": 3123
+              },
+              {
+                "current_bytes": 105,
+                "peak_bytes": 2913
+              },
+              {
+                "current_bytes": 53,
+                "peak_bytes": 2861
+              }
+            ]
+          }
+        },
+        "six_level_quote_bootstrap_plain": {
+          "loops_per_batch": 2000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 53.1115,
+                "wall_us_per_call": 53.113875
+              },
+              "after": {
+                "cpu_us_per_call": 54.8705,
+                "wall_us_per_call": 54.876354
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 54.6615,
+                "wall_us_per_call": 54.669375
+              },
+              "before": {
+                "cpu_us_per_call": 53.9395,
+                "wall_us_per_call": 54.1955625
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 53.2565,
+                "wall_us_per_call": 53.2677085
+              },
+              "after": {
+                "cpu_us_per_call": 54.559,
+                "wall_us_per_call": 54.5743545
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 54.9935,
+                "wall_us_per_call": 55.009229
+              },
+              "before": {
+                "cpu_us_per_call": 54.945,
+                "wall_us_per_call": 55.3812705
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 54.114,
+                "wall_us_per_call": 54.125354
+              },
+              "after": {
+                "cpu_us_per_call": 55.342,
+                "wall_us_per_call": 55.366229
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 55.1915,
+                "wall_us_per_call": 55.2070625
+              },
+              "before": {
+                "cpu_us_per_call": 54.027,
+                "wall_us_per_call": 54.0379585
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 54.329,
+                "wall_us_per_call": 54.3494585
+              },
+              "after": {
+                "cpu_us_per_call": 55.6565,
+                "wall_us_per_call": 55.6692295
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 54.027,
+              "wall_us_per_call": 54.125354
+            },
+            "after": {
+              "cpu_us_per_call": 54.9935,
+              "wall_us_per_call": 55.009229
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 330,
+                "peak_bytes": 3351
+              },
+              {
+                "current_bytes": 278,
+                "peak_bytes": 3246
+              },
+              {
+                "current_bytes": 330,
+                "peak_bytes": 3298
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 331,
+                "peak_bytes": 3299
+              },
+              {
+                "current_bytes": 330,
+                "peak_bytes": 3351
+              },
+              {
+                "current_bytes": 330,
+                "peak_bytes": 3351
+              }
+            ]
+          }
+        },
+        "six_level_quote_bootstrap_fee": {
+          "loops_per_batch": 2000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 73.369,
+                "wall_us_per_call": 73.386104
+              },
+              "after": {
+                "cpu_us_per_call": 32.5955,
+                "wall_us_per_call": 32.610125
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 33.151,
+                "wall_us_per_call": 33.2337085
+              },
+              "before": {
+                "cpu_us_per_call": 75.371,
+                "wall_us_per_call": 75.409021
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 75.044,
+                "wall_us_per_call": 75.050729
+              },
+              "after": {
+                "cpu_us_per_call": 33.272,
+                "wall_us_per_call": 33.278729
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 33.406,
+                "wall_us_per_call": 33.4145835
+              },
+              "before": {
+                "cpu_us_per_call": 73.798,
+                "wall_us_per_call": 73.8059375
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 74.3645,
+                "wall_us_per_call": 74.37547900000001
+              },
+              "after": {
+                "cpu_us_per_call": 33.316,
+                "wall_us_per_call": 33.3207915
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 33.3355,
+                "wall_us_per_call": 33.437
+              },
+              "before": {
+                "cpu_us_per_call": 77.3405,
+                "wall_us_per_call": 78.217792
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 75.619,
+                "wall_us_per_call": 76.070875
+              },
+              "after": {
+                "cpu_us_per_call": 33.537,
+                "wall_us_per_call": 33.547375
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 75.044,
+              "wall_us_per_call": 75.050729
+            },
+            "after": {
+              "cpu_us_per_call": 33.316,
+              "wall_us_per_call": 33.3207915
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 278,
+                "peak_bytes": 3598
+              },
+              {
+                "current_bytes": 278,
+                "peak_bytes": 3598
+              },
+              {
+                "current_bytes": 278,
+                "peak_bytes": 3598
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 278,
+                "peak_bytes": 3246
+              },
+              {
+                "current_bytes": 278,
+                "peak_bytes": 3246
+              },
+              {
+                "current_bytes": 278,
+                "peak_bytes": 3246
+              }
+            ]
+          }
+        },
+        "six_level_quote_defense": {
+          "loops_per_batch": 2000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 55.429,
+                "wall_us_per_call": 55.449521
+              },
+              "after": {
+                "cpu_us_per_call": 28.8285,
+                "wall_us_per_call": 28.884354
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 28.944,
+                "wall_us_per_call": 29.0195835
+              },
+              "before": {
+                "cpu_us_per_call": 57.9695,
+                "wall_us_per_call": 58.868667
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 56.056,
+                "wall_us_per_call": 56.419521
+              },
+              "after": {
+                "cpu_us_per_call": 28.7425,
+                "wall_us_per_call": 28.747083500000002
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 28.806,
+                "wall_us_per_call": 28.817896
+              },
+              "before": {
+                "cpu_us_per_call": 55.3125,
+                "wall_us_per_call": 55.318833500000004
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 55.459,
+                "wall_us_per_call": 55.4695415
+              },
+              "after": {
+                "cpu_us_per_call": 29.0735,
+                "wall_us_per_call": 29.235271
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 28.9565,
+                "wall_us_per_call": 29.0401875
+              },
+              "before": {
+                "cpu_us_per_call": 55.5765,
+                "wall_us_per_call": 55.656957999999996
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 55.402,
+                "wall_us_per_call": 55.4166665
+              },
+              "after": {
+                "cpu_us_per_call": 28.702,
+                "wall_us_per_call": 28.7100625
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 55.459,
+              "wall_us_per_call": 55.4695415
+            },
+            "after": {
+              "cpu_us_per_call": 28.8285,
+              "wall_us_per_call": 28.884354
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 225,
+                "peak_bytes": 3193
+              },
+              {
+                "current_bytes": 225,
+                "peak_bytes": 3193
+              },
+              {
+                "current_bytes": 225,
+                "peak_bytes": 3193
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 278,
+                "peak_bytes": 3246
+              },
+              {
+                "current_bytes": 278,
+                "peak_bytes": 3246
+              },
+              {
+                "current_bytes": 278,
+                "peak_bytes": 3246
+              }
+            ]
+          }
+        },
+        "anchor_fallback_0_bids_0_asks": {
+          "loops_per_batch": 40,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 203.25,
+                "wall_us_per_call": 203.2021
+              },
+              "after": {
+                "cpu_us_per_call": 2.0,
+                "wall_us_per_call": 1.99375
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 1.875,
+                "wall_us_per_call": 1.8875
+              },
+              "before": {
+                "cpu_us_per_call": 201.85,
+                "wall_us_per_call": 201.952075
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 203.025,
+                "wall_us_per_call": 203.121875
+              },
+              "after": {
+                "cpu_us_per_call": 2.0,
+                "wall_us_per_call": 2.0010499999999998
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 1.9,
+                "wall_us_per_call": 1.8989500000000001
+              },
+              "before": {
+                "cpu_us_per_call": 202.15,
+                "wall_us_per_call": 202.26354999999998
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 202.075,
+                "wall_us_per_call": 202.126025
+              },
+              "after": {
+                "cpu_us_per_call": 1.975,
+                "wall_us_per_call": 1.979175
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 1.875,
+                "wall_us_per_call": 1.905225
+              },
+              "before": {
+                "cpu_us_per_call": 200.9,
+                "wall_us_per_call": 200.9125
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 203.35,
+                "wall_us_per_call": 203.3646
+              },
+              "after": {
+                "cpu_us_per_call": 1.975,
+                "wall_us_per_call": 1.984375
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 202.15,
+              "wall_us_per_call": 202.26354999999998
+            },
+            "after": {
+              "cpu_us_per_call": 1.975,
+              "wall_us_per_call": 1.979175
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 744,
+                "peak_bytes": 7454
+              },
+              {
+                "current_bytes": 504,
+                "peak_bytes": 7214
+              },
+              {
+                "current_bytes": 504,
+                "peak_bytes": 7214
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 0,
+                "peak_bytes": 544
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 544
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 544
+              }
+            ]
+          }
+        },
+        "anchor_fallback_0_bids_400_asks": {
+          "loops_per_batch": 40,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 465.275,
+                "wall_us_per_call": 465.40105
+              },
+              "after": {
+                "cpu_us_per_call": 2.625,
+                "wall_us_per_call": 2.613525
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 2.45,
+                "wall_us_per_call": 2.45625
+              },
+              "before": {
+                "cpu_us_per_call": 458.6,
+                "wall_us_per_call": 459.348975
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 469.625,
+                "wall_us_per_call": 469.76355
+              },
+              "after": {
+                "cpu_us_per_call": 2.675,
+                "wall_us_per_call": 2.669775
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 2.45,
+                "wall_us_per_call": 2.46665
+              },
+              "before": {
+                "cpu_us_per_call": 460.525,
+                "wall_us_per_call": 460.66772499999996
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 458.7,
+                "wall_us_per_call": 458.85625
+              },
+              "after": {
+                "cpu_us_per_call": 2.675,
+                "wall_us_per_call": 2.669775
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 2.45,
+                "wall_us_per_call": 2.4760500000000003
+              },
+              "before": {
+                "cpu_us_per_call": 465.4,
+                "wall_us_per_call": 465.5823
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 457.275,
+                "wall_us_per_call": 457.396875
+              },
+              "after": {
+                "cpu_us_per_call": 2.6,
+                "wall_us_per_call": 2.614575
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 460.525,
+              "wall_us_per_call": 460.66772499999996
+            },
+            "after": {
+              "cpu_us_per_call": 2.6,
+              "wall_us_per_call": 2.613525
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 3176,
+                "peak_bytes": 107038
+              },
+              {
+                "current_bytes": 2880,
+                "peak_bytes": 106798
+              },
+              {
+                "current_bytes": 2880,
+                "peak_bytes": 106798
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 0,
+                "peak_bytes": 1008
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 1008
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 1008
+              }
+            ]
+          }
+        },
+        "anchor_fallback_400_bids_0_asks": {
+          "loops_per_batch": 40,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 463.275,
+                "wall_us_per_call": 463.4625
+              },
+              "after": {
+                "cpu_us_per_call": 2.575,
+                "wall_us_per_call": 2.5604
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 2.45,
+                "wall_us_per_call": 2.4625
+              },
+              "before": {
+                "cpu_us_per_call": 458.375,
+                "wall_us_per_call": 458.40105
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 458.125,
+                "wall_us_per_call": 458.2323
+              },
+              "after": {
+                "cpu_us_per_call": 2.625,
+                "wall_us_per_call": 2.63125
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 2.425,
+                "wall_us_per_call": 2.459375
+              },
+              "before": {
+                "cpu_us_per_call": 460.275,
+                "wall_us_per_call": 460.44584999999995
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 458.925,
+                "wall_us_per_call": 459.04375
+              },
+              "after": {
+                "cpu_us_per_call": 2.6,
+                "wall_us_per_call": 2.620825
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 2.475,
+                "wall_us_per_call": 2.4625
+              },
+              "before": {
+                "cpu_us_per_call": 465.75,
+                "wall_us_per_call": 466.26457500000004
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 459.65,
+                "wall_us_per_call": 460.058325
+              },
+              "after": {
+                "cpu_us_per_call": 2.575,
+                "wall_us_per_call": 2.577075
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 459.65,
+              "wall_us_per_call": 460.058325
+            },
+            "after": {
+              "cpu_us_per_call": 2.575,
+              "wall_us_per_call": 2.5604
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 3176,
+                "peak_bytes": 104885
+              },
+              {
+                "current_bytes": 2880,
+                "peak_bytes": 104765
+              },
+              {
+                "current_bytes": 2880,
+                "peak_bytes": 104765
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 0,
+                "peak_bytes": 1128
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 1128
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 1128
+              }
+            ]
+          }
+        },
+        "anchor_fallback_0_bids_10000_asks": {
+          "loops_per_batch": 40,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 8903.2,
+                "wall_us_per_call": 8906.3323
+              },
+              "after": {
+                "cpu_us_per_call": 2.65,
+                "wall_us_per_call": 2.6479250000000003
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 2.45,
+                "wall_us_per_call": 2.44375
+              },
+              "before": {
+                "cpu_us_per_call": 8894.95,
+                "wall_us_per_call": 8898.009375
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 10445.775,
+                "wall_us_per_call": 10449.54585
+              },
+              "after": {
+                "cpu_us_per_call": 2.775,
+                "wall_us_per_call": 2.74895
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 2.5,
+                "wall_us_per_call": 2.479175
+              },
+              "before": {
+                "cpu_us_per_call": 8922.0,
+                "wall_us_per_call": 8925.5125
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 10422.175,
+                "wall_us_per_call": 10424.972925
+              },
+              "after": {
+                "cpu_us_per_call": 2.7,
+                "wall_us_per_call": 2.708325
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 2.475,
+                "wall_us_per_call": 2.4823000000000004
+              },
+              "before": {
+                "cpu_us_per_call": 9243.575,
+                "wall_us_per_call": 9256.097925
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 9593.975,
+                "wall_us_per_call": 9654.746875
+              },
+              "after": {
+                "cpu_us_per_call": 2.725,
+                "wall_us_per_call": 2.7479
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 9243.575,
+              "wall_us_per_call": 9256.097925
+            },
+            "after": {
+              "cpu_us_per_call": 2.65,
+              "wall_us_per_call": 2.6479250000000003
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 3488,
+                "peak_bytes": 2589142
+              },
+              {
+                "current_bytes": 2880,
+                "peak_bytes": 2588718
+              },
+              {
+                "current_bytes": 2880,
+                "peak_bytes": 2588718
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 0,
+                "peak_bytes": 1008
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 1008
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 1008
+              }
+            ]
+          }
+        },
+        "fresh_valid_price": {
+          "loops_per_batch": 10000,
+          "alternating_pairs": [
+            {
+              "before": {
+                "cpu_us_per_call": 2.0615,
+                "wall_us_per_call": 2.0618833
+              },
+              "after": {
+                "cpu_us_per_call": 2.0565,
+                "wall_us_per_call": 2.0565417000000004
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 2.0639000000000003,
+                "wall_us_per_call": 2.064025
+              },
+              "before": {
+                "cpu_us_per_call": 2.0502,
+                "wall_us_per_call": 2.0512417
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 2.0563000000000002,
+                "wall_us_per_call": 2.0573667
+              },
+              "after": {
+                "cpu_us_per_call": 2.0564,
+                "wall_us_per_call": 2.0571334
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 2.0656999999999996,
+                "wall_us_per_call": 2.0671999999999997
+              },
+              "before": {
+                "cpu_us_per_call": 2.1028000000000002,
+                "wall_us_per_call": 2.1338332999999996
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 2.0627,
+                "wall_us_per_call": 2.0631500000000003
+              },
+              "after": {
+                "cpu_us_per_call": 2.0728,
+                "wall_us_per_call": 2.07325
+              }
+            },
+            {
+              "after": {
+                "cpu_us_per_call": 2.0635,
+                "wall_us_per_call": 2.0641416
+              },
+              "before": {
+                "cpu_us_per_call": 2.0825,
+                "wall_us_per_call": 2.1010125
+              }
+            },
+            {
+              "before": {
+                "cpu_us_per_call": 2.0986,
+                "wall_us_per_call": 2.125025
+              },
+              "after": {
+                "cpu_us_per_call": 2.208,
+                "wall_us_per_call": 2.2849875
+              }
+            }
+          ],
+          "median": {
+            "before": {
+              "cpu_us_per_call": 2.0627,
+              "wall_us_per_call": 2.0631500000000003
+            },
+            "after": {
+              "cpu_us_per_call": 2.0639000000000003,
+              "wall_us_per_call": 2.0641416
+            }
+          },
+          "allocation": {
+            "before": [
+              {
+                "current_bytes": 0,
+                "peak_bytes": 752
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 752
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 752
+              }
+            ],
+            "after": [
+              {
+                "current_bytes": 0,
+                "peak_bytes": 752
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 752
+              },
+              {
+                "current_bytes": 0,
+                "peak_bytes": 752
+              }
+            ]
+          }
+        }
+      }
+    },
+    "benchmark_fixture_correction": "First benchmark draft omitted its bootstrap policy. Fix fixture before any completed measurement; failed draft log retained.",
+    "artifacts": {
+      "build/quote-calculation-20261108/after-controller.py": "239f9f49a05aa441f8165218c7bc7e4919e2dbf1c599686ae9e6bce1bbbc3061",
+      "build/quote-calculation-20261108/anchor-red.log": "7d1631ae619a00efc52595f9ef62a726bdb25ac1a9c4f4a93b1142de5f5a744e",
+      "build/quote-calculation-20261108/before-controller.py": "0169f19fe6066ff37fbe1cca05db991051ec0cd0415250a024ab9f33b3ad7ee1",
+      "build/quote-calculation-20261108/benchmark-draft.log": "2eb392c93c94704103b51070c564a43ec99c4b27878af1104091a532568e63cd",
+      "build/quote-calculation-20261108/benchmark.json": "bf65cc5888e43d711df267c8703af1713101088e58fc6970a3a676481524ffd8",
+      "build/quote-calculation-20261108/benchmark.log": "785c9680c4758aba688cf0fd6e21022081a86e49030102ff0ed4505f420cd232",
+      "build/quote-calculation-20261108/benchmark.py": "58428addae4c032126a3ded3ddd7495177abae66e02b982efa27530bec5eece7",
+      "build/quote-calculation-20261108/quote-commit.log": "6a73c6fd44d3920805326875a948d0414097d131e7bcf290cde6e79a78805b08",
+      "build/quote-calculation-20261108/quote-green.log": "dc55b1e522c73d3888958fa290281e244d97c9d2ed2fa564010fa692e985daa8",
+      "build/quote-calculation-20261108/quote-red.log": "8406645b77b5990267fe59f41e241ca982fb1806c421dd36915bf0ccc23baa68",
+      "build/quote-calculation-20261108/regression.log": "46312112a771c75e34fbc25b059cdde369cca4074341d0feb1cdafcf96c87bed",
+      "build/quote-calculation-20261108/style.log": "9240b91a8f68d24b89f086806d81b7e7ed980eff9ab225bd72b85d42561836b4"
+    },
+    "limits": [
+      "Seven alternating native component pairs; not whole-engine CPU, p99 or continuous-quote evidence.",
+      "Keep ordinary/disabled-policy overhead, exact Decimal and fresh per-invocation allocation checks.",
+      "Anchor fallback applies only with an explicit anchor, fresh metadata and at least one empty side; reads both sides before decision.",
+      "No new persistent cache, dependency, thread, I/O/health budget change, NATR or fresh ownership change.",
+      "Existing a6fe88c0 image gate predates both this phase and prior 08eaa2bf9 source changes."
+    ]
   }
 }

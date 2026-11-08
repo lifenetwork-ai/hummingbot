@@ -648,3 +648,67 @@ in [consolidated evidence](mm-runtime-followup-evidence.json). Keep the existing
 candidate and rollback; qualify these production changes on a new image before
 promoting them. No budget, pool, retry, authority, risk, stream or refresh setting
 was relaxed, and no dependency/thread/cache adapter was added.
+
+## Quote calculations and listing fallback — 2026-11-08
+
+Source phase 1 is `18fa29c12`, against `08eaa2bf9`; phase 2 removes the full-book
+anchor projection. Both remain **source-verified, not packaged/load-qualified**.
+The accepted `a6fe88c0…` image predates these and the previous source allocation
+phase. No Docker, Demo/live account, Google/GCP or deployment action is performed.
+
+With spread policy enabled, `_baseline_price_and_amount` no longer computes the
+upstream price/amount only to replace it immediately. Its one current allocation
+read also supplies bootstrap sizing. Allocation calls per level fall **2→1** for
+ordinary spread policy and **3→1** for spread policy plus bootstrap. The disabled
+branch still delegates to upstream; bootstrap without spread policy keeps its
+existing two reads. No allocation/price is cached between calls. Decimal operation
+order for the effective formula, bootstrap/defense ROUND_DOWN, inventory scaling,
+quantization, fee/send gates and budget caps remain unchanged.
+
+`_fresh_price` previously constructed both whole-book DataFrames just to test
+emptiness during explicit-anchor fallback. It now consumes at most one row per
+side and reads **both sides before deciding**, so a read failure on one side is
+not hidden by emptiness on the other. Fresh timestamps/instrument availability
+are still checked first. Without an explicit anchor, or with invalid prices and
+two populated sides, it keeps rejecting the book. Valid best prices keep their
+normal midpoint path; configured anchors do not override them.
+
+TDD: quote Red **8 fail / 8 pass**, Green **134 pass**. Sixteen new parameter cases
+cover BUY/SELL, three levels, two successive budgets, enabled/disabled spread
+policy, bootstrap, Decimal precision 9/28 and ROUND_UP with the existing bootstrap
+ROUND_DOWN. Anchor Red **16 fail / 6 pass**; 22 new cases cover empty/one-sided/
+populated books, NaN/crossed prices, spot/perpetual timestamp units, stale/future
+metadata, missing explicit anchors, valid prices and failure of either reader.
+Expanded controller/executor/drawdown/recorder suites: **1,010 pass + 9 subtests**.
+These include the focused suites; pre-existing dependency warnings remain.
+
+Seven alternating pairs use frozen full controller classes from `08eaa2bf9` and
+current source with native arm64/Cython books and synthetic admitted-controller
+state. Equality is checked before/after each case. Median CPU microseconds below
+measure one six-level calculation batch or one `_fresh_price` call, excluding
+controller initialization, REST/WS, SQL and order transport. The first benchmark
+draft lacked bootstrap settings in its synthetic fixture; it failed without a
+completed result. Its log is retained, the fixture corrected, and only the
+completed comparison supplies these numbers.
+
+| Component | Before CPU µs | After CPU µs |
+| --- | ---: | ---: |
+| Six levels, policy disabled | 28.186 | 28.301 |
+| Six levels, fee/spread policy | 49.300 | 22.843 |
+| Six levels, bootstrap without spread policy | 54.027 | 54.993 |
+| Six levels, bootstrap with spread policy | 75.044 | 33.316 |
+| Six levels, reduced volatility sizing | 55.459 | 28.828 |
+| Anchor fallback, empty book | 202.150 | 1.975 |
+| Anchor fallback, empty bid / 400 asks | 460.525 | 2.600 |
+| Anchor fallback, 400 bids / empty ask | 459.650 | 2.575 |
+| Anchor fallback, empty bid / 10,000 asks | 9243.575 | 2.650 |
+| Ordinary valid-price branch | 2.063 | 2.064 |
+
+The disabled-policy/plain paths retain their small observed increases, rather
+than being described as uniformly faster. The fallback improvement is specific
+to invalid best-price/explicit-anchor decisions; it does not accelerate normal
+healthy-price ticks by that ratio or prove a historical probe cause. Existing
+fresh authority/risk checks and NATR window selection are unchanged. Raw pairs,
+traced allocations, failed draft and test logs: `build/quote-calculation-20261108/`;
+[portable evidence](mm-runtime-followup-evidence.json). New-image qualification
+stays open in the [register](../../docs/plans/README.md).

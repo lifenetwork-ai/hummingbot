@@ -516,3 +516,100 @@ async def test_decimal_quote_spreads_respect_exact_price_bounds():
     assert controller.processed_data["ready"]
     assert controller.get_price_and_amount("buy_0")[0] == Decimal("0.099")
     assert controller.get_price_and_amount("sell_0")[0] == Decimal("0.101")
+
+
+class ListingBookReadProbe:
+    """Real upstream book with counted projections/rows, no timing assertions."""
+
+    def __init__(self, bid_levels, ask_levels, stamp=1000):
+        self.book = OrderBook()
+        self.book.apply_snapshot([OrderBookRow(.099 - i * .000001, 1, stamp) for i in range(bid_levels)],
+                                 [OrderBookRow(.101 + i * .000001, 1, stamp) for i in range(ask_levels)], stamp)
+        self.snapshot_uid = self.last_diff_uid = stamp
+        self.snapshot_reads = 0
+        self.rows = {'bid': 0, 'ask': 0}
+
+    @property
+    def snapshot(self):
+        self.snapshot_reads += 1
+        return self.book.snapshot
+
+    def bid_entries(self):
+        for row in self.book.bid_entries():
+            self.rows['bid'] += 1
+            yield row
+
+    def ask_entries(self):
+        for row in self.book.ask_entries():
+            self.rows['ask'] += 1
+            yield row
+
+
+@pytest.mark.parametrize('connector', ['okx', 'okx_perpetual'])
+@pytest.mark.parametrize('sizes', [(0, 0), (0, 10000), (10000, 0), (2, 2)])
+@pytest.mark.parametrize('prices', [('NaN', 'NaN'), ('.11', '.09')])
+def test_initial_anchor_fallback_reads_only_first_rows_without_snapshot(connector, sizes, prices):
+    item, _ = make_controller(configuration(connector_name=connector))
+    probe = ListingBookReadProbe(*sizes, stamp=1000000 if connector == 'okx_perpetual' else 1000)
+    provider = item.market_data_provider
+    provider.get_order_book.side_effect = None
+    provider.get_order_book.return_value = probe
+    provider.get_price_by_type.side_effect = [Decimal(value) for value in prices]
+    if 0 in sizes:
+        assert item._fresh_price(connector, 'LIFE-USDT', Decimal('.1')) == Decimal('.1')
+    else:
+        with pytest.raises(ValueError, match='invalid_book'):
+            item._fresh_price(connector, 'LIFE-USDT', Decimal('.1'))
+    assert probe.snapshot_reads == 0
+    assert probe.rows == {'bid': min(sizes[0], 1), 'ask': min(sizes[1], 1)}
+
+
+@pytest.mark.parametrize('stamp', [980, 1002])
+def test_fallback_freshness_failure_precedes_book_reads(stamp):
+    item, _ = make_controller(configuration())
+    probe = ListingBookReadProbe(0, 1000, stamp)
+    item.market_data_provider.get_order_book.side_effect = None
+    item.market_data_provider.get_order_book.return_value = probe
+    with pytest.raises(ValueError, match='stale_reference'):
+        item._fresh_price('okx', 'LIFE-USDT', Decimal('.1'))
+    assert probe.snapshot_reads == 0 and probe.rows == {'bid': 0, 'ask': 0}
+
+
+@pytest.mark.parametrize('valid_price,anchor', [(True, Decimal('.2')), (False, None)])
+def test_valid_prices_or_missing_explicit_anchor_need_no_book_projection(valid_price, anchor):
+    item, _ = make_controller(configuration())
+    probe = ListingBookReadProbe(0, 1000)
+    provider = item.market_data_provider
+    provider.get_order_book.side_effect = None
+    provider.get_order_book.return_value = probe
+    provider.get_price_by_type.side_effect = [Decimal('.099'), Decimal('.101')] if valid_price else [Decimal('NaN')] * 2
+    if valid_price:
+        assert item._fresh_price('okx', 'LIFE-USDT', anchor) == Decimal('.100')
+    else:
+        with pytest.raises(ValueError, match='invalid_book'):
+            item._fresh_price('okx', 'LIFE-USDT', anchor)
+    assert probe.snapshot_reads == 0 and probe.rows == {'bid': 0, 'ask': 0}
+
+
+@pytest.mark.parametrize('failed_side', ['bid_entries', 'ask_entries'])
+def test_anchor_does_not_hide_failure_reading_either_side_even_if_other_side_empty(monkeypatch, failed_side):
+    item, _ = make_controller(configuration())
+    probe = ListingBookReadProbe(0, 0)
+    provider = item.market_data_provider
+    provider.get_order_book.side_effect = None
+    provider.get_order_book.return_value = probe
+    provider.get_price_by_type.side_effect = [Decimal('NaN')] * 2
+
+    def failed():
+        raise OSError('synthetic unreadable book')
+
+    monkeypatch.setattr(probe, failed_side, failed)
+    # Apply the same fault to the old full-snapshot projection, so both
+    # implementations must propagate the underlying read failure.
+
+    def snapshot(self):
+        return list(self.bid_entries()), list(self.ask_entries())
+
+    monkeypatch.setattr(ListingBookReadProbe, 'snapshot', property(snapshot))
+    with pytest.raises(OSError, match='synthetic unreadable book'):
+        item._fresh_price('okx', 'LIFE-USDT', Decimal('.1'))

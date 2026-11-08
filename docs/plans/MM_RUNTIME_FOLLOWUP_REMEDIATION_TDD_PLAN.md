@@ -403,9 +403,9 @@ No full-load result is inherited by this source delta.
   and quantities across side/level, budget changes, context precision and bootstrap.
 - [x] Green: skip the superseded upstream formula only for enabled spread policy;
   reuse that invocation's allocations for bootstrap, preserving rounding order.
-- [ ] Red/Green: check book emptiness without complete snapshot/DataFrame creation;
+- [x] Red/Green: check book emptiness without complete snapshot/DataFrame creation;
   preserve fresh timestamp gates, explicit anchor requirements and invalid-book rejection.
-- [ ] Run controller/guard/executor regressions and paired native component
+- [x] Run controller/guard/executor regressions and paired native component
   measurements; retain disabled-policy costs and all attempts; commit each phase.
 
 The existing image gate still predates this source delta. No persistent quote,
@@ -416,3 +416,11 @@ Quote phase source checks: Red **8 fail / 8 pass**; Green **134 pass** across
 spread/inventory/volatility/bootstrap suites. Sixteen new parameter cases include
 three levels and two successive budgets each; quote values remain exact at
 Decimal precision 9/28 with ROUND_UP and the existing bootstrap ROUND_DOWN.
+
+Anchor phase: Red **16 fail / 6 pass**; combined Green **1,010 pass + 9 subtests**.
+Seven alternating native pairs preserve exact outputs. Six-level spread sizing
+CPU 49.30→22.84 µs; bootstrap + spread 75.04→33.32 µs. Empty bid / 400 ask fallback
+460.53→2.60 µs; ordinary valid-price/disabled-policy paths retain observed overhead.
+[Measured report](../../reports/implementation/MM_RUNTIME_FOLLOWUP.md),
+[evidence](../../reports/implementation/mm-runtime-followup-evidence.json).
+No new image or full load acceptance is implied by this source phase.
