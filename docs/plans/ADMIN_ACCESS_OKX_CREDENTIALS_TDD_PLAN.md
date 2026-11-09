@@ -33,9 +33,16 @@ in [credential operations](../exchange-credentials.md) and
 
 ## Verification and remaining acceptance
 
+Latest connected recovery is separately qualified on revision65 (`c98b08a6f…`):
+Google Check/Confirm, exact one-row repair/audit, separate Start and360-sample
+runtime observation. See the [completed recovery plan](ADMIN_RECOVERY_API_TDD_PLAN.md).
+This does not close real GCP KMS, the newest full release gate, perpetual full-fill
+handoff, two-sided quote qualification or full FE browser acceptance.
+
+
 - [x] Native source/PG, local encryption, offline signed Google identities, role/
   audit and lifecycle/fault evidence. Original image/date scopes remain in Git.
-- [x] Current image `b090430c…`: canonical native 2,861 + 16 subtests, all 27 available
+- [x] Last full offline gate on `b090430c…`: canonical native 2,861 + 16 subtests, all 27 available
   E2E in one all execution, full unchanged security/operator load/soak3600/five
   faults. No unexpected healthy errors or healthy child replacement; 4,885 exact
   simulated fills/fees/positions. Separate technical upgrade/rollback passes.

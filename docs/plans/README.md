@@ -1,17 +1,24 @@
 # Plans and remaining verification
 
-Updated 2026-11-09. Start with the [current image result](../../reports/release/mm-runtime-followup-load.md)
+Updated 2026-11-10. Start with the [current image result](../../reports/release/mm-runtime-followup-load.md)
 and [operating guides](../README.md). Detailed phase checklists, rejected attempts
 and original image/date scopes remain in [Git history](../../reports/README.md#historical-records).
 Removing old files does not close unresolved evidence or policy items.
 
-The real Demo follow-up found a Random step-cleanup failure on `b090430c…`.
-Separately reviewed recovery and bounded connected Random/restart/cleanup now
-pass on `4451974e…`. The failed attempt remains failed; the new candidate still
-needs its own full release/soak before production closeout. See the
-[active follow-up](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md#managed-demo-random-shutdown-follow-up--2026-11-09).
+Latest connected acceptance is Cloud revision65 (`c98b08a6f…`): Google recovery
+checks431 orders/101 fills, applies one reviewed spot repair, preserves protected
+state and remains stopped before a separate Start. The subsequent30-minute,
+360-sample observation has no HALT/child replacement;103 fills match REST,
+including two new natural spot fills. Perpetual is inventory-cap blocked, so this
+is not two-sided-liquidity or perpetual full-fill qualification. See the
+[completed recovery plan](ADMIN_RECOVERY_API_TDD_PLAN.md) and
+[Cloud evidence](../../reports/platform/cloudrun-demo-abrupt-restart.md#revision65--google-recovery-and-separate-start).
 
-## Current local qualification
+The earlier Random-cleanup failure on `b090430c…` and separately reviewed
+bounded pass on `4451974e…` retain their original scopes. The last full offline
+release remains `b090430c…`; it does not qualify the newest runtime image.
+
+## Last full local qualification (`b090430c…`)
 
 - [x] Reuse Hummingbot engine/connectors/V2 executors; PostgreSQL/UTC/Decimal,
   ownership/durable-before-send/reconciliation/recovery, fixed/Random sessions,
@@ -48,10 +55,14 @@ needs its own full release/soak before production closeout. See the
 - [x] Hosted Cloud Run Google identity and Set/Start/Disconnect/Set-again/Stop
   lifecycle pass on revision48 with five REST-matched actual Demo fills. Final
   stopped, both slotsv2 Connected, pending0/perpetual flat. [Cloud result](../../reports/demo/cloudrun-google-credentials-acceptance.md).
-- [ ] Reproduce17 repeated protected quote rejections near Start/refresh; retain
-  34 ERROR records/three transient probes and existing guard thresholds. The
-  source fixed-entry retry/defense-only refresh path is a follow-up hypothesis.
-  [Active investigation](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md#cloud-run-real-google-lifecycle-follow-up--2026-11-09).
+- [x] Reproduce/fix the fixed-entry retry mechanism after fresh spread rejection;
+  native/PostgreSQL guards and retiring-level tests pass, with bounded revision52
+  connected refresh observation. Retain the historical17 rejections/34 ERRORs and
+  three probes: their exact original triggers were not forced remotely. See the
+  [scoped source/Cloud results](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md#cloud-run-real-google-lifecycle-follow-up--2026-11-09).
+- [x] Deployed admin-reviewed HALT recovery and separate Google Start pass on
+  revision65, including stopped financial comparison, atomic audit, duplicate
+  confirmation and the subsequent360-sample running observation.
 
 - [x] Real Google sign-in, subject binding, admin role, audit and Google-only
   restart pass in the dedicated local auth database. Operator browser result
@@ -71,13 +82,35 @@ needs its own full release/soak before production closeout. See the
 - [x] Separately reviewed HALT recovery and connected Random/restart/cleanup pass;
   both hedge sides close, selected key removed/reconfigured and stopped cold
   restart preserves exact ledger. [Connected report](../../reports/demo/managed-local-connected-followup.md).
-- [ ] Package latest corrected source and run full release/soak on the next
-  candidate before production closeout; current Demo image remains `4451974e…`.
+- [ ] Freeze/pin the latest corrected runtime candidate and run its full release
+  gate: complete native/PostgreSQL/packaged E2E, load,60-minute soak, fault and retention
+  checks before production closeout. The revision65 targeted/source/30-minute
+  Demo results do not transfer the older full gate to that image.
 - [x] Cleanup reporting source correction: real-core Red1/control-pass1; native96
   and PostgreSQL109 pass. Keep cleanup strategy-free and retain recorder config
   identity; genuine unknown strategies still fail. The historical3.682-second
-  warning stays recorded; this source correction is not in the current Demo image.
-  [Demo scope](OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
+  warning stays recorded. That older image's packaging/cleanup evidence and the
+  latest revision65 recovery observation remain distinct; the newest full gate
+  is still open above. [Demo scope](OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
+
+## Remaining connected market and product qualification
+
+- [ ] Observe perpetual full-fill handoff on a deployed corrected image: exact
+  fill/fee/exposure accounting, safe level release and fresh post-fill account
+  checks. Current exposure caps prevent a new perpetual entry; no override is
+  authorized merely to obtain a passing test.
+- [ ] Qualify the approved two-sided quote target in a30-minute window with
+  eligible BUY and SELL samples. Revision65 has359 policy-constrained samples
+  plus one readiness-guard wait, so its denominator is zero and the target is
+  unqualified. Unknown/stale observations must not count as working orders.
+- [ ] Full FE browser acceptance in the separate frontend deployment. Google
+  helper/API/Swagger acceptance does not qualify the actual operator dashboard.
+- [ ] Production/live cutover acceptance when the operator chooses that scope;
+  current connected trading is Demo, with real GCP KMS still deferred above.
+
+The recorded Cloud migration setting is false. If the operator later enables
+guarded auto-migration=true, verify a controlled Cloud rollout with that setting;
+its local PG/process contracts do not constitute that enabled Cloud exercise.
 
 ## Unresolved policy and historical attribution
 
@@ -114,6 +147,7 @@ historical failures, capture omissions and finite-retention limits are in the
 
 ## Retained plans
 
+- [Admin recovery — completed source and Cloud workflow](ADMIN_RECOVERY_API_TDD_PLAN.md)
 - [PostgreSQL / Cloud Run](POSTGRES_CLOUD_RUN_PORT_PLAN.md)
 - [Admin identity and encrypted credentials](ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md)
 - [Actual OKX Demo versus offline image acceptance](OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md)

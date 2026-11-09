@@ -1,9 +1,25 @@
 # OKX Demo and current offline image acceptance
 
-Updated 2026-11-09. Prior image-specific checklists, approvals, failures, natural
+Updated 2026-11-10. Prior image-specific checklists, approvals, failures, natural
 fills and REST proofs remain in the [acceptance history](../../reports/README.md#historical-records)
 (Git: `docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md`). A local pass never changes
 the image/account/date attached to connected evidence.
+
+## Latest connected acceptance — Cloud revision65 (`c98b08a6f…`)
+
+- [x] Real Google Check/Confirm recovery verifies431 orders/101 fills, repairs only
+  the reviewed spot aggregate, preserves financial history/risk/bindings and
+  records audit. Duplicate confirmation does not repeat the repair.
+- [x] Separate Google Start and30-minute observation:360 fresh runtime/owner
+  samples, no read failure/HALT/child replacement, final running19/19. All103
+  fills match REST, including two new natural spot fills.
+- [ ] Perpetual full-fill handoff and two-sided quote qualification remain open
+  under the existing inventory/sizing restrictions; do not inherit them from
+  healthy runtime or older spot fills.
+
+[Recovery acceptance](ADMIN_RECOVERY_API_TDD_PLAN.md),
+[Cloud scope/evidence](../../reports/platform/cloudrun-demo-abrupt-restart.md#revision65--google-recovery-and-separate-start).
+No new full release/soak or real GCP KMS acceptance is claimed here.
 
 ## Last full image qualification — local/offline (`b090430c…`)
 
@@ -31,7 +47,7 @@ All trading is simulated with dummy credentials. Actual Demo acceptance is
 separate. The 27-case all command omits previous-image; its raw upgrade flag is
 false, with the separate passing upgrade run retained explicitly.
 
-## Actual Demo acceptance
+## Earlier actual Demo acceptance — image-specific scopes
 
 Additional hosted acceptance on2026-11-09: [real Cloud Run Google lifecycle](../../reports/demo/cloudrun-google-credentials-acceptance.md)
 passes on `hummingbot-demo-00048-ckn`, source/image tag `4ef36ed61…`, observed
@@ -51,7 +67,7 @@ read-only Demo checks and restores a backup into an isolated database.
 The connected follow-up first exercised fixed sessions and three natural spot
 fills on `b090430c…`, then failed Random step cleanup. The separately reviewed
 recovery and bounded connected replay now pass on `4451974e…`; the failed earlier
-run remains failed. [Latest connected report](../../reports/demo/managed-local-connected-followup.md). Earlier
+run remains failed. [Earlier local connected report](../../reports/demo/managed-local-connected-followup.md). Earlier
 historical positive fill/REST evidence and
 unchecked controller-image spot/soak/guard-wait items keep their original dates
 and images; new offline gates do not retroactively complete them.

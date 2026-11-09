@@ -18,16 +18,19 @@ Follow-up implementation: safe automatic migration (operator requested).
   only with a compatible schema, while trading readiness remains false.
 - [x] Verify timeout/lock release, rollback and takeover on disposable PostgreSQL,
   run relevant native/integration suites, update docs and commit.
-- [ ] Deploy/real Cloud verification and the separately reviewed financial
-  recovery remain outside this source implementation.
+- [x] Separately authorized Cloud deployment/verification and financial recovery
+  complete on revision65 through the guarded admin API. This later acceptance
+  is separate from the original source-only migration verification below.
 
 Verification: CLI1,257 pass; final migration/handoff17 pass. Full PostgreSQL
 attempt584 pass/1 old-fixture failure; corrected index/drift cases2 pass. The
 full attempt is not relabelled as passed; no full rerun after test-only fixture
 correction, new image/load or Cloud acceptance is claimed.
 
-Current Demo revision57 is HALTED after a PostgreSQL ownership lock timeout;
-the earlier revision55 connected pass retains its original scope.
+Historical revision57 was HALTED after a PostgreSQL ownership lock timeout.
+Revision65 subsequently completes reviewed API recovery and a360-sample running
+observation without HALT/child replacement; earlier revision55 evidence keeps
+its own scope. See [completed recovery](ADMIN_RECOVERY_API_TDD_PLAN.md).
 [Incident, exact one-row preview and recovery proposal](../../reports/platform/cloudrun-demo-abrupt-restart.md#rollout-lock-timeout-at-2210-local).
 
 - [x] Confirm the first lock timeout in DB logs and the image's inherited
@@ -39,9 +42,15 @@ the earlier revision55 connected pass retains its original scope.
   37 review tests,89 related PostgreSQL tests and pre-commit pass retain their scope.
 - [x] Read-only reconciliation of101 individual REST fills, BTC cash, pending
   orders and hedge legs; native one-row spot replay/restore preview prepared.
-- [ ] Incident-specific operator review, quiesced backup/restore rehearsal and
-  bounded spot/HALT recovery; no live mutation has been applied.
-- [ ] Verify the no-DDL revision handoff and connected Demo run on Cloud Run.
+- [x] Complete the incident-specific bounded spot/HALT recovery using the later,
+  operator-authorized Check/Confirm API on revision65, with backup/archive
+  validation, exact stopped-state DB comparison and atomic audit. This supersedes
+  the earlier manual-maintenance proposal; it does not claim a new manual restore
+  rehearsal on that run.
+- [x] Observe the revision64→65 Cloud handoff with auto-migration explicitly false,
+  then the connected running Demo window without ownership loss/replacement.
+  Guarded auto-migration=true remains proven by local PG/process contracts; that
+  enabled setting was not exercised in this Cloud run.
 
 The contemporaneous blocking SQL/PID was not retained. The reproducible startup
 DDL mechanism is supported by the deployed flag, rollout and DB timeout, without
@@ -627,8 +636,9 @@ Unrelated containers/images/volume remain; real external acceptance is deferred.
   related native96 and PostgreSQL109 pass. Cleanup has no executable strategy;
   use `strategy_name=None` and the existing configuration/recorder fallback.
   General discovery/error fallback, cleanup proofs and old attribution remain.
-  The3.682-second historical warning is retained; this separate correction is
-  not packaged or connected-Demo-retested yet. [Investigation](../../reports/demo/managed-local-connected-followup.md#subsequent-cleanup-reporting-investigation--2026-11-09).
+  The3.682-second historical warning is retained. At that source-only step the
+  correction was not yet packaged/retested. The later revision65 recovery run
+  does not requalify the exact cleanup scenario or the latest full release gate. [Investigation](../../reports/demo/managed-local-connected-followup.md#subsequent-cleanup-reporting-investigation--2026-11-09).
 
 Incident and pre-cutover backups/KEK are retained in the private
 `~/.config/hummingbot/managed-demo-local-20261109` folder. The reviewed cleanup subsequently closed the held
@@ -667,15 +677,18 @@ remains exact. No recovery checkpoint or risk-stop flag has been edited.
 - [x] Verify local controller/executor, account-wait/cap, session revocation,
   PostgreSQL checkpoint/recovery and stale-owner fences. Add regression coverage
   and document the source/image boundary; retain the historical33.2s quote gap.
-- [ ] Qualify a deployed image containing the filled-entry handoff against actual
-  Demo fills. Revision54 exercises two natural full spot handoffs before60s,
-  but its600-second attempt fails on a separate spot15USDT drawdown breach. The
-  separately approved100/200USDT policy re-arm on revision55 then passes the new
-  600-second observation (115 samples, two new natural spot fills,70 REST matches),
-  final RUNNING16/16 Until stopped. Perpetual new quotes remain blocked by its
-  existing gross cap; its full-fill handoff and the two-sided SLO remain open. See the
-  [incident/recovery preview](../../reports/platform/cloudrun-demo-abrupt-restart.md).
-  Do not claim the33.2s gap eliminated remotely or the99% quote objective achieved.
+- [x] Qualify bounded actual spot full-fill handoff on the deployed correction.
+  Revision54 witnesses two natural full spot handoffs before60s, while its600s
+  attempt still fails the separate15USDT drawdown policy. Revision55's separately
+  approved100/200USDT re-arm then passes600s/115 samples with two new spot fills
+  and70 REST matches. Revision65 adds a distinct successful recovery/30-minute
+  runtime observation; those scopes are not merged retroactively.
+- [ ] Qualify actual perpetual full-fill handoff. Its existing gross cap blocks
+  new entries on revision65, so no new perpetual full fill was witnessed.
+- [ ] Qualify the approved99% two-sided quote target over eligible30-minute
+  samples; the revision65 guard-constrained window does not qualify it. Keep the
+  historical33.2s gap and the separate market/guard scopes explicit. See the
+  [incident and connected acceptance](../../reports/platform/cloudrun-demo-abrupt-restart.md).
 - [x] Compare first failure with deployment audits, reconcile all65 fills against
   individual REST trades and reproduce actual SIGKILL with stale/matching position
   checkpoints on disposable PostgreSQL (4 integration cases pass). The original
