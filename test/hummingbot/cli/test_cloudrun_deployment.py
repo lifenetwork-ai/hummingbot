@@ -116,6 +116,26 @@ def test_duplicate_environment_variables_are_rejected(candidate):
         review(path, evidence=evidence)
 
 
+@pytest.mark.parametrize('setting', ['invalid', None])
+def test_runtime_deploy_review_requires_explicit_migration_policy(candidate, setting):
+    data, path, evidence = candidate
+    env = data['spec']['template']['spec']['containers'][0]['env']
+    env[:] = [item for item in env if item['name'] != 'ENABLE_AUTO_MIGRATION']
+    if setting is not None:
+        env.append({'name': 'ENABLE_AUTO_MIGRATION', 'value': setting})
+    write(data, path)
+    with pytest.raises(ValueError, match='ENABLE_AUTO_MIGRATION'):
+        review(path, evidence=evidence)
+
+
+def test_runtime_deploy_review_allows_guarded_automatic_migrations(candidate):
+    data, path, evidence = candidate
+    env = data['spec']['template']['spec']['containers'][0]['env']
+    next(item for item in env if item['name'] == 'ENABLE_AUTO_MIGRATION')['value'] = 'true'
+    write(data, path)
+    assert review(path, evidence=evidence)
+
+
 def test_explicit_demo_route_with_complete_demo_secret_trio_is_supported(candidate):
     data, path, evidence = candidate
     env = data['spec']['template']['spec']['containers'][0]['env']

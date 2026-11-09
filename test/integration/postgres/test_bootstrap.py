@@ -16,6 +16,7 @@ from hummingbot.client.config.runtime_config import RuntimeSettings
 from hummingbot.model import get_declarative_base
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.db_migration.postgres.runner import (
+    HISTORY_TABLE,
     MIGRATION_LOCK,
     SCRIPTS,
     PostgreSQLBootstrapError,
@@ -35,7 +36,7 @@ def test_unqualified_scripts_use_runner_search_path_and_replay(pg_engine):
         for enabled in (True, True, False):
             bootstrap_postgres(pg_engine, auto_migrate=enabled)
         with pg_engine.connect() as connection:
-            assert set(inspect(connection).get_table_names(schema="public")) == set(get_declarative_base().metadata.tables)
+            assert set(inspect(connection).get_table_names(schema="public")) == set(get_declarative_base().metadata.tables) | {HISTORY_TABLE}
             assert inspect(connection).get_table_names(schema="hbot_test_shadow") == []
             validate_schema(connection)
     finally:
@@ -67,7 +68,7 @@ def test_empty_and_populated_replay_100_times(pg_engine):
             WHERE n.nspname='public'
         """)).scalars().all()
         assert all(name == name.lower() and len(name) <= 63 for name in identifiers)
-        assert set(inspect(connection).get_table_names(schema="public")) == set(get_declarative_base().metadata.tables)
+        assert set(inspect(connection).get_table_names(schema="public")) == set(get_declarative_base().metadata.tables) | {HISTORY_TABLE}
 
 
 def test_populated_previous_canonical_schema_adds_recovery_columns_without_data_loss(pg_engine):
@@ -151,7 +152,7 @@ def test_do_block_not_split_on_semicolons(pg_engine, tmp_path):
     bootstrap_postgres(pg_engine, auto_migrate=True, scripts=tmp_path)
 
 
-def test_concurrent_bootstrap_and_lock_timeout(pg_engine):
+def test_concurrent_bootstrap_and_lock_timeout(pg_engine, tmp_path):
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures = [pool.submit(bootstrap_postgres, pg_engine, auto_migrate=True) for _ in range(2)]
         for future in futures:
@@ -160,8 +161,10 @@ def test_concurrent_bootstrap_and_lock_timeout(pg_engine):
         owner.execute(text("SELECT pg_advisory_lock(:key)"), {"key": MIGRATION_LOCK})
         owner.commit()
         try:
+            bootstrap_postgres(pg_engine, auto_migrate=True)  # Applied SQL does not need the DDL lock.
+            (tmp_path / "900_pending.sql").write_text("SELECT 1;")
             with pytest.raises(PostgreSQLBootstrapError, match="lock deadline"):
-                bootstrap_postgres(pg_engine, auto_migrate=True, lock_wait=0.2)
+                bootstrap_postgres(pg_engine, auto_migrate=True, scripts=tmp_path, lock_wait=0.2)
         finally:
             owner.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": MIGRATION_LOCK})
             owner.commit()

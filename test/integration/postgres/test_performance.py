@@ -22,7 +22,7 @@ from sqlalchemy import event, func, inspect, select, text
 from hummingbot.cli.data import get_trades
 from hummingbot.core.event.events import MarketEvent
 from hummingbot.model.db_migration.postgres.io_deadline import bootstrap_io_budget
-from hummingbot.model.db_migration.postgres.runner import SCRIPTS, bootstrap_postgres
+from hummingbot.model.db_migration.postgres.runner import SCRIPTS, PostgreSQLBootstrapError, bootstrap_postgres
 from hummingbot.model.executors import Executors
 from hummingbot.model.position import Position
 from hummingbot.model.trade_fill import TradeFill
@@ -280,17 +280,33 @@ def test_performance_history_has_no_n_plus_one(recording, pg_engine):
             assert len(statements) == 1
 
 
-def test_performance_index_upgrade_replays_on_populated_schema(recording, pg_engine):
+def test_performance_index_upgrade_applies_pending_script_on_populated_schema(recording, pg_engine):
     seed_orders(pg_engine, count=1000)
     with pg_engine.begin() as connection:
         connection.execute(text("DROP INDEX idx_orders_creation_pending_config_file_path_market"))
         connection.execute(text("DROP INDEX idx_executors_controller_id"))
+        # Test-only simulation of the schema before this migration was applied.
+        # A recorded migration must not be replayed to hide manual schema drift.
+        connection.execute(text("DELETE FROM hbot_schema_migrations WHERE name='008_add_recovery_lookup_indexes.sql'"))
     for automatic in (True, True, False):
         bootstrap_postgres(pg_engine, auto_migrate=automatic)
     with pg_engine.connect() as connection:
         assert connection.execute(text("SELECT count(*) FROM orders")).scalar() == 1000
         assert connection.execute(text("SELECT id FROM orders WHERE creation_pending IS true")).scalar() == "history-1000"
     assert "idx_executors_controller_id" in {i["name"] for i in inspect(pg_engine).get_indexes("executors")}
+
+
+def test_recorded_index_migration_rejects_drift_instead_of_silently_repairing(recording, pg_engine):
+    seed_orders(pg_engine, count=1000)
+    with pg_engine.begin() as connection:
+        before = connection.execute(text("SELECT sha256 FROM hbot_schema_migrations WHERE name='008_add_recovery_lookup_indexes.sql'")).scalar_one()
+        connection.execute(text("DROP INDEX idx_executors_controller_id"))
+    with pytest.raises(PostgreSQLBootstrapError, match='index mismatch idx_executors_controller_id'):
+        bootstrap_postgres(pg_engine, auto_migrate=True)
+    with pg_engine.connect() as connection:
+        assert connection.execute(text("SELECT sha256 FROM hbot_schema_migrations WHERE name='008_add_recovery_lookup_indexes.sql'")).scalar_one() == before
+        assert connection.execute(text('SELECT count(*) FROM orders')).scalar_one() == 1000
+        assert 'idx_executors_controller_id' not in {i['name'] for i in inspect(connection).get_indexes('executors')}
 
 
 def test_recorder_bounded_history_keeps_recent_orders_for_each_market(recording, pg_engine):

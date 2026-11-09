@@ -459,6 +459,20 @@ retry count/next retry and whether operator action is required. Controller
 initialization read retries appear here while the same task waits/retries;
 they do not create another strategy or reset session deadlines.
 
+During a guarded automatic database update, a new engine can report
+`phase: standby`, `reason_code: migration_pending`. Present this as **Update
+waiting**: the previous process must finish before the update continues. This
+revision can pass `/startup` with a compatible schema, but `/ready` remains503
+and it cannot acquire trading ownership until pending migration completes.
+The old owner may still trade; use the existing owner/session observation to
+describe trading activity. Do not infer that all trading has stopped from the
+new revision's standby phase. An incompatible schema instead fails startup and
+requires a maintenance window. Migration policy is ENV-only, not an API override.
+`phase: migrating`, `reason_code: migration_in_progress` means the bounded update
+step is in progress; show **Updating**, with this revision's trading readiness
+still false. Responsive health remains bounded by the existing bootstrap deadline,
+then returns to the ordinary observer budget.
+
 If the control DB cannot be read while this process is still responding, `/status`
 returns HTTP 503 with `error: unavailable` and local `service` diagnostics labelled
 `state_source: process`, `persisted_state_available: false`. It does not return a

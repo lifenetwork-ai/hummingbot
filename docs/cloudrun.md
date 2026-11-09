@@ -323,15 +323,21 @@ postgresql+psycopg2://BOT_USER:URL_ENCODED_PASSWORD@/BOT_DB?host=/cloudsql/PROJE
 ```
 
 Match the instance connection name in the annotation and DSN. PostgreSQL table
-permissions are separate from cloud IAM. With `ENABLE_AUTO_MIGRATION=true`, use
-the required DDL privileges; with false, apply SQL separately and use the tested
-DML/sequence privileges. Do not use a transaction-pooling proxy for the advisory
+permissions are separate from cloud IAM. Presets use `ENABLE_AUTO_MIGRATION=false`:
+apply SQL separately with all writers stopped and the required DDL privileges,
+then run with the tested DML/sequence privileges. Images with the guarded runner
+also support explicit `true`: tracked migrations wait for exclusive trading
+ownership, with compatible standby before handoff. Incompatible schema changes
+still require maintenance. Override older images that bake in unsafe `true`
+explicitly during the first upgrade; see the
+[migration policy](postgres-runtime.md#migration-policy).
+Do not use a transaction-pooling proxy for the advisory
 owner session. The tested major is PostgreSQL 14; run the same suite against a
 different selected major before claiming support for it.
 [Cloud SQL connection](https://docs.cloud.google.com/sql/docs/postgres/connect-run)
 
 The template enables continuous CPU, min/max instances 1 and a 240s HTTP startup
-budget, including the migration runner's 180s maximum. It starts at 2 CPU/2Gi;
+budget for runtime bootstrap. It starts at 2 CPU/2Gi;
 local measurements do not establish Cloud Run scheduling or Cloud SQL latency.
 The advisory owner still controls overlap. Internal ingress is intentional; use
 an appropriate authenticated operations path for health access.
@@ -414,10 +420,12 @@ an example with disabled optional policies, not approved listing parameters.
   not manifest digests. If copying changes the manifest, verify that exact new
   manifest again; do not edit a result JSON to manufacture a match.
 - [ ] Check Cloud SQL connection path, secret access, DDL/DML permissions and
-  `ENABLE_AUTO_MIGRATION`. Budget for overlapping revisions, each with its own
+  explicit `ENABLE_AUTO_MIGRATION`. Default false requires migrations with writers
+  stopped before rollout; true requires a tested image containing the guarded
+  runner and standby/handoff coverage. Budget for overlapping revisions, each with its own
   ceiling. `DB_POOL_SIZE` is the per-instance total: API two, engine the remainder
   (default total five). It is not a database-wide connection ceiling. Only the
-  engine applies startup DDL; API startup validates without migrations/ownership.
+  engine acquires trading ownership; API always validates without startup DDL.
 - [ ] Keep continuous CPU, min/max one, tested startup `/startup` and liveness
   `/live`. Do not replace startup with `/ready`. Verify ingress/IAM separately
   from application Basic Auth; service YAML does not grant invoker permissions.

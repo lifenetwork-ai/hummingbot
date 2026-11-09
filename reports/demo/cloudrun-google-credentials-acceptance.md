@@ -1,7 +1,11 @@
 # Cloud Run Demo — Google identity and credentials lifecycle
 
-2026-11-09, Asia/Ho_Chi_Minh. **Latest state: revision55 is RUNNING, Until stopped,
-after separately approved100/200USDT policy re-arm.** Its600-second observation
+2026-11-09, Asia/Ho_Chi_Minh. **Current state: revision57 is HALTED after an
+ownership lock timeout during rollout; the one-row recovery is not applied.**
+[Current incident,101-fill REST proof and source TDD](../platform/cloudrun-demo-abrupt-restart.md#rollout-lock-timeout-at-2210-local).
+
+Earlier revision55 was RUNNING, Until stopped,
+after separately approved100/200USDT policy re-arm. Its600-second observation
 passes with115 samples, control16/16 and70 REST-matched fills, including two new
 natural spot fills. Two spot SELL orders work; perpetual quotes remain cap-blocked.
 The startup probe/controller warnings and absent perpetual/two-sided qualification

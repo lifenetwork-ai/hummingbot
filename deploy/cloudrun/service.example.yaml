@@ -47,7 +47,7 @@ spec:
             - name: BOT_ID
               value: hummingbot
             - name: ENABLE_AUTO_MIGRATION
-              value: 'true'
+              value: 'false'
             # Per-instance total: API 2, engine the remainder (including owner).
             # No overflow; the parent opens no database connections.
             - name: DB_POOL_SIZE

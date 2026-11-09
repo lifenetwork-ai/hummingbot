@@ -61,7 +61,8 @@ def review(path, *, template=False, evidence=None):
             require(trio <= env.keys(), 'Configure the complete ' + ('perpetual' if connector else 'spot') + ' credential trio when enabled.')
             configured = True
     require(configured, 'Configure credentials for at least one connector in the selected OKX environment.')
-    require(env['ENABLE_AUTO_MIGRATION']['value'] in ('true', 'false'))
+    require(env.get('ENABLE_AUTO_MIGRATION', {}).get('value') in ('true', 'false'),
+            'Set ENABLE_AUTO_MIGRATION explicitly to true or false for the tested image.')
     require('PORT' not in env and 'ENV_FILE' not in env and 'HBOT_ENV_FILE' not in env and ('HBOT_OFFLINE_HTTP_ORIGIN' not in env))
     require('DATABASE_URL' in env)
     for name, item in env.items():

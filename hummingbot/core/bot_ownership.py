@@ -20,10 +20,9 @@ from hummingbot.core.order_submission_guard import (
 )
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import BotStateStore
+from hummingbot.model.db_migration.postgres.locks import OWNER_KEY, OWNER_NAMESPACE
 from hummingbot.model.order import Order
 
-OWNER_NAMESPACE = 1212305236
-OWNER_KEY = 1
 ORDER_PATH = "/api/v5/trade/order"
 CANCEL_PATHS = {"/api/v5/trade/cancel-order", "/api/v5/trade/cancel-batch-orders"}
 ACCOUNT_PATHS = {"/api/v5/account/set-leverage", "/api/v5/account/set-position-mode"}

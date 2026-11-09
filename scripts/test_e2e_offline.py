@@ -1719,10 +1719,12 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.image = current_image
         new, new_port = self.start("new", additive_fixture=True)
         assert http(new_port, "/startup")[1]["state"] == "standby"
-        assert self.sql("SELECT count(*) FROM information_schema.columns WHERE table_name='orders' AND column_name='offline_upgrade_note'") == "1"
-        self.sql("UPDATE public.orders SET offline_upgrade_note='retained' WHERE id='" + buy["clOrdId"] + "'")
+        assert self.sql("SELECT count(*) FROM information_schema.columns WHERE table_name='orders' AND column_name='offline_upgrade_note'") == "0"
         self.terminate(old)
+        poll(lambda: self.sql("SELECT count(*) FROM information_schema.columns WHERE table_name='orders' AND column_name='offline_upgrade_note'") == "1",
+             description="pending additive migration after old owner exit")
         poll(lambda: self.state().get("revision") == "new", description="new image owns after old exit")
+        self.sql("UPDATE public.orders SET offline_upgrade_note='retained' WHERE id='" + buy["clOrdId"] + "'")
         self.cli("start", "pmm-revised.yml", "--expected-version", "2", "--timeout", "0", "--json")
         self.wait_running(new_port)
         revised_orders = self.wait_orders(4)[-2:]
@@ -1743,7 +1745,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.terminate(rollback)
         self.image = current_image
         self.metrics.update(previous_manifest_digest=previous_image.split("@", 1)[1],
-                            additive_fixture="nullable test-only orders.offline_upgrade_note", rollback_preserved_economics=True)
+                            additive_fixture="nullable test-only orders.offline_upgrade_note", rollback_preserved_economics=True,
+                            migration_deferred_until_owner_exit=True)
 
 
 def main():

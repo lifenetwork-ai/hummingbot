@@ -11,10 +11,13 @@ from sqlalchemy.engine import Connection, Engine
 
 from hummingbot.model import get_declarative_base
 from hummingbot.model.db_migration.postgres.io_deadline import bootstrap_io_budget
+from hummingbot.model.db_migration.postgres.locks import OWNER_KEY, OWNER_NAMESPACE
 
 LOGGER = logging.getLogger(__name__)
 SCRIPTS = Path(__file__).resolve().parent / "scripts"
 MIGRATION_LOCK = 0x48424F544D494752  # HBOTMIGR; locks are scoped to the connected database
+HISTORY_TABLE = "hbot_schema_migrations"
+BOOTSTRAP_TIMEOUT = 180
 LEGACY_TABLES = (
     "Order", "OrderStatus", "TradeFill", "MarketState", "Executors", "Controllers", "Position",
     "FundingPayment", "InventoryCost", "MarketData", "RangePositionUpdate", "RangePositionCollectedFees", "Metadata",
@@ -146,13 +149,47 @@ def validate_schema(connection: Connection) -> None:
         raise PostgreSQLBootstrapError("Incompatible PostgreSQL schema: " + "; ".join(errors))
 
 
+def _pending_scripts(connection, manifest):
+    """Read only: never create a history table while an old owner may be active."""
+    exists = connection.execute(text("SELECT to_regclass('public.hbot_schema_migrations')")).scalar()
+    applied = dict(connection.execute(text("SELECT name, sha256 FROM public.hbot_schema_migrations")).all()) if exists else {}
+    pending = []
+    for name, content, checksum in manifest:
+        if name in applied:
+            if applied[name] != checksum:
+                raise PostgreSQLBootstrapError(f"PostgreSQL migration checksum mismatch: {name}; use a forward script.")
+        else:
+            pending.append((name, content, checksum))
+    return pending
+
+
+def migration_owner_available(engine):
+    """Scheduling hint only; bootstrap must acquire its own physical lock again."""
+    with engine.begin() as connection:
+        return bool(connection.execute(text("SELECT pg_try_advisory_xact_lock(:namespace, :key)"),
+                                       {"namespace": OWNER_NAMESPACE, "key": OWNER_KEY}).scalar_one())
+
+
+def _migration_standby(connection, allow_standby):
+    if allow_standby:
+        # Only a schema this revision can already use may pass startup in standby.
+        validate_schema(connection)
+        return False
+    raise PostgreSQLBootstrapError(
+        "PostgreSQL migrations are pending while a trading owner or migration is active; stop writers or use runtime standby.",
+        retryable=True,
+    )
+
+
 def bootstrap_postgres(
     engine: Engine, *, auto_migrate: bool, scripts: Optional[Path] = None,
-    lock_wait: float = 60, statement_timeout: float = 30, total_timeout: float = 180,
-    legacy_cutover: bool = False,
-) -> None:
+    lock_wait: float = 60, statement_timeout: float = 30, total_timeout: float = BOOTSTRAP_TIMEOUT,
+    legacy_cutover: bool = False, allow_standby: bool = False,
+) -> bool:
     """Run a batch under one physical session lock, then always validate its schema.
 
+    True means validated/complete; False is compatible read-only standby with
+    pending SQL. A standby caller must retry before acquiring trading ownership.
     A deadline watchdog cancels a running command even when a multi-statement file
     contains several statements individually shorter than statement_timeout.
     """
@@ -165,7 +202,7 @@ def bootstrap_postgres(
             raw = connection.connection
             timer = threading.Timer(max(0, deadline - time.monotonic()), raw.cancel)
             timer.daemon = True
-            locked = False
+            locked = owner_locked = False
             timer.start()
             try:
                 if not legacy_cutover:
@@ -178,6 +215,18 @@ def bootstrap_postgres(
                         raise PostgreSQLBootstrapError("No packaged PostgreSQL SQL scripts found.")
                     if legacy_cutover:
                         paths.insert(0, SCRIPTS.parent / "manual_scripts" / "001_normalize_legacy_names.sql")
+                    manifest = []
+                    for path in paths:
+                        content = path.read_text(encoding="utf-8")
+                        manifest.append((path.name, content, hashlib.sha256(content.encode()).hexdigest()))
+                    pending = _pending_scripts(connection, manifest)
+                    connection.rollback() if hasattr(connection, "rollback") else raw.rollback()
+                    # An applied manifest never enters the DDL path.
+                    if not pending:
+                        validate_schema(connection)
+                        if time.monotonic() >= deadline:
+                            raise PostgreSQLBootstrapError("PostgreSQL bootstrap deadline exceeded.", retryable=True)
+                        return True
                     lock_deadline = min(deadline, time.monotonic() + lock_wait)
                     with raw.cursor() as cursor:
                         while True:
@@ -186,6 +235,8 @@ def bootstrap_postgres(
                             raw.commit()
                             if locked:
                                 break
+                            if allow_standby:
+                                return _migration_standby(connection, allow_standby)
                             if time.monotonic() >= lock_deadline:
                                 raise PostgreSQLBootstrapError("PostgreSQL migration lock deadline exceeded.", retryable=True)
                             time.sleep(min(0.1, max(0, lock_deadline - time.monotonic())))
@@ -193,27 +244,44 @@ def bootstrap_postgres(
                     if not legacy_cutover:
                         reject_legacy_schema(connection)
                     connection.rollback() if hasattr(connection, "rollback") else raw.rollback()
-                    for path in paths:
-                        current_script = path.name
+                    # The preceding runner may have committed while we waited.
+                    pending = _pending_scripts(connection, manifest)
+                    connection.rollback() if hasattr(connection, "rollback") else raw.rollback()
+                    if pending:
+                        with raw.cursor() as cursor:
+                            cursor.execute("SELECT pg_try_advisory_lock(%s, %s)", (OWNER_NAMESPACE, OWNER_KEY))
+                            owner_locked = cursor.fetchone()[0]
+                        raw.commit()
+                        if not owner_locked:
+                            return _migration_standby(connection, allow_standby)
+                        # Exclude existing/future trading owners before ANY DDL.
+                        with raw.cursor() as cursor:
+                            cursor.execute("""CREATE TABLE IF NOT EXISTS public.hbot_schema_migrations (
+                                name TEXT PRIMARY KEY, sha256 TEXT NOT NULL,
+                                applied_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp())""")
+                    for name, content, checksum in pending:
+                        current_script = name
                         remaining = deadline - time.monotonic()
                         if remaining <= 0:
                             raise PostgreSQLBootstrapError("PostgreSQL bootstrap deadline exceeded.", retryable=True)
-                        content = path.read_text(encoding="utf-8")
                         with raw.cursor() as cursor:
                             cursor.execute("SET LOCAL search_path = public")
                             cursor.execute("SELECT set_config('statement_timeout', %s, true)",
                                            (str(max(1, int(min(statement_timeout, remaining) * 1000))),))
                             cursor.execute("SET LOCAL lock_timeout = '5s'")
                             cursor.execute(content)
+                            cursor.execute("INSERT INTO public.hbot_schema_migrations(name, sha256) VALUES (%s, %s)",
+                                           (name, checksum))
                         if not legacy_cutover:
                             raw.commit()
-                        LOGGER.info("Applied PostgreSQL script %s sha256=%s", path.name,
-                                    hashlib.sha256(content.encode()).hexdigest())
+                        LOGGER.info("%s PostgreSQL script %s sha256=%s", "Staged" if legacy_cutover else "Applied",
+                                    name, checksum)
                 validate_schema(connection)
                 if time.monotonic() >= deadline:
                     raise PostgreSQLBootstrapError("PostgreSQL bootstrap deadline exceeded.", retryable=True)
                 if legacy_cutover:
                     raw.commit()
+                return True
             finally:
                 timer.cancel()
                 timer.join()
@@ -221,9 +289,12 @@ def bootstrap_postgres(
                 # is invalidated, so it cannot return to the pool retaining the advisory lock.
                 try:
                     raw.rollback()
-                    if locked:
+                    if owner_locked or locked:
                         with raw.cursor() as cursor:
-                            cursor.execute("SELECT pg_advisory_unlock(%s)", (MIGRATION_LOCK,))
+                            if owner_locked:
+                                cursor.execute("SELECT pg_advisory_unlock(%s, %s)", (OWNER_NAMESPACE, OWNER_KEY))
+                            if locked:
+                                cursor.execute("SELECT pg_advisory_unlock(%s)", (MIGRATION_LOCK,))
                         raw.commit()
                 except Exception:
                     connection.invalidate()

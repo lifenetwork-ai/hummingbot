@@ -74,6 +74,7 @@ class ServiceHost:
         self.stop = stop
         self.deadline = deadline
         self.bootstrapped = False
+        self.migrations_pending = settings.enable_auto_migration
         self.phase = "bootstrapping"
         self.error = None
         self.engine = self.store = self.owner = self.hb = None
@@ -392,7 +393,8 @@ class ServiceHost:
             retry = getattr(controller, "_startup_retry", None)
             if isinstance(retry, dict) and len(status["incidents"]) < 16:
                 status["incidents"].append(dict(retry))
-        reason = {"stopped": "operator_stopped", "standby": "owner_standby",
+        reason = {"stopped": "operator_stopped", "standby": "migration_pending" if self.migrations_pending else "owner_standby",
+                  "migrating": "migration_in_progress",
                   "waiting_for_mm_readiness": "market_data_unavailable", "halted": "recovery_required",
                   "starting": "strategy_initializing", "stopping": "strategy_stopping"}.get(self.phase)
         if self.phase == "waiting_for_mm_readiness":
@@ -411,7 +413,8 @@ class ServiceHost:
         from hummingbot.core.bot_ownership import BotOwnership
         from hummingbot.model.bot_state_store import BotStateStore
         from hummingbot.model.sql_connection_manager import SQLConnectionManager
-        self.engine = SQLConnectionManager.initialize_postgres(self.settings)
+        self.engine = SQLConnectionManager.initialize_postgres(self.settings, allow_migration_standby=True)
+        self.migrations_pending = SQLConnectionManager._postgres_migrations_pending
         self.store = BotStateStore(self.engine, self.settings.bot_id)
         self.store.ensure()
         self.observations.reporting = ((self.store.read() or {}).get("status") or {}).get("reporting") or {}
@@ -574,6 +577,32 @@ class ServiceHost:
     async def observe_once(self):
         from hummingbot.core.order_submission_guard import install_guard
         from hummingbot.model.bot_state_store import ControlConflict
+
+        if self.migrations_pending:
+            from hummingbot.model.db_migration.postgres.runner import (
+                BOOTSTRAP_TIMEOUT,
+                bootstrap_postgres,
+                migration_owner_available,
+            )
+            if not await asyncio.to_thread(migration_owner_available, self.engine):
+                self.phase = "standby"
+                return
+
+            # No trading owner is admitted here. Keep responsive health distinct
+            # from loop stalls while the DB runner enforces its own deadline.
+            self.phase = "migrating"
+            self.observer_wait_until = time.monotonic() + BOOTSTRAP_TIMEOUT
+            try:
+                complete = await asyncio.to_thread(bootstrap_postgres, self.engine, auto_migrate=True,
+                                                   allow_standby=True, total_timeout=BOOTSTRAP_TIMEOUT)
+            finally:
+                self.observer_wait_until = None
+                self.observer_progress_at = time.monotonic()
+            self.phase = "standby"
+            if not complete:
+                self.phase = "standby"
+                return
+            self.migrations_pending = False
 
         # Existing owners are checked immediately below. try_acquire also checks
         # them, so calling both repeats the same synchronous DB round trip.

@@ -747,5 +747,229 @@
     "latest_metric_utc": "2026-11-09T15:02:00Z memory / 15:03:00Z CPU",
     "interpretation": "Read-only status/reporting/log/metric follow-up;92 is recorder reporting, not a new individual REST reconciliation; rollout occurred so no uninterrupted single-process claim; no long-run leak conclusion",
     "live_mutations": []
+  },
+  "rollout_lock_timeout_followup": {
+    "date_local": "2026-11-09",
+    "revision": "hummingbot-demo-00057-bw9",
+    "previous_revision": "hummingbot-demo-00056-qwj",
+    "image_startup_setting": {
+      "image": "asia-southeast1-docker.pkg.dev/lifeai-438107/cloud-run-source-deploy/hummingbot/hummingbot-demo:bebf29c790bc99a1f9c201baa4e1e6f6488f993c",
+      "config_digest": "sha256:fd0d44255aa1aa2e5f2804b022b9fceaca709fec4a2ff72632108b31e94cbe0f",
+      "baked_auto_migration": "true",
+      "revision_env_override": null,
+      "effective_auto_migration": "true"
+    },
+    "timeline_utc": [
+      {
+        "at": "2026-11-09T15:09:24.022Z",
+        "event": "ReplaceService creates revision57; same image/env/resources as56"
+      },
+      {
+        "at": "2026-11-09T15:10:01.472Z",
+        "event": "PostgreSQL canceling statement due to lock timeout",
+        "database": "hummingbot_demo",
+        "backend_pid": 2564549,
+        "statement": "Owner SELECT from bot_state with physical advisory-lock proof",
+        "owner_generation": 48
+      },
+      {
+        "at": "2026-11-09T15:10:01.496Z",
+        "event": "OrderCancelled event106 recorder OwnershipLost"
+      },
+      {
+        "at": "2026-11-09T15:10:01.500Z",
+        "event": "service_failed ownership_lost"
+      },
+      {
+        "at": "2026-11-09T15:10:01.502Z",
+        "event": "cleanup incomplete"
+      },
+      {
+        "at": "2026-11-09T15:10:06.011Z",
+        "event": "Reconciliation ran; prior unresolved effects require operator recovery"
+      },
+      {
+        "at": "2026-11-09T15:10:10.649Z",
+        "event": "revision57 Ready; readiness is not trading recovery"
+      }
+    ],
+    "cause": {
+      "confirmed_failure": "Physical ownership SELECT canceled by PostgreSQL lock timeout",
+      "reproduced_mechanism": "Startup replay queues AccessExclusiveLock on bot_state behind active recorder RowShare lock; next owner SELECT waits behind DDL until lock_timeout, invalidating owner",
+      "historical_blocker_sql_or_pid_captured": false,
+      "attribution_limit": "Timing, deployed image flag and real PostgreSQL reproduction support startup DDL as the cause; contemporaneous blocker identity was not retained"
+    },
+    "tdd": {
+      "packaged_startup_presets_red_failures": 3,
+      "packaged_startup_presets_green_passes": 3,
+      "related_postgresql_passes": 89,
+      "deployment_review_red_failures": 2,
+      "deployment_review_green_passes": 37,
+      "precommit": "passed",
+      "test_file": "test/integration/postgres/test_runtime_bootstrap_with_active_owner.py",
+      "scope": "Initial false-only mitigation, before requested guarded automatic migration implementation"
+    },
+    "financial": {
+      "observed_at": "2026-11-09T15:29:52.300229+00:00",
+      "exact_rest_fill_matches": 101,
+      "spot_fills": 72,
+      "perpetual_fills": 29,
+      "pending_creation_count": 0,
+      "venue_pending_orders": {
+        "SPOT": 0,
+        "SWAP": 0
+      },
+      "perpetual_replay_matches_rest": true,
+      "no_unrecorded_venue_fills_since_baseline": true,
+      "spot_cash_delta_matches": true,
+      "spot_cash_btc": {
+        "before": "0.978161850584",
+        "after": "0.957437340584",
+        "fill_delta": "-0.02072451",
+        "base_fees": "0"
+      },
+      "aggregate_rows": [
+        {
+          "id": "b2d30aee-bca6-4c62-89d2-89d0a328fd9c",
+          "controller_id": "demo_btc_perpetual",
+          "side": "SELL",
+          "market": "okx_perpetual",
+          "leg": "SELL",
+          "stored": {
+            "amount": "0.0048",
+            "volume_traded_quote": "445.776078",
+            "breakeven_price": "74206.079375000000000000000",
+            "realized_pnl_quote": "-0.0198630",
+            "cum_fees_quote": "0.1025962296",
+            "unrealized_pnl_quote": "-3.1006590000000000000000000"
+          },
+          "replayed": {
+            "amount": "0.0048",
+            "volume_traded_quote": "445.776078",
+            "breakeven_price": "74206.079375000000000000000",
+            "realized_pnl_quote": "-0.0198630",
+            "cum_fees_quote": "0.1025962296",
+            "unrealized_pnl_quote": "0E-25"
+          },
+          "matches": true
+        },
+        {
+          "id": "bae1325b-551f-4b50-b4f9-bfe6a1f79ef8",
+          "controller_id": "demo_btc_spot",
+          "side": "SELL",
+          "market": "okx",
+          "leg": "NET",
+          "stored": {
+            "amount": "0.02749641",
+            "volume_traded_quote": "2045.102469834",
+            "breakeven_price": "74377.07212810690559240279004",
+            "realized_pnl_quote": "0",
+            "cum_fees_quote": "1.6360819758672",
+            "unrealized_pnl_quote": "-13.96619301599999999999999992"
+          },
+          "replayed": {
+            "amount": "0.04152284",
+            "volume_traded_quote": "3095.093632178",
+            "breakeven_price": "74539.54575790095282499944609",
+            "realized_pnl_quote": "0",
+            "cum_fees_quote": "2.4760749057424",
+            "unrealized_pnl_quote": "0E-31"
+          },
+          "matches": false
+        },
+        {
+          "id": "8c92e666-3e54-4b97-9409-4c247dd237c5",
+          "controller_id": "demo_btc_perpetual",
+          "side": "BUY",
+          "market": "okx_perpetual",
+          "leg": "BUY",
+          "stored": {
+            "amount": "0.0030",
+            "volume_traded_quote": "222.478437",
+            "breakeven_price": "74159.479000000000000000000",
+            "realized_pnl_quote": "0",
+            "cum_fees_quote": "0.0444956874",
+            "unrealized_pnl_quote": "2.0777130000000000000000000"
+          },
+          "replayed": {
+            "amount": "0.0030",
+            "volume_traded_quote": "222.478437",
+            "breakeven_price": "74159.479000000000000000000",
+            "realized_pnl_quote": "0",
+            "cum_fees_quote": "0.0444956874",
+            "unrealized_pnl_quote": "0E-25"
+          },
+          "matches": true
+        }
+      ]
+    },
+    "current_state": {
+      "desired_state": "running",
+      "control_version": 16,
+      "acknowledged_version": 16,
+      "halt": true,
+      "halt_reason": "Strategy initialization/reconciliation failed; inspect sanitized logs.",
+      "strategy_stop_triggered": false
+    },
+    "proposal": {
+      "status": "awaiting incident-specific operator review; not applied",
+      "cloud_env_override": {
+        "ENABLE_AUTO_MIGRATION": "false"
+      },
+      "position_rows_to_update": [
+        "bae1325b-551f-4b50-b4f9-bfe6a1f79ef8"
+      ],
+      "perpetual_position_changes": false,
+      "clear_only_this_incident_halt_after_reconciliation": true,
+      "preserve_risk_policy_peaks_credentials_and_history": true,
+      "fresh_quiesced_backup_and_restore_rehearsal_required": true
+    },
+    "source_changes_deployed": false,
+    "live_mutations": [],
+    "guarded_auto_migration_implementation": {
+      "scope": "Source-only implementation; no Cloud Run/OKX or financial recovery mutations",
+      "history_table": "public.hbot_schema_migrations",
+      "history_identity": "filename plus SHA-256; record and SQL commit atomically",
+      "ddl_gate": "existing database-wide physical-session trading owner lock, before any DDL",
+      "compatible_standby": true,
+      "incompatible_schema_requires_maintenance": true,
+      "pending_poll": "single short advisory-lock transaction; actual runner reacquires physical lock",
+      "health_wait": "same existing 180-second bootstrap budget while not admitted; ordinary trading health unchanged",
+      "native_cli": {
+        "passed": 1257,
+        "warnings": 7,
+        "duration_seconds": 81.26
+      },
+      "postgres_full_attempt": {
+        "passed": 584,
+        "failed": 1,
+        "duration_seconds": 974.33,
+        "failure": "Old performance index fixture expected replay of a recorded script after manual index deletion"
+      },
+      "corrected_index_fixture_and_drift_contract": {
+        "passed": 2,
+        "deselected": 584,
+        "duration_seconds": 9.15,
+        "fixture_change": "Simulate unrecorded index migration; separately require recorded schema drift to fail without silent repair"
+      },
+      "final_migration_bootstrap_handoff_contracts": {
+        "passed": 17,
+        "deselected": 568,
+        "duration_seconds": 57.79
+      },
+      "full_postgres_rerun_after_test_only_fixture_correction": false,
+      "retained_reds": {
+        "postgres_initial_contracts": 8,
+        "native_standby": 1,
+        "deployment_true_policy": 1,
+        "bounded_health_wait": 1,
+        "lightweight_standby_poll": 1
+      },
+      "docker_upgrade_fixture": "DDL absent before old owner exit; applied before new admission; image scenario not run",
+      "presets_default": "false; explicit true supported only by guarded qualified images",
+      "precommit": "passed",
+      "new_image_load_cloud_verification": false,
+      "live_mutations": []
+    }
   }
 }

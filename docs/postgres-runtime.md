@@ -113,15 +113,47 @@ loss of either required DB authority keeps new submissions closed.
 
 ## Migration policy
 
-`ENABLE_AUTO_MIGRATION=true` runs packaged SQL in name order at service
-startup before connector bootstrap. Each file has one transaction, and one session
-advisory lock covers the batch. Failed files roll back; already committed files
-are replayable. Lock wait is bounded to 60s and total DB bootstrap to 180s.
+`ENABLE_AUTO_MIGRATION=true` applies only pending packaged SQL, in filename
+order. `public.hbot_schema_migrations` records each filename, SHA-256 checksum
+and application timestamp. Each SQL file and its history row commit in the same
+transaction; failed files roll back together. Applied files are skipped, and
+changed checksums fail startup: add a forward script instead of editing history.
+The existing session migration lock serializes runners; pending files are read
+again after acquiring it. Lock wait is bounded to 60s and total DB bootstrap to 180s.
+
+Before **any DDL**, including creation of the history table, the runner must
+also acquire the same database-wide physical-session advisory lock as the trading
+engine. It never queues table DDL behind an active owner. With an active owner
+and an already compatible schema, the foreground service boots read-only in
+standby (`reason_code=migration_pending`). `/startup` can succeed while `/ready`
+remains503; trading ownership/connector admission waits until the old owner
+exits and migration completes. Retry work stays outside the trading hot path.
+The waiting service polls with one short advisory-lock transaction rather than
+repeating full schema inspection; the actual runner still reacquires its own
+physical lock and revalidates before admission.
+API Stop alone does not release process ownership: a stopped service still
+observes funding/recovery. Pending DDL waits for process shutdown or normal
+revision handoff; never edit owner identity or force-unlock a live process.
+If the old schema is incompatible with the new binary, startup fails before
+admission: use a stopped-writer maintenance window for that upgrade.
+
+An existing untracked database treats packaged files as pending. After the old
+owner releases its lock, the runner executes the existing idempotent SQL once
+and records history; it does not silently stamp files as applied while trading.
+Migrations must remain transactional (no manual COMMIT or session-lock changes).
+This coordination covers cooperating native engines, not external SQL writers.
+Stop external writers before schema changes. Large backfills/long DDL still
+belong in maintenance; automatic migration does not guarantee uninterrupted trading.
 SQL scripts use unqualified table/index/sequence references (no `public.` prefix).
 The shared runner sets `SET LOCAL search_path = public` for each script, including
 legacy cutover, and connections/validation continue to target the canonical schema.
 
 `ENABLE_AUTO_MIGRATION=false` (the current code default) performs read-only schema validation without DDL.
+Cloud Run presets remain explicitly `false` by default. New images containing
+the guarded runner also support explicit `true`; qualify that exact image and
+its rollout before enabling it. Older images replay SQL before ownership and
+must keep an explicit `ENABLE_AUTO_MIGRATION=false` override. Do not rely on an
+old image's baked default during the first rollout of this fix.
 A role with schema usage, table DML and sequence usage/select can run an existing
 compatible schema. Missing objects or incompatible definitions fail before trading.
 Migrations require object ownership/appropriate DDL privileges in the dedicated
@@ -137,9 +169,9 @@ make migrate PYTHON=/path/to/python
 
 Connection errors expose safe error types/SQLSTATE, not driver messages or DSNs.
 SQL names/checksums are logged. Correct the reported configuration/privileges/schema
-issue and restart; do not delete/reset the DB. Historical deployed scripts are
-normally immutable. The requested removal of `public.` is a formatting-only replay
-of existing idempotent scripts: checksums change, catalog names/data do not. Use
+issue and restart; do not delete/reset the DB or alter recorded checksums to
+bypass a mismatch. Once recorded, deployed scripts are immutable. The older
+`public.` formatting normalization predates tracked history. Use
 compatible forward scripts for future schema changes; large backfills/index builds belong
 in an explicit maintenance path.
 

@@ -180,7 +180,7 @@ not synthesize outside liquidity or automatically turn bootstrap on when blocked
 | Setting | Demo value and effect |
 | --- | --- |
 | Environment | `demo`; dedicated Demo credentials for both connectors |
-| Persistence | PostgreSQL, automatic migration enabled, `BOT_ID=hummingbot-demo` |
+| Persistence | Pre-migrated PostgreSQL, `ENABLE_AUTO_MIGRATION=false`, `BOT_ID=hummingbot-demo` |
 | Control | Basic Auth admin API enabled; username/password required |
 | Markets | BTC-USDT on `okx` and `okx_perpetual`; API selects spot/perpetual/both |
 | Quote allocation | 100 USDT per market, combined maximum 200 USDT |

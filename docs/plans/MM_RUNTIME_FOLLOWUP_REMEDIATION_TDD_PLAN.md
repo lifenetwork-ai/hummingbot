@@ -4,6 +4,49 @@ Date: 2026-11-07 (Asia/Saigon). Baseline `b9b73366d`, runtime recorder `c9889da2
 Follow the [review](../../reports/README.md#historical-records) (Git: `reports/investigations/mm-runtime-followup-code-review.md`).
 Reuse existing service incidents, risk guards, supervisor and native reports.
 
+## Cloud rollout startup DDL —2026-11-09,22:10 local
+
+Follow-up implementation: safe automatic migration (operator requested).
+
+- [x] Red: repeat boot must skip committed SQL; changed checksums must fail;
+  failed SQL/history must roll back together; concurrent runners must apply once.
+- [x] Coordinate DDL with the existing database-wide trading ownership lock,
+  including the first upgrade from an untracked schema. Never queue DDL behind
+  an active owner. Compatible runtime waits in standby; incompatible schema
+  fails before admission and requires a maintenance window.
+- [x] Gate trading ownership on completing deferred migration; startup may pass
+  only with a compatible schema, while trading readiness remains false.
+- [x] Verify timeout/lock release, rollback and takeover on disposable PostgreSQL,
+  run relevant native/integration suites, update docs and commit.
+- [ ] Deploy/real Cloud verification and the separately reviewed financial
+  recovery remain outside this source implementation.
+
+Verification: CLI1,257 pass; final migration/handoff17 pass. Full PostgreSQL
+attempt584 pass/1 old-fixture failure; corrected index/drift cases2 pass. The
+full attempt is not relabelled as passed; no full rerun after test-only fixture
+correction, new image/load or Cloud acceptance is claimed.
+
+Current Demo revision57 is HALTED after a PostgreSQL ownership lock timeout;
+the earlier revision55 connected pass retains its original scope.
+[Incident, exact one-row preview and recovery proposal](../../reports/platform/cloudrun-demo-abrupt-restart.md#rollout-lock-timeout-at-2210-local).
+
+- [x] Confirm the first lock timeout in DB logs and the image's inherited
+  `ENABLE_AUTO_MIGRATION=true`; separate later event106 errors from the trigger.
+- [x] TDD real active-owner/recorder versus packaged standby bootstrap:3 Red
+  OwnershipLost failures,3 Green passes with all Cloud presets explicitly false.
+- [x] Initial mitigation rejected enabled/omitted flags:2 Red; the guarded
+  follow-up now accepts explicit true/false for new tested images. The initial
+  37 review tests,89 related PostgreSQL tests and pre-commit pass retain their scope.
+- [x] Read-only reconciliation of101 individual REST fills, BTC cash, pending
+  orders and hedge legs; native one-row spot replay/restore preview prepared.
+- [ ] Incident-specific operator review, quiesced backup/restore rehearsal and
+  bounded spot/HALT recovery; no live mutation has been applied.
+- [ ] Verify the no-DDL revision handoff and connected Demo run on Cloud Run.
+
+The contemporaneous blocking SQL/PID was not retained. The reproducible startup
+DDL mechanism is supported by the deployed flag, rollout and DB timeout, without
+claiming that its historical blocking backend was directly observed.
+
 ## R1 — Availability boundaries (F1/F2)
 
 - [x] Red: stopped malformed checkpoints and live risk-status collection/validation

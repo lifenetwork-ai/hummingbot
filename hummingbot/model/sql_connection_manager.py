@@ -26,21 +26,24 @@ class SQLConnectionManager(TransactionBase):
     _scm_logger: Optional[HummingbotLogger] = None
     _scm_trade_fills_instance: Optional["SQLConnectionManager"] = None
     _postgres_engine: Optional[Engine] = None
+    _postgres_migrations_pending = False
 
     @classmethod
-    def initialize_postgres(cls, settings) -> Engine:
+    def initialize_postgres(cls, settings, *, allow_migration_standby=False) -> Engine:
         """Service-start gate; call before connector/application bootstrap."""
         from hummingbot.model.db_migration.postgres.connection import create_postgres_engine
         from hummingbot.model.db_migration.postgres.runner import bootstrap_postgres
         engine = create_postgres_engine(settings)
         try:
-            bootstrap_postgres(engine, auto_migrate=settings.enable_auto_migration)
+            complete = bootstrap_postgres(engine, auto_migrate=settings.enable_auto_migration,
+                                          allow_standby=allow_migration_standby)
         except BaseException:
             engine.dispose()
             raise
         if cls._postgres_engine is not None:
             cls._postgres_engine.dispose()
         cls._postgres_engine = engine
+        cls._postgres_migrations_pending = complete is False
         cls._scm_trade_fills_instance = None
         return engine
 

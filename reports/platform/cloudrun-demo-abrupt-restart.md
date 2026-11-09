@@ -1,7 +1,15 @@
 # Cloud Demo abrupt restart and stale position checkpoint
 
-2026-11-09, Asia/Ho_Chi_Minh. **Latest read-only check at22:02: revision56 is RUNNING,
-control/ack16/16, no HALT/error;100/200USDT limits remain active.**
+2026-11-09, Asia/Ho_Chi_Minh. **Current state: revision57 is HALTED after an
+ownership lock timeout during the22:10 rollout.** All101 recorded fills match
+individual OKX trade/order IDs, quantity, price and original fees; pending venue
+orders0/0. One spot position aggregate is stale. The initial mitigation passed
+89 PostgreSQL and37 deployment-review tests. A guarded automatic-migration
+follow-up is implemented in source below; it is not deployed and no
+live data/HALT has been changed. See the [current incident and recovery proposal](#rollout-lock-timeout-at-2210-local).
+
+Earlier read-only check at22:02: revision56 was RUNNING,
+control/ack16/16, no HALT/error;100/200USDT limits remain active.
 It auto-deployed the documentation commit `bebf29c79…` at21:46; this is a planned
 rollout, not evidence of an unresponsive engine restart. The earlier revision55
 600-second observation below retains its own scope and pass.
@@ -263,3 +271,153 @@ failure-restart event. Three isolated probe warnings are about301ms:21:20 on55,
 21:46 and21:55 on56. Later status remains healthy. Do not describe the interval
 as uninterrupted execution of one process across the normal21:46 deployment.
 The check used only reads and changed no service, session, credentials or DB state.
+
+## Rollout lock timeout at 22:10 local
+
+This is a new incident during revision56→57 overlap, distinct from the original
+revision52 stall above. Revision57 uses the same image `bebf29c79…`, environment
+and2vCPU/1GiB resources as56. Its creation audit is22:09:24.022.
+
+At22:10:01.472, PostgreSQL backend2564549 cancels the physical ownership SELECT
+on `bot_state` with **lock timeout**. At22:10:01.496 the recorder's
+`OrderCancelled` event106 fails with `OwnershipLost`; the service then stops,
+cleanup cannot complete and later event callbacks encounter the persistence
+failure latch. Revision57's reconciliation correctly refuses to resume unresolved
+effects at22:10:06.011. These ERROR records are a causal chain, not independent
+venue submission errors. HTTP/startup Ready does not mean trading recovered.
+
+Direct inspection of the deployed registry image config confirms
+`ENABLE_AUTO_MIGRATION=true`, without a revision-level override. Startup replays
+all packaged scripts. Even `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` takes an
+AccessExclusive table lock. A new migration can wait for the old recorder's
+RowShare table lock, while the recorder's next ownership SELECT queues behind
+that DDL. The owner lock timeout then closes submissions and prevents graceful
+checkpoint completion. The migration advisory lock only serializes migrations.
+
+The real-PostgreSQL regression reproduces this sequence using each shipped
+Cloud startup preset: **3 Red failures with OwnershipLost →3 Green passes**
+after disabling runtime migrations. The deployed flag, rollout timing and exact
+DB failure support this mechanism. The historical blocking SQL/backend PID was
+not captured; that last attribution limit remains explicit. No evidence here
+establishes an OKX transport/authentication error or an OOM event.
+
+The initial mitigation sets all three Cloud presets to explicit
+`ENABLE_AUTO_MIGRATION=false`; the private deployment env now has the same
+override. Its first deployment-review change rejects enabled or omitted flags
+(older images can inherit `true`). Its2 Red cases pass after that check. All37 review
+tests,89 related PostgreSQL tests and pre-commit checks pass. Required migrations
+remain an explicit `make migrate` with writers stopped; runtime validates the
+existing schema. No ownership fence, timeout or risk threshold is relaxed.
+These tests do not constitute a new image/load or Cloud rollout acceptance.
+The subsequent requested guarded-runner implementation below supersedes the
+blanket rejection of `true` for new qualified images; explicit policy remains required.
+
+### Financial readback and exact proposed maintenance
+
+Read-only independent REST reconciliation matches **101/101 fills:72 spot,
+29 perpetual**. There are no missing venue fills since the reviewed68-fill
+baseline within the verified REST window. Spot BTC cash changes equal recorded
+fill quantities minus base fees. Pending SPOT/SWAP orders and creation-pending
+intents are zero. Perpetual LONG0.0030/SHORT0.0048 BTC and both durable aggregates
+match all recorded fills; they need no repair. Strategy risk latch remains
+`_is_stop_triggered=false`, with no drawdown breach and unchanged100/200 limits.
+
+Only spot aggregate `bae1325b-551f-4b50-b4f9-bfe6a1f79ef8`, controller
+`demo_btc_spot`, side SELL, is behind the immutable ledger. Native `PositionHold`
+replay and `_load_position_from_db()` round-trip produce this read-only preview:
+
+| Field | Stored | Proposed from101-fill ledger |
+| --- | --- | --- |
+| amount BTC | 0.02749641 | 0.04152284 |
+| volume_traded_quote | 2045.102469834 | 3095.093632178 |
+| breakeven_price | 74377.07212810690559240279004 | 74539.54575790095282499944609 |
+| realized_pnl_quote | 0 | 0 |
+| cum_fees_quote | 1.6360819758672 | 2.4760749057424 |
+| unrealized_pnl_quote | −13.96619301599999999999999992 | 0 at reconstructed average entry |
+
+The last field is an explicit reconstruction mark; runtime must mark at fresh
+market prices. It does not reset PnL peaks or assert a profit. Spot quantity is
+strategy-relative net SELL inventory, not an account short or its full BTC balance.
+
+**Proposed, not applied; separate incident-specific operator review required:**
+
+1. Quiesce all service writers and independently repeat venue/ledger checks.
+2. Take a private full PostgreSQL16 backup and restore-rehearse the bounded
+   transaction/native startup comparison on an isolated clone.
+3. Set only Cloud `ENABLE_AUTO_MIGRATION=false`, retaining image, credentials,
+   BOT_ID, CPU/RAM and all other environment settings. Keep writers stopped
+   throughout maintenance; require the explicit override before startup.
+4. Under exclusive ownership/expected-state checks, replace only the spot
+   aggregate fields above, remove only this incident's initialization/unclean
+   HALT/reason and append a maintenance audit. Abort on unexpected drift.
+5. Preserve all431 orders/101 fills, both perpetual rows, funding history,
+   credentials/bindings, session configuration, risk policy, stop flag and peaks.
+6. Restore min/max1, verify startup, then use the operator's fresh Google session
+   for normal Start. Observe Demo quoting/fills and a controlled revision handoff
+   with migration disabled before closing the incident.
+
+Previous financial/drawdown recovery approvals do not cover this incident.
+The [maintenance rule](../../docs/postgres-runtime.md#ownership-and-unresolved-exchange-effects)
+requires an explicit operator-reviewed database change. Until that review,
+**keep HALT; no live repair, restart request or Cloud env change has been made**.
+
+- [x] Identify the first PostgreSQL error and distinguish cascading recorder errors.
+- [x] Inspect the actual image's inherited startup flag and compare revisions.
+- [x] Reproduce the DDL/recorder ownership failure; verify source/preset remediation.
+- [x] Reconcile101 individual REST fills, cash, pending orders and hedge legs.
+- [x] Prepare the exact one-row native replay preview and incident-specific proposal.
+- [ ] Obtain review, quiesce/backup/restore-rehearse and apply the bounded recovery.
+- [ ] Verify the no-DDL rollout and subsequent connected Demo run on Cloud Run.
+
+## Guarded automatic migration — source follow-up
+
+At the operator's request, `ENABLE_AUTO_MIGRATION=true` now has a coordinated
+source implementation. The runner records filename/checksum/application time in
+`hbot_schema_migrations`, atomically with each SQL file, and skips applied files.
+Changed checksums fail instead of replaying altered SQL. A second runner rereads
+history after obtaining the migration lock, preventing duplicate application.
+
+Before all DDL, including first history-table creation on an old untracked DB,
+the runner must obtain the existing physical-session trading owner lock. An
+active owner causes compatible read-only standby without queued DDL. After the
+old owner releases, the new service completes migration before attempting trading
+ownership. An incompatible old schema fails startup and needs maintenance.
+Explicit migration also refuses pending SQL while a trading owner is active.
+
+`migration_pending` identifies standby; `migration_in_progress` identifies the
+bounded background DB step. Responsive health allows only the runner's existing
+180-second bootstrap deadline during that step; trading readiness remains false.
+The wait is cleared afterward. Normal running-engine health budgets are unchanged.
+The supervisor can still detect an unresponsive event loop independently.
+While waiting for the old owner, one short advisory-lock transaction replaces
+repeated full-schema scans. This is only a scheduling hint; migration still
+reacquires its physical lock and validates before trading admission.
+
+TDD retained8 initial PostgreSQL Red failures, one standby Red, one deployment
+policy Red and one explicit health-wait Red. The new real-process handoff test
+passes with supervisor, API and engine children on disposable PostgreSQL: new
+startup succeeds in standby, the old owner stays unchanged, history remains
+absent until old shutdown, then history is adopted and the next owner starts
+without HALT. This test never contacts Cloud Run or OKX.
+
+Cloud presets remain conservatively false; deployment review accepts explicit
+true or false for a tested image. The actual deployed old image still requires
+the false override and the separately reviewed financial recovery above.
+No live configuration, financial row, credentials or HALT has been changed by
+this source implementation. A new image/full load/Cloud rollout acceptance is
+not implied by native and PostgreSQL results.
+
+Source verification results:
+
+- Entire CLI suite: **1,257 passed**, 7 dependency deprecation warnings.
+- Full PostgreSQL attempt: **584 passed / 1 failed** in974.33s. The failure was
+  the old performance-index fixture deleting indexes after marking their script
+  applied, then expecting automatic replay. That attempt remains failed.
+- Corrected pending-index fixture plus the new recorded-drift rejection contract:
+  **2 passed**. Only the test fixture/coverage changed for this correction;
+  the runtime correctly rejected drift. A full PostgreSQL rerun after that
+  test-only adjustment was not performed.
+- Final migration/bootstrap/real-process handoff contracts: **17 passed** after
+  the bounded health wait and lightweight polling changes. Pre-commit passes.
+- The Docker upgrade assertion now requires additive DDL after old-owner exit.
+  No new Docker image/full E2E/load or real Cloud rollout was run for this change.
