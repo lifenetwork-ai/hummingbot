@@ -209,6 +209,19 @@ def test_fatal_bootstrap_and_transient_database_failure_are_distinct():
     assert failure_exit_code(OperationalError('hidden', {}, ConnectionError())) == 1
 
 
+def test_bot_identity_mismatch_is_permanent_but_ordinary_control_conflicts_retry():
+    from hummingbot.cli.service_processes import failure_exit_code, failure_reason
+    from hummingbot.core.control_errors import ControlConflict
+
+    identity = ControlConflict('private database details', code='bot_identity_mismatch')
+    assert failure_exit_code(identity) == 78
+    assert failure_reason(identity) == 'bot_identity_mismatch'
+    for code in ['control_conflict', 'control_version_changed', 'session_changed']:
+        transient = ControlConflict('private input', code=code)
+        assert failure_exit_code(transient) == 1
+        assert failure_reason(transient) == 'service_internal_failure'
+
+
 @pytest.mark.parametrize('cleanup_failed', [False, True])
 def test_parent_stop_during_popen_never_launches_api(monkeypatch, cleanup_failed):
     import signal

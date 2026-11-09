@@ -1082,9 +1082,10 @@ async def run_service(*, settings=None, bind_host='0.0.0.0', admin_settings=None
         # exception text or traceback at this outer process boundary.
         from sqlalchemy.exc import SQLAlchemyError
 
+        from hummingbot.cli.service_processes import failure_reason
         from hummingbot.core.bot_ownership import OwnershipLost
         reason = ("ownership_lost" if isinstance(error, OwnershipLost) else
-                  "critical_persistence_failure" if isinstance(error, SQLAlchemyError) else "service_internal_failure")
+                  "critical_persistence_failure" if isinstance(error, SQLAlchemyError) else failure_reason(error))
         logging.getLogger(__name__).error("Service stopped reason=%s type=%s", reason, type(error).__name__,
                                           extra={"event": "service_failed", "reason_code": reason,
                                                  "error_type": type(error).__name__})

@@ -27,6 +27,14 @@ uses the shared dotenv loader; Cloud Run uses injected environment values and
 ignores `.env` and rejects `ENV_FILE`/`HBOT_ENV_FILE`. Supply exchange credentials through the environment field names
 documented in [runtime operations](postgres-runtime.md).
 
+`BOT_ID` must match the identity already stored in the target database's
+`bot_state`. A local restored Demo ledger and a newly initialized cloud database
+can have different IDs. Check the target identity before copying environment
+settings; do not rename/delete the DB row or clear its history to bypass the
+identity fence. Current source reports `bot_identity_mismatch` with permanent
+configuration exit78; older images may emit generic `ControlConflict` and retry.
+See the [first cloud identity incident](../reports/platform/cloudrun-demo-bot-identity-incident.md).
+
 The ordinary entrypoint is one supervisor with independent API and engine
 children inside the same container/service. API ingress binds `0.0.0.0:$PORT`;
 engine health binds only to loopback at the adjacent port. Child processes do

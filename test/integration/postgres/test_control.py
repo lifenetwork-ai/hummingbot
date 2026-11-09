@@ -43,8 +43,15 @@ def test_concurrent_control_rejects_stale_intent(state):
 
 
 def test_dedicated_db_rejects_another_bot_identity(state):
-    with pytest.raises(ControlConflict, match="BOT_ID"):
+    before = state.read()
+    with pytest.raises(ControlConflict, match="BOT_ID") as raised:
         BotStateStore(state.engine, "another-bot").ensure()
+    assert raised.value.code == 'bot_identity_mismatch'
+    after = state.read()
+    for key in before.keys() - {'database_now', 'heartbeat_age_s'}:
+        assert after[key] == before[key]
+    with state.engine.connect() as connection:
+        assert connection.execute(text('SELECT count(*) FROM bot_state')).scalar_one() == 1
 
 
 def test_old_owner_and_old_ack_cannot_overwrite_newer_intent(state):

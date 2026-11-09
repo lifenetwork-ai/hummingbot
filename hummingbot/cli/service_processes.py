@@ -11,6 +11,7 @@ from urllib.request import urlopen
 
 from hummingbot.cli.process_supervision import ChildSupervisor, HealthWatchdog
 from hummingbot.client.config.runtime_config import RuntimeConfigurationError, RuntimeSettings, postgres_requested
+from hummingbot.core.control_errors import ControlConflict
 
 LOGGER = logging.getLogger(__name__)
 
@@ -79,6 +80,8 @@ def failure_exit_code(error):
     from hummingbot.model.db_migration.postgres.runner import PostgreSQLBootstrapError
     if isinstance(error, RuntimeConfigurationError):
         return 78
+    if isinstance(error, ControlConflict) and error.code == 'bot_identity_mismatch':
+        return 78
     if isinstance(error, PostgreSQLBootstrapError) and not error.retryable:
         return 78
     return 1
@@ -88,6 +91,8 @@ def failure_reason(error):
     from hummingbot.model.db_migration.postgres.runner import PostgreSQLBootstrapError
     if isinstance(error, RuntimeConfigurationError):
         return 'service_configuration_invalid'
+    if isinstance(error, ControlConflict) and error.code == 'bot_identity_mismatch':
+        return 'bot_identity_mismatch'
     if isinstance(error, PostgreSQLBootstrapError):
         return 'bootstrap_unavailable' if error.retryable else 'schema_incompatible'
     return 'service_internal_failure'

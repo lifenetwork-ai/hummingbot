@@ -255,3 +255,30 @@ def test_startup_configuration_failure_emits_json_without_secret_inputs(level):
     assert [value["severity"] for value in values] == ["ERROR", "INFO"]
     assert values[0]["event"] == "service_failed" and values[-1]["event"] == "service_exit"
     assert "invalid-private" not in result.stdout
+
+
+def test_identity_bootstrap_failure_emits_specific_safe_reason_and_permanent_exit():
+    program = """
+import asyncio
+from dataclasses import replace
+from hummingbot.cli.service import ServiceHost, run_service
+from hummingbot.client.config.runtime_config import RuntimeSettings
+from hummingbot.core.control_errors import ControlConflict
+async def fail_bootstrap(self):
+    raise ControlConflict('private-database-password-must-not-leak', code='bot_identity_mismatch')
+ServiceHost.bootstrap = fail_bootstrap
+settings = replace(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}), port=0)
+raise SystemExit(asyncio.run(run_service(settings=settings, bind_host='127.0.0.1')))
+"""
+    env = {key: value for key, value in os.environ.items() if key not in ('ENV_FILE', 'HBOT_ENV_FILE')}
+    env.update(K_SERVICE='logging-test', STORAGE_BACKEND='postgres', ADMIN_API_ENABLED='false',
+               ADMIN_BASIC_AUTH_ENABLED='false', ADMIN_GOOGLE_AUTH_ENABLED='false', LOG_LEVEL='INFO', LOG_FORMAT='json')
+    result = subprocess.run([sys.executable, '-c', program], env=env, capture_output=True, text=True, timeout=15)
+    assert result.returncode == 78 and not result.stderr
+    values = [json.loads(line) for line in result.stdout.splitlines()]
+    failures = [row for row in values if row.get('event') == 'service_failed']
+    assert len(failures) == 1
+    assert failures[0]['reason_code'] == 'bot_identity_mismatch'
+    assert failures[0]['error_type'] == 'ControlConflict'
+    assert failures[0]['severity'] == 'ERROR'
+    assert 'private-database-password' not in result.stdout

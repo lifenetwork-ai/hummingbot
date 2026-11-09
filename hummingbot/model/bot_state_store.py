@@ -48,7 +48,8 @@ class BotStateStore:
             connection.execute(text("SELECT pg_advisory_xact_lock(5215808413150596171)"))
             other = connection.execute(select(BotState.bot_id).where(BotState.bot_id != self.bot_id).limit(1)).first()
             if other:
-                raise ControlConflict("This database already belongs to another BOT_ID; use its configured identity.")
+                raise ControlConflict("This database already belongs to another BOT_ID; use its configured identity.",
+                                      code="bot_identity_mismatch")
             connection.execute(insert(BotState).values(bot_id=self.bot_id).on_conflict_do_nothing())
 
     def control(self, *, expected_version: int, desired_state: Optional[str] = None,

@@ -1,0 +1,62 @@
+{
+  "observed_date": "2026-11-09",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "project": "lifeai-438107",
+  "service": "hummingbot-demo",
+  "region": "asia-southeast1",
+  "revisions": [
+    "hummingbot-demo-00043-v76",
+    "hummingbot-demo-00044-6wh"
+  ],
+  "deployed_bot_id": "okx-demo-btc",
+  "database_bot_id": "hummingbot-demo",
+  "desired_state": "stopped",
+  "control_ack": [
+    0,
+    0
+  ],
+  "counts": {
+    "orders": 0,
+    "trade_fills": 0,
+    "positions": 0,
+    "exchange_credentials": 0,
+    "admin_accounts": 0
+  },
+  "verified_transaction_read_only": true,
+  "deployed_image_tag": "asia-southeast1-docker.pkg.dev/lifeai-438107/cloud-run-source-deploy/hummingbot/hummingbot-demo:063b937561570d9281ac0b60d2ff5f13b0b8fa12",
+  "deployed_resources": {
+    "cpu": "2",
+    "memory": "1Gi"
+  },
+  "cloud_update_applied": false,
+  "database_mutations_performed": false,
+  "exchange_requests_performed": false,
+  "local_deploy_env_bot_id_corrected": true,
+  "proposed_change": "Update only BOT_ID=hummingbot-demo; preserve image/env/secrets/resources; verify startup and unchanged stopped DB",
+  "raw_private_sha256": {
+    "logs": "462de7b26c9f578f3b85066e66560b13b2d4d936d1f2c4817943b768ac61d65c",
+    "service_metadata": "2e9cd5962399fdb4c1c11d178c9b61490ee2a3fe9d06d88bc45d329304cde372",
+    "read_only_db": "657ac192613d35ef1141c0ce9e33a6fccf2a4737bce6213a908182da81bf0b5f"
+  },
+  "source_diagnostic_fix": {
+    "red_failures": {
+      "native_classification": 1,
+      "native_process_logging": 1,
+      "postgres_identity": 1
+    },
+    "green_native": 94,
+    "green_postgres": 11,
+    "postgres_deselected": 546,
+    "new_image_built": false,
+    "deployed": false,
+    "other_control_conflicts_remain_retryable": true,
+    "rejecting_wrong_id_preserves_db_rows": true,
+    "log_sha256": {
+      "native-red.log": "e92ad890d3bb50e4fcfb77f3d5a31c70911746411940fa0a4bface670302470b",
+      "logging-red.log": "79c25e7edbb4f498099632739b95058cc1a956ac59f35b79f5dea240ab408820",
+      "postgres-red.log": "7ec57549d838d0a60c736669df6933d0cd73d0cc85a2acbc96b3f27b2a181b93",
+      "native-green.log": "0c887b575776b7cf919290c22008139f9892bf59e7cb4bbc4097e4198b65d649",
+      "postgres-green.log": "b526b5edf00f7a50d403482e31f0ae69666d80c3678232f0dad2c21c86e6345a"
+    }
+  }
+}
