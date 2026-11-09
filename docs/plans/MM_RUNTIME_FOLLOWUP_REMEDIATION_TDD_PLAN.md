@@ -609,11 +609,17 @@ remains exact. No recovery checkpoint or risk-stop flag has been edited.
   checks preserve guards, terminal-order proof, held fills and explicit Stop.
   Add price/reference/effective-policy diagnostics and classify only the typed
   spread rejection as WARNING; unknown safety failures remain ERROR.
-- [ ] Qualify the changed image on Cloud Run after operator deployment and repeat
-  the bounded Google/Demo lifecycle. The historical17 rejections lack exact
-  per-rejection price/fee snapshots: their unique initial trigger remains unknown.
-  Source proof does not retroactively eliminate those ERROR records or qualify
-  the new image/full soak.
+- [x] Verify operator-deployed revision52/image `0c49757cc` using a real Google
+  continuous Demo session across normal refreshes. Observe112 samples over604s,
+  retain21 new REST-matched fills and leave both/follow_market running Until stopped.
+  No Stop/Revoke, guard/risk override or service deployment is issued by this run.
+  The prior revision48 credential-removal cycle keeps its own scope. No spread
+  rejection occurs in this window, so its exact typed branch is not forced here.
+  Historical17 initial triggers, new full soak and30-minute SLO remain separate.
+- [ ] Review the observed spot no-quote interval after both SELLs fill, including
+  occupied executor levels until scheduled refresh. Retain the33.2s sampled gap,
+  warning and order timestamps; use TDD for any justified early filled-entry handoff.
+  Do not treat zero runtime ERRORs as meeting the99% two-sided quote objective.
 
 Cloud limits1vCPU/512Mi differ from the proposed2vCPU/2Gi and the older local load
 gate. No resource change, new full soak, thirty-minute quote SLO, production FE or

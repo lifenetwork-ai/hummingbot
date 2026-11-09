@@ -865,6 +865,14 @@ confirmations. If Stop fails or its outcome is unknown, retain that state rather
 than showing success. Keep positions/orders and their timestamps visible afterward.
 `/orders?state=open` is recorder history, not an exchange-wide live snapshot.
 
+Position freshness has two scopes. `/positions.markets[].stale` describes the
+last complete pair/account position snapshot; `items[].stale` describes each
+known position observation, which WebSocket updates can keep fresh between REST
+snapshots. A stale market snapshot can therefore contain fresh, accurate items.
+Show these badges separately: stale full-scope coverage cannot prove that no
+other position exists or that exposure is flat. It does not, by itself, mean the
+trading engine stopped. Compare quantity agreement and freshness independently.
+
 Stop and reconciliation never automatically flatten positions or clear HALT.
 Checks may be unavailable when no appropriate connector remains; they do not start
 one. For unresolved recovery, the operator action is “Contact support”; maintainers

@@ -1,0 +1,530 @@
+{
+  "observed_date": "2026-11-09",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "scope": "Bounded real Google-controlled continuous OKX Demo; left running, no simulated/live fills",
+  "project": "lifeai-438107",
+  "service": "hummingbot-demo",
+  "revision": "hummingbot-demo-00052-5dn",
+  "image": "asia-southeast1-docker.pkg.dev/lifeai-438107/cloud-run-source-deploy/hummingbot/hummingbot-demo:0c49757cc6d47b12cb1a9125dea3bbce0ed70740",
+  "image_digest": "asia-southeast1-docker.pkg.dev/lifeai-438107/cloud-run-source-deploy/hummingbot/hummingbot-demo@sha256:6f08c258c17e6f42158e4d6684cdbd827098f20fe36faf570ca9a43f3eed08ad",
+  "resources": {
+    "limits": {
+      "cpu": "1",
+      "memory": "512Mi"
+    }
+  },
+  "actor": {
+    "id": "84424918-e3e8-450a-b86a-81bbc0560a9f",
+    "kind": "google",
+    "email": "trung.nguyen@genefriendway.com",
+    "role": "admin"
+  },
+  "start_receipt_id": "28e97c88-5bb0-4989-b935-b5adabe5a30e",
+  "google_actor_audit_verified": true,
+  "session_id": "4be400c9-be48-4d5c-82f3-772134b1b740",
+  "request": {
+    "action": "start",
+    "expected_version": 11,
+    "expected_catalogue_hash": "9c912f0722e300a64ea0ad0af5655f168956a5bee787ba1223f99a51db4bf4c5",
+    "market_mode": "both",
+    "selection": "fixed",
+    "profile_id": "follow_market",
+    "duration_mode": "until_stopped"
+  },
+  "start_at": "2026-11-09T09:56:42.044869+00:00",
+  "measurement_completed_at": "2026-11-09T10:07:06.168445+00:00",
+  "samples": 112,
+  "sample_span_seconds": 604.1265609264374,
+  "max_external_observer_gap_seconds": 27.672988891601562,
+  "leave_running": true,
+  "stop_or_revoke_issued": false,
+  "credentials_preserved": true,
+  "control_ack": [
+    12,
+    12
+  ],
+  "handoff_running": true,
+  "handoff_error": null,
+  "handoff_recovery": {
+    "halted": false,
+    "pending_mutations": false,
+    "next_action": "none",
+    "detail": "No recovery block is recorded.",
+    "reset_available": false
+  },
+  "markets": {
+    "spot": {
+      "connector": "okx",
+      "pair": "BTC-USDT",
+      "buy_order_count": 0,
+      "sell_order_count": 2,
+      "observed_seconds": 610.5229635084904,
+      "elapsed_seconds": 610.9941999912262,
+      "unknown_seconds": 0.471236482735776,
+      "two_sided_seconds": 0.0,
+      "two_sided_fraction_of_elapsed": 0.0,
+      "max_sampled_no_quote_seconds": 33.19644869900003,
+      "no_quote_warning_samples": 3
+    },
+    "perpetual": {
+      "connector": "okx_perpetual",
+      "pair": "BTC-USDT",
+      "buy_order_count": 0,
+      "sell_order_count": 2,
+      "observed_seconds": 610.5229635084904,
+      "elapsed_seconds": 610.9941999912262,
+      "unknown_seconds": 0.471236482735776,
+      "two_sided_seconds": 537.0933617589997,
+      "two_sided_fraction_of_elapsed": 0.8790482164425002,
+      "max_sampled_no_quote_seconds": 0.584389826000006,
+      "no_quote_warning_samples": 0
+    }
+  },
+  "application_error_records": 0,
+  "events": {
+    "mm_no_quotes_warning": 1,
+    "http_request": 1,
+    "child_probe_failed": 4
+  },
+  "quote_rejections_observed": 0,
+  "quote_rejection_trigger_forced": false,
+  "probe_warnings": [
+    {
+      "at": "2026-11-09T09:59:02.501058Z",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.306 probe_status=None probe_elapsed_ms=300.823 max_probe_elapsed_ms=300.823"
+    },
+    {
+      "at": "2026-11-09T09:57:59.529856Z",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.305 probe_status=None probe_elapsed_ms=300.732 max_probe_elapsed_ms=300.732"
+    },
+    {
+      "at": "2026-11-09T09:56:55.767212Z",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.321 probe_status=None probe_elapsed_ms=300.827 max_probe_elapsed_ms=300.827"
+    },
+    {
+      "at": "2026-11-09T09:56:50.738863Z",
+      "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.305 probe_status=None probe_elapsed_ms=300.76 max_probe_elapsed_ms=300.76"
+    }
+  ],
+  "financial": {
+    "observed_at": "2026-11-09T10:07:13.354777+00:00",
+    "matched_fills": 26,
+    "new_matched_fills": 21,
+    "new_by_connector": {
+      "okx": 9,
+      "okx_perpetual": 12
+    },
+    "duplicate_fill_identities": false,
+    "live_position_quantities_match_rest": true,
+    "account_position_snapshot_stale_at_final_financial_check": true,
+    "spot_btc_cash_matches": true,
+    "fills": [
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUT5b3ec80cafe",
+        "trade_id": "4597599628",
+        "amount": "0.0003",
+        "price": "74620.55",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.004477233"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794214915000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUT6e54fca912d",
+        "trade_id": "4597601071",
+        "amount": "0.0003",
+        "price": "74657.84",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0044794704"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794214924000
+      },
+      {
+        "connector": "okx",
+        "order_id": "93027a12dac34fBCSBCUT9c16046cd89",
+        "trade_id": "1419670725",
+        "amount": "0.00066957",
+        "price": "74673.8",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0399994690128"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794214925000
+      },
+      {
+        "connector": "okx",
+        "order_id": "93027a12dac34fBCSBCUT77708a5e705",
+        "trade_id": "1419670805",
+        "amount": "0.00066944",
+        "price": "74688.7",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0399996826624"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794214925000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUT231a297deb4",
+        "trade_id": "4597613741",
+        "amount": "0.0006",
+        "price": "74672.3",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.02240169"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794214984000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUTe160124a320",
+        "trade_id": "4597763227",
+        "amount": "0.0003",
+        "price": "74267.8",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.004456068"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218297000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUTa7c2aff46f1",
+        "trade_id": "4597765252",
+        "amount": "0.0003",
+        "price": "74317.22",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0044590332"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218401000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUT1ec4111e0a1",
+        "trade_id": "4597766317",
+        "amount": "0.0003",
+        "price": "74299.94",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0044579964"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218410000
+      },
+      {
+        "connector": "okx",
+        "order_id": "93027a12dac34fBCSBCUTdd48cee3668",
+        "trade_id": "1419677825",
+        "amount": "0.00016811",
+        "price": "74355.4",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0099999090352"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218414000
+      },
+      {
+        "connector": "okx",
+        "order_id": "93027a12dac34fBCSBCUTdd48cee3668",
+        "trade_id": "1419677826",
+        "amount": "0.00026897",
+        "price": "74355.4",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0159994975504"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218415000
+      },
+      {
+        "connector": "okx",
+        "order_id": "93027a12dac34fBCSBCUTdd48cee3668",
+        "trade_id": "1419677827",
+        "amount": "0.00004034",
+        "price": "74355.4",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0023995974688"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218415000
+      },
+      {
+        "connector": "okx",
+        "order_id": "93027a12dac34fBCSBCUTdd48cee3668",
+        "trade_id": "1419677828",
+        "amount": "0.00002689",
+        "price": "74355.4",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0015995333648"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218415000
+      },
+      {
+        "connector": "okx",
+        "order_id": "93027a12dac34fBCSBCUTdd48cee3668",
+        "trade_id": "1419677829",
+        "amount": "0.00002689",
+        "price": "74355.4",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0015995333648"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218415000
+      },
+      {
+        "connector": "okx",
+        "order_id": "93027a12dac34fBCSBCUTdd48cee3668",
+        "trade_id": "1419677830",
+        "amount": "0.00013448",
+        "price": "74355.4",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0079994513536"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218415000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUTee642836f37",
+        "trade_id": "4597768056",
+        "amount": "0.0003",
+        "price": "74225.67",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0044535402"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218445000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUTef5facfc5aa",
+        "trade_id": "4597768890",
+        "amount": "0.0003",
+        "price": "74242.87",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0044545722"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218540000
+      },
+      {
+        "connector": "okx",
+        "order_id": "93027a12dac34fBCSBCUTf2740ca7d71",
+        "trade_id": "1419678057",
+        "amount": "0.0004794",
+        "price": "74304.3",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.028497185136"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218590000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUTdfd1547162d",
+        "trade_id": "4597770634",
+        "amount": "0.0003",
+        "price": "74235.72",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0044541432"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218610000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUT87cf9af84af",
+        "trade_id": "4597770730",
+        "amount": "0.0003",
+        "price": "74244.86",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0044546916"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218610000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUT75f08c63dcb",
+        "trade_id": "4597773844",
+        "amount": "0.0003",
+        "price": "74125.73",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0044475438"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218671000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUT12306178124",
+        "trade_id": "4597775988",
+        "amount": "0.0003",
+        "price": "74142.74",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0044485644"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218744000
+      },
+      {
+        "connector": "okx",
+        "order_id": "93027a12dac34fBCSBCUT4f984a77e40",
+        "trade_id": "1419678586",
+        "amount": "0.00067423",
+        "price": "74157.9",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0399995847336"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218745000
+      },
+      {
+        "connector": "okx",
+        "order_id": "93027a12dac34fBCSBCUTd5287f4dc66",
+        "trade_id": "1419678598",
+        "amount": "0.0006741",
+        "price": "74172.5",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0399997458"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218748000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUT85cba4ec06d",
+        "trade_id": "4597777811",
+        "amount": "0.0003",
+        "price": "74210.22",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0044526132"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218774000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUT0e4fee0873c",
+        "trade_id": "4597779015",
+        "amount": "0.0003",
+        "price": "74131.88",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0044479128"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218808000
+      },
+      {
+        "connector": "okx_perpetual",
+        "order_id": "93027a12dac34fBCBBCUTb2876c896da",
+        "trade_id": "4597780036",
+        "amount": "0.0003",
+        "price": "74095.29",
+        "original_fees": [
+          {
+            "token": "USDT",
+            "amount": "0.0044457174"
+          }
+        ],
+        "matched": true,
+        "timestamp": 1794218808000
+      }
+    ]
+  },
+  "limitations": [
+    "No new full load/soak, 30-minute 99% quote availability or GCP KMS acceptance.",
+    "Spot BUY suppressed by deployed inventory skew; not a two-sided Spot qualification.",
+    "Spot no-quote episode exceeded20s warning; two SELLs filled before the next60s refresh. Replacement observed, unique executor causality not fully reconstructed.",
+    "Perpetual two-sided elapsed fraction below99%; do not close the two-sided availability objective.",
+    "External observer handed off locally with a27.67s maximum sample gap; no trading command issued during handoff.",
+    "One helper daily request used unsupported days=1 and correctly returnedHTTP422; final daily request used supported from/to and was fresh.",
+    "Helper initially conflated account snapshot staleness with amount mismatch. Retained snapshot has matching amounts but stale whole-account coverage and fresh position items.",
+    "INFO/DEBUG excluded by project logging rule; warning/error scope retained.",
+    "Earlier17 Cloud quote rejections retain unknown unique initial trigger; this window had no fresh spread rejection to exercise the new typed branch."
+  ],
+  "local_verification_tools_stopped": true,
+  "cloud_running_after_local_tools_stop": true,
+  "final_read_only_handoff_at": "2026-11-09T10:12:31.086660Z",
+  "final_service_phase": "running",
+  "final_session_expiry": null
+}

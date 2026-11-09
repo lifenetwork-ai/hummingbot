@@ -3,6 +3,14 @@
 [All reports](../README.md) · [Current offline image](../release/mm-runtime-followup-load.md)
 
 [Cloud Run Google lifecycle acceptance](cloudrun-google-credentials-acceptance.md)
+now includes the revision52 continuous-Demo follow-up: both/follow_market,
+Until stopped,112 samples over604s and21 new individually REST-matched fills.
+The bot is left running at handoff. Zero application ERRORs/spread rejections;
+four probe warnings and a33.2s sampled spot quote gap remain explicit. This does
+not close the99% two-sided objective or full soak. See
+[continuous evidence](cloudrun-continuous-demo-evidence.json).
+
+The earlier revision48 lifecycle
 passes real email whitelist/login, Google-controlled Set/Start/Disconnect/Set-again/
 Stop and5 exact REST-matched fills on revision48. Final bot stopped, both slotsv2
 Connected, venue orders0/perpetual flat. Seventeen protected quote rejections and

@@ -1,7 +1,13 @@
 # Cloud Run Demo — Google identity and credentials lifecycle
 
-2026-11-09, Asia/Ho_Chi_Minh. **The real Google-controlled connection/trading/
-disconnect/reconfigure flow passes.** The bot finishes stopped, both saved slots
+2026-11-09, Asia/Ho_Chi_Minh. **Latest follow-up: revision52 is left running on
+OKX Demo, both/follow_market, Until stopped.** The604-second observation and final
+financial readback confirm21 new fills with exact REST quantity/price/original
+fees. [Continuous-run evidence](cloudrun-continuous-demo-evidence.json).
+The spot quote gap and probe warnings below remain open limitations.
+
+**The earlier revision48 Google-controlled connection/trading/
+disconnect/reconfigure flow passes.** That run finishes stopped, both saved slots
 Connected at version2, pending venue orders0 and perpetual exposure flat.
 [Portable evidence](cloudrun-google-credentials-acceptance-evidence.json).
 
@@ -156,3 +162,66 @@ now included in that Makefile target. Formatting/lint and diff checks pass.
 This is a local source fix. Revision48 and its17 rejected identities remain
 historical evidence; no new Cloud image is deployed by this remediation.
 Changed-image Cloud/Demo acceptance and full load/soak remain separate gates.
+
+## Revision52 continuous Demo follow-up
+
+The operator deployed revision `hummingbot-demo-00052-5dn`, image tag `0c49757cc`,
+digest `sha256:6f08c258c17e6f42158e4d6684cdbd827098f20fe36faf570ca9a43f3eed08ad`.
+No deployment or environment/resource/YAML change is performed by this retest.
+The same approved real Google admin starts BTC-USDT spot+perpetual with fixed
+`follow_market`, `duration_mode=until_stopped`, control/ack12/12. Credentials remain
+Connectedv2. REST preflight confirms Demo, Futures/Hedge, pending orders0 and
+perpetual flat before Start. No credentials reset, HALT maintenance or risk
+override is used.
+
+112 samples span604.13s across repeated60s refreshes, with no runtime error/HALT
+or observed replacement. A local observer handoff creates a27.67s maximum sample
+gap; it issues no trading command and is not evidence of an engine pause.
+The final API read confirms running, Until stopped, no expiry and no recovery
+block. The operator explicitly requested continued Demo trading: **no Stop or
+Revoke is sent**. This handoff is a point-in-time observation, not a permanent
+availability guarantee.
+
+At10:07:13 UTC (17:07:13 local), independent readback matches all26 recorded fills
+to individual OKX trade IDs, quantity, price and original fee currency/amount.
+**21 are new since this Start:9 spot and12 perpetual.** This financial readback is
+slightly later than the bounded observation window. Fill identities are unique;
+spot BTC cash matches recorded net trades/base fees. Actual perpetual long/short
+quantities match the API observations. Existing positions and new natural fills
+remain live as requested; this run makes no flat-exposure or cleanup claim.
+
+### Retained warnings and coverage limits
+
+- Zero application ERRORs and zero local spread rejections in the measured log
+  window. The fixed image runs, but no new spread rejection occurs to force its
+  typed refresh branch. Native/PG Red/Green remains the direct branch proof;
+  the original17 Cloud rejection triggers remain historically unproven.
+- Four individual probe timeouts around the300ms bound have later healthy
+  samples and no observed replacement. INFO logs remain excluded by the project
+  rule; absence of recovery INFO is not independent incident evidence.
+- One server `mm_no_quotes_warning` corresponds to a sampled spot gap up to33.2s.
+  Two spot SELLs created at10:05:21/22 fill at10:05:45/48; replacement orders appear
+  at10:06:22/24. BUY remains inventory-skew suppressed. SELL diagnostics report
+  `active_executor`, consistent with occupied levels until the60s refresh, rather
+  than repeated rejected entry retries. Exact historical executor states were
+  not reconstructed from the live archive; preserve this as an availability
+  follow-up, not a unique proven diagnosis or a silent success.
+- Perpetual two-sided elapsed fraction at the final checkpoint is87.90%; Spot
+  is intentionally one-sided under current inventory skew. This does **not**
+  close the30-minute99% two-sided objective. Short normal refresh gaps and longer
+  post-fill waits must not be hidden behind a healthy service status.
+- One helper daily read used unsupported `days=1`; API correctly returned422.
+  It was corrected to supported `from`/`to` parameters before final collection;
+  final daily reporting is fresh. The local observer was handed off without
+  stopping the cloud session. This is the single HTTP warning, not an engine error.
+- A helper initially required both exact position agreement and a fresh complete
+  account snapshot. A retained read shows matching0.0006 long/0.0009 short BTC,
+  fresh per-position WS items and a stale complete-snapshot marker. The existing
+  projection uses a60s freshness bound while the healthy connector's long REST
+  poll interval is120s. Quantity agreement and full-scope freshness are now checked
+  separately in the runner and explained in the FE guide. No runtime freshness
+  bound is relaxed; stale coverage cannot prove flatness.
+
+The local login relay/proxy are temporary verification tools; stopping them does
+not stop the Cloud Run bot. Full release/soak, real GCP KMS and production trading
+remain outside this bounded Demo follow-up.
