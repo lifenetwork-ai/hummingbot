@@ -884,6 +884,14 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         actual_cash = {row["ccy"]: Decimal(row["cashBal"]) for row in self.ledger()["balances"]}
         poll(lambda: all(Decimal(row["cash_balance"]) == actual_cash[row["currency"]]
                          for row in self.admin(port, "/balances")[1]["accounts"][0]["balances"]), description="observed shared cash matches independent exchange")
+        # Filling the recorder rows is earlier than account-confirmed handoff
+        # and replacement ACKs. A check spanning those changes correctly returns
+        # incomplete; establish a stable fixture before asserting matched.
+        poll(lambda: sum(order['state'] in ('live', 'partially_filled') for order in self.ledger()['orders']) == 8
+             and self.sql("SELECT count(*) FROM orders WHERE id IN (SELECT order_id FROM trade_fills) "
+                          "AND last_status IN ('BuyOrderCompleted','SellOrderCompleted')") == '2'
+             and not (self.state().get('recovery_state') or {}).get('pending_mutations'),
+             timeout=30, description='full-fill handoffs and replacement ACKs settle before observational check')
         status, receipt = self.admin(port, "/reconciliation/check", {"market": "all"}, str(uuid.uuid4()))
         assert status == 202
         report = poll(lambda: (value if (value := self.admin(port, "/reconciliation")[1])["check"]["status"] in ("succeeded", "failed") else None),
