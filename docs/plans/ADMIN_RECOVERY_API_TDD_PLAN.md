@@ -81,3 +81,31 @@ is authorized by this implementation task. Start remains a separate action.
   migration, authentication bypass, generic force field or exchange write exists.
 - Actual Cloud/Demo recovery, packaging and connected acceptance remain separate.
   No live financial/HALT state was changed during this implementation.
+
+
+## Connected acceptance follow-up — 2026-11-10
+
+- [x] Verify revision64 packages the expected schema/source; Google admin identity
+  exposes manage_recovery; stop acknowledgement17/17.
+- [x] Preserve a read-only DB backup and current 431-order/101-fill/3-position
+  snapshot before requesting recovery.
+- [x] Trace the safely blocked Cloud check to missing create-event side on19
+  confirmed unfilled canceled orders. TDD3 Red +1 passing negative control.
+- [x] Trace exact timestamp comparison to native whole-second event precision;
+  TDD3 Red +2 passing out-of-bound controls. Do not rewrite source timestamps.
+- [x] Corrected source independently verifies all431 orders,101 original-fee
+  fills and both perpetual legs using GET only; no pending orders.
+- [ ] Deploy the follow-up source, rerun actual Cloud check/confirm and verify
+  atomic repair/audit/stopped state; Start/monitor Demo remains a separate step.
+
+The live failed-check receipt remains failed. Local venue proof is never relabeled
+as a successful Cloud API recovery. The only operational mutation so far is the
+explicit Google Stop; financial state, HALT and risk checkpoint remain unchanged.
+
+
+Follow-up validation: native CLI/recovery regression **1,333 passed**; recovery
+PostgreSQL/service contracts **16 passed**. Two independent full read-only venue
+proofs pass on the existing Demo account; the measured repeat completes in
+**34.862 seconds**, within the unchanged120-second recovery budget. Archive
+listing validates the retained backup includes bot_state/orders/trade_fills/
+positions. These are source/read-only proofs; live confirmation remains pending.

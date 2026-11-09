@@ -156,3 +156,89 @@ async def test_page_budget_cannot_turn_a_full_page_into_complete_evidence(monkey
     monkeypatch.setattr(recovery_exchange, 'MAX_PAGES', 1)
     with pytest.raises(RecoveryBlocked, match='recovery_exchange_scope_incomplete'):
         await verify_exchange(snapshot(), [], {'okx': Reader()})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('name', ['okx', 'okx_perpetual'])
+async def test_verified_canceled_zero_fill_order_does_not_require_missing_create_event_side(name):
+    reader, data = Reader(name), snapshot()
+    data['fills'] = []
+    data['orders'][0].update(market=name, side=None, last_status='OrderCancelled')
+    data['bindings'][0]['connector'] = name
+    reader.fills = []
+    reader.order.update(state='canceled', accFillSz='0', side='sell')
+    if name == 'okx_perpetual':
+        reader.order.update(instId='BTC-USDT-SWAP', tdMode='cross', posSide='short')
+    result = await verify_exchange(data, [], {name: reader})
+    assert result['verified'] and result['fills_checked'] == 0
+    assert result['unfilled_terminal_orders_without_local_side'] == 1
+    assert data['orders'][0]['side'] is None  # No fabricated local side.
+
+
+@pytest.mark.asyncio
+async def test_conflicting_local_sides_remain_blocked_even_when_canceled_without_fills():
+    reader, data = Reader(), snapshot()
+    data['fills'] = []
+    data['orders'][0].update(side=None, side_ambiguous=True, last_status='OrderCancelled')
+    reader.fills = []
+    reader.order.update(state='canceled', accFillSz='0')
+    with pytest.raises(RecoveryBlocked, match='recovery_order_identity_unproven'):
+        await verify_exchange(data, [], {'okx': reader})
+
+
+@pytest.mark.asyncio
+async def test_missing_side_canceled_order_with_unrecorded_venue_fill_remains_blocked():
+    reader, data = Reader(), snapshot()
+    data['fills'] = []
+    data['orders'][0].update(side=None, last_status='OrderCancelled')
+    reader.order.update(state='canceled', accFillSz='0')
+    with pytest.raises(RecoveryBlocked, match='recovery_unrecorded_or_duplicate_venue_fill'):
+        await verify_exchange(data, [], {'okx': reader})
+
+
+@pytest.mark.asyncio
+async def test_known_local_side_mismatch_cannot_use_zero_fill_exception():
+    reader, data = Reader(), snapshot()
+    data['fills'] = []
+    data['orders'][0].update(side='BUY', last_status='OrderCancelled')
+    reader.fills = []
+    reader.order.update(state='canceled', accFillSz='0', side='sell')
+    with pytest.raises(RecoveryBlocked, match='recovery_order_identity_unproven'):
+        await verify_exchange(data, [], {'okx': reader})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('delta', [-39, 234, 925])
+async def test_whole_second_event_clock_is_not_rest_millisecond_execution_time(delta):
+    reader, data = Reader(), snapshot()
+    reader.fills[0]['ts'] = str(data['fills'][0]['timestamp'] + delta)
+    result = await verify_exchange(data, [], {'okx': reader})
+    assert result['verified']
+    assert data['fills'][0]['timestamp'] == 2000
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('delta', [-1000, 1000])
+async def test_timestamp_difference_outside_event_clock_precision_stays_blocked(delta):
+    reader, data = Reader(), snapshot()
+    reader.fills[0]['ts'] = str(data['fills'][0]['timestamp'] + delta)
+    with pytest.raises(RecoveryBlocked, match='recovery_exchange_changed'):
+        await verify_exchange(data, [], {'okx': reader})
+
+
+@pytest.mark.asyncio
+async def test_rest_timestamp_must_stay_stable_between_complete_scans():
+    reader = Reader()
+    original = reader._api_get
+    scans = 0
+
+    async def changing(**kwargs):
+        nonlocal scans
+        if kwargs['path_url'].endswith('/fills'):
+            scans += 1
+            reader.fills[0]['ts'] = '2200' if scans == 1 else '2201'
+        return await original(**kwargs)
+
+    reader._api_get = changing
+    with pytest.raises(RecoveryBlocked, match='recovery_exchange_changed'):
+        await verify_exchange(snapshot(), [], {'okx': reader})

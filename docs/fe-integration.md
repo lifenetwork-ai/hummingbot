@@ -1321,6 +1321,18 @@ ambiguous controller attribution, unsupported fee conversion, missing pages,
 external fills/orders and unmatched perpetual exposure block recovery. Bound
 risk policies/peaks/latches and all order/fill/funding history are preserved.
 The exchange is read twice around the proof; a changing account remains blocked.
+A missing local create event is tolerated only for a positively identified,
+confirmed canceled/expired zero-fill order, with exact price/size and no fill in
+either complete venue scan. The local BUY/SELL field stays unknown; conflicting
+local sides still block. `verification.unfilled_terminal_orders_without_local_side`
+reports the count. Missing exchange detail never uses this exception.
+
+Native whole-second event-clock timestamps may differ from REST execution time
+by less than 1,000 ms; all order/trade IDs, quantities, prices and original fees
+still match exactly. Non-quantized mismatches, future times, differences of at
+least 1,000 ms, and changes between the two REST scans block recovery. Recorded
+timestamps are preserved. The three-day cap is a local maximum, not a guarantee
+that the exchange retains every per-order record.
 
 `unrealized_pnl_quote=0` in a repaired position has
 `valuation_basis=reconstructed_average_entry_not_live_pnl`: it is reconstruction

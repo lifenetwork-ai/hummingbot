@@ -218,3 +218,19 @@ def test_recovery_fences_other_control_and_credential_mutations(recovering):
     with store.engine.begin() as db:
         with pytest.raises(ControlConflict, match='recovery'):
             CredentialStore(store.state).lock_request(db, ADMIN, 'credentials', {'connector': 'okx'})
+
+
+@pytest.mark.parametrize('conflicting', [False, True])
+def test_snapshot_distinguishes_missing_and_conflicting_local_side(recovering, conflicting):
+    from sqlalchemy import delete
+
+    from hummingbot.model.order_status import OrderStatus
+    store, _ = recovering
+    seed_stale_position(store)
+    with store.engine.begin() as db:
+        if conflicting:
+            db.execute(OrderStatus.__table__.insert().values(order_id='a', timestamp=2001, status='SellOrderCreated'))
+        else:
+            db.execute(delete(OrderStatus).where(OrderStatus.order_id == 'a'))
+    order = store.snapshot()['orders'][0]
+    assert order['side'] is None and order['side_ambiguous'] == conflicting

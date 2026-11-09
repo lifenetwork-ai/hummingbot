@@ -97,7 +97,14 @@ async def verify_exchange(snapshot, plan, readers):
         if status is None or actual.get('state') != status or cumulative != total or amount != decimal(order['amount']):
             raise RecoveryBlocked('recovery_order_state_mismatch')
         side = order.get('side') or (fills[order['id']][0]['trade_type'] if fills[order['id']] else None)
-        if side not in ('BUY', 'SELL') or actual.get('side') != side.lower():
+        # A missing create event does not prove an order's intended side. For a
+        # confirmed canceled/expired zero-fill order, identity, price, size and
+        # terminal state above prove no execution; full fill scans below must
+        # independently agree. Preserve the missing side rather than invent it.
+        missing_side_without_effects = (side is None and status == 'canceled' and total == 0
+                                        and actual.get('side') in ('buy', 'sell'))
+        if (order.get('side_ambiguous') or not missing_side_without_effects
+                and (side not in ('BUY', 'SELL') or actual.get('side') != side.lower())):
             raise RecoveryBlocked('recovery_order_identity_unproven')
         expected_type = {'LIMIT': {'limit'}, 'LIMIT_MAKER': {'post_only'}, 'MARKET': {'market'}}.get(order['order_type'], set())
         if actual.get('ordType') not in expected_type:
@@ -148,7 +155,13 @@ async def verify_exchange(snapshot, plan, readers):
                         leg = 'long' if (fill['trade_type'] == 'BUY') == (fill['position'] == 'OPEN') else 'short'
                         if row.get('posSide') != leg:
                             raise RecoveryBlocked('recovery_position_scope_ambiguous')
-                    if timestamp > now_ms or timestamp != fill['timestamp']:
+                    # Native event-clock records can be quantized to a whole
+                    # second; REST reports execution milliseconds. Identity and
+                    # economic values remain exact. Do not rewrite either time
+                    # or accept discrepancies beyond that known precision.
+                    local_time = fill['timestamp']
+                    quantized_event = local_time % 1000 == 0 and abs(timestamp - local_time) < 1000
+                    if timestamp > now_ms or local_time > now_ms or (timestamp != local_time and not quantized_event):
                         raise RecoveryBlocked('recovery_exchange_changed')
                     if amount != decimal(fill['amount']) or decimal(row['fillPx']) != decimal(fill['price']):
                         raise RecoveryBlocked('recovery_fill_mismatch')
@@ -159,7 +172,7 @@ async def verify_exchange(snapshot, plan, readers):
                     actual_fees = {row['feeCcy']: -decimal(row['fee'])} if decimal(row['fee']) else {}
                     if decimal(fill['trade_fee'].get('percent', '0')) or recorded_fees != actual_fees:
                         raise RecoveryBlocked('recovery_original_fee_mismatch')
-                    observed[key] = (amount, decimal(row['fillPx']), str(row['feeCcy']), decimal(row['fee']))
+                    observed[key] = (amount, decimal(row['fillPx']), str(row['feeCcy']), decimal(row['fee']), timestamp)
                 if len(page) < PAGE_LIMIT or times and min(times) < earliest:
                     break
                 cursor = str(page[-1].get('billId', '')) if page else ''
@@ -201,4 +214,7 @@ async def verify_exchange(snapshot, plan, readers):
     await check_positions()
     return dict(verified=True, orders_checked=len(orders), fills_checked=len(expected),
                 position_legs_checked=len(positions), pending_orders=0,
+                unfilled_terminal_orders_without_local_side=sum(
+                    row.get('side') is None and not fills[row['id']] and row['last_status'] in ('OrderCancelled', 'OrderExpired')
+                    for row in orders.values()),
                 scope='bounded_complete_local_history_and_dedicated_account', venue_history_days=3)

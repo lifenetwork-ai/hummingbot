@@ -486,3 +486,56 @@ and the local parser returns BTC-USDT74784.5. This checks current positive data;
 it is not a reproduction of the earlier empty field, an authenticated Demo test
 or a trading/fill claim. Pre-commit passes. The fix is not deployed to revision62;
 its financial/HALT recovery and new-image connected verification remain open.
+
+
+## Revision 64 — guarded recovery acceptance (2026-11-10 local)
+
+Revision `hummingbot-demo-00064-r48` serves image `bc649a5e4…` and 100% traffic.
+Authenticated packaged OpenAPI matches the repository, including all four
+admin-only recovery endpoints. The two Demo credential slots remain Connected;
+Google login confirms `permissions.manage_recovery=true` for the approved admin.
+
+Stop through that Google identity succeeds: control/ack **17/17**, desired
+stopped, observed running false. The existing incident HALT remains. No new
+financial/risk/credential mutation or Start is issued in this acceptance.
+A read-only custom-format DB backup is retained locally (163,287 bytes, SHA256
+`6c44f4ff17b54c4f86dbd375e615bbbc35f0a7f1a10a074c30c8f20702ba53c3`).
+
+The real `/recovery/check` receipt
+`42b91ed6-b212-4369-affc-adb835320878` fails safely with
+`recovery_order_identity_unproven`. Read-only tracing identifies two overly
+strict assumptions in the new recovery verifier:
+
+1. **19 canceled, unfilled orders lack a persisted create-event side.** Their
+   exchange IDs are present, but deriving BUY/SELL only from create/completion
+   events or local fills gives no side. The first rejected record is positively
+   identified on OKX as canceled with zero accumulated execution.
+2. After addressing that case locally, all **431 per-order details** pass, but
+   exact REST-vs-local timestamp equality blocks fill verification. **100/101**
+   local fill timestamps are whole seconds; REST execution milliseconds differ
+   by **−39 to +925 ms**. This is event-clock precision, not evidence of changed
+   quantity/price/fee or a newly missing trade.
+
+TDD retains two Red sets: **3 failed/1 passed** for the missing-side cases and
+**3 failed/2 passed** for event-clock precision. The adapter now permits only
+positively identified canceled/expired zero-fill orders with no financial
+execution in either venue scan, preserves unknown local side and rejects
+conflicting side events. Whole-second event timestamps may differ by less than
+one second; other/future/out-of-bound mismatches still block. REST timestamps
+must remain identical between scans. No recorder or trading/executor logic is
+changed, and no history timestamp is rewritten.
+
+With the corrected source verifier, an independent read-only run against the
+same account passes **431 orders / 101 original-fee fills / 2 perpetual legs**,
+with zero pending orders and 19 proven unfilled orders missing local side. The
+proposed aggregate repair remains exactly one spot row; perpetual rows and risk
+checkpoints remain untouched. This is **local source verification against OKX**,
+not a successful Cloud recovery/reset receipt. Revision64 still has the older
+verifier; a new deployment and fresh API check/confirm are required before HALT
+can be cleared or Demo trading started. No SQL bypass has been applied.
+
+Focused native contracts initially pass71; related PostgreSQL contracts pass16.
+Final CLI/recovery regression passes **1,333 tests**. The second independent full
+GET-only proof completes in **34.862 seconds**, within the unchanged120-second
+budget. Backup archive listing validates the required financial/bot-state tables.
+Pre-commit passes. No Cloud recovery confirmation or financial repair is claimed.

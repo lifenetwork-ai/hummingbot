@@ -50,6 +50,7 @@ class RecoveryStore:
             sides[identity].add('BUY' if status.startswith('Buy') else 'SELL')
         for row in orders:
             row['side'] = next(iter(sides[row['id']])) if len(sides[row['id']]) == 1 else None
+            row['side_ambiguous'] = len(sides[row['id']]) > 1
         fills = [dict(row) for row in connection.execute(select(TradeFill).order_by(
             TradeFill.timestamp, TradeFill.exchange_trade_id, TradeFill.order_id).limit(MAX_FILLS + 1)).mappings()]
         positions = [dict(row) for row in connection.execute(select(Position).order_by(Position.id).limit(101)).mappings()]
