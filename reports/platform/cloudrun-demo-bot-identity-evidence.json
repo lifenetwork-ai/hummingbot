@@ -28,7 +28,7 @@
     "cpu": "2",
     "memory": "1Gi"
   },
-  "cloud_update_applied": false,
+  "cloud_update_applied": true,
   "database_mutations_performed": false,
   "exchange_requests_performed": false,
   "local_deploy_env_bot_id_corrected": true,
@@ -58,5 +58,57 @@
       "native-green.log": "0c887b575776b7cf919290c22008139f9892bf59e7cb4bbc4097e4198b65d649",
       "postgres-green.log": "b526b5edf00f7a50d403482e31f0ae69666d80c3678232f0dad2c21c86e6345a"
     }
+  },
+  "approved_update_result": {
+    "operator_approved": true,
+    "applied_change": "Only BOT_ID=hummingbot-demo",
+    "project": "lifeai-438107",
+    "region": "asia-southeast1",
+    "service": "hummingbot-demo",
+    "revision": "hummingbot-demo-00045-p7l",
+    "gcloud_update_exit_code": 0,
+    "gcloud_reported_traffic_percent": 100,
+    "image_unchanged_from_pre_update": true,
+    "post_update_independent_verification": "Deferred at operator request while newer code is deployed",
+    "observed_at": "2026-11-09T08:40:20.704150+00:00",
+    "cloud_database_mutations_performed": false
+  },
+  "post_update_verification": {
+    "revision": "hummingbot-demo-00045-p7l",
+    "health": {
+      "/startup": {
+        "http": 200,
+        "state": "stopped"
+      },
+      "/live": {
+        "http": 200,
+        "state": "api_running"
+      },
+      "/ready": {
+        "http": 503,
+        "state": "stopped"
+      }
+    },
+    "desired_state": "stopped",
+    "running": false,
+    "phase": "stopped",
+    "error": null,
+    "owner_available": true,
+    "control_ack": [
+      0,
+      0
+    ],
+    "cloud_service_ready": true,
+    "image_unchanged": true,
+    "independent_verification_after_wait_request": true
+  },
+  "logging_observation": {
+    "info_log_absence_cause": "Project default-sink exclusion drops Cloud Run severity below WARNING; service not exempt",
+    "exclusion_name": "drop-cloudrun-below-warning",
+    "current_app_log_level": "INFO code default",
+    "proposed_exception": "resource.labels.service_name=\"hummingbot-demo\" AND (LOG_ID(\"run.googleapis.com/stdout\") OR LOG_ID(\"run.googleapis.com/stderr\"))",
+    "applied": false,
+    "other_service_filters_preserved": true,
+    "request_log_exclusion_preserved": true
   }
 }

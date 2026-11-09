@@ -1,8 +1,9 @@
 # Cloud Run Demo startup identity conflict — 2026-11-09
 
 Project `lifeai-438107`, region `asia-southeast1`, service `hummingbot-demo`.
-Investigation uses read-only Cloud Logging, service metadata and PostgreSQL;
-no cloud deployment or database mutation has been performed at this point.
+Investigation uses read-only Cloud Logging, service metadata and PostgreSQL.
+The operator subsequently approved the single-variable service correction below;
+no database mutation was performed.
 
 ## Confirmed cause
 
@@ -31,7 +32,7 @@ other private env values are preserved. No local Demo ledger identity is changed
 
 ## Concrete service-only correction
 
-After operator approval, update only the service environment identity, preserving
+The operator approved updating only the service environment identity, preserving
 image, secrets, resource limits, routing, scaling and trading desired state:
 
 ```sh
@@ -73,6 +74,35 @@ and no private exception text. These use disposable local tests, not the cloud D
 This source change is not built/deployed yet and is not needed to correct the
 currently deployed service's `BOT_ID`.
 
-The service-only update remains pending operator approval. The existing image
-can start with the correct configured identity. No trade/credential setup or
-cloud resource increase is part of the proposed correction.
+## Approved service correction and current status
+
+The approved update completed as revision `hummingbot-demo-00045-p7l`, serving
+100% of traffic with the same image/resource/auth configuration. After the
+operator's pause for a newer code deployment, the subsequent status/log request
+authorized independent read-only verification: service Ready/ConfigurationsReady/
+RoutesReady are true; `/startup`200 stopped, `/live`200 api_running, `/ready`503
+stopped. Authenticated admin status confirms desired stopped/running false,
+error null, owner available and control/ack0/0. Readiness503 is expected before
+Start; no trade/credential setup or cloud resource increase was performed.
+
+## Why INFO application logs are absent
+
+The project's `_Default` sink has an enabled exclusion named
+`drop-cloudrun-below-warning`, matching Cloud Run records below WARNING except
+several existing service exceptions. `hummingbot-demo` is not exempt. Its
+application `LOG_LEVEL` is omitted and defaults to INFO; current engine logs are
+filtered by ingestion routing, while Cloud Audit lifecycle events still appear.
+Changing the viewer severity cannot restore excluded records.
+
+Prepared, not yet approved/applied: preserve the original exclusion and append
+an exception **only for this service's application stdout/stderr**:
+
+```text
+resource.labels.service_name="hummingbot-demo"
+AND (LOG_ID("run.googleapis.com/stdout") OR LOG_ID("run.googleapis.com/stderr"))
+```
+
+All other service exclusions and this service's HTTP request-log filtering stay
+unchanged. This needs no new service revision or engine/DB change; it applies to
+future logs. The exact old/new filter is retained privately for review. Routing
+and exclusion behavior follows [Cloud Logging routing](https://docs.cloud.google.com/logging/docs/routing/overview).
