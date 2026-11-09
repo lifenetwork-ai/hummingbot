@@ -2,10 +2,15 @@
 
 [All reports](../README.md) · [Current offline image](../release/mm-runtime-followup-load.md)
 
+**Latest Cloud state: trading is HALTED on revision53.** The old revision52
+failed before the subsequent deployment; all65 fills match REST, but position
+aggregate checkpoints are stale. No live reset/resource change has been applied.
+[Incident and proposed recovery](../platform/cloudrun-demo-abrupt-restart.md).
+
 [Cloud Run Google lifecycle acceptance](cloudrun-google-credentials-acceptance.md)
 now includes the revision52 continuous-Demo follow-up: both/follow_market,
 Until stopped,112 samples over604s and21 new individually REST-matched fills.
-The bot is left running at handoff. Zero application ERRORs/spread rejections;
+The bot was left running at that earlier handoff. Zero application ERRORs/spread rejections;
 four probe warnings and a33.2s sampled spot quote gap remain explicit. This does
 not close the99% two-sided objective or full soak. See
 [continuous evidence](cloudrun-continuous-demo-evidence.json).

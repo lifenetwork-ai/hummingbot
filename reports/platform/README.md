@@ -4,6 +4,7 @@
 
 - [Cloud preparation and pending inputs](cloudrun-readiness-review.md)
 - [Cloud Demo startup identity conflict](cloudrun-demo-bot-identity-incident.md)
+- [Cloud Demo abrupt restart and pending position-checkpoint recovery](cloudrun-demo-abrupt-restart.md)
 - [PostgreSQL operations](../../docs/postgres-runtime.md)
 - [Cloud Run operations/logging](../../docs/cloudrun.md)
 - [Current source/PG verification](../implementation/MM_RUNTIME_FOLLOWUP.md)

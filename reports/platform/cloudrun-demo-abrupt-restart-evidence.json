@@ -1,0 +1,186 @@
+{
+  "scope": "Read-only Cloud Run incident investigation; real SIGKILL reproduction on disposable PostgreSQL only",
+  "date_local": "2026-11-09",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "service": "hummingbot-demo",
+  "revision": "hummingbot-demo-00053-jq6",
+  "image_commit": "7da302597b0a7bc497c2e7e726d3be8e5cff1894",
+  "current_status": {
+    "server_time": "2026-11-09T11:57:47.567682Z",
+    "desired_state": "running",
+    "running": false,
+    "phase": "halted",
+    "error": "RecoveryRequired",
+    "control_version": 12,
+    "acknowledged_version": 12
+  },
+  "timeline_local": [
+    {
+      "at": "2026-11-09T17:38:31.695+07:00",
+      "revision": 52,
+      "event": "child_unresponsive",
+      "failed_probes": 11,
+      "failure_seconds": 15.145
+    },
+    {
+      "at": "2026-11-09T17:38:34.983+07:00",
+      "revision": 52,
+      "event": "child_restart_scheduled",
+      "exit_code": -9
+    },
+    {
+      "at": "2026-11-09T17:39:00.113+07:00",
+      "revision": 52,
+      "event": "restored_position_mismatch"
+    },
+    {
+      "at": "2026-11-09T17:42:51.819+07:00",
+      "event": "first ReplaceService audit for revision53"
+    },
+    {
+      "at": "2026-11-09T17:44:25.282+07:00",
+      "revision": 53,
+      "event": "revision Ready"
+    },
+    {
+      "at": "2026-11-09T17:44:31.945+07:00",
+      "revision": 53,
+      "event": "restored_position_mismatch"
+    }
+  ],
+  "resources": {
+    "cpu": 1,
+    "memory_mib": 512,
+    "continuous_cpu": true,
+    "old_revision_memory_utilization_mean_range_before_failure": [
+      0.97259,
+      0.97571
+    ],
+    "recommendation_memory_mib": 1024,
+    "resource_change_applied": false
+  },
+  "cause_boundaries": {
+    "new_deploy_initiated_first_kill": false,
+    "original_stall_unique_cause_proven": false,
+    "oom_proven": false,
+    "memory_leak_proven": false
+  },
+  "financial_observed_at": "2026-11-09T11:44:26.358780+00:00",
+  "ledger_counts": {
+    "orders": 306,
+    "fills": 65
+  },
+  "exact_individual_rest_fill_matches": 65,
+  "venue_pending_orders": {
+    "SPOT": 0,
+    "SWAP": 0
+  },
+  "durable_creation_pending_count": 0,
+  "perpetual_net_from_fills": {
+    "SELL": "0.0048",
+    "BUY": "0.0030"
+  },
+  "perpetual_legs_match_venue": true,
+  "recovery_preview": {
+    "read_only_preview": true,
+    "replay_order": "timestamp,exchange_trade_id; each immutable fill once",
+    "based_on_exact_rest_matched_fills": 65,
+    "position_rows": [
+      {
+        "id": "b2d30aee-bca6-4c62-89d2-89d0a328fd9c",
+        "controller_id": "demo_btc_perpetual",
+        "connector": "okx_perpetual",
+        "pair": "BTC-USDT",
+        "before": {
+          "volume_traded_quote": "89.586897",
+          "amount": "0",
+          "breakeven_price": "0",
+          "unrealized_pnl_quote": "0.0",
+          "realized_pnl_quote": "-0.0198630",
+          "cum_fees_quote": "0.0313583934",
+          "side": "SELL"
+        },
+        "proposed": {
+          "volume_traded_quote": "445.776078",
+          "amount": "0.0048",
+          "breakeven_price": "74206.079375000000000000000",
+          "unrealized_pnl_quote": "0E-25",
+          "realized_pnl_quote": "-0.0198630",
+          "cum_fees_quote": "0.1025962296",
+          "side": "SELL"
+        },
+        "net_base": "-0.0048"
+      },
+      {
+        "id": "bae1325b-551f-4b50-b4f9-bfe6a1f79ef8",
+        "controller_id": "demo_btc_spot",
+        "connector": "okx",
+        "pair": "BTC-USDT",
+        "before": {
+          "volume_traded_quote": "99.998939594",
+          "amount": "0.00133901",
+          "breakeven_price": "74681.24927670443088550496262",
+          "unrealized_pnl_quote": "0.7246712434999999999999999978",
+          "realized_pnl_quote": "0",
+          "cum_fees_quote": "0.0799991516752",
+          "side": "SELL"
+        },
+        "proposed": {
+          "volume_traded_quote": "1436.007762744",
+          "amount": "0.01933873",
+          "breakeven_price": "74255.53605350506470693783925",
+          "unrealized_pnl_quote": "0E-31",
+          "realized_pnl_quote": "0",
+          "cum_fees_quote": "1.1488062101952",
+          "side": "SELL"
+        },
+        "net_base": "-0.01933873"
+      },
+      {
+        "id": "8c92e666-3e54-4b97-9409-4c247dd237c5",
+        "controller_id": "demo_btc_perpetual",
+        "connector": "okx_perpetual",
+        "pair": "BTC-USDT",
+        "before": {
+          "volume_traded_quote": "89.586897",
+          "amount": "0",
+          "breakeven_price": "0",
+          "unrealized_pnl_quote": "0",
+          "realized_pnl_quote": "-0.0198630",
+          "cum_fees_quote": "0.0313583934",
+          "side": "BUY"
+        },
+        "proposed": {
+          "volume_traded_quote": "222.478437",
+          "amount": "0.0030",
+          "breakeven_price": "74159.479000000000000000000",
+          "unrealized_pnl_quote": "0E-25",
+          "realized_pnl_quote": "0",
+          "cum_fees_quote": "0.0444956874",
+          "side": "BUY"
+        },
+        "net_base": "0.0030"
+      }
+    ],
+    "all_original_fill_fees_retained_once": true,
+    "native_roundtrip_quantities_match": true,
+    "unrealized_mark": "reconstruction at average entry; no live/unrealized PnL claim",
+    "preserve_tables": [
+      "orders",
+      "trade_fills",
+      "funding_payments",
+      "exchange_credentials",
+      "admin_commands"
+    ],
+    "preserve_risk_checkpoints": true
+  },
+  "verification": {
+    "postgres_passed": 4,
+    "real_sigkill_cases": 2,
+    "runtime_fix_claimed": false,
+    "original_stall_reproduced": false
+  },
+  "live_mutations": [],
+  "deployed_handoff_demo_acceptance_complete": false,
+  "approval_required_before_live_recovery": true
+}

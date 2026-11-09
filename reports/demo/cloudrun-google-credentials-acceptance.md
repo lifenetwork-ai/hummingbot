@@ -1,6 +1,12 @@
 # Cloud Run Demo — Google identity and credentials lifecycle
 
-2026-11-09, Asia/Ho_Chi_Minh. **Latest follow-up: revision52 is left running on
+2026-11-09, Asia/Ho_Chi_Minh. **Latest state: revision53 API is available, but
+trading is HALTED.** The first engine failure and position-checkpoint mismatch
+occurred on revision52 before the next deployment. All65 fills match OKX REST;
+live recovery/resource changes require review and have not been applied.
+[Incident, reproduction and recovery preview](../platform/cloudrun-demo-abrupt-restart.md).
+
+**Earlier bounded result: revision52 was left running on
 OKX Demo, both/follow_market, Until stopped.** The604-second observation and final
 financial readback confirm21 new fills with exact REST quantity/price/original
 fees. [Continuous-run evidence](cloudrun-continuous-demo-evidence.json).

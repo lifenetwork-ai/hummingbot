@@ -625,8 +625,14 @@ remains exact. No recovery checkpoint or risk-stop flag has been edited.
   PostgreSQL checkpoint/recovery and stale-owner fences. Add regression coverage
   and document the source/image boundary; retain the historical33.2s quote gap.
 - [ ] Qualify a deployed image containing the filled-entry handoff against actual
-  Demo fills. Revision52 continues running with its existing code/risk settings;
-  do not claim the33.2s gap eliminated remotely or the99% quote objective achieved.
+  Demo fills. Revision53 contains the fix but is halted by the prior revision52
+  abrupt exit and stale position checkpoint; see the
+  [incident/recovery preview](../../reports/platform/cloudrun-demo-abrupt-restart.md).
+  Do not claim the33.2s gap eliminated remotely or the99% quote objective achieved.
+- [x] Compare first failure with deployment audits, reconcile all65 fills against
+  individual REST trades and reproduce actual SIGKILL with stale/matching position
+  checkpoints on disposable PostgreSQL (4 integration cases pass). The original
+  unresponsive interval/OOM attribution remains unproven; no live reset was applied.
 
 Cloud limits1vCPU/512Mi differ from the proposed2vCPU/2Gi and the older local load
 gate. No resource change, new full soak, thirty-minute quote SLO, production FE or
