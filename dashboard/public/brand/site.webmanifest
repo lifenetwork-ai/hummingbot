@@ -1,0 +1,15 @@
+{
+  "name": "LifeAI FE Starter",
+  "short_name": "LifeAI Starter",
+  "icons": [
+    {
+      "src": "/brand/favicon.png",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0076F5"
+}

@@ -2,6 +2,7 @@
 /logs
 /build
 /dist
+/dashboard
 /.git
 /.github
 .DS_Store

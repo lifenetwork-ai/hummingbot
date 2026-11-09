@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="LIFE AI">
+  <rect width="512" height="512" rx="112" fill="#12B39C"/>
+  <g fill="#FFFFFF">
+    <path d="M152 179 257 74l181 181-39 39-142-142-67 67z"/>
+    <path d="M75 257 114 218l142 142 67-67 37 37-105 105z"/>
+    <circle cx="256" cy="256" r="39"/>
+  </g>
+</svg>

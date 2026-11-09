@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 84" role="img" aria-label="LIFE AI">
+  <g transform="translate(4 4) scale(.1484375)" fill="#FFFFFF">
+    <path d="M152 179 257 74l181 181-39 39-142-142-67 67z"/>
+    <path d="M75 257 114 218l142 142 67-67 37 37-105 105z"/>
+    <circle cx="256" cy="256" r="39"/>
+  </g>
+  <text x="92" y="57" fill="#FFFFFF" font-family="IBM Plex Sans, Inter, Arial, sans-serif" font-size="48" font-weight="500" letter-spacing="4">LIFE AI</text>
+</svg>

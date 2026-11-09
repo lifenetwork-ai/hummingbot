@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Inter:wght@800;900&display=swap');
+@import './theme/generated/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    border-color: var(--app-border);
+  }
+
+  html {
+    background: var(--app-background);
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 10% 0%, rgba(0, 118, 245, 0.09), transparent 32rem),
+      var(--app-background);
+    color: var(--app-text-primary);
+    font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  ::selection {
+    background: rgba(0, 118, 245, 0.18);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .brand-grid {
+    background-image:
+      linear-gradient(to right, rgba(0, 118, 245, 0.045) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0, 118, 245, 0.045) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+}
