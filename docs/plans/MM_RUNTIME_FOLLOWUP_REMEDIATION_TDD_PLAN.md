@@ -571,13 +571,22 @@ Unrelated containers/images/volume remain; real external acceptance is deferred.
   packaged files match. Real-signal smoke and paired blocked-read witness pass.
   Targeted until-stopped Random/restart/Stop and managed lifecycle E2E pass on
   the pinned manifest. These are not a new all-case release or sixty-minute soak.
-- [ ] Obtain separate operator review before clearing only this incident's HALT,
-  then repeat real Demo Random transitions/restart and credential cleanup checks.
-  The approved account-binding cutover does not authorize a new HALT reset.
+- [x] Obtain separate operator review; remove only this incident's HALT and add
+  one audit with all other table/row fingerprints unchanged. Real Demo Random
+  steps0/1/2 exercise all three profiles, same-session active restart and Stop
+  pass. Disconnect closes long0.0100/short0.0032 BTC with seven partial fills;
+  only selected envelope is removed. API reconfigure and stopped cold restart
+  pass; all ten new fills match REST, old23 fills/3,513 order IDs remain.
+  [Connected report](../../reports/demo/managed-local-connected-followup.md).
+- [ ] Run the candidate's full release/soak before production closeout; the old
+  image's load result does not transfer to `4451974e…`.
+- [ ] Remove the nonfatal cleanup engine-reporting classifier warning with TDD.
+  One ValueError observation incident recovered in3.682 seconds; no HALT/restart
+  or cleanup proof failure. It is separate from the repaired shutdown path.
 
 Incident and pre-cutover backups/KEK are retained in the private
-`~/.config/hummingbot/managed-demo-local-20261109` folder. Actual held long/short
-positions remain `0.0100/0.0032 BTC`. All 23 old fills and 3,513 old order IDs are
-preserved; three new spot fills match individual REST quantity/price/original fee
-and order aggregates, with fee-adjusted BTC cash exactly matched. No recovery
-checkpoint or risk-stop flag has been edited.
+`~/.config/hummingbot/managed-demo-local-20261109` folder. The reviewed cleanup subsequently closed the held
+long/short `0.0100/0.0032 BTC`. All23 old fills and3,513 old order IDs remain;
+three earlier natural spot fills and seven cleanup fill parts match individual
+REST quantity/price/original fee and order aggregates. Fee-adjusted BTC cash
+remains exact. No recovery checkpoint or risk-stop flag has been edited.

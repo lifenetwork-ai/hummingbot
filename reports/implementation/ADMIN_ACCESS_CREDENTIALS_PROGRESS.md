@@ -10,8 +10,10 @@ A1–A6 local/offline implementation covers optional Basic bootstrap, verified G
 identity/allowlists, fresh role lookup, envelope encryption (`local`/`gcp` adapters),
 scoped Set/load/rotation, cancel/close/remove cleanup, durable Retry/Repair,
 correlated audit, secret-free status/errors and bounded workers/query counts.
-Real Google admin login now passes in the isolated helper. Real GCP KMS/IAM and
-reviewed existing-Demo cutover remain open.
+Real Google admin login passes in the isolated helper. Reviewed existing-Demo
+cutover and connected Random/restart/cleanup pass on the remediated image;
+[actual Demo result](../demo/managed-local-connected-followup.md). Real GCP
+KMS/IAM remains deferred; new candidate full release/soak is separate.
 
 2026-11-09 real-Google preparation: added a loopback-only acceptance page reusing
 the existing admin handlers/verifier/audit, with a separate `hbot_auth_google`

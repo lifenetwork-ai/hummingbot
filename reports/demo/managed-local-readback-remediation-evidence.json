@@ -30,7 +30,7 @@
   "runtime_deadline_seconds": 8,
   "readback_concurrency_max": 3,
   "fresh_terminal_proof_passes": 2,
-  "existing_demo_halt_reset": false,
+  "existing_demo_halt_reset": true,
   "final_targeted_logging_and_proof_checks": {
     "passed": 2,
     "overlaps_full_postgres": true
@@ -68,6 +68,174 @@
       }
     },
     "new_full_release_and_soak_run": false,
-    "connected_recovery_applied": false
+    "connected_recovery_applied": true
+  },
+  "reviewed_maintenance": {
+    "approved": true,
+    "applied_at": "2026-11-09T03:02:04.885780+00:00",
+    "proposal": "reports/demo/managed-local-random-recovery-proposal.md",
+    "change": "Remove halt only; append one maintenance audit",
+    "audit_id": 24,
+    "control_version": 144,
+    "acknowledged_version": 144,
+    "all_other_bot_state_fields_unchanged": true,
+    "all_other_table_fingerprints_unchanged": true,
+    "backup_name": "before-reviewed-halt-recovery-20261109T030203Z.dump",
+    "backup_bytes": 658996,
+    "backup_sha256": "acf0473b47bfdec085cb33fe4a7732bf7911edc7f76b2e41f2910d85f1b02cef",
+    "fingerprint_counts": {
+      "admin_accounts": 0,
+      "admin_commands": 144,
+      "controllers": 136,
+      "daily_balance_snapshots": 28,
+      "exchange_credentials": 2,
+      "executors": 2878,
+      "funding_bills": 42,
+      "funding_payments": 0,
+      "inventory_costs": 0,
+      "market_data": 0,
+      "market_states": 2,
+      "metadata": 0,
+      "mm_events": 1684,
+      "order_statuses": 10306,
+      "orders": 3562,
+      "positions": 3,
+      "range_position_collected_fees": 0,
+      "range_position_updates": 0,
+      "trade_fills": 26
+    }
+  },
+  "connected_followup": {
+    "passed": true,
+    "scope": "Actual dedicated OKX Demo, local PostgreSQL/local KEK; Basic headless controls; no production or GCP deployment",
+    "random": {
+      "session_id": "3ecd3e81-4f11-484b-94e5-aa278a5d905f",
+      "steps": [
+        0,
+        1,
+        2
+      ],
+      "samples": 60,
+      "same_session_active_restart": true,
+      "stop_succeeded": true,
+      "observed_profiles": [
+        "follow_market",
+        "follow_token",
+        "sideways"
+      ]
+    },
+    "disconnect": {
+      "operation_id": "989147e1-76a4-48fd-819a-fefbb20db6db",
+      "status": "succeeded",
+      "stage": "removed",
+      "final_proofs": {
+        "orders_terminal_verified": true,
+        "positions_flat_verified": true,
+        "ledger_confirmed": true,
+        "consumers_detached": true
+      },
+      "only_selected_envelope_removed": true,
+      "companion_preserved": true,
+      "okx_api_key_deleted": false
+    },
+    "reconnect": {
+      "operation_id": "b5833330-2c7b-4848-aaca-c6f45f67fdcf",
+      "credential_version": 3,
+      "final_stopped_cold_restart": true
+    },
+    "financial_reconciliation": {
+      "original_fill_rows_unchanged": 23,
+      "original_order_ids_preserved": 3513,
+      "total_fills": 33,
+      "new_natural_spot_fills": 3,
+      "new_perpetual_cleanup_fill_parts": 7,
+      "natural_perpetual_fill_claimed": false,
+      "all_new_individual_rest_matches": 10,
+      "all_new_order_aggregate_matches": 5,
+      "final_cold_restart_fill_fingerprint_unchanged": true,
+      "perpetual_closed_btc": {
+        "long": ".0100",
+        "short": ".0032"
+      },
+      "final_managed_perpetual_flat": true,
+      "final_venue_pending_orders": 0,
+      "final_btc_cash": "0.998960180584",
+      "spot_cash_preserved_through_disconnect": true,
+      "no_halt_or_pending_recovery": true,
+      "control_acknowledgement": [
+        148,
+        148
+      ],
+      "stopped_after_restart": true,
+      "slots": [
+        {
+          "connector": "okx",
+          "state": "active",
+          "version": 2,
+          "encrypted": true
+        },
+        {
+          "connector": "okx_perpetual",
+          "state": "active",
+          "version": 3,
+          "encrypted": true
+        }
+      ],
+      "random_session_id": "3ecd3e81-4f11-484b-94e5-aa278a5d905f",
+      "random_steps": [
+        0,
+        1,
+        2
+      ],
+      "random_sample_count": 60,
+      "natural_spot_fills_image": "b090430c",
+      "cleanup_fills_image": "4451974e"
+    },
+    "runtime_log": {
+      "severity_counts": {
+        "INFO": 253,
+        "WARNING": 5
+      },
+      "error_records": 0,
+      "probe_failures_observed_in_log": 0,
+      "optional_reporting_incidents": 1,
+      "optional_reporting_recovered": 1,
+      "reporting_incident_seconds": 3.682,
+      "reporting_incident_reason": "engine_reporting_unavailable",
+      "reporting_error_type": "ValueError",
+      "source_classifier_witness": "Synthetic credential_cleanup name is not a known strategy; optional projection raises ValueError",
+      "other_network_warning_records": 4
+    },
+    "first_disconnect_helper_assertion": {
+      "failed": true,
+      "reason": "Expected two intermediate closing_positions proof fields on final removed receipt; final stage carries four final proofs",
+      "corrected_reinspection_of_same_operation_passed": true,
+      "disconnect_resubmitted": false
+    },
+    "final_backup": {
+      "name": "after-managed-local-acceptance-20261109T030955Z.dump",
+      "bytes": 667347,
+      "sha256": "b6f294a87c344416a3e88e7a5aefe088929d84fd94b6fdb70d2489efc32b4ec3",
+      "kept_outside_repo": true
+    },
+    "limitations": [
+      "New candidate full all-case release and sixty-minute soak not rerun",
+      "Three natural spot fills were on b090; seven partial cleanup fills were on 445; no natural perpetual fill claimed",
+      "Short sampled Random/restart smoke does not qualify thirty-minute quote coverage",
+      "Real GCP KMS remains deferred; real Google login tested separately from Basic-controlled Demo",
+      "Optional cleanup engine-reporting warning remains a nonfatal source follow-up"
+    ]
+  },
+  "connected_raw_sha256": {
+    "reviewed-halt-recovery-applied.json": "49df8a6bc94e34bb40870a10fd664d9146735c3580594867160c0888d1daf167",
+    "random-active-restart.json": "315e606c16289b17ce77097e8af104de033a5d65bd9657bbade7714c1ae5e5c8",
+    "managed-disconnect-reconnect.json": "44d2d3bb895adb77d5417891455fdcf3810befdc53fce5ac702448fdd064df2c",
+    "new-fill-proof.json": "17ed9ca17aefd5e78c792c920893728d6605a206a083b161b8a1befb03c3ddeb",
+    "final-reconciliation.json": "bd7ddd612899bc32797c0e36f9ca6d13f98aa3beae55cdbf8f31862cc95472d9",
+    "preflight-final-private.json": "3740729f363f3b65a771f27c912cd7c0a2adf727f6358d713da8ecc9a7b7a835",
+    "final-stopped-cold-restart-status.json": "fa832061ccfcfd386821955c19c82d1c122832bfe52953d87104f100d3b270e6",
+    "final-audit.json": "9e1047d1f62d518f49eb6d915a396cb94373ed9712390a5d2a971e9191faf71f",
+    "remediated-runtime-private.jsonl": "33eb5364c635786d5c2488647b5a6413718a382ad330f92ab727ee88d15cd98a",
+    "disconnect-first-helper.log": "473c1a9ed8c1256e2f2da46086ad8189f05133ebcd5c69df24179268e5852a37"
   }
 }

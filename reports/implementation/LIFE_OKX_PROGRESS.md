@@ -22,6 +22,13 @@ and [credential operations](../../docs/exchange-credentials.md).
 
 ## Current verification
 
+New managed-Demo candidate `4451974e…` passes native2,868 +16 subtests, PG557,
+targeted packaged E2E and [connected recovery/Random/restart/cleanup](../demo/managed-local-connected-followup.md).
+All original history is preserved; final bot stopped, no HALT/pending orders and
+perpetual flat. A nonfatal cleanup reporting warning and the new candidate's
+full release/soak remain separate follow-ups. The full-load numbers below retain
+their preceding-image scope.
+
 Image **`b090430c…`**, build `d0791e563`, packages the earlier recorder/quote/
 anchor allocation changes and signal-lock fix `1916e048e`. Canonical native
 **2,861 passes + 16 subtests**, paired Linux signal contracts and **27 available

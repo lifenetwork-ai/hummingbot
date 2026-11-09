@@ -2,16 +2,19 @@
 
 [All reports](../README.md) · [Current offline image](../release/mm-runtime-followup-load.md)
 
-The current separately requested managed-Demo follow-up passed read-only REST/WS,
-reviewed binding, encrypted Set/stopped restart and nine fixed profile/mode cases.
-Three natural spot fills match individual REST proof. Subsequent Random step
-cleanup failed after an initially successful active restart; Demo is stopped with
-HALT retained. See the [connected evidence](managed-local-connected-evidence.json),
-[applied cutover](managed-local-cutover-proposal.md) and
-[new recovery proposal](managed-local-random-recovery-proposal.md). Earlier local load gates
-did not operate on the real Demo account or change their image/date scopes. See the
-[current Demo/image status](../../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md)
-and [last documented stopped-Demo restoration](../performance/mm-admin-worker-lanes.md).
+The [latest managed-Demo follow-up](managed-local-connected-followup.md) passes
+separately reviewed recovery, all three profiles through Random steps0/1/2,
+same-session active restart, Stop and cancel/close/remove/reconfigure/stopped
+cold restart on `4451974e…`. All23 original fills/3,513 order IDs remain. Three
+earlier natural spot fills and seven cleanup fill parts match individual REST;
+final bot stopped, pending orders0, perpetual flat, spot cash preserved.
+
+The [earlier failed Random attempt](managed-local-connected-evidence.json) on
+`b090430c…` remains failed. [Applied binding](managed-local-cutover-proposal.md)
+and [separately approved HALT maintenance](managed-local-random-recovery-proposal.md)
+retain exact scopes. One optional reporting warning recovered during cleanup;
+new candidate full release/soak and real GCP KMS remain separate verification.
+See the [current Demo/image status](../../docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
 
 - [Checkpoint recovery](okx-checkpoint-recovery.md), [evidence](okx-checkpoint-recovery-evidence.json)
 - [Expiry investigation](okx-expired-submission-investigation.md), [approved intent proposal](okx-expiry-incident-recovery-proposal.md), [checkpoint-stop proposal](okx-checkpoint-stop-recovery-proposal.md)

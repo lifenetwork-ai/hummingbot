@@ -5,7 +5,7 @@ fills and REST proofs remain in the [acceptance history](../../reports/README.md
 (Git: `docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md`). A local pass never changes
 the image/account/date attached to connected evidence.
 
-## Current image — local/offline
+## Last full image qualification — local/offline (`b090430c…`)
 
 - [x] Build/pin `b090430c…` at `d0791e563`, 1,374,595,999 bytes; 1,225 packaged
   hashes match; 1,254 measured source/fixture hashes remain unchanged.
@@ -41,9 +41,10 @@ the present daemon. The original offline release did not query a real OKX
 account. The separately requested managed-Demo follow-up below now performs
 read-only Demo checks and restores a backup into an isolated database.
 
-The connected follow-up below exercised controlled sessions, three natural spot
-fills and active restart on `b090430c…`, then observed a subsequent Random step
-cleanup failure. This image is not fully connected-Demo-qualified. Earlier
+The connected follow-up first exercised fixed sessions and three natural spot
+fills on `b090430c…`, then failed Random step cleanup. The separately reviewed
+recovery and bounded connected replay now pass on `4451974e…`; the failed earlier
+run remains failed. [Latest connected report](../../reports/demo/managed-local-connected-followup.md). Earlier
 historical positive fill/REST evidence and
 unchecked controller-image spot/soak/guard-wait items keep their original dates
 and images; new offline gates do not retroactively complete them.
@@ -75,8 +76,13 @@ and images; new offline gates do not retroactively complete them.
 - [x] Bounded terminal-readback source fix `aba5d745a`: native2,868 + 16 subtests,
   PG557, packaged signal/readback proof and targeted Random/lifecycle E2E pass on
   `4451974e…`. All 1,229 packaged files match. New full release/soak not yet run.
-- [ ] Finish connected requalification of the Random step-shutdown failure, obtain
-  separate incident recovery review and finish Random/credential cleanup tests.
+- [x] Separately reviewed HALT recovery and connected replay pass on `4451974e…`: 'both'
+  Random steps0/1/2/all three profiles, same-session active restart and Stop.
+  Disconnect closes managed perpetual exposure, removes only selected envelope;
+  API reconfigure/stopped cold restart pass. Old23 fills/3,513 order IDs preserved;
+  all ten new fill parts match REST, no duplicates. Bot stopped, no HALT/orders/
+  perpetual exposure. One optional reporting warning recovers; see the report.
+- [ ] Run full release/soak on the remediated candidate before production closeout.
   See the
   [credential plan](ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md) and
   [PostgreSQL maintenance rules](../postgres-runtime.md).

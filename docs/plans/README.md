@@ -5,10 +5,10 @@ and [operating guides](../README.md). Detailed phase checklists, rejected attemp
 and original image/date scopes remain in [Git history](../../reports/README.md#historical-records).
 Removing old files does not close unresolved evidence or policy items.
 
-The subsequent real Demo follow-up found a Random step-cleanup failure on
-`b090430c…`; that offline-qualified image is not fully connected-Demo-qualified.
-The bounded terminal-readback fix passes source regressions and targeted packaged
-Random/lifecycle E2E on `4451974e…`; real Demo recovery/retest is pending. See the
+The real Demo follow-up found a Random step-cleanup failure on `b090430c…`.
+Separately reviewed recovery and bounded connected Random/restart/cleanup now
+pass on `4451974e…`. The failed attempt remains failed; the new candidate still
+needs its own full release/soak before production closeout. See the
 [active follow-up](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md#managed-demo-random-shutdown-follow-up--2026-11-09).
 
 ## Current local qualification
@@ -60,8 +60,13 @@ Random/lifecycle E2E on `4451974e…`; real Demo recovery/retest is pending. See
 - [x] Qualify bounded-readback remediation on `4451974e…` with native2,868 +16
   subtests, PG557, package/signal proof and targeted Random/lifecycle E2E. This
   does not transfer the old image's full release/soak results.
-- [ ] Separately review this incident's HALT recovery and complete connected
-  Random/restart/cleanup acceptance.
+- [x] Separately reviewed HALT recovery and connected Random/restart/cleanup pass;
+  both hedge sides close, selected key removed/reconfigured and stopped cold
+  restart preserves exact ledger. [Connected report](../../reports/demo/managed-local-connected-followup.md).
+- [ ] Full release/soak on `4451974e…` before production closeout.
+- [ ] Nonfatal cleanup reporting projection: synthetic strategy-name classifier
+  raises ValueError; one3.682-second observation incident recovers. Cleanup/
+  terminal/ledger proof passes; remove the warning separately with TDD.
   [Demo scope](OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
 
 ## Unresolved policy and historical attribution

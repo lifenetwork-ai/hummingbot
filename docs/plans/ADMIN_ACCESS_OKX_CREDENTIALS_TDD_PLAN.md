@@ -63,8 +63,11 @@ in [credential operations](../exchange-credentials.md) and
   old history/positions. Both managed slot Set/load and stopped cold restart pass.
   Nine fixed profile/mode cases pass; three new natural spot fills have individual
   REST/aggregate quantity and original-fee proof. No production deployment.
-- [ ] Complete the connected Random/restart/cleanup follow-up after remediating
-  the observed step-shutdown timeout and separately reviewed HALT recovery.
+- [x] Separately reviewed recovery and connected follow-up pass on `4451974e…`: 'both'
+  Random steps0/1/2/all profiles, active restart, Stop, real cancel/close/remove,
+  API reconfigure and stopped cold restart. Seven cleanup fill parts close both
+  managed hedge sides; original history and spot cash remain, no duplicate fills.
+  [Connected evidence](../../reports/demo/managed-local-connected-followup.md).
   [Runtime follow-up](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md#managed-demo-random-shutdown-follow-up--2026-11-09).
 
 Three healthy engine probes recover in 1.06–1.12 s. Baseline activity overlay is off,

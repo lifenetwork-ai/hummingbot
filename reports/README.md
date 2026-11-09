@@ -4,7 +4,7 @@ Start with the [current image/load report](release/mm-runtime-followup-load.md)
 and [remaining-work register](../docs/plans/README.md). Operational procedures and
 API/FE contracts live in [docs](../docs/README.md).
 
-Current image **`b090430c…`** passes canonical native **2,861 + 16 subtests**,
+Last full offline image **`b090430c…`** passes canonical native **2,861 + 16 subtests**,
 all **27 available E2E groups in one `all` attempt**, four unchanged load windows,
 Random soak3600 and five faults. Mixed/burst/soak p99 **273.48 / 297.81 / 313.00 ms**;
 zero unexpected healthy errors, **4,885 simulated fills** reconcile, retained
@@ -26,14 +26,16 @@ predecessor is retrospectively passed. That offline qualification did not contac
 real Demo/Google/GCP or deploy a service.
 
 Separate 2026-11-09 follow-up: [real Google login](implementation/google-login-acceptance.json)
-and Google-only helper restart pass. The [reviewed managed-Demo cutover](demo/managed-local-cutover-proposal.md)
-has passed real read-only preflight, binding application, API Set/load/stopped
-cold restart and nine fixed profile/mode cases. Three natural spot fills match
-REST proof. Subsequent Random step cleanup fails after initial active restart;
-[new recovery](demo/managed-local-random-recovery-proposal.md) remains unapproved,
-and bounded-readback source remediation is in verification. The
-[quote diagnostics](performance/mm-managed-local-quote-activity.md) retain sampled
-refresh gaps and distinguish policy agreement from thirty-minute qualification.
+and Google-only helper restart pass. Managed Demo binding/Set/load/nine fixed cases
+pass on the preceding image, followed by a failed Random cleanup attempt. After
+TDD remediation and separately approved HALT recovery, the [connected follow-up](demo/managed-local-connected-followup.md)
+passes on `4451974e…`: all profiles through Random steps0/1/2, active restart,
+Stop, real close/remove/reconfigure and stopped cold restart. Old history and
+spot cash remain, perpetual flat/pending orders0, no HALT. Three natural spot
+fills plus seven cleanup fill parts match individual REST. One optional cleanup
+reporting warning recovers; it remains a nonfatal source follow-up. New candidate
+full release/soak and real GCP KMS remain open. [Quote diagnostics](performance/mm-managed-local-quote-activity.md)
+distinguish policy agreement from thirty-minute coverage qualification.
 
 | Topic | Current entry |
 | --- | --- |

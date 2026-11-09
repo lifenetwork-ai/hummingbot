@@ -1,7 +1,8 @@
 # Local Demo Random cleanup incident — recovery proposal
 
-Prepared 2026-11-09. **Not applied; separate operator review is required.**
-The prior approval applied only to account binding, not a later HALT reset.
+Prepared 2026-11-09. **Separately approved and applied on 2026-11-09.**
+The operator answered “Duyệt phục hồi Demo và test tiếp” to this specific proposal.
+The prior account-binding approval was not reused for this HALT reset.
 
 ## Observed state
 
@@ -61,7 +62,14 @@ After the remediated image passes its local/package checks and operator approval
 
 A rolled-back dry run in the separate `okx_demo_incident_review` database confirms
 that removing this one key preserves every other recovery entry and rollback
-restores HALT. The actual Demo HALT has not been changed. Stop and report changed
+restores HALT. The approved actual transaction subsequently removed only `halt` and appended
+one maintenance audit; all other tables and bot-state fields matched their
+pre-transaction fingerprints. Another private backup was retained. The remediated
+image starts stopped with both version2 slots connected. Connected Random and
+cleanup verification subsequently pass: steps0/1/2, same-session active restart,
+Stop, verified close/remove and API reconfigure/stopped cold restart. The final
+bot has no HALT, pending orders or perpetual exposure. [Result](managed-local-connected-followup.md).
+Stop and report changed
 account/exposure, pending effects or any new blocker; this proposal does not
 authorize another repair.
 

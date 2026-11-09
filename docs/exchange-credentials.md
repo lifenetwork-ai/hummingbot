@@ -3,8 +3,10 @@
 A1–A6 implement identity/audit, encrypted storage/providers, managed Set/load and
 automatic Disconnect with durable cleanup recovery. Local/offline acceptance is complete;
 real GCP KMS/IAM remains open. Reviewed existing-Demo binding/Set/load and fixed
-profile cases pass; a later Random cleanup HALT awaits separately reviewed recovery
-and retest on the remediated image. Real Google admin
+profile cases pass. After separately reviewed HALT recovery, the remediated image
+also passes connected Random/restart/Stop and cancel/close/remove/reconfigure
+checks. [Actual Demo result](../reports/demo/managed-local-connected-followup.md).
+Real Google admin
 login and Google-only restart pass in the isolated auth helper. Environment
 credentials remain the default; managed mode must be explicitly selected. See the [implementation status](../reports/implementation/ADMIN_ACCESS_CREDENTIALS_PROGRESS.md).
 
