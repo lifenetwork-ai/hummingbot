@@ -1,0 +1,112 @@
+name: Frontend CI and Pages deploy
+
+on:
+  push:
+    branches: [dev, main, master, development, 'refactor/unit_tests**', 'epic/**']
+    paths:
+      - 'dashboard/**'
+      - '.github/workflows/frontend.yml'
+  pull_request:
+    paths:
+      - 'dashboard/**'
+      - '.github/workflows/frontend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: dashboard
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: dashboard/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: dashboard/pnpm-lock.yaml
+      - name: Report Pages deployment configuration
+        env:
+          PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+          PAGES_BRANCH: ${{ vars.CLOUDFLARE_DEPLOY_BRANCH }}
+          PAGES_ACCOUNT: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$PAGES_PROJECT" ] || [ -z "$PAGES_BRANCH" ] || [ -z "$PAGES_ACCOUNT" ]; then
+            echo 'Pages deploy is not configured; CI/build still runs. Set the Cloudflare repository variables and API token described in dashboard/docs/DEPLOYMENT.md.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Pages deploy is configured; only the configured branch can deploy after quality checks pass. Pull requests never deploy.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run theme:generate
+      - run: pnpm run lint
+      - run: pnpm run typecheck
+      - run: pnpm run test:coverage
+      - run: pnpm run build
+      - name: Upload frontend production build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-dist
+          path: dashboard/dist/
+          if-no-files-found: error
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run test:e2e
+      - name: Visual regression (when committed baselines exist)
+        if: ${{ hashFiles('dashboard/e2e/visual.spec.ts-snapshots/*.png') != '' }}
+        run: pnpm run test:visual
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: dashboard/playwright-report/
+          if-no-files-found: ignore
+
+  deploy:
+    name: Deploy frontend to Cloudflare Pages
+    needs: quality
+    if: >-
+      github.event_name != 'pull_request' &&
+      github.ref_type == 'branch' &&
+      vars.CLOUDFLARE_ACCOUNT_ID != '' &&
+      vars.CLOUDFLARE_PAGES_PROJECT != '' &&
+      vars.CLOUDFLARE_DEPLOY_BRANCH != '' &&
+      github.ref_name == vars.CLOUDFLARE_DEPLOY_BRANCH
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+      PAGES_BRANCH: ${{ vars.CLOUDFLARE_DEPLOY_BRANCH }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dashboard-dist
+          path: dashboard/dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate deployment inputs
+        shell: bash
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo 'Missing CLOUDFLARE_API_TOKEN secret.' >&2; exit 1; }
+          test -f dist/index.html || { echo 'Frontend build artifact is missing index.html.' >&2; exit 1; }
+      - name: Upload verified build to Pages
+        shell: bash
+        run: >-
+          npx --yes wrangler@4.149.0 pages deploy dist
+          --project-name "$PAGES_PROJECT"
+          --branch "$PAGES_BRANCH"
+          --commit-hash "$GITHUB_SHA"

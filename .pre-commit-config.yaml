@@ -23,6 +23,9 @@ repos:
     -   id: eslint
         files: \.[jt]sx?$  # *.js, *.jsx, *.ts and *.tsx
         types: [file]
+        # Dashboard uses ESLint 9 flat config via pnpm lint and frontend CI.
+        # This legacy ESLint 8 hook remains for files outside that project.
+        exclude: ^dashboard/
 -   repo: https://github.com/CoinAlpha/git-hooks
     rev: 78f0683233a09c68a072fd52740d32c0376d4f0f
     hooks:
