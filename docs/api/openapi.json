@@ -3306,6 +3306,14 @@
           "quote_guards": {
             "$ref": "#/components/schemas/QuoteGuardConfigOutput"
           },
+          "quote_refresh_max_delay_seconds": {
+            "default": 0,
+            "description": "Optional bounded delay for rolling ordinary refresh; zero preserves batch refresh. Safety withdrawals are immediate.",
+            "maximum": 10,
+            "minimum": 0,
+            "title": "Quote Refresh Max Delay Seconds",
+            "type": "integer"
+          },
           "reference_connector": {
             "const": "okx",
             "default": "okx",

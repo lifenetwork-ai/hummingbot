@@ -6,7 +6,7 @@ from copy import deepcopy
 from decimal import ROUND_DOWN, Decimal, localcontext
 from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 from controllers.market_making import pmm_simple
 from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSide, PriceType, TradeType
@@ -75,9 +75,23 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
     sideways_range: Optional[SidewaysRange] = None
     inventory_skew: InventorySkewConfig = Field(default_factory=InventorySkewConfig)
     spread_policy: SpreadPolicyConfig = Field(default_factory=SpreadPolicyConfig)
+    quote_refresh_max_delay_seconds: int = Field(
+        default=0, ge=0, le=10, strict=True,
+        description="Optional bounded delay for rolling ordinary refresh; zero preserves batch refresh. Safety withdrawals are immediate.")
+
+    @model_serializer(mode='wrap')
+    def serialize_refresh_policy(self, handler):
+        values = handler(self)
+        # Keep the default catalogue/session snapshot compatible with readers
+        # that predate this opt-in ordinary-refresh policy.
+        if not self.quote_refresh_max_delay_seconds:
+            values.pop('quote_refresh_max_delay_seconds', None)
+        return values
 
     @model_validator(mode="after")
     def validate_mm_policy(self):
+        if self.quote_refresh_max_delay_seconds > self.executor_refresh_time:
+            raise ValueError('Refresh delay cannot exceed the ordinary refresh interval')
         vol = self.spread_policy.volatility
         if vol.defense is not None:
             if not self.quote_guards.enabled:
@@ -875,9 +889,64 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             return []
 
     def executors_to_refresh(self):
-        return [StopExecutorAction(controller_id=self.config.id, executor_id=executor.id, keep_position=True)
-                for executor in self.executors_info if executor.is_active
-                and self.market_data_provider.time() - executor.timestamp > self.config.executor_refresh_time]
+        now = self.market_data_provider.time()
+        expired = [executor for executor in self.executors_info if executor.is_active
+                   and now - executor.timestamp > self.config.executor_refresh_time]
+        if not expired:
+            return []
+        delay = self.config.quote_refresh_max_delay_seconds
+        if not delay:
+            return [StopExecutorAction(controller_id=self.config.id, executor_id=executor.id, keep_position=True)
+                    for executor in expired]
+        active = [executor for executor in self.executors_info if executor.is_active]
+        valid = set()
+        for executor in active:
+            order = self._acknowledged_refresh_entry(executor)
+            if order is not None and self.spread_quote_valid(
+                    executor.config.side, executor.config.entry_price, order.amount - order.executed_amount_base,
+                    level_id=executor.config.level_id):
+                valid.add(executor.id)
+        mandatory = {executor.id for executor in expired
+                     if (len(self.config.buy_spreads if executor.config.side == TradeType.BUY else self.config.sell_spreads) < 2
+                         or now - executor.timestamp >= self.config.executor_refresh_time + delay or executor.id not in valid)}
+        selected = [StopExecutorAction(controller_id=self.config.id, executor_id=executor.id, keep_position=True)
+                    for executor in expired if executor.id in mandatory]
+        sides = {executor.config.side for executor in expired if executor.id in mandatory}
+        retiring = {executor.config.side for executor in self.executors_info
+                    if executor.status == RunnableStatus.SHUTTING_DOWN}
+        for executor in sorted(expired, key=lambda item: item.timestamp):
+            config = executor.config
+            # A retiring/pending level cannot protect another quote's removal.
+            # Its original timestamp also bounds the wait if replacement stalls.
+            if (executor.id in mandatory or config.side in sides or config.side in retiring or not any(
+                    peer.id != executor.id and peer.config.side == config.side
+                    and peer.id in valid and peer.id not in mandatory for peer in active)):
+                continue
+            selected.append(StopExecutorAction(controller_id=self.config.id, executor_id=executor.id, keep_position=True))
+            sides.add(config.side)
+        return selected
+
+    def _acknowledged_refresh_entry(self, executor):
+        """Only a live native entry can protect continuity; never make a read RPC."""
+        try:
+            config = executor.config
+            identities = (executor.custom_info or {}).get('order_ids', [])
+            if not isinstance(identities, (list, tuple)) or not 1 <= len(identities) <= 3:
+                return None
+            connector = self.market_data_provider.get_connector_with_fallback(config.connector_name)
+            orders = [connector.in_flight_orders.get(identity) for identity in dict.fromkeys(identities)]
+            matches = [order for order in orders if order is not None and order.trading_pair == config.trading_pair
+                       and order.trade_type == config.side]
+            if len(matches) == 1:
+                order = matches[0]
+                if (order.exchange_order_id and order.current_state in (OrderState.OPEN, OrderState.PARTIALLY_FILLED)
+                        and order.price == config.entry_price and order.amount.is_finite()
+                        and order.executed_amount_base.is_finite()
+                        and 0 <= order.executed_amount_base < order.amount <= config.amount):
+                    return order
+        except (AttributeError, ArithmeticError, TypeError, ValueError):
+            pass
+        return None
 
     async def _startup_read(self, operation):
         """Retry only the supplied read; never replay an enclosing account mutation."""

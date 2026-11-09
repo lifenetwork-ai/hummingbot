@@ -46,6 +46,8 @@ markets:
     buy_spreads: [0.001, 0.002]
     sell_spreads: [0.001, 0.002]
     executor_refresh_time: 60
+    # Bound ordinary refresh deferral to5s; cancel confirmation can take longer.
+    quote_refresh_max_delay_seconds: 5
     cooldown_time: 15
     leverage: 1
     min_price: "1"
@@ -90,6 +92,7 @@ markets:
     buy_spreads: [0.001, 0.002]
     sell_spreads: [0.001, 0.002]
     executor_refresh_time: 60
+    quote_refresh_max_delay_seconds: 5
     cooldown_time: 15
     leverage: 1
     position_mode: HEDGE

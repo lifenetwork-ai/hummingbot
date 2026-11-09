@@ -641,6 +641,17 @@ their existing lifecycle. This adds no API configuration override or timer chang
 The revision52 post-fill gap remains historical evidence until a changed image
 is deployed and verified; a running process is not proof that every level works.
 
+Ordinary age-based refresh can optionally use YAML
+`quote_refresh_max_delay_seconds` (default0, maximum10, no longer than the refresh
+interval). With multiple levels on one side, it retires one level while retaining
+another acknowledged, still-valid entry; a pending replacement is insufficient.
+The last valid level waits only until its original refresh age plus this bounded
+delay. Single-level/default batch behavior, risk withdrawals and full-fill
+handoff remain separate. A safety withdrawal or an expired delay can still leave
+a side empty. The bound covers controller deferral, not venue cancellation
+latency. This reduces routine replacement gaps; it does not guarantee99%
+coverage, extend an exchange order's validity, or authorize an API override.
+
 For a slow-probe review, correlate the actual transition timestamps with engine
 ticks/controller cycles, submission/cancellation outcomes and independent venue
 observations when retained. Distinguish a method attempt/return from exchange

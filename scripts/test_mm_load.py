@@ -197,6 +197,8 @@ def main():
     parser.add_argument("--history-rows", type=int, default=100000)
     parser.add_argument('--cpus', type=int, choices=(1, 2), default=2, help='Total application container CPUs')
     parser.add_argument('--daily-cache-ttl-seconds', type=float, default=15, help='Explicit existing daily reporting policy')
+    parser.add_argument('--quote-refresh-max-delay-seconds', type=int, choices=range(11), default=0,
+                        help='Explicit fixture YAML policy for bounded rolling refresh; original load rates/budgets are unchanged')
     parser.add_argument("--diagnostic", action="store_true", help="Use local image ID for iteration; cannot serve as final artifact acceptance")
     parser.add_argument("--refresh-seconds", type=int, help="Diagnostic-only accelerated quote refresh")
     parser.add_argument("--trace", action="store_true", help="Bounded request/SQL/commit/loop-stack/PG-wait traces; no parameters or credentials")
@@ -257,6 +259,7 @@ def main():
                     incident_max_captures=args.incident_max_captures,
                     release_scope_complete=False,
                     daily_cache_ttl_seconds=args.daily_cache_ttl_seconds,
+                    quote_refresh_max_delay_seconds=args.quote_refresh_max_delay_seconds,
                     continue_after_budget_failure=args.keep_going, windows={})
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
         ROOT / "scripts/test_mm_load.py", ROOT / "scripts/test_e2e_offline.py", ROOT / "scripts/analyze_mm_load_trace.py",
@@ -268,6 +271,13 @@ def main():
         with tempfile.TemporaryDirectory(prefix="hbot-mm-load-") as directory:
             assets = Path(directory)
             assets_for(assets, security=args.security)
+            if args.quote_refresh_max_delay_seconds:
+                import yaml
+                config_path = assets / 'life_mm_profiles.yaml'
+                profiles = yaml.safe_load(config_path.read_text())
+                for market in profiles['markets'].values():
+                    market['quote_refresh_max_delay_seconds'] = args.quote_refresh_max_delay_seconds
+                config_path.write_text(yaml.safe_dump(profiles))
             if args.spot_outflow:
                 import yaml
                 config_path = assets / "life_mm_profiles.yaml"
