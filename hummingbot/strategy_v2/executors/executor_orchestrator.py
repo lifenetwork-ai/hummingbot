@@ -197,7 +197,12 @@ class PositionHold:
             trading_pair=self.trading_pair,
             volume_traded_quote=self.volume_traded_quote,
             amount=abs_amount,
-            side=TradeType.BUY if is_net_long else TradeType.SELL,
+            # A zero hedge leg still owns its independent fee/PnL checkpoint.
+            # Mapping both flat legs to BUY lets a SHORT snapshot overwrite the
+            # LONG row at persistence. Nonzero exposure and spot netting retain
+            # their existing direction convention.
+            side=(self.side if self.connector_name == 'okx_perpetual' and abs_amount == 0 and self.side is not None
+                  else TradeType.BUY if is_net_long else TradeType.SELL),
             breakeven_price=self.avg_entry_price,
             unrealized_pnl_quote=unrealized_pnl_quote,
             realized_pnl_quote=self.realized_pnl_quote,
