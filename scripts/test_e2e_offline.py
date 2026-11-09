@@ -1856,11 +1856,14 @@ def main():
                             repair_scenario,
                             rotation_scenario,
                             safe_logs,
+                            visibility_scenario,
                         )
                         if scenario in ('managed-close-ack-crash', 'managed-close-fill-crash'):
                             crash_scenario(harness, 'accepted' if scenario == 'managed-close-ack-crash' else 'verified_fill')
                         elif scenario == 'managed-rotation':
                             rotation_scenario(harness)
+                        elif scenario == 'managed-close-visibility':
+                            visibility_scenario(harness)
                         else:
                             repair_scenario(harness)
                         for container in harness.containers:

@@ -47,3 +47,36 @@ async def test_terminal_status_republication_keeps_real_trade_identity_and_fee_i
     fill = venue.fills[0]
     assert (event['tradeId'], event['fillSz'], event['fillPx'], event['fillFee'], event['fillFeeCcy']) == (
         fill['tradeId'], fill['fillSz'], fill['fillPx'], fill['fee'], fill['feeCcy'])
+
+
+@pytest.mark.asyncio
+async def test_close_visibility_fault_preserves_accepted_fill_and_hides_only_its_bounded_status_reads():
+    venue = exchange()
+    venue.positions['LIFE-USDT-SWAP', 'long'] = dict(instId='LIFE-USDT-SWAP', posSide='long',
+                                                     pos='10', avgPx='.1', mgnMode='cross')
+    assert (await venue.control({'cleanup_market_closes': True, 'cleanup_status_not_found_reads': 2})).status == 200
+    terms = dict(instId='LIFE-USDT-SWAP', side='sell', posSide='long', tdMode='cross',
+                 ordType='market', clOrdId='one-close', sz='10')
+    response = json.loads((await venue.handle(signed('/api/v5/trade/order', method='POST', data=terms))).text)
+    assert response['data'][0]['sCode'] == '0'
+    assert len(venue.accepted) == len(venue.fills) == 1 and venue.positions['LIFE-USDT-SWAP', 'long']['pos'] == '0'
+    codes = []
+    for _ in range(3):
+        path = '/api/v5/trade/order?clOrdId=one-close'
+        request = signed(path)
+        request.path, request.query = '/api/v5/trade/order', {'clOrdId': 'one-close'}
+        body = json.loads((await venue.handle(request)).text)
+        codes.append(body['code'])
+    assert codes == ['51603', '51603', '0'] and body['data'][0]['state'] == 'filled'
+    assert len(venue.accepted) == len(venue.fills) == 1 and not venue.cleanup_hidden_status_reads
+    assert sum(bool(r.get('injected_cleanup_order_absence')) for r in venue.requests) == 2
+    assert not venue.unknown
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('count', [-1, 6, True, 1.5, '2', None])
+async def test_invalid_visibility_fault_cannot_change_existing_policy(count):
+    venue = exchange()
+    assert (await venue.control({'cleanup_status_not_found_reads': 2})).status == 200
+    assert (await venue.control({'cleanup_status_not_found_reads': count})).status == 400
+    assert venue.cleanup_status_not_found_reads == 2

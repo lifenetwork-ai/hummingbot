@@ -975,6 +975,15 @@ orders. For a two-sided operating target, report guard-constrained samples and
 unknown coverage separately; a zero eligible denominator is not a passing SLO.
 Do not label a strategy-wide `running=true` as proof of two-sided liquidity.
 
+During a joint readiness transition, a market can have `eligible=false` and a
+null market `reason_code` while `/status.service.reason_code` reports a global
+restriction such as `exposure_limit` or `insufficient_collateral`. Show that
+service reason alongside the market state when both reads are fresh, refer to
+the same session and describe the same transition. Previously acknowledged
+orders can remain visible while withdrawal settles; their presence does not
+prove renewed admission. If the observations cannot be correlated, show unknown
+instead of inventing a market reason or counting a successful quote sample.
+
 The liquidity response's `markets` is a map keyed by `spot`/`perpetual`, not an
 array. Render each side's `quote_activity` alongside status. In the real Cloud
 test, a93.66% BTC account weight against the50% inventory target produced
