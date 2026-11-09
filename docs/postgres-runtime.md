@@ -341,6 +341,14 @@ history remain blocked. Those cases still require an explicit operator-reviewed
 database maintenance change after independent reconciliation. Do not change only
 `halt`, delete history or reset risk checkpoints to make startup pass.
 
+Runtime connections also set `idle_session_timeout=30000` on PostgreSQL14+.
+This bounds an idle upstream session that a broken intermediary can retain after
+the client discards its socket; the session can otherwise keep the advisory lock.
+Regular owner reads keep an active owner alive, and `pool_pre_ping` replaces
+expired idle readers. This is an idle-session limit, not a change to active SQL,
+the existing2-second statement budget or3-second response deadline. Takeover
+still retains unresolved-effect HALT and requires normal recovery review.
+
 A recorder rollback latches that manager unhealthy and blocks subsequent ORM
 flushes/bulk writes, including tracking snapshots. A failed fill cannot be followed
 by a committed snapshot claiming it was recorded. Exit and reconcile from durable

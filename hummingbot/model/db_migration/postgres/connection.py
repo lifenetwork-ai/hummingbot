@@ -23,7 +23,11 @@ def create_postgres_engine(settings: RuntimeSettings) -> Engine:
             "application_name": "hummingbot",
             # Runtime requests have a smaller budget than migration DDL; the runner
             # explicitly sets its own LOCAL statement/lock budgets per SQL file.
+            # A dropped client socket is not proof that a proxy discarded its
+            # upstream session. Bound idle (not active SQL) sessions on the
+            # server too, so an orphan cannot retain ownership indefinitely.
+            # Normal owner reads are frequent; pooled readers use pre_ping.
             "options": ("-c search_path=public -c timezone=UTC -c statement_timeout=2000 -c lock_timeout=1000 "
-                        "-c idle_in_transaction_session_timeout=5000"),
+                        "-c idle_in_transaction_session_timeout=5000 -c idle_session_timeout=30000"),
         },
     )

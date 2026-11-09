@@ -17,7 +17,7 @@ def main():
     engine = create_postgres_engine(RuntimeSettings.from_environment({'DATABASE_URL': os.environ['HBOT_IO_TEST_URL']}))
     mode = sys.argv[1]
     owner = None
-    if mode == 'owner':
+    if mode in ('owner', 'owner-idle'):
         get_declarative_base()
         owner = BotOwnership(engine, 'hummingbot')
         assert owner.try_acquire()
@@ -33,6 +33,10 @@ def main():
         result.fetchone()
     else:
         connection.exec_driver_sql('SELECT 1')
+        if mode == 'owner-idle':
+            # The ordinary owner read leaves no open SQL transaction. Otherwise
+            # idle_in_transaction_session_timeout would mask an orphan lock.
+            connection.commit()
     print('READY', flush=True)
     input()
     started = time.monotonic()
