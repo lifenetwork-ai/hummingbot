@@ -6,6 +6,15 @@ import yaml
 
 
 def scenario(harness):
+    path = harness.assets / 'life_mm_profiles.yaml'
+    original = path.read_bytes()
+    try:
+        return _run(harness)
+    finally:
+        path.write_bytes(original)
+
+
+def _run(harness):
     from scripts.test_e2e_offline import poll
 
     print('Offline E2E: bounded rolling refresh retains working peers and withdraws stale quotes', flush=True)
