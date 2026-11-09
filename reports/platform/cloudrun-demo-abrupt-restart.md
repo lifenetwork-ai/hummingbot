@@ -1,14 +1,21 @@
 # Cloud Demo abrupt restart and stale position checkpoint
 
-2026-11-09, Asia/Ho_Chi_Minh. **The API is available; trading is HALTED.**
+2026-11-09, Asia/Ho_Chi_Minh. **Reviewed checkpoint recovery succeeded; trading is
+now STOPPED/HALTED by a separate spot drawdown limit.**
 Latest operator update: revision54 (`hummingbot-demo-00054-7k6`) serves100% traffic
 with **2vCPU/1GiB**, confirmed at20:10 local. The image is unchanged from revision53.
 Fresh REST shows pending SPOT/SWAP orders0/0 and the same long0.0030/short0.0048 BTC.
-The resource update has not cleared `RecoveryRequired`; no live database repair
-has been applied. These are idle/halted observations, not a new trading load gate.
+The resource update alone did not clear `RecoveryRequired`. Subsequent approved
+maintenance repaired three aggregate rows and removed the incident HALT, audit36.
+Google Stop13/13 and Start14/14 are separately audited. The attempted600-second
+observation fails after89 healthy samples, the last at461.887s: spot breaches its
+15USDT controller drawdown limit at20:31:01.025. The observer then issues a normal
+Google Stop15/15. The new risk checkpoint/HALT remains; it was not reset. Two
+natural full spot fills hand off before60s; perpetual new quotes remain blocked
+by the existing gross cap. This is not a full load gate or a two-sided pass.
 
-Revision53 contains the filled-entry handoff correction, but startup reconciliation
-blocks strategy admission. Its actual-Demo handoff acceptance remains open.
+Revision53 introduced the filled-entry handoff correction. Its revision54
+successor exercised two actual spot handoffs; perpetual coverage remains open.
 [Sanitized evidence and exact proposed row changes](cloudrun-demo-abrupt-restart-evidence.json).
 
 ## What the deployment timeline establishes
@@ -42,7 +49,7 @@ The retained logs do not establish an OOM kill, a memory leak or a unique cause
 of the15-second unresponsive interval. The investigator made no resource/probe
 threshold change; the operator subsequently increased resources as recorded above.
 
-## Financial readback
+## Pre-repair financial readback (65-fill baseline)
 
 Read-only PostgreSQL plus independent OKX REST establish:
 
@@ -83,14 +90,16 @@ stall. It is regression coverage of recovery behavior, not a Red/Green runtime
 fix or evidence that memory pressure has been eliminated. No trading guard was
 relaxed and no live financial data was changed.
 
-## Proposed recovery — not applied
+## Reviewed recovery — applied
 
 The read-only preview replays each immutable fill once, in timestamp/trade-ID
 order, through native `PositionHold`, grouping perpetual OPEN/CLOSE fills by
 hedge leg. All original fees occur exactly once. Restoring the resulting rows
 through native `_load_position_from_db()` reproduces the proposed quantities.
-This is an in-memory preview, not an applied database repair or a transactional
-restore rehearsal.
+The operator subsequently approved the exact repair. A PostgreSQL16 custom-format
+`pg_dump` was restored into an isolated local PostgreSQL16 container, and the same
+three-row transaction plus native recovery comparison passed there before the
+live transaction committed. No trading engine or KEK was loaded into that clone.
 
 | Existing position row | Amount before → proposed | Fees USDT before → proposed |
 | --- | --- | --- |
@@ -104,23 +113,36 @@ by the replay, not incremented again. Original trade rows are untouched. The
 preview marks unrealized PnL at reconstructed average entry, explicitly zero;
 runtime must obtain a fresh market mark. Funding remains in its separate ledger.
 
-Before applying, require a fresh venue/ledger readback and unchanged row
-fingerprints, stop all writers/owners through the normal service maintenance
-path, and take a restore-reviewed backup. A consistent private21-table raw
-PostgreSQL JSON snapshot is retained separately; it contains encrypted envelopes
-and is not a schema-complete `pg_dump` restore rehearsal.
+Fresh pre-transaction REST again matched65/65 fills, pending orders0 and unchanged
+hedge legs. Google Stop was followed by temporary Cloud service-level manual
+scaling0; the DB had no owner or other application clients. The repair transaction
+also acquired the exclusive advisory lock. The custom-format backup and earlier
+raw JSON snapshot remain private; both include encrypted credential envelopes.
 
-The reviewed transaction would update only the three aggregate rows, remove
-only this incident's HALT/reason and append one maintenance audit. Preserve all
-orders, fills, funding, credential envelopes/versions, account bindings, session
-intent and strategy risk checkpoints. Roll back on any unexpected baseline or
-venue discrepancy. Do not clear HALT while leaving its quantity mismatch.
+Before the final transaction, checksum comparison caught different default
+collation ordering between Cloud and the restored database, plus one normal
+runtime event from a service restart. The first attempted transaction rolled back
+without financial changes. Deterministic `COLLATE "C"` ordering, a fresh quiesced
+backup/restore and matching table fingerprints were required before retry. Only
+the old spot unrealized mark changed between the earlier proposal read and final
+quiescence; the final preview records that value. Quantities, fees and source
+fills were unchanged.
 
-The operator has separately increased Cloud resources to2vCPU/1GiB, retaining
-the image. Resume only after reconciliation succeeds, then verify actual
-Demo fills and the handoff branch, pending orders, risk exposure and memory.
-The database repair and resumption still require operator approval and have not
-been performed here.
+The committed transaction updated only the three aggregate rows, removed only
+this incident's HALT/reason and appended maintenance audit36. All other table
+fingerprints and bot-state fields, including strategy risk checkpoints, matched
+before/after. Orders, fills, funding, credential envelopes/versions and account
+bindings were preserved. Session control used normal Google-authenticated API
+commands; no direct trading-intent override was used.
+
+Autoscaling was restored to automatic min1/max1, retaining revision54 and2vCPU/1GiB.
+The service became ready/stopped with no HALT/error before Google Start succeeded.
+The new both/follow_market session is Until stopped. Observe actual Demo fills,
+handoff, quote reasons, risk exposure and memory separately from startup success.
+At baseline, gross perpetual0.0078 BTC leaves only0.0002 below the configured0.008
+cap; new quote sizes do not fit, so both perpetual sides report `inventory_limit`.
+No cap was raised and no old position was closed. Spot BUY is also suppressed by
+configured allocation/skew; acknowledged spot SELL quotes remain present.
 
 ## Checklist
 
@@ -129,7 +151,68 @@ been performed here.
 - [x] Reproduce SIGKILL with stale/matching checkpoints on disposable PostgreSQL.
 - [x] Prepare exact native replay preview and preserve original financial history.
 - [x] Verify the operator's resource update to2vCPU/1GiB on revision54.
-- [ ] Obtain operator review and perform the bounded live database repair.
-- [ ] Verify successful startup and real-Demo handoff on revision53 or its successor.
+- [x] Obtain operator review, restore-rehearse and commit the bounded live repair.
+- [x] Verify startup without HALT/error and Google Start on revision54.
+- [x] Observe two natural full spot entries handing off to native POSITION_HOLD
+  before their configured60s refresh; keep the partial-fill case distinct.
+- [x] Verify final68/68 individual REST fill matches, cash/fees/positions and zero
+  pending orders after graceful risk Stop; retain the new drawdown protection.
+- [ ] Complete the600-second continuous-run gate: this attempt fails on a genuine
+  controller drawdown breach, not an observed engine kill/restart.
+- [ ] Exercise perpetual full-fill handoff; its existing exposure cap blocks new
+  quotes and was not overridden.
 - [ ] Attribute or reproduce the original unresponsive interval; retain the
   distinction between resource headroom and a proven runtime fix.
+
+## Post-recovery Demo — separate protective stop
+
+The Google-controlled session `0830e903-81b9-4288-8b5a-91b8edb1cb6d` starts in
+both/follow_market, Until stopped. Retained logs and final DB show the same owner
+UUID/generation45; no engine replacement is observed. One startup probe warning
+reports300.997ms, and one controller progress-confirmation warning reports5.376s.
+The other quote warnings identify the existing perpetual inventory limit. There
+is one ERROR incident, `drawdown_controller_limit`, not a zero-error pass.
+
+At20:31:00.236, the last healthy sample reports spot peak2.5864965559712 USDT,
+PnL−12.2037083869328 USDT and drawdown14.790204942904 USDT. At20:31:01.025, the
+native strict `peak - current PnL > 15` branch triggers for `demo_btc_spot`.
+It records the breach and `_is_stop_triggered=true`, revokes quote production,
+then stops. This is the covered strategy-report drawdown from its retained peak,
+not a claim that total account cash fell15USDT. The exact breach PnL value is not
+retained after teardown; do not invent it from the earlier sample. The global
+threshold is25USDT and was not the reported trigger.
+
+The observer correctly marks its attempted600-second gate failed, then submits
+normal Google Stop for its own session (control/ack15/15). The final phase is
+HALTED/RecoveryRequired, reason `drawdown_controller_limit`; this is a different
+HALT from the repaired position-checkpoint incident. Its checkpoint is preserved.
+No threshold, peak, stop flag or new HALT was reset, and no perpetual position
+was liquidated.
+
+During the retained start/running window, eight available Cloud memory minute
+means range **44.917–46.051% of1GiB**; CPU means range4.827–12.077% of2vCPU.
+Both CPU/memory limits changed and perpetual quoting was cap-blocked, so this is
+not a controlled performance comparison with the old run. It establishes current
+headroom; it neither proves the old stall's cause nor rules out a long-run leak.
+
+Financial final readback:
+
+- **68/68** fills match individual venue trade/order IDs, base quantities, prices
+  and original fees. Three new spot fills total0.00145960 BTC and0.0872787752376
+  USDT fees. BTC cash delta matches exactly, and final durable spot quantity,
+  volume and fees equal all recorded spot fills.
+- The two full fills retain `entry_order_filled=true`, native held orders and
+  POSITION_HOLD archives. Executor lifetimes are approximately11.7/27.7s versus
+  60s configured refresh; closure timestamps (one-second precision) are about2s
+  after the fills. Exact subsequent venue-order-to-level correlation is absent
+  from these archives; this is not a claim of uninterrupted quoting or a measured
+  end-to-end replacement latency.
+- Final totals:323 orders,68 fills,3 aggregate position rows,230 archived executors.
+  Pending SPOT/SWAP orders0/0; perpetual LONG0.0030/SHORT0.0048 BTC remain and match
+  REST. Their average entries also match the native reconstruction.
+
+A second consistent private custom-format backup retains all68 fills and the new
+drawdown HALT/checkpoint. The pre-repair backup remains separately retained.
+Restarting alone cannot clear this protective stop. Any further operation needs
+a separate review of current exposure and drawdown policy; the approval for the
+old initialization HALT must not be reused to reset this new risk breach.

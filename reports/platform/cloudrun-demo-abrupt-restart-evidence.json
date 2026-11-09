@@ -5,15 +5,6 @@
   "service": "hummingbot-demo",
   "revision": "hummingbot-demo-00053-jq6",
   "image_commit": "7da302597b0a7bc497c2e7e726d3be8e5cff1894",
-  "current_status": {
-    "server_time": "2026-11-09T11:57:47.567682Z",
-    "desired_state": "running",
-    "running": false,
-    "phase": "halted",
-    "error": "RecoveryRequired",
-    "control_version": 12,
-    "acknowledged_version": 12
-  },
   "timeline_local": [
     {
       "at": "2026-11-09T17:38:31.695+07:00",
@@ -180,9 +171,16 @@
     "runtime_fix_claimed": false,
     "original_stall_reproduced": false
   },
-  "live_mutations": [],
+  "live_mutations": [
+    "Google Stop control13",
+    "temporary service scaling0 and restore autoscaling1/1",
+    "update exactly3 aggregate position rows",
+    "remove only incident halt/reason",
+    "append maintenance audit36",
+    "Google Start control14",
+    "Google Stop control15 after protective drawdown"
+  ],
   "deployed_handoff_demo_acceptance_complete": false,
-  "approval_required_before_live_recovery": true,
   "operator_resource_followup": {
     "revision": "hummingbot-demo-00054-7k6",
     "traffic_percent": 100,
@@ -209,5 +207,370 @@
       "short": "0.0048",
       "long": "0.003"
     }
-  }
+  },
+  "incident_status_before_resource_increase": {
+    "server_time": "2026-11-09T11:57:47.567682Z",
+    "desired_state": "running",
+    "running": false,
+    "phase": "halted",
+    "error": "RecoveryRequired",
+    "control_version": 12,
+    "acknowledged_version": 12
+  },
+  "approved_recovery": {
+    "operator_approved": true,
+    "applied": {
+      "applied_at": "2026-11-09T13:22:22.424974+00:00",
+      "rehearsal": false,
+      "audit_id": 36,
+      "position_rows_changed": 3,
+      "removed_recovery_keys": [
+        "halt",
+        "reason"
+      ],
+      "risk_checkpoints_unchanged": true,
+      "all_other_bot_state_fields_unchanged": true,
+      "other_tables_unchanged": {
+        "admin_accounts": {
+          "count": 1,
+          "hash": "e6f5848f2517a8c00801e5b604067518"
+        },
+        "admin_commands": {
+          "count": 13,
+          "hash": "d8895a0fa494bd9fd947213cc053e6c9"
+        },
+        "controllers": {
+          "count": 13,
+          "hash": "de2c162c4db7dcbaed59a24aa5117229"
+        },
+        "daily_balance_snapshots": {
+          "count": 4,
+          "hash": "2daf3a197e28f468f07c0403cec5f417"
+        },
+        "exchange_credentials": {
+          "count": 2,
+          "hash": "57eb0f5a25d304a20a6b6eb2198918c4"
+        },
+        "executors": {
+          "count": 213,
+          "hash": "66175849011f4fbd006957224cdb575b"
+        },
+        "funding_bills": {
+          "count": 20,
+          "hash": "ef069b80db1d5e24dc66a2bc2b4565b1"
+        },
+        "funding_payments": {
+          "count": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "inventory_costs": {
+          "count": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "market_data": {
+          "count": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "market_states": {
+          "count": 3,
+          "hash": "50d2801f10e82b93840fc3125bf958c7"
+        },
+        "metadata": {
+          "count": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "mm_events": {
+          "count": 164,
+          "hash": "3005529458d20bcb652011b7fe69d742"
+        },
+        "order_statuses": {
+          "count": 960,
+          "hash": "4ec92f2f6672fbd2f3307bc5e58de0b9"
+        },
+        "orders": {
+          "count": 306,
+          "hash": "77b8430d501fc99673d2d24a5ce8e61b"
+        },
+        "range_position_collected_fees": {
+          "count": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "range_position_updates": {
+          "count": 0,
+          "hash": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        "trade_fills": {
+          "count": 65,
+          "hash": "5c3de308b1221aa5d20aadca35327762"
+        }
+      },
+      "native_position_reconciliation_passed": true
+    },
+    "applied_preview": {
+      "read_only_preview": true,
+      "replay_order": "timestamp,exchange_trade_id; each immutable fill once",
+      "based_on_exact_rest_matched_fills": 65,
+      "position_rows": [
+        {
+          "id": "b2d30aee-bca6-4c62-89d2-89d0a328fd9c",
+          "controller_id": "demo_btc_perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "before": {
+            "volume_traded_quote": "89.586897",
+            "amount": "0",
+            "breakeven_price": "0",
+            "unrealized_pnl_quote": "0.0",
+            "realized_pnl_quote": "-0.0198630",
+            "cum_fees_quote": "0.0313583934",
+            "side": "SELL"
+          },
+          "proposed": {
+            "volume_traded_quote": "445.776078",
+            "amount": "0.0048",
+            "breakeven_price": "74206.079375000000000000000",
+            "unrealized_pnl_quote": "0E-25",
+            "realized_pnl_quote": "-0.0198630",
+            "cum_fees_quote": "0.1025962296",
+            "side": "SELL"
+          },
+          "net_base": "-0.0048"
+        },
+        {
+          "id": "bae1325b-551f-4b50-b4f9-bfe6a1f79ef8",
+          "controller_id": "demo_btc_spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "before": {
+            "volume_traded_quote": "99.998939594",
+            "amount": "0.00133901",
+            "breakeven_price": "74681.24927670443088550496262",
+            "unrealized_pnl_quote": "-0.1890691805000000000000000022",
+            "realized_pnl_quote": "0",
+            "cum_fees_quote": "0.0799991516752",
+            "side": "SELL"
+          },
+          "proposed": {
+            "volume_traded_quote": "1436.007762744",
+            "amount": "0.01933873",
+            "breakeven_price": "74255.53605350506470693783925",
+            "unrealized_pnl_quote": "0E-31",
+            "realized_pnl_quote": "0",
+            "cum_fees_quote": "1.1488062101952",
+            "side": "SELL"
+          },
+          "net_base": "-0.01933873"
+        },
+        {
+          "id": "8c92e666-3e54-4b97-9409-4c247dd237c5",
+          "controller_id": "demo_btc_perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "before": {
+            "volume_traded_quote": "89.586897",
+            "amount": "0",
+            "breakeven_price": "0",
+            "unrealized_pnl_quote": "0",
+            "realized_pnl_quote": "-0.0198630",
+            "cum_fees_quote": "0.0313583934",
+            "side": "BUY"
+          },
+          "proposed": {
+            "volume_traded_quote": "222.478437",
+            "amount": "0.0030",
+            "breakeven_price": "74159.479000000000000000000",
+            "unrealized_pnl_quote": "0E-25",
+            "realized_pnl_quote": "0",
+            "cum_fees_quote": "0.0444956874",
+            "side": "BUY"
+          },
+          "net_base": "0.0030"
+        }
+      ],
+      "all_original_fill_fees_retained_once": true,
+      "native_roundtrip_quantities_match": true,
+      "unrealized_mark": "reconstruction at average entry; no live/unrealized PnL claim",
+      "preserve_tables": [
+        "orders",
+        "trade_fills",
+        "funding_payments",
+        "exchange_credentials",
+        "admin_commands"
+      ],
+      "preserve_risk_checkpoints": true
+    },
+    "restore_rehearsal_passed": true,
+    "backup_format": "PostgreSQL16 custom-format pg_dump, no-owner/no-acl; successfully restored in isolated local PostgreSQL16",
+    "backup_sha256": "474c1226d1b0f3ce28b1df8760cbd9e5f642b2f8f1db0113d801d11d4590f3a7",
+    "backup_bytes": 130332,
+    "quiescence": "Google Stop13/13; temporary Cloud manual scaling0; no other DB clients; owner absent; exclusive advisory lock",
+    "scaling_restored": {
+      "mode": "AUTOMATIC",
+      "min_instances": 1,
+      "max_instances": 1,
+      "cpu": 2,
+      "memory_mib": 1024,
+      "revision": "hummingbot-demo-00054-7k6"
+    },
+    "new_start": {
+      "actor_kind": "google",
+      "actor_email": "trung.nguyen@genefriendway.com",
+      "command_id": "d3ae6aff-9e5f-46cb-b76c-734b90f3f06e",
+      "session_id": "0830e903-81b9-4288-8b5a-91b8edb1cb6d",
+      "mode": "both/follow_market/until_stopped"
+    },
+    "observation_in_progress": false
+  },
+  "post_recovery_demo_result": {
+    "scope": "Real Cloud Demo recovery follow-up, not a full load/soak gate",
+    "started_at": "2026-11-09T13:23:02.520954+00:00",
+    "sample_count": 89,
+    "last_healthy_sample_elapsed_seconds": 461.887,
+    "attempted_measurement_seconds": 600,
+    "completed_600_second_gate": false,
+    "failure": {
+      "type": "AssertionError",
+      "detail": "Trading no longer running"
+    },
+    "requested_final_state": "running",
+    "actual_final_state": "stopped/halted",
+    "final_status": {
+      "server_time": "2026-11-09T13:32:33.733424Z",
+      "desired_state": "stopped",
+      "running": false,
+      "phase": "halted",
+      "error": "RecoveryRequired",
+      "control_version": 15,
+      "acknowledged_version": 15
+    },
+    "new_halt": {
+      "at": "2026-11-09T13:31:01.025Z",
+      "reason": "drawdown_controller_limit",
+      "controller_id": "demo_btc_spot",
+      "max_controller_drawdown_quote": "15",
+      "last_pre_breach_spot_sample": {
+        "peak_quote": "2.586496555971199999999999983",
+        "pnl_quote": "-12.20370838693280000000000007",
+        "drawdown_quote": "14.79020494290400000000000005"
+      },
+      "exact_breach_pnl_sample_retained": false,
+      "stop_triggered_checkpoint": true,
+      "drawdown_reset_applied": false
+    },
+    "owner_identity_pairs": [
+      [
+        "0505e29c-4148-4362-a2a6-054383efccc1",
+        45
+      ]
+    ],
+    "owner_identity_basis": "retained application logs plus final durable DB; API sample IDs do not expose ownership UUID/generation",
+    "observed_engine_restart": false,
+    "startup_probe_warnings": [
+      {
+        "at": "2026-11-09T13:23:11.876834Z",
+        "message": "Service child event=child_probe_failed role=engine exit_code=None retry_after_s=None first_reason=timeout failed_probes=1 failure_seconds=0.0 max_probe_gap_seconds=1.31 probe_status=None probe_elapsed_ms=300.997 max_probe_elapsed_ms=300.997"
+      }
+    ],
+    "error_records": [
+      {
+        "at": "2026-11-09T13:31:01.026471Z",
+        "event": "service_incident",
+        "reason_code": "drawdown_controller_limit"
+      }
+    ],
+    "minute_resource_samples_through_risk_stop": {
+      "memory": {
+        "sample_count": 8,
+        "minute_mean_min": 0.4491729736328125,
+        "minute_mean_max": 0.4605064392089844
+      },
+      "cpu": {
+        "sample_count": 8,
+        "minute_mean_min": 0.048269571498941066,
+        "minute_mean_max": 0.12076510084442743
+      }
+    },
+    "native_full_fill_handoffs": [
+      {
+        "executor_id": "HhtJM5VipHKcDAb6CLw3ewYNkgA9p1nRX5xU3a7gwp3P",
+        "order_id": "93027a12dac34fBCSBCUT56401360176",
+        "level_id": "sell_0",
+        "full_quantity": "0.00066897",
+        "fill_timestamp": 1794230924.49,
+        "executor_created_at": 1794230914.2975957,
+        "close_timestamp_seconds": 1794230926,
+        "close_timestamp_precision_seconds": 1,
+        "close_type": 10,
+        "configured_refresh_seconds": 60,
+        "lifetime_seconds": 11.702404260635376,
+        "next_venue_order_id": null,
+        "next_venue_order_created_at": null,
+        "seconds_to_next_acknowledged_order_creation": null
+      },
+      {
+        "executor_id": "HADx6v5f8mtr2kE4T6L4nkMsmgk2LB3sumYRxcxJ3n4L",
+        "order_id": "93027a12dac34fBCSBCUT10dffd67c29",
+        "level_id": "sell_1",
+        "full_quantity": "0.00066883",
+        "fill_timestamp": 1794230940.49,
+        "executor_created_at": 1794230914.2978528,
+        "close_timestamp_seconds": 1794230942,
+        "close_timestamp_precision_seconds": 1,
+        "close_type": 10,
+        "configured_refresh_seconds": 60,
+        "lifetime_seconds": 27.702147245407104,
+        "next_venue_order_id": null,
+        "next_venue_order_created_at": null,
+        "seconds_to_next_acknowledged_order_creation": null
+      }
+    ],
+    "perpetual_handoff_exercised": false,
+    "perpetual_quote_block": {
+      "reason": "inventory_limit",
+      "long_btc": "0.0030",
+      "short_btc": "0.0048",
+      "gross_btc": "0.0078",
+      "max_gross_base": "0.008",
+      "cap_override": false
+    },
+    "financial": {
+      "total_exact_individual_rest_fill_matches": 68,
+      "new_matches": 3,
+      "new_by_connector": {
+        "okx": 3,
+        "okx_perpetual": 0
+      },
+      "final_counts": {
+        "orders": 323,
+        "trade_fills": 68,
+        "positions": 3,
+        "executors": 230
+      },
+      "original_fees_matched": true,
+      "spot_cash_delta_matches_recorded_net_change": true,
+      "spot_btc_cash_before": "0.979621450584",
+      "spot_btc_cash_after": "0.978161850584",
+      "new_spot_quantity": "0.00145960",
+      "new_fees_usdt": "0.0872787752376",
+      "venue_pending_orders": {
+        "SPOT": 0,
+        "SWAP": 0
+      },
+      "perpetual_legs_match_rest": true,
+      "spot_durable_aggregate_quantity_volume_fees_exact": true
+    },
+    "post_risk_stop_backup": {
+      "format": "pg_dump custom PostgreSQL16",
+      "sha256": "78debc45a1fee9f5e235f4f3538c6264ab07f0a4adbca65dc931b28775a186c4",
+      "bytes": 137147,
+      "private": true,
+      "risk_halt_retained": true
+    },
+    "original_15_second_stall_unique_cause_proven": false,
+    "memory_leak_proven_or_disproven": false,
+    "basic_fallback_used_for_trading_commands": false,
+    "new_stop_command": "9537deb8-a203-4825-b403-cab7bede4335"
+  },
+  "approval_received_for_checkpoint_recovery": true,
+  "approval_required_before_additional_risk_recovery": true
 }

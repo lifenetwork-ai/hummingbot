@@ -1,10 +1,14 @@
 # Cloud Run Demo — Google identity and credentials lifecycle
 
-2026-11-09, Asia/Ho_Chi_Minh. **Latest state: revision54 API is available, but
-trading is HALTED.** The first engine failure and position-checkpoint mismatch
+2026-11-09, Asia/Ho_Chi_Minh. **Latest state: revision54 is STOPPED/HALTED by a
+separate spot drawdown limit.** The first engine failure and position-checkpoint mismatch
 occurred on revision52 before the next deployment. All65 fills match OKX REST;
-the operator has increased resources to2vCPU/1GiB with the same image. Live
-database recovery still requires review and has not been applied.
+the operator has increased resources to2vCPU/1GiB with the same image. The approved
+three-row recovery and incident HALT removal committed with audit36; original
+history/credentials/risk checkpoints remain. Spot quotes and two early full-fill
+handoffs were observed; the subsequent15USDT spot drawdown breach remains protected.
+All68 final fills match REST; pending orders0. Perpetual new quotes were blocked by
+its gross cap. The600-second attempt failed; it is not a continuous/two-sided pass.
 [Incident, reproduction and recovery preview](../platform/cloudrun-demo-abrupt-restart.md).
 
 **Earlier bounded result: revision52 was left running on

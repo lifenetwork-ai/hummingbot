@@ -625,15 +625,28 @@ remains exact. No recovery checkpoint or risk-stop flag has been edited.
   PostgreSQL checkpoint/recovery and stale-owner fences. Add regression coverage
   and document the source/image boundary; retain the historical33.2s quote gap.
 - [ ] Qualify a deployed image containing the filled-entry handoff against actual
-  Demo fills. Revision53 contains the fix but is halted by the prior revision52
-  abrupt exit and stale position checkpoint; see the
+  Demo fills. Revision54 exercises two natural full spot handoffs before60s,
+  but its600-second attempt fails on a separate spot15USDT drawdown breach.
+  Perpetual new quotes remain blocked by its existing gross cap. The new risk
+  HALT/checkpoint is preserved; see the
   [incident/recovery preview](../../reports/platform/cloudrun-demo-abrupt-restart.md).
   Do not claim the33.2s gap eliminated remotely or the99% quote objective achieved.
 - [x] Compare first failure with deployment audits, reconcile all65 fills against
   individual REST trades and reproduce actual SIGKILL with stale/matching position
   checkpoints on disposable PostgreSQL (4 integration cases pass). The original
-  unresponsive interval/OOM attribution remains unproven; no live reset was applied.
+  unresponsive interval/OOM attribution remains unproven; this read-only stage
+  applied no live reset.
+- [x] Apply the separately approved three-row recovery after fresh REST proof,
+  quiescence, full PostgreSQL16 backup/restore rehearsal and native position
+  comparison. Maintenance audit36; financial-history/credential table fingerprints
+  and risk checkpoints unchanged. Google Stop13/Start14 and automatic scaling1/1
+  restored on revision54,2vCPU/1GiB. This does not attribute the original stall.
+- [x] Retain89 healthy samples, two native early full-spot handoffs and68/68 exact
+  REST fill/fee matches, then record the separate protected drawdown stop. Google
+  Stop15/15; pending orders0; durable spot quantity/volume/fees exact and backups
+  retained. Do not mark the600-second gate complete, reset the new risk breach or
+  claim perpetual handoff/SLO coverage from this attempt.
 
-Cloud limits1vCPU/512Mi differ from the proposed2vCPU/2Gi and the older local load
-gate. No resource change, new full soak, thirty-minute quote SLO, production FE or
-real GCP KMS qualification is implied.
+The operator increased Cloud limits from1vCPU/512Mi to2vCPU/1Gi, still differing
+from the older2vCPU/2Gi local load gate. No new full soak, thirty-minute quote SLO,
+production FE or real GCP KMS qualification is implied.

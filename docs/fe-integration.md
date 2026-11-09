@@ -485,6 +485,13 @@ receipt or one market's `ready` field alone.
 
 Risk observation failures have separate meanings:
 
+- `drawdown_controller_limit` / `drawdown_global_limit`: a configured protection
+  stopped trading. Show **Trading stopped — risk limit reached**, the affected
+  controller and configured threshold, with held exposure still visible. This is
+  distinct from a connectivity failure or unknown service crash. After teardown,
+  current PnL/drawdown may be null/stale; do not fabricate an exact breach value
+  from the limit or an earlier sample. Retain the saved reason/peaks and operator
+  action requirement; reconnecting or restarting does not reset the protection.
 - `spot_outflow_checkpoint_invalid` / `drawdown_checkpoint_invalid`: saved risk
   data cannot be verified. A fresh operator summary shows **Risk data needs review**,
   disables Start/Switch and retains Stop. Contact support; do not reset or delete

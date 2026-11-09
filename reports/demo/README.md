@@ -2,10 +2,14 @@
 
 [All reports](../README.md) · [Current offline image](../release/mm-runtime-followup-load.md)
 
-**Latest Cloud state: trading is HALTED on revision54 (2vCPU/1GiB).** The old revision52
-failed before the subsequent deployment; all65 fills match REST, but position
-aggregate checkpoints are stale. Operator resources were increased; no live reset
-has been applied.
+**Latest Cloud state: trading is STOPPED/HALTED on revision54 (2vCPU/1GiB).** The old revision52
+failed before the subsequent deployment; all65 baseline fills match REST. The
+separately approved three-row checkpoint recovery is applied (audit36), and a
+new Google-controlled attempt reaches89 healthy samples, then stops on the
+separate spot15USDT drawdown guard. Two full spot fills hand off early; all68 fills
+match REST, pending orders0 and the new risk HALT remains. Perpetual new quotes
+were blocked by the existing gross-exposure cap. No cap/peak/stop flag was reset
+or position forcibly closed; the600-second continuous-run gate remains failed.
 [Incident and proposed recovery](../platform/cloudrun-demo-abrupt-restart.md).
 
 [Cloud Run Google lifecycle acceptance](cloudrun-google-credentials-acceptance.md)
