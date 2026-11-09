@@ -109,6 +109,13 @@
     "proposed_exception": "resource.labels.service_name=\"hummingbot-demo\" AND (LOG_ID(\"run.googleapis.com/stdout\") OR LOG_ID(\"run.googleapis.com/stderr\"))",
     "applied": false,
     "other_service_filters_preserved": true,
-    "request_log_exclusion_preserved": true
+    "request_log_exclusion_preserved": true,
+    "operator_approved": true,
+    "update_denied_permission": "logging.sinks.update",
+    "allowed_logging_update_permissions": [],
+    "exclusion_readback_unchanged": true,
+    "swagger_authenticated_http": 200,
+    "swagger_path": "/api/v1/admin/docs",
+    "permission_check_log_sha256": "6bf5dcb5c0b2c9c4215495bcdd945ee220685e3df83ea70cbd5c02b154a86a18"
   }
 }

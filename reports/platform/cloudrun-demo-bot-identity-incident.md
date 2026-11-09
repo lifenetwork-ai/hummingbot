@@ -94,8 +94,8 @@ application `LOG_LEVEL` is omitted and defaults to INFO; current engine logs are
 filtered by ingestion routing, while Cloud Audit lifecycle events still appear.
 Changing the viewer severity cannot restore excluded records.
 
-Prepared, not yet approved/applied: preserve the original exclusion and append
-an exception **only for this service's application stdout/stderr**:
+The operator approved preserving the original exclusion and appending an
+exception **only for this service's application stdout/stderr**:
 
 ```text
 resource.labels.service_name="hummingbot-demo"
@@ -106,3 +106,15 @@ All other service exclusions and this service's HTTP request-log filtering stay
 unchanged. This needs no new service revision or engine/DB change; it applies to
 future logs. The exact old/new filter is retained privately for review. Routing
 and exclusion behavior follows [Cloud Logging routing](https://docs.cloud.google.com/logging/docs/routing/overview).
+
+The approved update was denied by IAM (`logging.sinks.update`); a project
+permission check confirms the active account also lacks `logging.exclusions.update`.
+Readback confirms all exclusion entries remain unchanged. An administrator must
+apply the prepared `after_filter` in
+`build/cloudrun-identity-20261109/proposed-logging-exemption.json`, or grant the
+appropriate logging-configuration permission before retry. No broad rule was
+disabled and no service, revision, DB or trading state was changed for this step.
+
+The supplied service URL's `/api/v1/admin/docs` was independently checked with the
+configured Basic authentication and returns200 HTML. Swagger is available in the
+current `ENV=dev` revision; this check does not enable production documentation.
