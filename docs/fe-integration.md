@@ -483,6 +483,11 @@ receipt or one market's `ready` field alone.
 | Stopped/expired | MM idle; continue displaying held exposure and reporting freshness |
 | HALT/operator action required | Show reason and runbook; do not offer an unimplemented reset/resume action |
 
+Cloud edge errors during maintenance can return HTML/plain text for HTTP502/503/504.
+Handle the HTTP status even when the body cannot be parsed as JSON: show **Service
+temporarily unavailable**, keep prior observations stale and retry reads. Do not
+render a raw JSON-parser exception or automatically repeat trading mutations.
+
 Risk observation failures have separate meanings:
 
 - `drawdown_controller_limit` / `drawdown_global_limit`: a configured protection

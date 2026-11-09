@@ -2,14 +2,20 @@
 
 [All reports](../README.md) · [Current offline image](../release/mm-runtime-followup-load.md)
 
-**Latest Cloud state: trading is STOPPED/HALTED on revision54 (2vCPU/1GiB).** The old revision52
-failed before the subsequent deployment; all65 baseline fills match REST. The
-separately approved three-row checkpoint recovery is applied (audit36), and a
-new Google-controlled attempt reaches89 healthy samples, then stops on the
-separate spot15USDT drawdown guard. Two full spot fills hand off early; all68 fills
-match REST, pending orders0 and the new risk HALT remains. Perpetual new quotes
-were blocked by the existing gross-exposure cap. No cap/peak/stop flag was reset
-or position forcibly closed; the600-second continuous-run gate remains failed.
+**Latest Cloud state: trading is RUNNING on revision55 (2vCPU/1GiB), Until stopped.**
+The separately approved100/200USDT policy re-arm (audit39) preserves all PnL peaks
+and financial history.115 samples pass the new600-second observation, control16/16;
+70 fills match REST, including two new natural spot fills. Final readback has two
+spot SELL orders and no perpetual quotes because its existing gross cap remains.
+Startup probe/controller warnings remain explicit. This is not a full soak,
+two-sided SLO or new perpetual-fill qualification.
+[Applied policy and bounded result](cloudrun-drawdown-policy-recovery-proposal.md).
+
+The old revision52 failure and separately approved three-row checkpoint recovery
+(audit36) retain their scope. The revision54 attempt then stopped on15USDT spot
+drawdown after89 healthy samples; that old600-second attempt remains failed.
+Its68 fills matched REST and the old risk stop was only re-armed after the separate
+100/200USDT approval. No cap was raised or perpetual position forcibly closed.
 [Incident and proposed recovery](../platform/cloudrun-demo-abrupt-restart.md).
 
 [Cloud Run Google lifecycle acceptance](cloudrun-google-credentials-acceptance.md)

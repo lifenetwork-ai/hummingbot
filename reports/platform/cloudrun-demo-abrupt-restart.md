@@ -1,8 +1,15 @@
 # Cloud Demo abrupt restart and stale position checkpoint
 
-2026-11-09, Asia/Ho_Chi_Minh. **Reviewed checkpoint recovery succeeded; trading is
-now STOPPED/HALTED by a separate spot drawdown limit.**
-Latest operator update: revision54 (`hummingbot-demo-00054-7k6`) serves100% traffic
+2026-11-09, Asia/Ho_Chi_Minh. **Latest state: revision55 is RUNNING after separately
+approved100/200USDT policy re-arm; its600-second observation passes.**
+Audit39 preserves all PnL peaks and financial/credential table fingerprints.
+Google Start16/16 retains Until stopped.115 samples and70 REST-matched fills
+(two new natural spot fills) support this bounded result; startup warnings and
+perpetual inventory suppression remain explicit.
+The earlier revision54 attempt below remains a failed600-second gate with a
+separate15USDT risk stop; its record has not been relabelled as a pass.
+
+Earlier operator update: revision54 (`hummingbot-demo-00054-7k6`) served100% traffic
 with **2vCPU/1GiB**, confirmed at20:10 local. The image is unchanged from revision53.
 Fresh REST shows pending SPOT/SWAP orders0/0 and the same long0.0030/short0.0048 BTC.
 The resource update alone did not clear `RecoveryRequired`. Subsequent approved
@@ -157,8 +164,9 @@ configured allocation/skew; acknowledged spot SELL quotes remain present.
   before their configured60s refresh; keep the partial-fill case distinct.
 - [x] Verify final68/68 individual REST fill matches, cash/fees/positions and zero
   pending orders after graceful risk Stop; retain the new drawdown protection.
-- [ ] Complete the600-second continuous-run gate: this attempt fails on a genuine
-  controller drawdown breach, not an observed engine kill/restart.
+- [x] Repeat the600-second continuous-run observation on revision55 with separately
+  approved100/200USDT policy:115 samples pass, final RUNNING16/16 and70 REST-matched
+  fills. The earlier revision54 attempt still fails its15/25USDT drawdown policy.
 - [ ] Exercise perpetual full-fill handoff; its existing exposure cap blocks new
   quotes and was not overridden.
 - [ ] Attribute or reproduce the original unresponsive interval; retain the
@@ -220,9 +228,13 @@ old initialization HALT must not be reused to reset this new risk breach.
 ## Subsequent requested Demo limits — source update only
 
 The operator subsequently requested100USDT per controller and200USDT globally.
-The Demo YAML and current operating guide now contain those values; catalogue
-validation and15 existing profile tests pass. The historical15/25USDT breach
-evidence above remains unchanged. This source edit has not deployed a new image,
-changed the live risk checkpoint or cleared the current drawdown HALT. The new
-YAML must be packaged, and the protected checkpoint requires separate reviewed
-recovery before trading can resume.
+The Demo YAML and current operating guide contain those values; catalogue
+validation and15 existing profile tests pass. The operator has now deployed
+revision55 (`0acdcba89…`); actual `/profiles` confirms200/100 with2vCPU/1GiB.
+The historical15/25USDT breach evidence remains unchanged. The operator separately
+approved the [bounded recovery](../demo/cloudrun-drawdown-policy-recovery-proposal.md),
+applied as audit39 after fresh68-fill REST proof, quiescence and full PostgreSQL16
+backup/restore rehearsal. The new policy is bound, the old risk latch acknowledged
+and all peaks/financial history retained. Google Start on revision55 succeeds;
+the new600-second observation passes, without relaxing inventory caps. The
+connected result above retains the distinction from the earlier failed run.

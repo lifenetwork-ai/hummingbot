@@ -626,9 +626,11 @@ remains exact. No recovery checkpoint or risk-stop flag has been edited.
   and document the source/image boundary; retain the historical33.2s quote gap.
 - [ ] Qualify a deployed image containing the filled-entry handoff against actual
   Demo fills. Revision54 exercises two natural full spot handoffs before60s,
-  but its600-second attempt fails on a separate spot15USDT drawdown breach.
-  Perpetual new quotes remain blocked by its existing gross cap. The new risk
-  HALT/checkpoint is preserved; see the
+  but its600-second attempt fails on a separate spot15USDT drawdown breach. The
+  separately approved100/200USDT policy re-arm on revision55 then passes the new
+  600-second observation (115 samples, two new natural spot fills,70 REST matches),
+  final RUNNING16/16 Until stopped. Perpetual new quotes remain blocked by its
+  existing gross cap; its full-fill handoff and the two-sided SLO remain open. See the
   [incident/recovery preview](../../reports/platform/cloudrun-demo-abrupt-restart.md).
   Do not claim the33.2s gap eliminated remotely or the99% quote objective achieved.
 - [x] Compare first failure with deployment audits, reconcile all65 fills against
@@ -645,7 +647,15 @@ remains exact. No recovery checkpoint or risk-stop flag has been edited.
   REST fill/fee matches, then record the separate protected drawdown stop. Google
   Stop15/15; pending orders0; durable spot quantity/volume/fees exact and backups
   retained. Do not mark the600-second gate complete, reset the new risk breach or
-  claim perpetual handoff/SLO coverage from this attempt.
+  claim perpetual handoff/SLO coverage from that earlier attempt.
+- [x] Obtain separate100/200USDT re-arm approval; fresh68-fill REST proof,
+  quiescence, full PostgreSQL16 backup/restore rehearsal and native checkpoint
+  binding pass. Audit39 retains peaks and all financial/credential table fingerprints.
+  Revision55 Google Start16/16 and600-second observation pass with115 samples,
+  final RUNNING Until stopped and70 REST-matched fills (two new spot fills).
+  Keep startup probe300.938ms/controller-confirmation5.529s warnings explicit;
+  no application ERROR/HALT/observed engine replacement. Do not transfer this
+  bounded result to full soak, perpetual handoff, two-sided SLO or leak guarantees.
 
 The operator increased Cloud limits from1vCPU/512Mi to2vCPU/1Gi, still differing
 from the older2vCPU/2Gi local load gate. No new full soak, thirty-minute quote SLO,
