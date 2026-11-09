@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm run dev
 ```
 
-**Quality check:** `pnpm run check` validates Agent Skills, then runs ESLint, TypeScript, Vitest coverage gates
+**Quality check:** `pnpm run check` runs ESLint, TypeScript, Vitest coverage gates
 and the production build. For browser checks, run `pnpm exec playwright install chromium`
 and `pnpm run test:e2e`. See [Testing and quality](docs/TESTING.md) for MSW,
 accessibility, snapshot bootstrapping and CI expectations.

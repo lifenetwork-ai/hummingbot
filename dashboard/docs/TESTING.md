@@ -18,7 +18,7 @@ is an example endpoint only; no external API, wallet or smart contract is requir
 | `pnpm run test:a11y` | Playwright axe-core/keyboard-only tests |
 | `pnpm run test:visual:update` | Capture and update baseline PNGs on a Linux/Chromium environment |
 | `pnpm run test:visual` | Compare current screenshots against committed PNG baselines |
-| `pnpm run check` | Skills validation + lint + typecheck + coverage + build |
+| `pnpm run check` | Lint + typecheck + coverage + build |
 
 ## MSW (Mock Service Worker)
 

@@ -19,7 +19,7 @@
     "test:a11y": "playwright test e2e/accessibility.spec.ts",
     "test:visual": "cross-env VISUAL_BASELINES_READY=1 playwright test e2e/visual.spec.ts",
     "test:visual:update": "cross-env VISUAL_BASELINES_READY=1 playwright test e2e/visual.spec.ts --update-snapshots",
-    "check": "pnpm run skills:check && pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run build",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run build",
     "skills:check": "node scripts/validate-skills.mjs",
     "skills:scaffold": "node scripts/scaffold-feature.mjs",
     "skills:sync:claude": "node scripts/sync-claude-skills.mjs"

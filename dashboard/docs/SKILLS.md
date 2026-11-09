@@ -49,7 +49,7 @@ pnpm run skills:sync:claude              # Copy repository skills to Claude Code
 
 The scaffold is intentionally non-destructive, does **not** add routes, API mocks or domain data, and fails if a destination already exists. After generation, follow `routing-navigation` and replace placeholder UI with actual approved requirements.
 
-`pnpm run check` and `.github/workflows/ci.yml` also run `skills:check`. This metadata validation is independent from npm dependencies; it does **not** mean the React build/tests have passed.
+`pnpm run skills:check` is an optional standalone check for repositories that include `.agents/skills/`. It is not part of `pnpm run check` or CI and does not block frontend builds. This metadata validation is independent from npm dependencies; it does **not** mean the React build/tests have passed.
 
 ## Maintenance conventions
 

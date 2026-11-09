@@ -5,7 +5,7 @@ Requires Node.js 22 LTS and pnpm 12.4.1 (pinned in `package.json`).
 ```bash
 pnpm install --frozen-lockfile
 pnpm run dev
-pnpm run skills:check
+pnpm run skills:check # optional: when maintaining .agents/skills/
 pnpm run theme:generate
 pnpm run lint
 pnpm run lint:fix
