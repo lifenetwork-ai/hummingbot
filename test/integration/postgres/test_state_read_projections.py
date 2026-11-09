@@ -1,6 +1,8 @@
+import pytest
 from sqlalchemy import text
 
 from hummingbot.core.bot_ownership import BotOwnership
+from hummingbot.core.control_errors import ControlConflict
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import BotStateStore
 from hummingbot.model.db_migration.postgres.runner import bootstrap_postgres
@@ -18,12 +20,23 @@ def test_publication_projection_excludes_private_recovery_and_catalogue_but_read
     full = store.read()
     public = store.read(publication=True)
     assert "recovery_state" not in public
-    assert public["recovery_summary"] == {"halted": True, "pending_mutations": False, "credential_operation_pending": False}
+    assert public["recovery_summary"] == {"halted": True, "pending_mutations": False, "credential_operation_pending": False,
+                                          "recovery_operation_pending": False}
     assert "private_diagnostic" not in str(public)
     assert "catalogue" not in public["mm_session"]
     assert public["mm_session"] == {key: value for key, value in full["mm_session"].items() if key != "catalogue"}
     assert public["status"] == full["status"]
     assert full["recovery_state"]["halt"] and "catalogue" in full["mm_session"]
+    with pg_engine.begin() as connection:
+        connection.execute(BotState.__table__.update().values(recovery_state={
+            "halt": True, "recovery_operation": {"id": "private-operation", "proof": "not_for_reporting"}}))
+    public = store.read(publication=True)
+    assert public["recovery_summary"]["recovery_operation_pending"] is True
+    assert "private-operation" not in str(public) and "not_for_reporting" not in str(public)
+    with pytest.raises(ControlConflict, match='recovery operation'):
+        store.control(expected_version=0)
+    with pg_engine.begin() as connection:
+        connection.execute(BotState.__table__.update().values(recovery_state={"halt": True}))
     store.control(expected_version=0)
     assert store.read(publication=True)["control_version"] == 1
     with pg_engine.begin() as connection:
