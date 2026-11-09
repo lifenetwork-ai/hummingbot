@@ -719,5 +719,33 @@
     "handoff_observed_at": "2026-11-09T14:36:48.831231Z",
     "handoff_running_no_halt": true,
     "credential_slots_retained": true
+  },
+  "subsequent_read_only_status_followup": {
+    "observed_at": "2026-11-09T15:01:56.778761Z",
+    "revision": "hummingbot-demo-00056-qwj",
+    "image_commit": "bebf29c790bc99a1f9c201baa4e1e6f6488f993c",
+    "running": true,
+    "phase": "running",
+    "error": null,
+    "halted": false,
+    "control_version": 16,
+    "acknowledged_version": 16,
+    "recorded_daily_fill_counts": {
+      "spot": 63,
+      "perpetual": 29
+    },
+    "recorded_daily_total_fills": 92,
+    "daily_report_freshness": "fresh",
+    "global_drawdown_quote": "15.02549784077680000000000014",
+    "spot_drawdown_quote": "13.77278784077680000000000014",
+    "global_limit": "200",
+    "controller_limit": "100",
+    "app_error_records_since_google_start": 0,
+    "probe_warning_records_since_google_start": 3,
+    "latest_memory_minute_mean": 0.45935821533203125,
+    "latest_cpu_minute_mean": 0.05110580544062926,
+    "latest_metric_utc": "2026-11-09T15:02:00Z memory / 15:03:00Z CPU",
+    "interpretation": "Read-only status/reporting/log/metric follow-up;92 is recorder reporting, not a new individual REST reconciliation; rollout occurred so no uninterrupted single-process claim; no long-run leak conclusion",
+    "live_mutations": []
   }
 }

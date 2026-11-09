@@ -1,7 +1,10 @@
 # Cloud Demo abrupt restart and stale position checkpoint
 
-2026-11-09, Asia/Ho_Chi_Minh. **Latest state: revision55 is RUNNING after separately
-approved100/200USDT policy re-arm; its600-second observation passes.**
+2026-11-09, Asia/Ho_Chi_Minh. **Latest read-only check at22:02: revision56 is RUNNING,
+control/ack16/16, no HALT/error;100/200USDT limits remain active.**
+It auto-deployed the documentation commit `bebf29c79…` at21:46; this is a planned
+rollout, not evidence of an unresponsive engine restart. The earlier revision55
+600-second observation below retains its own scope and pass.
 Audit39 preserves all PnL peaks and financial/credential table fingerprints.
 Google Start16/16 retains Until stopped.115 samples and70 REST-matched fills
 (two new natural spot fills) support this bounded result; startup warnings and
@@ -238,3 +241,25 @@ backup/restore rehearsal. The new policy is bound, the old risk latch acknowledg
 and all peaks/financial history retained. Google Start on revision55 succeeds;
 the new600-second observation passes, without relaxing inventory caps. The
 connected result above retains the distinction from the earlier failed run.
+
+## Subsequent read-only follow-up —22:02 local
+
+Current revision56 (`hummingbot-demo-00056-qwj`) is ready with2vCPU/1GiB and the
+same live session/control16/16, no pending recovery or runtime error. Spot has
+two acknowledged SELL orders; BUY allocation/skew and perpetual inventory-limit
+reasons remain visible. Daily reporting is fresh and records92 fills (63 spot,
+29 perpetual), latest spot fill21:59:32. This is recorder reporting, not a new
+individual REST reconciliation of all92 fills.
+
+Drawdown at the status read is13.7728USDT for spot against100, and15.0255USDT
+globally against200. The latest available memory minute mean on revision56 is
+45.94% of1GiB; CPU mean is5.11% of2vCPU. Revision55 rose from42.11% to47.23%
+over27 available memory samples before rollout; revision56 rose from43.05% to
+45.94% over16 samples. This does not establish a plateau or rule out a long-run
+leak, though current memory remains well below the configured limit.
+
+Since21:19:52, retained logs contain no application ERROR, child-unresponsive or
+failure-restart event. Three isolated probe warnings are about301ms:21:20 on55,
+21:46 and21:55 on56. Later status remains healthy. Do not describe the interval
+as uninterrupted execution of one process across the normal21:46 deployment.
+The check used only reads and changed no service, session, credentials or DB state.
