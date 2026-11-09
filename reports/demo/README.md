@@ -2,9 +2,10 @@
 
 [All reports](../README.md) · [Current offline image](../release/mm-runtime-followup-load.md)
 
-**Latest Cloud state: trading is HALTED on revision53.** The old revision52
+**Latest Cloud state: trading is HALTED on revision54 (2vCPU/1GiB).** The old revision52
 failed before the subsequent deployment; all65 fills match REST, but position
-aggregate checkpoints are stale. No live reset/resource change has been applied.
+aggregate checkpoints are stale. Operator resources were increased; no live reset
+has been applied.
 [Incident and proposed recovery](../platform/cloudrun-demo-abrupt-restart.md).
 
 [Cloud Run Google lifecycle acceptance](cloudrun-google-credentials-acceptance.md)

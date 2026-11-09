@@ -1,6 +1,12 @@
 # Cloud Demo abrupt restart and stale position checkpoint
 
 2026-11-09, Asia/Ho_Chi_Minh. **The API is available; trading is HALTED.**
+Latest operator update: revision54 (`hummingbot-demo-00054-7k6`) serves100% traffic
+with **2vCPU/1GiB**, confirmed at20:10 local. The image is unchanged from revision53.
+Fresh REST shows pending SPOT/SWAP orders0/0 and the same long0.0030/short0.0048 BTC.
+The resource update has not cleared `RecoveryRequired`; no live database repair
+has been applied. These are idle/halted observations, not a new trading load gate.
+
 Revision53 contains the filled-entry handoff correction, but startup reconciliation
 blocks strategy admission. Its actual-Demo handoff acceptance remains open.
 [Sanitized evidence and exact proposed row changes](cloudrun-demo-abrupt-restart-evidence.json).
@@ -24,7 +30,7 @@ from revision52, and revision53 has not admitted the strategy to exercise it.
 
 ## Resource pressure and remaining uncertainty
 
-The deployed limit is1vCPU/512MiB. Memory minute means rise from96.45% at17:31
+The incident revision's limit was1vCPU/512MiB. Memory minute means rise from96.45% at17:31
 to97.26%,97.35%,97.57% at17:37–39. CPU utilization also rises. Continuous CPU
 allocation is already enabled; request-idle CPU throttling is not the explanation.
 
@@ -33,7 +39,8 @@ CPU/image/configuration for comparison. Google supports1GiB with1vCPU; a resourc
 update creates a new revision. [Cloud Run memory configuration](https://docs.cloud.google.com/run/docs/configuring/services/memory-limits).
 This provides headroom, not proof that the original stall was caused by memory.
 The retained logs do not establish an OOM kill, a memory leak or a unique cause
-of the15-second unresponsive interval. No resource/probe threshold was changed.
+of the15-second unresponsive interval. The investigator made no resource/probe
+threshold change; the operator subsequently increased resources as recorded above.
 
 ## Financial readback
 
@@ -109,10 +116,11 @@ orders, fills, funding, credential envelopes/versions, account bindings, session
 intent and strategy risk checkpoints. Roll back on any unexpected baseline or
 venue discrepancy. Do not clear HALT while leaving its quantity mismatch.
 
-Separately update Cloud memory to1GiB, retaining1vCPU, the image and other
-configuration. Resume only after reconciliation succeeds, then verify actual
+The operator has separately increased Cloud resources to2vCPU/1GiB, retaining
+the image. Resume only after reconciliation succeeds, then verify actual
 Demo fills and the handoff branch, pending orders, risk exposure and memory.
-These live actions require operator approval; none has been performed here.
+The database repair and resumption still require operator approval and have not
+been performed here.
 
 ## Checklist
 
@@ -120,7 +128,8 @@ These live actions require operator approval; none has been performed here.
 - [x] Independently reconcile all recorded fills and current hedge-leg quantities.
 - [x] Reproduce SIGKILL with stale/matching checkpoints on disposable PostgreSQL.
 - [x] Prepare exact native replay preview and preserve original financial history.
-- [ ] Obtain operator review and perform the bounded live repair/resource change.
+- [x] Verify the operator's resource update to2vCPU/1GiB on revision54.
+- [ ] Obtain operator review and perform the bounded live database repair.
 - [ ] Verify successful startup and real-Demo handoff on revision53 or its successor.
 - [ ] Attribute or reproduce the original unresponsive interval; retain the
   distinction between resource headroom and a proven runtime fix.

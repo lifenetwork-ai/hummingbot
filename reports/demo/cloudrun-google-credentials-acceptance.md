@@ -1,9 +1,10 @@
 # Cloud Run Demo — Google identity and credentials lifecycle
 
-2026-11-09, Asia/Ho_Chi_Minh. **Latest state: revision53 API is available, but
+2026-11-09, Asia/Ho_Chi_Minh. **Latest state: revision54 API is available, but
 trading is HALTED.** The first engine failure and position-checkpoint mismatch
 occurred on revision52 before the next deployment. All65 fills match OKX REST;
-live recovery/resource changes require review and have not been applied.
+the operator has increased resources to2vCPU/1GiB with the same image. Live
+database recovery still requires review and has not been applied.
 [Incident, reproduction and recovery preview](../platform/cloudrun-demo-abrupt-restart.md).
 
 **Earlier bounded result: revision52 was left running on

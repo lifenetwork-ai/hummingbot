@@ -182,5 +182,32 @@
   },
   "live_mutations": [],
   "deployed_handoff_demo_acceptance_complete": false,
-  "approval_required_before_live_recovery": true
+  "approval_required_before_live_recovery": true,
+  "operator_resource_followup": {
+    "revision": "hummingbot-demo-00054-7k6",
+    "traffic_percent": 100,
+    "cpu": 2,
+    "memory_mib": 1024,
+    "image_unchanged": true,
+    "changed_by": "operator",
+    "live_database_repair_applied": false,
+    "status": {
+      "server_time": "2026-11-09T13:10:15.987119Z",
+      "desired_state": "running",
+      "running": false,
+      "phase": "halted",
+      "error": "RecoveryRequired",
+      "control_version": 12,
+      "acknowledged_version": 12
+    },
+    "rest_observed_at": "2026-11-09T13:10:18.089154+00:00",
+    "venue_pending_orders": {
+      "SPOT": 0,
+      "SWAP": 0
+    },
+    "perpetual_base_btc": {
+      "short": "0.0048",
+      "long": "0.003"
+    }
+  }
 }
