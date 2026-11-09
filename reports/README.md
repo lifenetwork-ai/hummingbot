@@ -33,7 +33,8 @@ passes on `4451974e…`: all profiles through Random steps0/1/2, active restart,
 Stop, real close/remove/reconfigure and stopped cold restart. Old history and
 spot cash remain, perpetual flat/pending orders0, no HALT. Three natural spot
 fills plus seven cleanup fill parts match individual REST. One optional cleanup
-reporting warning recovers; it remains a nonfatal source follow-up. New candidate
+reporting warning recovers; its synthetic-name cause is now fixed in source by
+TDD (native96/PG109), not yet packaged/retested on Demo. Next candidate packaging/
 full release/soak and real GCP KMS remain open. [Quote diagnostics](performance/mm-managed-local-quote-activity.md)
 distinguish policy agreement from thirty-minute coverage qualification.
 

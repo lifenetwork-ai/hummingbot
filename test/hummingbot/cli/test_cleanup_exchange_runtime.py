@@ -26,6 +26,74 @@ def runtime():
 
 
 @pytest.mark.asyncio
+async def test_prepared_cleanup_publishes_native_engine_status_without_a_strategy(monkeypatch):
+    from hummingbot.cli.credential_cleanup_runtime import CLEANUP_CONFIG
+    from hummingbot.cli.service_availability import ServiceAvailability
+    from hummingbot.cli.service_observations import ServiceObservations
+    from hummingbot.client.config.client_config_map import ClientConfigMap
+    from hummingbot.core.data_type.common import PositionMode
+    from hummingbot.core.trading_core import TradingCore
+
+    core = TradingCore(ClientConfigMap(), enable_gateway_monitor=False)
+    connector = SimpleNamespace(
+        trading_pair_symbol_map_ready=lambda: True, trading_rules={}, get_all_balances=lambda: {},
+        _fetch_account_position_mode=AsyncMock(return_value=PositionMode.HEDGE),
+        _perpetual_trading=SimpleNamespace(set_position_mode=Mock()))
+    core.connector_manager = SimpleNamespace(connectors={'okx_perpetual': connector}, get_status=lambda: {})
+    monkeypatch.setattr('hummingbot.core.trading_core.SQLConnectionManager.get_trade_fills_instance', Mock())
+    recorder = Mock()
+    monkeypatch.setattr('hummingbot.core.trading_core.MarketsRecorder', recorder)
+    observations, availability = ServiceObservations(), ServiceAvailability()
+    captured = []
+
+    async def initialize_markets(markets):
+        core.initialize_markets_recorder()
+        captured.append(observations.capture(core, owner, availability))
+
+    async def start_clock():
+        core._is_running = True
+        return True
+
+    core.initialize_markets, core.start_clock = initialize_markets, start_clock
+    owner = SimpleNamespace(owner_uuid='owner', generation=1, _mutate_recovery=Mock())
+    host = SimpleNamespace(hb=SimpleNamespace(trading_core=core), owner=owner,
+                           stop_core=AsyncMock(return_value=True), detach_credential_readers=AsyncMock(),
+                           managed_credentials=SimpleNamespace(reload_cleanup=AsyncMock(return_value={'okx_perpetual': 3})))
+    store = SimpleNamespace(disconnect_snapshot=Mock(return_value={
+        'state': {'recovery_state': {}, 'control_version': 7},
+        'positions': [], 'orders': [], 'tracking_states': []}))
+    instance = CleanupExchangeRuntime(host, store)
+    await instance.prepare({'id': 'disconnect'})
+    captured.append(observations.capture(core, owner, availability))
+
+    assert availability.snapshot()['incidents'] == []
+    for value in captured:
+        assert not value['reporting_unavailable']
+        assert value['engine']['strategy_name'] is None
+        assert value['engine']['strategy_type'] is None
+        assert value['engine']['strategy_file_name'] == CLEANUP_CONFIG
+        assert value['engine']['strategy_running'] is False
+        assert value['engine']['markets_recorder_active'] is True
+    assert captured[-1]['engine']['clock_running'] is True
+    assert core.strategy is None and instance.initialized
+    assert owner.allow_new_orders is False and owner.cleanup_operation_id == 'disconnect'
+    assert core.markets_recorder.cleanup_operation_id == 'disconnect'
+    # Existing recorder fallback retains the cleanup configuration identity;
+    # there is no executable strategy and no new recorder/identity mechanism.
+    assert recorder.call_args.args[2:4] == (CLEANUP_CONFIG, CLEANUP_CONFIG)
+
+
+def test_native_engine_status_still_rejects_an_unknown_strategy():
+    from hummingbot.client.config.client_config_map import ClientConfigMap
+    from hummingbot.core.trading_core import TradingCore
+
+    core = TradingCore(ClientConfigMap(), enable_gateway_monitor=False)
+    core.strategy_name = 'missing_cleanup_review_strategy'
+    with pytest.raises(ValueError, match='Unknown strategy: missing_cleanup_review_strategy'):
+        core.get_status()
+
+
+@pytest.mark.asyncio
 async def test_unknown_orders_block_completion_without_canceling_their_ids():
     instance, connector = runtime()
     order = SimpleNamespace(client_order_id="HB-known", is_done=True)

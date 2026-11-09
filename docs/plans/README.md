@@ -63,10 +63,12 @@ needs its own full release/soak before production closeout. See the
 - [x] Separately reviewed HALT recovery and connected Random/restart/cleanup pass;
   both hedge sides close, selected key removed/reconfigured and stopped cold
   restart preserves exact ledger. [Connected report](../../reports/demo/managed-local-connected-followup.md).
-- [ ] Full release/soak on `4451974e…` before production closeout.
-- [ ] Nonfatal cleanup reporting projection: synthetic strategy-name classifier
-  raises ValueError; one3.682-second observation incident recovers. Cleanup/
-  terminal/ledger proof passes; remove the warning separately with TDD.
+- [ ] Package latest corrected source and run full release/soak on the next
+  candidate before production closeout; current Demo image remains `4451974e…`.
+- [x] Cleanup reporting source correction: real-core Red1/control-pass1; native96
+  and PostgreSQL109 pass. Keep cleanup strategy-free and retain recorder config
+  identity; genuine unknown strategies still fail. The historical3.682-second
+  warning stays recorded; this source correction is not in the current Demo image.
   [Demo scope](OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
 
 ## Unresolved policy and historical attribution

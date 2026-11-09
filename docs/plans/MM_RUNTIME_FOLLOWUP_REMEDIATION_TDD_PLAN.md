@@ -578,11 +578,14 @@ Unrelated containers/images/volume remain; real external acceptance is deferred.
   only selected envelope is removed. API reconfigure and stopped cold restart
   pass; all ten new fills match REST, old23 fills/3,513 order IDs remain.
   [Connected report](../../reports/demo/managed-local-connected-followup.md).
-- [ ] Run the candidate's full release/soak before production closeout; the old
-  image's load result does not transfer to `4451974e…`.
-- [ ] Remove the nonfatal cleanup engine-reporting classifier warning with TDD.
-  One ValueError observation incident recovered in3.682 seconds; no HALT/restart
-  or cleanup proof failure. It is separate from the repaired shutdown path.
+- [ ] Package the latest corrected source and run the next candidate's full
+  release/soak before production closeout; earlier image results do not transfer.
+- [x] TDD source fix for cleanup engine reporting: real-core Red1/control-pass1,
+  related native96 and PostgreSQL109 pass. Cleanup has no executable strategy;
+  use `strategy_name=None` and the existing configuration/recorder fallback.
+  General discovery/error fallback, cleanup proofs and old attribution remain.
+  The3.682-second historical warning is retained; this separate correction is
+  not packaged or connected-Demo-retested yet. [Investigation](../../reports/demo/managed-local-connected-followup.md#subsequent-cleanup-reporting-investigation--2026-11-09).
 
 Incident and pre-cutover backups/KEK are retained in the private
 `~/.config/hummingbot/managed-demo-local-20261109` folder. The reviewed cleanup subsequently closed the held

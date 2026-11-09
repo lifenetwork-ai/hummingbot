@@ -237,5 +237,37 @@
     "final-audit.json": "9e1047d1f62d518f49eb6d915a396cb94373ed9712390a5d2a971e9191faf71f",
     "remediated-runtime-private.jsonl": "33eb5364c635786d5c2488647b5a6413718a382ad330f92ab727ee88d15cd98a",
     "disconnect-first-helper.log": "473c1a9ed8c1256e2f2da46086ad8189f05133ebcd5c69df24179268e5852a37"
+  },
+  "cleanup_reporting_remediation": {
+    "date": "2026-11-09",
+    "preexisting_assignment_commit": "4f284b9f84",
+    "preexisting_assignment_date": "2026-11-05",
+    "cause": "Cleanup assigns synthetic credential_cleanup strategy name; native status strategy discovery rejects it with ValueError",
+    "observed_warning_seconds": 3.682,
+    "warning_interval_is_not_query_or_mm_downtime": true,
+    "source_fix": "Set cleanup strategy_name to None; retain credentials_cleanup configuration and existing recorder fallback",
+    "core_discovery_or_fallback_modified": false,
+    "existing_ledger_rewritten": false,
+    "new_cleanup_recorder_strategy_label": "credentials_cleanup",
+    "red": {
+      "failed": 1,
+      "passed_control": 1,
+      "failure": "Real native status projection produces engine_reporting_unavailable/ValueError during cleanup prepare"
+    },
+    "green_native_related": 96,
+    "postgres_related": {
+      "passed": 109,
+      "deselected": 448,
+      "seconds": 108.25
+    },
+    "new_image_packaged": false,
+    "real_demo_retested_after_this_source_fix": false,
+    "existing_demo_image": "4451974e",
+    "existing_demo_kept_stopped_flat": true,
+    "log_sha256": {
+      "cleanup-reporting-red.log": "163d03e9261e52587d0790e8fbc0b39e26e80c6b8be60cb5e65428c23bb4717d",
+      "cleanup-reporting-green.log": "ca8d758c0e9ede25ca376de74fbb37611f77f1c880b92f179342118bf555e832",
+      "cleanup-reporting-postgres.log": "45adbd8e17b9113aa29a1761ea8ec9c8abd1f89a8f00b698ffa4c22ecca9857b"
+    }
   }
 }

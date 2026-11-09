@@ -25,8 +25,9 @@ and [credential operations](../../docs/exchange-credentials.md).
 New managed-Demo candidate `4451974e…` passes native2,868 +16 subtests, PG557,
 targeted packaged E2E and [connected recovery/Random/restart/cleanup](../demo/managed-local-connected-followup.md).
 All original history is preserved; final bot stopped, no HALT/pending orders and
-perpetual flat. A nonfatal cleanup reporting warning and the new candidate's
-full release/soak remain separate follow-ups. The full-load numbers below retain
+perpetual flat. The cleanup reporting warning's synthetic-name cause is now
+fixed in source (real-core Red1, native96/PG109). Packaging/retesting this separate
+correction and the next candidate's full release/soak remain. The full-load numbers below retain
 their preceding-image scope.
 
 Image **`b090430c…`**, build `d0791e563`, packages the earlier recorder/quote/

@@ -54,7 +54,10 @@ class CleanupExchangeRuntime:
         self.owner.listing_bootstrap = self.owner.spot_outflow = None
         self.owner.volatility_checkpoints = None
         self.owner.mm_quote_check = None
-        self.core.strategy_name = "credential_cleanup"
+        # Cleanup uses connectors/recorder directly, without a strategy. Keep
+        # its configuration identity for recorder attribution and status, but
+        # do not send a synthetic strategy name through strategy discovery.
+        self.core.strategy_name = None
         self.core.strategy_file_name = CLEANUP_CONFIG
         await self.core.initialize_markets([(name, sorted(values)) for name, values in pairs.items()])
         self.core.markets_recorder.cleanup_operation_id = operation["id"]

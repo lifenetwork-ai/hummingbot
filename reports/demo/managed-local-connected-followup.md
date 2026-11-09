@@ -69,7 +69,8 @@ local** (3.682 seconds), with a matching recovery event. Code inspection and a
 classifier witness show the synthetic `credential_cleanup` name is not a known
 strategy. The reporting fallback kept cleanup functioning; the incident did not
 cause HALT/restart or invalidate terminal/position proof. Removing this reporting
-warning remains a nonfatal follow-up; it is not claimed fixed by the readback work.
+warning was not fixed by the readback work. The subsequent source correction is
+recorded below; this historical image/log result remains unchanged.
 
 The initial Disconnect helper incorrectly required two intermediate-stage proof
 fields on the final receipt. The failed helper/log is preserved. Inspection of
@@ -83,3 +84,38 @@ This short connected run does not qualify a thirty-minute99% quote-coverage targ
 or continuous quoting between samples. The previous full offline load/soak result
 belongs to `b090430c…`; the new candidate still needs its own full release/soak
 before production closeout. No live account or Cloud Run deployment was used.
+
+## Subsequent cleanup reporting investigation — 2026-11-09
+
+The synthetic assignment dates to `4f284b9f84` (2026-11-05), before the current
+terminal-readback fix. `CleanupExchangeRuntime.prepare()` sets `strategy_name`
+to `credential_cleanup`, although cleanup uses the native connectors, clock and
+recorder directly and never loads a strategy. `TradingCore.get_status()` passes
+that name to `detect_strategy_type()`, which rejects it with ValueError.
+`ServiceObservations.capture()` catches the projection failure, publishes known
+running booleans and records the incident. Cleanup shutdown clears the name;
+the next successful snapshot clears the incident. Thus3.682 seconds measures the
+observed warning/recovery interval, not a3.682-second query, event-loop stall or
+measured MM interruption. Cleanup intentionally stops ordinary MM first.
+
+A regression test now runs `prepare()` with a real `TradingCore` and real status/
+observation methods, capturing during market initialization and after clock start.
+The old implementation fails with the same `engine_reporting_unavailable` /
+ValueError incident. Earlier cleanup doubles did not exercise this integration.
+A separate control test confirms unknown executable strategy names still raise.
+
+The source fix sets `strategy_name=None` for the strategy-free cleanup context.
+`strategy_file_name=credentials_cleanup`, ownership scope and operation ID remain;
+the existing recorder fallback uses that configuration identity for new cleanup
+records. Already recorded/recovered orders retain their original attribution;
+no old ledger rows are rewritten. Cancellation, closure, mutation authority,
+terminal proofs, deadlines and logging severity are unchanged. Native engine
+discovery and the general reporting fallback are unchanged.
+
+The related native suite passes96 tests; disposable PostgreSQL cleanup tests
+pass109 (448 unrelated cases deselected). Red/Green log hashes are in the
+portable evidence. This source correction has not
+yet been packaged into a new image or retested against real Demo. The running
+Demo service remains the already verified `4451974e…`, stopped/flat; its historical
+warning is retained. Build/test the next release image from the corrected source
+before production closeout; do not transfer the predecessor's qualification.
