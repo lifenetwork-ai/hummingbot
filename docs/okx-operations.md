@@ -190,7 +190,7 @@ not synthesize outside liquidity or automatically turn bootstrap on when blocked
 | Random | Equal selection among the three profiles, ten-minute steps |
 | Sessions | Default 30 minutes; accepted duration 60–7200 seconds |
 | Quote guard | Strict, 200-bps deviation limit, 100-bps resume boundary, five-second recovery delay |
-| Drawdown | Global 25 USDT, per controller 15 USDT from covered V2 PnL peaks |
+| Drawdown | Global 200 USDT, per controller 100 USDT from covered V2 PnL peaks |
 | Spot outflow | 500 USDT per rolling hour, with a 1% fee allowance for admission |
 | Maker fee floor | Enabled on both markets |
 | NATR | Enabled, completed one-minute candles, length 14, target 0.01, multiplier 0.5–3 |

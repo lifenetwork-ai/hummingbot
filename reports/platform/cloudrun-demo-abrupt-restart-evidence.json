@@ -572,5 +572,15 @@
     "new_stop_command": "9537deb8-a203-4825-b403-cab7bede4335"
   },
   "approval_received_for_checkpoint_recovery": true,
-  "approval_required_before_additional_risk_recovery": true
+  "approval_required_before_additional_risk_recovery": true,
+  "subsequent_requested_demo_policy": {
+    "max_controller_drawdown_quote": "100",
+    "max_global_drawdown_quote": "200",
+    "source": "deploy/cloudrun/demo/life_mm_profiles.yaml",
+    "catalogue_validation_passed": true,
+    "existing_profile_tests_passed": 15,
+    "deployed_by_this_change": false,
+    "live_risk_checkpoint_changed": false,
+    "current_drawdown_halt_cleared": false
+  }
 }

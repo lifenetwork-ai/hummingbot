@@ -216,3 +216,13 @@ drawdown HALT/checkpoint. The pre-repair backup remains separately retained.
 Restarting alone cannot clear this protective stop. Any further operation needs
 a separate review of current exposure and drawdown policy; the approval for the
 old initialization HALT must not be reused to reset this new risk breach.
+
+## Subsequent requested Demo limits — source update only
+
+The operator subsequently requested100USDT per controller and200USDT globally.
+The Demo YAML and current operating guide now contain those values; catalogue
+validation and15 existing profile tests pass. The historical15/25USDT breach
+evidence above remains unchanged. This source edit has not deployed a new image,
+changed the live risk checkpoint or cleared the current drawdown HALT. The new
+YAML must be packaged, and the protected checkpoint requires separate reviewed
+recovery before trading can resume.
