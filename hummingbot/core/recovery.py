@@ -170,9 +170,21 @@ def replay_positions(snapshot):
             fee = fill['trade_fee']
             if not isinstance(fee, dict) or not isinstance(fee.get('flat_fees', []), list):
                 raise RecoveryBlocked('recovery_fee_basis_unsupported')
-            if decimal(fee.get('percent', '0')) or any(item['token'] != 'USDT' for item in fee.get('flat_fees', [])):
+            if decimal(fee.get('percent', '0')):
                 raise RecoveryBlocked('recovery_fee_basis_unsupported')
-            actual_fee = sum((decimal(item['amount']) for item in fee.get('flat_fees', [])), Decimal(0))
+            actual_fee = Decimal(0)
+            for item in fee.get('flat_fees', []):
+                if not isinstance(item, dict) or 'amount' not in item:
+                    raise RecoveryBlocked('recovery_fee_basis_unsupported')
+                if item.get('token') == 'USDT':
+                    actual_fee += decimal(item['amount'])
+                elif key[0] == 'okx' and item.get('token') == key[1].removesuffix('-USDT'):
+                    # A spot base-asset fee has an exact quote equivalent at
+                    # this fill's verified price. No live price or other asset
+                    # conversion is introduced; quantity remains gross filled.
+                    actual_fee += decimal(item['amount']) * decimal(fill['price'])
+                else:
+                    raise RecoveryBlocked('recovery_fee_basis_unsupported')
             if fill.get('trade_fee_in_quote') is None or actual_fee != decimal(fill['trade_fee_in_quote']):
                 raise RecoveryBlocked('recovery_fee_basis_unsupported')
             identity = str(fill['order_id']) + ':' + str(fill['exchange_trade_id'])

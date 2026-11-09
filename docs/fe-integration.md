@@ -1339,7 +1339,11 @@ Initial supported scope is deliberately conservative: managed (`postgres_kms`)
 credentials bound to one dedicated OKX account; USDT spot and cross/hedge USDT
 perpetual; complete local history within the three-day per-order lookup window;
 at most 5,000 orders, 2,000 fills and 100 existing unambiguous position rows.
-Original fees must be exactly verifiable USDT amounts. A position can only be
+Original flat USDT fees must be exactly verifiable. Spot fees paid in the pair's
+base asset are also supported only when their conversion at the verified fill
+price exactly matches the recorded quote fee; no current price is substituted.
+Other fee currencies and percentage-fee encodings remain blocked. Gross filled
+position quantity and fee-deducted wallet cash are distinct. A position can only be
 extended from a known prefix of its verified fills; unknown opening balances,
 ambiguous controller attribution, unsupported fee conversion, missing pages,
 external fills/orders and unmatched perpetual exposure block recovery. Bound
