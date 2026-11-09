@@ -10,6 +10,11 @@ A1–A6 local/offline implementation covers optional Basic bootstrap, verified G
 identity/allowlists, fresh role lookup, envelope encryption (`local`/`gcp` adapters),
 scoped Set/load/rotation, cancel/close/remove cleanup, durable Retry/Repair,
 correlated audit, secret-free status/errors and bounded workers/query counts.
+The [real Cloud Run Google lifecycle](../demo/cloudrun-google-credentials-acceptance.md)
+now passes email binding, Google-controlled Set/Start/Disconnect/Set-again/Stop,
+five exact REST fill matches and final stopped/flat/pending0 with both slotsv2.
+Repeated quote-guard rejections remain an explicit runtime follow-up; this hosted
+flow does not qualify full dashboard, long load or real GCP KMS.
 Real Google admin login passes in the isolated helper. Reviewed existing-Demo
 cutover and connected Random/restart/cleanup pass on the remediated image;
 [actual Demo result](../demo/managed-local-connected-followup.md). Real GCP

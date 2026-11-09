@@ -45,6 +45,14 @@ needs its own full release/soak before production closeout. See the
 
 ## Deferred external acceptance
 
+- [x] Hosted Cloud Run Google identity and Set/Start/Disconnect/Set-again/Stop
+  lifecycle pass on revision48 with five REST-matched actual Demo fills. Final
+  stopped, both slotsv2 Connected, pending0/perpetual flat. [Cloud result](../../reports/demo/cloudrun-google-credentials-acceptance.md).
+- [ ] Reproduce17 repeated protected quote rejections near Start/refresh; retain
+  34 ERROR records/three transient probes and existing guard thresholds. The
+  source fixed-entry retry/defense-only refresh path is a follow-up hypothesis.
+  [Active investigation](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md#cloud-run-real-google-lifecycle-follow-up--2026-11-09).
+
 - [x] Real Google sign-in, subject binding, admin role, audit and Google-only
   restart pass in the dedicated local auth database. Operator browser result
   after restart is matched to durable login audit; Basic remains rejected.

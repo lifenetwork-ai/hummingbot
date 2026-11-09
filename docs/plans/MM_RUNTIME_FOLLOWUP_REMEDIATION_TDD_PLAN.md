@@ -593,3 +593,22 @@ long/short `0.0100/0.0032 BTC`. All23 old fills and3,513 old order IDs remain;
 three earlier natural spot fills and seven cleanup fill parts match individual
 REST quantity/price/original fee and order aggregates. Fee-adjusted BTC cash
 remains exact. No recovery checkpoint or risk-stop flag has been edited.
+
+## Cloud Run real Google lifecycle follow-up — 2026-11-09
+
+- [x] Real admin email whitelist/subject binding, Google Set/Start/bot-wide cleanup/
+  per-slot removal/Set-again/Start/Stop pass; five exact REST fill/fee matches,
+  no duplicates, final pending0/perpetual flat/stopped and Connectedv2.
+  [Scoped cloud result](../../reports/demo/cloudrun-google-credentials-acceptance.md).
+- [x] Retain34 ERROR records for17 locally rejected quotes; all17 independently
+  return OKX51603, before Revoke admission. Three single-probe timeouts have later
+  healthy state and unchanged loaded owner generation; no replacement is observed.
+- [ ] Reproduce repeated `spread_policy_quote_rejected` near startup/refresh with
+  per-rejection reference/spread/fee/price evidence; use Red/Green for any confirmed
+  retry/refresh fix. Keep send guards and do not downgrade unknown safety errors.
+  Source has fixed-entry retries while early invalid-quote refresh depends on
+  optional defense; this remains a hypothesis, not unique cloud attribution.
+
+Cloud limits1vCPU/512Mi differ from the proposed2vCPU/2Gi and the older local load
+gate. No resource change, new full soak, thirty-minute quote SLO, production FE or
+real GCP KMS qualification is implied.

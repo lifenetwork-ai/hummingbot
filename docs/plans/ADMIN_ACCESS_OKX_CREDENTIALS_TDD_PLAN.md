@@ -59,6 +59,12 @@ in [credential operations](../exchange-credentials.md) and
   [Acceptance evidence](../../reports/implementation/google-login-acceptance.json).
 - [ ] Real GCP KMS/IAM using synthetic credentials when resources are provided.
   User deferred this; local encryption does not close it.
+- [x] Real Cloud Run Google admin onboarding and credentials lifecycle on2026-11-09:
+  invited email bound through operator browser sign-in; Set both slots, Start,
+  bot-wide cleanup/per-slot revoke, Set again and Start/Stop all use the verified
+  Google actor. Five actual fills/fees/positions match REST; final slotsv2,
+  stopped/flat/pending0. [Cloud result](../../reports/demo/cloudrun-google-credentials-acceptance.md).
+  This does not close real GCP KMS, full dashboard, load or quote-availability gates.
 - [x] Explicitly reviewed actual-Demo account binding was applied without editing
   old history/positions. Both managed slot Set/load and stopped cold restart pass.
   Nine fixed profile/mode cases pass; three new natural spot fills have individual

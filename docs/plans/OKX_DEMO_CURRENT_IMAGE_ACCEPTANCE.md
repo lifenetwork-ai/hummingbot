@@ -33,6 +33,13 @@ false, with the separate passing upgrade run retained explicitly.
 
 ## Actual Demo acceptance
 
+Additional hosted acceptance on2026-11-09: [real Cloud Run Google lifecycle](../../reports/demo/cloudrun-google-credentials-acceptance.md)
+passes on `hummingbot-demo-00048-ckn`, source/image tag `4ef36ed61…`, observed
+1vCPU/512Mi. All credential/trading mutations use the invited Google admin;
+five real fills match REST, both slots endv2 Connected, stopped/flat/pending0.
+Seventeen protected quote rejections and three probes remain disclosed. Earlier
+images/load scopes and the repeated-quote investigation are not closed by this run.
+
 The [connected evidence index](../../reports/demo/README.md) and
 [last documented stopped-Demo restoration](../../reports/performance/mm-admin-worker-lanes.md)
 retain historical account/image scope. Earlier inventories preserved the then

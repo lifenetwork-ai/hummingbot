@@ -108,6 +108,47 @@ it does not mean MM is running. Disconnected confirms this bot's cleanup/removal
 that time; it makes no claim about future manual exchange activity. For technical
 blockers, retain the operation/request ID and link to support and the exchange.
 
+### Verified Cloud Run connection flow
+
+The [2026-11-09 Cloud Run Demo acceptance](../reports/demo/cloudrun-google-credentials-acceptance.md)
+exercises real Google sign-in and the existing APIs using the invited admin's
+identity, including actual spot/perpetual fills and Disconnect closure. No new
+endpoint is needed. Implement the flow in this order:
+
+1. Bootstrap invites the email. The invited user signs in with Google and calls
+   `/access/login`; an invitation alone is not a completed Google sign-in.
+2. Read current `/status` and `/credentials/okx`. Submit one complete selected
+   slot bundle, poll `/credentials/operations/{id}`, then refresh both endpoints
+   before configuring the next slot. Set stays separate from Start.
+3. Start with the current `control_version` and `/profiles.catalogue_hash`.
+   Watch both the command outcome and observed status/quote activity.
+4. Disconnect the selected slot, poll its root receipt to `succeeded/removed`
+   with the four final proofs, then refresh all slots. Cleanup is bot-wide, but
+   removal is per slot. To remove both slots, complete each operation serially;
+   do not label the still-connected companion as Disconnected.
+5. Reconfigure a disconnected slot with its **retained** version and the latest
+   control version, wait for Connected, then offer Start. The observed cycle
+   went0→1 on first Set, stayed1 when revoked and became2 on Set again.
+
+There are separate version domains. Request `expected_version` comes from the
+selected **slot.version**; `expected_control_version` comes from `/status`.
+At the credential receipt root, `expected_version`/`effective_version` describe
+**control** versions; `result.credential_version` describes the selected key.
+Never use the root effective version as the next slot version or reset a revoked
+slot's version to0. Optional intermediate proof fields can be null at the final
+stage; require the four documented final proofs, not every optional proof field.
+
+Trading `CommandResponse.payload` contains the command fields and has no
+`actor_id`. Credential receipts have a different payload. Show who requested a
+change using `/audit?operation_id={receipt_id}` and its verified `actor_email` /
+role snapshot; use `/access/me` for the current viewer. Do not assume both receipt
+payload schemas are interchangeable or substitute a shared Basic identity.
+
+The acceptance used a temporary localhost Google relay and a private test runner;
+it does not deliver a dashboard or qualify production browser/CORS/IAM routes.
+Basic bootstrap remains enabled in that test deployment. Disabling it after
+verified Google administration is a separate deployment change.
+
 ## Start here
 
 1. Agree on the service URL, Cloud Run network/IAM access and authentication route.
@@ -869,6 +910,22 @@ owner or profile generation changes are unknown intervals. Elapsed time includes
 unknown intervals, so gaps cannot inflate the reported uptime fraction. Stop/expiry
 freezes elapsed time. Only spot/perpetual counters are retained, without book history.
 
+The liquidity response's `markets` is a map keyed by `spot`/`perpetual`, not an
+array. Render each side's `quote_activity` alongside status. In the real Cloud
+test, a93.66% BTC account weight against the50% inventory target produced
+buy multiplier0/sell multiplier2; BUY then showed `order_size_rejected` while
+SELL orders could work. Explain this using the published inventory-skew values
+and reason, rather than calling it a disconnected exchange or inventing an
+insufficient-funds error. Sizing/spread policy remains YAML-owned.
+
+An individual protected quote rejection (`spread_policy_quote_rejected`) and its
+ERROR log do not, alone, prove service failure or an exchange-accepted order.
+Keep available API quote reasons and repeated no-quote duration visible, and
+use observed runtime/receipts/venue reconciliation for operational state.
+Platform-log correlation is a maintainer diagnostic; the frontend does not gain
+a Cloud Logging event stream from these APIs. Do not relax guards through the
+UI or silently dismiss repeated rejections.
+
 Stale owners or observations hide quote values and extend unknown time; optional
 projection errors report unavailable and do not change trading intent. API reads
 reuse PostgreSQL/status snapshots and issue no exchange calls. Events take two
@@ -1004,6 +1061,12 @@ incomplete coverage must remain visible in the UI. Reporting reads use PostgreSQ
 and the existing daily cache; they never initiate exchange requests. Funding
 checkpoint changes alone do not invalidate trading reconciliation; changes to
 HALT, orders, fills or other recovery state still do.
+
+Account bill backfill can populate days **before this service/session first ran**,
+as observed with an existing Demo account on a fresh cloud ledger. Label the
+series account/environment funding with its covered interval. Do not attribute
+all imported funding to the current session or combine it with that session's
+fills as a session profit calculation.
 
 The owner upserts the latest fresh account observation at most once a minute per
 account/environment/currency/timezone/day inside its successful fenced status
@@ -1144,5 +1207,6 @@ Backend implementation evidence is in the
 The [original API/UX review](../reports/README.md#historical-records) (Git: `reports/implementation/admin-api-dashboard-ux-review.md`) records
 its historical baseline; this guide and the checked OpenAPI describe current
 integration behavior. Strategy/load/Demo results retain their own image and test
-scope. A dashboard, public Cloud Run route, browser acceptance and real-account
-acceptance are external delivery work.
+scope. The linked Cloud Run Demo Google/connection lifecycle qualifies its named
+route/account/date only. The full dashboard/browser checklist above and live
+production-account acceptance remain external delivery work.
