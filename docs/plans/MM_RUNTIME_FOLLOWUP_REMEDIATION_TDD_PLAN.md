@@ -603,11 +603,17 @@ remains exact. No recovery checkpoint or risk-stop flag has been edited.
 - [x] Retain34 ERROR records for17 locally rejected quotes; all17 independently
   return OKX51603, before Revoke admission. Three single-probe timeouts have later
   healthy state and unchanged loaded owner generation; no replacement is observed.
-- [ ] Reproduce repeated `spread_policy_quote_rejected` near startup/refresh with
-  per-rejection reference/spread/fee/price evidence; use Red/Green for any confirmed
-  retry/refresh fix. Keep send guards and do not downgrade unknown safety errors.
-  Source has fixed-entry retries while early invalid-quote refresh depends on
-  optional defense; this remains a hypothesis, not unique cloud attribution.
+- [x] Reproduce fixed-entry retry after a fresh spread rejection without defense;
+  use Red/Green to retire/reprice configured entries and reserve retiring levels.
+  Native reference/fee changes and real PostgreSQL before-intent/after-throttle
+  checks preserve guards, terminal-order proof, held fills and explicit Stop.
+  Add price/reference/effective-policy diagnostics and classify only the typed
+  spread rejection as WARNING; unknown safety failures remain ERROR.
+- [ ] Qualify the changed image on Cloud Run after operator deployment and repeat
+  the bounded Google/Demo lifecycle. The historical17 rejections lack exact
+  per-rejection price/fee snapshots: their unique initial trigger remains unknown.
+  Source proof does not retroactively eliminate those ERROR records or qualify
+  the new image/full soak.
 
 Cloud limits1vCPU/512Mi differ from the proposed2vCPU/2Gi and the older local load
 gate. No resource change, new full soak, thirty-minute quote SLO, production FE or

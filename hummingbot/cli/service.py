@@ -176,19 +176,25 @@ class ServiceHost:
         return min(available)
 
     def mm_quote_valid(self, connector, order):
-        from hummingbot.core.order_submission_guard import SubmissionBlocked
+        from hummingbot.core.order_submission_guard import QuoteRefreshRequired, SubmissionBlocked
         controller = next((value for value in self._mm_controllers()
                            if (value.config.connector_name, value.config.trading_pair) == (connector.name, order.trading_pair)), None)
+        if controller is None:
+            raise SubmissionBlocked("spread_policy_quote_rejected: controller unavailable")
         try:
-            if controller is not None and controller.config.spread_policy.volatility.defense is not None:
+            if controller.config.spread_policy.volatility.defense is not None:
                 from hummingbot.core.order_submission_guard import current_quote_level
                 valid = controller.spread_quote_valid(order.trade_type, order.price, order.amount, level_id=current_quote_level())
             else:
-                valid = controller is not None and controller.spread_quote_valid(order.trade_type, order.price, order.amount)
+                valid = controller.spread_quote_valid(order.trade_type, order.price, order.amount)
         except ValueError:
-            valid = False
+            raise SubmissionBlocked("spread_policy_quote_rejected: policy data unavailable") from None
         if not valid:
-            raise SubmissionBlocked("spread_policy_quote_rejected")
+            raise QuoteRefreshRequired(
+                f"spread_policy_quote_rejected: side={order.trade_type.name} price={order.price} "
+                f"amount={order.amount} reference_price={controller.processed_data.get('reference_price')} "
+                f"ready={controller.processed_data.get('ready')} reason={controller.processed_data.get('reason')} "
+                f"policy={controller.processed_data.get('spread_policy')}")
 
     def mm_runtime_ready(self, *, allow_bootstrap_start=False):
         self.mm_readiness_reason = None

@@ -15,14 +15,17 @@ from hummingbot.cli.service import ServiceHost
 from hummingbot.core.bot_ownership import ORDER_PATH
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
+from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.order_submission_guard import (
     MarketReadinessBlocked,
+    QuoteRefreshRequired,
     SessionSubmissionBlocked,
     SubmissionBlocked,
     session_order_scope,
 )
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.model.order import Order
+from hummingbot.strategy_v2.utils.mm_spread import SpreadPolicy, SpreadPolicyConfig
 
 owned = _owned
 
@@ -73,6 +76,47 @@ def record_intent(context, identity):
     context.market.in_flight_orders[identity] = order
     context.owner.before_order(context.market, order)
     return order
+
+
+@pytest.mark.parametrize('phase', ['before_intent', 'after_throttle'])
+def test_fee_change_without_defense_rejects_locally_and_resolves_only_unsent_intent(owned, phase):
+    host, controllers = jointly_ready(owned, False)
+    controller = controllers[0]
+    policy = SpreadPolicyConfig(fee_floor=True)
+    controller.config = controller.config.model_copy(update={'spread_policy': policy})
+    controller._spread_policy = SpreadPolicy(policy)
+    owned.market.get_fee.return_value = AddedToCostTradeFee(percent=Decimal('.001'))
+    assert host.mm_runtime_ready()
+    tracked = InFlightOrder('reprice', 'LIFE-USDT', OrderType.LIMIT_MAKER, TradeType.BUY,
+                            Decimal('1'), time.time(), Decimal('.099'))
+    owned.market.in_flight_orders['reprice'] = tracked
+
+    class FeeChangeDuringThrottle:
+        @asynccontextmanager
+        async def execute_task(self, limit_id):
+            owned.market.get_fee.return_value = AddedToCostTradeFee(percent=Decimal('.02'))
+            yield
+
+    rest, transport = assistant(FeeChangeDuringThrottle())
+    with session_order_scope('joint-session', 0, level_id='buy_0'):
+        if phase == 'before_intent':
+            owned.market.get_fee.return_value = AddedToCostTradeFee(percent=Decimal('.02'))
+            assert host.mm_runtime_ready()
+            with pytest.raises(QuoteRefreshRequired):
+                owned.owner.before_order(owned.market, tracked)
+        else:
+            owned.owner.before_order(owned.market, tracked)
+            with pytest.raises(QuoteRefreshRequired):
+                owned.loop.run_until_complete(send(rest, 'reprice'))
+    transport.call.assert_not_awaited()
+    assert 'reprice' not in owned.owner.sent_intents
+    tracked.current_state = OrderState.FAILED
+    owned.owner.order_failed(owned.market, tracked)
+    assert 'reprice' not in owned.owner.active_intents
+    with owned.engine.connect() as connection:
+        pending = connection.execute(select(Order.creation_pending).where(Order.id == 'reprice')).scalar_one_or_none()
+    assert pending is (None if phase == 'before_intent' else False)
+    assert not owned.store.read()['recovery_state'].get('halt')
 
 
 async def send(rest, identity, *, cancel=False):

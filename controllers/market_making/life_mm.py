@@ -698,11 +698,19 @@ class LifeMMController(pmm_simple.PMMSimpleController):
 
     def get_levels_to_execute(self):
         levels = super().get_levels_to_execute()
+        # An entry retiring for repricing (or awaiting cancel confirmation) still
+        # owns its level until terminal bookkeeping completes, without defense.
+        pending_levels = set()
         for executor in self.executors_info:
-            if executor.is_active or (executor.close_type == CloseType.STOP_LOSS
-                                      and self.market_data_provider.time() - executor.close_timestamp < self.config.cooldown_time):
-                self._quote_reason('active_executor' if executor.is_active else 'cooldown', executor.config.side)
-        return levels
+            retiring = executor.status == RunnableStatus.SHUTTING_DOWN
+            if retiring:
+                pending_levels.add(executor.config.level_id)
+            if executor.is_active or retiring:
+                self._quote_reason('active_executor', executor.config.side)
+            elif (executor.close_type == CloseType.STOP_LOSS
+                  and self.market_data_provider.time() - executor.close_timestamp < self.config.cooldown_time):
+                self._quote_reason('cooldown', executor.config.side)
+        return [level for level in levels if level not in pending_levels]
 
     def _exposure(self):
         connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)

@@ -918,8 +918,13 @@ SELL orders could work. Explain this using the published inventory-skew values
 and reason, rather than calling it a disconnected exchange or inventing an
 insufficient-funds error. Sizing/spread policy remains YAML-owned.
 
-An individual protected quote rejection (`spread_policy_quote_rejected`) and its
-ERROR log do not, alone, prove service failure or an exchange-accepted order.
+An individual protected quote rejection (`spread_policy_quote_rejected`) does not,
+alone, prove service failure or an exchange-accepted order. The revision48 test
+logged these as ERROR. The subsequent source fix classifies a fresh spread-check
+rejection as `QuoteRefreshRequired` at WARNING: the configured entry retires,
+keeps its level reserved through shutdown, and lets the controller propose a
+fresh quote. Missing controller/policy data and other safety failures remain
+errors. This does not guarantee every replacement will pass a later fresh gate.
 Keep available API quote reasons and repeated no-quote duration visible, and
 use observed runtime/receipts/venue reconciliation for operational state.
 Platform-log correlation is a maintainer diagnostic; the frontend does not gain

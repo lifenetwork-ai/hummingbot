@@ -6,7 +6,9 @@
 passes real email whitelist/login, Google-controlled Set/Start/Disconnect/Set-again/
 Stop and5 exact REST-matched fills on revision48. Final bot stopped, both slotsv2
 Connected, venue orders0/perpetual flat. Seventeen protected quote rejections and
-three probe timeouts remain explicit; repeated quote rejection needs follow-up.
+three probe timeouts remain explicit. The subsequent local TDD fix retires stale
+configured entries for repricing and reserves shutting-down levels; changed-image
+Cloud qualification remains open and no unique historical trigger is claimed.
 This is separate from local load/soak and dashboard acceptance.
 
 The [latest managed-Demo follow-up](managed-local-connected-followup.md) passes

@@ -80,7 +80,7 @@ async def test_upstream_active_level_and_cooldown_rules_remain_authoritative():
     buy = controller.get_executor_config('buy_0', Decimal('.099'), Decimal('10'))
     sell = controller.get_executor_config('sell_0', Decimal('.101'), Decimal('10'))
     controller.executors_info = [
-        SimpleNamespace(is_active=True, custom_info={'level_id': 'buy_0'}, config=buy),
+        SimpleNamespace(is_active=True, status=RunnableStatus.RUNNING, custom_info={'level_id': 'buy_0'}, config=buy),
         SimpleNamespace(is_active=False, status=RunnableStatus.TERMINATED, custom_info={'level_id': 'sell_0'},
                         close_type=CloseType.STOP_LOSS, close_timestamp=995, config=sell)]
     assert controller.create_actions_proposal() == []

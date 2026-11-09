@@ -741,7 +741,14 @@ class PositionExecutor(ExecutorBase):
         if self._open_order and event.order_id == self._open_order.order_id:
             self._failed_orders.append(self._open_order)
             self._open_order = None
-            self._log_order_failure("Open", event)
+            # A configured entry cannot fix a fresh spread rejection by retrying
+            # its immutable price. Reuse normal shutdown/held-fill bookkeeping;
+            # only the controller may build a replacement from current policy.
+            reprice = (event.error_type == "QuoteRefreshRequired" and self.config.use_configured_entry_price
+                       and self.status == RunnableStatus.RUNNING)
+            if reprice:
+                self.early_stop(keep_position=True)
+            self._log_order_failure("Open", event, reprice=reprice)
             self._current_retries += 1
         elif self._close_order and event.order_id == self._close_order.order_id:
             self._failed_orders.append(self._close_order)
@@ -759,16 +766,17 @@ class PositionExecutor(ExecutorBase):
                (self._open_order, self._close_order, self._take_profit_limit_order)):
             self._shutdown_orders_changed.set()
 
-    def _log_order_failure(self, role: str, event: MarketOrderFailureEvent):
+    def _log_order_failure(self, role: str, event: MarketOrderFailureEvent, *, reprice: bool = False):
         from hummingbot.core.order_submission_guard import submission_block_log_context
         context = submission_block_log_context(event.error_type)
         if context is None:
             self.logger().error(f"{role} order failed {event.order_id}. Retrying {self._current_retries}/{self._max_retries}")
             return
         level, reason = context
+        action = "Retiring entry executor for a fresh quote." if reprice else f"Retry count {self._current_retries}/{self._max_retries}."
         self.logger().log(
-            level, "%s order blocked by service checks: order_id=%s reason=%s. Retry count %s/%s.",
-            role, event.order_id, event.error_message or reason, self._current_retries, self._max_retries,
+            level, "%s order blocked by service checks: order_id=%s reason=%s. %s",
+            role, event.order_id, event.error_message or reason, action,
             extra={"event": "order_submission_blocked", "reason_code": reason,
                    "scope": "executor", "error_type": event.error_type},
         )

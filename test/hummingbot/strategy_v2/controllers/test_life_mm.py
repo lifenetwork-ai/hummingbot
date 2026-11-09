@@ -296,7 +296,7 @@ async def test_pending_executor_entry_is_counted_before_its_order_is_visible():
     controller, _ = make_controller(configuration(max_base_inventory="1700", buy_spreads=[0.01, 0.02]))
     await controller.update_processed_data()
     entry = controller.get_executor_config("buy_0", Decimal("0.099"), Decimal("600"))
-    controller.executors_info = [SimpleNamespace(id="pending", is_active=True, is_trading=False,
+    controller.executors_info = [SimpleNamespace(id="pending", is_active=True, is_trading=False, status=RunnableStatus.RUNNING,
                                                  config=entry, custom_info={"level_id": "buy_0"})]
     assert all(action.executor_config.side != TradeType.BUY for action in controller.create_actions_proposal())
 

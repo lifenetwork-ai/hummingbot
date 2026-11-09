@@ -118,3 +118,41 @@ liquidity's market-keyed map and inventory-skew/no-quote state; historical
 account funding versus current session activity. Existing endpoints/schemas and
 the four final Disconnect proof fields remain sufficient; no backend API change
 was needed for this acceptance.
+
+### Subsequent local TDD remediation
+
+The follow-up reproduces a concrete runtime defect: a valid configured entry
+becomes invalid after a reference/fee change, but its failure clears the tracked
+open order while leaving the executor RUNNING. Its next open attempt reuses the
+immutable rejected price. Four initial native cases fail on the original source
+(BUY/SELL, spot/perpetual). This confirms the retry defect, not the unique initial
+trigger of all17 historical Cloud rejections.
+
+The fresh spread gate now emits the specific `QuoteRefreshRequired` type. A
+running configured-entry executor enters the existing POSITION_HOLD shutdown;
+the controller reserves its level until terminal bookkeeping and builds a new
+entry with current reference/spread/fee checks. A second Red exposed replacement
+of SHUTTING_DOWN levels without defense; those levels now remain reserved.
+Working valid orders are not continuously canceled to implement this fix.
+
+Known spread refresh blocks log WARNING, with side, price, amount, reference,
+readiness and the already-computed effective spread-policy snapshot. The log
+does not issue another fee/venue request. Missing controller/policy evaluation
+and unknown safety failures retain ERROR; network/ownership/recovery semantics
+are unchanged. A fresh replacement can still be blocked if conditions change
+again before send. No guard tolerance, refresh interval or risk budget is relaxed.
+
+Native coverage includes real reference/fee changes in both markets/sides,
+replacement validity, pending-level exclusion, pending cancellation, retained
+partial fills/fees without duplication and preserving an explicit Stop already
+in progress. PostgreSQL verifies before-intent and after-throttle rejection with
+no transport, durable resolution only of positively unsent intents and no HALT.
+Related controller/executor/logging regression: **549 passed +2 subtests**;
+selected real PostgreSQL ownership/readiness/defense regression: **86 passed**.
+The full Cloud Run native Makefile regression passes **2,877 +16 subtests**;
+the16 new lifecycle cases run separately in the549-case check above and are
+now included in that Makefile target. Formatting/lint and diff checks pass.
+
+This is a local source fix. Revision48 and its17 rejected identities remain
+historical evidence; no new Cloud image is deployed by this remediation.
+Changed-image Cloud/Demo acceptance and full load/soak remain separate gates.

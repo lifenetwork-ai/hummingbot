@@ -52,6 +52,7 @@ def test_shutdown_remains_a_block_but_is_expected_control():
 @pytest.mark.parametrize('error_type,level', [
     ('SessionSubmissionBlocked', logging.INFO),
     ('MarketReadinessBlocked', logging.WARNING),
+    ('QuoteRefreshRequired', logging.WARNING),
     ('SubmissionBlocked', logging.ERROR),
     ('OwnershipLost', logging.ERROR),
 ])
@@ -77,12 +78,14 @@ def test_connector_block_logs_reason_without_network_advice(caplog, error_type, 
 ])
 @pytest.mark.parametrize('kind,level', [
     ('SessionSubmissionBlocked', logging.INFO), ('MarketReadinessBlocked', logging.WARNING),
+    ('QuoteRefreshRequired', logging.WARNING),
     ('SubmissionBlocked', logging.ERROR), ('OwnershipLost', logging.ERROR),
     ('IOError', logging.ERROR), (None, logging.ERROR),
 ])
 def test_executor_classifies_logs_without_changing_failure_bookkeeping(caplog, slot, role, retry_increment, kind, level):
     executor = PositionExecutor.__new__(PositionExecutor)
     executor._shutdown_orders_changed = MagicMock()
+    executor.config = SimpleNamespace(use_configured_entry_price=False)
     executor._open_order = executor._close_order = executor._take_profit_limit_order = None
     tracked = TrackedOrder('order-1')
     setattr(executor, slot, tracked)
@@ -94,7 +97,7 @@ def test_executor_classifies_logs_without_changing_failure_bookkeeping(caplog, s
     records = [r for r in caplog.records if r.name == logger.name]
     assert len(records) == 1 and records[0].levelno == level
     assert role in records[0].getMessage()
-    if kind in ('SessionSubmissionBlocked', 'MarketReadinessBlocked', 'SubmissionBlocked', 'OwnershipLost'):
+    if kind in ('SessionSubmissionBlocked', 'MarketReadinessBlocked', 'QuoteRefreshRequired', 'SubmissionBlocked', 'OwnershipLost'):
         assert records[0].event == 'order_submission_blocked'
         assert 'test admission reason' in records[0].getMessage()
         assert 'Retrying' not in records[0].getMessage()
@@ -130,7 +133,8 @@ def test_mm_authority_distinguishes_waiting_from_missing_wiring(scope, permits, 
     assert type(error.value).__name__ == expected
 
 
-@pytest.mark.parametrize('cls', [guard.SessionSubmissionBlocked, guard.MarketReadinessBlocked, guard.SubmissionBlocked, OwnershipLost])
+@pytest.mark.parametrize('cls', [guard.SessionSubmissionBlocked, guard.MarketReadinessBlocked, guard.QuoteRefreshRequired,
+                                 guard.SubmissionBlocked, OwnershipLost])
 def test_failure_event_preserves_block_type_reason_and_failed_state(cls):
     from hummingbot.connector.client_order_tracker import ClientOrderTracker
     from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState

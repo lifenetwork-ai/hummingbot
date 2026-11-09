@@ -48,11 +48,16 @@ class MarketReadinessBlocked(SubmissionBlocked):
     """Required market/data/exposure readiness currently prevents submission."""
 
 
+class QuoteRefreshRequired(SubmissionBlocked):
+    """The fresh pre-transport spread check rejected a configured entry quote."""
+
+
 def submission_block_log_context(error_type):
     """Classify the existing failure-event type; unknown failures stay errors."""
     return {
         "SessionSubmissionBlocked": (logging.INFO, "session_submission_closed"),
         "MarketReadinessBlocked": (logging.WARNING, "market_not_ready"),
+        "QuoteRefreshRequired": (logging.WARNING, "spread_policy_quote_rejected"),
         "SubmissionBlocked": (logging.ERROR, "submission_safety_blocked"),
         "OwnershipLost": (logging.ERROR, "ownership_lost"),
     }.get(error_type)
