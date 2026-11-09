@@ -131,6 +131,20 @@ if os.environ.get('HBOT_OFFLINE_CLEANUP_EMPTY') == 'true':
     OkxExchange.start_network = start_empty
     OkxExchange._api_get = empty_get
     OkxExchange.check_network = offline_ready
+if os.environ.get('HBOT_OFFLINE_RECOVERY_EMPTY') == 'true':
+    # Keep the actual coordinator/verifier; replace only GET transport in this
+    # subprocess fixture. Any exchange write is a hard failure.
+    from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
+    async def recovery_get(self, path_url, **kwargs):
+        if path_url == '/api/v5/account/config':
+            return {'code': '0', 'data': [{'uid': candidate_account}]}
+        if path_url in ('/api/v5/trade/orders-pending', '/api/v5/trade/fills', '/api/v5/account/positions'):
+            return {'code': '0', 'data': []}
+        raise RuntimeError('Unexpected recovery exchange read')
+    async def forbidden_write(self, *args, **kwargs):
+        raise RuntimeError('Recovery must never send an exchange write')
+    OkxExchange._api_get = recovery_get
+    OkxExchange._api_post = forbidden_write
 from hummingbot.cli import service_processes
 from hummingbot.cli.service import main
 # Repeat the test's isolated config paths and network prohibition in both real

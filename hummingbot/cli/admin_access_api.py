@@ -44,7 +44,8 @@ class AdminAccessAPI:
         return PrincipalResponse(id=actor.id, kind=actor.kind, role=actor.role, email=actor.email,
                                  role_label={"admin": "Administrator", "write": "Operator", "read": "Viewer"}[actor.role],
                                  permissions={"read": actor.allows("read"), "operate": actor.allows("write"),
-                                              "manage_accounts": actor.allows("admin"), "manage_credentials": actor.allows("write")})
+                                              "manage_accounts": actor.allows("admin"), "manage_credentials": actor.allows("write"),
+                                              "manage_recovery": actor.allows("admin")})
 
     @staticmethod
     def account_response(row):

@@ -4403,7 +4403,8 @@
               "wait",
               "contact_support",
               "start",
-              "monitor"
+              "monitor",
+              "check_recovery"
             ],
             "title": "Next Action",
             "type": "string"
@@ -6458,9 +6459,347 @@
         "title": "RecordedSwitchCommand",
         "type": "object"
       },
+      "RecoveryBlockerOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "next_action": {
+            "title": "Next Action",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "detail",
+          "next_action"
+        ],
+        "title": "RecoveryBlocker",
+        "type": "object"
+      },
+      "RecoveryCheckRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "RecoveryCheckRequest",
+        "type": "object"
+      },
+      "RecoveryOperationOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "recovery_check",
+              "recovery_reset"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/RecoveryBlockerOutput"
+            },
+            "title": "Blockers",
+            "type": "array"
+          },
+          "can_recover": {
+            "title": "Can Recover",
+            "type": "boolean"
+          },
+          "confirmation_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Confirmation Token"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expires At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "proposed_changes": {
+            "items": {
+              "$ref": "#/components/schemas/RecoveryPositionRepairOutput"
+            },
+            "title": "Proposed Changes",
+            "type": "array"
+          },
+          "repaired_positions": {
+            "items": {
+              "$ref": "#/components/schemas/RecoveryPositionRepairOutput"
+            },
+            "title": "Repaired Positions",
+            "type": "array"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "accepted",
+              "applying",
+              "succeeded",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trading_state": {
+            "const": "stopped",
+            "default": "stopped",
+            "title": "Trading State",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "verification": {
+            "additionalProperties": true,
+            "title": "Verification",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "status",
+          "stage",
+          "label",
+          "detail",
+          "can_recover",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RecoveryOperation",
+        "type": "object"
+      },
+      "RecoveryOverviewOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/RecoveryBlockerOutput"
+            },
+            "title": "Blockers",
+            "type": "array"
+          },
+          "check_available": {
+            "title": "Check Available",
+            "type": "boolean"
+          },
+          "control_version": {
+            "title": "Control Version",
+            "type": "integer"
+          },
+          "halted": {
+            "title": "Halted",
+            "type": "boolean"
+          },
+          "operation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecoveryOperationOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "reset_available": {
+            "title": "Reset Available",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "halted",
+          "control_version",
+          "check_available",
+          "reset_available",
+          "blockers"
+        ],
+        "title": "RecoveryOverview",
+        "type": "object"
+      },
+      "RecoveryPositionRepairOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "$ref": "#/components/schemas/RecoveryPositionValuesOutput"
+          },
+          "before": {
+            "$ref": "#/components/schemas/RecoveryPositionValuesOutput"
+          },
+          "connector": {
+            "enum": [
+              "okx",
+              "okx_perpetual"
+            ],
+            "title": "Connector",
+            "type": "string"
+          },
+          "controller_id": {
+            "title": "Controller Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "valuation_basis": {
+            "const": "reconstructed_average_entry_not_live_pnl",
+            "title": "Valuation Basis",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "controller_id",
+          "connector",
+          "pair",
+          "before",
+          "after",
+          "valuation_basis"
+        ],
+        "title": "RecoveryPositionRepair",
+        "type": "object"
+      },
+      "RecoveryPositionValuesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "breakeven_price": {
+            "title": "Breakeven Price",
+            "type": "string"
+          },
+          "cum_fees_quote": {
+            "title": "Cum Fees Quote",
+            "type": "string"
+          },
+          "realized_pnl_quote": {
+            "title": "Realized Pnl Quote",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "unrealized_pnl_quote": {
+            "title": "Unrealized Pnl Quote",
+            "type": "string"
+          },
+          "volume_traded_quote": {
+            "title": "Volume Traded Quote",
+            "type": "string"
+          }
+        },
+        "required": [
+          "side",
+          "amount",
+          "volume_traded_quote",
+          "breakeven_price",
+          "realized_pnl_quote",
+          "unrealized_pnl_quote",
+          "cum_fees_quote"
+        ],
+        "title": "RecoveryPositionValues",
+        "type": "object"
+      },
+      "RecoveryResetRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "check_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Check Id",
+            "type": "string"
+          },
+          "confirmation_token": {
+            "pattern": "^[a-f0-9]{32}$",
+            "title": "Confirmation Token",
+            "type": "string"
+          },
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version",
+          "check_id",
+          "confirmation_token"
+        ],
+        "title": "RecoveryResetRequest",
+        "type": "object"
+      },
       "RecoverySummaryOutput": {
         "additionalProperties": false,
         "properties": {
+          "check_available": {
+            "default": false,
+            "title": "Check Available",
+            "type": "boolean"
+          },
           "detail": {
             "title": "Detail",
             "type": "string"
@@ -6472,7 +6811,9 @@
           "next_action": {
             "enum": [
               "none",
-              "contact_support"
+              "contact_support",
+              "check_recovery",
+              "wait"
             ],
             "title": "Next Action",
             "type": "string"
@@ -6482,10 +6823,14 @@
             "type": "boolean"
           },
           "reset_available": {
-            "const": false,
             "default": false,
             "title": "Reset Available",
             "type": "boolean"
+          },
+          "status_url": {
+            "default": "/api/v1/admin/recovery",
+            "title": "Status Url",
+            "type": "string"
           }
         },
         "required": [
@@ -16387,6 +16732,981 @@
         "summary": "Read the requested check even after a newer check starts",
         "tags": [
           "Reconciliation"
+        ]
+      }
+    },
+    "/api/v1/admin/recovery": {
+      "get": {
+        "operationId": "getRecovery",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryOverviewOutput"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "googleIdentity": []
+          },
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read recovery blockers and the latest reviewed operation",
+        "tags": [
+          "Recovery"
+        ]
+      }
+    },
+    "/api/v1/admin/recovery/check": {
+      "post": {
+        "operationId": "checkRecovery",
+        "parameters": [
+          {
+            "description": "Stable retry identity; reuse only for the identical request body",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryOperationOutput"
+                }
+              }
+            },
+            "description": "Accepted; poll command result",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "googleIdentity": []
+          },
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Check stopped history and preview verified repairs; does not clear HALT",
+        "tags": [
+          "Recovery"
+        ]
+      }
+    },
+    "/api/v1/admin/recovery/operations/{operation_id}": {
+      "get": {
+        "operationId": "getRecoveryOperation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "operation_id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryOperationOutput"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "googleIdentity": []
+          },
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read exact recovery progress or outcome without contacting the exchange",
+        "tags": [
+          "Recovery"
+        ]
+      }
+    },
+    "/api/v1/admin/recovery/reset": {
+      "post": {
+        "operationId": "resetRecovery",
+        "parameters": [
+          {
+            "description": "Stable retry identity; reuse only for the identical request body",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryOperationOutput"
+                }
+              }
+            },
+            "description": "Accepted; poll command result",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "googleIdentity": []
+          },
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Revalidate and apply the reviewed technical recovery; leaves trading stopped",
+        "tags": [
+          "Recovery"
         ]
       }
     },

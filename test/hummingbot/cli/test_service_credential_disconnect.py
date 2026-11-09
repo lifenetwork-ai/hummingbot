@@ -64,7 +64,7 @@ async def test_cleanup_branch_keeps_owner_publication_fresh_without_starting_idl
     monkeypatch.setattr(order_submission_guard, "install_guard", lambda owner: None)
     service = host()
     service.owner.connection = Mock()
-    service.owner.check_owner = Mock(return_value=dict(control_version=2))
+    service.owner.check_owner = Mock(return_value=dict(control_version=2, recovery_state={}))
     service.observe_credential_operation = AsyncMock(return_value=True)
     service.publish_status = AsyncMock()
     service.poll_funding = Mock()

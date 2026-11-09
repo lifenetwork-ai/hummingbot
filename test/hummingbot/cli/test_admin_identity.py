@@ -135,7 +135,8 @@ async def test_reader_permission_is_explicit_for_every_registered_admin_handler(
     async with identity_client(actor) as (client, _):
         response = await client.request(method, ADMIN_PREFIX + path, headers={"Authorization": "Bearer reader-token"})
         restricted = {"commands", "reconciliation_check", "access_bootstrap", "access_accounts", "access_add_account", "access_change_account", "credentials_set",
-                      "credentials_disconnect", "credentials_cleanup_key", "credentials_retry"}
+                      "credentials_disconnect", "credentials_cleanup_key", "credentials_retry",
+                      "recovery", "recovery_check", "recovery_reset", "recovery_operation"}
         assert response.status == (403 if name in restricted else 200)
 
 

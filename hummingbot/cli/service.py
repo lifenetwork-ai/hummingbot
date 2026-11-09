@@ -80,6 +80,7 @@ class ServiceHost:
         self.engine = self.store = self.owner = self.hb = None
         self.managed_credentials = None
         self.credential_cleanup_task = None
+        self.recovery_task = self.recovery_coordinator = None
         self.applied_version = None
         self.start_task = None
         self.running = False
@@ -396,7 +397,8 @@ class ServiceHost:
         reason = {"stopped": "operator_stopped", "standby": "migration_pending" if self.migrations_pending else "owner_standby",
                   "migrating": "migration_in_progress",
                   "waiting_for_mm_readiness": "market_data_unavailable", "halted": "recovery_required",
-                  "starting": "strategy_initializing", "stopping": "strategy_stopping"}.get(self.phase)
+                  "starting": "strategy_initializing", "stopping": "strategy_stopping",
+                  "recovery_checking": "recovery_checking", "recovering": "recovery_applying"}.get(self.phase)
         if self.phase == "waiting_for_mm_readiness":
             reason = self.mm_readiness_reason or reason
         if self.mm_session is not None and self.mm_session.status == "expired":
@@ -612,6 +614,9 @@ class ServiceHost:
         install_guard(self.owner)
         self.owner.runtime_ready_check = self.runtime_healthy
         row = self.owner.check_owner()
+        if await self.observe_recovery_operation(row):
+            await self.publish_status(row['control_version'])
+            return
         if await self.observe_credential_operation(row):
             self.mm_liquidity_state = self.liquidity_observer = None
             await self.publish_status(row["control_version"])
@@ -909,6 +914,25 @@ class ServiceHost:
     def poll_funding(self):
         self.funding.poll(self.engine, self.owner, self.hb.trading_core)
 
+    async def observe_recovery_operation(self, row):
+        if self.recovery_task is not None:
+            if not self.recovery_task.done():
+                self.running = False
+                return True
+            self.recovery_task.result()
+            self.recovery_task = None
+            return True  # Read the possibly changed control version on the next tick.
+        operation = (row['recovery_state'] or {}).get('recovery_operation') or {}
+        if not operation:
+            return False
+        from hummingbot.cli.recovery_runtime import RecoveryCoordinator
+        if self.recovery_coordinator is None:
+            self.recovery_coordinator = RecoveryCoordinator(self)
+        self.running = False
+        self.phase = 'recovery_checking' if operation['action'] == 'recovery_check' else 'recovering'
+        self.recovery_task = asyncio.create_task(self.recovery_coordinator.run(operation['id']))
+        return True
+
     async def observe_credential_operation(self, row):
         operation = (row["recovery_state"] or {}).get("credential_operation") or {}
         if not operation:
@@ -1042,6 +1066,13 @@ class ServiceHost:
         self._publication_closing = True
         if self.owner is not None:
             self.owner.begin_shutdown()
+        if self.recovery_task is not None:
+            self.recovery_task.cancel()
+            await asyncio.gather(self.recovery_task, return_exceptions=True)
+        if self.recovery_coordinator is not None:
+            # Drain bulk reads/replay before disposing their DB engine. Final
+            # owner-fenced commits run synchronously on the ownership thread.
+            await self.recovery_coordinator.close()
         if self.credential_cleanup_task is not None and not self.credential_cleanup_task.done():
             self.credential_cleanup_task.cancel()
             done, _ = await asyncio.wait({self.credential_cleanup_task}, timeout=2)

@@ -495,7 +495,7 @@ receipt or one market's `ready` field alone.
 | Fresh liquidity with one/no side | One-sided/no quotes observed; inspect per-market and BUY-only guards, balances and caps |
 | Readiness wait/recovering guard | Service available; quotes constrained; show reason/retry/recovery timing |
 | Stopped/expired | MM idle; continue displaying held exposure and reporting freshness |
-| HALT/operator action required | Show reason and runbook; do not offer an unimplemented reset/resume action |
+| HALT/operator action required | Admin: offer the reviewed recovery flow below; other roles: contact an administrator. Risk or incomplete evidence remains blocked. |
 
 Cloud edge errors during maintenance can return HTML/plain text for HTTP502/503/504.
 Handle the HTTP status even when the body cannot be parsed as JSON: show **Service
@@ -1259,3 +1259,72 @@ integration behavior. Strategy/load/Demo results retain their own image and test
 scope. The linked Cloud Run Demo Google/connection lifecycle qualifies its named
 route/account/date only. The full dashboard/browser checklist above and live
 production-account acceptance remain external delivery work.
+
+
+## Admin recovery
+
+Recovery is available only to `admin` (`GET /access/me` exposes
+`permissions.manage_recovery`). It does not alter YAML or risk limits. Stop the
+session first and wait for its control version to be acknowledged. Recovery never
+starts trading, cancels orders or closes exposure. If exchange orders remain,
+resolve them through the existing cleanup/runbook before retrying.
+
+| Endpoint under `/api/v1/admin` | Purpose |
+| --- | --- |
+| `GET /recovery` | Current blockers, check/reset availability and latest operation |
+| `POST /recovery/check` | Queue exchange verification and preview; keeps HALT |
+| `POST /recovery/reset` | Confirm reviewed preview; revalidate and apply verified repair |
+| `GET /recovery/operations/{id}` | Poll this exact operation; HTTP 200 is a receipt read, not proof of success |
+
+1. Show **Check recovery** to admins when `check_available=true`. Read `/status`
+   for the fresh control version. POST `/recovery/check` with
+   `{"expected_version":16}` and a new `Idempotency-Key`.
+2. HTTP 202 returns an operation receipt. Poll its operation URL about once per
+   second. Keep Start/Switch and connection changes disabled while recovery runs.
+   `accepted`/`applying` means pending; `succeeded` can still have `stage=blocked`
+   and `can_recover=false` when a check completed with blockers.
+3. When `stage=review_required` and `can_recover=true`, display the proposed
+   before/after changes and ask the admin to confirm. `verification` reports the
+   verified order/fill counts. A confirmation is valid for five minutes and only
+   for the same owner, generation, control version, credentials and ledger.
+4. POST `/recovery/reset` with a new Idempotency-Key and the returned fields:
+
+   ```json
+   {"expected_version":16,"check_id":"<check operation id>","confirmation_token":"<returned 32-character token>"}
+   ```
+
+5. Poll the reset receipt. Only `status=succeeded` and `stage=recovered` means
+   recovery completed. Display **Recovery complete — trading is stopped**.
+   Refresh `/status`; Start remains a separate, deliberate action.
+
+A network retry reuses the same key and identical body. A new attempt uses a new
+key. Never send financial overrides or `force` fields. A stale/expired preview,
+owner change or local drift returns a stable conflict code and requires a new
+check. Availability is advisory; POST always revalidates. Confirmation is a
+review binding, not an authentication token; do not log it.
+
+Every blocker has English `code`, `detail`, `next_action`. Progress has `stage`,
+`label`, `detail`, `expires_at` and `trading_state=stopped`. Errors retain the
+existing HTTP/error envelope. Read/write roles receive 403 for all recovery
+endpoints. Admins can review `recovery_check_requested/completed/failed`,
+`recovery_reset_requested/completed/failed` and `recovery_position_repaired` in
+`GET /access/audit`; `operation_id` links the atomic before/after receipt.
+Secrets and private proof fingerprints never appear in recovery responses.
+
+Initial supported scope is deliberately conservative: managed (`postgres_kms`)
+credentials bound to one dedicated OKX account; USDT spot and cross/hedge USDT
+perpetual; complete local history within the three-day per-order lookup window;
+at most 5,000 orders, 2,000 fills and 100 existing unambiguous position rows.
+Original fees must be exactly verifiable USDT amounts. A position can only be
+extended from a known prefix of its verified fills; unknown opening balances,
+ambiguous controller attribution, unsupported fee conversion, missing pages,
+external fills/orders and unmatched perpetual exposure block recovery. Bound
+risk policies/peaks/latches and all order/fill/funding history are preserved.
+The exchange is read twice around the proof; a changing account remains blocked.
+
+`unrealized_pnl_quote=0` in a repaired position has
+`valuation_basis=reconstructed_average_entry_not_live_pnl`: it is reconstruction
+at the average entry, not a current market valuation or a claim that losses were
+recovered. Use the existing fresh valuation panels for live PnL. Do not relabel
+risk stops as recoverable technical incidents. The total exchange-check budget
+is 120 seconds, with bounded GET requests and no background trading admission.

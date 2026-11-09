@@ -94,6 +94,8 @@ class CredentialStore:
         state = connection.execute(select(BotState).where(BotState.bot_id == self.bot_id).with_for_update()).mappings().first()
         if state is None:
             raise ControlConflict("Bot state unavailable")
+        if (state['recovery_state'] or {}).get('recovery_operation'):
+            raise ControlConflict('Wait for the recovery operation', code='recovery_operation_in_progress')
         previous = connection.execute(select(AdminCommand).where(
             AdminCommand.bot_id == self.bot_id, AdminCommand.idempotency_key == key)).mappings().first()
         if previous and previous["request_hash"] != self.request_hash(payload):

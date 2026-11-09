@@ -327,11 +327,19 @@ lists before strategy ticks. Unknown orders or unmatched perpetual positions
 block new risk. An unclean runtime exit, unresolved submission/account mutation,
 or failed reconciliation persists HALT in `bot_state.recovery_state`. Restarting,
 clearing a pending flag, or successfully reconnecting the DB does not clear it.
-Read status/recovery details, establish that every prior process is stopped, and
-reconcile the dedicated exchange account with persisted orders/fills/positions
-before an explicit operator-reviewed database maintenance change. No automatic
-recovery-reset command is provided, and changing only `halt` without resolving
-its cause is insufficient. Do not delete order history to make startup pass.
+Admin recovery uses a stopped session and an explicit review/confirm flow:
+`POST /api/v1/admin/recovery/check`, poll its operation, review the verified plan,
+then `POST /api/v1/admin/recovery/reset` with the check ID and confirmation token.
+Both steps require admin authorization and an Idempotency-Key. Confirmation
+rechecks the exchange and local ledger, atomically repairs only proven position
+aggregates, records actor/audit/receipt and clears the technical HALT. Success
+leaves trading stopped; Start is separate. See [FE recovery contract](fe-integration.md#admin-recovery).
+
+This is bounded recovery for a dedicated managed OKX account, not a generic
+force reset. Risk stops, unknown baselines, missing evidence and unsupported
+history remain blocked. Those cases still require an explicit operator-reviewed
+database maintenance change after independent reconciliation. Do not change only
+`halt`, delete history or reset risk checkpoints to make startup pass.
 
 A recorder rollback latches that manager unhealthy and blocks subsequent ORM
 flushes/bulk writes, including tracking snapshots. A failed fill cannot be followed

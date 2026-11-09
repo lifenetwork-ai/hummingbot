@@ -1,6 +1,6 @@
 # LIFE / OKX delivery status
 
-Updated 2026-11-09. This concise status replaces the chronological journal; the
+Updated 2026-11-10. This concise status replaces the chronological journal; the
 [full journal](../README.md#historical-records) (Git: `reports/implementation/LIFE_OKX_PROGRESS.md`) retains every original phase, attempt and result.
 Feature/configuration references are in [MM controls](../../docs/life-mm-controls.md),
 [FE integration](../../docs/fe-integration.md), [PostgreSQL](../../docs/postgres-runtime.md)
@@ -21,6 +21,15 @@ and [credential operations](../../docs/exchange-credentials.md).
   adapters and recoverable cancel/close/remove credentials operations.
 
 ## Current verification
+
+Admin-reviewed HALT recovery is implemented in source: preview and confirmation,
+fresh GET-only venue proof, prefix-proven position repair, atomic receipt/audit,
+owner/version/role fences and a stopped outcome. [Recovery plan](../../docs/plans/ADMIN_RECOVERY_API_TDD_PLAN.md)
+records native1,316 and related PG44 passes, plus a separate fresh4-test causal/
+process check. No Cloud financial/HALT state was changed; packaging/deployment
+and real-Demo recovery acceptance remain open. The incident's historical blocking
+SQL attribution remains qualified in the platform report.
+
 
 New managed-Demo candidate `4451974e…` passes native2,868 +16 subtests, PG557,
 targeted packaged E2E and [connected recovery/Random/restart/cleanup](../demo/managed-local-connected-followup.md).

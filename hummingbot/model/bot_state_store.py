@@ -29,6 +29,7 @@ class BotStateStore:
         columns = ("bot_id, desired_state, control_version, acknowledged_version, owner_uuid, owner_generation, "
                    "heartbeat, status, revision, jsonb_build_object('halted', recovery_state->'halt' = 'true'::jsonb, "
                    "'credential_operation_pending', COALESCE(jsonb_typeof(recovery_state->'credential_operation')='object', false), "
+                   "'recovery_operation_pending', COALESCE(jsonb_typeof(recovery_state->'recovery_operation')='object', false), "
                    "'pending_mutations', COALESCE(recovery_state->'pending_mutations', '[]'::jsonb) "
                    "NOT IN ('[]'::jsonb, '{}'::jsonb, 'null'::jsonb)) AS recovery_summary, "
                    "CASE WHEN jsonb_typeof(mm_session)='object' "
@@ -77,6 +78,8 @@ class BotStateStore:
                 raise ControlConflict("Control version changed; read status and submit the intended command again.")
             if (row["recovery_state"] or {}).get("credential_operation"):
                 raise ControlConflict("Wait for the connection operation to complete", code="credential_operation_in_progress")
+            if (row["recovery_state"] or {}).get("recovery_operation"):
+                raise ControlConflict("Wait for the recovery operation", code="recovery_operation_in_progress")
             if desired_state == "running" and config_file_path is None:
                 if row["config_file_path"] is None:
                     raise ControlConflict("A deployed configuration must be selected before starting.")
@@ -172,6 +175,8 @@ class BotStateStore:
                 raise ControlConflict("Control version changed", code="control_version_changed")
             if (row["recovery_state"] or {}).get("credential_operation"):
                 raise ControlConflict("Wait for the connection operation to complete", code="credential_operation_in_progress")
+            if (row["recovery_state"] or {}).get("recovery_operation"):
+                raise ControlConflict("Wait for the recovery operation", code="recovery_operation_in_progress")
             current = MMSession.model_validate(row["mm_session"]) if row["mm_session"] else None
             if action == "start":
                 if row["desired_state"] == "running" or (current and current.status in ("preparing", "running", "stopping")):

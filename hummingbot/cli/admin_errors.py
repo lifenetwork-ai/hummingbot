@@ -5,6 +5,7 @@ import uuid
 from aiohttp import web
 
 from hummingbot.cli.admin_models import ErrorResponse
+from hummingbot.core.recovery_messages import RECOVERY_MESSAGES
 
 CLEANUP_MESSAGES = {
     "cleanup_operation_changed": ("refresh_state", "The cleanup operation changed. Refresh its progress before trying again."),
@@ -136,6 +137,8 @@ MESSAGES = {
 
 RETRIES.update({code: value[0] for code, value in CLEANUP_MESSAGES.items()})
 MESSAGES.update({code: value[1] for code, value in CLEANUP_MESSAGES.items()})
+RETRIES.update({code: value[0] for code, value in RECOVERY_MESSAGES.items()})
+MESSAGES.update({code: value[1] for code, value in RECOVERY_MESSAGES.items()})
 
 
 def request_id(request):

@@ -32,9 +32,12 @@ def operator_view(row, process):
     halted = bool(recovery.get("halted")) or snapshot.get("phase") == "halted"
     pending = bool(recovery.get("pending_mutations"))
     connection_pending = bool(recovery.get("credential_operation_pending"))
+    recovery_pending = bool(recovery.get("recovery_operation_pending"))
     owner = snapshot.get("identity")
     mismatch = bool(available and owner and owner.get("trading_environment") != process["trading_environment"])
-    if connection_pending:
+    if recovery_pending:
+        common = "recovery_operation_in_progress"
+    elif connection_pending:
         common = "credential_operation_in_progress"
     elif checkpoint_reason:
         common = checkpoint_reason
@@ -49,7 +52,7 @@ def operator_view(row, process):
         "start": common or ("session_active" if row["desired_state"] == "running" or current_active else None),
         "switch": common or (None if session.get("status") in ("preparing", "running") else "session_not_active"),
         # Stop is a durable intent and remains useful during startup/owner loss.
-        "stop": "credential_operation_in_progress" if connection_pending else None if session.get("id") else "session_not_active",
+        "stop": "recovery_operation_in_progress" if recovery_pending else "credential_operation_in_progress" if connection_pending else None if session.get("id") else "session_not_active",
     }
     from hummingbot.cli.admin_errors import MESSAGES
     descriptions = {"start": "Start a new session.", "switch": "Replace the current session.",
@@ -59,7 +62,9 @@ def operator_view(row, process):
         detail = MESSAGES.get(reason, "The action is currently unavailable.") if reason else descriptions[key]
         actions[key] = dict(allowed=reason is None, reason_code=reason, detail=detail)
     phase = snapshot.get("phase")
-    if connection_pending:
+    if recovery_pending:
+        state, label, detail, next_action = "preparing", "Recovery in progress", "Wait for the recovery result. Trading remains stopped.", "wait"
+    elif connection_pending:
         state, label, detail, next_action = "preparing", "Applying connection", "Wait for the connection operation. Trading will not start automatically.", "wait"
     elif checkpoint_reason:
         state, label, detail, next_action = "needs_attention", "Risk data needs review", "Saved risk information cannot be verified. Contact support before starting trading.", "contact_support"
@@ -132,7 +137,7 @@ def operator_view(row, process):
                                  reason_code="owner_unavailable" if not available else "session_transition" if not matches else
                                  "observation_stale" if observation_old else None),
                 operator=dict(state=state, label=label, detail=detail, next_action=next_action), actions=actions,
-                recovery=dict(halted=halted, pending_mutations=pending, next_action="contact_support" if halted or pending or checkpoint_reason else "none",
+                recovery=dict(halted=halted, pending_mutations=pending, next_action="wait" if recovery_pending else "contact_support" if halted or pending or checkpoint_reason else "none",
                               detail="Saved risk information needs technical review." if checkpoint_reason else
                               "Contact support before restarting trading." if halted or pending else "No recovery block is recorded."),
                 session_configuration_url=f"/api/v1/admin/sessions/{session['id']}/configuration" if session.get("id") else None,

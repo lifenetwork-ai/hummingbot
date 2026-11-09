@@ -60,6 +60,7 @@ from hummingbot.cli.admin_models import (
     StatusResponse,
 )
 from hummingbot.cli.admin_operations import operator_view, process_identity
+from hummingbot.cli.admin_recovery import AdminRecoveryAPI
 from hummingbot.cli.api_documentation import api_operation
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.connector.credential_adapters import CredentialAdapterError
@@ -86,6 +87,8 @@ ADMIN_ENDPOINTS += (("GET", "/statistics/daily", "daily"),
                     ("GET", "/statistics/liquidity", "liquidity"))
 ADMIN_ENDPOINTS += (("POST", "/reconciliation/check", "reconciliation_check"), ("GET", "/reconciliation", "reconciliation"))
 ADMIN_ENDPOINTS += (("GET", "/sessions/{session_id}/configuration", "session_configuration"),)
+ADMIN_ENDPOINTS += (("GET", "/recovery", "recovery"), ("POST", "/recovery/check", "recovery_check"),
+                    ("POST", "/recovery/reset", "recovery_reset"), ("GET", "/recovery/operations/{operation_id}", "recovery_operation"))
 ADMIN_ENDPOINTS += (("GET", "/commands", "commands_history"), ("GET", "/sessions", "sessions"),
                     ("GET", "/reconciliation/{check_id}", "reconciliation_by_id"))
 ADMIN_ENDPOINTS += (("POST", "/access/login", "access_login"), ("GET", "/access/me", "access_me"),
@@ -106,6 +109,7 @@ READ_HANDLERS = frozenset({"profiles", "status", "command", "openapi", "docs", "
                            "access_login", "access_me", "access_audit", "credentials_catalogue", "credentials_status", "credentials_operation"})
 WRITE_HANDLERS = frozenset({"commands", "reconciliation_check", "credentials_set", "credentials_disconnect", "credentials_cleanup_key", "credentials_retry"})
 ACCOUNT_HANDLERS = frozenset({"access_bootstrap", "access_accounts", "access_add_account", "access_change_account"})
+ACCOUNT_HANDLERS |= frozenset({'recovery', 'recovery_check', 'recovery_reset', 'recovery_operation'})
 ADMIN_PERMISSIONS = {(method, ADMIN_PREFIX + path): "read" if name in READ_HANDLERS else "write" if name in WRITE_HANDLERS else "admin"
                      for method, path, name in ADMIN_ENDPOINTS if name in READ_HANDLERS | WRITE_HANDLERS | ACCOUNT_HANDLERS}
 
@@ -156,7 +160,7 @@ async def admin_errors(request, handler):
         return error_response(request, "internal_error", status=500)
 
 
-class AdminAPI(AdminAccessAPI, AdminCredentialsAPI):
+class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
     def __init__(self, host, settings, *, store=None, catalogue=None):
         self.host = host
         self.settings = settings
@@ -344,6 +348,27 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI):
                                time_remaining_seconds=remaining, error=snapshot.get("error"),
                                funding_sync=({**snapshot["funding_sync"], **({"state": "unavailable", "stale": True, "error": "owner_unavailable"} if not owner_available else {})}
                                              if snapshot.get("funding_sync") else None))
+        actor = request.get('admin_principal')
+        if model.recovery and model.recovery.halted and actor and actor.allows('admin'):
+            pending = bool((row.get('recovery_summary') or {}).get('recovery_operation_pending'))
+            model.recovery.check_available = (owner_available and row['desired_state'] == 'stopped'
+                                              and row['acknowledged_version'] == row['control_version'] and not pending
+                                              and not model.recovery.pending_mutations
+                                              and not (row.get('recovery_summary') or {}).get('credential_operation_pending'))
+            if model.recovery.check_available:
+                model.recovery.next_action = 'check_recovery'
+                model.recovery.detail = 'Run a recovery check to see verified repairs or reasons requiring technical review.'
+                model.operator.next_action = 'check_recovery'
+                model.operator.label = 'Recovery check needed'
+                latest = await self.run_database(self.recovery_store().latest)
+                result = (latest or {}).get('result') or {}
+                private = result.get('_private') or {}
+                model.recovery.reset_available = bool(latest and latest['action'] == 'recovery_check'
+                                                      and latest['status'] == 'succeeded' and result.get('can_recover')
+                                                      and latest['expected_version'] == row['control_version']
+                                                      and private.get('owner_uuid') == row['owner_uuid']
+                                                      and private.get('owner_generation') == row['owner_generation']
+                                                      and result.get('expires_at') and datetime.fromisoformat(result['expires_at']).timestamp() > now)
         return web.json_response(model.model_dump(mode="json"))
 
     @api_operation(operation_id="submitCommand", summary="Accept an idempotent start, switch or stop", tag="Control",

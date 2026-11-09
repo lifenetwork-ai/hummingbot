@@ -439,7 +439,7 @@ class OperatorStatus(APIModel):
     state: Literal["unavailable", "needs_attention", "stopped", "preparing", "switching", "stopping", "waiting", "running"]
     label: str
     detail: str
-    next_action: Literal["wait", "contact_support", "start", "monitor"]
+    next_action: Literal["wait", "contact_support", "start", "monitor", "check_recovery"]
 
 
 class ObservationStatus(APIModel):
@@ -452,9 +452,11 @@ class ObservationStatus(APIModel):
 class RecoverySummary(APIModel):
     halted: bool
     pending_mutations: bool
-    next_action: Literal["none", "contact_support"]
+    next_action: Literal["none", "contact_support", "check_recovery", "wait"]
     detail: str
-    reset_available: Literal[False] = False
+    reset_available: bool = False
+    check_available: bool = False
+    status_url: str = "/api/v1/admin/recovery"
 
 
 class StatusResponse(APIModel):
