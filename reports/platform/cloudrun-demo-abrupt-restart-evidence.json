@@ -1118,5 +1118,262 @@
       "deployed": false,
       "live_mutations": []
     }
+  },
+  "latest_followup": "revision65_recovery_api_acceptance",
+  "revision65_recovery_api_acceptance": {
+    "revision": "hummingbot-demo-00065-mgw",
+    "image_commit": "c98b08a6f4695106335ce9fb50744fa1184b9948",
+    "trading_environment": "demo",
+    "credentials_source": "postgres_kms",
+    "kms_provider": "local",
+    "google_actor_email": "trung.nguyen@genefriendway.com",
+    "recovery_check": {
+      "id": "dc5e206a-e2af-4756-8720-19663d0c6685",
+      "status": "succeeded",
+      "stage": "review_required",
+      "verification": {
+        "scope": "bounded_complete_local_history_and_dedicated_account",
+        "verified": true,
+        "fills_checked": 101,
+        "orders_checked": 431,
+        "pending_orders": 0,
+        "venue_history_days": 3,
+        "position_legs_checked": 2,
+        "unfilled_terminal_orders_without_local_side": 19
+      }
+    },
+    "recovery_reset": {
+      "id": "98e9d419-49d5-4c40-b213-617eb33249cd",
+      "status": "succeeded",
+      "stage": "recovered",
+      "repaired_positions": [
+        {
+          "id": "bae1325b-551f-4b50-b4f9-bfe6a1f79ef8",
+          "controller_id": "demo_btc_spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "before": {
+            "side": "SELL",
+            "amount": "0.02749641",
+            "volume_traded_quote": "2045.102469834",
+            "breakeven_price": "74377.07212810690559240279004",
+            "realized_pnl_quote": "0",
+            "unrealized_pnl_quote": "-5.820381553499999999999999916",
+            "cum_fees_quote": "1.6360819758672"
+          },
+          "after": {
+            "side": "SELL",
+            "amount": "0.04152284",
+            "volume_traded_quote": "3095.093632178",
+            "breakeven_price": "74539.54575790095282499944609",
+            "realized_pnl_quote": "0",
+            "unrealized_pnl_quote": "0",
+            "cum_fees_quote": "2.4760749057424"
+          },
+          "valuation_basis": "reconstructed_average_entry_not_live_pnl"
+        }
+      ],
+      "duplicate_confirmation_returned_same_receipt": true,
+      "stopped_control_version": 18,
+      "stopped_acknowledged_version": 18,
+      "remained_stopped": true
+    },
+    "audit_events": [
+      {
+        "id": "51",
+        "actor_kind": "google",
+        "actor_email": "trung.nguyen@genefriendway.com",
+        "action": "recovery_reset_completed",
+        "outcome": "succeeded"
+      },
+      {
+        "id": "50",
+        "actor_kind": "google",
+        "actor_email": "trung.nguyen@genefriendway.com",
+        "action": "recovery_position_repaired",
+        "outcome": "succeeded"
+      },
+      {
+        "id": "49",
+        "actor_kind": "google",
+        "actor_email": "trung.nguyen@genefriendway.com",
+        "action": "recovery_reset_requested",
+        "outcome": "accepted"
+      }
+    ],
+    "independent_stopped_db_comparison": {
+      "orders_unchanged": 431,
+      "fills_unchanged": 101,
+      "perpetual_rows_unchanged": 2,
+      "only_reviewed_spot_row_changed": true,
+      "risk_checkpoints_unchanged": true,
+      "credential_bindings_unchanged": true
+    },
+    "backup": {
+      "format": "pg_dump_custom",
+      "bytes": 163287,
+      "sha256": "6c44f4ff17b54c4f86dbd375e615bbbc35f0a7f1a10a074c30c8f20702ba53c3",
+      "archive_listing_validated": true
+    },
+    "separate_start": {
+      "receipt_id": "220cbd83-87d9-4243-bb48-7eae371a3b7b",
+      "status": "succeeded",
+      "effective_version": 19,
+      "session_id": "bb70e9f0-1ffd-4b81-946c-5a785043fbd9",
+      "started_at": "2026-11-09T18:14:15.853093Z",
+      "requested_final_state": "running"
+    },
+    "startup_probe": {
+      "at": "2026-11-09T18:14:12.494048Z",
+      "request_elapsed_ms": 301.025,
+      "max_observed_probe_gap_seconds": 1.306,
+      "phase_context": "Start accepted18:14:03.807Z; session running18:14:15.853Z",
+      "exact_recovery_duration_observed": false,
+      "restart_observed": false
+    },
+    "observation": {
+      "started_at": "2026-11-09T18:15:44.300403+00:00",
+      "requested_seconds": 1800,
+      "elapsed_seconds": 1796.663,
+      "samples": 360,
+      "unknown_samples": 0,
+      "read_failures": [],
+      "runtime_failures": [],
+      "late_sample_gaps": [],
+      "completed_at": "2026-11-09T18:45:45.678788+00:00",
+      "authentication_expired": false,
+      "leave_running_verified": true
+    },
+    "observation_complete": true,
+    "post_window_health_http": {
+      "startup": 200,
+      "live": 200,
+      "ready": 200
+    },
+    "physical_owner_unchanged_since_recovery": true,
+    "physical_owner_generation": 57,
+    "runtime_logs_after_start": {
+      "since": "2026-11-09T18:14:16.902110Z",
+      "warning_or_error_count": 32,
+      "events": {
+        "mm_no_quotes_warning": 32
+      },
+      "reason_codes": {
+        "no_active_quotes": 32
+      },
+      "errors": [],
+      "child_restart_count": 0
+    },
+    "two_sided_quote_slo_qualified": false,
+    "current_policy_constraints": {
+      "spot_buy": "order_size_rejected",
+      "perpetual_buy": "inventory_limit",
+      "perpetual_sell": "inventory_limit",
+      "perpetual_long_base": "0.0030",
+      "perpetual_short_base": "0.0048",
+      "max_gross_base": "0.008"
+    },
+    "observation_quality": {
+      "samples": 360,
+      "requested_seconds": 1800,
+      "completed": true,
+      "read_failures": 0,
+      "runtime_failures": 0,
+      "fresh_running_samples": 360,
+      "markets": {
+        "spot": {
+          "counts": {
+            "fresh_samples": 360,
+            "guard_constrained_samples": 359,
+            "readiness_guard_wait_samples": 1
+          },
+          "two_way_fraction": null,
+          "two_way_slo_qualified": false,
+          "sides": {
+            "BUY": {
+              "guard_constrained_samples": 359,
+              "readiness_guard_wait_samples": 1
+            },
+            "SELL": {
+              "permitted_or_in_progress_samples": 359,
+              "working_samples": 349,
+              "readiness_guard_wait_samples": 1
+            }
+          }
+        },
+        "perpetual": {
+          "counts": {
+            "fresh_samples": 360,
+            "guard_constrained_samples": 359,
+            "readiness_guard_wait_samples": 1
+          },
+          "two_way_fraction": null,
+          "two_way_slo_qualified": false,
+          "sides": {
+            "BUY": {
+              "guard_constrained_samples": 359,
+              "readiness_guard_wait_samples": 1
+            },
+            "SELL": {
+              "guard_constrained_samples": 359,
+              "readiness_guard_wait_samples": 1
+            }
+          }
+        }
+      },
+      "read_auth_modes": {
+        "google": 360
+      },
+      "revisions": {
+        "hummingbot-demo-00065-mgw": 360
+      },
+      "maximum_sample_gap_seconds": 5.011,
+      "window_wall_seconds": 1801.378385,
+      "final_running": true,
+      "final_halted": false
+    },
+    "scope_limits": [
+      "Demo only",
+      "No forced fills or risk-policy changes",
+      "Running state is not two-sided liquidity",
+      "GCP KMS real-service acceptance remains separate"
+    ],
+    "financial_readback": {
+      "observed_at": "2026-11-09T18:46:11.653265+00:00",
+      "recorded_fills": 103,
+      "by_market": {
+        "okx": 74,
+        "okx_perpetual": 29
+      },
+      "original_fees_exact": true,
+      "fill_identity_unique": true,
+      "pending_orders": {
+        "okx": {
+          "count": 2,
+          "sides": {
+            "buy": 0,
+            "sell": 2
+          }
+        },
+        "okx_perpetual": {
+          "count": 0,
+          "sides": {
+            "buy": 0,
+            "sell": 0
+          }
+        }
+      },
+      "new_fills_since_recovery": 2,
+      "perpetual_positions_match": true
+    },
+    "local_acceptance_helpers_stopped": true,
+    "cloud_running_rechecked_after_local_teardown": true,
+    "resources_verified": {
+      "cpu": 2,
+      "memory_mib": 1024,
+      "min_instances": 1,
+      "max_instances": 1,
+      "cpu_throttling": false
+    }
   }
 }

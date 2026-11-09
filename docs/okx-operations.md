@@ -167,9 +167,11 @@ and their freshness/reason fields. A command receipt alone does not imply admiss
 
 Funding a wallet does not erase recorded trading outflow. A local cancel request
 alone does not release uncertain reservations. Restart does not reset HALT or
-bound policy/peak state. There is no generic admin reset-HALT endpoint. Follow
-[ownership/recovery operations](postgres-runtime.md) before any maintenance;
-resolve provenance and pending effects rather than changing only the halt flag.
+bound policy/peak state. The admin [reviewed recovery API](fe-integration.md#admin-recovery)
+can preview and repair proven technical incidents while stopped; it cannot force
+risk resets or bypass missing evidence. Follow [ownership/recovery operations](postgres-runtime.md)
+for blocked cases and maintenance; resolve provenance and pending effects rather
+than changing only the halt flag.
 
 For a future thin LIFE listing, choose the bounded bootstrap policy before that
 session using its guide and required risk bindings. The BTC strict preset does

@@ -1,8 +1,9 @@
 # Admin recovery API — TDD implementation
 
 Operator decisions: admin only; preview then explicit confirmation; verified
-aggregate repair is permitted; success leaves the bot stopped. No live execution
-is authorized by this implementation task. Start remains a separate action.
+aggregate repair is permitted; success leaves the bot stopped. The initial
+source-implementation scope authorized no live writes. The later, separately
+operator-authorized Cloud acceptance is recorded below. Start remains separate.
 
 ## Contract and boundaries
 
@@ -52,7 +53,8 @@ is authorized by this implementation task. Start remains a separate action.
   and restart; local KMS/fake exchange only. Expiry, missing evidence, transaction
   failure and cancellation are covered separately at PG/native boundaries.
 - [x] Broader native/PostgreSQL checks, docs/FE updates and commit.
-- [ ] Separate review/deployment and actual-Demo recovery acceptance.
+- [x] Separate reviewed deployment and actual-Demo recovery workflow acceptance
+  on revision65. Two-sided liquidity and real GCP KMS qualification are separate.
 
 
 ## Verification evidence
@@ -79,8 +81,9 @@ is authorized by this implementation task. Start remains a separate action.
   the broader runs and are not summed as distinct test totals. Pre-commit passes.
 - Packaged OpenAPI is regenerated from actual routes/models. No new schema
   migration, authentication bypass, generic force field or exchange write exists.
-- Actual Cloud/Demo recovery, packaging and connected acceptance remain separate.
-  No live financial/HALT state was changed during this implementation.
+- During source-only verification, Cloud/Demo deployment and connected acceptance
+  remained separate and no financial/HALT state was changed. The later revision65
+  section records the separately authorized live acceptance.
 
 
 ## Connected acceptance follow-up — 2026-11-10
@@ -95,12 +98,19 @@ is authorized by this implementation task. Start remains a separate action.
   TDD3 Red +2 passing out-of-bound controls. Do not rewrite source timestamps.
 - [x] Corrected source independently verifies all431 orders,101 original-fee
   fills and both perpetual legs using GET only; no pending orders.
-- [ ] Deploy the follow-up source, rerun actual Cloud check/confirm and verify
-  atomic repair/audit/stopped state; Start/monitor Demo remains a separate step.
+- [x] Deploy follow-up source on revision65, rerun actual Cloud check/confirm,
+  verify exact one-row repair, atomic audit and stopped outcome; duplicate confirm
+  returns the same receipt without another version increment.
+- [x] Independently compare all financial history, bindings and protected risk
+  checkpoints before a separate Google Start (control19).
+- [x] Complete the30-minute running-Demo observation and final readback:360
+  samples, no HTTP/read failure, no HALT/child replacement, final running19/19.
+  Current per-side guards prevent a claim of two-sided market coverage.
 
-The live failed-check receipt remains failed. Local venue proof is never relabeled
-as a successful Cloud API recovery. The only operational mutation so far is the
-explicit Google Stop; financial state, HALT and risk checkpoint remain unchanged.
+At the end of revision64 acceptance, the live failed-check receipt remained
+failed, with only an explicit Google Stop applied. Local proof was not relabeled
+successful Cloud recovery. The revision65 section below records the later,
+separately successful actual Cloud check/reset and its exact financial change.
 
 
 Follow-up validation: native CLI/recovery regression **1,333 passed**; recovery
@@ -108,4 +118,51 @@ PostgreSQL/service contracts **16 passed**. Two independent full read-only venue
 proofs pass on the existing Demo account; the measured repeat completes in
 **34.862 seconds**, within the unchanged120-second recovery budget. Archive
 listing validates the retained backup includes bot_state/orders/trade_fills/
-positions. These are source/read-only proofs; live confirmation remains pending.
+positions. Those source/read-only proofs preceded live confirmation; revision65
+acceptance below records the later Cloud outcome.
+
+
+## Revision65 connected recovery
+
+The previous revision64 failed check remains recorded. On image `c98b08a6f…`,
+check `dc5e206a-e2af-4756-8720-19663d0c6685` succeeds and reset
+`98e9d419-49d5-4c40-b213-617eb33249cd` atomically repairs the reviewed spot row.
+Control advances17→18 and remains stopped; duplicate confirmation does not advance
+it again. Audit events49–51 identify the authorized Google admin. Independent DB
+readback proves all431 orders/101 fills, both perpetual rows, credential bindings
+and risk checkpoints unchanged beyond that exact repair. A separate Google Start
+succeeds at control19, session `bb70e9f0-1ffd-4b81-946c-5a785043fbd9`.
+
+This supersedes the earlier "live confirmation pending" state; its historical
+failed receipt is not relabeled successful. The running observation is tracked
+separately from recovery success and from two-sided quote availability.
+
+
+## Completed running observation
+
+2026-11-10 local01:15:44–01:45:45: **360 samples over1,801.378 seconds**,
+all under Google read authorization. No failed read, missing/stale owner
+observation, durable HALT or child replacement is observed. Physical ownership
+remains generation57; final control/ack19/19 and trading stays running. Final
+startup/live/ready endpoints return200; Swagger matches the shipped contract.
+
+One sample is a clearly reported readiness wait (`guard_recovering` on spot,
+`session_not_admitted` on perpetual); it self-recovers. The initial analysis
+script classified that wait as unknown until the actual reason codes were read.
+This classification correction changes no bot code. There are359 policy-constrained
+samples per market and one readiness-guard wait, with no two-way-eligible samples;
+**two-sided quote SLO is not qualified**. Spot SELL orders are observed on349
+samples, with10 permitted/in-progress samples and one readiness wait. Quotes
+continue to cancel/refresh; do not equate process uptime with continuous orders.
+
+Independent final readback matches **103 fills (74 spot,29 perpetual)** by exact
+identity/quantity/price/original fee; no duplicate fill. There are **two new natural
+spot fills** after recovery. Perpetual exposure remains unchanged. No forced
+fills, cap increases, position closures or risk-policy resets are used. The
+running held-position checkpoint is not represented as a stopped recovery proof.
+
+The one300ms-budget probe timeout occurs during Start before this observation;
+exact server/recovery latency is not proven. Logs after the session starts show
+no ERROR/restart;32 warning records in the captured interval are perpetual
+`mm_no_quotes_warning` under the existing inventory cap. Local helper teardown
+leaves the Cloud session running; no final Stop/Revoke is requested.

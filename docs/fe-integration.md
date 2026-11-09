@@ -911,12 +911,14 @@ trading engine stopped. Compare quantity agreement and freshness independently.
 
 Stop and reconciliation never automatically flatten positions or clear HALT.
 Checks may be unavailable when no appropriate connector remains; they do not start
-one. For unresolved recovery, the operator action is “Contact support”; maintainers
-use the [technical recovery runbook](postgres-runtime.md).
+one. Admins can use the [reviewed recovery flow](#admin-recovery) to inspect verified
+repairs for supported technical HALTs. Unsupported stops or incomplete evidence
+remain blocked and require “Contact support” via the
+[technical recovery runbook](postgres-runtime.md).
 Google-authenticated calls record the individual approved actor and enforce their
-current role. Basic bootstrap records its configured shared username. No
-recovery-reset/resume endpoint is implemented. The separate Disconnect workflow
-above closes managed perpetual positions; ordinary Stop retains this section's semantics.
+current role. Basic bootstrap records its configured shared username. Recovery
+leaves the bot stopped; Start is separate. The separate Disconnect workflow above
+closes managed perpetual positions; ordinary Stop retains this section's semantics.
 
 ## History, balances and statistics
 
@@ -953,6 +955,14 @@ Zero quotes on a valid sample means zero two-sided coverage. Feed gaps, restart,
 owner or profile generation changes are unknown intervals. Elapsed time includes
 unknown intervals, so gaps cannot inflate the reported uptime fraction. Stop/expiry
 freezes elapsed time. Only spot/perpetual counters are retained, without book history.
+
+`eligible=true` and `eligible_seconds` describe controller/market-data readiness;
+they do not certify permission to place both BUY and SELL. A fresh market can be
+ready while inventory, sizing or another per-side guard prevents an order. Use
+`quote_activity.sides` to distinguish those restrictions from missing working
+orders. For a two-sided operating target, report guard-constrained samples and
+unknown coverage separately; a zero eligible denominator is not a passing SLO.
+Do not label a strategy-wide `running=true` as proof of two-sided liquidity.
 
 The liquidity response's `markets` is a map keyed by `spot`/`perpetual`, not an
 array. Render each side's `quote_activity` alongside status. In the real Cloud
@@ -1264,8 +1274,11 @@ production-account acceptance remain external delivery work.
 ## Admin recovery
 
 Recovery is available only to `admin` (`GET /access/me` exposes
-`permissions.manage_recovery`). It does not alter YAML or risk limits. Stop the
-session first and wait for its control version to be acknowledged. Recovery never
+`permissions.manage_recovery`). It does not alter YAML or risk limits. When
+`halted=false`, show **No recovery needed** (or the last completed result) and
+hide Check/Recover; `recovery_not_halted` is an availability reason, not a new
+service fault. Stop the session first and wait for its control version to be
+acknowledged before checking an existing HALT. Recovery never
 starts trading, cancels orders or closes exposure. If exchange orders remain,
 resolve them through the existing cleanup/runbook before retrying.
 

@@ -1,6 +1,18 @@
 # Cloud Demo abrupt restart and stale position checkpoint
 
-2026-11-09, Asia/Ho_Chi_Minh. **Latest deployment: revision62 is Ready on
+Updated 2026-11-10, Asia/Ho_Chi_Minh. **Latest deployment: revision 65 is Ready on
+`c98b08a6f`, 100% traffic. Admin recovery through the real Google API succeeds:
+exactly one proven spot aggregate is repaired; original 431 orders/101 fills,
+perpetual quantities, credentials and risk checkpoints are preserved. Recovery
+leaves the bot stopped at 18/18; a separate Google Start reaches 19/19, RUNNING,
+without HALT.** The 30-minute observation completes with 360 fresh runtime/owner samples, no
+failed read/HALT/child replacement, and final startup/live/ready HTTP200. Two
+natural spot fills pass exact quantity/original-fee REST comparison (103 total). Perpetual
+quotes remain inventory-cap blocked; this is not two-sided-liquidity acceptance.
+See [revision65 recovery](#revision65--google-recovery-and-separate-start).
+
+Previous revision62 readback (historical, superseded by the recovery above):
+2026-11-09, Asia/Ho_Chi_Minh. **Then-current deployment: revision62 is Ready on
 `c1ef12b18`,100% traffic,2vCPU/1GiB and explicit auto-migration false. Trading
 remains HALTED/RecoveryRequired from the22:10 incident; no financial/HALT repair
 has been applied.** Startup/live respond200, trading readiness503. Both Demo
@@ -539,3 +551,88 @@ Final CLI/recovery regression passes **1,333 tests**. The second independent ful
 GET-only proof completes in **34.862 seconds**, within the unchanged120-second
 budget. Backup archive listing validates the required financial/bot-state tables.
 Pre-commit passes. No Cloud recovery confirmation or financial repair is claimed.
+
+
+## Revision65 — Google recovery and separate Start
+
+- Ready revision `hummingbot-demo-00065-mgw`, image `c98b08a6f…`, serves100% traffic.
+  Google identity/role/manage_recovery permission are verified again before writes.
+- Check `dc5e206a-e2af-4756-8720-19663d0c6685` succeeds against431 orders,101 fills,
+  two perpetual legs and zero account pending orders. Its one-row repair matches
+  the independent stopped snapshot exactly.
+- Reset `98e9d419-49d5-4c40-b213-617eb33249cd` succeeds at01:13:57 local. It repairs
+  only the reviewed spot aggregate; independent DB readback proves every order,
+  fill, both perpetual rows, credential binding and protected risk checkpoint
+  unchanged. A duplicate confirmation returns the same receipt, without another
+  control increment. Recovery is explicitly stopped at18/18.
+- Audit49–51 records request, position repair and completion under the approved
+  Google email, not the shared Basic identity. No raw SQL repair or force flag
+  is used. The prior revision64 failed check remains recorded as failed.
+- Separate Google Start receipt `220cbd83-87d9-4243-bb48-7eae371a3b7b` succeeds;
+  session `bb70e9f0-1ffd-4b81-946c-5a785043fbd9` starts01:14:15 local at19/19,
+  both/follow_market, Until stopped. Requested final state remains running.
+
+A single supervisor probe times out after301.025ms at01:14:12, during Start
+(accepted01:14:03, running01:14:15). Its maximum observed probe gap is1.306s;
+this is not proof that MM paused for1.306s. Exact server response/recovery latency
+is not observed from this timeout. No child restart is observed, and the physical
+DB owner/generation57 remains unchanged after recovery. This startup warning is
+kept separate from the later running observation window.
+
+Repeated `mm_no_quotes_warning` on perpetual is a real absence of working orders,
+with both sides explicitly `inventory_limit`. Long0.0030 + short0.0048 BTC gives
+gross0.0078 against the0.008 cap. No cap, position, credential or risk policy is
+changed to manufacture two-sided quotes. Spot inventory skew currently suppresses
+BUY (base weight about89.6%, target50%, buy multiplier0/sell2) and keeps SELL
+orders working. `eligible=true` is controller/data readiness, not permission to
+quote both sides. Two-sided SLO acceptance remains unqualified.
+
+The running observation and final financial/log readback are recorded below when
+complete. Stored held-position checkpoints can lag newly active executions while
+trading; current immutable fills and live exposure are checked independently.
+No new stopped-recovery proof is inferred from a running checkpoint difference.
+
+
+### Completed30-minute observation and final state
+
+The measured window is **01:15:44–01:45:45 local on2026-11-10**,1,801.378 seconds
+with360 samples (largest sampling gap5.011 seconds). Every sample confirms fresh
+owner/runtime state with desired/running true, no HALT/error, and revision65.
+No read failure or child restart is observed; physical owner generation57 stays
+unchanged. Final `/startup`, `/live`, `/ready` return200; Swagger matches the repo
+and both Demo credential slots remain Connected. All state-changing requests in
+this acceptance use the approved Google identity; no Basic trading mutation is
+used. No credential value appears in the reviewed status/recovery/slot responses.
+
+One sample at01:36:20 shows `waiting_for_mm_readiness`: spot explicitly reports
+`guard_recovering`, with two valid recovery samples and recovery started3.2s
+previously; perpetual is temporarily `session_not_admitted`. Quoting resumes
+without HALT/replacement. An initial private report classifier called this
+unknown because its whitelist omitted readiness waits; the actual logged codes
+are retained and the classifier is corrected. No bot logic is changed for this.
+
+There are359 policy-constrained samples per market and one readiness wait.
+Spot SELL is working in349 samples, permitted/in-progress in10 and in guard wait
+in one. Repeated cancel/recreate records confirm normal refresh activity.
+There are no two-way-eligible samples under the existing inventory/sizing
+restrictions: **this is not a passing two-sided liquidity SLO**. Runtime recovery
+acceptance and constrained market coverage remain distinct conclusions.
+
+Final independent REST readback matches103 unique fills:74 spot/29 perpetual,
+including two new natural spot fills since recovery, with exact quantity, price
+and original fee. Both perpetual hedge quantities match. Current account pending
+orders are two spot SELL and zero perpetual; no forced fills or caps/positions/
+credentials changes were used to obtain this result. Stored held-position rows
+can trail active executions; the running delta is not applied as another repair.
+
+Captured WARNING-or-higher logs after Start have32 entries, all perpetual
+`mm_no_quotes_warning` with the existing inventory cap; no ERROR or child restart.
+The earlier Start-phase301ms timeout remains separately recorded, without an
+unproven exact recovery-duration claim. The session is deliberately left RUNNING
+at19/19. Closing the local auth/proxy tools does not stop Cloud trading; Cloud Run
+uses2vCPU/1GiB, min/max1 and continuous CPU (`cpu-throttling=false`).
+
+[Sanitized evidence](cloudrun-demo-abrupt-restart-evidence.json) keeps the failed
+revision64 attempt and the successful revision65 recovery/observation separately.
+Real GCP KMS acceptance, new perpetual fills and two-sided coverage remain outside
+this bounded result.

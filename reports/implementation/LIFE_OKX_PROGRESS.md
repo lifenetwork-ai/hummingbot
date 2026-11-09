@@ -22,13 +22,18 @@ and [credential operations](../../docs/exchange-credentials.md).
 
 ## Current verification
 
-Admin-reviewed HALT recovery is implemented in source: preview and confirmation,
-fresh GET-only venue proof, prefix-proven position repair, atomic receipt/audit,
-owner/version/role fences and a stopped outcome. [Recovery plan](../../docs/plans/ADMIN_RECOVERY_API_TDD_PLAN.md)
-records native1,316 and related PG44 passes, plus a separate fresh4-test causal/
-process check. No Cloud financial/HALT state was changed; packaging/deployment
-and real-Demo recovery acceptance remain open. The incident's historical blocking
-SQL attribution remains qualified in the platform report.
+Admin-reviewed HALT recovery passes on Cloud revision65 (`c98b08a6f…`): Google
+Check/Confirm validates431 orders/101 fills, repairs exactly one spot aggregate,
+preserves risk/history/bindings, records audit and remains stopped18/18. A
+separate Google Start reaches19/19 without HALT. The30-minute observation completes
+with360 fresh owner/runtime samples, no failed read/HALT/child replacement, and
+final startup/live/ready200. Spot has working SELL orders and two exact REST-matched
+natural fills (103 total); one sampled guard-recovery wait self-resolves.
+Perpetual remains inventory-cap blocked, so two-sided coverage is not qualified.
+The [recovery plan](../../docs/plans/ADMIN_RECOVERY_API_TDD_PLAN.md) records
+native1,333/related PG16 passes plus earlier broader contracts. Historical lock
+attribution and the one Start-phase probe timeout remain qualified in the
+[platform report](../platform/cloudrun-demo-abrupt-restart.md).
 
 
 New managed-Demo candidate `4451974e…` passes native2,868 +16 subtests, PG557,
