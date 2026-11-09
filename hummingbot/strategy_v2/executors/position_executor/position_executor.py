@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 from decimal import Decimal
 from typing import Dict, List, Optional, Union
 
@@ -781,8 +782,22 @@ class PositionExecutor(ExecutorBase):
                    "scope": "executor", "error_type": event.error_type},
         )
 
+    def _completed_entry_fill_timestamp(self):
+        order = self._open_order.order if self._open_order else None
+        if (order is None or not order.exchange_order_id
+                or not isinstance(order.amount, Decimal) or not isinstance(order.executed_amount_base, Decimal)
+                or not order.amount.is_finite() or not order.executed_amount_base.is_finite()
+                or not 0 < order.amount == order.executed_amount_base or not order.is_filled):
+            return None
+        stamps = [trade.fill_timestamp for trade in order.order_fills.values()]
+        if not stamps or any(not isinstance(stamp, (int, float)) or isinstance(stamp, bool) or not math.isfinite(stamp) or stamp <= 0
+                             for stamp in stamps):
+            return None
+        return max(stamps)
+
     def get_custom_info(self) -> Dict:
         unfilled_managed = not self.filled_amount and (self.config.mm_session_id is not None or self.config.use_configured_entry_price)
+        entry_fill_at = self._completed_entry_fill_timestamp()
         return {
             "level_id": self.config.level_id,
             "current_position_average_price": None if unfilled_managed else self.entry_price,
@@ -791,6 +806,8 @@ class PositionExecutor(ExecutorBase):
             "max_retries": self._max_retries,
             "close_price": None if unfilled_managed else self.close_price,
             "open_order_last_update": self._open_order.last_update_timestamp if self._open_order else None,
+            "entry_order_filled": entry_fill_at is not None,
+            "entry_order_last_fill_timestamp": entry_fill_at,
             "order_ids": [order.order_id for order in [self._open_order, self._close_order, self._take_profit_limit_order] if order],
             "held_position_orders": self._held_position_orders,
         }

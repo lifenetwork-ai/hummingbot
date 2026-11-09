@@ -104,6 +104,7 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/controllers/test_inventory_cap_lifecycle.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_withdrawal_lifecycle.py \
 		test/hummingbot/strategy_v2/controllers/test_spread_rejection_lifecycle.py \
+		test/hummingbot/strategy_v2/controllers/test_filled_entry_handoff.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_diagnostics.py \
 		test/hummingbot/strategy_v2/controllers/test_life_mm_spread.py \
 		test/hummingbot/strategy_v2/controllers/test_volatility_defense.py \

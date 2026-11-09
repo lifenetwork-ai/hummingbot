@@ -1,5 +1,6 @@
 """LIFE reference configuration on the existing simple V2 market maker."""
 import asyncio
+import math
 import time
 from copy import deepcopy
 from decimal import ROUND_DOWN, Decimal, localcontext
@@ -649,13 +650,68 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             self._reset_quote_diagnostics()
             self._quote_reason(self._quote_readiness_reason() or 'inventory_limit')
             return self.stop_quote_actions()
-        refresh = self._defense_refresh_actions()
+        refresh = self._completed_entry_actions() + self._defense_refresh_actions()
         if refresh or (self._spread_policy.defense is not None and self._stops_requested):
             return refresh
         # Preserve the upstream create-then-stop ordering. Pass a local snapshot
         # only along this synchronous proposal call; public/send gates stay fresh
         # and no snapshot survives the queue await in control_task.
         return self._create_actions_proposal(exposure) + self.stop_actions_proposal()
+
+    def _completed_entry_actions(self):
+        # A fully filled entry has no resting liquidity. Transfer it through the
+        # existing hold/shutdown path instead of occupying its level until age60.
+        # Fresh native account observations must cover the fill before the entry
+        # reservation is released; missing data keeps the ordinary refresh path.
+        resident = {executor.id for executor in self.executors_info
+                    if executor.is_active or executor.status == RunnableStatus.SHUTTING_DOWN}
+        self._stops_requested.intersection_update(resident)
+        actions = []
+        for executor in self.executors_info:
+            if not executor.is_active or executor.id in self._stops_requested:
+                continue
+            info = getattr(executor, 'custom_info', None)
+            if not isinstance(info, dict) or info.get('entry_order_filled') is not True:
+                continue
+            barriers = executor.config.triple_barrier_config
+            if any(getattr(barriers, field) is not None for field in ('stop_loss', 'take_profit', 'time_limit', 'trailing_stop')):
+                continue
+            stamp = info.get('entry_order_last_fill_timestamp')
+            if not self._entry_account_covers_fill(executor, stamp):
+                continue
+            self._stops_requested.add(executor.id)
+            actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=executor.id, keep_position=True))
+            self.logger().debug('Completed entry handed off for fresh quotes: executor_id=%s level=%s',
+                                executor.id, executor.config.level_id,
+                                extra={'event': 'mm_entry_handoff', 'reason_code': 'entry_filled', 'scope': 'controller'})
+        return actions
+
+    def _entry_account_covers_fill(self, executor, fill_at):
+        now = self.market_data_provider.time()
+
+        def fresh(observation):
+            stamp = observation.get('observed_at') if isinstance(observation, dict) else None
+            return (isinstance(stamp, (float, int)) and not isinstance(stamp, bool) and math.isfinite(stamp)
+                    and stamp >= fill_at and 0 <= now - stamp <= self.config.max_data_age_seconds)
+
+        if not isinstance(fill_at, (float, int)) or isinstance(fill_at, bool) or not math.isfinite(fill_at) or fill_at <= 0:
+            return False
+        connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
+        if self.config.connector_name == 'okx':
+            observations = connector.account_balance_observations
+            for asset in self.config.trading_pair.split('-'):
+                observation = observations.get(asset) if isinstance(observations, dict) else None
+                if not fresh(observation):
+                    return False
+                cash = observation.get('cash_balance')
+                if not isinstance(cash, Decimal) or not cash.is_finite() or cash < 0:
+                    return False
+            return True
+        side = PositionSide.LONG if executor.config.side == TradeType.BUY else PositionSide.SHORT
+        keys = [key for key, position in connector.account_positions.items()
+                if position.trading_pair == self.config.trading_pair and position.position_side == side]
+        observations = connector.position_observations
+        return len(keys) == 1 and isinstance(observations, dict) and fresh(observations.get(keys[0]))
 
     def _resting_quote_amount(self, executor):
         # Only quote validity uses the acknowledged remainder. Account exposure

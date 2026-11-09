@@ -526,5 +526,41 @@
   "cloud_running_after_local_tools_stop": true,
   "final_read_only_handoff_at": "2026-11-09T10:12:31.086660Z",
   "final_service_phase": "running",
-  "final_session_expiry": null
+  "final_session_expiry": null,
+  "local_filled_entry_handoff_remediation": {
+    "baseline_commit": "eba8ebbcf",
+    "source_red_cases": 4,
+    "native_new_cases_passed": 37,
+    "postgres_new_cases_passed": 8,
+    "postgres_related_passed": 82,
+    "full_native_regression": {
+      "passed": 2929,
+      "subtests_passed": 16,
+      "additional_two_sell_handoff_case_passed_separately": true
+    },
+    "mechanism": "LifeMM requests existing position-hold shutdown after exact entry fills and fresh native account observations covering the latest fill; level retained through termination.",
+    "extra_exchange_reads_or_workers": false,
+    "timers_and_caps_changed": false,
+    "deployed": false,
+    "changed_image_qualified": false,
+    "historical_gap_elimination_proven_on_cloud": false,
+    "source_sha256": {
+      "controllers/market_making/life_mm.py": "c13ac3d0a4587a4f4ea65e95466418458741f1e44dcc7bba13167403dfafa060",
+      "hummingbot/strategy_v2/executors/position_executor/position_executor.py": "e1b2bb5bf1e626b3ba50dfdd520bf4b55fdbb5351ed70a80a315be31b28fddeb"
+    },
+    "cloud_observation_after_local_fix": {
+      "server_time": "2026-11-09T10:29:22.063202Z",
+      "running": true,
+      "desired_state": "running",
+      "error": null,
+      "phase": "running",
+      "control_version": 12,
+      "acknowledged_version": 12,
+      "owner_identity": {
+        "trading_environment": "demo",
+        "revision": "hummingbot-demo-00052-5dn",
+        "basis": "process_configuration"
+      }
+    }
+  }
 }

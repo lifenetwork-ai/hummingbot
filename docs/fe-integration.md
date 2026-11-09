@@ -605,6 +605,16 @@ signals. Review each market and each side using the existing fields above:
 | Observer/feed/owner evidence is stale or incomplete | Show unavailable/stale. Neither a last-good book nor HTTP200 establishes present working orders. Unknown samples are not proof of either continuous quoting or continuous absence. |
 | Session stopped/expired | Show idle and inspect outstanding orders/exposure separately. This status does not by itself prove that an account is flat. |
 
+Filled-entry handoff (source fix after revision52) uses the existing position-hold
+shutdown. Exact locally observed fills must cover the whole acknowledged entry,
+and a fresh native account observation must cover its last fill timestamp. The
+old level remains reserved until terminal bookkeeping; then the controller can
+propose a new quote without waiting for the scheduled refresh age. Partial fills,
+missing account observations and independently configured exit barriers retain
+their existing lifecycle. This adds no API configuration override or timer change.
+The revision52 post-fill gap remains historical evidence until a changed image
+is deployed and verified; a running process is not proof that every level works.
+
 For a slow-probe review, correlate the actual transition timestamps with engine
 ticks/controller cycles, submission/cancellation outcomes and independent venue
 observations when retained. Distinguish a method attempt/return from exchange

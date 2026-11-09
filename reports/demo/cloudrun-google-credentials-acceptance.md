@@ -225,3 +225,45 @@ remain live as requested; this run makes no flat-exposure or cleanup claim.
 The local login relay/proxy are temporary verification tools; stopping them does
 not stop the Cloud Run bot. Full release/soak, real GCP KMS and production trading
 remain outside this bounded Demo follow-up.
+
+## Filled-entry handoff — subsequent local TDD fix
+
+Source review confirms that a fully filled PositionExecutor remains RUNNING to
+hold exposure when all exit barriers are disabled. The controller counts that
+executor's level as occupied until the scheduled refresh. Native Red tests
+reproduce this on BUY/SELL in spot/perpetual well before the60s refresh age.
+This supports the observed post-fill waiting mechanism; it does not reconstruct
+every historical executor state or attribute the probe timeouts to that mechanism.
+
+The controller now requests the existing `StopExecutorAction(keep_position=True)`
+early for a completed entry. Completion requires an exchange identity, exact
+finite gross base quantity (not approximate equality), actual retained trade
+updates and valid fill timestamps. A fresh native balance observation for both
+spot assets, or the relevant perpetual hedge-leg observation, must cover the last
+fill timestamp. Missing/old/future/invalid observations retain the ordinary
+refresh lifecycle; no per-fill REST call, worker, configuration override or
+account-readiness relaxation is added.
+
+SHUTTING_DOWN levels remain reserved. The ordinary executor shutdown retains
+fills and fees as POSITION_HOLD, and the existing orchestrator merges them once.
+Only terminal levels can be proposed again, under the current inventory,
+collateral, allocation, session and send guards. Unfilled/partial entries retain
+the original refresh schedule. Explicit exit barriers on an independently
+configured executor are not overridden. The generic PositionExecutor publishes
+completion observations; other controllers receive no new automatic stop behavior.
+
+New native tests cover exact completion, nearly-full/partial/terminal-without-fill
+states, account observation lag/freshness, exchange identity, deduplicated hold
+fees, inventory caps, revoked sessions and both spot SELL levels filled together.
+Eight new real PostgreSQL cases verify that the handoff persists/restores exact
+holds or retains them in memory when ownership fencing rejects the checkpoint.
+All37 new native cases and8 new PostgreSQL cases pass. The full native regression
+passes2,929 cases plus16 subtests; the additional two-SELL case was added after
+that group's collection and passes in the separate37-case run. Related real
+PostgreSQL regression passes82 cases. Formatting/lint and diff checks pass.
+Validation scope is also recorded in the accompanying continuous-run evidence.
+
+This fix is **local source only**. No Start/Stop/Revoke, deployment, database repair
+or threshold change is performed during remediation. The running revision52
+Demo and its quote-gap measurements remain unchanged evidence; changed-image
+connected testing and the30-minute99% objective remain open.

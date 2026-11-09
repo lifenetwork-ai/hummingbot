@@ -616,10 +616,17 @@ remains exact. No recovery checkpoint or risk-stop flag has been edited.
   The prior revision48 credential-removal cycle keeps its own scope. No spread
   rejection occurs in this window, so its exact typed branch is not forced here.
   Historical17 initial triggers, new full soak and30-minute SLO remain separate.
-- [ ] Review the observed spot no-quote interval after both SELLs fill, including
-  occupied executor levels until scheduled refresh. Retain the33.2s sampled gap,
-  warning and order timestamps; use TDD for any justified early filled-entry handoff.
-  Do not treat zero runtime ERRORs as meeting the99% two-sided quote objective.
+- [x] Review and reproduce the filled-entry level occupancy before scheduled
+  refresh (four Red cases on original source). Reuse position-hold shutdown for
+  barrier-free MM entries with exact fills and fresh post-fill native account
+  observations; reserve levels through termination, retain fees/exposure and
+  recheck caps before a replacement. Cover both filled spot SELL levels together.
+- [x] Verify local controller/executor, account-wait/cap, session revocation,
+  PostgreSQL checkpoint/recovery and stale-owner fences. Add regression coverage
+  and document the source/image boundary; retain the historical33.2s quote gap.
+- [ ] Qualify a deployed image containing the filled-entry handoff against actual
+  Demo fills. Revision52 continues running with its existing code/risk settings;
+  do not claim the33.2s gap eliminated remotely or the99% quote objective achieved.
 
 Cloud limits1vCPU/512Mi differ from the proposed2vCPU/2Gi and the older local load
 gate. No resource change, new full soak, thirty-minute quote SLO, production FE or
