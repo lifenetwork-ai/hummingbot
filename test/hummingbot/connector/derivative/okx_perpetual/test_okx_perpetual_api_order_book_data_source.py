@@ -478,7 +478,7 @@ class OKXPerpetualAPIOrderBookDataSourceTests(IsolatedAsyncioWrapperTestCase):
         url_regex = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
         mock_api.get(url_regex, body=json.dumps(self.get_last_traded_prices_rest_msg()))
         last_traded_prices = await self.data_source.get_last_traded_prices([self.trading_pair])
-        self.assertEqual(2, len(last_traded_prices))
+        self.assertEqual(1, len(last_traded_prices))
         self.assertEqual(9999.99, last_traded_prices[self.trading_pair])
 
     @aioresponses()

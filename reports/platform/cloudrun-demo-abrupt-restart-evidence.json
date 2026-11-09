@@ -971,5 +971,152 @@
       "new_image_load_cloud_verification": false,
       "live_mutations": []
     }
+  },
+  "revision62_deployment_readback": {
+    "revision": "hummingbot-demo-00062-wvh",
+    "created_at": "2026-11-09T16:14:49.640523Z",
+    "ready_at": "2026-11-09T16:16:11.065374Z",
+    "image": "asia-southeast1-docker.pkg.dev/lifeai-438107/cloud-run-source-deploy/hummingbot/hummingbot-demo:c1ef12b185762e256766c42bf1ee4ce166e3ecde",
+    "resolved_digest": "asia-southeast1-docker.pkg.dev/lifeai-438107/cloud-run-source-deploy/hummingbot/hummingbot-demo@sha256:71b81686cb7ba1977b3ffb3a6d364ace7c366ca35dc51b59d219268d7f1db086",
+    "traffic_percent": 100,
+    "cpu": 2,
+    "memory_mib": 1024,
+    "auto_migration_override": "false",
+    "trading_environment": "demo",
+    "credentials_source": "postgres_kms",
+    "health": {
+      "/startup": {
+        "status": 200,
+        "body": {
+          "state": "halted"
+        }
+      },
+      "/live": {
+        "status": 200,
+        "body": {
+          "state": "api_running"
+        }
+      },
+      "/ready": {
+        "status": 503,
+        "body": {
+          "state": "halted"
+        }
+      }
+    },
+    "status_http": 200,
+    "phase": "halted",
+    "error": "RecoveryRequired",
+    "owner_available": true,
+    "heartbeat_age_seconds": 0.298769,
+    "control_version": 16,
+    "acknowledged_version": 16,
+    "recovery": {
+      "halted": true,
+      "pending_mutations": false,
+      "next_action": "contact_support",
+      "detail": "Contact support before restarting trading.",
+      "reset_available": false
+    },
+    "credential_slots": [
+      {
+        "connector": "okx",
+        "version": 2,
+        "status": "connected"
+      },
+      {
+        "connector": "okx_perpetual",
+        "version": 2,
+        "status": "connected"
+      }
+    ],
+    "daily_freshness": "fresh",
+    "daily_recorded_fill_counts": {
+      "spot": 72,
+      "perpetual": 29
+    },
+    "liquidity_http": 200,
+    "logs": [
+      {
+        "at": "2026-11-09T16:18:07.109675Z",
+        "severity": "WARNING",
+        "message": "Admin access denied code=insufficient_role"
+      },
+      {
+        "at": "2026-11-09T16:16:16.755795Z",
+        "severity": "ERROR",
+        "message": "Failed to start strategy v2_with_controllers: Reconciliation ran, but prior unresolved effects still require operator recovery."
+      },
+      {
+        "at": "2026-11-09T16:16:16.755770Z",
+        "severity": "ERROR",
+        "message": "Error starting strategy execution: Reconciliation ran, but prior unresolved effects still require operator recovery."
+      },
+      {
+        "at": "2026-11-09T16:16:16.464049Z",
+        "severity": "WARNING",
+        "message": "Unexpected error while fetching last trade price."
+      }
+    ],
+    "last_price_warning": {
+      "connector": "okx_perpetual",
+      "type": "ValueError",
+      "cause": "Bulk ticker endpoint included last=\"\"; float conversion aborts the REST fallback batch",
+      "tracker_behavior": "Catches warning and retries after30 seconds",
+      "relation_to_current_halt": "Different from retained RecoveryRequired; does not establish current HALT cause"
+    },
+    "new_ownership_lost_or_cleanup_failure_observed": false,
+    "application_database_lock_timeout_observed": false,
+    "scope": "Read-only deployment validation with two API observations; no continuous run/true-mode Cloud qualification or fresh individual REST financial reconciliation",
+    "live_mutations": [],
+    "investigator_probe_warning": {
+      "at": "2026-11-09T16:18:07.109675Z",
+      "cause": "Investigator requested /liquidity instead of documented /statistics/liquidity; unknown action denied with403",
+      "corrected_route_status": 200,
+      "interpretation": "Probe mistake; not loss of the operator account role or credential configuration"
+    },
+    "last_price_parser_source_fix": {
+      "scope": "Source-only parser correction; no Cloud Run deployment or financial recovery mutation",
+      "behavior": [
+        "Skip malformed/blank/nonpositive/nonfinite prices without discarding valid requested markets",
+        "Forward requested markets through data source; do not return unrelated instruments",
+        "Single-price lookup selects requested instrument instead of first bulk row",
+        "No usable requested price raises IOError, retaining tracker30-second backoff and old freshness",
+        "Cancellation and transport failures propagate"
+      ],
+      "targeted_red": {
+        "failed": 22,
+        "passed_controls": 3
+      },
+      "targeted_green": {
+        "passed": 25
+      },
+      "connector_tracker_regression": {
+        "passed": 225,
+        "subtests_passed": 9,
+        "warnings": 10
+      },
+      "mm_guard_regression": {
+        "passed": 121,
+        "warnings": 7
+      },
+      "public_venue_readback": {
+        "observed_at": "2026-11-09T16:27:44.129488+00:00",
+        "endpoint": "https://www.okx.com/api/v5/market/tickers?instType=SWAP",
+        "authentication": false,
+        "ticker_count": 546,
+        "blank_last_count": 0,
+        "requested_markets": [
+          "BTC-USDT"
+        ],
+        "parsed_prices": {
+          "BTC-USDT": 74784.5
+        },
+        "scope": "One read of public venue data with local parser; no Cloud Run or trading mutation"
+      },
+      "precommit": "passed",
+      "deployed": false,
+      "live_mutations": []
+    }
   }
 }

@@ -357,7 +357,7 @@ class OkxPerpetualDerivativeTests(
             "data": [
                 {
                     "instType": "SWAP",
-                    "instId": self.trading_pair,
+                    "instId": self.exchange_symbol_for_tokens(self.base_asset, self.quote_asset),
                     "last": str(self.expected_latest_price),
                     "lastSz": "0.1",
                     "askPx": "9999.99",

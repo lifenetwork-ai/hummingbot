@@ -1,4 +1,5 @@
 import asyncio
+import math
 import time
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -342,10 +343,11 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             params=params,
         )
 
-        price = float(resp_json["data"][0]["last"])
-        return price
+        return self._parse_last_traded_prices(resp_json.get("data"), [trading_pair])[trading_pair]
 
     async def get_last_traded_prices(self, trading_pairs: List[str] = None) -> Dict[str, float]:
+        if trading_pairs is not None and not trading_pairs:
+            return {}
         params = {"instType": "SWAP"}
 
         resp_json = await self._api_get(
@@ -353,8 +355,37 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             params=params,
         )
 
-        last_traded_prices = {ticker["instId"].replace("-SWAP", ""): float(ticker["last"]) for ticker in resp_json["data"]}
-        return last_traded_prices
+        return self._parse_last_traded_prices(resp_json.get("data"), trading_pairs)
+
+    @staticmethod
+    def _parse_last_traded_prices(tickers, trading_pairs=None) -> Dict[str, float]:
+        if not isinstance(tickers, list):
+            raise IOError("Invalid OKX perpetual ticker response: expected a data list.")
+        requested = set(trading_pairs) if trading_pairs is not None else None
+        prices = {}
+        for ticker in tickers:
+            if not isinstance(ticker, dict):
+                continue
+            symbol = ticker.get("instId")
+            if not isinstance(symbol, str) or not symbol.endswith("-SWAP"):
+                continue
+            pair = symbol.removesuffix("-SWAP")
+            if not pair or (requested is not None and pair not in requested):
+                continue
+            raw_price = ticker.get("last")
+            if isinstance(raw_price, bool):
+                continue
+            try:
+                price = float(raw_price)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if math.isfinite(price) and price > 0:
+                prices[pair] = price
+        if not prices:
+            # An empty result would leave requested books stale and hot-loop
+            # the REST fallback. Preserve its existing unavailable/backoff path.
+            raise IOError("No usable OKX perpetual last trade prices in response.")
+        return prices
 
     async def _update_balances(self):
         """

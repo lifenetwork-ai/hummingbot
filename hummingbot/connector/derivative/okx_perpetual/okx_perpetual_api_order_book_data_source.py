@@ -124,7 +124,7 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
 
     # 2 - Get Last Traded Prices REST
     async def get_last_traded_prices(self, trading_pairs: List[str], domain: Optional[str] = None) -> Dict[str, float]:
-        return await self._connector.get_last_traded_prices()
+        return await self._connector.get_last_traded_prices(trading_pairs=trading_pairs)
 
     # 3 - Get Funding Info REST
     async def get_funding_info(self, trading_pair: str) -> FundingInfo:

@@ -1,12 +1,15 @@
 # Cloud Demo abrupt restart and stale position checkpoint
 
-2026-11-09, Asia/Ho_Chi_Minh. **Current state: revision57 is HALTED after an
-ownership lock timeout during the22:10 rollout.** All101 recorded fills match
-individual OKX trade/order IDs, quantity, price and original fees; pending venue
-orders0/0. One spot position aggregate is stale. The initial mitigation passed
-89 PostgreSQL and37 deployment-review tests. A guarded automatic-migration
-follow-up is implemented in source below; it is not deployed and no
-live data/HALT has been changed. See the [current incident and recovery proposal](#rollout-lock-timeout-at-2210-local).
+2026-11-09, Asia/Ho_Chi_Minh. **Latest deployment: revision62 is Ready on
+`c1ef12b18`,100% traffic,2vCPU/1GiB and explicit auto-migration false. Trading
+remains HALTED/RecoveryRequired from the22:10 incident; no financial/HALT repair
+has been applied.** Startup/live respond200, trading readiness503. Both Demo
+credential slots remain Connectedv2 and daily reporting is fresh with101 recorded
+fills. This readback is separate from the earlier101-fill individual REST proof.
+A new startup warning is an empty perpetual ticker `last` converted with
+`float("")`; it is distinct from the retained recovery stop.
+See [deployment detail](#revision62-deployment-readback) and the
+[current incident/recovery proposal](#rollout-lock-timeout-at-2210-local).
 
 Earlier read-only check at22:02: revision56 was RUNNING,
 control/ack16/16, no HALT/error;100/200USDT limits remain active.
@@ -421,3 +424,65 @@ Source verification results:
   the bounded health wait and lightweight polling changes. Pre-commit passes.
 - The Docker upgrade assertion now requires additive DDL after old-owner exit.
   No new Docker image/full E2E/load or real Cloud rollout was run for this change.
+
+## Revision62 deployment readback
+
+The operator deployed `hummingbot-demo-00062-wvh`, created23:14:49.640 local,
+Ready23:16:11.065, with100% traffic. The resolved image manifest is
+`sha256:71b81686cb7ba1977b3ffb3a6d364ace7c366ca35dc51b59d219268d7f1db086`,
+tagged `c1ef12b185762e256766c42bf1ee4ce166e3ecde`. Resources remain2vCPU/1GiB,
+BOT_ID `hummingbot-demo`, OKX Demo, `postgres_kms` and explicit
+`ENABLE_AUTO_MIGRATION=false`. No update was sent by the investigator.
+
+Readbacks at23:18–23:19 confirm startup/live200, readiness503, status200 and
+HALTED/RecoveryRequired with control/ack16/16. Owner is available with last
+heartbeat age0.299s at the later read; service diagnostics are fresh. Both saved
+credential slots are Connectedv2, daily history is fresh (72 spot/29 perpetual),
+and the actual `/statistics/liquidity` route responds200. These are API reads,
+not a new individual REST match or proof of continuous trading.
+
+Retained revision62 logs show two initialization ERROR records for the existing
+unresolved-effects recovery stop, and one separate WARNING at23:16:16.464. Its
+trace reaches `okx_perpetual.get_last_traded_prices()`: a bulk ticker has an empty
+`last`, causing `float("")` to raise ValueError and abort that batch. The native
+order-book tracker catches it and retries after30s. This is a parser edge case,
+not the source of the current recovery HALT; valid prices should not be fabricated
+as zero. The check found no new OwnershipLost, cleanup failure or engine restart
+in revision62, and no matching application-DB lock timeout after its creation.
+
+The parser correction is implemented in source below; true-mode Cloud rollover
+and financial recovery remain separate work. The earlier recovery proposal's false-override step is now already
+satisfied on the current image. Any maintenance must retain revision62/current
+configuration, independently repeat venue/ledger checks, quiesce/backup/restore-
+rehearse, then repair only the reviewed spot aggregate and incident HALT with an
+audit. Prior approvals for other incidents do not authorize this repair.
+
+One additional access-denied WARNING at23:18:07.109 is attributable to the
+investigator requesting the wrong `/liquidity` path. The documented
+`/statistics/liquidity` was then checked successfully (200). This probe mistake
+is not a lost operator role or a credential configuration failure.
+
+## Perpetual last-price parser — source correction
+
+TDD reproduces the empty-ticker batch failure:22 Red failures and3 safety controls
+pass before the change; all25 targeted cases pass afterward. The parser skips
+blank/malformed/nonpositive/nonfinite prices while retaining valid requested
+markets. The data source forwards requested pairs; the single-price path also
+selects the requested instrument instead of taking the first bulk ticker. The
+single-price request parameters remain unchanged. Existing response fixtures now
+use actual SWAP instrument IDs and assert only requested results.
+
+If no requested price is usable, the connector raises a safe IOError so the native
+tracker retains its30-second error backoff. It does not invent zero, mark an old
+price fresh or poll endlessly on an empty result. The real tracker tests verify
+successful BTC refresh beside an empty unrelated ticker and preservation of the
+old price/update timestamp when BTC itself is unavailable. Cancellation and
+transport errors still propagate. No generic tracker timeout/guard was changed.
+
+Regression:225 connector/tracker tests plus9 subtests pass (10 warnings);121
+MM/volatility/quote diagnostic tests pass (7 dependency warnings). One unsigned
+public OKX REST read returns546 tickers, no blank last fields at that observation,
+and the local parser returns BTC-USDT74784.5. This checks current positive data;
+it is not a reproduction of the earlier empty field, an authenticated Demo test
+or a trading/fill claim. Pre-commit passes. The fix is not deployed to revision62;
+its financial/HALT recovery and new-image connected verification remain open.
