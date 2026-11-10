@@ -2,7 +2,7 @@
 
 [All reports](../README.md) · [Latest Demo/release](../release/demo-release-closeout.md)
 
-**Latest API state: revision75, regular catalogue, RUNNING Until stopped, control53/53; image/rollout verification pending.**
+**Latest API state at03:48 UTC: revision77, RUNNING Until stopped, same session/control53/53, no HALT; startup/live/ready200. Historical revision74→75 rollout is attributed to CI. New CI artifact gates remain separate.**
 The [latest closeout](../release/demo-release-closeout.md) qualifies actual
 perpetual BUY/SELL handoff and a complete30-minute conditional quote target on
 revision73 (spot99.7700%/perpetual99.7133%, zero unknown). Temporary settings are
@@ -11,10 +11,10 @@ original fees/positions and flat hedge cold reload pass. No HALT. Full offline
 load/Random soak3600/six faults/retention on regular image `4198f2fa…` pass.
 Revision75 image/rollout verification remains open.
 
-Current follow-up: API now reports revision75, same running session/control53,
-Demo and regular catalogue, no HALT. Its image/environment and the01:41 UTC
-rollout transition await GCP reauthentication; this is not continued evidence of
-revision74. See [closeout investigation](../release/demo-release-closeout.md#later-revision-transition-under-investigation).
+Follow-up: Cloud Build/audit attributes revision74→75 to the delayed automatic
+deployment of older commit `f7da0d1e6`; no new runtime defect is reproduced.
+Overlapping-owner E2E and91 native controls pass. Merged CI artifacts require
+separate verification; they do not inherit image4198 release gates. See [closeout investigation](../release/demo-release-closeout.md#later-revision-transition-under-investigation).
 
 ## Earlier connected scopes
 

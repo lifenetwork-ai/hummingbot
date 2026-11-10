@@ -3,11 +3,13 @@
 The controlled Demo qualification passes perpetual fill handoff and the approved
 thirty-minute two-sided quote target. The regular catalogue was restored on
 revision 74 and separately started at control 53/53, fixed follow_market/both,
-Until stopped. A later service update exposes revision75; its exact image/env
-await verification. Current API reads are running with the same session/control,
-Demo environment and no HALT. **The pinned image passes native, PostgreSQL,
+Until stopped. Cloud audit now attributes revision74→75 to the automatic Cloud
+Build rollout of commit `f7da0d1e6`, not a newly demonstrated runtime defect.
+Revision75's older image does not contain the four fixes below; subsequent CI
+deployments require their own artifact verification. **The pinned image passes native, PostgreSQL,
 all30 E2E, full unchanged load, Random soak3600, six faults and retention. Overall
-Cloud closeout remains open for revision74→75 image/log verification.**
+Cloud closeout remains open for the newly built CI artifact, not historical
+rollout attribution.**
 
 ## Artifact and acceptance matrix
 
@@ -31,7 +33,8 @@ fixtures are frozen separately. This report does not transfer older image passes
 | Actual close/remove/Set | Two corrected-image cycles automatically finish without manual Retry. Only the selected perpetual bundle is removed; same-account Set reconnects, remains stopped. |
 | Stopped financial readback | 384 actual Demo fills (152 spot/232 perpetual), exact original fees, unique identities, pending orders 0/perpetual flat; BTC cash 0.961563983944. Cold reload preserves distinct flat hedge fee/volume values. |
 | Restored operating state | Revision 74, regular 100/100 catalogue, drawdown 100/controller and 200/global, 2 CPU/1 GiB, min 1/max 1, CPU always allocated. Separate audited Start 53 leaves Demo running Until stopped. |
-| Latest API read | Revision75 at02:58 UTC, running53/53, Demo/both/follow_market/Until stopped, regular catalogue matches, both slots Connected (v2/v9), no HALT, startup/live/ready200. Image/env metadata unverified; this is not inherited image4198 qualification. |
+| Historical API read | Revision75 at02:58 UTC, running53/53, Demo/both/follow_market/Until stopped, regular catalogue matches, both slots Connected (v2/v9), no HALT, startup/live/ready200. Its older source/image was later verified from Cloud Build/audit; no image4198 gate is inherited. |
+| Post-merge API read | Revision77 at03:48 UTC, same session/control53/53, Demo/running, owner available, no HALT/error, startup/live/ready200. CI deploys merged commit01aab8abe; full new-artifact qualification is separate. |
 
 The qualifying revision 73 overlay `f4863d62…` differs only in public YAML from
 the regular runtime. YAML SHA `6982bc84a8b2b668ac0edd7a75b398163c93b1db6ef931cd8e5bc5a3f1734423`:
@@ -117,20 +120,50 @@ confirms running again and drawdown below both limits. No operator command was
 issued for this transition. The strict monitor aborts and its failed sample is
 preserved; a new 5-second incident monitor records any recurrence without mutation.
 
-Subsequent direct API read exposes `hummingbot-demo-00075-wbf`, while retaining
-the same session/control 53. A new revision requires a service update; this is
-consistent with a rollout handoff and must be checked before calling it a runtime
-defect. No tool in this closeout deployed revision75. Its exact image, config and
-rollout actor/time cannot yet be read. Preserve the identity-change samples and
-do not silently count them as continued observation of image4198/revision74.
+After CLI reauthentication, Cloud Build `f86c268a-a4e0-4fcc-aca0-9e0800dd435d`
+proves an automatic trigger build of `f7da0d1e6ad5987a71d033eb9c805bef48cae4dd`:
+created01:33:24 UTC, deploy step01:37:41–01:40:06, SUCCESS. Audit records
+`google.cloud.run.v1.Services.ReplaceService` at01:38:02 UTC from
+`802449703053-compute@developer.gserviceaccount.com`, using noninteractive gcloud
+on Linux. Revision75 is created01:38:03 and becomes healthy01:39:54, before
+the observed01:41 ownership handoff. This matches the operator's delayed auto
+deploy after push; no new operator Start/Stop was issued. Environment entries,
+resources and all revision-spec fields except the image are unchanged from74.
+The immutable75 image is `sha256:fadfdd2ce24a9e1614c0863b67441e6d59048d6e71389a28cc85c480e3d9bedb`.
+Its source predates the four verified fixes; never transfer image4198's gates to it.
 
-This is actual strategy reinitialization, not proof that only an HTTP probe was
-slow. It does not invalidate the preceding revision73 qualification, but regular
-operation must not be called uninterrupted. Cloud image/log attribution
-is pending: gcloud now requires reauthentication and the browser connector fails
-to initialize. No speculative runtime patch or risk reset is made. Request
-operator reauthentication, retain the original trace, then reproduce a confirmed
-code defect through TDD if the logs identify one.
+The evidence attributes the revision change/reinitialization to the CI rollout.
+INFO/system shutdown records are unavailable under the existing logging filter,
+so an exact Cloud SIGTERM timestamp and subphase timings are not independently
+proven. This is actual strategy reinitialization, not a probe-only delay or proof
+of uninterrupted quotes. There is no new reproduced runtime defect in this event,
+and no speculative patch, risk reset or widened guard is applied.
+
+Add explicit overlap coverage to the existing packaged `until-stopped` E2E:
+start the successor while the old owner is still running, require healthy standby
+startup/readiness503 and unchanged owner/control, then deliver real SIGTERM to the
+old process. The successor must acquire exactly the next owner generation,
+retain the same session/control/acknowledgement and four unique fills, resume
+readiness, and honor a subsequent Stop. This targeted simulator run passes on
+immutable image4198; old process exits0 in1.916s, no HALT or unknown exchange
+request. Related native lifecycle/signal/standby/supervisor tests pass91.
+The added overlap assertions pass the existing runtime on their first run:
+they close a coverage gap, not a claimed Red/Green bug fix. Original full-release
+evidence remains frozen; this is a separate changed-harness targeted result at
+`build/e2e-offline/20261110-104353-22f70e/result.json`, not another full release.
+
+During this read-only investigation, CI also builds merged commits `6fdfcc1b3`
+and `01aab8abe`; no manual deployment is made. At03:48 UTC revision77 is running
+with the same session/control53/53, available owner, no HALT/error, fresh status
+and startup/live/ready200. Its CI source contains the four verified fixes; it is
+a different immutable image, so its complete packaged/dependency gate is not
+inherited from image4198. The final artifact digest/config and the source build
+are recorded separately in the portable evidence.
+
+A separate perpetual private WS disconnect at03:42:46 UTC has close code1006
+and enters the connector's existing retry path. Subsequent status and all three
+health endpoints are healthy; no control change or HALT is observed. It is not
+the01:41 rollout event and is not evidence of a newly reproduced logic defect.
 
 ## Limits still open
 

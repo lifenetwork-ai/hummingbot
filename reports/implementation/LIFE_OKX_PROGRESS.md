@@ -6,10 +6,10 @@ Feature/configuration references are in [MM controls](../../docs/life-mm-control
 [FE integration](../../docs/fe-integration.md), [PostgreSQL](../../docs/postgres-runtime.md)
 and [credential operations](../../docs/exchange-credentials.md).
 
-Current follow-up: API now reports revision75, same running session/control53,
-Demo and regular catalogue, no HALT. Its image/environment and the01:41 UTC
-rollout transition await GCP reauthentication; this is not continued evidence of
-revision74. See [closeout investigation](../release/demo-release-closeout.md#later-revision-transition-under-investigation).
+Follow-up: Cloud Build/audit attributes revision74→75 to the delayed automatic
+deployment of older commit `f7da0d1e6`; no new runtime defect is reproduced.
+Overlapping-owner E2E and91 native controls pass. Merged CI artifacts require
+separate verification; they do not inherit image4198 release gates. See [closeout investigation](../release/demo-release-closeout.md#later-revision-transition-under-investigation).
 
 ## Delivered
 
@@ -34,7 +34,7 @@ technical distinct-image upgrade/takeover/rollback scenario. Full unchanged
 load/Random soak3600/six faults/retention pass. Main p99
 96.87/96.46/103.11/283.41ms;4,885 simulated fills and growth18.02MiB/64MiB.
 Six healthy probes self-recover without healthy child replacement.
-Overall Cloud closeout still needs revision75 image/rollout verification.
+Historical rollout attribution is closed; latest merged CI artifact verification remains open.
 
 Four TDD-confirmed defects are fixed: retained orphan PostgreSQL ownership,
 flat perpetual hedge-leg identity overwrite, provable spot BTC-fee verification,

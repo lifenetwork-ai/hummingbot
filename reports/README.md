@@ -8,7 +8,7 @@ live in [docs](../docs/README.md).
 Latest source `f53885fda`, regular image `4198f2fa…`: canonical native3,085 +16,
 PostgreSQL605 and all30 packaged E2E pass. Full unchanged load/Random soak3600/six faults/retention
 pass: main p99 96.87/96.46/103.11/283.41ms,4,885 simulated fills, growth18.02MiB.
-Overall Cloud closeout still needs revision75 image/rollout verification. Actual Demo revision73 qualifies BUY/SELL
+Historical rollout attribution is closed; latest merged CI artifact verification remains open. Actual Demo revision73 qualifies BUY/SELL
 perpetual handoff and the30-minute conditional quote target:99.7700% spot,
 99.7133% perpetual, zero unknown. Automatic close/remove/Set and384 stopped actual
 fills/original fees/positions reconcile. Regular catalogue is restored on
@@ -30,10 +30,10 @@ transferred across images or from simulated fills to actual Demo trades.
 | [Investigations](investigations/README.md) | Current limits and historical incident lookup |
 | [Git history](#historical-records) | Original completed plans, reports and full journals |
 
-Current follow-up: API now reports revision75, same running session/control53,
-Demo and regular catalogue, no HALT. Its image/environment and the01:41 UTC
-rollout transition await GCP reauthentication; this is not continued evidence of
-revision74. See [closeout investigation](release/demo-release-closeout.md#later-revision-transition-under-investigation).
+Follow-up: Cloud Build/audit attributes revision74→75 to the delayed automatic
+deployment of older commit `f7da0d1e6`; no new runtime defect is reproduced.
+Overlapping-owner E2E and91 native controls pass. Merged CI artifacts require
+separate verification; they do not inherit image4198 release gates. See [closeout investigation](release/demo-release-closeout.md#later-revision-transition-under-investigation).
 
 ## Historical records
 

@@ -1,11 +1,11 @@
 {
   "scope": "Controlled actual OKX Demo plus frozen local/offline release; excludes real GCP KMS, actual FE and live funds.",
-  "updated_at": "2026-11-10T03:03:57.457475+00:00",
+  "updated_at": "2026-11-10T03:49:45.532684+00:00",
   "demo_qualification_passed": true,
   "offline_release_passed": true,
   "closeout_scope_complete": false,
   "open_items": [
-    "New revision75 follows revision74 strategy reinitialization at01:41 UTC; exact image/config/rollout attribution pending gcloud reauthentication."
+    "Historical revision74-to75 rollout attribution is closed. New CI artifact on revision77 needs separate packaged/dependency verification; no full gate inherited from image4198."
   ],
   "source": "f53885fdadd29fe430cdd4acbea020e49c65318d",
   "image": {
@@ -553,7 +553,7 @@
       "catalogue": "regular",
       "halted": false,
       "actor": "basic:bootstrap-admin",
-      "scope": "Verified restoration and separate Start on revision74; later revision75 is not yet image-qualified."
+      "scope": "Verified restoration and Start on revision74; later CI artifacts have separate image provenance and gates."
     },
     "temporary_catalogue": {
       "image": {
@@ -613,8 +613,8 @@
       ],
       "halt_samples": 0,
       "not_running_samples": 0,
-      "cloud_image_metadata_verified": false,
-      "scope": "Post-qualification revision75 read-only monitoring; does not extend the revision73 target or prove revision74 uninterrupted."
+      "cloud_image_metadata_verified": true,
+      "scope": "Historical revision75 interval, now attributed to older CI source/image; does not extend revision73 target or inherit image4198 qualification."
     },
     "later_regular_transition": {
       "stopping_at": "2026-11-10T01:41:01.448705Z",
@@ -623,9 +623,37 @@
       "new_revision": "hummingbot-demo-00075-wbf",
       "same_session_and_control": 53,
       "halted": false,
-      "cause": "New revision observed; image/config/rollout attribution awaits gcloud reauthentication. No speculative runtime correction."
+      "cause": "Attributed to automatic Cloud Build f86c268a deployment of f7da0d1e6; audit and revision readiness precede the same-session/control handoff. Exact Cloud SIGTERM time is unavailable under INFO filtering."
     },
     "final_cloud_readback": {
+      "at": "2026-11-10T03:48:27.253151+00:00",
+      "revision": "hummingbot-demo-00077-tcn",
+      "source_commit": "01aab8abe91177e18d48a216a23de6551ac5acd9",
+      "image_digest": "sha256:797fcd94de809c8679e9cc62a6a73454f5b074364158daf7754f5ef8662df45f",
+      "running": true,
+      "desired_state": "running",
+      "control_version": 53,
+      "acknowledged_version": 53,
+      "same_original_session": true,
+      "halted": false,
+      "pending_mutations": false,
+      "owner_available": true,
+      "observation_stale": false,
+      "health": {
+        "startup": 200,
+        "live": 200,
+        "ready": 200
+      },
+      "environment_unchanged_from74": true,
+      "resources": {
+        "limits": {
+          "cpu": "2",
+          "memory": "1Gi"
+        }
+      },
+      "new_artifact_full_gate_inherited": false
+    },
+    "historical_final_cloud_readback": {
       "observed_at": "2026-11-10T02:58:57.103381+00:00",
       "revision": "hummingbot-demo-00075-wbf",
       "environment": "demo",
@@ -727,7 +755,33 @@
     "build/mm-load/20261110-082737-644ef4/warmup-incident-analysis.json": "79091ccbfe476007ce529a02de9da884c2ded54e75be5e53c8c2f0ad52dce757",
     "build/mm-load/20261110-082737-644ef4/mixed-incident-analysis.json": "923a7458816e6016f146808c78592b2dff7852d87122c3c1031bf1ea62010dff",
     "build/mm-load/20261110-082737-644ef4/bursts-incident-analysis.json": "19afb474e1e1f23e24024ceb69967104d9d549b003ec0998e63b3951da26e592",
-    "build/mm-load/20261110-082737-644ef4/soak-incident-analysis.json": "7cabc886c907e50ddf76a99fa09b54dff769bb15310517334223c95b182e6a83"
+    "build/mm-load/20261110-082737-644ef4/soak-incident-analysis.json": "7cabc886c907e50ddf76a99fa09b54dff769bb15310517334223c95b182e6a83",
+    "build/acceptance-closeout-20261110/revision-audit/final-status-private.json": "9ebf0389dc25c61895ceb59e0c30e19413390dcc47581ea840d767b021fb3df7",
+    "build/acceptance-closeout-20261110/revision-audit/transition-logs-private.json": "dd724a9d227007f95b7b92e8f1cdbdc0c13c13da78688f8bc6b464075a721875",
+    "build/acceptance-closeout-20261110/revision-audit/recent-builds-after-test.json": "aeae8b9b824abe0ccba80d098a3ba68e6c8e2eddac63117341cfff221391a78c",
+    "build/acceptance-closeout-20261110/revision-audit/latest-status-private.json": "f16b1764de8b6f34e390c431057824dfa9b21434db3cd24f9678e5b87f5a618b",
+    "build/acceptance-closeout-20261110/revision-audit/system-logs-private.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "build/acceptance-closeout-20261110/revision-audit/service-after-test-private.json": "49609f48f3d83b164ca905d99a1ff909a54bbdbbbb4038114141346e7271a219",
+    "build/acceptance-closeout-20261110/revision-audit/current-status-private.json": "df55c77a35e0fbc444e7df83791a5a8c40af0d801c7f1236c74edb5d9d33f5c1",
+    "build/acceptance-closeout-20261110/revision-audit/service-private.json": "3438928e00441c1bab6a6dff8b9b2acc6710ad783baf64da6329d7a269ceafe2",
+    "build/acceptance-closeout-20261110/revision-audit/revision76-private.json": "22023a5dcf67d6da193709d6c8eb1bc2124f641197d853e12b302f4f1215daae",
+    "build/acceptance-closeout-20261110/revision-audit/final-builds-private.json": "23c2895b24910b41b0754441db543d292ef17ec4257cfe63ff03b8193fe895d5",
+    "build/acceptance-closeout-20261110/revision-audit/latest-service-private.json": "49609f48f3d83b164ca905d99a1ff909a54bbdbbbb4038114141346e7271a219",
+    "build/acceptance-closeout-20261110/revision-audit/final-session-events-private.json": "d25559f19696954d95b3572a6a9ae339cb53ddad9d6c89fd2240346a20c04d9c",
+    "build/acceptance-closeout-20261110/revision-audit/revision77-private.json": "ec8670f26685cad66fff81de935b3c54e72a72170bdefbc08290d452145e4da8",
+    "build/acceptance-closeout-20261110/revision-audit/recent-builds.json": "ae4b1d2bec8dd0759bac2af99728a69d9364c0978f470e9748d7b7dc44f65ce0",
+    "build/acceptance-closeout-20261110/revision-audit/builds-regional-private.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "build/acceptance-closeout-20261110/revision-audit/revision75-private.json": "b93ecdc09bb0f58a091941c8085ece7621533049e59fd46f33488613b35ca8c6",
+    "build/acceptance-closeout-20261110/revision-audit/rollout-summary.json": "ad4c9bbb2fb259e12aff90a3f2500545f7b5ffbfb68748f3b4880c6fca29baa5",
+    "build/acceptance-closeout-20261110/revision-audit/later-errors-private.json": "c206d2f92232cba69f88aabb30f3fdc8f8dd47a22161792996c4e8cc4a4ed54c",
+    "build/acceptance-closeout-20261110/revision-audit/revision74-private.json": "d6b07acafa0c45c2bb3ff618998f0125a0f09a474c6247fada21e2ad4baa8a33",
+    "build/acceptance-closeout-20261110/revision-audit/builds-global-private.json": "03992877ca44a3baa67d3950305fb2bb908d730503f2b4a63a4f2de11a083070",
+    "build/acceptance-closeout-20261110/revision-audit/final-service-private.json": "33900a8de8e5ff2e7ed9049f8aa415c82862548897ba7dbef3f8f17bdf6516c7",
+    "build/acceptance-closeout-20261110/revision-audit/deploy-build-details-private.json": "3e88d738b127d56f1fd74b55c5b888804ef52d78fc8208138588417b3b5f0832",
+    "build/acceptance-closeout-20261110/revision-audit/update-audit-private.json": "35636e5eb05a93e41f2ad0098597e6b29f04ecd9d426fdccf116e23aaecb3209",
+    "build/acceptance-closeout-20261110/revision-audit/native-lifecycle.log": "9041de5dab4fa9a7379bee149bc2285d7e2662a9cf9271f6bf41c36f153bfeca",
+    "build/acceptance-closeout-20261110/revision-audit/overlap-e2e.log": "24e80e62f5fc4163b2d413b99535a5151cc87a95f7215753bb011d7e534c3ff8",
+    "build/e2e-offline/20261110-104353-22f70e/result.json": "45fe073f0eaa44e46c7c4971c5369fa6eb89484bd6f6ac53668f890514c12627"
   },
   "healthy_probe_observations": {
     "count": 6,
@@ -758,5 +812,74 @@
     "in_use_and_unrelated_images_preserved": true,
     "existing_container_inventory_preserved": true,
     "physical_reclaimed_bytes_not_inferred_from_virtual_sizes": true
+  },
+  "rollout_investigation": {
+    "historical_rollout_attributed": true,
+    "build_id": "f86c268a-a4e0-4fcc-aca0-9e0800dd435d",
+    "commit": "f7da0d1e6ad5987a71d033eb9c805bef48cae4dd",
+    "build_created_at": "2026-11-10T01:33:24.412535Z",
+    "deploy_started_at": "2026-11-10T01:37:41.872969099Z",
+    "deploy_finished_at": "2026-11-10T01:40:06.197076234Z",
+    "audit_at": "2026-11-10T01:38:02.224974Z",
+    "audit_actor": "802449703053-compute@developer.gserviceaccount.com",
+    "audit_method": "google.cloud.run.v1.Services.ReplaceService",
+    "revision": "hummingbot-demo-00075-wbf",
+    "image_digest": "sha256:fadfdd2ce24a9e1614c0863b67441e6d59048d6e71389a28cc85c480e3d9bedb",
+    "environment_unchanged_from74": true,
+    "resources_unchanged_from74": true,
+    "source_predates_four_qualified_fixes": true,
+    "exact_cloud_sigterm_time_proven": false,
+    "new_runtime_defect_reproduced": false,
+    "runtime_patch_applied": false,
+    "native_related_passed": 91,
+    "targeted_e2e": {
+      "report": "build/e2e-offline/20261110-104353-22f70e/result.json",
+      "sha256": "45fe073f0eaa44e46c7c4971c5369fa6eb89484bd6f6ac53668f890514c12627",
+      "passed": true,
+      "full_release": false,
+      "image_id": "sha256:4198f2fab28b6f5d3bef707186efd5b3fd1c6a180560e000a3696e77d0367436",
+      "metrics": {
+        "standby_before_exit": true,
+        "owner_generation_increment": 1,
+        "same_session_and_control": true,
+        "fills_before_and_after": 4,
+        "no_operator_start_or_stop_during_handoff": true
+      },
+      "scope": "New overlap assertions pass existing runtime on first run; coverage addition, not a fabricated Red/Green defect."
+    },
+    "current": {
+      "at": "2026-11-10T03:48:27.253151+00:00",
+      "revision": "hummingbot-demo-00077-tcn",
+      "source_commit": "01aab8abe91177e18d48a216a23de6551ac5acd9",
+      "image_digest": "sha256:797fcd94de809c8679e9cc62a6a73454f5b074364158daf7754f5ef8662df45f",
+      "running": true,
+      "desired_state": "running",
+      "control_version": 53,
+      "acknowledged_version": 53,
+      "same_original_session": true,
+      "halted": false,
+      "pending_mutations": false,
+      "owner_available": true,
+      "observation_stale": false,
+      "health": {
+        "startup": 200,
+        "live": 200,
+        "ready": 200
+      },
+      "environment_unchanged_from74": true,
+      "resources": {
+        "limits": {
+          "cpu": "2",
+          "memory": "1Gi"
+        }
+      },
+      "new_artifact_full_gate_inherited": false
+    },
+    "separate_ws_event": {
+      "at": "2026-11-10T03:42:46.679135Z",
+      "close_code": 1006,
+      "subsequent_status_healthy": true,
+      "separate_from_0141_rollout": true
+    }
   }
 }

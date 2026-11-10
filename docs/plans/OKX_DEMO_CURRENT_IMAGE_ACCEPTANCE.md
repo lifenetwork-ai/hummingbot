@@ -5,10 +5,10 @@ fills and REST proofs remain in the [acceptance history](../../reports/README.md
 (Git: `docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md`). A local pass never changes
 the image/account/date attached to connected evidence.
 
-Current follow-up: API now reports revision75, same running session/control53,
-Demo and regular catalogue, no HALT. Its image/environment and the01:41 UTC
-rollout transition await GCP reauthentication; this is not continued evidence of
-revision74. See [closeout investigation](../../reports/release/demo-release-closeout.md#later-revision-transition-under-investigation).
+Follow-up: Cloud Build/audit attributes revision74→75 to the delayed automatic
+deployment of older commit `f7da0d1e6`; no new runtime defect is reproduced.
+Overlapping-owner E2E and91 native controls pass. Merged CI artifacts require
+separate verification; they do not inherit image4198 release gates. See [closeout investigation](../../reports/release/demo-release-closeout.md#later-revision-transition-under-investigation).
 
 ## Latest Demo/release closeout —2026-11-10
 
@@ -16,7 +16,7 @@ See [current checklist](DEMO_RELEASE_CLOSEOUT.md) and
 [acceptance matrix](../../reports/release/demo-release-closeout.md). Source
 `f53885fda` / regular image `4198f2fa…` passes native3,085 +16, PostgreSQL605 and
 all30 packaged E2E. Full unchanged load/Random soak3600/six faults/retention pass.
-Overall Cloud closeout still needs revision75 image/rollout verification.
+Historical rollout attribution is closed; latest merged CI artifact verification remains open.
 
 - [x] Revision73 qualifies full perpetual handoff for both BUY/SELL and the
   thirty-minute conditional quote target (spot99.7700%/perpetual99.7133%).

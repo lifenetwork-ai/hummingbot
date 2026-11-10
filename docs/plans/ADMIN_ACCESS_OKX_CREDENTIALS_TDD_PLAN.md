@@ -6,10 +6,10 @@ Red/Green history and failed/scoped acceptance attempts are retained in the
 in [credential operations](../exchange-credentials.md) and
 [FE integration](../fe-integration.md).
 
-Current follow-up: API now reports revision75, same running session/control53,
-Demo and regular catalogue, no HALT. Its image/environment and the01:41 UTC
-rollout transition await GCP reauthentication; this is not continued evidence of
-revision74. See [closeout investigation](../../reports/release/demo-release-closeout.md#later-revision-transition-under-investigation).
+Follow-up: Cloud Build/audit attributes revision74→75 to the delayed automatic
+deployment of older commit `f7da0d1e6`; no new runtime defect is reproduced.
+Overlapping-owner E2E and91 native controls pass. Merged CI artifacts require
+separate verification; they do not inherit image4198 release gates. See [closeout investigation](../../reports/release/demo-release-closeout.md#later-revision-transition-under-investigation).
 
 ## Delivered requirements
 
@@ -41,7 +41,7 @@ revision74. See [closeout investigation](../../reports/release/demo-release-clos
 Latest Demo qualification is recorded in [Demo/release closeout](DEMO_RELEASE_CLOSEOUT.md):
 source `f53885fda`, native3,085 +16, PostgreSQL605 and all30 packaged E2E pass.
 Full unchanged load/Random soak3600/six faults/retention pass.
-Overall Cloud closeout still needs revision75 image/rollout verification. Actual revision73 qualifies perpetual
+Historical rollout attribution is closed; latest merged CI artifact verification remains open. Actual revision73 qualifies perpetual
 BUY/SELL handoff and the30-minute conditional quote target; real automatic
 close/remove/Set and384-fill stopped readback pass. Regular revision74 is left
 running Until stopped. Earlier real Google recovery remains qualified on

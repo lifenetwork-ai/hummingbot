@@ -23,11 +23,12 @@ original fees, pending0/flat perpetual and BTC cash0.961563983944 reconcile.
 Two corrected-image close/remove/Set cycles need no manual Retry.
 
 The regular catalogue is restored on revision74 and a separate Start53 leaves
-Until stopped/both/follow_market. A later service update exposes revision75 with
-the same session/control, Demo environment and regular catalogue, both slots
-Connected, no HALT; final startup/live/ready200. Its exact image/environment and
-01:41 UTC handoff cause await gcloud reauthentication, so overall Cloud closeout
-stays open. Preserve the qualified revision73 window and failed/interrupted
+Until stopped/both/follow_market. Cloud audit now attributes revision74→75 to
+the automatic Cloud Build rollout of older commit `f7da0d1e6`; env/resources
+are unchanged. The overlap handoff E2E and91 related native tests pass without
+a new runtime correction. Subsequent merged CI builds still require their own
+artifact verification; overall Cloud closeout stays open for that image scope.
+Preserve the qualified revision73 window and failed/interrupted
 attempts separately in the [acceptance matrix](../../reports/release/demo-release-closeout.md).
 
 - [x] Reconcile older checklists with their original image/evidence scopes.
@@ -247,30 +248,45 @@ bounded AC system-sleep assertion, without changing runtime or budgets. The
 assertion does not guarantee closed-lid sleep can be prevented; continuity still
 must pass. Cloud status after the laptop gap remains revision74/running53,
 owner available, no HALT. The old observer timeout is retained. GCP worker
-preparation cannot proceed because gcloud requires reauthentication; no new
-worker, IAM or shared-database resource change is made.
+preparation was blocked at that point by gcloud reauthentication; no new
+worker, IAM or shared-database resource change was made. CLI authentication is
+subsequently restored for the read-only rollout investigation below.
 
 ### Later regular-catalogue restart transition
 
-- [ ] Attribute the01:41 UTC regular revision74 running → stopping → starting →
+- [x] Attribute the01:41 UTC regular revision74 running → stopping → starting →
   guard warmup → running transition. The strict monitor captures desired running
   and running=false, control53/53, unchanged session/revision, available owner,
   no HALT/error; durable event timestamps span about13 seconds. A later read is
   running. No operator command was issued. Preserve the failed monitor sample
   and do not classify this as a harmless probe-only delay.
-- [ ] Read matching Cloud logs after gcloud reauthentication, distinguish engine
+- [x] Read matching Cloud logs after gcloud reauthentication, distinguish engine
   watchdog/process/platform restart from a runtime defect, and use TDD before
   any confirmed code correction. The browser connector also cannot initialize.
   A separate5-second read-only incident monitor retains subsequent transitions.
+  Cloud Build `f86c268a…` deploys `f7da0d1e6` at01:37–01:40 UTC; audit names
+  the compute service account, revision75 creation01:38 and healthy01:39.
+  Env/resources match74; image differs and predates the four verified fixes.
+  INFO shutdown logs remain unavailable, so no exact Cloud SIGTERM time is claimed.
+- [x] Extend packaged until-stopped coverage to overlapping old/new processes:
+  successor standby cannot acquire while old owner is alive; real SIGTERM then
+  transfers exactly one owner generation, retains session/control/ack/four fills,
+  resumes readiness and honors Stop. Targeted image4198 run passes, as do91 native
+  controls. No initial failure/new runtime fix is claimed; original full gate scope
+  is preserved separately from this changed-harness target.
+- [ ] Verify the latest merged CI artifact separately after automatic deployments
+  settle. Revision77 is running53/53 without HALT at03:48 UTC, all health200;
+  source01aab8abe includes the four fixes. Do not transfer
+  image4198's full release gates to a newly built image by source name alone.
 
 The prior revision73 quote/handoff proof keeps its own complete window. The
-regular operating transition remains separate and open; the finite earlier pass
+regular operating transition is attributed separately; the finite earlier pass
 does not prove the restored regular catalogue runs uninterrupted.
 
 Subsequent direct API read identifies new revision `hummingbot-demo-00075-wbf`,
 same session/control53, currently running without HALT. This closeout did not
-deploy it. Check the external service update/image before attributing the earlier
-reinitialization to a runtime defect. Preserve this identity change; new reads
+deploy it. Audit now confirms the automatic CI service update/image. Preserve
+this identity change; new reads
 are not evidence that revision74 stayed uninterrupted. Follow-up observer now
 records revision changes explicitly instead of discarding them as unknown.
 

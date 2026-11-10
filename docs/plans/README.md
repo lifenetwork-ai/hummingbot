@@ -19,10 +19,10 @@ remain disclosed. Automatic close/remove/same-account Set needs no manual Retry;
 on revision74; a separate audited Start53 leaves the Demo running Until stopped.
 Real KMS, actual FE and live cutover remain separate below.
 
-Current follow-up: API now reports revision75, same running session/control53,
-Demo and regular catalogue, no HALT. Its image/environment and the01:41 UTC
-rollout transition await GCP reauthentication; this is not continued evidence of
-revision74. See [closeout investigation](../../reports/release/demo-release-closeout.md#later-revision-transition-under-investigation).
+Follow-up: Cloud Build/audit attributes revision74→75 to the delayed automatic
+deployment of older commit `f7da0d1e6`; no new runtime defect is reproduced.
+Overlapping-owner E2E and91 native controls pass. Merged CI artifacts require
+separate verification; they do not inherit image4198 release gates. See [closeout investigation](../../reports/release/demo-release-closeout.md#later-revision-transition-under-investigation).
 
 ## Earlier full local qualification (`b090430c…`)
 

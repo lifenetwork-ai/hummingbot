@@ -678,7 +678,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 
     def until_stopped_scenario(self):
         """Use a fresh ledger so this case does not overflow bounded history checks."""
-        print("Offline E2E: continuous random rollover, cold restart and Stop", flush=True)
+        print("Offline E2E: continuous random rollover, overlapping revision handoff and Stop", flush=True)
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
         for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
             self.env["HBOT_OKX_PERPETUAL_" + field] = value
@@ -722,17 +722,43 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                         shutdown_incomplete=state.get('shutdown_incomplete'),
                         pending_mutations=bool(state.get('pending_mutations')),
                         stopped_checkpoint=checkpoint.get('_is_stop_triggered'))
-        restart_evidence = dict(before_shutdown=recovery_summary())
+        before_handoff = self.state()
+        successor, successor_port = self.start('mm-until-restart', auto_migrate=False)
+        # A Cloud Run rollout starts the new revision before terminating the old
+        # one. Startup may be healthy, but standby must not claim trading authority.
+        standby = self.state()
+        assert http(successor_port, '/startup')[1]['state'] == 'standby'
+        assert http(successor_port, '/ready')[0] == 503
+        assert standby['owner_uuid'] == before_handoff['owner_uuid']
+        assert standby['owner_generation'] == before_handoff['owner_generation']
+        assert standby['control_version'] == before_handoff['control_version']
+        assert standby['desired_state'] == 'running'
+        assert standby['mm_session']['id'] == continuous['id']
+        assert not standby['recovery_state'].get('halt')
+        restart_evidence = dict(before_shutdown=recovery_summary(), overlap_standby=True,
+                                previous_owner_generation=before_handoff['owner_generation'],
+                                control_version=before_handoff['control_version'])
         self.terminate(first)
         restart_evidence['after_shutdown'] = recovery_summary()
         (self.report / 'until-stopped-restart.json').write_text(json.dumps(restart_evidence, indent=2))
         assert not restart_evidence['after_shutdown']['halt'], restart_evidence
-        first, port = self.start('mm-until-restart', auto_migrate=False)
+        first, port = successor, successor_port
         self.wait_running(port)
-        resumed = self.state()['mm_session']
+        after_handoff = self.state()
+        resumed = after_handoff['mm_session']
+        assert after_handoff['owner_uuid'] != before_handoff['owner_uuid']
+        assert after_handoff['owner_generation'] == before_handoff['owner_generation'] + 1
+        assert after_handoff['control_version'] == before_handoff['control_version']
+        assert after_handoff['acknowledged_version'] == before_handoff['control_version']
+        assert self.sql('SELECT count(*) FROM trade_fills') == '4'
         assert resumed['id'] == continuous['id'] and resumed['started_at'] == continuous['started_at']
         assert resumed['expires_at'] is None and resumed['request']['duration_mode'] == 'until_stopped'
         assert resumed['step_index'] >= continuous['step_index']
+        self.metrics['overlapping_revision_handoff'] = dict(standby_before_exit=True,
+                                                            owner_generation_increment=1,
+                                                            same_session_and_control=True,
+                                                            fills_before_and_after=4,
+                                                            no_operator_start_or_stop_during_handoff=True)
         self.mm_command(port, 'stop')
         assert all(order['state'] in ('filled', 'canceled') for order in self.ledger()['orders'])
         self.metrics['until_stopped_random_restart_and_stop'] = True
