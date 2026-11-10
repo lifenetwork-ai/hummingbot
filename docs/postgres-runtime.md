@@ -251,6 +251,26 @@ failure to provide test infrastructure fails the command instead of skipping tes
 Direct integration invocation requires `HBOT_TEST_POSTGRES_URL` and a database
 name starting `hbot_test_`; **that test database's public schema is erased**.
 
+`test_commit_outcome_unknown.py` uses a separate recorder process and a TCP proxy
+to cut traffic exactly when the real transaction is about to COMMIT. Each row is
+tested twice: COMMIT never reaches PostgreSQL, or COMMIT reaches it but its reply
+is discarded. The production three-second I/O deadline is unchanged.
+
+| Boundary | Required result after the client reports failure |
+| --- | --- |
+| Order intent before exchange transport | The failed manager cannot send; a successor preserves HALT until reconciliation. A durable pending intent is retained when COMMIT succeeded. |
+| Fill/status/tracking transaction | An independent process reads either the complete committed records or none. Replaying the same trade converges to one fill and its exact original fee. |
+| Cleanup fill and position checkpoint | Fill and position reduction commit together; replay cannot close the position or charge its fee twice. |
+
+The failing process must remain closed to writes even after network connectivity
+returns and must not acknowledge an uncertain fill. These are six component
+integration cases against disposable PostgreSQL, not actual exchange fills or a
+new full-image release qualification. Run just these cases with:
+
+```sh
+/path/to/hummingbot/python scripts/test_postgres.py -k network_loss_at_commit
+```
+
 ## Environment connector credentials and YAML
 
 With PostgreSQL selected, exchange secrets come only from process variables (or
