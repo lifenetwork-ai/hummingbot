@@ -377,6 +377,94 @@ async def test_close_readback_timeout_keeps_original_identity_for_recovery():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('exchange_id', [None, 'venue-close'])
+@pytest.mark.parametrize('hidden_reads', [1, 2])
+async def test_fresh_close_waits_for_rest_visibility_without_another_submission(exchange_id, hidden_reads):
+    from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
+    from hummingbot.core.cleanup_authority import current_cleanup_scope
+
+    instance, connector = runtime()
+    order = SimpleNamespace(client_order_id='same-close', exchange_order_id=exchange_id,
+                            is_done=False, executed_amount_base=Decimal(0))
+
+    def place(**kwargs):
+        connector.in_flight_orders[order.client_order_id] = order
+        return order.client_order_id
+
+    reads = []
+
+    async def refresh(client, orders):
+        assert orders == [order]
+        reads.append(order.client_order_id)
+        if len(reads) <= hidden_reads:
+            # Even an acknowledged ID can briefly be absent from REST. A
+            # WS completion alone must not bypass the final fill/status proof.
+            order.is_done = exchange_id is not None
+            raise OKXOrderNotFoundError('OKX order does not exist (51603).')
+        order.is_done = True
+        order.executed_amount_base = Decimal('.1')
+
+    connector.sell, connector.buy = Mock(side_effect=place), Mock()
+    instance.owner._refresh_orders.side_effect = refresh
+    await instance.close_position(dict(id='held', side='BUY', trading_pair='BTC-USDT', amount=Decimal('.1')),
+                                  dict(id='disconnect', affected_versions={'okx_perpetual': 1}))
+    assert reads == ['same-close'] * (hidden_reads + 1)
+    connector.sell.assert_called_once()
+    connector.buy.assert_not_called()
+    assert instance.orders == {'same-close': (connector, order)}
+    assert current_cleanup_scope() is None
+    instance.core.trade_fill_db.assert_persistence_healthy.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_fresh_close_rest_absence_expires_original_budget_and_preserves_identity(monkeypatch):
+    from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
+    from hummingbot.core.cleanup_authority import current_cleanup_scope
+
+    instance, connector = runtime()
+    order = SimpleNamespace(client_order_id='same-close', is_done=False, executed_amount_base=Decimal(0))
+    clock = [0.0]
+
+    def place(**kwargs):
+        connector.in_flight_orders[order.client_order_id] = order
+        return order.client_order_id
+
+    async def sleep(delay):
+        clock[0] += delay
+
+    connector.sell, connector.buy = Mock(side_effect=place), Mock()
+    instance.owner._refresh_orders.side_effect = OKXOrderNotFoundError('OKX order does not exist (51603).')
+    monkeypatch.setattr('hummingbot.cli.credential_cleanup_runtime.time', SimpleNamespace(monotonic=lambda: clock[0]))
+    monkeypatch.setattr('hummingbot.cli.credential_cleanup_runtime.asyncio.sleep', sleep)
+    with pytest.raises(CredentialAdapterError, match='cleanup_orders_pending') as error:
+        await instance.close_position(dict(id='held', side='BUY', trading_pair='BTC-USDT', amount=Decimal('.1')),
+                                      dict(id='disconnect', affected_versions={'okx_perpetual': 1}))
+    assert error.value.status == 503 and 20 <= clock[0] < 20.2
+    assert instance.orders == {'same-close': (connector, order)} and current_cleanup_scope() is None
+    connector.sell.assert_called_once()
+    connector.buy.assert_not_called()
+    instance.core.trade_fill_db.assert_persistence_healthy.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_fresh_close_does_not_retry_an_unclassified_transport_error():
+    instance, connector = runtime()
+    order = SimpleNamespace(client_order_id='same-close', is_done=False, executed_amount_base=Decimal(0))
+
+    def place(**kwargs):
+        connector.in_flight_orders[order.client_order_id] = order
+        return order.client_order_id
+
+    connector.sell = Mock(side_effect=place)
+    instance.owner._refresh_orders.side_effect = IOError('unclassified transport error')
+    with pytest.raises(IOError, match='unclassified transport error'):
+        await instance.close_position(dict(id='held', side='BUY', trading_pair='BTC-USDT', amount=Decimal('.1')),
+                                      dict(id='disconnect', affected_versions={'okx_perpetual': 1}))
+    instance.owner._refresh_orders.assert_awaited_once()
+    connector.sell.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_cleanup_each_refresh_uses_only_the_remaining_poll_deadline(monkeypatch):
     instance, connector = runtime()
     orders = [SimpleNamespace(client_order_id=str(i), is_done=False) for i in range(2)]

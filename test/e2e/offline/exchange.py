@@ -100,6 +100,8 @@ class Exchange:
         self.positions = {}
         self.position_mode = "long_short_mode"
         self.cleanup_market_closes = False
+        self.cleanup_status_not_found_reads = 0
+        self.cleanup_hidden_status_reads = {}
         self.mutations = []
         self.connections = 0
         self.subscriptions = []
@@ -412,6 +414,15 @@ class Exchange:
             order = self.orders.get(request.query.get("clOrdId"))
             if order is None:
                 return web.json_response({"code": "51603", "msg": "order absent", "data": []})
+            identity = order['clOrdId']
+            hidden = self.cleanup_hidden_status_reads.get(identity, 0)
+            if hidden:
+                if hidden == 1:
+                    del self.cleanup_hidden_status_reads[identity]
+                else:
+                    self.cleanup_hidden_status_reads[identity] = hidden - 1
+                observed['injected_cleanup_order_absence'] = True
+                return web.json_response({"code": "51603", "msg": "status not visible yet", "data": []})
             return self.ok([order])
         if path == "/api/v5/trade/order" and method == "POST":
             # A bounded terminal-before-ACK fault admits only its selected
@@ -439,6 +450,8 @@ class Exchange:
                 self.quote_activity.accept(order)
             self.accepted.append(copy.deepcopy(order))
             if market_close:
+                if self.cleanup_status_not_found_reads:
+                    self.cleanup_hidden_status_reads[client_id] = self.cleanup_status_not_found_reads
                 self.cleanup_close_id = client_id
                 if self.cleanup_barrier == 'accepted':
                     await self.cleanup_wait('accepted')
@@ -523,6 +536,11 @@ class Exchange:
             if type(data['cleanup_market_closes']) is not bool:
                 return web.json_response({'error': 'invalid_cleanup_market_closes'}, status=400)
             self.cleanup_market_closes = data['cleanup_market_closes']
+        if 'cleanup_status_not_found_reads' in data:
+            count = data['cleanup_status_not_found_reads']
+            if type(count) is not int or not 0 <= count <= 5:
+                return web.json_response({'error': 'invalid_cleanup_status_not_found_reads'}, status=400)
+            self.cleanup_status_not_found_reads = count
         if 'cancel_before_ack_limit' in data:
             limit = data['cancel_before_ack_limit']
             if type(limit) is not int or not 1 <= limit <= 200:

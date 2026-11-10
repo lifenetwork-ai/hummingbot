@@ -980,6 +980,15 @@ orders. For a two-sided operating target, report guard-constrained samples and
 unknown coverage separately; a zero eligible denominator is not a passing SLO.
 Do not label a strategy-wide `running=true` as proof of two-sided liquidity.
 
+During a joint readiness transition, a market can have `eligible=false` and a
+null market `reason_code` while `/status.service.reason_code` reports a global
+restriction such as `exposure_limit` or `insufficient_collateral`. Show that
+service reason alongside the market state when both reads are fresh, refer to
+the same session and describe the same transition. Previously acknowledged
+orders can remain visible while withdrawal settles; their presence does not
+prove renewed admission. If the observations cannot be correlated, show unknown
+instead of inventing a market reason or counting a successful quote sample.
+
 The liquidity response's `markets` is a map keyed by `spot`/`perpetual`, not an
 array. Render each side's `quote_activity` alongside status. In the real Cloud
 test, a93.66% BTC account weight against the50% inventory target produced
@@ -1344,7 +1353,11 @@ Initial supported scope is deliberately conservative: managed (`postgres_kms`)
 credentials bound to one dedicated OKX account; USDT spot and cross/hedge USDT
 perpetual; complete local history within the three-day per-order lookup window;
 at most 5,000 orders, 2,000 fills and 100 existing unambiguous position rows.
-Original fees must be exactly verifiable USDT amounts. A position can only be
+Original flat USDT fees must be exactly verifiable. Spot fees paid in the pair's
+base asset are also supported only when their conversion at the verified fill
+price exactly matches the recorded quote fee; no current price is substituted.
+Other fee currencies and percentage-fee encodings remain blocked. Gross filled
+position quantity and fee-deducted wallet cash are distinct. A position can only be
 extended from a known prefix of its verified fills; unknown opening balances,
 ambiguous controller attribution, unsupported fee conversion, missing pages,
 external fills/orders and unmatched perpetual exposure block recovery. Bound

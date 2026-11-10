@@ -23,6 +23,15 @@ def position_exposure(positions):
                    Decimal(row["avgPx"]), Decimal(row["lever"])) for row in positions)
 
 
+def refreshed_inventory_quotes(live, original_ids):
+    """Return one settled venue snapshot; cancellation may occur between reads."""
+    rows = live()
+    if (len(rows) == 4 and not original_ids.intersection(row['clOrdId'] for row in rows)
+            and all(sum(row['side'] == side for row in rows) == 2 for side in ('buy', 'sell'))):
+        return rows
+    return False
+
+
 def pin_manifest(reference):
     """Publish only to a temporary loopback registry, then cache immutable ref.
 
@@ -1531,9 +1540,9 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         poll(lambda: self.sql("SELECT count(*) FROM trade_fills") == "2", description="two normal BUY fills recorded once")
         poll(lambda: skew().get("state") == "active" and Decimal(skew()["buy_multiplier"]) < Decimal(skew()["sell_multiplier"]),
              description="observed spot cash inventory reverses the size bias")
-        poll(lambda: len(live()) == 4 and not original_ids.intersection(row["clOrdId"] for row in live()),
-             timeout=60, description="ordinary refresh replaces old levels with new inventory sizing")
-        after = quotes(live())
+        refreshed = poll(lambda: refreshed_inventory_quotes(live, original_ids),
+                         timeout=60, description="ordinary refresh replaces old levels with new inventory sizing")
+        after = quotes(refreshed)
         assert after["sell"] > after["buy"] and sum(after.values()) <= 100
         self.mm_command(port, "switch", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
         poll(lambda: len(live()) == 4 and len(live("LIFE-USDT-SWAP")) == 4, description="spot skew and unchanged perpetual coexist")
@@ -1847,11 +1856,14 @@ def main():
                             repair_scenario,
                             rotation_scenario,
                             safe_logs,
+                            visibility_scenario,
                         )
                         if scenario in ('managed-close-ack-crash', 'managed-close-fill-crash'):
                             crash_scenario(harness, 'accepted' if scenario == 'managed-close-ack-crash' else 'verified_fill')
                         elif scenario == 'managed-rotation':
                             rotation_scenario(harness)
+                        elif scenario == 'managed-close-visibility':
+                            visibility_scenario(harness)
                         else:
                             repair_scenario(harness)
                         for container in harness.containers:

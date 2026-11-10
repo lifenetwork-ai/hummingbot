@@ -478,6 +478,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/recovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read recovery blockers and the latest reviewed operation */
+        get: operations["getRecovery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/recovery/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check stopped history and preview verified repairs; does not clear HALT */
+        post: operations["checkRecovery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/recovery/operations/{operation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read exact recovery progress or outcome without contacting the exchange */
+        get: operations["getRecoveryOperation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/recovery/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revalidate and apply the reviewed technical recovery; leaves trading stopped */
+        post: operations["resetRecovery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/reference-pairs": {
         parameters: {
             query?: never;
@@ -1907,6 +1975,12 @@ export interface components {
             position_rebalance_threshold_pct: string;
             quote_guards?: components["schemas"]["QuoteGuardConfigOutput"];
             /**
+             * Quote Refresh Max Delay Seconds
+             * @description Optional bounded delay for rolling ordinary refresh; zero preserves batch refresh. Safety withdrawals are immediate.
+             * @default 0
+             */
+            quote_refresh_max_delay_seconds: number;
+            /**
              * Reference Connector
              * @default okx
              * @constant
@@ -2317,7 +2391,7 @@ export interface components {
              * Next Action
              * @enum {string}
              */
-            next_action: "wait" | "contact_support" | "start" | "monitor";
+            next_action: "wait" | "contact_support" | "start" | "monitor" | "check_recovery";
             /**
              * State
              * @enum {string}
@@ -3198,8 +3272,151 @@ export interface components {
              */
             step_duration_seconds: number | null;
         };
+        /** RecoveryBlocker */
+        RecoveryBlockerOutput: {
+            /** Code */
+            code: string;
+            /** Detail */
+            detail: string;
+            /** Next Action */
+            next_action: string;
+        };
+        /** RecoveryCheckRequest */
+        RecoveryCheckRequest: {
+            /** Expected Version */
+            expected_version: number;
+        };
+        /** RecoveryOperation */
+        RecoveryOperationOutput: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "recovery_check" | "recovery_reset";
+            /** Blockers */
+            blockers?: components["schemas"]["RecoveryBlockerOutput"][];
+            /** Can Recover */
+            can_recover: boolean;
+            /**
+             * Confirmation Token
+             * @default null
+             */
+            confirmation_token: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Detail */
+            detail: string;
+            /**
+             * Expires At
+             * @default null
+             */
+            expires_at: string | null;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Proposed Changes */
+            proposed_changes?: components["schemas"]["RecoveryPositionRepairOutput"][];
+            /** Repaired Positions */
+            repaired_positions?: components["schemas"]["RecoveryPositionRepairOutput"][];
+            /** Stage */
+            stage: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "accepted" | "applying" | "succeeded" | "failed";
+            /**
+             * Trading State
+             * @default stopped
+             * @constant
+             */
+            trading_state: "stopped";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Verification */
+            verification?: {
+                [key: string]: unknown;
+            };
+        };
+        /** RecoveryOverview */
+        RecoveryOverviewOutput: {
+            /** Blockers */
+            blockers: components["schemas"]["RecoveryBlockerOutput"][];
+            /** Check Available */
+            check_available: boolean;
+            /** Control Version */
+            control_version: number;
+            /** Halted */
+            halted: boolean;
+            /** @default null */
+            operation: components["schemas"]["RecoveryOperationOutput"] | null;
+            /** Reset Available */
+            reset_available: boolean;
+        };
+        /** RecoveryPositionRepair */
+        RecoveryPositionRepairOutput: {
+            after: components["schemas"]["RecoveryPositionValuesOutput"];
+            before: components["schemas"]["RecoveryPositionValuesOutput"];
+            /**
+             * Connector
+             * @enum {string}
+             */
+            connector: "okx" | "okx_perpetual";
+            /** Controller Id */
+            controller_id: string;
+            /** Id */
+            id: string;
+            /** Pair */
+            pair: string;
+            /**
+             * Valuation Basis
+             * @constant
+             */
+            valuation_basis: "reconstructed_average_entry_not_live_pnl";
+        };
+        /** RecoveryPositionValues */
+        RecoveryPositionValuesOutput: {
+            /** Amount */
+            amount: string;
+            /** Breakeven Price */
+            breakeven_price: string;
+            /** Cum Fees Quote */
+            cum_fees_quote: string;
+            /** Realized Pnl Quote */
+            realized_pnl_quote: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "BUY" | "SELL";
+            /** Unrealized Pnl Quote */
+            unrealized_pnl_quote: string;
+            /** Volume Traded Quote */
+            volume_traded_quote: string;
+        };
+        /** RecoveryResetRequest */
+        RecoveryResetRequest: {
+            /** Check Id */
+            check_id: string;
+            /** Confirmation Token */
+            confirmation_token: string;
+            /** Expected Version */
+            expected_version: number;
+        };
         /** RecoverySummary */
         RecoverySummaryOutput: {
+            /**
+             * Check Available
+             * @default false
+             */
+            check_available: boolean;
             /** Detail */
             detail: string;
             /** Halted */
@@ -3208,15 +3425,19 @@ export interface components {
              * Next Action
              * @enum {string}
              */
-            next_action: "none" | "contact_support";
+            next_action: "none" | "contact_support" | "check_recovery" | "wait";
             /** Pending Mutations */
             pending_mutations: boolean;
             /**
              * Reset Available
              * @default false
-             * @constant
              */
-            reset_available: false;
+            reset_available: boolean;
+            /**
+             * Status Url
+             * @default /api/v1/admin/recovery
+             */
+            status_url: string;
         };
         /** ReferenceAnchors */
         ReferenceAnchorsOutput: {
@@ -8398,6 +8619,610 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReconciliationReceiptOutput"];
+                };
+            };
+            /** @description Invalid JSON */
+            400: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Basic authentication required */
+            401: {
+                headers: {
+                    "WWW-Authenticate"?: string;
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Origin not permitted */
+            403: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Control or retry identity conflict */
+            409: {
+                headers: {
+                    /** @description Seconds until a new check may be requested, when present */
+                    "Retry-After"?: number;
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "control_version_changed",
+                     *       "error": "control_or_idempotency_conflict",
+                     *       "fields": [],
+                     *       "request_id": "example-request",
+                     *       "retry": "refresh_state"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported content type */
+            415: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "yaml_configuration_read_only",
+                     *       "error": "validation_failed",
+                     *       "fields": [
+                     *         {
+                     *           "code": "yaml_configuration_read_only",
+                     *           "path": "references"
+                     *         }
+                     *       ],
+                     *       "request_id": "example-request",
+                     *       "retry": "fix_request"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unexpected server error */
+            500: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service/data unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getRecovery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryOverviewOutput"];
+                };
+            };
+            /** @description Invalid JSON */
+            400: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Basic authentication required */
+            401: {
+                headers: {
+                    "WWW-Authenticate"?: string;
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Origin not permitted */
+            403: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Control or retry identity conflict */
+            409: {
+                headers: {
+                    /** @description Seconds until a new check may be requested, when present */
+                    "Retry-After"?: number;
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "control_version_changed",
+                     *       "error": "control_or_idempotency_conflict",
+                     *       "fields": [],
+                     *       "request_id": "example-request",
+                     *       "retry": "refresh_state"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported content type */
+            415: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "yaml_configuration_read_only",
+                     *       "error": "validation_failed",
+                     *       "fields": [
+                     *         {
+                     *           "code": "yaml_configuration_read_only",
+                     *           "path": "references"
+                     *         }
+                     *       ],
+                     *       "request_id": "example-request",
+                     *       "retry": "fix_request"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unexpected server error */
+            500: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service/data unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    checkRecovery: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable retry identity; reuse only for the identical request body */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecoveryCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted; poll command result */
+            202: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryOperationOutput"];
+                };
+            };
+            /** @description Invalid JSON */
+            400: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Basic authentication required */
+            401: {
+                headers: {
+                    "WWW-Authenticate"?: string;
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Origin not permitted */
+            403: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Control or retry identity conflict */
+            409: {
+                headers: {
+                    /** @description Seconds until a new check may be requested, when present */
+                    "Retry-After"?: number;
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "control_version_changed",
+                     *       "error": "control_or_idempotency_conflict",
+                     *       "fields": [],
+                     *       "request_id": "example-request",
+                     *       "retry": "refresh_state"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported content type */
+            415: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "yaml_configuration_read_only",
+                     *       "error": "validation_failed",
+                     *       "fields": [
+                     *         {
+                     *           "code": "yaml_configuration_read_only",
+                     *           "path": "references"
+                     *         }
+                     *       ],
+                     *       "request_id": "example-request",
+                     *       "retry": "fix_request"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unexpected server error */
+            500: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service/data unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getRecoveryOperation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                operation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryOperationOutput"];
+                };
+            };
+            /** @description Invalid JSON */
+            400: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Basic authentication required */
+            401: {
+                headers: {
+                    "WWW-Authenticate"?: string;
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Origin not permitted */
+            403: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Control or retry identity conflict */
+            409: {
+                headers: {
+                    /** @description Seconds until a new check may be requested, when present */
+                    "Retry-After"?: number;
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "control_version_changed",
+                     *       "error": "control_or_idempotency_conflict",
+                     *       "fields": [],
+                     *       "request_id": "example-request",
+                     *       "retry": "refresh_state"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported content type */
+            415: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "yaml_configuration_read_only",
+                     *       "error": "validation_failed",
+                     *       "fields": [
+                     *         {
+                     *           "code": "yaml_configuration_read_only",
+                     *           "path": "references"
+                     *         }
+                     *       ],
+                     *       "request_id": "example-request",
+                     *       "retry": "fix_request"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unexpected server error */
+            500: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service/data unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    resetRecovery: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable retry identity; reuse only for the identical request body */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecoveryResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted; poll command result */
+            202: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryOperationOutput"];
                 };
             };
             /** @description Invalid JSON */

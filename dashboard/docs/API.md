@@ -112,6 +112,10 @@ Call hooks at component top level. `useCommandReceipt(id)`,
 no ID exists, poll the requested receipt every second while pending, and stop on
 succeeded/failed/superseded. Terminal receipt observations invalidate their related
 current-state panels. A succeeded reconciliation receipt can still report mismatch.
+Recovery uses `checkRecovery` / `resetRecovery` and
+`useAdminQuery('getRecoveryOperation', { path: { operation_id: accepted.id } })`.
+Its receipt follows the same pending/terminal polling policy and refreshes recovery,
+runtime and position observations at completion; recovery does not submit Start.
 `useAdminQuery(operation, undefined)` also skips safely; `enabled: false` pauses
 an otherwise configured query but still permits manual `refetch()`.
 

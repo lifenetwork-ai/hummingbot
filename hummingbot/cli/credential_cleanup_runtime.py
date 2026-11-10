@@ -4,6 +4,7 @@ import time
 from decimal import Decimal
 
 from hummingbot.connector.credential_adapters import CredentialAdapterError
+from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
 from hummingbot.core.cleanup_authority import CleanupOrderScope, cleanup_order_scope
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode
 from hummingbot.core.data_type.in_flight_order import OrderState
@@ -214,7 +215,16 @@ class CleanupExchangeRuntime:
             await asyncio.sleep(.01)
         self.orders[identity] = connector, order
         while True:
-            await self._refresh_order(connector, order, deadline)
+            try:
+                await self._refresh_order(connector, order, deadline)
+            except OKXOrderNotFoundError:
+                # A newly submitted close can fill on WS before its REST row
+                # becomes visible. Absence is not terminal proof: keep reading
+                # this identity within the original budget, never place again.
+                if time.monotonic() >= deadline:
+                    raise CredentialAdapterError("cleanup_orders_pending", status=503) from None
+                await asyncio.sleep(.1)
+                continue
             if order.is_done:
                 break
             if time.monotonic() >= deadline:

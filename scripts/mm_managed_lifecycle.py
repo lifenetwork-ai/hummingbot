@@ -12,7 +12,8 @@ from scripts.mm_managed_environment import (
 )
 from scripts.test_e2e_offline import docker, http, poll
 
-SCENARIOS = ('managed-close-ack-crash', 'managed-close-fill-crash', 'managed-rotation', 'managed-cleanup-repair')
+SCENARIOS = ('managed-close-ack-crash', 'managed-close-fill-crash', 'managed-rotation', 'managed-cleanup-repair',
+             'managed-close-visibility')
 
 
 def initialize(harness):
@@ -147,6 +148,21 @@ def verify_cleanup(harness, port, root, spot, *, expected_sends=None, fill_count
     assert not ledger_violations(harness.ledger(), rows)
     return dict(unique_exchange_fills=len(harness.ledger()['fills']), unique_recorder_fills=len(rows),
                 fees_matched=True, positions_flat=True, physical_close_attempts=len(sends))
+
+
+def visibility_scenario(harness):
+    print('Offline E2E: fresh cleanup close initially absent from REST despite actual fills', flush=True)
+    _, port = initialize(harness)
+    seed_exposure(harness, port)
+    spot = spot_digest(harness)
+    harness.control(cleanup_market_closes=True, cleanup_status_not_found_reads=2)
+    root = disconnect(harness, port)
+    result = verify_cleanup(harness, port, root, spot)
+    hidden = [row for row in harness.ledger()['requests'] if row.get('injected_cleanup_order_absence')]
+    assert len(hidden) == 4
+    code, history = harness.admin(port, '/audit?operation_id=' + root['id'] + '&limit=100')
+    assert code == 200 and not any(row.get('details', {}).get('stage') == 'action_required' for row in history['items'])
+    harness.metrics['cleanup_visibility'] = dict(result, hidden_status_reads=len(hidden), audit=audit(harness, port, root['id']))
 
 
 def crash_scenario(harness, boundary):

@@ -17,7 +17,7 @@ describe('read and polling policies', () => {
     expect(readRetryDelay(9, new TypeError('fetch failed'))).toBe(30_000)
   })
   it('keeps pending receipts polling and distinguishes terminal receipts from report outcomes', () => {
-    for (const operation of ['getCommand', 'getCredentialOperation', 'getReconciliationById'] as const) {
+    for (const operation of ['getCommand', 'getCredentialOperation', 'getReconciliationById', 'getRecoveryOperation'] as const) {
       expect(pollingInterval(operation, { status: 'accepted' }, null, 0)).toBe(1000)
       for (const status of ['succeeded', 'failed', 'superseded']) {
         expect(receiptFinished(operation, { status })).toBe(true)
@@ -41,7 +41,7 @@ describe('read and polling policies', () => {
 describe('mutation/receipt cache dependencies', () => {
   it.each<WriteOperation>(['submitCommand', 'setExchangeCredentials', 'disconnectExchangeCredentials',
     'repairCleanupCredentials', 'retryCredentialCleanup', 'requestReconciliation', 'adminLogin',
-    'addAdminAccount', 'changeAdminAccount'])('invalidates audit but preserves unrelated daily statistics after %s', async (operation) => {
+    'addAdminAccount', 'changeAdminAccount', 'checkRecovery', 'resetRecovery'])('invalidates audit but preserves unrelated daily statistics after %s', async (operation) => {
     const client = createDashboardQueryClient()
     try {
       client.setQueryData(['admin', 'getAdminAudit', {}], {})
@@ -51,7 +51,7 @@ describe('mutation/receipt cache dependencies', () => {
       expect(client.getQueryState(['admin', 'getDailyStatistics', {}])?.isInvalidated).toBe(false)
     } finally { client.clear() }
   })
-  it.each(['getCommand', 'getCredentialOperation', 'getReconciliationById'] as const)('refreshes dependent observations after terminal %s', async (operation) => {
+  it.each(['getCommand', 'getCredentialOperation', 'getReconciliationById', 'getRecoveryOperation'] as const)('refreshes dependent observations after terminal %s', async (operation) => {
     const client = createDashboardQueryClient()
     try {
       const target = operation === 'getReconciliationById' ? 'getReconciliation' : 'getRuntimeStatus'
@@ -61,6 +61,17 @@ describe('mutation/receipt cache dependencies', () => {
       expect(client.getQueryState(['admin', target, {}])?.isInvalidated).toBe(true)
       expect(client.getQueryState(['admin', 'getSessionConfiguration', { path: { session_id: 'session-a' } }])?.isInvalidated)
         .toBe(operation !== 'getReconciliationById')
+    } finally { client.clear() }
+  })
+  it.each(['checkRecovery', 'resetRecovery', 'getRecoveryOperation'] as const)('refreshes recovery state after %s', async (operation) => {
+    const client = createDashboardQueryClient()
+    try {
+      client.setQueryData(['admin', 'getRecovery', {}], {})
+      client.setQueryData(['admin', 'getPositions', {}], {})
+      if (operation === 'getRecoveryOperation') await invalidateAfterReceipt(client, operation)
+      else await invalidateAfterMutation(client, operation)
+      expect(client.getQueryState(['admin', 'getRecovery', {}])?.isInvalidated).toBe(true)
+      expect(client.getQueryState(['admin', 'getPositions', {}])?.isInvalidated).toBe(operation !== 'checkRecovery')
     } finally { client.clear() }
   })
 })

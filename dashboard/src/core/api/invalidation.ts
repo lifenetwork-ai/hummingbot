@@ -12,6 +12,8 @@ const affected: Record<WriteOperation, ReadOperation[]> = {
   repairCleanupCredentials: credentials,
   retryCredentialCleanup: credentials,
   requestReconciliation: ['getReconciliation'],
+  checkRecovery: ['getRecovery'],
+  resetRecovery: [...controls, 'getRecovery', 'getReconciliation'],
   adminLogin: ['getAdminIdentity', 'getAdminBootstrap', 'listAdminAccounts'],
   addAdminAccount: ['listAdminAccounts', 'getAdminBootstrap'],
   changeAdminAccount: ['listAdminAccounts', 'getAdminIdentity'],
@@ -22,6 +24,7 @@ export function invalidateAfterMutation(client: QueryClient, operation: WriteOpe
 }
 export function invalidateAfterReceipt(client: QueryClient, operation: ReadOperation) {
   const targets = operation === 'getCommand' ? controls
+    : operation === 'getRecoveryOperation' ? [...controls, 'getRecovery', 'getReconciliation'] as ReadOperation[]
     : operation === 'getCredentialOperation' ? [...credentials, 'listOrders', 'listFills'] as ReadOperation[]
     : operation === 'getReconciliationById' ? ['getReconciliation'] as ReadOperation[] : []
   return Promise.all([...targets, 'getAdminAudit' as const].map((read) =>

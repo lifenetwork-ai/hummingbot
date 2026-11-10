@@ -1,6 +1,8 @@
 """Position snapshots commit together through the existing recorder fence."""
 from decimal import Decimal
 from test.integration.postgres.test_ownership import owned as _owned
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import event, text
@@ -9,6 +11,43 @@ from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.model.position import Position
 
 owned = _owned
+
+
+def test_closed_hedge_legs_keep_separate_accounting_after_store_and_restart(owned):
+    from hummingbot.core.data_type.common import TradeType
+    from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator, PositionHold
+
+    def hold(side, amount, opened, closed, volume, fees):
+        result = PositionHold('okx_perpetual', 'BTC-USDT', side)
+        result._process_order(side == TradeType.BUY, Decimal(amount), Decimal(amount) * Decimal(opened))
+        result._process_order(side != TradeType.BUY, Decimal(amount), Decimal(amount) * Decimal(closed))
+        result.volume_traded_quote, result.cum_fees_quote = Decimal(volume), Decimal(fees)
+        return result
+
+    owned.recorder.update_or_store_positions([snapshot('long', 'BUY', '1'), snapshot('short', 'SELL', '2')])
+    strategy = SimpleNamespace(markets={'okx_perpetual': {'BTC-USDT'}}, current_timestamp=1800000000,
+                               market_data_provider=MagicMock())
+    strategy.market_data_provider.get_price_by_type.return_value = Decimal('120')
+    orchestrator = object.__new__(ExecutorOrchestrator)
+    orchestrator.strategy = strategy
+    orchestrator.positions_held = {'maker': [hold(TradeType.BUY, '1', '100', '110', '210', '3'),
+                                             hold(TradeType.SELL, '2', '120', '110', '460', '7')]}
+    orchestrator.store_all_positions()
+    rows = {row.side: row for row in owned.recorder.get_all_positions()}
+    assert set(rows) == {'BUY', 'SELL'}
+    assert rows['BUY'].id == 'long' and rows['SELL'].id == 'short'
+    for side, volume, fees, pnl in [('BUY', '210', '3', '10'), ('SELL', '460', '7', '20')]:
+        row = rows[side]
+        assert row.amount == 0 and row.breakeven_price == 0
+        assert row.volume_traded_quote == Decimal(volume) and row.cum_fees_quote == Decimal(fees)
+        assert row.realized_pnl_quote == Decimal(pnl)
+    orchestrator.positions_held = {'maker': []}
+    for row in rows.values():
+        orchestrator._load_position_from_db('maker', row)
+    orchestrator.store_all_positions()
+    again = {row.side: row for row in owned.recorder.get_all_positions()}
+    assert again['BUY'].volume_traded_quote == 210 and again['BUY'].cum_fees_quote == 3
+    assert again['SELL'].volume_traded_quote == 460 and again['SELL'].cum_fees_quote == 7
 
 
 def snapshot(identity, side, amount):

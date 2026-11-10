@@ -155,6 +155,13 @@ cleanup. Selected credentials remain encrypted and available solely for cleanup
 until terminal orders, flat managed perpetual exposure, committed ledger and
 detachment of authenticated consumers have all been confirmed.
 
+A newly submitted close can briefly return OKX `51603` before its REST row is
+visible, even after a WebSocket fill. Cleanup polls that same order within its
+original20-second deadline; it does not submit another close or treat absence
+as completion. If proof is still unavailable, the existing dependency retry
+retains tracking and credentials. Other transport/authentication failures keep
+their separate failure handling.
+
 Only then does one fenced transaction set the selected envelope to SQL NULL,
 complete the operation and audit, and leave the bot stopped. Companion credentials,
 account binding, order/fill history and unrelated recovery HALTs are retained.

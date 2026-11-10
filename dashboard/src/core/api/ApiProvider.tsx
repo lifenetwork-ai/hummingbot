@@ -29,4 +29,3 @@ export function ApiProvider({ session, children }: PropsWithChildren<{ session?:
   const key = session ? JSON.stringify([session.baseUrl, session.cacheIdentity]) : 'disconnected'
   return <SessionProvider key={key} session={session}>{children}</SessionProvider>
 }
-

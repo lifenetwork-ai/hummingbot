@@ -6,17 +6,21 @@ from types import SimpleNamespace
 
 @asynccontextmanager
 async def response_loss_proxy(url):
-    state = SimpleNamespace(drop_responses=False)
+    state = SimpleNamespace(drop_responses=False, drop_requests=False, retain_upstream_after_client_close=False)
     writers, tasks = [], []
 
     async def forward(reader, writer, downstream=False):
         try:
             while data := await reader.read(65536):
-                if not (downstream and state.drop_responses):
+                if not ((downstream and state.drop_responses) or (not downstream and state.drop_requests)):
                     writer.write(data)
                     await writer.drain()
         finally:
-            writer.close()
+            # Simulate a middlebox retaining its DB session after the runtime
+            # has discarded the downstream socket. Existing cases still close
+            # both ends immediately unless this independent fault is selected.
+            if downstream or not state.retain_upstream_after_client_close:
+                writer.close()
 
     async def connect(reader, writer):
         remote_reader, remote_writer = await asyncio.open_connection(url.host, url.port)

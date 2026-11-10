@@ -21,7 +21,7 @@ function receiptStatus(data: unknown): string | undefined {
 }
 
 export function receiptFinished(operation: ReadOperation, data: unknown): boolean {
-  if (!['getCommand', 'getCredentialOperation', 'getReconciliationById'].includes(operation)) return false
+  if (!['getCommand', 'getCredentialOperation', 'getReconciliationById', 'getRecoveryOperation'].includes(operation)) return false
   const status = receiptStatus(data)
   return status !== undefined && terminalStatuses.has(status)
 }
@@ -29,7 +29,7 @@ export function receiptFinished(operation: ReadOperation, data: unknown): boolea
 export function pollingInterval(operation: ReadOperation, data: unknown, error: Error | null, failures: number): number | false {
   if (receiptFinished(operation, data)) return false
   if (error && !retryRead(0, error)) return false
-  const pendingReceipt = ['getCommand', 'getCredentialOperation', 'getReconciliationById'].includes(operation)
+  const pendingReceipt = ['getCommand', 'getCredentialOperation', 'getReconciliationById', 'getRecoveryOperation'].includes(operation)
   const interval = pendingReceipt ? 1000 : cadence[operation]
   if (!interval) return false
   if (error) return Math.max(interval, readRetryDelay(Math.min(failures, 5), error))

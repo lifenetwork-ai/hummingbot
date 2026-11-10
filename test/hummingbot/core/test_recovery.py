@@ -71,6 +71,37 @@ def test_original_fee_currency_must_be_provable_without_new_conversion():
         replay_positions(data)
 
 
+def test_original_spot_base_fee_uses_verified_fill_price_and_preserves_gross_quantity():
+    data = snapshot()
+    data['fills'][0]['trade_fee']['flat_fees'] = [{'token': 'BTC', 'amount': '.001'}]
+    plan = replay_positions(data)
+    assert plan[0]['after']['amount'] == '1'
+    assert plan[0]['after']['cum_fees_quote'] == '0.100'
+    assert plan[0]['before']['amount'] == '0'
+
+
+def test_mixed_original_base_and_quote_fees_require_exact_recorded_conversion():
+    data = snapshot()
+    data['fills'][0]['trade_fee']['flat_fees'] = [{'token': 'BTC', 'amount': '.001'},
+                                                  {'token': 'USDT', 'amount': '.02'}]
+    data['fills'][0]['trade_fee_in_quote'] = '.12'
+    assert replay_positions(data)[0]['after']['cum_fees_quote'] == '0.120'
+    data['fills'][0]['trade_fee_in_quote'] = '.12000001'
+    with pytest.raises(RecoveryBlocked, match='recovery_fee_basis_unsupported'):
+        replay_positions(data)
+
+
+@pytest.mark.parametrize('connector,symbol,token', [('okx', 'ETH-USDT', 'BTC'),
+                                                    ('okx_perpetual', 'BTC-USDT', 'BTC')])
+def test_third_asset_and_perpetual_base_fees_remain_unsupported(connector, symbol, token):
+    data = snapshot()
+    data['positions'][0].update(connector_name=connector, trading_pair=symbol)
+    data['fills'][0].update(market=connector, symbol=symbol, position='OPEN' if connector == 'okx_perpetual' else 'NIL')
+    data['fills'][0]['trade_fee']['flat_fees'] = [{'token': token, 'amount': '.001'}]
+    with pytest.raises(RecoveryBlocked, match='recovery_fee_basis_unsupported'):
+        replay_positions(data)
+
+
 def test_multiple_spot_rows_do_not_guess_controller_attribution():
     data = snapshot(); other = deepcopy(data['positions'][0]); other['id'] = 'q'; other['controller_id'] = 'other'
     data['positions'].append(other)
