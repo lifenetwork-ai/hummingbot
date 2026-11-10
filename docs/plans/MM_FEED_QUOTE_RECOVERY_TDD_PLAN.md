@@ -85,6 +85,15 @@ failed readback.
   alone never clears intent or HALT. Test real API Stop with a current MM session.
 - [x] Final validation:1,720 native +9 subtests, PG126, two packaged E2E groups;
   five current runtime source hashes match image696c… / manifest6138… .
-- [ ] Roll out this remediation and reconcile the old Cloud sent intent using
-  reviewed complete evidence. Current Cloud HALT is not reset by local tests.
-  Full release/load/long soak and prior thin-book/probe qualifications remain open.
+- [x] Verify user-deployed revision85/source d1f0894cf: actual image/tag digest
+  match,12/12 startup/live200, ready503, stable HALT/owner/ack55, no retrieved
+  application ERROR or scheduled restart. HTTP /ready503 logs are expected.
+- [x] Independently verify all613 fills and native checkpoint prefix; operator
+  approves scoped maintenance, backup/restore rehearsal and atomic repair pass.
+  Resolve one intent/tracker entry and one Spot aggregate, retaining histories,
+  both perpetual rows and all risk state; audit177. Restore scaling and explicitly
+  Start at control/ack57. Twelve running samples are healthy; seven new real Demo
+  fills match original quantity/price/fees. Bot remains enabled.
+  See [recovery report](../../reports/demo/cloudrun-busy-submission-recovery.md).
+- [ ] Full release/load/long soak and prior thin-book/probe qualifications remain
+  separate; this short resumed window is not continuous/two-sided SLO acceptance.

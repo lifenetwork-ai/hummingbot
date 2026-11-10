@@ -1,8 +1,10 @@
 # MM feed / unsent quote recovery — 2026-11-10
 
-Latest status (2026-11-10 18:40 local): **revision84 is now HALTed** after an
-18:32 OKX50013/HTTP429 submission failure; the earlier short passing window is
-historical. See the incident below.
+Latest status (2026-11-10 21:44 local): **revision85 is trading again**, all health
+endpoints200, no HALT, with two live Spot SELLs and seven new independently verified
+Demo fills. Operator-approved scoped maintenance and an explicit Start completed;
+see [recovery result](../demo/cloudrun-busy-submission-recovery.md). Earlier HALT
+and passing/failed windows below are historical.
 
 The offline change addresses three separate paths observed in the Cloud review:
 quiet reference books, queued entry prices overtaken by a fresh reference/fee
@@ -242,7 +244,47 @@ The former injects four real HTTP429 responses without venue acceptance, exercis
 51603 and engine replacement, then proves stable HALT, usable Stop, no additional
 POST and preserved pending intents. All venue activity here is simulated.
 
-This candidate is not yet deployed. The old Cloud intent/HALT is not repaired by
-these local tests, and a recent empty exchange read is not sufficient to erase it.
+At local qualification time this candidate was not yet deployed. The old Cloud
+intent/HALT is not repaired by those tests, and a recent empty exchange read is
+not sufficient to erase it.
 Rollout and reviewed reconciliation of that incident remain open, together with
 the prior thin-book failure, residual probe cause and full release/long soak.
+
+
+## Revision85: deployed HALT availability verified
+
+User-deployed revision `hummingbot-demo-00085-fnl` is Ready at14:02:12 UTC,
+100% traffic, source tag `d1f0894cf48bf1939ae3ebe95b6c29c1d45885d3`.
+Artifact Registry resolves that tag to the actual revision image digest
+`sha256:07b5d67863cb37f14ce71101f71cb40160c29f9f3d2958aabe230dbfc89a08e5`.
+
+Read-only monitoring at14:13:19–14:15:09 UTC (21:13–21:15 local), twelve samples
+about ten seconds apart, consistently finds owner available, phase `halted`,
+`RecoveryRequired`, running=false, control/ack55. All startup/live reads return200;
+all ready reads return503. The maximum sampled heartbeat age is0.537s.
+
+Retrieved application logs for this revision contain one expected warning at
+14:02:06 UTC: `trading_bootstrap_blocked`, durable HALT requires operator recovery.
+There are no retrieved application ERRORs or scheduled child restarts. The11
+retrieved HTTP ERROR records are GET /ready503, including this monitor's own
+requests; this is blocked trading readiness rather than a new application crash.
+Log ingestion and discrete sampling do not establish uninterrupted behavior.
+
+The restart-loop remediation is verified in deployed HALT operation. The old
+intent and HALT remain; the fresh recovery view says Stop is required before
+Check. No Stop/Start, recovery, financial maintenance or Cloud configuration
+mutation was sent. This is not a resumed-trading/fill or long-soak acceptance.
+
+
+## Approved incident recovery and resumed trading
+
+The full maintenance proof, operator approval, atomic repair and resumed Demo
+verification are in the [recovery report](../demo/cloudrun-busy-submission-recovery.md).
+The shipping API history bound was not changed. The transaction resolves one
+intent, removes its one obsolete saved tracker entry, extends one proved Spot
+checkpoint by73 already-verified SELL fills and clears only the technical recovery
+fence. It retains10,295 orders,613 fills,30,440 statuses, both perpetual rows and all
+risk/credential state. Maintenance audit177 and explicit Start at control/ack57
+provide the operation trail. Seven new real Demo fills and twelve healthy running
+samples are independently checked afterward. Trading remains enabled; no full
+release or two-sided SLO pass is inferred from this short window.
