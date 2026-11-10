@@ -335,7 +335,7 @@ class BotOwnership:
                 self._release_unsent_admission(order.client_order_id)
             except Exception:
                 self.require_recovery("An exchange-rejected order could not be resolved durably.")
-            return
+            return order.client_order_id in self.sent_intents
         if order.client_order_id not in self.sent_intents and not order.exchange_order_id:
             # This hook runs only in this process's create coroutine. Retain
             # positive no-transport evidence even if a later cancel-not-found
@@ -343,6 +343,10 @@ class BotOwnership:
             self.unsent_rejections[order.client_order_id] = order
         if order.client_order_id in self.sent_intents:
             self.require_recovery("An order submission did not finish with a durable acknowledgment.")
+            # No terminal order outcome has been proved. Leave the native
+            # tracker able to consume a late create/fill instead of emitting a
+            # false failure event (and prompting an executor retry).
+            return True
         elif order.client_order_id in self.active_intents:
             # No transport attempt passed the final gate in this process. It is
             # safe to reject that local intent, if this process still owns the DB.
@@ -354,6 +358,7 @@ class BotOwnership:
                 self._release_unsent_admission(order.client_order_id)
             except Exception:
                 self.require_recovery("An unsent order intent could not be resolved durably.")
+        return False
 
     def _release_unsent_admission(self, client_id):
         if self.spot_outflow is not None:

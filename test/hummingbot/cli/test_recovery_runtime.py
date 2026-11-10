@@ -29,6 +29,23 @@ def coordinator(monkeypatch, *, action='recovery_check'):
 
 
 @pytest.mark.asyncio
+async def test_pending_send_is_reported_before_position_replay_or_credential_loading(monkeypatch):
+    instance, store = coordinator(monkeypatch)
+    store.snapshot.return_value['orders'] = [{'id': 'busy-order', 'creation_pending': True}]
+    instance.host.managed_credentials = None
+    replay = MagicMock(side_effect=AssertionError('Pending send cannot establish position proof'))
+    monkeypatch.setattr(module, 'replay_positions', replay)
+    try:
+        await instance.run('op')
+        assert store.fail.call_args.args[-1] == 'recovery_pending_intents'
+        replay.assert_not_called()
+        module.verify_exchange.assert_not_awaited()
+        store.finish_reset.assert_not_called()
+    finally:
+        await instance.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('action', ['recovery_check', 'recovery_reset'])
 async def test_verified_completion_never_starts_trading(monkeypatch, action):
     instance, store = coordinator(monkeypatch, action=action)

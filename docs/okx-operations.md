@@ -339,6 +339,29 @@ stores `recovery_state.startup_untracked_orders`, including control version and
 owner generation, for technical investigation. No credential payload is logged.
 Use the existing Stop → Check → reviewed Recover workflow for a retained HALT.
 
+### Busy submission with unknown outcome
+
+HTTP429/OKX50013 means the venue is busy; it is not a local spread guard rejection.
+Treat a request already passed to transport as unresolved until positive order
+evidence or reviewed reconciliation proves its outcome. A single51603 lookup
+and an empty recent fill page do not establish that proof. See the official
+[OKX request-expiry contract](https://www.okx.com/docs-v5/en/#overview-transaction-timeouts);
+the request deadline does not by itself prove there were no earlier fills.
+
+Managed order creation keeps its pending tracker entry and records
+`order_submission_uncertain`, rather than publishing a false OrderFailure that
+prompts retries. Late native status/fills are still processed. HALT and the durable
+intent remain; no automatic replay or reset is added. An in-flight runtime that
+cannot prove cleanup still exits within its existing deadline. Its replacement
+stays in `halted`, serving health/control/recovery without another trading
+bootstrap, even if the old YAML/credentials are missing. Existing already-started
+reconciliation still drains its known restored orders.
+
+Stop the session, then Check. A `recovery_pending_intents` result requires technical
+review of the complete scoped exchange/ledger evidence; this API does not erase
+the intent. Do not interpret startup/live200 as readiness: ready remains503 until
+an explicitly recovered and separately started strategy is running.
+
 ### Cloud Run configuration
 
 Use the same Demo image with the existing

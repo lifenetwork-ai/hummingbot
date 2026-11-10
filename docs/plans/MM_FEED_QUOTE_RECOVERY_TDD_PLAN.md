@@ -57,5 +57,34 @@ See [report and evidence](../../reports/performance/mm-feed-quote-recovery.md).
 Outcome:670 native +2 subtests, two separate depth controls, PG9 and three
 packaged E2E groups pass. Post-only-enforced thin-L1 load remains failed71/120;
 independent L2 healthy input passes120/120 with unchanged rates/guard budgets.
-No unchanged-input or full-release pass is claimed. New Cloud rollout verification
-remains pending; observed revision83 still has the old source.
+No unchanged-input or full-release pass is claimed. Revision83 retains its historical
+failed readback.
+
+- [x] Verify the user-deployed revision84/source860314 read-only against actual
+  OKX Demo: all18 health samples pass, Spot SELLs work, 20 native fills match
+  quantity/price/original fees, current perpetual quantities match. No HALT or
+  scheduled engine restart observed. The existing perpetual cap remains binding.
+  See connected readback in the report/evidence; this short window does not close
+  full release/soak, thin-book availability, two-sided qualification or probe cause.
+
+
+- [x] Investigate and reproduce revision84's later18:32 local incident: Spot HTTP429/OKX50013,
+  shutdown51603, unresolved intent and HALT on restart. Preserve the earlier
+  passing short window as historical; reproduce the full lifecycle before a fix
+  or recovery. Current native GET shows no pending Spot order, but is not taken
+  alone as permission/evidence to clear durable state.
+
+
+- [x] Retain pending native tracker state after an uncertain managed send; do not
+  emit false OrderFailure or automatically retry. Preserve unknown intent/HALT;
+  late OPEN, partial/full fills and duplicate observations reconcile normally.
+- [x] Cold HALT keeps owner/observer/startup/live/control/recovery available, ready
+  remains503, and no strategy is constructed. Removed old YAML/credentials cannot
+  block recovery bootstrap. Existing warm reconciliation/drain rules remain.
+- [x] Check reports pending intent before replay/KMS/venue proof; a51603 response
+  alone never clears intent or HALT. Test real API Stop with a current MM session.
+- [x] Final validation:1,720 native +9 subtests, PG126, two packaged E2E groups;
+  five current runtime source hashes match image696c… / manifest6138… .
+- [ ] Roll out this remediation and reconcile the old Cloud sent intent using
+  reviewed complete evidence. Current Cloud HALT is not reset by local tests.
+  Full release/load/long soak and prior thin-book/probe qualifications remain open.

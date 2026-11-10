@@ -86,6 +86,11 @@ class RecoveryCoordinator:
                 self.store.finish_check(owner, row, snapshot, [], dict(verified=False), blockers=blockers)
                 return
             raise RecoveryBlocked(blockers[0])
+        if any(order['creation_pending'] for order in snapshot['orders']):
+            # An ambiguous send is the primary blocker. Do not bury it behind
+            # position replay, KMS setup or a not-found GET, and never turn
+            # negative order lookup into proof of no exchange effects.
+            raise RecoveryBlocked('recovery_pending_intents')
         plan = await self.call(replay_positions, snapshot)
         if host.managed_credentials is None:
             raise RecoveryBlocked('recovery_credentials_unavailable')

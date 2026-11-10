@@ -112,12 +112,14 @@ def completed_rest(context) -> None:
         context[0].transport_finished()
 
 
-def order_failed(connector, order, exception=None) -> None:
+def order_failed(connector, order, exception=None) -> bool:
+    """Return true only when a managed transport may still have venue effects."""
     if postgres_requested() and _guard is not None:
         if exception is None:
-            _guard.order_failed(connector, order)
+            return bool(_guard.order_failed(connector, order))
         else:
-            _guard.order_failed(connector, order, exception)
+            return bool(_guard.order_failed(connector, order, exception))
+    return False
 
 
 def fill_committed(row) -> None:

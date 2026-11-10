@@ -106,6 +106,7 @@ class Exchange:
         self.connections = 0
         self.subscriptions = []
         self.hold_ack = False
+        self.submission_busy = False
         self.cancel_before_ack = False
         self.cancel_before_ack_remaining = None
         self.cancel_delay_seconds = 0
@@ -449,6 +450,9 @@ class Exchange:
                 return web.json_response({"code": "51603", "msg": "status not visible yet", "data": []})
             return self.ok([order])
         if path == "/api/v5/trade/order" and method == "POST":
+            if self.submission_busy:
+                observed['injected_submission_busy'] = True
+                return web.json_response({'code': '50013', 'msg': 'System is busy, please try again later.'}, status=429)
             # A bounded terminal-before-ACK fault admits only its selected
             # batch. Replacement requests wait before physical acceptance;
             # unrelated lost-response cases keep their original unbounded hold.
@@ -555,6 +559,10 @@ class Exchange:
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
 
     async def control(self, data):
+        if 'submission_busy' in data:
+            if type(data['submission_busy']) is not bool:
+                return web.json_response({'error': 'invalid_submission_busy'}, status=400)
+            self.submission_busy = data['submission_busy']
         if 'cleanup_partial' in data:
             if data['cleanup_partial'] not in ('none', 'live', 'canceled'):
                 return web.json_response({'error': 'invalid_cleanup_partial'}, status=400)

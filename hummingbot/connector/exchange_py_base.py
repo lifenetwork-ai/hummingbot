@@ -469,7 +469,14 @@ class ExchangePyBase(ExchangeBase, ABC):
             raise
         except Exception as ex:
             from hummingbot.core.order_submission_guard import order_failed
-            order_failed(self, order, ex)
+            if order_failed(self, order, ex):
+                self.logger().error(
+                    "Order submission outcome unknown on %s: order_id=%s; reconciliation required, no automatic resubmission.",
+                    self.name_cap, order_id, exc_info=True,
+                    extra={"event": "order_submission_uncertain", "reason_code": "submission_outcome_unknown",
+                           "error_type": type(ex).__name__},
+                )
+                return
             self._on_order_failure(
                 order_id=order_id,
                 trading_pair=trading_pair,

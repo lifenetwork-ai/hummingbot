@@ -450,9 +450,10 @@ class ServiceHost:
         self.log.info("Service bootstrap completed bot=%s revision=%s", self.settings.bot_id, self.revision)
 
     async def validate_selection(self, row):
-        # A stopped service must remain available for control even when its
-        # previous revision's YAML or connector credentials were removed.
-        if row["desired_state"] == "stopped":
+        # A stopped/halted service must remain available for recovery even when
+        # its previous revision's YAML or credentials were removed. A later
+        # confirmed reset + Start revalidates before constructing a strategy.
+        if row["desired_state"] == "stopped" or (row.get("recovery_state") or {}).get("halt"):
             return
         from hummingbot.cli.strategy_configs import config_path, read_yaml
         from hummingbot.client import settings
@@ -707,15 +708,35 @@ class ServiceHost:
                                                                 operation["id"], self.owner.owner_uuid, self.owner.generation, versions=versions)
                     finally:
                         self.observer_wait_until = None
-                await self.validate_selection(row)
+                # Recovery must remain reachable even if the old trading
+                # configuration/credentials cannot currently be loaded. Reset
+                # increments control_version; a later Start validates normally.
+                selection_validated = not (row["recovery_state"] or {}).get("halt")
+                if selection_validated:
+                    await self.validate_selection(row)
                 self.availability.clear("configuration")
                 # Cleanup and configuration loading can both yield to a newer
                 # stop/switch. Never prepare an engine from the old intent.
                 latest = self.owner.check_owner()
                 if latest["control_version"] != version or latest.get("mm_session") != row.get("mm_session"):
                     return
+                if not selection_validated and not (latest["recovery_state"] or {}).get("halt"):
+                    # A concurrent maintenance/reset cannot use the skipped
+                    # validation as trading authority, even on the same version.
+                    self.applied_version = None
+                    return
                 row = latest
-                if row["desired_state"] == "running":
+                if row["desired_state"] == "running" and (row["recovery_state"] or {}).get("halt"):
+                    # A replacement process cannot resolve an ambiguous send by
+                    # repeatedly constructing a trading strategy. Keep its owner,
+                    # observer and recovery API alive, without touching the prior
+                    # runtime/intent fences. Already-started reconciliation still
+                    # drains its restored orders in the path below.
+                    self.owner.allow_new_orders = False
+                    self.phase = "halted"
+                    self.log.warning("Trading bootstrap withheld: durable HALT requires operator recovery.",
+                                     extra={"event": "trading_bootstrap_blocked", "reason_code": "recovery_required"})
+                elif row["desired_state"] == "running":
                     self.owner.prepare(version, row["config_file_path"])
                     self.hb.trading_core.before_strategy_start = self.owner.reconcile
                     self.phase = "starting"

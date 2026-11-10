@@ -1,6 +1,6 @@
 {
   "date": "2026-11-10",
-  "scope": "Targeted offline source/image verification; not full release, connected OKX, or Cloud acceptance",
+  "scope": "Targeted offline source/image verification plus short read-only Cloud revision84 / actual OKX Demo readback; not full release acceptance",
   "base_source_commit": "a7c4f858c871706f37cecb7cd27cbbd492d6c396",
   "image": {
     "id": "sha256:1d3c3a6703b987df4a1fcadbfa2f7a876afca457c023d4915e207e9aeaf5896c",
@@ -321,7 +321,6 @@
   "risk_policy_changes": false,
   "real_exchange_writes": false,
   "unverified": [
-    "Connected Cloud Run effectiveness on a newly deployed candidate",
     "Full new-image release/long soak",
     "A unique cause for residual probe latency"
   ],
@@ -667,11 +666,10 @@
       "probe_analysis_path": "build/mm-load/20261110-175115-014648/probe-incident-analysis.json"
     },
     "depth_interpretation": "Single-level healthy fill gate remains failed; conservative recent-own-order L1 filtering can exhaust provable outside depth. Native controls prove this with unchanged guards. Healthy L2 adds independent next-tick external rows, preserving original L1 prices/quantities and all budgets. This is a different input, not an unchanged benchmark comparison.",
-    "new_fix_deployed_to_cloud": false,
+    "new_fix_deployed_to_cloud": true,
     "raw_root": "build/mm-post-only-20261110",
     "cloud_raw_root": "build/mm-feed-quote-cloud-20261110",
     "deferred": [
-      "Cloud verification after separately controlled new rollout",
       "Residual own-depth/probe root cause",
       "New full release/long soak"
     ],
@@ -707,6 +705,282 @@
         "post_only_zero_cancels": 2,
         "unknown_submissions": 0,
         "fills": 0
+      }
+    },
+    "cloud_revision84_readback": {
+      "source_commit": "860314b627f691580fd38fd136dcbd18efe18ffc",
+      "revision": "hummingbot-demo-00084-9bv",
+      "cloud_image_digest": "sha256:9f619d5ac20046420d4d23e4a134d9785701bc608de8c32b4344ebece1356646",
+      "ready_at": "2026-11-10T11:13:03.377525Z",
+      "cpu": 2,
+      "memory": "1Gi",
+      "traffic_percent": 100,
+      "sample_window_utc": [
+        "2026-11-10T11:16:26.670810+00:00",
+        "2026-11-10T11:19:16.666672+00:00"
+      ],
+      "samples": 18,
+      "interval_seconds": 10,
+      "health": {
+        "/startup": {
+          "200": 18
+        },
+        "/live": {
+          "200": 18
+        },
+        "/ready": {
+          "200": 18
+        }
+      },
+      "running_all_samples": true,
+      "halted_samples": 0,
+      "same_session": true,
+      "control_and_acknowledgment": [
+        55,
+        55
+      ],
+      "spot_sell_counts": {
+        "2": 17,
+        "1": 1
+      },
+      "spot_buy_block": "inventory skew BUY multiplier 0; order_size_rejected",
+      "perpetual_block": "inventory_limit",
+      "native_order_reads": [
+        {
+          "at": "2026-11-10T11:17:36.876007+00:00",
+          "pending": 2,
+          "matching_api": 2,
+          "sides": [
+            "sell",
+            "sell"
+          ],
+          "recent_order_states": {
+            "live": 2,
+            "canceled": 2,
+            "filled": 4
+          },
+          "recent_cancel_sources": {
+            "1": 2
+          }
+        },
+        {
+          "at": "2026-11-10T11:23:04.777263+00:00",
+          "pending": 1,
+          "matching_api": 1,
+          "sides": [
+            "sell"
+          ],
+          "recent_order_states": {
+            "canceled": 1,
+            "live": 1,
+            "filled": 6
+          },
+          "recent_cancel_sources": {
+            "1": 1
+          }
+        }
+      ],
+      "financial_readback": {
+        "at": "2026-11-10T11:20:42.162804+00:00",
+        "fills_after_revision_ready": 20,
+        "quantity_price_original_fee_exact": true,
+        "duplicate_api_fill_identities": false,
+        "perpetual_quantities_match": true,
+        "perpetual_base_amounts": {
+          "LONG": "0.0030",
+          "SHORT": "0.0048"
+        },
+        "scope": "Selected recent Spot Demo fills matched by native trade ID; perpetual native contracts converted to BTC. Not a full account ledger audit."
+      },
+      "cloud_log_severity_counts": {
+        "WARNING": 11,
+        "INFO": 1
+      },
+      "cloud_log_latest_at": "2026-11-10T11:22:46.797959Z",
+      "pre_sample_warnings": {
+        "probe_timeout_ms": 301.097,
+        "controller_progress_overdue_seconds": 5.878
+      },
+      "restart_scheduled_logs": 0,
+      "closing_status_at": "2026-11-10T11:23:35.666832Z",
+      "closing_health_all_200": true,
+      "closing_spot_sell_count": 2,
+      "cloud_mutations": false,
+      "trading_commands_sent": false,
+      "financial_maintenance": false,
+      "raw_root": "build/mm-maker-cloud-20261110",
+      "raw_sha256": {
+        "observations-private.json": "04c0d1b0e2954735466b4e8e12eb09b5c56c102b20c1c7bc17c5fa9e47b9ad8a",
+        "financial-readback-private.json": "a7950884ebfa478146e0c111af92ef4b640f3d04ea038e8e35d82cf9c2a68b1e",
+        "logs-close-private.json": "25d87549d0154d6191de4620097a56b6462d6b4e84e7405d970413401121f9c9",
+        "venue-111738-private.json": "e76518a58973a08cb78d96cd9fd7e5ff461b44f1683227a6b322af06a4d4ad61",
+        "venue-112305-private.json": "4f0965b43d9821f5e358f5e31d3a474b69316607ce393dede030b3b60599cc21"
+      },
+      "limitations": [
+        "Discrete short samples do not establish uninterrupted quoting or the 30-minute two-sided target",
+        "Perpetual remains blocked by existing exposure cap; no new perpetual fill qualification",
+        "Thin-book 71/120 diagnostic remains failed",
+        "Residual probe cause and full new-image release/long soak remain open"
+      ]
+    },
+    "cloud_revision84_incident": {
+      "status": "open; trading halted",
+      "first_submission_failure_at": "2026-11-10T11:32:01.959577Z",
+      "http_status": 429,
+      "okx_code": "50013",
+      "okx_message": "System is busy, please try again later.",
+      "shutdown_failure": "OKX order does not exist (51603)",
+      "restart_blocker": "Unresolved order submission requires reconciliation.",
+      "status_read_at": "2026-11-10T11:39:33.903175Z",
+      "health": {
+        "startup": 503,
+        "live": 200,
+        "ready": 503
+      },
+      "phase": "owner_unavailable",
+      "halted": true,
+      "native_read_at": "2026-11-10T11:40:21.785379+00:00",
+      "native_failed_order_lookup_code": "51603",
+      "native_pending_spot_orders": 0,
+      "failed_client_found_in_recent_100_fills": false,
+      "interpretation": "Observed venue busy response is the trigger. Unresolved durable submission blocks restart. Exact handling defect and safe recovery require further reproduction; not attributed to maker-bound patch, memory, deployment or the earlier WS disconnect. Current not-found plus recent fills is not treated as sufficient proof to reset HALT.",
+      "separate_ws_error": {
+        "at": "2026-11-10T11:30:00.737618Z",
+        "connector": "okx_perpetual",
+        "close_code": 1006,
+        "causal_link_to_spot_failure": "unproved"
+      },
+      "cloud_or_financial_mutations": false,
+      "raw_sha256": {
+        "logs-latest-private.json": "f7d8596576d1bae8591a0afe6477eacd92dbf03f100ab19c672ae21611a985e9",
+        "incident-context-private.json": "5c987154a00a72de48c4695bad680502844463d9c9115d5689c380ac15c37003",
+        "status-latest-private.json": "90fbf36310662a13a67b93686162fac195c9ab5152c228eecfcefe5292a31e09",
+        "recovery-latest-private.json": "26de3f4cb194771e26c7c643f3da29dda4f9f6916020ac2f1832e065ed099b80",
+        "incident-venue-private.json": "d2edab37a1f78b3dd921a7306f09689e1de1f65abf3c437bec149d445175cfea"
+      }
+    },
+    "busy_submission_followup": {
+      "base_source_commit": "860314b627f691580fd38fd136dcbd18efe18ffc",
+      "deployed_to_cloud": false,
+      "cloud_financial_maintenance": false,
+      "root_cause": {
+        "transport": "Actual Cloud POST returns HTTP429/OKX50013; no positive order acknowledgment",
+        "tracker": "Generic failure handling emits FAILED/OrderFailure despite managed sent intent still unresolved; late native acceptance/fills lose the normal create transition",
+        "restart": "Cold host bootstraps trading despite prior HALT, fails unresolved-intent cleanup, exits and repeats",
+        "bootstrap": "Env-credential mode also validates removed YAML/credentials before HALT; recovery API can be lost before observer startup"
+      },
+      "changes": [
+        "Retain native pending tracker entry and explicit uncertain log when managed guard confirms a possibly sent request; preserve HALT and durable intent",
+        "Keep a cold HALTed owner/API alive without strategy bootstrap; do not alter warm in-progress restored-order reconciliation or forced drain deadlines",
+        "Validate removed trading configuration only after confirmed reset/separate Start; recheck owner/control and validation state across awaits",
+        "Report recovery_pending_intents before financial replay/KMS/venue reads; no negative lookup proof, auto resubmission, pending-intent reset or new recovery authority"
+      ],
+      "red": {
+        "native_cold_halt": "build/mm-busy-recovery-20261110/native-red.log",
+        "postgres_native_429_tracker_and_late_acceptance": "build/mm-busy-recovery-20261110/pg-red-v2.log",
+        "recovery_blocker_priority": "build/mm-busy-recovery-20261110/recovery-priority-red.log",
+        "cold_process_bootstrap_missing_yaml": "build/mm-busy-recovery-20261110/pg-process.log"
+      },
+      "excluded_setup_failures": [
+        "Initial native test fixture used obsolete OKX constructor; not a runtime Red",
+        "Initial fixture unit passed unsupported query argument; corrected before qualification",
+        "First API Stop test seeded v1 config but sent MM Stop without session_id; fixed to a real MM session",
+        "First local PG launch raced directory creation; rerun sequentially"
+      ],
+      "native": {
+        "passed": 1720,
+        "subtests_passed": 9,
+        "raw": "build/mm-busy-recovery-20261110/native-final-v2.log",
+        "scope": "CLI, ownership terminal reads, REST assistant, recovery, trading core, OKX spot/perpetual"
+      },
+      "postgres": {
+        "passed": 126,
+        "raw": "build/mm-busy-recovery-20261110/pg-final.log",
+        "scope": "Owned native SDK+simulated HTTP429 REST response at transport boundary, late OPEN/partial/full fill+duplicate observation, 51603 uncertainty, ownership, recovery, real supervisor/API/engine, commit-outcome unknown, service/managed service"
+      },
+      "image": {
+        "id": "sha256:696c0d7d3d640e539ae59aae387da4639a507f0a64d759148b5b265126b70636",
+        "manifest_digest": "sha256:6138fba08427463068ce10df6df9d9e05d2cfd056511b230d3290d9f4ea6755b",
+        "tag": "hummingbot-cloudrun:submission-uncertainty-20261110-final",
+        "architecture": "amd64",
+        "base_image_id": "sha256:2d4d7561e0808a8f4efaa716283637975a909454c8ad5cf3459593453b443196",
+        "runtime_overlay_sha256": {
+          "hummingbot/cli/service.py": "3cf4438e7f27f476a9af8901f4c576b33bddbfb98687f610815c484a6a089e9b",
+          "hummingbot/cli/recovery_runtime.py": "6f897dd8fa2e56d264241f0ca36c48a3e0f771db39524ff1c5f52d60811d3044",
+          "hummingbot/connector/exchange_py_base.py": "49fba4c90b5aa128eafab521c01e9669a60da7ecf9cd52ef418f24909539ac18",
+          "hummingbot/core/bot_ownership.py": "27fb28f4b3230c98dabe99943e372ff486e455c8b873239ab2c01054a42c1521",
+          "hummingbot/core/order_submission_guard.py": "e107eff45901205b626b909da075c0c8601d034673979b8a2bd16722aa6fd638"
+        },
+        "all_five_runtime_sources_match": true
+      },
+      "e2e": [
+        {
+          "scenario": "submission-uncertainty",
+          "passed": true,
+          "raw": "build/e2e-offline/20261110-185802-294608/result.json",
+          "metrics": {
+            "passed": true,
+            "metrics": {
+              "submission-uncertainty_startup_s": 22.121,
+              "submission_uncertainty": {
+                "busy_http_posts": 4,
+                "accepted": 0,
+                "fills": 0,
+                "no_automatic_resubmission": true,
+                "stable_halted_owner": true,
+                "stop_acknowledged": true,
+                "pending_intents_preserved": true,
+                "simulated": true
+              }
+            }
+          }
+        },
+        {
+          "scenario": "maker-entry",
+          "passed": true,
+          "raw": "build/e2e-offline/20261110-185937-fee6a2/result.json",
+          "metrics": {
+            "passed": true,
+            "metrics": {
+              "maker-entry_startup_s": 22.655,
+              "maker_entry": {
+                "native_zero_cancels": 2,
+                "passive_requote_seconds": 5.4673393331468105,
+                "both_sides_restored": true,
+                "no_same_identity_replay": true,
+                "fills": 0,
+                "preserved_session": true,
+                "stopped": true,
+                "simulated": true
+              }
+            }
+          }
+        }
+      ],
+      "economic_replay_fixture": {
+        "initial_failures": 7,
+        "cause": "Existing LocalProvider adapter lacked current acquire/release_book_recovery lifecycle; unchanged in parent, static source hashes retained",
+        "fix": "Track/release deterministic tape leases without a network source or freshness/risk changes",
+        "parent_comparison": "build/mm-busy-recovery-20261110/economics-fixture-parent.json",
+        "isolated_retest_passed": 20,
+        "final_full_native_suite_passed": true
+      },
+      "raw_root": "build/mm-busy-recovery-20261110",
+      "limitations": [
+        "Actual deployed revision84 still has old error handling and unresolved intent/HALT until rollout and reviewed incident reconciliation",
+        "An empty pending set, a recent fill page or a 51603 alone does not authorize clearing the old sent intent",
+        "No full release, new load/long soak or live-money acceptance is claimed"
+      ],
+      "proof_sha256": {
+        "build/mm-busy-recovery-20261110/native-red.log": "464adec042e3a8f9ecda298d966b181cf83ed8bf3eee9143c5828ef48cd8262a",
+        "build/mm-busy-recovery-20261110/pg-red-v2.log": "a5afeb5eccccef9a590e6aa6f8caea86d02979d8c02526efb03605d1b94c4dfa",
+        "build/mm-busy-recovery-20261110/recovery-priority-red.log": "3795c4ebdf3263c14f3d02feba43fb7cfd1bbfb6d7d68904d804b3fb7bdcc1b6",
+        "build/mm-busy-recovery-20261110/pg-process.log": "1ad4b05a0e78a435bcd6cd92cc5f443a9724da41991a8493e937c189023a7943",
+        "build/mm-busy-recovery-20261110/native-final-v2.log": "3d5766b95087bf99cffc77d1558003ca0d3ff7a4b25f1096482971fe4d59a5bb",
+        "build/mm-busy-recovery-20261110/pg-final.log": "39b517cb7ab803b4c1fb6eb23bcafa760ddf937e31889cb706ece16d7fabbf88",
+        "build/mm-busy-recovery-20261110/image-runtime-sha256.txt": "3d37f544819aa0c3bc09558f42a7b47ae6c43de36faead7c2760e34863709ace",
+        "build/e2e-offline/20261110-185802-294608/result.json": "09e1711aa06bd4bd4f6ba17408b86bc1353e549dd6e13225d39672b59d37486d",
+        "build/e2e-offline/20261110-185937-fee6a2/result.json": "6c446386c861a1de55d7965cc19091d9b5a5e45bf06ec324062e6abe905132d5"
       }
     }
   }

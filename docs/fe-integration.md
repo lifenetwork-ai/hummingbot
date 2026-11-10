@@ -1321,6 +1321,18 @@ acknowledged before checking an existing HALT. Recovery never
 starts trading, cancels orders or closes exposure. If exchange orders remain,
 resolve them through the existing cleanup/runbook before retrying.
 
+A send error after physical transport (including OKX HTTP429/50013) can leave an
+unresolved intent. Show **Order outcome unknown — recovery required**, not
+"order rejected" or "safe to retry". A managed connector retains the pending
+native tracker entry so late acceptance/fills can still be recorded; it does not
+emit a terminal failure event without proof. One order-not-found51603 is not
+proof that the request had no effect. A replacement engine with durable HALT
+keeps its owner/control API alive without constructing a new strategy: startup
+and live may be200 while ready remains503. This does not mean trading resumed.
+After Stop, Check returns `recovery_pending_intents` before position replay or
+credential loading when a pending send exists. Keep Recover disabled and show
+the supplied technical-review action; no force/reset or automatic Start.
+
 | Endpoint under `/api/v1/admin` | Purpose |
 | --- | --- |
 | `GET /recovery` | Current blockers, check/reset availability and latest operation |
