@@ -1,8 +1,27 @@
 # Actual OKX Demo evidence
 
-[All reports](../README.md) · [Current offline image](../release/mm-runtime-followup-load.md)
+[All reports](../README.md) · [Latest Demo/release](../release/demo-release-closeout.md)
 
-**Latest Cloud state: trading is RUNNING on revision55 (2vCPU/1GiB), Until stopped.**
+**Latest API state: revision75, regular catalogue, RUNNING Until stopped, control53/53; image/rollout verification pending.**
+The [latest closeout](../release/demo-release-closeout.md) qualifies actual
+perpetual BUY/SELL handoff and a complete30-minute conditional quote target on
+revision73 (spot99.7700%/perpetual99.7133%, zero unknown). Temporary settings are
+disclosed and then removed. Automatic close/remove/Set,384 stopped actual fills,
+original fees/positions and flat hedge cold reload pass. No HALT. Full offline
+load/Random soak3600/six faults/retention on regular image `4198f2fa…` pass.
+Revision75 image/rollout verification remains open.
+
+Current follow-up: API now reports revision75, same running session/control53,
+Demo and regular catalogue, no HALT. Its image/environment and the01:41 UTC
+rollout transition await GCP reauthentication; this is not continued evidence of
+revision74. See [closeout investigation](../release/demo-release-closeout.md#later-revision-transition-under-investigation).
+
+## Earlier connected scopes
+
+The following records describe their original revisions, not the current
+running state. Revision55 was left running at that earlier handoff:
+
+**Revision55 bounded acceptance (2vCPU/1GiB).**
 The separately approved100/200USDT policy re-arm (audit39) preserves all PnL peaks
 and financial history.115 samples pass the new600-second observation, control16/16;
 70 fills match REST, including two new natural spot fills. Final readback has two

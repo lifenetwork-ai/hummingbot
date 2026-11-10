@@ -6,6 +6,11 @@ Red/Green history and failed/scoped acceptance attempts are retained in the
 in [credential operations](../exchange-credentials.md) and
 [FE integration](../fe-integration.md).
 
+Current follow-up: API now reports revision75, same running session/control53,
+Demo and regular catalogue, no HALT. Its image/environment and the01:41 UTC
+rollout transition await GCP reauthentication; this is not continued evidence of
+revision74. See [closeout investigation](../../reports/release/demo-release-closeout.md#later-revision-transition-under-investigation).
+
 ## Delivered requirements
 
 - [x] Optional environment-controlled Basic bootstrap, Google identity verification,
@@ -33,16 +38,19 @@ in [credential operations](../exchange-credentials.md) and
 
 ## Verification and remaining acceptance
 
-Latest connected recovery is separately qualified on revision65 (`c98b08a6f…`):
-Google Check/Confirm, exact one-row repair/audit, separate Start and360-sample
-runtime observation. See the [completed recovery plan](ADMIN_RECOVERY_API_TDD_PLAN.md).
-This does not close real GCP KMS, the newest full release gate, perpetual full-fill
-handoff, two-sided quote qualification or full FE browser acceptance.
-
+Latest Demo qualification is recorded in [Demo/release closeout](DEMO_RELEASE_CLOSEOUT.md):
+source `f53885fda`, native3,085 +16, PostgreSQL605 and all30 packaged E2E pass.
+Full unchanged load/Random soak3600/six faults/retention pass.
+Overall Cloud closeout still needs revision75 image/rollout verification. Actual revision73 qualifies perpetual
+BUY/SELL handoff and the30-minute conditional quote target; real automatic
+close/remove/Set and384-fill stopped readback pass. Regular revision74 is left
+running Until stopped. Earlier real Google recovery remains qualified on
+revision65 in the [recovery plan](ADMIN_RECOVERY_API_TDD_PLAN.md).
+Real GCP KMS/IAM, actual FE and live cutover remain separate.
 
 - [x] Native source/PG, local encryption, offline signed Google identities, role/
   audit and lifecycle/fault evidence. Original image/date scopes remain in Git.
-- [x] Last full offline gate on `b090430c…`: canonical native 2,861 + 16 subtests, all 27 available
+- [x] Earlier full offline gate on `b090430c…`: canonical native 2,861 + 16 subtests, all 27 available
   E2E in one all execution, full unchanged security/operator load/soak3600/five
   faults. No unexpected healthy errors or healthy child replacement; 4,885 exact
   simulated fills/fees/positions. Separate technical upgrade/rollback passes.
@@ -83,7 +91,7 @@ handoff, two-sided quote qualification or full FE browser acceptance.
   [Connected evidence](../../reports/demo/managed-local-connected-followup.md).
   [Runtime follow-up](MM_RUNTIME_FOLLOWUP_REMEDIATION_TDD_PLAN.md#managed-demo-random-shutdown-follow-up--2026-11-09).
 
-Three healthy engine probes recover in 1.06–1.12 s. Baseline activity overlay is off,
+Earlier `b090430c…` has three healthy engine probes recovering in 1.06–1.12 s. Baseline activity overlay is off,
 so these are not measured quote-stop intervals. No exclusive performance/power
 cause or qualified production rollback is inferred. Remaining policy/evidence
 items are centralized in the [register](README.md).

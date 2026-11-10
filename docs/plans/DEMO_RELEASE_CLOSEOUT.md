@@ -5,14 +5,30 @@ latest packaged release. Real GCP KMS, the actual frontend and live funds remain
 separate. Use existing audited operator APIs; never manufacture fills, disable
 guards or rewrite financial state to obtain a pass.
 
-The predecessor qualifications below retain their image scope. A new runtime
-incident superseded candidate `3f6c17db…`; final qualification now targets source
-`69fa11070` and regular image `8d4a4ffc…` (Demo overlay `ae809eb6…`). Its complete
-native regression passes3,072 tests +16 subtests and the full PostgreSQL suite
-passes605 tests. All29 packaged E2E groups pass in one `all` attempt, including
-distinct-image upgrade/takeover/rollback. Warmup/mixed pass, but that load attempt
-is intentionally interrupted after the connected cleanup visibility race below;
-the latest correction still needs fresh image/release qualification.
+Latest pinned source is `f53885fda`, regular image `4198f2fa…`, digest
+`sha256:1e7cf901cbe376268d167fde18db0a9f18fa6818ba51052bae9cceba188e2e1b`.
+All1,092 packaged hashes match (1,068 Python),61 compiled modules are unchanged
+and2,056 measured source/fixture hashes remain frozen. Canonical native3,085 +16,
+PostgreSQL605 and all30 packaged E2E groups pass. Full unchanged warmup/mixed/
+burst/Random soak3600 and six fault cases pass; retained growth18.02MiB/64MiB,
+4,885 simulated fills/fees/positions exact. Six healthy probes recover without
+healthy replacement; no exact quote-downtime or unique latency-cause claim.
+
+Actual revision73 (temporary spot100/perpetual40 overlay `f4863d62…`) completes
+1,780 samples across30 minutes, one owner, no HALT or unknown. Spot1,735/1,739
+(99.7700%) and perpetual1,739/1,744 (99.7133%) pass; eligible/all97.70%/97.98%.
+Four actual filled post-only orders prove BUY/SELL perpetual handoff/replacement
+before60s and fresh matching account observations. Stopped384 actual fills,
+original fees, pending0/flat perpetual and BTC cash0.961563983944 reconcile.
+Two corrected-image close/remove/Set cycles need no manual Retry.
+
+The regular catalogue is restored on revision74 and a separate Start53 leaves
+Until stopped/both/follow_market. A later service update exposes revision75 with
+the same session/control, Demo environment and regular catalogue, both slots
+Connected, no HALT; final startup/live/ready200. Its exact image/environment and
+01:41 UTC handoff cause await gcloud reauthentication, so overall Cloud closeout
+stays open. Preserve the qualified revision73 window and failed/interrupted
+attempts separately in the [acceptance matrix](../../reports/release/demo-release-closeout.md).
 
 - [x] Reconcile older checklists with their original image/evidence scopes.
 - [x] Fresh read-only Cloud preflight: revision66, Demo, managed/local-encrypted
@@ -22,8 +38,8 @@ the latest correction still needs fresh image/release qualification.
   attempt has600 passes, one outdated projection assertion and one migration
   fixture setup error without retained SQLSTATE. Correct the assertion, retain
   the original failure and repeat the full suite; targeted four cases pass.
-- [x] Complete final canonical native and disposable PostgreSQL regressions:
-  shipping source passes3,014 native tests +16 subtests and602 PostgreSQL tests.
+- [x] Complete preceding candidate native and disposable PostgreSQL regressions:
+  that candidate passes3,014 native tests +16 subtests and602 PostgreSQL tests.
   Retain the earlier fixture failures separately; they are not passed attempts.
 - [x] Pin/download the deployed image and compare its packaged source to the
   reviewed working tree. Regular candidate `3f6c17db…` / digest `5c6ba758…`
@@ -56,7 +72,7 @@ the latest correction still needs fresh image/release qualification.
   unknown observations separately. Zero eligible samples is unqualified. Missing
   quotes during ordinary replacement still count against the99% eligible target;
   stale data never proves working orders. Retain20s/60s absence diagnostics.
-  Corrected revision71 completes1,788 samples over1,799.83 sampled seconds with
+  Preceding revision71 completes1,788 samples over1,799.83 sampled seconds with
   one physical owner, maximum sample gap1.75s and no HALT. Conservative v2 target
   passes: spot1,733/1,745=99.3123% (9 gaps and3 unknown failures), perpetual
   764/767=99.6089% (3 gaps). Eligible fractions of all samples are97.43% and42.90%;
@@ -71,16 +87,17 @@ the latest correction still needs fresh image/release qualification.
   bounded rolling refresh without delaying safety withdrawal or trusting a
   pending/invalid peer. Final regressions pass above; targeted packaged rolling
   refresh has118 independent venue samples, no missing sides and32 accepted
-  post-only orders, plus stale withdrawal/recovery and Stop. Full gates stay open.
-- [ ] Run all packaged E2E groups, a distinct-image upgrade/rollback scenario,
-  unchanged warmup/mixed/burst/60-minute soak/fault/retention budgets, and financial
+  post-only orders, plus stale withdrawal/recovery and Stop. The latest full gate is qualified separately above.
+- [x] Run all30 packaged E2E groups, a distinct-image upgrade/rollback scenario,
+  unchanged warmup/mixed/burst/60-minute soak/retention budgets, six fault cases
+  (five baseline plus volatility defense), and financial
   reconciliation on the pinned candidate. Simulated load fills remain separate
   from actual Demo fills. Preserve failures and rerun only affected gates after
   fixes; a changed runtime requires fresh artifact qualification.
-- [ ] Restore the regular Demo inventory/spread catalogue with its explicit
+- [x] Restore the regular Demo inventory/spread catalogue with its explicit
   five-second rolling-refresh limit after temporary qualification, verify
   restart/reconciliation and leave the approved Demo trading state explicit.
-- [ ] Publish a compact acceptance matrix with artifact IDs, results, failures,
+- [x] Publish a compact acceptance matrix with artifact IDs, results, failures,
   residual limitations and the actual audit principal; close only proven boxes.
 
 The earlier real Google credential/recovery lifecycle is already qualified.
@@ -125,10 +142,11 @@ the original I/O delays is not established by the orphan-session mechanism test.
   order projections require reconciliation. Native spot completion-order accounting
   matches its retained checkpoint exactly; chronological fill replay alone cannot
   prove that legacy cost basis, so the ordinary Recovery API correctly stays blocked.
-- [ ] Finish fresh qualification on the corrected immutable images, then restart
-  the30-minute observation. Technical image comparison uses preceding `3f6c17db…`,
-  not an approved production rollback. All-feature load explicitly enables
-  volatility defense, security and operator reads without increasing budgets.
+- [x] Finish fresh qualification on `f53885fda` / immutable `4198f2fa…` and the
+  separate complete revision73 observation. All30 E2E use preceding `8d4a4ffc…`
+  for technical upgrade/rollback, not an approved production rollback. Volatility
+  defense, security and operator load remain enabled without larger budgets.
+  Prior failed/partial3f and69fa image scopes remain failures/partial results.
 
 INFO collection could not be enabled: the current GCP identity lacks
 `logging.sinks.update`. The existing project filter was left unchanged; available
@@ -209,9 +227,55 @@ action-required receipt on immutable `8d4a4ffc…`. The correction waits only fo
 fresh close's explicit51603, retaining the same identity inside its original
 20-second deadline; it never places again or treats absence/WS completion alone
 as REST proof. Other errors retain their original handling. Related Green56
-includes fault-fixture controls; packaged Green/full release remain pending.
+includes fault-fixture controls. The successor passes packaged visibility Green
+and all30 E2E, plus two real automatic close/remove/Set cycles without manual
+Retry. Latest full-image load/soak/six faults/retention pass above.
 
 The predecessor's all29 E2E and warmup/mixed p99 136.67/212.59ms remain passing
 results for that image. Its later full-load attempt is deliberately stopped to
 supersede the runtime, not reported as a completed soak or a numeric gate failure.
 Keep the original failed real cleanup, same-operation Retry and Linux Red evidence.
+
+### Host sleep during latest-image load
+
+On4198, warmup/mixed/burst pass with p99 260.88/288.88/90.99ms, then the
+Mac's closed clamshell enters repeated Maintenance Sleep despite idle assertions.
+The soak and local Cloud observer have large wall-clock gaps. Preserve the raw
+attempt; it is deliberately interrupted and cannot qualify continuous soak,
+faults or retention. A fresh full unchanged load starts at01:27 UTC using a
+bounded AC system-sleep assertion, without changing runtime or budgets. The
+assertion does not guarantee closed-lid sleep can be prevented; continuity still
+must pass. Cloud status after the laptop gap remains revision74/running53,
+owner available, no HALT. The old observer timeout is retained. GCP worker
+preparation cannot proceed because gcloud requires reauthentication; no new
+worker, IAM or shared-database resource change is made.
+
+### Later regular-catalogue restart transition
+
+- [ ] Attribute the01:41 UTC regular revision74 running → stopping → starting →
+  guard warmup → running transition. The strict monitor captures desired running
+  and running=false, control53/53, unchanged session/revision, available owner,
+  no HALT/error; durable event timestamps span about13 seconds. A later read is
+  running. No operator command was issued. Preserve the failed monitor sample
+  and do not classify this as a harmless probe-only delay.
+- [ ] Read matching Cloud logs after gcloud reauthentication, distinguish engine
+  watchdog/process/platform restart from a runtime defect, and use TDD before
+  any confirmed code correction. The browser connector also cannot initialize.
+  A separate5-second read-only incident monitor retains subsequent transitions.
+
+The prior revision73 quote/handoff proof keeps its own complete window. The
+regular operating transition remains separate and open; the finite earlier pass
+does not prove the restored regular catalogue runs uninterrupted.
+
+Subsequent direct API read identifies new revision `hummingbot-demo-00075-wbf`,
+same session/control53, currently running without HALT. This closeout did not
+deploy it. Check the external service update/image before attributing the earlier
+reinitialization to a runtime defect. Preserve this identity change; new reads
+are not evidence that revision74 stayed uninterrupted. Follow-up observer now
+records revision changes explicitly instead of discarding them as unknown.
+
+The fresh01:27 UTC full retry completes at02:57 UTC: all four healthy windows,
+Random soak3600 and six faults pass;58 continuous soak samples, max gap65.50s.
+The earlier clamshell-interrupted attempt remains unqualified. Selective local
+cleanup then removes12 unused image identities; in-use/qualified/technical
+comparison images and existing container inventory remain.

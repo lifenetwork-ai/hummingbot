@@ -5,7 +5,29 @@ fills and REST proofs remain in the [acceptance history](../../reports/README.md
 (Git: `docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md`). A local pass never changes
 the image/account/date attached to connected evidence.
 
-## Latest connected acceptance — Cloud revision65 (`c98b08a6f…`)
+Current follow-up: API now reports revision75, same running session/control53,
+Demo and regular catalogue, no HALT. Its image/environment and the01:41 UTC
+rollout transition await GCP reauthentication; this is not continued evidence of
+revision74. See [closeout investigation](../../reports/release/demo-release-closeout.md#later-revision-transition-under-investigation).
+
+## Latest Demo/release closeout —2026-11-10
+
+See [current checklist](DEMO_RELEASE_CLOSEOUT.md) and
+[acceptance matrix](../../reports/release/demo-release-closeout.md). Source
+`f53885fda` / regular image `4198f2fa…` passes native3,085 +16, PostgreSQL605 and
+all30 packaged E2E. Full unchanged load/Random soak3600/six faults/retention pass.
+Overall Cloud closeout still needs revision75 image/rollout verification.
+
+- [x] Revision73 qualifies full perpetual handoff for both BUY/SELL and the
+  thirty-minute conditional quote target (spot99.7700%/perpetual99.7133%).
+  Explicit guard exclusions and zero unknown are reported separately.
+- [x] Corrected-image automatic Disconnect/Set and exact stopped384-fill readback;
+  regular catalogue cold reload preserves independent flat hedge accounting.
+- [x] Restore regular catalogue on revision74 and separately Start53, both/fixed
+  follow_market, Until stopped, no HALT. Existing wallet inventory can still
+  legitimately restrict BUY; the temporary acceptance settings are not retained.
+
+## Earlier connected acceptance — Cloud revision65 (`c98b08a6f…`)
 
 - [x] Real Google Check/Confirm recovery verifies431 orders/101 fills, repairs only
   the reviewed spot aggregate, preserves financial history/risk/bindings and
@@ -13,15 +35,14 @@ the image/account/date attached to connected evidence.
 - [x] Separate Google Start and30-minute observation:360 fresh runtime/owner
   samples, no read failure/HALT/child replacement, final running19/19. All103
   fills match REST, including two new natural spot fills.
-- [ ] Perpetual full-fill handoff and two-sided quote qualification remain open
-  under the existing inventory/sizing restrictions; do not inherit them from
-  healthy runtime or older spot fills.
+- [x] Those missing market cases are qualified separately on revision73 above;
+  revision65 itself remains inventory constrained and supplies no such proof.
 
 [Recovery acceptance](ADMIN_RECOVERY_API_TDD_PLAN.md),
 [Cloud scope/evidence](../../reports/platform/cloudrun-demo-abrupt-restart.md#revision65--google-recovery-and-separate-start).
 No new full release/soak or real GCP KMS acceptance is claimed here.
 
-## Last full image qualification — local/offline (`b090430c…`)
+## Earlier full image qualification — local/offline (`b090430c…`)
 
 - [x] Build/pin `b090430c…` at `d0791e563`, 1,374,595,999 bytes; 1,225 packaged
   hashes match; 1,254 measured source/fixture hashes remain unchanged.

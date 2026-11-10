@@ -1,24 +1,30 @@
 # Plans and remaining verification
 
-Updated 2026-11-10. Start with the [current image result](../../reports/release/mm-runtime-followup-load.md)
-and [operating guides](../README.md). Detailed phase checklists, rejected attempts
-and original image/date scopes remain in [Git history](../../reports/README.md#historical-records).
-Removing old files does not close unresolved evidence or policy items.
+Updated 2026-11-10. Start with [Demo/release closeout](DEMO_RELEASE_CLOSEOUT.md)
+and its [current acceptance matrix](../../reports/release/demo-release-closeout.md).
+Detailed rejected attempts retain their original image/date scopes; removing old
+files does not close unresolved evidence or policy items.
 
-Latest connected acceptance is Cloud revision65 (`c98b08a6f…`): Google recovery
-checks431 orders/101 fills, applies one reviewed spot repair, preserves protected
-state and remains stopped before a separate Start. The subsequent30-minute,
-360-sample observation has no HALT/child replacement;103 fills match REST,
-including two new natural spot fills. Perpetual is inventory-cap blocked, so this
-is not two-sided-liquidity or perpetual full-fill qualification. See the
-[completed recovery plan](ADMIN_RECOVERY_API_TDD_PLAN.md) and
-[Cloud evidence](../../reports/platform/cloudrun-demo-abrupt-restart.md#revision65--google-recovery-and-separate-start).
+Latest source `f53885fda` / regular image `4198f2fa…` passes native3,085 +16
+subtests, full PostgreSQL605 and all30 packaged E2E groups in one `all` execution,
+including distinct-image upgrade/takeover/rollback. Full unchanged load/Random soak3600/six faults/retention pass: p99
+96.87/96.46/103.11/283.41ms,4,885 simulated fills, growth18.02MiB/64MiB.
+The old full offline result below keeps its own scope.
 
-The earlier Random-cleanup failure on `b090430c…` and separately reviewed
-bounded pass on `4451974e…` retain their original scopes. The last full offline
-release remains `b090430c…`; it does not qualify the newest runtime image.
+Actual Demo revision73 qualifies BUY/SELL perpetual fill handoff and the approved
+30-minute two-sided quote target: spot99.7700%, perpetual99.7133%, zero unknown,
+eligible/all97.70%/97.98%. Temporary sizing/spreads and explicit guard exclusions
+remain disclosed. Automatic close/remove/same-account Set needs no manual Retry;
+384 stopped actual fills/fees/positions reconcile. Regular catalogue is restored
+on revision74; a separate audited Start53 leaves the Demo running Until stopped.
+Real KMS, actual FE and live cutover remain separate below.
 
-## Last full local qualification (`b090430c…`)
+Current follow-up: API now reports revision75, same running session/control53,
+Demo and regular catalogue, no HALT. Its image/environment and the01:41 UTC
+rollout transition await GCP reauthentication; this is not continued evidence of
+revision74. See [closeout investigation](../../reports/release/demo-release-closeout.md#later-revision-transition-under-investigation).
+
+## Earlier full local qualification (`b090430c…`)
 
 - [x] Reuse Hummingbot engine/connectors/V2 executors; PostgreSQL/UTC/Decimal,
   ownership/durable-before-send/reconciliation/recovery, fixed/Random sessions,
@@ -82,7 +88,7 @@ release remains `b090430c…`; it does not qualify the newest runtime image.
 - [x] Separately reviewed HALT recovery and connected Random/restart/cleanup pass;
   both hedge sides close, selected key removed/reconfigured and stopped cold
   restart preserves exact ledger. [Connected report](../../reports/demo/managed-local-connected-followup.md).
-- [ ] Freeze/pin the latest corrected runtime candidate and run its full release
+- [x] Freeze/pin the latest corrected runtime candidate and run its full release
   gate: complete native/PostgreSQL/packaged E2E, load,60-minute soak, fault and retention
   checks before production closeout. The revision65 targeted/source/30-minute
   Demo results do not transfer the older full gate to that image.
@@ -90,19 +96,19 @@ release remains `b090430c…`; it does not qualify the newest runtime image.
   and PostgreSQL109 pass. Keep cleanup strategy-free and retain recorder config
   identity; genuine unknown strategies still fail. The historical3.682-second
   warning stays recorded. That older image's packaging/cleanup evidence and the
-  latest revision65 recovery observation remain distinct; the newest full gate
-  is still open above. [Demo scope](OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
+  revision65 recovery observation remain distinct; the newest full gate
+  is qualified separately above. [Demo scope](OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md).
 
 ## Remaining connected market and product qualification
 
-- [ ] Observe perpetual full-fill handoff on a deployed corrected image: exact
-  fill/fee/exposure accounting, safe level release and fresh post-fill account
-  checks. Current exposure caps prevent a new perpetual entry; no override is
-  authorized merely to obtain a passing test.
-- [ ] Qualify the approved two-sided quote target in a30-minute window with
-  eligible BUY and SELL samples. Revision65 has359 policy-constrained samples
-  plus one readiness-guard wait, so its denominator is zero and the target is
-  unqualified. Unknown/stale observations must not count as working orders.
+- [x] Observe perpetual full-fill handoff on the corrected image: exact REST
+  trade IDs/quantity/original fees, POSITION_HOLD, before-refresh replacement and
+  fresh matching account observations. Revision73 has one BUY and one SELL witness.
+- [x] Qualify the approved two-sided quote target in a complete30-minute window.
+  Revision73:1,780 samples, one owner, no HALT/unknown, spot1,735/1,739 and
+  perpetual1,739/1,744. Guard exclusions never count as working orders and ordinary
+  gaps remain failures. This does not qualify the restored regular catalogue's
+  two-sided uptime for the current wallet.
 - [ ] Full FE browser acceptance in the separate frontend deployment. Google
   helper/API/Swagger acceptance does not qualify the actual operator dashboard.
 - [ ] Production/live cutover acceptance when the operator chooses that scope;

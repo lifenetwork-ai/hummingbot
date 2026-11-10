@@ -1,42 +1,24 @@
 # Verification results
 
-Start with the [current image/load report](release/mm-runtime-followup-load.md)
-and [remaining-work register](../docs/plans/README.md). Operational procedures and
-API/FE contracts live in [docs](../docs/README.md).
+Start with the [Demo/release closeout](release/demo-release-closeout.md),
+[portable evidence](release/demo-release-closeout-evidence.json) and
+[remaining-work register](../docs/plans/README.md). Operational/API contracts
+live in [docs](../docs/README.md).
 
-Last full offline image **`b090430c…`** passes canonical native **2,861 + 16 subtests**,
-all **27 available E2E groups in one `all` attempt**, four unchanged load windows,
-Random soak3600 and five faults. Mixed/burst/soak p99 **273.48 / 297.81 / 313.00 ms**;
-zero unexpected healthy errors, **4,885 simulated fills** reconcile, retained
-growth **30.33 MiB / 64 MiB**. Three healthy engine probes recover in 1.06–1.12 s
-without healthy replacement. Original budgets remain.
+Latest source `f53885fda`, regular image `4198f2fa…`: canonical native3,085 +16,
+PostgreSQL605 and all30 packaged E2E pass. Full unchanged load/Random soak3600/six faults/retention
+pass: main p99 96.87/96.46/103.11/283.41ms,4,885 simulated fills, growth18.02MiB.
+Overall Cloud closeout still needs revision75 image/rollout verification. Actual Demo revision73 qualifies BUY/SELL
+perpetual handoff and the30-minute conditional quote target:99.7700% spot,
+99.7133% perpetual, zero unknown. Automatic close/remove/Set and384 stopped actual
+fills/original fees/positions reconcile. Regular catalogue is restored on
+revision74 and separately started53, both/follow_market, Until stopped, no HALT.
 
-Runtime fix `1916e048e` removes a confirmed pre-existing signal/Event-lock hazard;
-paired Linux-image real-signal contracts reproduce old exit1/new exit0. All 1,225
-packaged hashes match build `d0791e563`; 1,254 measured source/fixture hashes stay
-frozen. The observed run is AC. Healthy latency differences are not uniquely
-attributed to the shutdown-only correction or to power.
-
-[Current report](release/mm-runtime-followup-load.md),
-[portable evidence](release/mm-runtime-followup-load-evidence.json),
-[source/TDD](implementation/MM_RUNTIME_FOLLOWUP.md). The failed `96368970…` burst
-and `all` shutdown attempts remain in Git **`d0791e563`** at the same release
-paths; older accepted `a6fe88c0…` records remain in **`8544488ef`**. Neither failed
-predecessor is retrospectively passed. That offline qualification did not contact
-real Demo/Google/GCP or deploy a service.
-
-Separate 2026-11-09 follow-up: [real Google login](implementation/google-login-acceptance.json)
-and Google-only helper restart pass. Managed Demo binding/Set/load/nine fixed cases
-pass on the preceding image, followed by a failed Random cleanup attempt. After
-TDD remediation and separately approved HALT recovery, the [connected follow-up](demo/managed-local-connected-followup.md)
-passes on `4451974e…`: all profiles through Random steps0/1/2, active restart,
-Stop, real close/remove/reconfigure and stopped cold restart. Old history and
-spot cash remain, perpetual flat/pending orders0, no HALT. Three natural spot
-fills plus seven cleanup fill parts match individual REST. One optional cleanup
-reporting warning recovers; its synthetic-name cause is now fixed in source by
-TDD (native96/PG109), not yet packaged/retested on Demo. Next candidate packaging/
-full release/soak and real GCP KMS remain open. [Quote diagnostics](performance/mm-managed-local-quote-activity.md)
-distinguish policy agreement from thirty-minute coverage qualification.
+The [preceding full offline result](release/mm-runtime-followup-load.md) remains
+scoped to `b090430c…`: native2,861 +16,27 E2E groups, unchanged load/Random
+soak3600/five faults,4,885 simulated fills. Earlier connected lifecycle, Google
+and recovery records remain in the [Demo index](demo/README.md). No pass is
+transferred across images or from simulated fills to actual Demo trades.
 
 | Topic | Current entry |
 | --- | --- |
@@ -47,6 +29,11 @@ distinguish policy agreement from thirty-minute coverage qualification.
 | [Platform](platform/README.md) | Cloud preparation and operating-guide links |
 | [Investigations](investigations/README.md) | Current limits and historical incident lookup |
 | [Git history](#historical-records) | Original completed plans, reports and full journals |
+
+Current follow-up: API now reports revision75, same running session/control53,
+Demo and regular catalogue, no HALT. Its image/environment and the01:41 UTC
+rollout transition await GCP reauthentication; this is not continued evidence of
+revision74. See [closeout investigation](release/demo-release-closeout.md#later-revision-transition-under-investigation).
 
 ## Historical records
 
