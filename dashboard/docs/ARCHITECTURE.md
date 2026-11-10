@@ -27,7 +27,7 @@ src/
 - `features/<feature-name>` owns its hooks, types, API adapters and UI.
 - `features` may import `core`, `shared`, and `theme`; they should not import unrelated features.
 - `shared` never imports from `features` or `pages`, and remains business-agnostic.
-- `core` houses external service adapters and domain types. This starter intentionally ships no service adapters.
+- `core` houses external service adapters and domain types. The LIFE MM transport, typed operation adapters, session provider, React Query hooks and generated API DTOs live in `src/core/api/`; see [API](API.md).
 - Prefer semantic Tailwind tokens (`bg-app-surface`, `text-app-action`) over hard-coded colors.
 - Use `AppProviders` for app-wide context; don't introduce global state without a cross-cutting requirement.
 - Keep API/network calls out of presentational components. Data fetching may use TanStack Query when needed.

@@ -24,11 +24,17 @@ ifeq ($(DYDX),1)
   ENV_FILE := setup/environment_dydx.yml
 endif
 
-.PHONY: swagger swagger-check
+.PHONY: swagger swagger-check swagger-backend-check
+# Contract updates require the backend Python environment and installed dashboard dependencies.
+# Stop on backend failure so FE types cannot be generated from a stale schema.
 swagger:
-	$(PYTHON) -m hummingbot.cli.swagger
+	$(PYTHON) -m hummingbot.cli.swagger && pnpm --dir dashboard run api:generate
 
-swagger-check:
+swagger-check: swagger-backend-check
+	pnpm --dir dashboard run api:check
+
+# Python-only CI lane; the frontend CI lane checks the generated TypeScript artifact.
+swagger-backend-check:
 	$(PYTHON) -m hummingbot.cli.swagger --check
 
 test:

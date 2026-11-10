@@ -81,7 +81,7 @@ jobs:
         run: |
           source $CONDA/etc/profile.d/conda.sh
           conda activate hummingbot
-          make swagger-check
+          make swagger-backend-check
 
       - name: PostgreSQL integration (required, no missing-DSN skip)
         shell: bash
