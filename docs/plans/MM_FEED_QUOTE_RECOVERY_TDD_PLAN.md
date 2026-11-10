@@ -32,3 +32,30 @@ diagnostic load pass on image `1d3c3a6703b9…`. Nine runtime overlay hashes mat
 One measured probe timeout recovers; its cause remains open. Connected Cloud
 validation and a new full release/long soak are outside this offline completion.
 See [report and evidence](../../reports/performance/mm-feed-quote-recovery.md).
+
+## Cloud revision83 follow-up: maker bound / native cancel
+
+- [x] Read actual revision/image, status, quotes and independent OKX order truth.
+  Preserve the failed quote window:15/18 ready reads, no HALT, sparse Spot SELL,
+  no Perpetual quotes under the existing cap. Four native zero-fill cancellations
+  have cancelSource31. Some ready503 reads have fresh books but inconsistent own
+  depth; do not relabel them stale feed or declare all guards fixed.
+- [x] Red9 native cases reproduce the configured-price maker-bound gap and
+  zero-cancel retry. The affected methods predate7372; source comparison retained.
+- [x] Apply native BUY min(model,best bid)/SELL max(model,best ask) before identity
+  creation, preserving original and current quote/base ceilings and bootstrap.
+  Retire a confirmed zero-fill managed maker cancel via normal hold/shutdown,
+  including native cancellation before created/ACK; retain partial/unknown paths,
+  fill history and explicit Stop priority.
+- [x] Identical configured fee-floor fixture/harness: image1d3c fails to restore
+  both levels/sides in20s; image2d4d passes with two true cancelSource31 events.
+  Preliminary harness assertions and a no-fee fixture pass are not runtime Red.
+- [x] Complete affected native/PG, bootstrap/spread image regressions and120s
+  load with actual post-only enforcement enabled; record scope, commit and keep
+  the deployed service unchanged until a separately verified rollout.
+
+Outcome:670 native +2 subtests, two separate depth controls, PG9 and three
+packaged E2E groups pass. Post-only-enforced thin-L1 load remains failed71/120;
+independent L2 healthy input passes120/120 with unchanged rates/guard budgets.
+No unchanged-input or full-release pass is claimed. New Cloud rollout verification
+remains pending; observed revision83 still has the old source.

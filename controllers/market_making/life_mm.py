@@ -1126,9 +1126,27 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         price, amount = self.get_price_and_amount(original.level_id)
         with localcontext() as context:
             context.rounding = ROUND_DOWN
-            amount = min(amount, original.amount, original.amount * original.entry_price / price)
+            quote_budget = min(original.amount * original.entry_price, price * amount)
+        if (original.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER
+                and (self._bootstrap is None or self._bootstrap.market_qualified)):
+            # Preserve the upstream executor's passive-price bound, but freeze
+            # it here before identity/intent creation instead of changing a
+            # configured order at the transport boundary. Empty-book bootstrap
+            # retains its explicit seed policy.
+            try:
+                self._fresh_price(self.config.connector_name, self.config.trading_pair)
+                kind = PriceType.BestBid if original.side == TradeType.BUY else PriceType.BestAsk
+                maker = Decimal(str(self.market_data_provider.get_price_by_type(
+                    self.config.connector_name, self.config.trading_pair, kind)))
+            except (ValueError, ArithmeticError, EnvironmentError, KeyError, TypeError):
+                self._quote_reason('market_price_unavailable', original.side)
+                return None
+            price = min(price, maker) if original.side == TradeType.BUY else max(price, maker)
+        with localcontext() as context:
+            context.rounding = ROUND_DOWN
+            amount = min(amount, original.amount, quote_budget / price)
         fresh = self.get_executor_config(original.level_id, price, amount)
         if (fresh is None or fresh.amount > original.amount
-                or fresh.amount * fresh.entry_price > original.amount * original.entry_price):
+                or fresh.amount * fresh.entry_price > quote_budget):
             return None
         return original.model_copy(update={'entry_price': fresh.entry_price, 'amount': fresh.amount})

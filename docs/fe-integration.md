@@ -1012,6 +1012,12 @@ durable order intents retain their original parameters. Quiet WS books may recov
 through bounded public snapshots with real venue timestamps; stale REST still
 blocks readiness. Expected unavailable drawdown valuations warn with summaries
 and recovery, without making old report values ready. These changes add no API.
+The first-entry maker bound also preserves the current allocation if it shrank.
+An accepted post-only request can immediately become `OrderCancelled` on the
+venue; neither its receipt nor exchange ID proves a working quote. A confirmed
+zero-fill managed maker cancellation retires its executor so the controller can
+build a new passive quote; explicit Stop and partial/unknown history keep their
+existing handling. Empty-book bootstrap retains its explicit seed policy.
 Keep available API quote reasons and repeated no-quote duration visible, and
 use observed runtime/receipts/venue reconciliation for operational state.
 Platform-log correlation is a maintainer diagnostic; the frontend does not gain

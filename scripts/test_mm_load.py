@@ -217,6 +217,9 @@ def main():
     parser.add_argument("--keep-going", action="store_true", help="Continue healthy windows after budget violations; final result still fails")
     parser.add_argument("--operations", action="store_true", help="Add three operator-history/configuration reads/s to the existing read mix")
     parser.add_argument('--security', action='store_true', help='Use signed offline Google identities and managed local-encrypted keys; disable Basic before measurement')
+    parser.add_argument('--enforce-post-only', action='store_true', help='Simulator cancels crossing post-only orders with a successful ACK and cancelSource31')
+    parser.add_argument('--external-book-levels', type=int, choices=(1, 2), default=1,
+                        help='Explicit LIFE fixture depth; two independent levels retain liquidity when recent own L1 is conservatively filtered')
     args = parser.parse_args()
     if args.mm_activity and (args.profile != 'probe' or not args.incident_diagnostics):
         parser.error('MM activity requires --profile probe and --incident-diagnostics; it is diagnostic, not release acceptance')
@@ -249,7 +252,8 @@ def main():
                                                  growth_budget_bytes=64 * 1024**2,
                                                  absolute_peak_budget_bytes=int(1.5 * 1024**3)),
                     enhancements=args.enhancements, active_outflow_history=args.enhancements, history_read_mix="original eleven routes/rates/latency population unchanged; add 1 event + 1 liquidity read/s with the same separate latency/error gates",
-                    volatility_defense=args.volatility_defense,
+                    volatility_defense=args.volatility_defense, enforce_post_only=args.enforce_post_only,
+                    external_book_levels=args.external_book_levels,
                     operations_reads_per_second=3 if args.operations else 0,
                     tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap, inventory_skew=args.inventory_skew,
                     gc_diagnostics=args.gc_diagnostics,
@@ -356,6 +360,16 @@ def main():
                         harness.env.pop(key)  # Managed-path acceptance cannot be masked by working env keys.
             try:
                 harness.setup()
+                if args.enforce_post_only:
+                    harness.control(enforce_post_only=True)
+                if args.external_book_levels == 2:
+                    # Keep the original best prices, quantities and guard policy.
+                    # A distinct next-tick L2 is independent of our maker L1 and
+                    # its conservative 30s terminal-history quantity bound.
+                    harness.control(book_overrides={instrument: dict(
+                        bids=[['.099', '100000'], ['.098999', '100000']],
+                        asks=[['.101', '100000'], ['.101001', '100000']])
+                        for instrument in ('LIFE-USDT', 'LIFE-USDT-SWAP')})
                 if args.mm_activity:
                     harness.control(mm_activity=True)
                     harness.env['HBOT_MM_ACTIVITY_DIAGNOSTICS'] = '1'

@@ -349,5 +349,365 @@
       "hummingbot-cloudrun:startup-visibility-20261110",
       "4198f2fab28b"
     ]
+  },
+  "post_only_followup": {
+    "cloud_readback": {
+      "revision": "hummingbot-demo-00083-wfb",
+      "source_commit": "7372ecc21996a27c13a0b73b536b83e846e411f2",
+      "digest": "sha256:be5e1d440a310481712c84afa56f5ad3be9d6cd37f9032fd3389a4e993780f76",
+      "observed_from": "2026-11-10T10:22:01.496765+00:00",
+      "observed_until": "2026-11-10T10:24:51.496356+00:00",
+      "samples": 18,
+      "ready_status_counts": {
+        "503": 3,
+        "200": 15
+      },
+      "halted_samples": 0,
+      "running_flag_samples": 18,
+      "spot_quote_states": {
+        "no_quotes": 17,
+        "one_sided": 1
+      },
+      "perpetual_quote_states": {
+        "no_quotes": 18
+      },
+      "independently_verified_native_cancels": {
+        "orders": 4,
+        "zero_fill": true,
+        "post_only": true,
+        "cancelSource": "31",
+        "reason": "This post-only order will take liquidity from maker orders."
+      },
+      "read_only": true,
+      "financial_writes": false,
+      "quote_qualification_passed": false,
+      "remaining_conditions": [
+        "Existing inventory skew suppresses Spot BUY",
+        "Existing perpetual cap suppresses new perpetual risk",
+        "Some fresh-book own-depth observations remain unavailable"
+      ],
+      "latest_read": {
+        "at": "2026-11-10T10:59:26.091158+00:00",
+        "revision": "hummingbot-demo-00083-wfb",
+        "control_version": 55,
+        "acknowledged_version": 55,
+        "running": true,
+        "phase": "running",
+        "halted": false
+      }
+    },
+    "existing_before_7372": {
+      "hummingbot/strategy_v2/executors/position_executor/position_executor.py": {
+        "entry_price": true,
+        "process_order_canceled_event": true
+      },
+      "controllers/market_making/life_mm.py": {
+        "get_executor_config": true
+      }
+    },
+    "root_cause": "Configured-entry pricing bypassed native maker bound; native cancel retried unchanged price. Old simulator did not enforce post-only matching/cancel semantics.",
+    "native": {
+      "initial_red_failed": 9,
+      "initial_red_log": "build/mm-post-only-20261110/native-red.log",
+      "targeted_passed": 670,
+      "subtests_passed": 2,
+      "regression_log": "build/mm-post-only-20261110/native-regression-final.log",
+      "extra_depth_controls_passed": 2,
+      "depth_controls_log": "build/mm-post-only-20261110/thin-book-proof-v2.log",
+      "predeployment_current_allocation_red": "build/mm-post-only-20261110/current-allocation-red.log"
+    },
+    "postgres": {
+      "passed": 9,
+      "scope": "mm_spread_gate / pre_intent_cleanup",
+      "log": "build/mm-post-only-20261110/postgres-guards.log"
+    },
+    "candidate": {
+      "image_id": "sha256:2d4d7561e0808a8f4efaa716283637975a909454c8ad5cf3459593453b443196",
+      "manifest": "sha256:195b7b3e6dcd5e7f20d8d137a69258866e45cb5f8c067716d428cd1bd38897a2",
+      "overlay": {
+        "passed": true,
+        "files": {
+          "controllers/market_making/life_mm.py": "9a854e59474be6ce581de7d5f5db8730fe0ac96d7f3a08b07aac09abd6f0a09b",
+          "hummingbot/strategy_v2/executors/position_executor/position_executor.py": "b2589d06773abb14b8dbce0be2792eee521ebb51ab1a93a5bf1190351f842f89"
+        }
+      },
+      "base_image_id": "sha256:1d3c3a6703b987df4a1fcadbfa2f7a876afca457c023d4915e207e9aeaf5896c"
+    },
+    "paired_e2e": {
+      "old_result_path": "/Users/deeznuts/hummingbot/build/e2e-offline/20261110-180224-e115e5/result.json",
+      "new_result_path": "build/e2e-offline/20261110-180224-9c6ebf/result.json",
+      "old_failed": true,
+      "new_passed": true,
+      "fixture_hashes_equal": true,
+      "harness_hashes_equal": true,
+      "old_post_only_cancels": 44,
+      "new_post_only_cancels": 2,
+      "unknown_new_submissions": 0,
+      "old_retained_working_orders": 6,
+      "required_working_orders": 8,
+      "new_metrics": {
+        "maker-entry_startup_s": 19.114,
+        "maker_entry": {
+          "native_zero_cancels": 2,
+          "passive_requote_seconds": 4.995780750177801,
+          "both_sides_restored": true,
+          "no_same_identity_replay": true,
+          "fills": 0,
+          "preserved_session": true,
+          "stopped": true,
+          "simulated": true
+        }
+      }
+    },
+    "e2e": {
+      "maker-entry": {
+        "path": "build/e2e-offline/20261110-180224-9c6ebf/result.json",
+        "sha256": "851e107509607e8d3e90b37d14038dd5f16b935316bf18f6d5980897112ff276",
+        "passed": true,
+        "metrics": {
+          "maker-entry_startup_s": 19.114,
+          "maker_entry": {
+            "native_zero_cancels": 2,
+            "passive_requote_seconds": 4.995780750177801,
+            "both_sides_restored": true,
+            "no_same_identity_replay": true,
+            "fills": 0,
+            "preserved_session": true,
+            "stopped": true,
+            "simulated": true
+          }
+        }
+      },
+      "listing-bootstrap": {
+        "path": "build/e2e-offline/20261110-174037-3c39aa/result.json",
+        "sha256": "abc6d1cae65954eed8b134516200fdda575f24753825d8b48aa5d9880bc6309f",
+        "passed": true,
+        "metrics": {
+          "bootstrap_startup_s": 17.492,
+          "bootstrap_shutdown_s": 1.04,
+          "bootstrap-restart_startup_s": 17.526,
+          "listing_bootstrap": {
+            "empty_and_own_only": true,
+            "both_market_budgets": true,
+            "original_band_and_clock": true,
+            "clean_restart_and_new_session": true,
+            "expiry_cancels": true,
+            "partial_market_cannot_admit": true,
+            "durable_qualification": true,
+            "lost_depth_never_rearms": true,
+            "forced_fills": 0,
+            "clean_stop_after_lost_depth": true,
+            "effective_config_sha256": "1e11f8b52ab4d1e617b4ebb7c8b7f3e94034c4b52b3c25cf24426f3b2e1a374c"
+          }
+        }
+      },
+      "spread-policy": {
+        "path": "build/e2e-offline/20261110-174203-2636a0/result.json",
+        "sha256": "92400c5cd854138903f73ef107e61b59de06cc86feaf6643b6b340178a7f38c8",
+        "passed": true,
+        "metrics": {
+          "spread-policy_startup_s": 17.415,
+          "spread_policy": {
+            "baseline": {
+              "spot": {
+                "state": "dynamic",
+                "enabled": true,
+                "raw_natr": "0.010000000000000009",
+                "fee_floor": true,
+                "multiplier": "1.0000000000000009",
+                "buy_spreads": [
+                  "0.010000000000000009",
+                  "0.020000000000000018"
+                ],
+                "valid_until": 1794307361.0,
+                "completed_at": 1794307359.0,
+                "sell_spreads": [
+                  "0.010000000000000009",
+                  "0.020000000000000018"
+                ]
+              },
+              "perpetual": {
+                "state": "dynamic",
+                "enabled": true,
+                "raw_natr": "0.010000000000000009",
+                "fee_floor": true,
+                "multiplier": "1.0000000000000009",
+                "buy_spreads": [
+                  "0.010000000000000009",
+                  "0.020000000000000018"
+                ],
+                "valid_until": 1794307361.0,
+                "completed_at": 1794307359.0,
+                "sell_spreads": [
+                  "0.010000000000000009",
+                  "0.020000000000000018"
+                ]
+              }
+            },
+            "shock": {
+              "spot": {
+                "state": "dynamic",
+                "enabled": true,
+                "raw_natr": "0.05341563786008224",
+                "fee_floor": true,
+                "multiplier": "3",
+                "buy_spreads": [
+                  "0.03",
+                  "0.06"
+                ],
+                "valid_until": 1794307368.0,
+                "completed_at": 1794307366.0,
+                "sell_spreads": [
+                  "0.03",
+                  "0.06"
+                ]
+              },
+              "perpetual": {
+                "state": "dynamic",
+                "enabled": true,
+                "raw_natr": "0.05341563786008224",
+                "fee_floor": true,
+                "multiplier": "3",
+                "buy_spreads": [
+                  "0.03",
+                  "0.06"
+                ],
+                "valid_until": 1794307368.0,
+                "completed_at": 1794307366.0,
+                "sell_spreads": [
+                  "0.03",
+                  "0.06"
+                ]
+              }
+            },
+            "outage_recovers_in_place": true,
+            "candle_recovery_seconds": 7.939708250109106,
+            "service_restarts": 0,
+            "fee_floor": true,
+            "configured_maker_prices": true,
+            "events": 18,
+            "effective_config_sha256": "2d7be292890161b70881177d4dabf8740879418d8124b4843ea56a60a37be706"
+          }
+        }
+      }
+    },
+    "preliminary_fixture_attempts": "e2e-red.log used an overly strict bound; e2e-red-v2.log omitted fee floor and passed legacy pricing. Neither is valid runtime Red. Corrected configured Red/Green has identical fixture/harness hashes.",
+    "failed_single_level_load": {
+      "path": "build/mm-load/20261110-174304-fb223f/result.json",
+      "sha256": "c91f9f1ec7cc2ad3290d92006c9f5d7bcf3dcc88b12d5bea953fd9ea152d906d",
+      "passed": false,
+      "error": "Declared load budgets failed: fill_rate",
+      "diagnostic": true,
+      "release_scope_complete": false,
+      "image_id": "sha256:2d4d7561e0808a8f4efaa716283637975a909454c8ad5cf3459593453b443196",
+      "duration_seconds": 120,
+      "enforce_post_only": true,
+      "external_book_levels": 1,
+      "history_orders": 100000,
+      "history_fills": 100000,
+      "bot_limits": {
+        "cpus": 2,
+        "memory_bytes": 2147483648
+      },
+      "read_p95_ms": 53.95693200000551,
+      "read_p99_ms": 298.3512040001415,
+      "completed_reads_per_second": 20.0,
+      "market_updates_per_second": 100.02173232854598,
+      "valid_fills": 71,
+      "fill_target_shortfall": 49,
+      "fills_per_second": 0.5916666666666667,
+      "unexpected_errors": 0,
+      "violations": [
+        "fill_rate"
+      ],
+      "ledger": {
+        "unique_exchange_fills": 71,
+        "unique_recorder_fills": 71,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "peak_rss_bytes": 777908224
+    },
+    "healthy_two_level_load": {
+      "path": "build/mm-load/20261110-175115-014648/result.json",
+      "sha256": "e1aeddd87f336d71b90bc9b6b6afb8d48bec26b91d402d5624a8f4a65aa9dc41",
+      "passed": true,
+      "error": null,
+      "diagnostic": true,
+      "release_scope_complete": false,
+      "image_id": "sha256:2d4d7561e0808a8f4efaa716283637975a909454c8ad5cf3459593453b443196",
+      "duration_seconds": 120,
+      "enforce_post_only": true,
+      "external_book_levels": 2,
+      "history_orders": 100000,
+      "history_fills": 100000,
+      "bot_limits": {
+        "cpus": 2,
+        "memory_bytes": 2147483648
+      },
+      "read_p95_ms": 85.10893999982727,
+      "read_p99_ms": 415.91494099975534,
+      "completed_reads_per_second": 20.0,
+      "market_updates_per_second": 99.9980878732297,
+      "valid_fills": 120,
+      "fill_target_shortfall": 0,
+      "fills_per_second": 1.0,
+      "unexpected_errors": 0,
+      "violations": [],
+      "ledger": {
+        "unique_exchange_fills": 120,
+        "unique_recorder_fills": 120,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "peak_rss_bytes": 773627904,
+      "probe_failures_in_window": 1,
+      "probe_analysis_path": "build/mm-load/20261110-175115-014648/probe-incident-analysis.json"
+    },
+    "depth_interpretation": "Single-level healthy fill gate remains failed; conservative recent-own-order L1 filtering can exhaust provable outside depth. Native controls prove this with unchanged guards. Healthy L2 adds independent next-tick external rows, preserving original L1 prices/quantities and all budgets. This is a different input, not an unchanged benchmark comparison.",
+    "new_fix_deployed_to_cloud": false,
+    "raw_root": "build/mm-post-only-20261110",
+    "cloud_raw_root": "build/mm-feed-quote-cloud-20261110",
+    "deferred": [
+      "Cloud verification after separately controlled new rollout",
+      "Residual own-depth/probe root cause",
+      "New full release/long soak"
+    ],
+    "intermediate_image_cleanup": {
+      "removed_image_id": "sha256:2d25b35eb9ee6a2eceaaa6c73d6a276867d1f38136931d913ccd9f352c95877f",
+      "removed_references": [
+        "127.0.0.1:56007/hummingbot:offline",
+        "hummingbot-cloudrun:post-only-entry-20261110",
+        "127.0.0.1:56007/hummingbot@sha256:aa419a3e2fdf30e6354f911da80a9ec7e313895e8fb28fa3e664b18d419ee31f"
+      ],
+      "retained_candidate": "hummingbot-cloudrun:post-only-entry-20261110-final",
+      "base_and_comparison_images_retained": true
+    },
+    "fixture_hold_ack_control": {
+      "red_log": "build/mm-post-only-20261110/fixture-hold-ack-red.log",
+      "green_log": "build/mm-post-only-20261110/fixture-final.log",
+      "final_fixture_tests_passed": 7,
+      "default_release_is_already_set": true
+    },
+    "previous_configured_pair": {
+      "old_result_path": "build/e2e-offline/20261110-173706-e1534c/result.json",
+      "new_result_path": "build/e2e-offline/20261110-173820-7f0ef2/result.json",
+      "old_failed": true,
+      "new_passed": true,
+      "fixture_hashes_equal": true,
+      "harness_hashes_equal": true,
+      "old_ledger": {
+        "post_only_zero_cancels": 43,
+        "working_orders_at_failure": 6,
+        "required_working_orders": 8
+      },
+      "new_ledger": {
+        "post_only_zero_cancels": 2,
+        "unknown_submissions": 0,
+        "fills": 0
+      }
+    }
   }
 }

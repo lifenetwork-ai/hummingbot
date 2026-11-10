@@ -122,6 +122,8 @@ class Exchange:
         self.rest_stale_instruments = set()
         self.rest_failed_instruments = set()
         self.book_overrides = {}
+        self.enforce_post_only = False
+        self.post_only_move_on_submit = {}
         self.include_own_orders = False
         self.markets_task = None
         self.target_updates_per_second = 0
@@ -471,6 +473,22 @@ class Exchange:
             if self.quote_activity:
                 self.quote_activity.accept(order)
             self.accepted.append(copy.deepcopy(order))
+            if self.enforce_post_only and data.get('ordType') == 'post_only':
+                movement = self.post_only_move_on_submit.get(data['instId'])
+                if movement and data['side'] == 'sell':
+                    self.book_overrides[data['instId']] = self.post_only_move_on_submit.pop(data['instId'])
+                book = self.book(data['instId'])
+                opposite = book['asks' if data['side'] == 'buy' else 'bids']
+                crosses = opposite and (Decimal(data['px']) >= Decimal(opposite[0][0]) if data['side'] == 'buy'
+                                        else Decimal(data['px']) <= Decimal(opposite[0][0]))
+                if crosses:
+                    order.update(state='canceled', uTime=millis(), cancelSource='31',
+                                 cancelSourceReason='This post-only order will take liquidity from maker orders.')
+                    if self.quote_activity:
+                        self.quote_activity.terminal(client_id, 'canceled')
+                    await self.broadcast(self.event(order))
+                    await self.release.wait()
+                    return self.ok([dict(clOrdId=client_id, ordId=order['ordId'], sCode='0', sMsg='')])
             if market_close:
                 if self.cleanup_status_not_found_reads:
                     self.cleanup_hidden_status_reads[client_id] = self.cleanup_status_not_found_reads
@@ -611,6 +629,10 @@ class Exchange:
             self.mark_positions()
         if "stale_pairs" in data:
             self.stale_pairs = set(data["stale_pairs"])
+        if 'enforce_post_only' in data:
+            self.enforce_post_only = bool(data['enforce_post_only'])
+        if 'post_only_move_on_submit' in data:
+            self.post_only_move_on_submit = copy.deepcopy(data['post_only_move_on_submit'])
         if "stale_instruments" in data:
             self.stale_instruments = set(data["stale_instruments"])
         if 'rest_stale_instruments' in data:

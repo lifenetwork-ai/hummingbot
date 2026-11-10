@@ -743,8 +743,21 @@ class PositionExecutor(ExecutorBase):
             self._failed_orders.append(self._close_order)
             self._close_order = None
         if self._open_order and event.order_id == self._open_order.order_id:
+            managed_maker = (self.config.mm_session_id is not None and self.config.use_configured_entry_price
+                             and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
+            if managed_maker and self._open_order.order is None:
+                # A native cancel can arrive before the created event/REST ACK.
+                # Its terminal order is still available in the connector cache.
+                self.update_tracked_orders_with_order_id(event.order_id)
+            order = self._open_order.order
+            retire = (managed_maker and self.status == RunnableStatus.RUNNING and order is not None
+                      and order.exchange_order_id and order.is_cancelled and order.executed_amount_base == 0)
             self._failed_orders.append(self._open_order)
             self._open_order = None
+            if retire:
+                self.early_stop(keep_position=True)
+                self.logger().debug('Confirmed zero-filled maker entry canceled; retiring executor_id=%s order_id=%s',
+                                    self.config.id, event.order_id)
         if self._take_profit_limit_order and event.order_id == self._take_profit_limit_order.order_id:
             self._failed_orders.append(self._take_profit_limit_order)
             self._take_profit_limit_order = None
