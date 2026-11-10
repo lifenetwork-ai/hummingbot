@@ -156,6 +156,7 @@ historical failures, capture omissions and finite-retention limits are in the
 
 ## Retained plans
 
+- [Automatic MM recovery / availability](MM_AUTOMATIC_RECOVERY_AVAILABILITY_TDD_PLAN.md) — implemented source, offline and connected qualification tracked separately
 - [Admin recovery — completed source and Cloud workflow](ADMIN_RECOVERY_API_TDD_PLAN.md)
 - [PostgreSQL / Cloud Run](POSTGRES_CLOUD_RUN_PORT_PLAN.md)
 - [Admin identity and encrypted credentials](ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md)

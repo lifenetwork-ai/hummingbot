@@ -789,6 +789,54 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** AutomaticRecoveryStatus */
+        AutomaticRecoveryStatusOutput: {
+            /**
+             * Cold Recovery Supported
+             * @default false
+             */
+            cold_recovery_supported: boolean;
+            /**
+             * Last Progress At
+             * @default null
+             */
+            last_progress_at: number | null;
+            /**
+             * Next Retry At
+             * @default null
+             */
+            next_retry_at: number | null;
+            /**
+             * Operator Required
+             * @default false
+             */
+            operator_required: boolean;
+            /**
+             * Order Id
+             * @default null
+             */
+            order_id: string | null;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "idle" | "reconciling" | "bootstrapping_recovery" | "waiting_for_readiness" | "settled_stopped" | "manual_required";
+            /**
+             * Reason Code
+             * @default null
+             */
+            reason_code: string | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+            /**
+             * Started At
+             * @default null
+             */
+            started_at: number | null;
+        };
         /** BalanceObservation */
         BalanceObservationOutput: {
             /** Available Cash */
@@ -3948,6 +3996,8 @@ export interface components {
             actions?: {
                 [key: string]: components["schemas"]["ActionAvailabilityOutput"];
             };
+            /** @default null */
+            automatic_recovery: components["schemas"]["AutomaticRecoveryStatusOutput"] | null;
             /** Bot Id */
             bot_id: string;
             /** Control Version */

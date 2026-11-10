@@ -38,7 +38,7 @@ def main():
     recorder = MarketsRecorder(manager, [market], 'test.yml', 'pure_market_making',
                                MarketDataCollectionConfigMap(market_data_collection_enabled=False))
     owner = None
-    if mode == 'intent':
+    if mode in ('intent', 'hold'):
         os.environ['DATABASE_URL'] = url
         store = BotStateStore(engine, 'hummingbot')
         store.ensure()
@@ -73,6 +73,10 @@ def main():
         evt = fill()
 
     def operation():
+        if mode == 'hold':
+            from test.integration.postgres.test_automatic_recovery import executor_info
+            from test.integration.postgres.test_position_checkpoint_batch import snapshot
+            return recorder.checkpoint_held_positions([snapshot('committed-hold', 'BUY', '.1')], [executor_info('held')])
         if mode == 'intent':
             return intent(SimpleNamespace(market=market, owner=owner))
         return recorder._did_fill_order(MarketEvent.OrderFilled.value, market, evt)

@@ -358,10 +358,77 @@ assert not list(Path('/home/hummingbot').rglob('*.sqlite'))
         """
         row = self.state()
         assert row["status"]["phase"] == "halted" and not row["status"]["engine"]["strategy_running"]
-        assert not row["recovery_state"].get("runtime_active")
         assert self.sql("SELECT count(*) FROM public.orders WHERE creation_pending") == "0"
+        # HALT intentionally withholds trading bootstrap. A test operator must
+        # cancel known remaining quotes independently rather than expecting a
+        # halted strategy to be reconstructed just to run cleanup.
+        ledger = self.ledger()
+        if any(order['state'] in ('live', 'partially_filled') for order in ledger['orders']):
+            from scripts.mm_load_ledger import ledger_violations
+            rows = json.loads(self.sql("SELECT COALESCE(json_agg(t),'[]') FROM (SELECT market,order_id,exchange_trade_id,"
+                                       "amount::text,price::text,trade_fee,trade_fee_in_quote::text FROM trade_fills "
+                                       "WHERE config_file_path <> 'load-history.yaml') t"))
+            assert not ledger_violations(ledger, rows), 'Operator review has incomplete fill/fee evidence'
+            assert self.sql("SELECT count(*) FROM runtime_journal WHERE kind='fill' AND NOT applied") == '0', \
+                'Unapplied financial effects require reviewed projection, not a fixture flag reset'
+            known = set(json.loads(self.sql("SELECT COALESCE(json_agg(id),'[]') FROM orders WHERE NOT creation_pending")))
+            assert {order['clOrdId'] for order in ledger['orders']} <= known
+            self.operator_cancel_fixture_orders(ledger)
         assert all(order["state"] in ("filled", "canceled") for order in self.ledger()["orders"])
-        self.sql("UPDATE public.bot_state SET recovery_state=recovery_state - 'halt' - 'reason'")
+        assert self.sql("SELECT count(*) FROM runtime_journal WHERE kind='fill' AND NOT applied") == '0'
+        self.sql("UPDATE public.bot_state SET recovery_state=(recovery_state - 'halt' - 'halt_kind' - 'reason' "
+                 "- 'shutdown_incomplete') || '{\"runtime_active\":false}'::jsonb")
+
+    def operator_cancel_fixture_orders(self, ledger):
+        """Explicit test operator, independent of the halted application's keys/tasks."""
+        import base64
+        import hmac
+        from datetime import datetime, timezone
+        orders = [dict(clOrdId=order['clOrdId'], instId=order['instId']) for order in ledger['orders']
+                  if order['state'] in ('live', 'partially_filled')]
+        for offset in range(0, len(orders), 20):
+            data = orders[offset:offset + 20]
+            path = '/api/v5/trade/cancel-batch-orders'
+            stamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+            signature = base64.b64encode(hmac.new(b'offline-secret', (stamp + 'POST' + path + json.dumps(data)).encode(),
+                                                  hashlib.sha256).digest()).decode()
+            headers = {'OK-ACCESS-KEY': 'offline-key', 'OK-ACCESS-PASSPHRASE': 'offline-pass',
+                       'OK-ACCESS-TIMESTAMP': stamp, 'OK-ACCESS-SIGN': signature}
+            if self.env['OKX_TRADING_ENV'] == 'demo':
+                headers['x-simulated-trading'] = '1'
+            code, response = http(self.exchange_port, path, data, headers)
+            assert code == 200 and response['code'] == '0' and all(row['sCode'] == '0' for row in response['data'])
+        self.metrics['explicit_fixture_operator_cancels'] = self.metrics.get('explicit_fixture_operator_cancels', 0) + len(orders)
+
+    def reviewed_legacy_initialization(self):
+        """Test-only reviewed permission for normal startup to reconcile known effects.
+
+        Unlike automatic MM recovery this deliberately requires an operator and a
+        separate Start. No intent/fill/tracker is deleted or marked terminal here.
+        Startup must prove, persist and cancel the old orders before admitting new ones.
+        """
+        from hummingbot.connector.okx_environment import OKXEnvironment
+        from scripts.mm_legacy_recovery_fixture import review
+        row = self.state()
+        assert row['config_type'] == 'v1-strategy' and row['config_file_path'] == 'pmm.yml'
+        assert row['status']['phase'] == 'halted' and not row['status']['engine']['strategy_running']
+        assert row['recovery_state'].get('halt') and not row['recovery_state'].get('pending_mutations')
+        assert not any(value.get('_is_stop_triggered') or value.get('mm_drawdown_breach')
+                       for value in (row['recovery_state'].get('strategy_checkpoints') or {}).values())
+        orders = json.loads(self.sql("SELECT COALESCE(json_agg(t),'[]') FROM (SELECT o.*, a.context AS attempt_context "
+                                     "FROM orders o LEFT JOIN submission_attempts a ON a.order_id=o.id) t"))
+        fills = json.loads(self.sql("SELECT COALESCE(json_agg(t),'[]') FROM trade_fills t"))
+        environment = OKXEnvironment.load(environ=self.env)
+        proof = review(self.ledger(), orders, fills, dict(mode=environment.mode, site=environment.site))
+        event = uuid.uuid4().hex
+        self.sql("BEGIN; INSERT INTO admin_audit_events "
+                 "(bot_id,event_key,request_id,actor_kind,actor_id,actor_role,action,outcome,details,created_at) "
+                 f"VALUES ('hummingbot','{event}','{event}','maintenance','offline-fixture-operator','admin',"
+                 "'fixture_reviewed_legacy_initialization','succeeded','{}'::jsonb,clock_timestamp()); "
+                 "UPDATE bot_state SET recovery_state=recovery_state - 'halt' - 'halt_kind' - 'reason' - 'shutdown_incomplete' "
+                 f"WHERE owner_uuid='{row['owner_uuid']}' AND control_version={int(row['control_version'])}; COMMIT")
+        assert not self.state()['recovery_state'].get('halt')
+        self.metrics.setdefault('explicit_legacy_reviews', []).append(proof)
 
     def scenario(self):
         print("Offline E2E: bootstrap, standby and deterministic orders", flush=True)
@@ -445,15 +512,14 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         fourth, fourth_port = self.start("fourth", auto_migrate=False)
         poll(lambda: self.state()["status"].get("phase") == "halted", description="durable HALT after unclean exit")
         assert self.state()["recovery_state"]["halt"] and http(fourth_port, "/ready")[0] == 503
-        poll(lambda: all(order["state"] not in ("live", "partially_filled") for order in self.ledger()["orders"]),
-             description="restored working orders reconciled and canceled")
         assert len(self.ledger()["accepted"]) == 6
         self.no_runtime_files(fourth)
         print("Offline E2E: accepted request loses ACK across paused owner/session loss", flush=True)
-        self.reviewed_test_recovery()
+        self.reviewed_legacy_initialization()
         self.cli("start", "pmm.yml", "--replace", "--expected-version", "3", "--timeout", "0", "--json")
         self.wait_running(fourth_port)
         self.wait_orders(8)
+        assert all(order["state"] in ("filled", "canceled") for order in self.ledger()["orders"][:6])
         self.cli("stop", "--expected-version", "4", "--timeout", "9", "--json")
         self.control(hold_ack=True)
         self.cli("start", "pmm.yml", "--expected-version", "5", "--timeout", "0", "--json")
@@ -467,20 +533,20 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         poll(lambda: self.state()["status"].get("phase") == "halted", description="lost-ACK successor HALT")
         assert http(fifth_port, "/ready")[0] == 503
         assert self.state()["recovery_state"]["halt"]
-        poll(lambda: all(order["state"] not in ("live", "partially_filled") for order in self.ledger()["orders"]),
-             description="accepted unknown-ACK orders reconciled without resubmission")
         self.control(hold_ack=False)
         docker("unpause", fourth)
         self.wait_failed_engine(fourth, failed_identity)
         assert len(self.ledger()["accepted"]) == 10 and not self.ledger()["unknown"]
         assert self.sql("SELECT count(*) FROM public.trade_fills") == "2"
-        assert self.sql("SELECT count(*) FROM public.orders WHERE creation_pending") == "0"
+        assert self.sql("SELECT count(*) FROM public.orders WHERE creation_pending") == "2"
         self.no_runtime_files(fifth)
         print("Offline E2E: database outage closes the runtime and restart remains HALTed", flush=True)
-        self.reviewed_test_recovery()
+        self.reviewed_legacy_initialization()
         self.cli("start", "pmm.yml", "--replace", "--expected-version", "6", "--timeout", "0", "--json")
         self.wait_running(fifth_port)
         self.wait_orders(12)
+        assert self.sql("SELECT count(*) FROM orders WHERE creation_pending") == "0"
+        assert all(order["state"] in ("filled", "canceled") for order in self.ledger()["orders"][:10])
         failed_identity = self.engine_identity(fifth)
         docker("stop", "--time", "5", self.pg)
         self.wait_failed_engine(fifth, failed_identity)
@@ -492,7 +558,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         poll(lambda: self.state()["status"].get("phase") == "halted", description="DB outage restart recovery gate")
         assert http(sixth_port, "/live")[0] == 200 and http(sixth_port, "/ready")[0] == 503
         assert len(self.ledger()["accepted"]) == 12
-        self.reviewed_test_recovery()
+        self.reviewed_legacy_initialization()
         self.cli("start", "pmm.yml", "--replace", "--expected-version", "7", "--timeout", "0", "--json")
         self.wait_running(sixth_port)
         orders = self.wait_orders(14)
@@ -501,12 +567,18 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         seventh, seventh_port = self.start("seventh", auto_migrate=False)
         poll(lambda: self.state()["status"].get("phase") == "halted", description="interrupted recorder reconciliation HALT")
         assert http(seventh_port, "/ready")[0] == 503
+        assert self.sql("SELECT count(*) FROM trade_fills") == "2", "HALT must not silently start a recorder"
+        self.reviewed_legacy_initialization()
+        self.cli("start", "pmm.yml", "--replace", "--expected-version", "8", "--timeout", "0", "--json")
+        self.wait_running(seventh_port)
+        self.wait_orders(16)
         poll(lambda: self.sql("SELECT count(*) FROM public.trade_fills") == "3", description="exchange fill recovered after rolled back transaction")
         assert Decimal(self.sql("SELECT sum(amount) FROM public.trade_fills")) == Decimal("0.14")
         assert Decimal(self.sql("SELECT sum(trade_fee_in_quote) FROM public.trade_fills")) == Decimal("0.014")
         assert "-0.014" in self.cli("history", "pmm.yml")
-        assert len(self.ledger()["accepted"]) == 14
-        self.metrics["accepted_orders"] = 14
+        assert len(self.ledger()["accepted"]) == 16
+        self.cli("stop", "--expected-version", "9", "--timeout", "9", "--json")
+        self.metrics["accepted_orders"] = 16
         self.metrics["persisted_fills"] = 3
         self.metrics["websocket_reconnect"] = True
         self.metrics["interrupted_recorder_recovered"] = True
@@ -1025,11 +1097,16 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         poll(lambda: docker("exec", self.pg, "pg_isready", "-U", "postgres", check=False).returncode == 0,
              timeout=30, description="MM PostgreSQL restored")
         third, third_port = self.start("mm-db-restart", auto_migrate=False)
-        poll(lambda: self.state()["status"].get("phase") == "halted", description="MM DB recovery retains HALT")
-        assert self.admin(third_port, "/status")[1]["error"]
-        assert len(self.ledger()["accepted"]) == after_outage
+        poll(lambda: self.state()['status'].get('running') and not self.state()['recovery_state'].get('halt')
+             and self.state()['recovery_state'].get('automatic_recovery', {}).get('phase') == 'idle',
+             description='verified MM checkpoint resumes after DB restoration without manual edits')
+        poll(lambda: sum(order['state'] == 'live' for order in self.ledger()['orders']) == 8,
+             description='both markets regain all quote levels after automatic DB recovery')
+        assert all(order['state'] in ('filled', 'canceled') for order in self.ledger()['orders'][:after_outage])
+        assert len({order['clOrdId'] for order in self.ledger()['accepted']}) == len(self.ledger()['accepted'])
+        assert self.sql('SELECT count(*) FROM trade_fills') == '2'
         assert after_outage >= accepted
-        assert self.state()["recovery_state"]["halt"]
+        assert not self.state()["recovery_state"].get("halt")
         assert not self.ledger()["unknown"]
         self.no_runtime_files(third)
         expected_header = "1" if self.env["OKX_TRADING_ENV"] == "demo" else None
@@ -1037,7 +1114,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                    if row["path"].startswith(("/api/v5/trade/", "/api/v5/account/")))
         self.metrics.update(matrix=cases, cli_mm_stop=True, legacy_replaces_mm=True, exact_quote_levels=matrix,
                             restart_anchors=True, weighted_reference=True, stale_both=True,
-                            fills=2, random_steps=True, expiry=True, expiry_funding=True, reconciliation="matched", db_fault_halt=True)
+                            fills=2, random_steps=True, expiry=True, expiry_funding=True, reconciliation="matched", db_fault_auto_recovery=True)
 
     def quote_guard_scenario(self):
         print("Offline E2E: strict quote guards, own-only depth, range and delayed joint recovery", flush=True)
@@ -1767,6 +1844,11 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         current_image = self.image
         assert json.loads(docker("image", "inspect", current_image).stdout)[0]["Id"] != json.loads(
             docker("image", "inspect", previous_image).stdout)[0]["Id"], "Upgrade requires distinct image contents."
+        # Install required runtime tables with no writer present. This group
+        # exercises compatible rolling takeover/rollback; migration021 adds
+        # required tables and must not be presented as an online-compatible DDL.
+        prepared, _ = self.start('required-schema-preflight')
+        self.terminate(prepared)
         self.image = previous_image
         old, old_port = self.start("old")
         self.cli("start", "pmm.yml", "--timeout", "0", "--json")
@@ -1804,6 +1886,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.terminate(rollback)
         self.image = current_image
         self.metrics.update(previous_manifest_digest=previous_image.split("@", 1)[1],
+                            required_schema_installed_without_writer=True,
                             additive_fixture="nullable test-only orders.offline_upgrade_note", rollback_preserved_economics=True,
                             migration_deferred_until_owner_exit=True)
 
@@ -1813,8 +1896,9 @@ def main():
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
     from scripts.mm_cleanup_faults import SCENARIOS as cleanup_fault_scenarios
     from scripts.mm_managed_lifecycle import SCENARIOS as managed_scenarios
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
+    parser.add_argument('--keep-going', action='store_true', help='Collect all independent scenario failures; the final gate still fails.')
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
     metadata = json.loads(docker("image", "inspect", args.image).stdout)[0]
@@ -1850,7 +1934,7 @@ def main():
                   "architecture": "amd64", "config_sha256": hashlib.sha256((assets / "pmm.yml").read_bytes()).hexdigest(),
                   "fixture_sha256": {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(assets.iterdir())}}
         result['harness_source_sha256'] = {name: hashlib.sha256((ROOT / 'scripts' / name).read_bytes()).hexdigest()
-                                           for name in ('test_e2e_offline.py', 'mm_managed_environment.py', 'mm_managed_lifecycle.py', 'mm_cleanup_faults.py', 'mm_quote_refresh_checks.py', 'mm_feed_recovery_checks.py', 'mm_post_only_checks.py', 'mm_submission_uncertainty_checks.py')}
+                                           for name in ('test_e2e_offline.py', 'mm_managed_environment.py', 'mm_managed_lifecycle.py', 'mm_cleanup_faults.py', 'mm_quote_refresh_checks.py', 'mm_feed_recovery_checks.py', 'mm_post_only_checks.py', 'mm_submission_uncertainty_checks.py', 'mm_legacy_recovery_fixture.py')}
         try:
             print("Offline E2E: runtime ABI, JIT, TLS, SDK discovery and size budget", flush=True)
             smoke = docker("run", "--rm", "--platform", "linux/amd64", "--network", "none", "--read-only",
@@ -1858,7 +1942,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery") if args.scenario == "all" else (args.scenario,)
             if args.scenario == 'all':
                 scenarios += managed_scenarios + cleanup_fault_scenarios
             elif args.scenario == 'managed-lifecycle':
@@ -1923,6 +2007,9 @@ def main():
                         harness.quote_guard_scenario()
                     elif scenario == "drawdown":
                         harness.drawdown_scenario()
+                    elif scenario == "automatic-recovery":
+                        from scripts.mm_submission_uncertainty_checks import positive_scenario
+                        positive_scenario(harness)
                     elif scenario == "submission-uncertainty":
                         from scripts.mm_submission_uncertainty_checks import scenario as submission_uncertainty
                         submission_uncertainty(harness)
@@ -1952,11 +2039,17 @@ def main():
                     else:
                         harness.v2_scenario(perpetual=scenario == "v2-perpetual")
                     result["scenarios"][scenario] = {"passed": True, "metrics": harness.metrics}
+                except Exception as error:
+                    result['scenarios'][scenario] = dict(passed=False, error=str(error), metrics=harness.metrics)
+                    if not args.keep_going:
+                        raise
+                    traceback.print_exc()
                 finally:
                     harness.cleanup()
-            result.update(passed=True, release_scope_complete=args.scenario == "all" and previous_image is not None)
+            result.update(passed=all(row['passed'] for row in result['scenarios'].values()),
+                          release_scope_complete=args.scenario == "all" and previous_image is not None)
             print(json.dumps(result, indent=2))
-            return 0
+            return 0 if result['passed'] else 1
         except Exception as error:
             result.update(passed=False, error=str(error))
             traceback.print_exc()

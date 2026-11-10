@@ -23,6 +23,7 @@ def apply_cleanup_fill(session, order, fill):
     from sqlalchemy import func
 
     from hummingbot.model.bot_state import BotState
+    from hummingbot.model.runtime_journal import RuntimeCheckpoint, advance_checkpoints, financial_hash
     from hummingbot.model.trade_fill import TradeFill
     from hummingbot.strategy_v2.executors.executor_orchestrator import PositionHold
     active = session.query(BotState.bot_id).filter(
@@ -42,6 +43,13 @@ def apply_cleanup_fill(session, order, fill):
             or not fill.amount.is_finite() or not 0 < fill.amount <= position.amount
             or executed is None or not 0 < executed <= order.amount):
         raise ValueError("Cleanup fill does not reduce its identified position")
+    # Cleanup uses its own recorder config. Advance only baselines whose
+    # financial state was verified immediately before this authorized mutation;
+    # never bless an already-drifted baseline or invent one for old history.
+    checkpoints = session.query(RuntimeCheckpoint).filter(
+        RuntimeCheckpoint.financial_hash == financial_hash(session)).limit(65).with_for_update().all()
+    if len(checkpoints) > 64:
+        raise ValueError('Cleanup checkpoint scope exceeds its bound')
     held = PositionHold(position.connector_name, position.trading_pair)
     held.net_amount_base = position.amount if side == "LONG" else -position.amount
     held.avg_entry_price = position.breakeven_price
@@ -55,3 +63,4 @@ def apply_cleanup_fill(session, order, fill):
     if fill.trade_fee_in_quote is not None:
         position.cum_fees_quote += fill.trade_fee_in_quote
     position.timestamp = max(position.timestamp, fill.timestamp)
+    advance_checkpoints(session, checkpoints)

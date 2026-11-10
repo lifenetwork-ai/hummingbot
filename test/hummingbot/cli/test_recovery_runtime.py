@@ -19,7 +19,7 @@ def coordinator(monkeypatch, *, action='recovery_check'):
                                    'orders': [], 'fills': [], 'positions': [], 'bindings': []}
     monkeypatch.setattr(module, 'RecoveryStore', lambda _: store)
     core = SimpleNamespace(strategy=None, _is_running=False, connector_manager=SimpleNamespace(connectors={}))
-    host = SimpleNamespace(store=None, owner=MagicMock(submission_tasks=set(), transport_tasks=set()),
+    host = SimpleNamespace(store=None, owner=MagicMock(submission_tasks=set(), transport_tasks=set(), terminal_tasks=set()),
                            hb=SimpleNamespace(trading_core=core), running=False, start_task=None, error='RecoveryRequired', halt_requested=True,
                            funding=SimpleNamespace(credentials_changed=AsyncMock()),
                            managed_credentials=SimpleNamespace(configs={}, reload=AsyncMock()), log=MagicMock())
@@ -141,4 +141,69 @@ async def test_canceled_exchange_proof_closes_readers_without_db_repair(monkeypa
         assert not instance.readers
         store.finish_reset.assert_not_called()
     finally:
+        await instance.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('action', ['recovery_check', 'recovery_reset'])
+async def test_reviewed_reset_discards_old_automatic_scope_only_after_commit(monkeypatch, action):
+    from hummingbot.core.automatic_recovery import AutomaticOrderRecovery
+    instance, store = coordinator(monkeypatch, action=action)
+    old = AutomaticOrderRecovery(instance.host.owner)
+    old.status.update(phase='settled_stopped', reason_code='session_authority_changed')
+    old.resume_scope = ('old-session', 1)
+    old.bootstrap_orders = {'old-order': object()}
+    instance.host.owner.automatic_recovery = old
+    try:
+        await instance.run('op')
+        store.fail.assert_not_called()
+        current = instance.host.owner.automatic_recovery
+        if action == 'recovery_reset':
+            assert current.status['phase'] == 'idle' and current.resume_scope is None
+            assert not current.bootstrap_orders
+        else:
+            assert current is old and current.resume_scope == ('old-session', 1)
+        assert not instance.host.owner.allow_new_orders and not instance.host.running
+    finally:
+        await instance.close()
+
+
+@pytest.mark.asyncio
+async def test_failed_reset_never_discards_automatic_scope_or_reopens_admission(monkeypatch):
+    from hummingbot.core.automatic_recovery import AutomaticOrderRecovery
+    instance, store = coordinator(monkeypatch, action='recovery_reset')
+    old = AutomaticOrderRecovery(instance.host.owner)
+    old.status.update(phase='settled_stopped')
+    old.resume_scope = ('old-session', 1)
+    instance.host.owner.automatic_recovery = old
+    store.finish_reset.side_effect = IOError('uncertain commit')
+    try:
+        await instance.run('op')
+        assert instance.host.owner.automatic_recovery is old
+        assert old.resume_scope == ('old-session', 1) and instance.host.halt_requested
+        assert not instance.host.owner.allow_new_orders
+    finally:
+        await instance.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('kind', ['automatic', 'terminal'])
+async def test_review_requires_all_proof_workers_to_be_drained(monkeypatch, kind):
+    from hummingbot.core.automatic_recovery import AutomaticOrderRecovery
+    instance, store = coordinator(monkeypatch, action='recovery_reset')
+    automatic = AutomaticOrderRecovery(instance.host.owner)
+    instance.host.owner.automatic_recovery = automatic
+    task = asyncio.create_task(asyncio.Event().wait())
+    if kind == 'automatic':
+        automatic.task = task
+    else:
+        instance.host.owner.terminal_tasks.add(task)
+    try:
+        await instance.run('op')
+        assert store.fail.call_args.args[-1] == 'recovery_stop_incomplete'
+        store.finish_reset.assert_not_called()
+        module.verify_exchange.assert_not_awaited()
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
         await instance.close()

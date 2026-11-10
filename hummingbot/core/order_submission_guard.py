@@ -14,18 +14,21 @@ _guard = None
 SUPPORTED_CONNECTORS = ("okx", "okx_perpetual")
 _session_scope = ContextVar("mm_order_session_scope", default=None)
 _quote_level_scope = ContextVar("mm_order_quote_level", default=None)
+_executor_scope = ContextVar("mm_order_executor", default=None)
 
 
 @contextmanager
-def session_order_scope(session_id, generation, *, level_id=None):
+def session_order_scope(session_id, generation, *, level_id=None, executor=None):
     """Carry executor authority into connector tasks, including delayed retries."""
     token = _session_scope.set((session_id, generation) if session_id is not None else None)
     level_token = _quote_level_scope.set(level_id if session_id is not None else None)
+    executor_token = _executor_scope.set(executor)
     try:
         yield
     finally:
         _session_scope.reset(token)
         _quote_level_scope.reset(level_token)
+        _executor_scope.reset(executor_token)
 
 
 def current_session_scope():
@@ -34,6 +37,10 @@ def current_session_scope():
 
 def current_quote_level():
     return _quote_level_scope.get()
+
+
+def current_executor_scope():
+    return _executor_scope.get()
 
 
 class SubmissionBlocked(RuntimeError):
@@ -88,28 +95,51 @@ async def before_rest(request):
     guard = active_guard()
     token = await guard.authorize_rest(request)
     guard.transport_started()
-    return guard, token
+    return guard, token, request
 
 
 async def after_rest(context, response) -> None:
     if context is not None:
-        guard, token = context
+        guard, token, request = context
         if token is not None:
             await guard.finish_account_mutation(token, response)
+        else:
+            await guard.record_transport_receipt(request, response)
 
 
 def failed_rest(context) -> None:
     if context is not None:
-        guard, token = context
+        guard, token, request = context
         if token is not None:
             guard.account_mutation_failed(token)
         else:
-            guard.require_recovery("An exchange mutation transport ended without a confirmed outcome.")
+            guard.mutation_transport_failed(request)
 
 
 def completed_rest(context) -> None:
     if context is not None:
         context[0].transport_finished()
+
+
+def unresolved_submission(client_order_id):
+    """Repeated not-found is not terminal evidence for an ambiguous native send."""
+    return postgres_requested() and _guard is not None and client_order_id in _guard.sent_intents
+
+
+def managed_terminal_order(order):
+    return postgres_requested() and _guard is not None and getattr(order, '_managed_recovery_order', False) is True
+
+
+async def verify_terminal_update(connector, order, update):
+    return await _guard.automatic_recovery.terminal_update(connector, order, update)
+
+
+def terminal_proof_conflict(reason):
+    _guard.require_recovery(reason)
+
+
+def cancel_failed(connector, order):
+    return postgres_requested() and _guard is not None and _guard.cancel_failed(connector, order)
 
 
 def order_failed(connector, order, exception=None) -> bool:

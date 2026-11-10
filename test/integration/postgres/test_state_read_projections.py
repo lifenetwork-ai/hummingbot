@@ -21,7 +21,7 @@ def test_publication_projection_excludes_private_recovery_and_catalogue_but_read
     public = store.read(publication=True)
     assert "recovery_state" not in public
     assert public["recovery_summary"] == {"halted": True, "pending_mutations": False, "credential_operation_pending": False,
-                                          "recovery_operation_pending": False}
+                                          "recovery_operation_pending": False, "automatic_recovery": None}
     assert "private_diagnostic" not in str(public)
     assert "catalogue" not in public["mm_session"]
     assert public["mm_session"] == {key: value for key, value in full["mm_session"].items() if key != "catalogue"}

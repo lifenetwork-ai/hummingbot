@@ -4,6 +4,7 @@
 
 | Report | Scope |
 | --- | --- |
+| [Automatic order recovery](mm-automatic-recovery.md) | Durable attempt/fill/held journal, bounded positive-proof reconciliation and automatic resume; offline qualification and explicit rollout limits |
 | [Quiet-feed / unsent-quote recovery](mm-feed-quote-recovery.md) | Bounded per-book REST recovery, final-consumer WS race protection, first-entry repricing and operational summaries; targeted offline qualification, separate from Cloud/full release |
 | [Managed local quote activity](mm-managed-local-quote-activity.md), [evidence](mm-managed-local-quote-activity-evidence.json) | Two 180-second diagnostics, independent venue samples and actual tick/order timings; explicit refresh gaps and pre-window probe scope; separate from the approved 30-minute operating target |
 | [Reporting snapshot copy](../implementation/MM_RUNTIME_FOLLOWUP.md#reporting-snapshot-copy-cost--2026-11-07), [evidence](../implementation/mm-runtime-followup-evidence.json) | One retained-history traversal instead of two; paired component CPU improves, allocation peaks mixed; native 2,788 + 11 subtests / related PG 36 pass; packaged in the previously qualified `a6fe88c0…` image; current `b090430c…` full gate passes, with nonuniform whole-system changes |

@@ -16,6 +16,7 @@ TECHNICAL_HALTS = frozenset({
     'Exchange reconciliation did not complete; new risk remains blocked.',
     'An order submission has an unresolved outcome; no automatic resubmission is allowed.',
     'An order submission did not finish with a durable acknowledgment.',
+    'Automatic recovery evidence conflicts with its durable account/financial scope.',
 })
 FINANCIAL_FIELDS = ('amount', 'volume_traded_quote', 'breakeven_price', 'realized_pnl_quote', 'cum_fees_quote')
 

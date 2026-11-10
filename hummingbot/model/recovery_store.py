@@ -222,8 +222,15 @@ class RecoveryStore:
                 self.access.audit(connection, actor=actor, action='recovery_position_repaired', outcome='succeeded',
                                   operation_id=row['id'], request_id=row['result']['_private']['request_id'],
                                   details=dict(position_id=change['id'], amount=change['after']['amount'], pair=change['pair']))
+            # This is an operator-confirmed, complete venue/financial proof. It
+            # may establish the first incremental baseline; ordinary Start may
+            # never certify a pre-existing ledger in its place.
+            from sqlalchemy.orm import Session
+            if state['config_type'] == 'mm-session' and state['config_file_path']:
+                with Session(bind=connection) as session:
+                    self._bind_runtime_baseline(session, state, row, snapshot)
             recovery = deepcopy(state['recovery_state'])
-            for key in ('halt', 'reason', 'shutdown_incomplete'):
+            for key in ('halt', 'halt_kind', 'reason', 'shutdown_incomplete', 'automatic_recovery'):
                 recovery.pop(key, None)
             recovery['runtime_active'] = False
             state['recovery_state'] = recovery
@@ -232,6 +239,34 @@ class RecoveryStore:
             self._finish(connection, state, row, result, actor, control_version=state['control_version'] + 1)
             owner.check_owner()  # Fresh physical authority before committing all writes together.
             return True
+
+    def _bind_runtime_baseline(self, session, state, row, snapshot):
+        from hummingbot.model.runtime_journal import (
+            RuntimeCheckpoint,
+            RuntimeJournal,
+            SubmissionAttempt,
+            binding_hash,
+            bindings,
+            environment_identity,
+            financial_hash,
+        )
+        checkpoint = session.get(RuntimeCheckpoint, state['config_file_path'])
+        values = dict(financial_hash=financial_hash(session),
+                      bindings_hash=binding_hash(session, self.bot_id),
+                      watermark=session.query(func.max(RuntimeJournal.id)).scalar() or 0,
+                      payload={'baseline': 'reviewed_recovery', 'operation_id': row['id'], 'environment': environment_identity(),
+                               'bindings': bindings(session, self.bot_id),
+                               'proof_fingerprint': fingerprint(snapshot)})
+        if checkpoint is None:
+            session.add(RuntimeCheckpoint(config_file_path=state['config_file_path'], **values))
+        else:
+            for name, value in values.items():
+                setattr(checkpoint, name, value)
+        session.query(RuntimeJournal).filter(RuntimeJournal.kind == 'fill').update(
+            {RuntimeJournal.applied: True}, synchronize_session=False)
+        session.query(SubmissionAttempt).update({SubmissionAttempt.state: 'terminal'}, synchronize_session=False)
+        session.query(Order).update({Order.position_applied: True}, synchronize_session=False)
+        session.flush()
 
     def _finish(self, connection, state, row, result, actor, *, control_version=None):
         recovery = deepcopy(state['recovery_state'])

@@ -95,6 +95,7 @@ class BotOwnership:
         self.unsent_rejections = weakref.WeakValueDictionary()
         self.expired_rejections = weakref.WeakValueDictionary()
         self.submission_tasks = set()
+        self.terminal_tasks = set()
         self.transport_tasks = {}
         self.account_lock = asyncio.Lock()
         self.account_token = None
@@ -108,6 +109,8 @@ class BotOwnership:
         self.spot_outflow = None
         self.listing_bootstrap = None
         self.volatility_checkpoints = None
+        from hummingbot.core.automatic_recovery import AutomaticOrderRecovery
+        self.automatic_recovery = AutomaticOrderRecovery(self)
 
     def begin_shutdown(self):
         """Process-lifetime fence; cleanup/cancellation still retains ownership."""
@@ -136,14 +139,30 @@ class BotOwnership:
             recovery = dict(row["recovery_state"] or {})
             pending = connection.execute(select(Order.id).where(Order.creation_pending.is_(True)).limit(1)).first()
             if pending or recovery.get("pending_mutations") or recovery.get("runtime_active"):
-                recovery.update(halt=True, reason="A previous process has unresolved exchange effects; reconcile and verify it is stopped.")
+                from sqlalchemy.orm import Session
+
+                from hummingbot.model.runtime_journal import can_bootstrap
+                with Session(bind=connection) as session:
+                    automatic = ((not recovery.get('halt') or recovery.get('halt_kind') == 'shutdown_pending')
+                                 and not recovery.get('pending_mutations')
+                                 and can_bootstrap(session, row))
+                if automatic:
+                    if recovery.get('halt_kind') == 'shutdown_pending':
+                        recovery.pop('halt', None)
+                        recovery.pop('halt_kind', None)
+                    recovery['automatic_recovery'] = dict(phase='bootstrapping_recovery', reason_code='owner_handover',
+                                                          operator_required=False, started_at=time.time(), cold_recovery_supported=True)
+                elif not recovery.get('halt'):
+                    recovery.update(halt=True, reason="A previous process has unresolved exchange effects; reconcile and verify it is stopped.")
             self.generation = row["owner_generation"] + 1
+            recovery.update(runtime_journal_version=1, journal_owner_generation=self.generation)
             connection.execute(update(BotState).where(BotState.bot_id == self.store.bot_id).values(
                 owner_uuid=self.owner_uuid, owner_generation=self.generation,
                 heartbeat=text("clock_timestamp()"), recovery_state=recovery))
             self.backend_pid = connection.execute(text("SELECT pg_backend_pid()")).scalar()
             connection.commit()
             self.connection = connection
+            self.automatic_recovery.status = dict(recovery.get('automatic_recovery') or self.automatic_recovery.status)
             return True
         finally:
             if self.connection is None:
@@ -243,19 +262,25 @@ class BotOwnership:
     def require_recovery(self, reason):
         self.allow_new_orders = False
         try:
-            self._mutate_recovery(lambda state: state.update(halt=True, reason=reason))
+            self._mutate_recovery(lambda state: state.update(halt=True, halt_kind='manual', reason=reason))
         except Exception:
             self.lost = True
 
-    def _check_intents(self, recorder):
+    def _check_intents(self, recorder, *, admitting=False):
+        from hummingbot.core.automatic_recovery import MAX_ATTEMPTS
         recorder.sql_manager.assert_persistence_healthy()
         try:
             with recorder.sql_manager.get_new_session() as session:
-                pending = session.query(Order.id, Order.market).filter(Order.creation_pending.is_(True)).all()
+                pending = session.query(Order.id, Order.market).filter(Order.creation_pending.is_(True)).limit(MAX_ATTEMPTS + 1).all()
         except Exception:
             recorder.sql_manager.persistence_healthy = False
             self.allow_new_orders = False
             raise SubmissionBlocked("Recorder state is unavailable; reconciliation is required.") from None
+        if len(pending) > MAX_ATTEMPTS:
+            self.require_recovery('Pending order recovery exceeds its bounded scope.')
+            raise SubmissionBlocked('Pending order recovery exceeds its bounded scope.')
+        if admitting and len(pending) == MAX_ATTEMPTS:
+            raise MarketReadinessBlocked('Pending submission admission is at capacity; wait for durable acknowledgments.')
         ids = {order_id for order_id, _ in pending}
         self.active_intents.intersection_update(ids)
         self.sent_intents.intersection_update(ids)
@@ -289,7 +314,7 @@ class BotOwnership:
         if (recorder is None or recorder.sql_manager.engine is not self.engine
                 or recorder.config_file_path != self.config_file_path or connector not in recorder._markets):
             raise SubmissionBlocked("The active recorder/configuration does not match the service owner.")
-        self._check_intents(recorder)
+        self._check_intents(recorder, admitting=True)
         try:
             if cleanup is None and self.listing_bootstrap is not None:
                 self.listing_bootstrap.before_order(connector, order, row)
@@ -336,12 +361,25 @@ class BotOwnership:
             except Exception:
                 self.require_recovery("An exchange-rejected order could not be resolved durably.")
             return order.client_order_id in self.sent_intents
+        if order.exchange_order_id:
+            try:
+                if self.automatic_recovery.pause(order.client_order_id):
+                    return True
+            except Exception:
+                self.require_recovery('Automatic order reconciliation could not be recorded durably.')
+                return True
         if order.client_order_id not in self.sent_intents and not order.exchange_order_id:
             # This hook runs only in this process's create coroutine. Retain
             # positive no-transport evidence even if a later cancel-not-found
             # acknowledgement changes FAILED to CANCELED in the tracker.
             self.unsent_rejections[order.client_order_id] = order
         if order.client_order_id in self.sent_intents:
+            try:
+                if self.automatic_recovery.pause(order.client_order_id):
+                    return True
+            except Exception:
+                self.require_recovery('Automatic order reconciliation could not be recorded durably.')
+                return True
             self.require_recovery("An order submission did not finish with a durable acknowledgment.")
             # No terminal order outcome has been proved. Leave the native
             # tracker able to consume a late create/fill instead of emitting a
@@ -372,6 +410,73 @@ class BotOwnership:
     def transport_started(self):
         task = asyncio.current_task()
         self.transport_tasks[task] = self.transport_tasks.get(task, 0) + 1
+
+    def mutation_transport_failed(self, request):
+        try:
+            if urlparse(request.url).path == ORDER_PATH:
+                identity = json.loads(request.data)['clOrdId']
+                if self.automatic_recovery.pause(identity):
+                    return
+            elif urlparse(request.url).path in CANCEL_PATHS and self.cleanup_operation_id is None:
+                data = json.loads(request.data)
+                rows = data if isinstance(data, list) else [data]
+                if 0 < len(rows) <= 20 and all(isinstance(row, dict) and row.get('clOrdId') for row in rows):
+                    if all(self.automatic_recovery.pause(row['clOrdId'], cancel=True) for row in rows):
+                        return
+        except Exception:
+            pass
+        self.require_recovery('An exchange mutation transport ended without a confirmed outcome.')
+
+    def cancel_failed(self, connector, order):
+        if self.cleanup_operation_id is not None:
+            return False
+        try:
+            return self.automatic_recovery.pause(order.client_order_id, cancel=True)
+        except Exception:
+            self.require_recovery('Automatic order reconciliation could not be recorded durably.')
+            return True
+
+    async def record_transport_receipt(self, request, response):
+        if urlparse(request.url).path != ORDER_PATH:
+            return
+        from hummingbot.model.runtime_journal import SubmissionAttempt
+        identity = json.loads(request.data)['clOrdId']
+        try:
+            body = await response.json()
+        except (ValueError, TypeError):
+            body = {}
+        receipt = {'http_status': response.status}
+        if isinstance(body, dict):
+            receipt['code'] = str(body.get('code', ''))[:32]
+            rows = body.get('data')
+            if isinstance(rows, list) and len(rows) == 1 and isinstance(rows[0], dict):
+                receipt['order'] = {key: str(rows[0].get(key, ''))[:128] for key in ('clOrdId', 'ordId', 'sCode')}
+        self.check_owner()
+        with self.connection.begin():
+            self.connection.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == identity).values(receipt=receipt))
+
+    def _record_send_attempt(self, client_id, data, deadline, headers):
+        """A committed, immutable transport identity precedes any network call."""
+        from hummingbot.model.runtime_journal import SubmissionAttempt, digest
+        self.check_owner()
+        # A lost COMMIT reply is ambiguous even though this coroutine will not
+        # deliberately invoke transport after the exception.
+        with self.connection.begin():
+            row = self.connection.execute(select(SubmissionAttempt).where(
+                SubmissionAttempt.order_id == client_id).with_for_update()).mappings().one()
+            if (row['state'] != 'prepared' or row['context']['owner_uuid'] != self.owner_uuid
+                    or row['context']['generation'] != self.generation):
+                raise SubmissionBlocked('Submission attempt was already sent or belongs to another owner.')
+            from hummingbot.core.automatic_recovery import eligible
+            if eligible(row['context']):
+                key = headers.get('OK-ACCESS-KEY')
+                expected = digest(['credential_identity', row['context']['environment'],
+                                   row['context']['executor']['connector_name'], key])
+                if not key or expected != row['context']['credential_fingerprint']:
+                    raise SubmissionBlocked('Authenticated transport identity does not match its recorded account scope.')
+            self.sent_intents.add(client_id)
+            self.connection.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == client_id).values(
+                state='possibly_sent', payload_hash=digest(data), deadline_ms=deadline))
 
     def transport_finished(self):
         task = asyncio.current_task()
@@ -425,7 +530,7 @@ class BotOwnership:
                 headers = dict(request.headers or {})
                 headers["expTime"] = str(min(cleanup.deadline_ms, int(headers.get("expTime", cleanup.deadline_ms))))
                 request.headers = headers
-                self.sent_intents.add(client_id)
+                self._record_send_attempt(client_id, data, int(headers['expTime']), headers)
                 return None
             if self.runtime_ready_check is not None and not self.runtime_ready_check():
                 raise SubmissionBlocked("A required runtime task is not healthy.")
@@ -476,7 +581,7 @@ class BotOwnership:
                 raise SubmissionBlocked("Order request expiration header is invalid.") from None
             headers["expTime"] = str(expiry)
             request.headers = headers
-            self.sent_intents.add(client_id)
+            self._record_send_attempt(client_id, data, expiry, headers)
             return None
         if path not in ACCOUNT_PATHS:
             raise SubmissionBlocked("Unreviewed authenticated exchange mutation is blocked.")
@@ -612,6 +717,7 @@ class BotOwnership:
             self.bind_mm_drawdown(core.strategy)
 
         may_have_exchange_effects = False
+        automatic_bootstrap = self.automatic_recovery.status['phase'] == 'bootstrapping_recovery'
 
         async def perform():
             nonlocal may_have_exchange_effects
@@ -638,17 +744,40 @@ class BotOwnership:
                         await asyncio.sleep(0.1)
                 if hasattr(connector, "_update_positions"):
                     await connector._update_positions()
+            if automatic_bootstrap:
+                await self.automatic_recovery.project(core)
+            for connector in self.connectors.values():
+                if hasattr(connector, '_update_positions'):
                     self._verify_positions(core, connector)
             core.trade_fill_db.assert_persistence_healthy()
             self._check_intents(core.markets_recorder)
         try:
-            await asyncio.wait_for(perform(), timeout=30)
+            if automatic_bootstrap:
+                # Each venue request/work unit is bounded. Unknown outcomes may
+                # outlast startup's ordinary drain deadline without inventing a
+                # terminal order or requiring a process restart.
+                while not all(connector.ready for connector in self.connectors.values()):
+                    self.check_owner()
+                    await asyncio.sleep(.1)
+                await self.automatic_recovery.restore(core)
+            if automatic_bootstrap:
+                while True:
+                    try:
+                        await perform()
+                        break
+                    except (IOError, asyncio.TimeoutError):
+                        self.check_owner()
+                        self.automatic_recovery.status.update(phase='bootstrapping_recovery', reason_code='order_proof_pending')
+                        self._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.automatic_recovery.status)))
+                        await asyncio.sleep(1)
+            else:
+                await asyncio.wait_for(perform(), timeout=30)
         except asyncio.CancelledError:
             # Stop/Switch may interrupt readiness or GET-only initialization.
             # No send authority has been granted and no exchange mutation was
             # attempted. Preserve prior HALT/intents, but do not invent a new
             # unresolved-effect HALT for a cleanly cancelled read.
-            if may_have_exchange_effects:
+            if may_have_exchange_effects and not automatic_bootstrap:
                 self.require_recovery("Exchange reconciliation did not complete; new risk remains blocked.")
             raise
         except BaseException as error:
@@ -698,9 +827,30 @@ class BotOwnership:
             self.volatility_checkpoints.attach()
         else:
             self.volatility_checkpoints = None
+        if self.automatic_recovery.status['phase'] == 'settled_stopped':
+            # A separate explicit Start has just refreshed/cancelled restored
+            # orders and verified durable intents and current risk. Retire the
+            # previous session's resume scope only after its proof task drains.
+            await self.automatic_recovery.close()
+            from hummingbot.core.automatic_recovery import AutomaticOrderRecovery
+            self.automatic_recovery = AutomaticOrderRecovery(self)
+        if row.get('config_type') == 'mm-session':
+            self.automatic_recovery.status['cold_recovery_supported'] = bool(core.markets_recorder.ensure_runtime_checkpoint())
+        if automatic_bootstrap:
+            self.automatic_recovery.status.update(phase='idle', reason_code=None, operator_required=False)
+            self.automatic_recovery.bootstrap_orders.clear()
+
+            def recovered(state):
+                state.update(automatic_recovery=dict(self.automatic_recovery.status))
+                state.pop('shutdown_incomplete', None)
+            self._mutate_recovery(recovered)
+        elif row.get('config_type') == 'mm-session':
+            self._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.automatic_recovery.status)))
         self.allow_new_orders = True
 
     def fill_committed(self, row):
+        if row.get('late_held_fill'):
+            self.require_recovery('A new fill arrived after its durable position transfer; financial reconciliation is required.')
         if self.spot_outflow is not None:
             try:
                 self.spot_outflow.fill_committed(row)
@@ -717,10 +867,10 @@ class BotOwnership:
 
         async def refresh():
             for order in pending:
-                status = await connector._request_order_status(order)
+                status = await asyncio.wait_for(connector._request_order_status(order), timeout=5)
                 if status.exchange_order_id:
                     order.update_exchange_order_id(status.exchange_order_id)
-                fills = await connector._all_trade_updates_for_order(order)
+                fills = await asyncio.wait_for(connector._all_trade_updates_for_order(order), timeout=5)
                 for fill in fills:
                     connector._order_tracker.process_trade_update(fill)
                 # Apply fills before terminal state for each individual order.
@@ -754,8 +904,8 @@ class BotOwnership:
             params = {"limit": "100"}
             if after:
                 params["after"] = after
-            response = await connector._api_get(path_url="/api/v5/trade/orders-pending", params=params,
-                                                is_auth_required=True, limit_id=limit_id)
+            response = await asyncio.wait_for(connector._api_get(path_url="/api/v5/trade/orders-pending", params=params,
+                                                                 is_auth_required=True, limit_id=limit_id), timeout=5)
             if str(response.get("code")) != "0" or not isinstance(response.get("data"), list):
                 raise SubmissionBlocked("Open-order reconciliation response is invalid.")
             page = response["data"]
@@ -796,7 +946,7 @@ class BotOwnership:
     def release(self):
         """Caller must stop all order-producing tasks before releasing the session."""
         self.allow_new_orders = False
-        if any(not task.done() for task in self.submission_tasks | set(self.transport_tasks)) or self.account_token:
+        if any(not task.done() for task in self.submission_tasks | self.terminal_tasks | set(self.transport_tasks)) or self.account_token:
             raise SubmissionBlocked("Stop all order-producing/transport tasks before releasing ownership.")
         connection, self.connection = self.connection, None
         if connection is not None:
@@ -847,8 +997,18 @@ class BotOwnership:
                 from hummingbot.core.mm_drawdown import checkpoint_stop_triggered
                 checkpoint["_is_stop_triggered"] = checkpoint_stop_triggered(strategy)
 
+        from sqlalchemy.orm import Session
+
+        from hummingbot.model.runtime_journal import can_bootstrap
+        with Session(self.engine) as session:
+            recoverable_shutdown = (not was_halted and not checkpoint.get('_is_stop_triggered')
+                                    and not (row['recovery_state'] or {}).get('pending_mutations')
+                                    and can_bootstrap(session, row))
+
         def begin_shutdown(state):
             state.update(halt=True, shutdown_incomplete=True)
+            if recoverable_shutdown and not state.get('reason'):
+                state['halt_kind'] = 'shutdown_pending'
             if self.config_file_path is not None:
                 checkpoints = dict(state.get("strategy_checkpoints") or {})
                 previous = dict(checkpoints.get(self.config_file_path) or {})
@@ -949,7 +1109,7 @@ class BotOwnership:
             return False
         # Stop queued/in-flight create tasks as well as the clock/controllers. Their
         # cancellation handler resolves proven-unsent intents, keeping sent ones pending.
-        requests = {task for task in self.submission_tasks | set(self.transport_tasks) if not task.done()}
+        requests = {task for task in self.submission_tasks | self.terminal_tasks | set(self.transport_tasks) if not task.done()}
         for task in requests:
             task.cancel()
         if requests:
@@ -967,5 +1127,10 @@ class BotOwnership:
             state["runtime_active"] = False
             if not was_halted and not state.get("reason"):
                 state.pop("halt", None)
+                if state.get('halt_kind') == 'shutdown_pending':
+                    state.pop('halt_kind', None)
+                if self.automatic_recovery.active or state.get('automatic_recovery'):
+                    self.automatic_recovery.status.update(phase='idle', reason_code=None, operator_required=False)
+                    state['automatic_recovery'] = dict(self.automatic_recovery.status)
         self._mutate_recovery(finish)
         return True

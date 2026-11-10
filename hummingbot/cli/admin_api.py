@@ -324,6 +324,7 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
         if row is None:
             raise APIUnavailable("Bot identity is not ready")
         snapshot = row.get("status") or {}
+        automatic = (row.get('recovery_summary') or {}).get('automatic_recovery') or snapshot.get('automatic_recovery')
         age = float(row["heartbeat_age_s"]) if row.get("heartbeat_age_s") is not None else None
         owner_available = bool(row.get("owner_uuid")) and age is not None and 0 <= age <= 5
         session = {key: value for key, value in row["mm_session"].items() if key != "catalogue"} if row.get("mm_session") else None
@@ -344,6 +345,7 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
                                session=session, observed_session=snapshot.get("mm_session"),
                                **operator_view(row, process_identity(self.host)),
                                spot_outflow=outflow,
+                               automatic_recovery=({**automatic, 'stale': not owner_available} if automatic else None),
                                server_time=datetime.fromtimestamp(now, tz=timezone.utc) if now is not None else None,
                                time_remaining_seconds=remaining, error=snapshot.get("error"),
                                funding_sync=({**snapshot["funding_sync"], **({"state": "unavailable", "stale": True, "error": "owner_unavailable"} if not owner_available else {})}

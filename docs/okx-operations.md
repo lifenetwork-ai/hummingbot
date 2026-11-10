@@ -350,14 +350,28 @@ the request deadline does not by itself prove there were no earlier fills.
 
 Managed order creation keeps its pending tracker entry and records
 `order_submission_uncertain`, rather than publishing a false OrderFailure that
-prompts retries. Late native status/fills are still processed. HALT and the durable
-intent remain; no automatic replay or reset is added. An in-flight runtime that
+prompts retries. Late native status/fills are still processed. Supported managed
+MM maker entries now enter automatic reconciliation with new shared-account risk
+paused, without latching a manual HALT. A bounded read-only worker proves the exact
+order and complete original fills before reopening admission under current
+ownership/session/control/credentials/readiness. Unknown/not-found stays paused;
+the worker never resubmits an uncertain POST. Known cancel transport failures use
+the same proof path; an ACK of the cancel request is not terminal evidence.
+
+Cold recovery requires migration021 and a verified account/financial baseline.
+Empty ledgers can establish it at normal startup; an existing ledger requires
+reviewed cutover/recovery. A successor restores only outstanding effects and new
+fill work, not all lifetime history. An unsupported scope, inconsistent baseline,
+unresolved account-setting mutation or risk latch retains manual protection.
+See [automatic status contract](fe-integration.md#automatic-order-reconciliation).
+
+An in-flight runtime that
 cannot prove cleanup still exits within its existing deadline. Its replacement
-stays in `halted`, serving health/control/recovery without another trading
+with a retained manual HALT stays in `halted`, serving health/control/recovery without another trading
 bootstrap, even if the old YAML/credentials are missing. Existing already-started
 reconciliation still drains its known restored orders.
 
-Stop the session, then Check. A `recovery_pending_intents` result requires technical
+For manual HALT, Stop the session, then Check. A `recovery_pending_intents` result requires technical
 review of the complete scoped exchange/ledger evidence; this API does not erase
 the intent. Do not interpret startup/live200 as readiness: ready remains503 until
 an explicitly recovered and separately started strategy is running.

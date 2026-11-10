@@ -250,12 +250,12 @@ class InFlightOrder:
 
         return order
 
-    def to_json(self) -> Dict[str, Any]:
+    def to_json(self, *, include_fee_totals=True) -> Dict[str, Any]:
         """
         Returns this InFlightOrder as a JSON object.
         :return: JSON object
         """
-        return {
+        result = {
             "client_order_id": self.client_order_id,
             "exchange_order_id": self.exchange_order_id,
             "trading_pair": self.trading_pair,
@@ -271,9 +271,11 @@ class InFlightOrder:
             "creation_timestamp": self.creation_timestamp,
             "last_update_timestamp": self.last_update_timestamp,
             "order_fills": {key: fill.to_json() for key, fill in self.order_fills.items()},
-            "cumulative_fee_paid_base": float(self.cumulative_fee_paid(self.base_asset)),
-            "cumulative_fee_paid_quote": float(self.cumulative_fee_paid(self.quote_asset)),
         }
+        if include_fee_totals:
+            result['cumulative_fee_paid_base'] = float(self.cumulative_fee_paid(self.base_asset))
+            result['cumulative_fee_paid_quote'] = float(self.cumulative_fee_paid(self.quote_asset))
+        return result
 
     def to_limit_order(self) -> LimitOrder:
         """

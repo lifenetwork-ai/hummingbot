@@ -398,7 +398,8 @@ class ServiceHost:
                   "migrating": "migration_in_progress",
                   "waiting_for_mm_readiness": "market_data_unavailable", "halted": "recovery_required",
                   "starting": "strategy_initializing", "stopping": "strategy_stopping",
-                  "recovery_checking": "recovery_checking", "recovering": "recovery_applying"}.get(self.phase)
+                  "recovery_checking": "recovery_checking", "recovering": "recovery_applying",
+                  "reconciling_orders": "order_outcome_unknown"}.get(self.phase)
         if self.phase == "waiting_for_mm_readiness":
             reason = self.mm_readiness_reason or reason
         if self.mm_session is not None and self.mm_session.status == "expired":
@@ -526,6 +527,8 @@ class ServiceHost:
     async def stop_core(self):
         self.running = False
         self.owner.allow_new_orders = False
+        if self.automatic_order_recovery is not None:
+            await self.automatic_order_recovery.close()
         if self.outflow_task is not None and not self.outflow_task.done():
             self.outflow_task.cancel()
             await asyncio.gather(self.outflow_task, return_exceptions=True)
@@ -554,6 +557,7 @@ class ServiceHost:
         return {"name": self.settings.bot_id, "running": self.running, "phase": self.phase,
                 "identity": process_identity(self),
                 "error": self.error, "available_configs": self.catalogue,
+                "automatic_recovery": dict(self.automatic_order_recovery.status) if self.automatic_order_recovery else None,
                 "configuration_sha256": self.config_hashes, "engine": observations["engine"],
                 "balances": observations["balances"], "reporting_unavailable": observations["reporting_unavailable"],
                 "availability": self.service_status(persisted=True),
@@ -783,7 +787,15 @@ class ServiceHost:
                 if not await self.stop_core():
                     raise RuntimeError("Failed runtime-task cleanup did not complete.")
         if self.running:
-            if self.mm_session is not None:
+            automatic = self.automatic_order_recovery
+            if automatic is not None:
+                automatic.poll(core)
+            automatic_active = automatic is not None and automatic.active
+            if automatic_active:
+                self.phase = 'reconciling_orders'
+                for controller in self._mm_controllers():
+                    controller.revoke_session()
+            if self.mm_session is not None and not automatic_active:
                 try:
                     admitted = not (row["recovery_state"] or {}).get("halt") and await self.admit_mm_session()
                 except (ValueError, ControlConflict):
@@ -794,7 +806,7 @@ class ServiceHost:
                         controller.revoke_session()
                         await controller.send_actions(controller.stop_quote_actions())
             if (core.trade_fill_db is None or not core.trade_fill_db.persistence_healthy
-                    or not self.owner.allow_new_orders or not core._strategy_running):
+                    or (not self.owner.allow_new_orders and not automatic_active) or not core._strategy_running):
                 self.owner.require_recovery("Trading/recorder health requires reconciliation.")
                 self.phase, self.error = "halted", "TradingHealthFailed"
                 if not await self.stop_core():
@@ -1023,6 +1035,12 @@ class ServiceHost:
     async def collect_funding(self):
         await self.funding.collect(self.engine, self.owner, self.hb.trading_core)
 
+    @property
+    def automatic_order_recovery(self):
+        from hummingbot.core.automatic_recovery import AutomaticOrderRecovery
+        recovery = getattr(self.owner, 'automatic_recovery', None)
+        return recovery if isinstance(recovery, AutomaticOrderRecovery) else None
+
     async def poll_reconciliation(self):
         if self.reconciliation_task is not None and not self.reconciliation_task.done():
             return
@@ -1087,6 +1105,8 @@ class ServiceHost:
         self._publication_closing = True
         if self.owner is not None:
             self.owner.begin_shutdown()
+            if self.automatic_order_recovery is not None:
+                await self.automatic_order_recovery.close()
         if self.recovery_task is not None:
             self.recovery_task.cancel()
             await asyncio.gather(self.recovery_task, return_exceptions=True)

@@ -107,6 +107,7 @@ class Exchange:
         self.subscriptions = []
         self.hold_ack = False
         self.submission_busy = False
+        self.accepted_response_lost = 0
         self.cancel_before_ack = False
         self.cancel_before_ack_remaining = None
         self.cancel_delay_seconds = 0
@@ -477,6 +478,12 @@ class Exchange:
             if self.quote_activity:
                 self.quote_activity.accept(order)
             self.accepted.append(copy.deepcopy(order))
+            if self.accepted_response_lost:
+                self.accepted_response_lost -= 1
+                observed['injected_accepted_response_lost'] = True
+                # The venue has accepted the physical POST, but neither its
+                # HTTP ACK nor a private order event reaches the client.
+                return web.json_response({'code': '50013', 'msg': 'Response unavailable'}, status=503)
             if self.enforce_post_only and data.get('ordType') == 'post_only':
                 movement = self.post_only_move_on_submit.get(data['instId'])
                 if movement and data['side'] == 'sell':
@@ -563,6 +570,11 @@ class Exchange:
             if type(data['submission_busy']) is not bool:
                 return web.json_response({'error': 'invalid_submission_busy'}, status=400)
             self.submission_busy = data['submission_busy']
+        if 'accepted_response_lost' in data:
+            count = data['accepted_response_lost']
+            if type(count) is not int or not 0 <= count <= 10:
+                return web.json_response({'error': 'invalid_accepted_response_lost'}, status=400)
+            self.accepted_response_lost = count
         if 'cleanup_partial' in data:
             if data['cleanup_partial'] not in ('none', 'live', 'canceled'):
                 return web.json_response({'error': 'invalid_cleanup_partial'}, status=400)

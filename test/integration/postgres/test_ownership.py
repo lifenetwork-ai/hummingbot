@@ -271,7 +271,10 @@ def test_inflight_uncertainty_survives_handover_and_further_restart(owned):
             with owned.engine.begin() as connection:
                 connection.execute(text("UPDATE public.orders SET creation_pending=false"))
             finish.set()
-            await task
+            # The new durable receipt writer also fences a late HTTP reply;
+            # it may not write through the previous physical owner session.
+            with pytest.raises(OwnershipLost):
+                await task
         finally:
             successor.release()
         third = BotOwnership(owned.engine, "hummingbot")

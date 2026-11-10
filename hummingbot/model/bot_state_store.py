@@ -31,7 +31,8 @@ class BotStateStore:
                    "'credential_operation_pending', COALESCE(jsonb_typeof(recovery_state->'credential_operation')='object', false), "
                    "'recovery_operation_pending', COALESCE(jsonb_typeof(recovery_state->'recovery_operation')='object', false), "
                    "'pending_mutations', COALESCE(recovery_state->'pending_mutations', '[]'::jsonb) "
-                   "NOT IN ('[]'::jsonb, '{}'::jsonb, 'null'::jsonb)) AS recovery_summary, "
+                   "NOT IN ('[]'::jsonb, '{}'::jsonb, 'null'::jsonb), "
+                   "'automatic_recovery', recovery_state->'automatic_recovery') AS recovery_summary, "
                    "CASE WHEN jsonb_typeof(mm_session)='object' "
                    "THEN mm_session - 'catalogue' ELSE mm_session END AS mm_session") if publication else "*"
         with self.engine.connect() as connection:
@@ -80,6 +81,9 @@ class BotStateStore:
                 raise ControlConflict("Wait for the connection operation to complete", code="credential_operation_in_progress")
             if (row["recovery_state"] or {}).get("recovery_operation"):
                 raise ControlConflict("Wait for the recovery operation", code="recovery_operation_in_progress")
+            if desired_state == 'running' and ((row['recovery_state'] or {}).get('automatic_recovery') or {}).get('phase') in (
+                    'reconciling', 'bootstrapping_recovery', 'waiting_for_readiness'):
+                raise ControlConflict('Wait for exchange order reconciliation', code='automatic_recovery_in_progress')
             if desired_state == "running" and config_file_path is None:
                 if row["config_file_path"] is None:
                     raise ControlConflict("A deployed configuration must be selected before starting.")
@@ -177,6 +181,10 @@ class BotStateStore:
                 raise ControlConflict("Wait for the connection operation to complete", code="credential_operation_in_progress")
             if (row["recovery_state"] or {}).get("recovery_operation"):
                 raise ControlConflict("Wait for the recovery operation", code="recovery_operation_in_progress")
+            automatic_phase = ((row['recovery_state'] or {}).get('automatic_recovery') or {}).get('phase')
+            if (action != 'stop' and automatic_phase in ('reconciling', 'bootstrapping_recovery', 'waiting_for_readiness')
+                    and not (action == 'start' and row['desired_state'] == 'stopped' and automatic_phase == 'bootstrapping_recovery')):
+                raise ControlConflict('Wait for exchange order reconciliation', code='automatic_recovery_in_progress')
             current = MMSession.model_validate(row["mm_session"]) if row["mm_session"] else None
             if action == "start":
                 if row["desired_state"] == "running" or (current and current.status in ("preparing", "running", "stopping")):

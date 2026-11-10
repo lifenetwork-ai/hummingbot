@@ -399,6 +399,7 @@ class OkxExchange(ExchangePyBase):
             trading_pair=tracked_order.trading_pair,
             update_timestamp=int(order_data["uTime"]) * 1e-3,
             new_state=new_state,
+            misc_updates={'venue_order': order_data} if getattr(tracked_order, '_managed_recovery_order', False) else None,
         )
         return order_update
 
@@ -445,6 +446,7 @@ class OkxExchange(ExchangePyBase):
                                 new_state=order_status,
                                 client_order_id=updatable_order.client_order_id,
                                 exchange_order_id=str(data["ordId"]),
+                                misc_updates={'venue_order': data} if getattr(updatable_order, '_managed_recovery_order', False) else None,
                             )
                             self._order_tracker.process_order_update(order_update=order_update)
 

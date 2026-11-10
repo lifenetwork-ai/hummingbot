@@ -686,7 +686,12 @@ class PositionExecutor(ExecutorBase):
             if (tracked and tracked.order and (tracked.is_filled or tracked.executed_amount_base > 0)
                     and tracked.order.client_order_id not in seen):
                 seen.add(tracked.order.client_order_id)
-                held.append(tracked.order.to_json())
+                from hummingbot.client.config.runtime_config import postgres_requested
+                if self.config.mm_session_id is not None and postgres_requested():
+                    from hummingbot.model.runtime_journal import held_order_snapshot
+                    held.append(held_order_snapshot(tracked.order))
+                else:
+                    held.append(tracked.order.to_json())
         return held
 
     def update_tracked_orders_with_order_id(self, order_id: str):

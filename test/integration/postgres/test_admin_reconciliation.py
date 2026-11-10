@@ -68,11 +68,12 @@ def test_funding_checkpoint_does_not_invalidate_trading_reconciliation(checks):
     before = store.reconciliation_scope(request, 0)
     with store.engine.begin() as connection:
         connection.execute(update(BotState).where(BotState.bot_id == store.bot_id).values(
-            recovery_state={"funding_sync": {"covered_until_ms": 1800000000000}}))
+            # Funding updates preserve the owner's journal/fencing metadata.
+            recovery_state=BotState.recovery_state.op('||')({"funding_sync": {"covered_until_ms": 1800000000000}})))
     assert store.reconciliation_scope(request, 0)["fingerprint"] == before["fingerprint"]
     with store.engine.begin() as connection:
         connection.execute(update(BotState).where(BotState.bot_id == store.bot_id).values(
-            recovery_state={"funding_sync": {"covered_until_ms": 1800000120000}, "halt": True}))
+            recovery_state=BotState.recovery_state.op('||')({"funding_sync": {"covered_until_ms": 1800000120000}, "halt": True})))
     assert store.reconciliation_scope(request, 0)["fingerprint"] != before["fingerprint"]
 
 

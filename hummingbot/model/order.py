@@ -42,6 +42,7 @@ class Order(HummingbotBase):
     position = Column(Text, nullable=True)
     # A fill or a persisted send intent can precede the create acknowledgment.
     creation_pending = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    position_applied = Column(Boolean, nullable=False, default=False, server_default=text('false'))
     cleanup_operation_id = Column(Text)
     cleanup_scope = Column(JSONB().with_variant(JSON(), "sqlite"))
     status = relationship("OrderStatus", back_populates="order")
