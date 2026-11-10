@@ -5,6 +5,15 @@ latest packaged release. Real GCP KMS, the actual frontend and live funds remain
 separate. Use existing audited operator APIs; never manufacture fills, disable
 guards or rewrite financial state to obtain a pass.
 
+Latest operating update: revision79's untracked-order startup HALT persists on80.
+After full stopped verification of2,763 orders/453 fills, a rehearsed audited
+technical repair clears only that HALT/reason (audit172). Separate Start55
+succeeds on unchanged revision80 at07:50 UTC and places actual Spot SELL orders.
+Later stale reference books withdraw quotes/readiness; the strict confirmation
+fails and is retained. Existing BUY sizing/perpetual caps still apply. Historical trigger
+identity remains unproved; the ordinary Recovery API's legacy spot baseline
+limitation remains explicit. See the compact incident evidence in the report.
+
 Latest pinned source is `f53885fda`, regular image `4198f2fa…`, digest
 `sha256:1e7cf901cbe376268d167fde18db0a9f18fa6818ba51052bae9cceba188e2e1b`.
 All1,092 packaged hashes match (1,068 Python),61 compiled modules are unchanged
@@ -275,9 +284,35 @@ subsequently restored for the read-only rollout investigation below.
   controls. No initial failure/new runtime fix is claimed; original full gate scope
   is preserved separately from this changed-harness target.
 - [ ] Verify the latest merged CI artifact separately after automatic deployments
-  settle. Revision77 is running53/53 without HALT at03:48 UTC, all health200;
-  source01aab8abe includes the four fixes. Do not transfer
+  settle. Historical revision77 is running53/53 at03:48 UTC. Later revision80
+  uses CI source2adc35c54; its separately recovered operating state is below.
+  Do not transfer
   image4198's full release gates to a newly built image by source name alone.
+
+### Revision79 untracked-order HALT retained on80
+
+- [x] Verify the current engine rather than infer trading from startup/live.
+  Revision79 halts at04:57:07 UTC;80 retains the block at05:19:22. Independent
+  stopped checks cover2,763 orders/453 fills, exact original fees, zero pending
+  orders, hedge legs, BTC cash and all native position financial fields.
+- [x] Retain the standard Check failure `position_baseline_unproven`; qualify
+  the legacy native completion-order basis separately using archived witnesses
+  and the earlier reviewed transaction. Do not weaken the generic verifier.
+- [x] Audited Stop54, writer quiescence, backup and disposable-restore rehearsal;
+  reject financial drift, active owner, control drift, risk-stop and repeat.
+  Audit172 clears only technical HALT/reason, changes zero financial rows and
+  retains credentials/risk/stopped intent. Restore original scaling/revision;
+  separately audited Start55 succeeds, with actual working Spot SELL quotes.
+- [x] Add two real-PostgreSQL coverage cases for retained HALT after the venue
+  list becomes empty and a terminal local row still appearing untracked at the
+  venue. Five targeted regressions pass existing runtime; no new runtime fix.
+- [x] Preserve the subsequent readiness failure instead of closing a healthy
+  window. Independent45s Demo WS capture has BTC/ETH book gaps20.714/16.749s,
+  with ETH27.644s old at capture end, exceeding configured10s. Existing stale
+  withdrawal controls pass2; freshness/risk guards are unchanged.
+- [ ] Identify the original untracked order/visibility trigger if further
+  evidence becomes available. Retained startup logs omit the rejected IDs;
+  the preceding cancellations do not prove which observation caused the HALT.
 
 The prior revision73 quote/handoff proof keeps its own complete window. The
 regular operating transition is attributed separately; the finite earlier pass

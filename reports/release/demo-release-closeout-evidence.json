@@ -1,11 +1,14 @@
 {
   "scope": "Controlled actual OKX Demo plus frozen local/offline release; excludes real GCP KMS, actual FE and live funds.",
-  "updated_at": "2026-11-10T05:00:51.733083+00:00",
+  "updated_at": "2026-11-10T07:59:06.394238+00:00",
   "demo_qualification_passed": true,
   "offline_release_passed": true,
   "closeout_scope_complete": false,
   "open_items": [
-    "Historical revision74-to75 rollout attribution is closed. New CI artifact on revision77 needs separate packaged/dependency verification; no full gate inherited from image4198."
+    "Latest CI artifact on revision80 (source2adc35c54) requires separate packaged/dependency qualification; no full gate inherited from image4198.",
+    "Revision79 untracked-order original identity/visibility trigger is not proven by retained logs; revision80 HALT is separately recovered under exact reviewed evidence.",
+    "Readiness is intermittent under stale Demo BTC/ETH reference books; strict observation fails and no continuous quoting pass is claimed.",
+    "Generic recovery API still blocks historical native spot completion-order basis as position_baseline_unproven; this scoped repair does not relax it."
   ],
   "source": "f53885fdadd29fe430cdd4acbea020e49c65318d",
   "image": {
@@ -1010,5 +1013,218 @@
       }
     },
     "retained_initial_failure": "build/mm-oom/20261110-115504-6c910c/result.json: aggregate failed the ordinary no-OOM shutdown assertion after an intentional API OOM. Preserved separately; no pass or runtime correction claimed."
+  },
+  "untracked_order_incident": {
+    "incident": "untracked_order_startup_halt_retained_on_next_revision",
+    "first_halt_at": "2026-11-10T04:57:07Z",
+    "first_halt_revision": "hummingbot-demo-00079",
+    "retained_halt_at": "2026-11-10T05:19:22Z",
+    "retained_halt_revision": "hummingbot-demo-00080-m8p",
+    "original_rejected_order_id_known": false,
+    "unique_visibility_or_handoff_trigger_proven": false,
+    "runtime_patch_applied": false,
+    "stopped_exchange_proof": {
+      "verified": true,
+      "orders_checked": 2763,
+      "fills_checked": 453,
+      "position_legs_checked": 2,
+      "pending_orders": 0,
+      "unfilled_terminal_orders_without_local_side": 40,
+      "scope": "bounded_complete_local_history_and_dedicated_account",
+      "venue_history_days": 3,
+      "at": "2026-11-10T07:40:57.708386+00:00",
+      "read_only": true,
+      "native_baseline_verified_separately": true
+    },
+    "native_baseline": {
+      "all_three_position_financial_summaries_match": true,
+      "spot_anchor_fills": 103,
+      "archived_native_completion_witnesses": 117,
+      "prior_reviewed_audit": 107,
+      "perpetual_flat_anchor_fills": 384
+    },
+    "recovery_check": {
+      "operation_id": "24f28394-5b40-4c11-aa12-5517ad7da5bd",
+      "status": "failed",
+      "reason_code": "position_baseline_unproven",
+      "failed_receipt_preserved": true,
+      "generic_verifier_weakened": false
+    },
+    "stop_control": 54,
+    "writers_quiesced": true,
+    "quiesced_backup_sha256": "c2b306567b046dc7e22bab7992319d39ff6542bab6f30e3b10d55e171af1aa07",
+    "maintenance": {
+      "audit_id": 172,
+      "plan_sha256": "29ecc9258db9c11badf1975ca6f286de57fc00c1717c6fd8f9208a77d5b01b1d",
+      "clear_only": [
+        "halt",
+        "reason"
+      ],
+      "financial_rows_changed": 0,
+      "all_other_tables_unchanged": true,
+      "trading_remains_stopped": true,
+      "rehearsal": false,
+      "actor_kind": "maintenance",
+      "actor_id": "delegated-demo-recovery-20261110",
+      "authority": "Existing delegated Demo-only incident recovery; no newly claimed per-step human approval.",
+      "risk_credentials_history_unchanged": true,
+      "rehearsal_negative_cases": [
+        "financial_drift_no_writes",
+        "active_owner_no_writes",
+        "control_drift_no_writes",
+        "risk_stop_not_cleared",
+        "repeat_not_applied"
+      ]
+    },
+    "separate_start": {
+      "receipt_id": "2c10fe89-6ac4-4507-8046-b1efad59f7b0",
+      "session_id": "048a63aa-c4e1-48cc-bef1-e52e58bad636",
+      "control_version": 55,
+      "status": "succeeded",
+      "at": "2026-11-10T07:50:31.025168Z",
+      "actor": "basic:bootstrap-admin",
+      "selection": "fixed",
+      "profile_id": "follow_market",
+      "market_mode": "both",
+      "duration_mode": "until_stopped"
+    },
+    "restored_scaling": {
+      "min": 1,
+      "max": 1,
+      "same_revision_image_environment_resources": true,
+      "cpu": 2,
+      "memory": "1Gi"
+    },
+    "postgres_regression": {
+      "passed": 5,
+      "new_tests": 2,
+      "runtime_passes_first_run": true,
+      "fabricated_red_green_claim": false
+    },
+    "working_order_readback": {
+      "at": "2026-11-10T07:51:17.868866+00:00",
+      "spot_sell": 2,
+      "spot_buy": 0,
+      "perpetual": 0,
+      "spot_order_ids_match_ledger_and_tracker": true
+    },
+    "observation": {
+      "strict_window_completed": false,
+      "strict_failed_at": "2026-11-10T07:52:39.411451+00:00",
+      "strict_failure_health": {
+        "/startup": 200,
+        "/live": 200,
+        "/ready": 503
+      },
+      "initial_samples": 10,
+      "followup_first_at": "2026-11-10T07:55:59.832778+00:00",
+      "followup_last_at": "2026-11-10T07:59:06.394238+00:00",
+      "followup_samples": 19,
+      "followup_ready_status_counts": {
+        "200": 5,
+        "503": 14
+      },
+      "all_fresh_running_55_55_no_halt": true,
+      "finite_read_samples_not_continuous_quote_slo": true
+    },
+    "retained_startup_probe_warnings": {
+      "at": [
+        "2026-11-10T07:50:18.699641Z",
+        "2026-11-10T07:50:27.051235Z"
+      ],
+      "each_consecutive_failed_probes": 1,
+      "probe_budget_ms": 300,
+      "unique_cause_proven": false,
+      "exact_quote_downtime_proven": false
+    },
+    "diagnostic_route_correction": "Initial exploratory /health/startup,/health/live,/health/ready returned404; actual /startup,/live,/ready are independently checked200 in the initial9 fully healthy samples; the tenth and later readiness failures remain failures.",
+    "independent_demo_feed": {
+      "capture_seconds": 45,
+      "btc_book_messages": 21,
+      "btc_max_gap_seconds": 20.714,
+      "eth_book_messages": 2,
+      "eth_max_gap_seconds": 16.749,
+      "eth_age_at_capture_end_seconds": 27.644,
+      "configured_book_max_age_seconds": 10,
+      "guard_weakened": false,
+      "scope": "Separate unauthenticated Demo public WS capture on the laptop; corroborates sparse venue updates, not exact Cloud socket delivery."
+    },
+    "policy_blocks": {
+      "spot_buy": "Existing account inventory skew makes sizing zero; API order_size_rejected.",
+      "perpetual_both": "Existing inventory_limit; no limit increase or position close for this repair."
+    },
+    "private_evidence_sha256": {
+      "build/cloud-halt-20261110/exchange-complete-proof-private.json": "eb94cda8de8cccd8839f56087e358b36b26f3fda7c5df334d09176ec977e5270",
+      "build/cloud-halt-20261110/native-position-proof-private.json": "8f5c0ec8e2bbdf749dd31a874672bfe7fa35c16ace6dfefd9bb0386d3407d58a",
+      "build/cloud-halt-20261110/quiesced-snapshot-private.json": "0976123eb8d1b771c3dd6dd3ed6fad458b7b8cbc3fad83e1ce5b101eca7040e2",
+      "build/cloud-halt-20261110/maintenance-plan-private.json": "29ecc9258db9c11badf1975ca6f286de57fc00c1717c6fd8f9208a77d5b01b1d",
+      "build/cloud-halt-20261110/maintenance-rehearsal-private.json": "62b2ffca1fe1542f7075da64e868321abd817053ae1b73e88d12e4fd5a87f058",
+      "build/cloud-halt-20261110/maintenance-applied-private.json": "3b8e3fef90a10e00d427dd74c358725851f38da2176d30846067be99a661c006",
+      "build/cloud-halt-20261110/restart-receipt-private.json": "832dd18d13591cf0314e25fb6ab9011b41684892f13b1e4515289d96a13a3fa8",
+      "build/cloud-halt-20261110/restored-observation-private.json": "fc8887c6ebfded2f53c01c8bbff68c1f7abc4d9e66fe49a6fce34a4bb056e333",
+      "build/cloud-halt-20261110/active-readback/readonly-summary-private.json": "95339c8f88191960fa5275e352ff1ebbedc401481ed3225a131dfba24a3fd6e8",
+      "build/cloud-halt-20261110/reconciliation-regression.log": "aebf724178cf8bbc4eca4ac5c87e15cd8a5c9a81de74231a525ef6aa7ecf42d4",
+      "build/cloud-halt-20261110/feed-observations-private.json": "003925cdf689e6d08cafc4e811494a705a8d22bdc2f20edca66323760be5b11d",
+      "build/cloud-halt-20261110/demo-public-feed-private.json": "af4f6e5ecd486f196f0fcb6fca5d63ce51fc3ecee05dca79aeae70348291dc68",
+      "build/cloud-halt-20261110/stale-reference-regression.log": "10831e2358f8ec63d294796d722bcc76977dd0adca2e9bacae963514aa0a7fc3"
+    }
+  },
+  "latest_operating_readback": {
+    "at": "2026-11-10T07:59:06.394238+00:00",
+    "revision": "hummingbot-demo-00080-m8p",
+    "image_digest": "asia-southeast1-docker.pkg.dev/lifeai-438107/cloud-run-source-deploy/hummingbot/hummingbot-demo@sha256:1a1ae73c20ada6c4666ef76756dd333c97349fc947e1530562e7b45ba655dd1a",
+    "running": true,
+    "control_version": 55,
+    "acknowledged_version": 55,
+    "halted": false,
+    "observation_stale": false,
+    "health": {
+      "/startup": 200,
+      "/live": 200,
+      "/ready": 200
+    },
+    "session_id": "048a63aa-c4e1-48cc-bef1-e52e58bad636",
+    "quote_activity": {
+      "spot": {
+        "state": "one_sided",
+        "sides": {
+          "BUY": {
+            "state": "blocked",
+            "order_count": 0,
+            "reason_codes": [
+              "order_size_rejected"
+            ]
+          },
+          "SELL": {
+            "state": "working",
+            "order_count": 2,
+            "reason_codes": [
+              "active_executor"
+            ]
+          }
+        }
+      },
+      "perpetual": {
+        "state": "no_quotes",
+        "sides": {
+          "BUY": {
+            "state": "blocked",
+            "order_count": 0,
+            "reason_codes": [
+              "inventory_limit"
+            ]
+          },
+          "SELL": {
+            "state": "blocked",
+            "order_count": 0,
+            "reason_codes": [
+              "inventory_limit"
+            ]
+          }
+        }
+      }
+    },
+    "new_artifact_full_gate_inherited": false,
+    "image_tag_commit": "2adc35c54714690d83b348fc63e1ef9b660421d5"
   }
 }

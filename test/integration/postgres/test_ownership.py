@@ -379,6 +379,40 @@ def test_reconciliation_blocks_unknown_exchange_orders_before_strategy_can_run(o
     assert owned.store.read()["recovery_state"]["halt"]
 
 
+def test_untracked_order_disappearing_does_not_automatically_clear_startup_halt(owned):
+    core = reconciliation_core(owned)
+    owned.owner._open_orders = AsyncMock(return_value=[{'clOrdId': 'not-restored'}])
+    owned.owner._refresh_orders = AsyncMock()
+    owned.market.cancel_all = AsyncMock()
+    with pytest.raises(SubmissionBlocked, match='untracked'):
+        owned.loop.run_until_complete(owned.owner.reconcile(core))
+    owned.market.cancel_all.assert_not_awaited()
+    owned.owner._refresh_orders.assert_not_awaited()
+    # A later revision can see no pending orders. That read alone cannot erase
+    # unresolved history or reconstruct the authority of the failed startup.
+    owned.owner._open_orders.return_value = []
+    with pytest.raises(SubmissionBlocked, match='prior unresolved'):
+        owned.loop.run_until_complete(owned.owner.reconcile(core))
+    assert owned.store.read()['recovery_state']['halt']
+    assert not owned.owner.allow_new_orders
+
+
+def test_terminal_local_order_does_not_authorize_ignoring_an_untracked_venue_order(owned):
+    core = reconciliation_core(owned)
+    order = intent(owned)
+    with owned.manager.get_new_session() as session, session.begin():
+        row = session.get(Order, order.client_order_id)
+        row.creation_pending, row.last_status = False, 'OrderCancelled'
+    owned.market.in_flight_orders.clear()
+    owned.owner._open_orders = AsyncMock(return_value=[{'clOrdId': order.client_order_id}])
+    owned.market.cancel_all = AsyncMock()
+    with pytest.raises(SubmissionBlocked, match='untracked'):
+        owned.loop.run_until_complete(owned.owner.reconcile(core))
+    owned.market.cancel_all.assert_not_awaited()
+    assert owned.store.read()['recovery_state']['halt']
+    assert not owned.owner.allow_new_orders
+
+
 def test_reconciliation_reads_back_cancellation_before_enabling_strategy(owned):
     core = reconciliation_core(owned)
     order = intent(owned)

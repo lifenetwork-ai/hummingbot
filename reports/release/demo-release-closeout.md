@@ -1,5 +1,14 @@
 # Demo and release closeout — 2026-11-10
 
+Latest incident: revision80 retained an untracked-order startup HALT. After
+independent venue/accounting verification and a rehearsed, audited recovery,
+separate Start55 succeeds at07:50 UTC and initially places two actual Spot SELL
+orders. Later stale Demo reference books withdraw quotes and make readiness
+intermittent; the engine remains running without HALT. BUY sizing/inventory and
+perpetual exposure caps also restrict new quotes.
+No financial data, credentials or risk limits were changed. Details below;
+the earlier revision73 quote qualification keeps its original scope.
+
 The controlled Demo qualification passes perpetual fill handoff and the approved
 thirty-minute two-sided quote target. The regular catalogue was restored on
 revision 74 and separately started at control 53/53, fixed follow_market/both,
@@ -188,6 +197,76 @@ does not establish production victim selection, memory isolation or uninterrupte
 quotes in a shared cgroup. These simulator fault diagnostics do not extend the
 earlier full load gate or qualify a different CI image.
 
+## Revision79 startup HALT and revision80 recovery
+
+At04:57:07 UTC, revision79 reports an untracked exchange open order during
+startup. Revision80 at05:19:22 retains that unresolved-effect HALT. This explains
+the stopped engine and quiet trading logs; HTTP startup/live alone do not prove
+trading readiness. The original rejected identities are absent from retained
+logs, so neither a particular order nor stale venue visibility is a proven
+trigger. The preceding local cancellations alone cannot authorize ignoring a
+venue pending-order observation.
+
+Independent stopped proof verifies all2,763 recorded orders and453 actual fills
+(195 spot/258 perpetual), exact trade identities, quantities, prices and original
+fees, zero pending orders, perpetual LONG0.0030/SHORT0.0048 BTC and BTC cash
+0.937077583944. All financial fields of the three position summaries match native
+completion-order replay: the original103-fill spot anchor,117 archived executor
+completion witnesses, the earlier reviewed audit107 transaction and the384-fill
+flat perpetual anchor. No position repair is needed.
+
+Audited Stop54 is acknowledged. Standard Recovery Check
+`24f28394-5b40-4c11-aa12-5517ad7da5bd` conservatively fails with
+`position_baseline_unproven`; this failed receipt remains. Under the existing
+delegated Demo incident authority, service scaling is temporarily reduced to
+zero, the stopped database is backed up and an exact transaction is rehearsed
+on a disposable restore. Financial drift, active ownership, control drift, a
+risk-stop latch and repeat application all reject without writes. Production
+maintenance audit172 removes only the technical `halt` and `reason` keys;
+all financial rows, credentials, risk state, history and stopped intent remain.
+This is a reviewed technical repair, not a generic proof bypass or a newly
+claimed per-step human approval.
+
+Exact repair plan SHA256:
+`29ecc9258db9c11badf1975ca6f286de57fc00c1717c6fd8f9208a77d5b01b1d`.
+Quiesced backup SHA256:
+`c2b306567b046dc7e22bab7992319d39ff6542bab6f30e3b10d55e171af1aa07`.
+Scaling is restored to min1/max1 without changing revision80, its image, env or
+resources. Separate audited Start55 uses actual `basic:bootstrap-admin`, fixed
+follow_market/both/Until stopped. Fresh REST proves two live Spot SELL orders
+matching both ledger and restored tracking identities. Spot BUY remains sized
+to zero by the existing inventory policy; perpetual BUY/SELL remain blocked by
+the existing gross exposure cap. These policy exclusions are not a new HALT or
+a two-sided quote pass.
+
+The strict confirmation then aborts on its tenth sample at07:52:39 UTC because
+`/ready` returns503; startup/live remain200 and status is fresh/running55/55,
+without HALT. Later status identifies `stale_reference:okx:ETH-USDT`, sometimes
+BTC, guard recovery and unavailable drawdown valuation. Quotes are withdrawn
+under those conditions. Preserve this failed window; it is not a completed
+healthy confirmation or continuous-quoting pass.
+
+A separate unauthenticated45-second Demo public WS capture receives21 BTC book
+messages with a20.714s maximum gap, but only two ETH book messages with a16.749s
+gap and27.644s age at capture end. These exceed the configured10-second freshness
+limit. This corroborates sparse venue updates, rather than proving the exact
+delivery history of the Cloud socket. Existing stale-basket withdrawal tests
+pass2. The guard and age threshold remain unchanged. Two separate300ms engine
+probe timeouts during startup also remain recorded; their unique cause and
+exact quote downtime are not proved by these observations.
+
+A separate19-sample follow-up at07:55:59–07:59:06 UTC keeps fresh running55/55,
+startup/live200 and no HALT throughout the sampled reads. Readiness is200 in
+five samples and503 in14; the final sample is ready200 with Spot SELL quotes
+working. This demonstrates automatic guard recovery on fresh data, not a
+continuous healthy or two-sided quote window.
+
+Five targeted PostgreSQL regressions pass, including two new cases proving that
+a later empty pending-order list does not erase HALT and a terminal local row
+does not permit ignoring an untracked venue order. They pass the existing
+runtime on their first run; no fabricated Red/Green correction is claimed.
+Private evidence is retained under `build/cloud-halt-20261110/`.
+
 ## Limits still open
 
 - The original I/O delay's unique infrastructure trigger is unproved. SQL reads
@@ -197,6 +276,9 @@ earlier full load gate or qualify a different CI image.
 - The ordinary Recovery API still conservatively blocks legacy spot
   completion-order cost basis as `position_baseline_unproven`. The exact reviewed
   incident repair does not relax that generic proof requirement.
+- Revision80's technical HALT is recovered, but stale Demo reference books
+  still cause readiness/quoting interruptions. The failed confirmation remains;
+  this recovery does not qualify uninterrupted trading or the latest CI artifact.
 - Temporary quote settings, eligibility and different market periods prevent
   exclusive attribution of coverage/latency changes to rolling refresh or the
   cleanup correction. No claim of code being bug-free or of profitable trading.
@@ -209,4 +291,5 @@ earlier full load gate or qualify a different CI image.
 [Execution checklist](../../docs/plans/DEMO_RELEASE_CLOSEOUT.md) ·
 [Portable evidence](demo-release-closeout-evidence.json).
 Private backups, exact ledgers, hashes and failed/passing traces remain under
-ignored `build/acceptance-closeout-20261110/`; secrets never enter this report.
+ignored `build/acceptance-closeout-20261110/` and `build/cloud-halt-20261110/`;
+secrets never enter this report.
