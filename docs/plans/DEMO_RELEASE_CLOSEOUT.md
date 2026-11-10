@@ -314,6 +314,36 @@ subsequently restored for the read-only rollout investigation below.
   evidence becomes available. Retained startup logs omit the rejected IDs;
   the preceding cancellations do not prove which observation caused the HALT.
 
+### TDD follow-up: canceled order still listed pending after cold restore
+
+- [x] Reproduce with the native recorder, real PostgreSQL and native tracker
+  restore: cancellation remains durable, terminal orders are omitted from the
+  active tracker, and the old startup immediately HALTs on the delayed account
+  list despite a canceled zero-fill individual status. Original host Red1 retained.
+- [x] Reproduce on immutable old image4198 with overlapping owners and real
+  SIGTERM/cold restore. Inject two stale pending-list reads for eight canceled
+  zero-fill orders; status/fills/WS keep terminal truth. Old image HALTs on its
+  first read and cannot become ready. Four unique simulated fills remain exact.
+- [x] Implement bounded GET-only consistency proof for at most10 same-config,
+  acknowledged zero-fill limit cancellations. Verify exact identity/economics,
+  no local fills, canceled REST status and empty scoped fills before/after
+  disappearance. Five rechecks one second apart remain inside startup30s.
+  Foreign, ambiguous, filled or persistently pending orders still HALT; prior
+  HALT stays blocked. Save bounded rejection identifiers in logs/checkpoint.
+- [x] Complete scoped candidate regression and packaged Linux Green on the same
+  injected handoff. Native130 and fixture13 pass. Full PostgreSQL attempt has
+  644 passes and one new test's missing AsyncMock assertion failure; retain it.
+  Correct that fixture without changing runtime, then rerun all32 new cases and
+  nine related controls:41 pass/604 deselected. Do not claim a single full645 pass.
+  Matching config/fixture/harness hashes reproduce old-image Red and candidate
+  Green:16 stale rows/eight zero-fill cancellations, next owner generation,
+  same session/control/four unique fills/fees/positions, resumed quotes and Stop.
+  First candidate attempt has an unarmed Random-rollover stimulus and stays fail;
+  the corrected future-cancel stimulus has independent spot/perpetual controls.
+- [ ] Deploy and qualify the new CI artifact separately. This candidate does
+  not retroactively identify revision79's original rejected order, inherit the
+  earlier full soak, clear a prior HALT or fix sparse Demo reference data.
+
 The prior revision73 quote/handoff proof keeps its own complete window. The
 regular operating transition is attributed separately; the finite earlier pass
 does not prove the restored regular catalogue runs uninterrupted.

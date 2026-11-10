@@ -308,6 +308,24 @@ Switch/stop require the current session ID and control version; follow the
 [admin API contract](fe-integration.md). A command receipt is not proof of quote
 admission: inspect its completion and the market readiness/reason fields.
 
+### Startup sees an untracked pending order
+
+Native cold restore deliberately excludes canceled orders from the active tracker;
+their ledger/history remains. The account pending-list can temporarily disagree
+with that terminal state. Startup permits a bounded GET-only visibility check for
+at most10 locally acknowledged zero-fill limit cancellations in the same
+configuration. Order/exchange/instrument/side/size/price identities must match,
+the individual status must be canceled and the scoped fill list empty, both before
+and after the pending entry disappears. There are at most five pending-list
+rechecks one second apart inside the existing30-second startup deadline.
+
+Unknown identities, fills, conflicting reads or an entry still pending retain
+HALT. Startup never cancels/resubmits those untracked identities or clears an
+existing HALT. Rejection logs bounded client/exchange/instrument identifiers and
+stores `recovery_state.startup_untracked_orders`, including control version and
+owner generation, for technical investigation. No credential payload is logged.
+Use the existing Stop → Check → reviewed Recover workflow for a retained HALT.
+
 ### Cloud Run configuration
 
 Use the same Demo image with the existing

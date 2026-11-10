@@ -1,6 +1,6 @@
 {
   "scope": "Controlled actual OKX Demo plus frozen local/offline release; excludes real GCP KMS, actual FE and live funds.",
-  "updated_at": "2026-11-10T07:59:06.394238+00:00",
+  "updated_at": "2026-11-10T08:51:51.580434+00:00",
   "demo_qualification_passed": true,
   "offline_release_passed": true,
   "closeout_scope_complete": false,
@@ -8,7 +8,8 @@
     "Latest CI artifact on revision80 (source2adc35c54) requires separate packaged/dependency qualification; no full gate inherited from image4198.",
     "Revision79 untracked-order original identity/visibility trigger is not proven by retained logs; revision80 HALT is separately recovered under exact reviewed evidence.",
     "Readiness is intermittent under stale Demo BTC/ETH reference books; strict observation fails and no continuous quoting pass is claimed.",
-    "Generic recovery API still blocks historical native spot completion-order basis as position_baseline_unproven; this scoped repair does not relax it."
+    "Generic recovery API still blocks historical native spot completion-order basis as position_baseline_unproven; this scoped repair does not relax it.",
+    "Startup cancellation-visibility fix has host regressions and matching-fixture Linux Red/Green evidence; candidate is not deployed or newly qualified by a full release/soak. Full PostgreSQL attempt644+1 fixture failure and corrected41-case rerun remain separate."
   ],
   "source": "f53885fdadd29fe430cdd4acbea020e49c65318d",
   "image": {
@@ -1226,5 +1227,135 @@
     },
     "new_artifact_full_gate_inherited": false,
     "image_tag_commit": "2adc35c54714690d83b348fc63e1ef9b660421d5"
+  },
+  "startup_reconciliation_tdd": {
+    "historical_revision79_trigger_uniquely_proven": false,
+    "reproduced_defect": "Native cold restore omits durable terminal orders; account pending-list lag causes immediate HALT despite independently provable zero-fill cancellation.",
+    "runtime_patch_applied_locally": true,
+    "deployed_by_this_investigation": false,
+    "parent_commit": "0e7c5bc42cd462e77140785cb025d617be1585ce",
+    "runtime_source_sha256": {
+      "hummingbot/core/bot_ownership.py": "b2780ca2f1a27b1742f8d0c47e8fd939fe6ba86007f999383f2e0a3c0c34df15",
+      "hummingbot/core/startup_order_reconciliation.py": "aa14f608834c1bbfef600f0fbee85aa649a274e741870656561e09199b663bdd"
+    },
+    "limits": {
+      "candidates": 10,
+      "pending_list_rereads": 5,
+      "retry_interval_seconds": 1,
+      "original_startup_deadline_seconds": 30,
+      "proof": "Same configuration, exact identities/economics, acknowledged local cancellation/no local fills, canceled REST status and empty scoped REST fills both before/after actual pending disappearance.",
+      "prior_halt_never_cleared": true,
+      "untracked_cancel_or_resubmit": false,
+      "financial_row_repair": false
+    },
+    "diagnostics": "Bounded IDs in startup logs and rejection recovery_state.startup_untracked_orders; no raw venue/account payload or credential.",
+    "host_red": {
+      "failed": 1,
+      "expected": "SubmissionBlocked: untracked open orders",
+      "native_recorder_and_native_tracker_real_postgres": true
+    },
+    "postgres_full_attempt": {
+      "passed": 644,
+      "failed": 1,
+      "qualified_full_pass": false,
+      "failure": "New over-capacity test omitted AsyncMock for cancel_all; HALT/bounds assertions pass, assert_not_awaited fails on MagicMock.",
+      "fixture_corrected_without_runtime_change": true
+    },
+    "postgres_corrected_target": {
+      "passed": 41,
+      "deselected": 604,
+      "new_scenarios": 32,
+      "scope": "All new visibility cases plus existing unknown-order, prior-HALT and reconciliation-cancellation controls. No invented single-run full645 pass."
+    },
+    "native_related": {
+      "passed": 130
+    },
+    "fixture_controls": {
+      "passed": 13,
+      "new_startup_controls": 2
+    },
+    "linux_red": {
+      "report": "build/e2e-offline/20261110-154218-ebbb41/result.json",
+      "image_id": "sha256:4198f2fab28b6f5d3bef707186efd5b3fd1c6a180560e000a3696e77d0367436",
+      "passed": false,
+      "stale_pending_rows_served_before_halt": 8,
+      "terminal_cancellations": 8,
+      "fills_preserved": 4
+    },
+    "linux_green": {
+      "report": "build/e2e-offline/20261110-154354-aa4a85/result.json",
+      "image_id": "sha256:d5c7667254ab47dd250f5c69fe0fdf5d50ae96119cb8d39b77641808549f181b",
+      "registry_manifest_digest": "sha256:070e6fe299c0aa7c641bc38083b7be8d01446e69f1e1c5ef6156305acfa114b7",
+      "image_size_bytes": 1375609897,
+      "passed": true,
+      "same_configuration_fixtures_harness_as_red": true,
+      "full_release": false,
+      "metrics": {
+        "mm-until-first_startup_s": 29.582,
+        "terminal_fill_checkpoint": {
+          "spot_base": ".2",
+          "perpetual_base": ".002",
+          "fills": 4,
+          "duplicate_trade_events": true,
+          "positions": [
+            {
+              "connector": "okx",
+              "amount": "0.2",
+              "fees": "0.000002"
+            },
+            {
+              "connector": "okx_perpetual",
+              "amount": "0.002",
+              "fees": "0.000002"
+            }
+          ]
+        },
+        "mm-until-restart_startup_s": 25.911,
+        "first_shutdown_s": 2.15,
+        "startup_cancel_visibility": {
+          "pending_projection_reads": 2,
+          "native_cancel_then_cold_restore": true,
+          "terminal_status_and_fill_views_unchanged": true,
+          "no_prior_halt_cleared": true,
+          "distinct_canceled_orders": 8,
+          "stale_pending_rows_served": 16
+        },
+        "overlapping_revision_handoff": {
+          "standby_before_exit": true,
+          "owner_generation_increment": 1,
+          "same_session_and_control": true,
+          "fills_before_and_after": 4,
+          "no_operator_start_or_stop_during_handoff": true
+        },
+        "until_stopped_random_restart_and_stop": true
+      }
+    },
+    "retained_unqualified_green_attempt": {
+      "report": "build/e2e-offline/20261110-153912-4e4aa6/result.json",
+      "passed": false,
+      "reason": "Random rollover left initial live-ID fault stimulus empty; explicit count assertion prevented a false Green. Fixture now arms future native cancellations, covered independently."
+    },
+    "evidence_sha256": {
+      "build/startup-tracker-tdd-20261110/red.log": "ed3d60ec2b5be417e1a57ea3b40eae5929ef3b70920cac7cf80ab7854e95b249",
+      "build/startup-tracker-tdd-20261110/green-controls.log": "f52d3c55df49acd8eb79c70c2135d39d660624309b33e26d49b1f8a2aafd29fe",
+      "build/startup-tracker-tdd-20261110/postgres-full.log": "7be3171e37544dea7fd27000d94b2bc4aba0aaec29f87be19ef34fadc7d441e2",
+      "build/startup-tracker-tdd-20261110/postgres-corrected-targets.log": "1044b62409e73a33bbf742b959fe29a7c0bc276b2520a6c97ec05aab3d554805",
+      "build/startup-tracker-tdd-20261110/native-related.log": "935afbeb76eed8c80e2b2dc9ed015cb16b5c1472ca275760179ed4d812922c9d",
+      "build/startup-tracker-tdd-20261110/fixture-final.log": "253171bb3f2a4faff9fe92722ee89bcbf90acf42c963e26bb549152758c26ffb",
+      "build/e2e-offline/20261110-154218-ebbb41/result.json": "eb155bee624a41941b411aaa34992655686effce98e79407ef9bb9ce09cb5ac0",
+      "build/e2e-offline/20261110-154354-aa4a85/result.json": "d5e344395b13925ff83c9cb85ec7b3504652915c250a895dc3de870f174fdf0d",
+      "build/e2e-offline/20261110-153912-4e4aa6/result.json": "1be636727aca5e905394fca9086a8f3f105595c7db8e4b85e6902661b66333d1"
+    },
+    "remaining_scope": "Deploy/qualify actual CI artifact separately; no inherited full soak, no claim of unique historical rejected ID, sparse Demo reference data unchanged.",
+    "cloud_readback": {
+      "at": "2026-11-10T08:51:51.829119Z",
+      "read_only": true,
+      "running": true,
+      "control_version": 55,
+      "acknowledged_version": 55,
+      "halted": false,
+      "reason_code": null,
+      "candidate_deployed": false
+    }
   }
 }

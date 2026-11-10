@@ -267,6 +267,55 @@ does not permit ignoring an untracked venue order. They pass the existing
 runtime on their first run; no fabricated Red/Green correction is claimed.
 Private evidence is retained under `build/cloud-halt-20261110/`.
 
+## TDD follow-up: terminal history versus pending-list visibility
+
+The investigation reproduces an availability defect in startup reconciliation.
+Native cancellation saves the terminal order in PostgreSQL; cold tracker restore
+deliberately omits it from active orders. The old startup compares the account
+pending-list only to those active IDs and immediately HALTs if a canceled entry
+is still listed, even when individual order/fill views already prove cancellation
+with zero execution. This is a mismatch between views, not demonstrated loss of
+the durable order. The original revision79 rejected ID remains unavailable, so
+the reproduced race is not a uniquely proved attribution of that historical event.
+
+Host PostgreSQL Red1 and immutable old-image Linux Red reproduce it. The Linux
+fixture delays only the pending-list projection for eight real native cancels;
+status, fills, WS and the venue ledger retain actual terminal truth. The corrected
+startup requires matching same-config local history and original side, acknowledged
+exchange identity, instrument, price/size/type, no local fills, canceled REST status
+and empty scoped REST fills. It then waits for actual pending-list disappearance
+and repeats the financial/identity proof. At most10 candidates and five rereads
+one second apart fit inside the unchanged startup30s deadline. Unproved identities,
+any fill, conflicting reads, persistent entries and prior HALT stay blocked.
+No untracked order is canceled or resubmitted; no financial row is rewritten.
+
+The new Linux candidate passes the same injected overlap/handoff:16 stale rows
+across two pending-list reads, eight canceled identities, next owner generation, preserved
+session/control, four unique simulated fills with exact fees/positions, resumed
+quotes and a successful Stop. Original Red and corrected-fixture Red remain
+failed. The first candidate attempt is also retained as failed: Random rollover
+left the initial live-ID stimulus empty, correctly caught by the fixture-count
+assertion. The corrected stimulus arms future native cancellations and is
+independently tested on spot and perpetual; a missing stimulus cannot pass.
+
+Startup rejection now logs bounded IDs and persists
+`recovery_state.startup_untracked_orders` with its control/owner generation;
+raw venue/account payloads and credentials are excluded. The candidate is a
+two-source-file layer on image4198 and is not deployed by this investigation.
+Targeted Linux evidence is not a new full release/soak or a fix for sparse Demo
+reference books. Results and immutable artifacts are in the portable evidence;
+private test traces remain under `build/startup-tracker-tdd-20261110/`.
+
+Validation: native130 and fixture13 pass. The complete PostgreSQL attempt has
+644 passes and one new test-fixture failure (missing AsyncMock for cancel_all).
+Correcting only that fixture gives41 passing cases:all32 new cases and nine
+related controls,604 deselected. The failed full attempt remains; this is not
+reported as a single full645 pass. Linux candidate `d5c76672…`, manifest
+`sha256:070e6fe299c0aa7c641bc38083b7be8d01446e69f1e1c5ef6156305acfa114b7`,
+passes the injected handoff with identical Red/Green config, fixture and harness
+hashes. No Cloud deployment or financial maintenance is performed in this TDD
+follow-up; a read-only08:51 UTC check still finds running55/55 without HALT.
+
 ## Limits still open
 
 - The original I/O delay's unique infrastructure trigger is unproved. SQL reads

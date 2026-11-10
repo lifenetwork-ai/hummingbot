@@ -109,6 +109,9 @@ class Exchange:
         self.cancel_before_ack = False
         self.cancel_before_ack_remaining = None
         self.cancel_delay_seconds = 0
+        self.cancel_pending_visibility = {}
+        self.cancel_pending_visibility_served = 0
+        self.cancel_pending_visibility_reads = 0
         self.fill_on_cancel = {}
         self.release = asyncio.Event()
         self.release.set()
@@ -332,6 +335,8 @@ class Exchange:
                                       "cleanup_barrier": self.cleanup_barrier,
                                       "cleanup_barrier_hits": list(self.cleanup_barrier_hits),
                                       "cleanup_partial_event": self.cleanup_partial_event,
+                                      "cancel_pending_visibility": self.cancel_pending_visibility,
+                                      "cancel_pending_visibility_served": self.cancel_pending_visibility_served,
                                       "connections": self.connections, "subscriptions": self.subscriptions})
         if path == "/control":
             return await self.control(await request.json())
@@ -407,7 +412,16 @@ class Exchange:
                                  bidPx=str(price * Decimal('.99')), ts=millis()))
             return self.ok(rows)
         if path == "/api/v5/trade/orders-pending":
-            return self.ok([order for order in self.orders.values() if order["state"] in ("live", "partially_filled")])
+            rows = [order for order in self.orders.values() if order["state"] in ("live", "partially_filled")]
+            for identity, remaining in list(self.cancel_pending_visibility.items()):
+                order = self.orders[identity]
+                if remaining and order['state'] == 'canceled':
+                    # Only this account-list projection is delayed. Immutable
+                    # status/fill/WS views retain their actual terminal truth.
+                    rows.append(dict(order, state='live'))
+                    self.cancel_pending_visibility[identity] -= 1
+                    self.cancel_pending_visibility_served += 1
+            return self.ok(rows)
         if path == "/api/v5/trade/fills":
             return self.ok([fill for fill in self.fills if not request.query.get("ordId") or fill["ordId"] == request.query["ordId"]])
         if path == "/api/v5/trade/order" and method == "GET":
@@ -495,6 +509,9 @@ class Exchange:
                 if order["state"] != "filled":
                     order.setdefault('cancel_terminal_ms', millis())
                     order.update(state="canceled", uTime=millis())
+                    if (was_live and self.cancel_pending_visibility_reads and Decimal(order['accFillSz']) == 0
+                            and len(self.cancel_pending_visibility) < 8):
+                        self.cancel_pending_visibility.setdefault(order['clOrdId'], self.cancel_pending_visibility_reads)
                     if self.quote_activity and was_live:
                         self.quote_activity.terminal(order['clOrdId'], 'canceled', request_ns=received_ns)
                 await self.broadcast(self.event(order))
@@ -566,6 +583,15 @@ class Exchange:
             delay = float(data['cancel_delay_seconds'])
             assert 0 <= delay <= 10
             self.cancel_delay_seconds = delay
+        if 'cancel_pending_visibility_reads' in data:
+            count = data['cancel_pending_visibility_reads']
+            if type(count) is not int or not 0 <= count <= 5:
+                return web.json_response({'error': 'invalid_cancel_pending_visibility_reads'}, status=400)
+            # Arm future native cancellations, including orders created after a
+            # Random rollover. Selecting current live IDs here races that rollover.
+            self.cancel_pending_visibility_reads = count
+            self.cancel_pending_visibility = {}
+            self.cancel_pending_visibility_served = 0
         if "target_updates_per_second" in data:
             self.target_updates_per_second = float(data["target_updates_per_second"])
             assert 0 <= self.target_updates_per_second <= 1000

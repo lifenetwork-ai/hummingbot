@@ -738,12 +738,28 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         restart_evidence = dict(before_shutdown=recovery_summary(), overlap_standby=True,
                                 previous_owner_generation=before_handoff['owner_generation'],
                                 control_version=before_handoff['control_version'])
+        # Native cancellation is durable, but the account-wide pending list can
+        # lag the individual status/fill views across revision handoff. The
+        # successor must prove zero-fill cancellations and wait for disappearance,
+        # rather than manufacture an unresolved-effect HALT or ignore the list.
+        self.control(cancel_pending_visibility_reads=2)
+        poll(lambda: sum(order['state'] == 'live' for order in self.ledger()['orders']) == 8
+             and self.sql('SELECT count(*) FROM orders WHERE creation_pending') == '0',
+             description='eight admitted quotes after arming cancellation visibility fault')
         self.terminate(first)
         restart_evidence['after_shutdown'] = recovery_summary()
         (self.report / 'until-stopped-restart.json').write_text(json.dumps(restart_evidence, indent=2))
         assert not restart_evidence['after_shutdown']['halt'], restart_evidence
         first, port = successor, successor_port
         self.wait_running(port)
+        visibility = self.ledger()
+        assert len(visibility['cancel_pending_visibility']) == 8
+        assert not any(visibility['cancel_pending_visibility'].values())
+        assert visibility['cancel_pending_visibility_served'] == 16
+        self.metrics['startup_cancel_visibility'] = dict(pending_projection_reads=2, native_cancel_then_cold_restore=True,
+                                                         terminal_status_and_fill_views_unchanged=True,
+                                                         no_prior_halt_cleared=True, distinct_canceled_orders=8,
+                                                         stale_pending_rows_served=16)
         after_handoff = self.state()
         resumed = after_handoff['mm_session']
         assert after_handoff['owner_uuid'] != before_handoff['owner_uuid']

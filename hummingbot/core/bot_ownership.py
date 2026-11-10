@@ -18,6 +18,7 @@ from hummingbot.core.order_submission_guard import (
     SessionSubmissionBlocked,
     SubmissionBlocked,
 )
+from hummingbot.core.startup_order_reconciliation import UntrackedOpenOrders, reconcile_open_order_visibility
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import BotStateStore
 from hummingbot.model.db_migration.postgres.locks import OWNER_KEY, OWNER_NAMESPACE
@@ -617,8 +618,7 @@ class BotOwnership:
             known = {order_id for connector in self.connectors.values() for order_id in connector.in_flight_orders}
             for connector in self.connectors.values():
                 open_orders = await self._open_orders(connector)
-                if any(item.get("clOrdId") not in known for item in open_orders):
-                    raise SubmissionBlocked("The exchange account has untracked open orders.")
+                await reconcile_open_order_visibility(self, core.trade_fill_db, connector, open_orders, known)
             for connector in self.connectors.values():
                 restored = list(connector.in_flight_orders.values())
                 await self._refresh_orders(connector, restored)
@@ -646,7 +646,9 @@ class BotOwnership:
             if may_have_exchange_effects:
                 self.require_recovery("Exchange reconciliation did not complete; new risk remains blocked.")
             raise
-        except BaseException:
+        except BaseException as error:
+            if isinstance(error, UntrackedOpenOrders):
+                self._mutate_recovery(lambda state, evidence=error.evidence: state.update(startup_untracked_orders=evidence))
             self.require_recovery("Exchange reconciliation did not complete; new risk remains blocked.")
             raise
         finally:
