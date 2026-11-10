@@ -1,21 +1,11 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ApiProvider, type ApiSession } from '../core/api/ApiProvider'
 import type { PropsWithChildren } from 'react'
 import { ThemeProvider } from '../theme/useTheme'
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 15_000,
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
-})
-
-export function AppProviders({ children }: PropsWithChildren) {
+export function AppProviders({ children, apiSession }: PropsWithChildren<{ apiSession?: ApiSession }>) {
   return (
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <ApiProvider session={apiSession}>{children}</ApiProvider>
     </ThemeProvider>
   )
 }

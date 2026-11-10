@@ -12,3 +12,26 @@ test('starter navigation and theme switching', async ({ page }) => {
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
+
+for (const width of [390, 1280]) {
+  for (const theme of ['light', 'dark'] as const) {
+    test(`brand home link includes visible text and supports keyboard navigation (${width}px, ${theme})`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/ui-kit')
+      if (theme === 'dark') {
+        await page.getByRole('button', { name: 'Use dark theme' }).click()
+      }
+
+      const homeLink = page.getByRole('link', { name: 'LIFE AI FE Starter — Go to home', exact: true })
+      await expect(homeLink).toBeVisible()
+      await expect(homeLink).toHaveAttribute('href', '/')
+      await homeLink.focus()
+      await page.keyboard.press('Enter')
+      await expect(page).toHaveURL('/')
+      await expect(page.getByRole('heading', { name: 'A clean canvas for what comes next.' })).toBeVisible()
+      await page.reload()
+      await expect(homeLink).toBeVisible()
+      await expect(page.getByRole('button', { name: theme === 'dark' ? 'Use light theme' : 'Use dark theme' })).toBeVisible()
+    })
+  }
+}

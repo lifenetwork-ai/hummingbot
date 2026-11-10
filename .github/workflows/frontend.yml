@@ -5,10 +5,12 @@ on:
     branches: [dev, main, master, development, 'refactor/unit_tests**', 'epic/**']
     paths:
       - 'dashboard/**'
+      - 'docs/api/openapi.json'
       - '.github/workflows/frontend.yml'
   pull_request:
     paths:
       - 'dashboard/**'
+      - 'docs/api/openapi.json'
       - '.github/workflows/frontend.yml'
   workflow_dispatch:
 
@@ -49,6 +51,7 @@ jobs:
             echo 'Pages deploy is configured; only the configured branch can deploy after quality checks pass. Pull requests never deploy.' >> "$GITHUB_STEP_SUMMARY"
           fi
       - run: pnpm install --frozen-lockfile
+      - run: pnpm run api:check
       - run: pnpm run theme:generate
       - run: pnpm run lint
       - run: pnpm run typecheck

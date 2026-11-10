@@ -14,6 +14,7 @@ export default tseslint.config(
       'test-results/**',
       'node_modules/**',
       'src/theme/generated/**',
+      'src/core/api/schema.d.ts',
       'e2e/**/*-snapshots/**',
     ],
   },

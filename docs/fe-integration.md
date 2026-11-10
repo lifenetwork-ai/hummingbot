@@ -1,15 +1,18 @@
 # FE integration
 
-This is the single handoff for the LIFE MM operations dashboard, implemented in a
-separate FE repository. It combines the API contract, operator UX and configuration
+This is the single handoff for the LIFE MM operations dashboard, implemented under
+`dashboard/` in this repository. It combines the API contract, operator UX and configuration
 ownership rules. The checked [OpenAPI contract](api/openapi.json) is the source for
-request/response types; generate TypeScript types from it. Runtime API responses,
+request/response types; generate TypeScript types from it with
+`pnpm --dir dashboard run api:generate` (verify with `api:check`).
+See the [dashboard API foundation](../dashboard/docs/API.md) for client and test fixtures. Runtime API responses,
 Swagger annotations and UI copy are English.
 
 The primary operator may be non-technical. The dashboard should answer: is the
 service available, are there working orders, what is blocking trading, how much
 capital/exposure remains, and what should the operator do? Profit is secondary.
-No dashboard application or browser acceptance ships in this repository.
+The dashboard foundation lives in `dashboard/`; the complete operations UI and
+its browser acceptance remain delivery work.
 
 The [admin access and encrypted exchange credentials plan](plans/ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md)
 tracks phased implementation. Google whitelist/roles, bootstrap disable, audit,
@@ -277,8 +280,10 @@ An `accepted` audit event records admission of a control request; use its linked
 command receipt to inspect later runtime success/failure. It does not assert that
 an exchange operation already completed.
 
-Generate the offline schema with `make swagger`; CI checks drift with
-`make swagger-check`. Handler annotations and Pydantic models supply the contract.
+Generate the offline schema and dashboard TypeScript types together with
+`make swagger`; check both with `make swagger-check`. Dashboard dependencies must
+be installed first. The Python CI lane uses `make swagger-backend-check`, while
+frontend CI runs `api:check`. Handler annotations and Pydantic models supply the contract.
 Protected `/docs`, `/openapi.json` and `/docs/assets/{asset}` exist only when
 `ENV=dev` or `development`, case-insensitive. The default is dev; other values
 return 404 for these documentation routes. The production template explicitly
