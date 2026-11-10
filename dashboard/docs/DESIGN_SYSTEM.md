@@ -58,3 +58,9 @@ and Tailwind `dark` class. Default is light. All components must be valid in bot
 - Motion respects `prefers-reduced-motion`.
 - Dialog is dismissible with Escape; for production-grade complex dialogs, add focus trapping and return-focus management or use a vetted accessible dialog primitive.
 - Verify keyboard and screen-reader behavior when introducing new components.
+
+## System feedback
+
+See [System feedback](FEEDBACK.md) for the implemented Sonner-based toast foundation (`ToastHost.tsx`),
+typed `notify` adapter (`src/core/feedback/notify.ts`), shared `Banner` and `InlineFeedback` primitives,
+and UI Kit live interactive samples.

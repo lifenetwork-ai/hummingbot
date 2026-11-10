@@ -2,7 +2,7 @@ import type { PropsWithChildren } from 'react'
 import { cn } from '../utils/cn'
 
 type BadgeProps = PropsWithChildren<{
-  tone?: 'neutral' | 'brand' | 'success' | 'danger'
+  tone?: 'neutral' | 'brand' | 'success' | 'danger' | 'warning'
   className?: string
 }>
 
@@ -11,6 +11,7 @@ const styles = {
   brand: 'border-app-action/25 bg-app-action/10 text-app-action',
   success: 'border-app-success/25 bg-app-success/10 text-app-success',
   danger: 'border-app-danger/25 bg-app-danger/10 text-app-danger',
+  warning: 'border-app-warning/25 bg-app-warning/10 text-app-warning',
 } as const
 
 export function Badge({ tone = 'neutral', className, children }: BadgeProps) {

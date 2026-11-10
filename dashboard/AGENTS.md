@@ -1,12 +1,12 @@
-# Agent Instructions — LifeAI FE Starter
+# Agent Instructions — LIFE MM Dashboard
 
-This file is the **repository-wide instruction contract** for coding agents (Codex, Claude Code, Cursor, and other AI assistants). Read it before modifying code. The repository is a reusable frontend foundation, **not** a Vesting application.
+This file is the **instruction contract for work in this dashboard** for coding agents (Codex, Claude Code, Cursor, and other AI assistants). Read it before modifying code. This dashboard uses the LifeAI frontend foundation for the LIFE market-making product; implement behavior against the current product requirements and backend contracts.
 
 ## 1. Mission and boundaries
 
 - Build new frontend functionality on the existing React/TypeScript/Vite architecture.
 - **Preserve the LifeAI visual system** (light/dark themes, typography, spacing, semantic colors, radii, shadows, motion and accessible interactions) unless a task explicitly asks for a redesign.
-- Keep the starter free of Vesting/Grants, wallet connections, blockchain, ABI, contract, chain, transaction or other old product logic. Do not restore deleted code simply because a file in the old project once used it.
+- Implement domain features and integrations only when required by the current product scope. Keep shared primitives independent of product-specific behavior.
 - Do not invent backend contracts, API endpoints, user data or production credentials. Prefer typed interfaces and isolated adapters if integration details are unknown.
 - Make focused changes. Do not refactor unrelated code, change tooling, or add dependencies without a concrete reason.
 
@@ -53,6 +53,8 @@ Dependency direction:
 - Keep HTTP/network operations behind adapters/hooks, not inside presentational JSX.
 - Use TanStack Query for server state where appropriate; do not add global state by default.
 
+Component boundaries follow [Architecture: Component composition](docs/ARCHITECTURE.md#component-composition). Plan meaningful feature blocks before detailed page markup and review composition before delivery; do not require Atomic Design folders or wrappers for every HTML element.
+
 ## 5. UI, UX and accessibility rules
 
 - Use semantic design tokens such as `bg-app-surface`, `text-app-text`, `text-app-action` rather than new literal hex values in application code.
@@ -60,6 +62,7 @@ Dependency direction:
 - Reuse `Button`, `Dialog`, `Input`, `Surface`, `Badge`, `EmptyState` and other existing shared components before creating new primitives.
 - Support both light and dark modes; avoid styling that works only in one mode.
 - Follow mobile-first/responsive layouts, appropriate focus order, visible focus states, keyboard interactions, meaningful labels, and native semantics.
+- For toast, banner and inline feedback work, read [System feedback](docs/FEEDBACK.md) before implementation. It defines the planned foundation; verify source availability before calling its API.
 - Respect `prefers-reduced-motion`. Keep animation purposeful and short; do not introduce perpetual animation without user value.
 - Keep user-facing copy compact and clear. Never create fabricated loading, success, financial, or backend data merely to make a screen look populated.
 - Note: preserving the original palette does **not** guarantee WCAG contrast compliance. Flag and verify contrast-sensitive changes rather than silently altering the brand palette.
@@ -114,7 +117,7 @@ pnpm run test:visual # once reviewed baselines are committed
 ## 9. Agent completion checklist
 
 - [ ] Applied the relevant task-specific skill(s) rather than blindly loading all of them.
-- [ ] No legacy Vesting or blockchain domain code reintroduced.
+- [ ] Feature and integration scope matches the current product requirements.
 - [ ] Correct dependency boundaries and no unapproved architectural drift.
 - [ ] Light/dark, mobile and keyboard behavior considered.
 - [ ] Theme tokens sourced from `_config.ts` and generated as needed.
@@ -126,4 +129,4 @@ pnpm run test:visual # once reviewed baselines are committed
 
 ## 10. Do not claim checks passed without running them
 
-This starter was initially assembled in an environment without npm registry access. A syntax/import review is **not equivalent** to successful lint, typecheck, test, or build. If you cannot install dependencies or execute a command, report the limitation accurately and give the exact commands the developer should run locally.
+A syntax/import review is **not equivalent** to successful lint, typecheck, test, or build. If you cannot install dependencies or execute a command, report the limitation accurately and give the exact commands the developer should run locally.

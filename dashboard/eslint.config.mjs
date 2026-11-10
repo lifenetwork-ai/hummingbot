@@ -51,6 +51,19 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/core/config/env.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'MemberExpression[object.type="MetaProperty"][property.name="env"], MemberExpression[object.type="MetaProperty"][property.value="env"], MemberExpression[object.name="process"][property.name="env"], MemberExpression[object.name="process"][property.value="env"]',
+          message: 'Read application configuration through core/config/env.ts.',
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.{test,spec}.{ts,tsx}', 'src/theme/useTheme.tsx'],
     rules: {
       // Test helpers and the existing ThemeProvider module also export utilities.

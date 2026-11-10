@@ -33,3 +33,9 @@ The visual and interaction language is preserved from the original LifeAI UI, bu
 - Visible keyboard focus is required for every interactive control.
 - Close modals with Escape and return focus to the triggering element.
 - Use ARIA for progress and inputs where necessary; prefer native semantics first.
+
+## Feedback placement and lifetime
+
+Follow [System feedback](FEEDBACK.md) when choosing inline errors, transient
+toasts or persistent banners. Keep unresolved conditions visible and avoid
+repeated announcements from polling.

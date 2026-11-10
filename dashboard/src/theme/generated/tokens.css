@@ -48,6 +48,8 @@
   --app-success-rgb: 50 186 124;
   --app-danger: #E4626F;
   --app-danger-rgb: 228 98 111;
+  --app-warning: #F0B94B;
+  --app-warning-rgb: 240 185 75;
   --radius-button: 5px;
   --radius-card: 10px;
   --radius-sheet: 16px;
@@ -82,6 +84,8 @@
   --app-success-rgb: 50 186 124;
   --app-danger: #E4626F;
   --app-danger-rgb: 228 98 111;
+  --app-warning: #F0B94B;
+  --app-warning-rgb: 240 185 75;
 }
 
 .bg-primary { background-color: var(--color-primary); }

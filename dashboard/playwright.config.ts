@@ -21,7 +21,7 @@ export default defineConfig({
     locale: 'en-US',
   },
   webServer: {
-    command: 'pnpm run dev --host 127.0.0.1 --port 4173',
+    command: 'VITE_GOOGLE_CLIENT_ID=browser-test.apps.googleusercontent.com pnpm run dev --host 127.0.0.1 --port 4173',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

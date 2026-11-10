@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './auth-fixture'
 
 // Baselines are intentionally not invented. Generate once using
 // `pnpm run test:visual:update` on a Linux/Chromium environment and commit PNGs.
@@ -11,12 +11,14 @@ async function settle(page: import('@playwright/test').Page) {
 
 test('@visual home matches saved light theme snapshot', async ({ page }) => {
   await page.goto('/')
+  await page.getByRole('button', { name: 'Sign in with Google' }).click()
   await settle(page)
   await expect(page).toHaveScreenshot('home-light.png', { fullPage: true })
 })
 
 test('@visual UI kit matches saved light and dark snapshots', async ({ page }) => {
   await page.goto('/ui-kit')
+  await expect(page.getByRole('heading', { name: 'UI kit.' })).toBeVisible()
   await settle(page)
   await expect(page).toHaveScreenshot('ui-kit-light.png', { fullPage: true })
 

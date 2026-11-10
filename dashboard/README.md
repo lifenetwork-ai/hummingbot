@@ -63,8 +63,7 @@ docs/            architecture, design system, development, testing, agent skills
 - Wagmi, viem, RainbowKit, wallet/network/transaction UI and on-chain configuration.
 - The original `.git`, `.env*` values, builds, old screenshots, product-specific tests.
 
-`/` is a neutral starter home. `/ui-kit` previews design components and is
-not connected to real data. Both are safe to replace for a new product.
+`/login` provides Google sign-in. `/` is the starter home and `/ui-kit` previews design components; only `/` requires a verified session. `/ui-kit` is public and works without signing in. Copy `.env.example` to `.env.local` and configure the public Google client ID and admin API URL. See [API integration](docs/API.md#dashboard-sign-in) for setup and session behavior.
 
 ## Quality gates
 

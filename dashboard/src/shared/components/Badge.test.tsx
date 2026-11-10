@@ -8,7 +8,7 @@ describe('Badge', () => {
     expect(screen.getByText('Status')).toHaveClass('text-app-muted')
   })
 
-  it.each(['brand', 'success', 'danger'] as const)('renders %s semantic tone', (tone) => {
+  it.each(['brand', 'success', 'danger', 'warning'] as const)('renders %s semantic tone', (tone) => {
     render(<Badge tone={tone} className="extra">Status</Badge>)
     expect(screen.getByText('Status')).toHaveClass(`text-app-${tone === 'brand' ? 'action' : tone}`, 'extra')
   })

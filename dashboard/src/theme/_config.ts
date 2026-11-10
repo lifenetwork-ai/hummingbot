@@ -39,6 +39,7 @@ export const themeConfig = {
       accent: '#2F56C9',
       success: '#32BA7C',
       danger: '#E4626F',
+      warning: '#F0B94B',
     },
     dark: {
       background: '#141416',
@@ -53,6 +54,7 @@ export const themeConfig = {
       accent: '#5086F2',
       success: '#32BA7C',
       danger: '#E4626F',
+      warning: '#F0B94B',
     },
   },
   typography: {

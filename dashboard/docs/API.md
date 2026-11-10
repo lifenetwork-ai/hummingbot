@@ -179,3 +179,21 @@ React Query v5 references: [useQuery](https://tanstack.com/query/v5/docs/framewo
 [useMutation](https://tanstack.com/query/v5/docs/framework/react/reference/useMutation),
 [QueryClient](https://tanstack.com/query/v5/docs/reference/QueryClient),
 [disabling queries](https://tanstack.com/query/v5/docs/framework/react/guides/disabling-queries).
+
+## Dashboard sign-in
+
+Copy `.env.example` to `.env.local`. Set `VITE_GOOGLE_CLIENT_ID` to the Google OAuth
+**web** client ID matching the backend audience, and `VITE_ADMIN_API_BASE_URL` to the
+reachable admin prefix (default `/api/v1/admin`). Both are public configuration.
+Register the dashboard origin in Google OAuth and the backend CORS configuration.
+The relative API default requires a same-origin gateway; Vite does not provide an
+API proxy automatically. A private Cloud Run endpoint requires the documented gateway.
+
+The official Google Identity Services script supplies an ID token. The dashboard
+calls header-only `POST /access/login`, then verifies identity through `/access/me`.
+Tokens remain in memory and requests omit cookies. All workspace routes are gated;
+logout, expiry and 401 clear the session and its API cache. A safe local deep link
+is restored after login. Reload requires signing in again. The backend issues no
+refresh token: reconnect obtains a new Google credential, with no automatic mutation
+replay. Neither frontend configuration nor mocked browser tests prove live Google,
+CORS, gateway, IAM or account-whitelist acceptance.

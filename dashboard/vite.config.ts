@@ -17,6 +17,10 @@ export default defineConfig({
         'src/shared/utils/**/*.{ts,tsx}',
         'src/theme/useTheme.tsx',
         'src/core/api/**/*.{ts,tsx}',
+        'src/features/auth/**/*.{ts,tsx}',
+        'src/core/auth/**/*.{ts,tsx}',
+        'src/core/config/**/*.{ts,tsx}',
+        'src/app/redirect.ts',
       ],
       exclude: [
         '**/*.test.{ts,tsx}',

@@ -19,10 +19,9 @@ pnpm run test:visual:update # first time: review/commit screenshot baselines
 pnpm run test:visual
 ```
 
-Routes: `/` blank starter landing; `/ui-kit` UI preview; unknown routes use the 404 page.
+Routes: `/login` and `/ui-kit` are public; `/` requires an approved Google login. Unknown routes use the 404 page.
 
-`pnpm run dev` regenerates theme CSS before Vite starts. No `.env` setup, backend,
-contract, credentials, or wallet is required. The MSW handlers are **test-only**.
+`pnpm run dev` regenerates theme CSS before Vite starts. Configure Google client ID and reachable admin API in `.env.local` using `.env.example`; see [API](API.md). The MSW handlers are **test-only**.
 
 CI runs lint, type checking, coverage, production build and Chromium E2E.
 Visual tests start enforcing after the reviewed screenshot baselines are committed.

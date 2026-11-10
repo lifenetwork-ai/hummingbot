@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test } from '@playwright/test'
+import { expect, test } from './auth-fixture'
 
 // The inherited brand palette contains some known contrast failures.
 // We check structural WCAG A/AA rules in CI without silently altering its tokens.
@@ -13,12 +13,14 @@ async function scan(page: import('@playwright/test').Page) {
 
 test('home has no structural WCAG A/AA violations', async ({ page }) => {
   await page.goto('/')
+  await page.getByRole('button', { name: 'Sign in with Google' }).click()
   const results = await scan(page)
   expect(results.violations).toEqual([])
 })
 
 test('UI kit and open dialog have no structural WCAG A/AA violations', async ({ page }) => {
   await page.goto('/ui-kit')
+  await expect(page.getByRole('heading', { name: 'UI kit.' })).toBeVisible()
   expect((await scan(page)).violations).toEqual([])
 
   await page.getByRole('button', { name: 'Open dialog' }).click()
@@ -28,6 +30,7 @@ test('UI kit and open dialog have no structural WCAG A/AA violations', async ({ 
 
 test('keyboard can open, dismiss and restore focus on dialog', async ({ page }) => {
   await page.goto('/ui-kit')
+  await expect(page.getByRole('heading', { name: 'UI kit.' })).toBeVisible()
   const button = page.getByRole('button', { name: 'Open dialog' })
   await button.focus()
   await page.keyboard.press('Enter')
@@ -35,4 +38,16 @@ test('keyboard can open, dismiss and restore focus on dialog', async ({ page }) 
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(button).toBeFocused()
+})
+
+test('login has no structural WCAG violations in light and dark themes', async ({ page }) => {
+  await page.goto('/login')
+  await expect(page.getByRole('button', { name: 'Sign in with Google' })).toBeVisible()
+  expect((await scan(page)).violations).toEqual([])
+  await page.screenshot({ path: '/tmp/life-mm-login-light.png' })
+  await page.getByRole('button', { name: 'Use dark theme' }).click()
+  expect((await scan(page)).violations).toEqual([])
+  await page.setViewportSize({ width: 320, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: '/tmp/life-mm-login-dark-mobile.png' })
 })

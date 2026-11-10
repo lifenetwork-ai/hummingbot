@@ -22,6 +22,7 @@ export default {
           accent: appColor('accent'),
           success: appColor('success'),
           danger: appColor('danger'),
+          warning: appColor('warning'),
         },
         life: {
           primary: 'var(--color-primary)',
