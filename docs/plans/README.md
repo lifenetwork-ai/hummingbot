@@ -5,7 +5,10 @@ and its [current acceptance matrix](../../reports/release/demo-release-closeout.
 Detailed rejected attempts retain their original image/date scopes; removing old
 files does not close unresolved evidence or policy items.
 
-Latest source `f53885fda` / regular image `4198f2fa…` passes native3,085 +16
+The [quiet-feed / unsent-quote plan](MM_FEED_QUOTE_RECOVERY_TDD_PLAN.md) tracks the
+new targeted offline work; its gates do not replace the full release below.
+
+Last full release baseline `f53885fda` / regular image `4198f2fa…` passes native3,085 +16
 subtests, full PostgreSQL605 and all30 packaged E2E groups in one `all` execution,
 including distinct-image upgrade/takeover/rollback. Full unchanged load/Random soak3600/six faults/retention pass: p99
 96.87/96.46/103.11/283.41ms,4,885 simulated fills, growth18.02MiB/64MiB.

@@ -1021,10 +1021,16 @@ class LifeMMController(pmm_simple.PMMSimpleController):
 
             self._startup_stage = "reference_books"
             await self._startup_read(acquire)
+        self.market_data_provider.acquire_book_recovery(
+            self.config.connector_name, [self.config.trading_pair], self, self.config.max_data_age_seconds)
+        if references:
+            self.market_data_provider.acquire_book_recovery(
+                self.config.reference_connector, references, self, self.config.max_data_age_seconds)
         await super().on_start()
         self._startup_stage = "ready"
 
     async def on_stop(self):
+        self.market_data_provider.release_book_recovery(self)
         if self.config.spread_policy.volatility.enabled:
             self.market_data_provider.release_candle_feed(self._spread_candle_config(), self)
         references = [ref.pair for ref in self.config.references]
@@ -1102,3 +1108,27 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         return super().get_executor_config(level_id, price, amount).model_copy(update={
             "mm_session_id": self.config.mm_session_id, "mm_generation": self.config.mm_generation,
             "use_configured_entry_price": self.config.spread_policy.enabled or (self._bootstrap is not None and not self._bootstrap.market_qualified)})
+
+    def prepare_entry_order(self, original):
+        """Refresh a queued first entry before any order identity/intent exists.
+
+        Never increase its original base or quote budget. The normal owner and
+        pre-transport guards still decide whether the resulting order may send.
+        """
+        if ((original.mm_session_id, original.mm_generation) != (self.config.mm_session_id, self.config.mm_generation)
+                or original.controller_id != self.config.id or not self._session_admitted or self._control_error
+                or original.id in self._stops_requested
+                or original.level_id not in self.get_not_active_levels_ids([])):
+            return None
+        self.update_reference()
+        if not self.processed_data.get('ready') or not self.market_data_provider.ready or not self.exposure_within_caps():
+            return None
+        price, amount = self.get_price_and_amount(original.level_id)
+        with localcontext() as context:
+            context.rounding = ROUND_DOWN
+            amount = min(amount, original.amount, original.amount * original.entry_price / price)
+        fresh = self.get_executor_config(original.level_id, price, amount)
+        if (fresh is None or fresh.amount > original.amount
+                or fresh.amount * fresh.entry_price > original.amount * original.entry_price):
+            return None
+        return original.model_copy(update={'entry_price': fresh.entry_price, 'amount': fresh.amount})

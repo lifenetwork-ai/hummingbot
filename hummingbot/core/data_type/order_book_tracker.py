@@ -665,6 +665,13 @@ class OrderBookTracker:
                         diff_messages_accepted = 0
                     last_message_timestamp = now
                 elif message.type is OrderBookMessageType.SNAPSHOT:
+                    if message.content.get('_mm_recovery') and message.update_id <= max(
+                            order_book.snapshot_uid, order_book.last_diff_uid):
+                        # A WS snapshot may already have been in this consumer's
+                        # queue when recovery checked the book before publishing.
+                        # Reject it here too; normal upstream snapshots/replay
+                        # keep their existing behavior.
+                        continue
                     past_diffs: List[OrderBookMessage] = list(past_diffs_window)
                     order_book.restore_from_snapshot_and_diffs(message, past_diffs)
             except asyncio.CancelledError:

@@ -10,6 +10,19 @@ ownership and HALT recovery use [PostgreSQL operations](postgres-runtime.md).
 Deployment is documented in [Cloud Run operations](cloudrun.md), and FE session
 controls in [FE integration](fe-integration.md).
 
+Active LIFE controllers share bounded public snapshot recovery for each required
+OKX book. A book at half its configured freshness budget may request its native
+REST snapshot; healthy books need no extra request. At most two reads run at once,
+with a three-second request timeout, capped failure backoff and one pending
+snapshot per book. Venue timestamps and the original readiness/risk guards remain
+authoritative; a failed or old REST response cannot count as fresh data. Stop
+releases controller leases and drains pending work.
+
+Expected unavailable drawdown valuations and protected quote refreshes use bounded
+WARNING summaries and INFO recovery. Quote failures retain per-order bookkeeping;
+unexpected exceptions retain ERROR traces. Use readiness, quote diagnostics and
+working-order evidence to assess trading, rather than counting log lines.
+
 ### Initial exposure and managed MM restart
 
 For an admin-managed MM session, YAML `initial_positions` is a bootstrap seed

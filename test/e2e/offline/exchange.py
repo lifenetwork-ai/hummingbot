@@ -119,6 +119,8 @@ class Exchange:
         self.prices = {"BTC-USDT": "100", "ETH-USDT": "10", "AVAX-USDT": "20", "LIFE-USDT": "0.1"}
         self.stale_pairs = set()
         self.stale_instruments = set()
+        self.rest_stale_instruments = set()
+        self.rest_failed_instruments = set()
         self.book_overrides = {}
         self.include_own_orders = False
         self.markets_task = None
@@ -396,7 +398,13 @@ class Exchange:
             return self.ok([self.candle(request.query.get("instId", "LIFE-USDT"), bar, end - (i + 1) * interval)
                             for i in range(min(100, int(request.query.get("limit", "100"))))])
         if path == "/api/v5/market/books":
-            return self.ok([self.book(request.query.get("instId", "BTC-USDT"))])
+            instrument = request.query.get("instId", "BTC-USDT")
+            if instrument in self.rest_failed_instruments:
+                return web.json_response({'error': 'snapshot_unavailable'}, status=503)
+            result = self.book(instrument)
+            if instrument in self.rest_stale_instruments:
+                result['ts'] = str(int(result['ts']) - 60000)
+            return self.ok([result])
         if path in ("/api/v5/market/ticker", "/api/v5/market/tickers"):
             single = request.query.get('instId') if path.endswith('/ticker') else None
             swaps = request.query.get('instType') == 'SWAP' or bool(single and single.endswith('-SWAP'))
@@ -605,6 +613,10 @@ class Exchange:
             self.stale_pairs = set(data["stale_pairs"])
         if "stale_instruments" in data:
             self.stale_instruments = set(data["stale_instruments"])
+        if 'rest_stale_instruments' in data:
+            self.rest_stale_instruments = set(data['rest_stale_instruments'])
+        if 'rest_failed_instruments' in data:
+            self.rest_failed_instruments = set(data['rest_failed_instruments'])
         if "book_overrides" in data:
             self.book_overrides = data["book_overrides"]
             assert all(set(value) == {"bids", "asks"} for value in self.book_overrides.values())

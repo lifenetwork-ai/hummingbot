@@ -70,12 +70,12 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
 
     def feed():
         deadline = harness.state()["mm_session"]["expires_at"]
-        harness.control(stale_pairs=["BTC-USDT"])
+        harness.control(stale_pairs=["BTC-USDT"], rest_stale_instruments=["BTC-USDT"])
         poll(lambda: harness.state()["status"]["phase"] == "waiting_for_mm_readiness", timeout=25, description="loaded stale basket closes both markets")
         sent = len(harness.ledger()["accepted"])
         time.sleep(2)
         assert len(harness.ledger()["accepted"]) == sent
-        harness.control(stale_pairs=[])
+        harness.control(stale_pairs=[], rest_stale_instruments=[])
         harness.wait_running(port)
         assert harness.state()["mm_session"]["expires_at"] == deadline
     harness.mm_command(port, "switch", market_mode="both", selection="fixed", profile_id="follow_market", duration_seconds=600)

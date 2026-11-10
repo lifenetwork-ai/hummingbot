@@ -1,0 +1,353 @@
+{
+  "date": "2026-11-10",
+  "scope": "Targeted offline source/image verification; not full release, connected OKX, or Cloud acceptance",
+  "base_source_commit": "a7c4f858c871706f37cecb7cd27cbbd492d6c396",
+  "image": {
+    "id": "sha256:1d3c3a6703b987df4a1fcadbfa2f7a876afca457c023d4915e207e9aeaf5896c",
+    "manifest": "sha256:88494b868c32b72cd16c4a0836f1ea15dfb730adce7fb894d6ca8254f4b3a402",
+    "inherited_image_id": "sha256:d5c7667254ab47dd250f5c69fe0fdf5d50ae96119cb8d39b77641808549f181b",
+    "overlay": {
+      "passed": true,
+      "files": {
+        "controllers/market_making/life_mm.py": "d152a36e1a922f9750f2286c42fb41d04d29df54a740733047f5b35dec2db364",
+        "hummingbot/connector/exchange_py_base.py": "66a5c25f54b797dab8e301163c341667be561b855ab23acad7a4ac84a6c5fa30",
+        "hummingbot/core/data_type/order_book_tracker.py": "2900bc6fe3e938414287ac34ef48fe5bbf62d365e8fa8bbcd7efcdb1dd216e89",
+        "hummingbot/core/operational_warnings.py": "79b89f1ed27988cd3fc716c9a1fe4fd5c02ca8ddfed52b37b958a3e82bedc649",
+        "hummingbot/data_feed/market_data_provider.py": "a85c4cdd3c6f235ff7cad14348e4c455aa8d6cf8f03afbd9086136af6e30acdc",
+        "hummingbot/data_feed/order_book_recovery.py": "9ccdaffcc030accf5f103636dee46029dcd2b2062de9bfbe1c5ba4f686241fda",
+        "hummingbot/strategy/strategy_v2_base.py": "e0a75bdbae187f2eaaba297dc851ffa3a1c6cdf6e37d9b2e973c9864d4447e65",
+        "hummingbot/strategy_v2/executors/executor_orchestrator.py": "404e9d4d8d6e8a17198131b8fd27eb1ed1bae2051960da8b1aefc33b41107452",
+        "hummingbot/strategy_v2/executors/position_executor/position_executor.py": "ca482298c9201944d2047064a233ec08453856212b1898fabf76a79883441020"
+      }
+    }
+  },
+  "native": {
+    "passed": 903,
+    "subtests_passed": 4,
+    "log": "build/mm-feed-quote-offline-20261110/native-final.log"
+  },
+  "postgres": {
+    "passed": 9,
+    "scope": "mm_spread_gate and pre_intent_cleanup",
+    "log": "build/mm-feed-quote-offline-20261110/postgres-guards.log",
+    "full_suite_rerun": false
+  },
+  "parent_code_red": {
+    "quiet_book": {
+      "failed": 1,
+      "log": "build/mm-feed-quote-offline-20261110/feed-red-parent-v2.log"
+    },
+    "entry_price": {
+      "failed": 4,
+      "log": "build/mm-feed-quote-offline-20261110/entry-red-parent-final-fixture.log"
+    },
+    "diagnostics": {
+      "failed": 3,
+      "log": "build/mm-feed-quote-offline-20261110/diagnostics-red.log"
+    },
+    "queued_ws_race": {
+      "failed": 2,
+      "passed_controls": 4,
+      "log": "build/mm-feed-quote-offline-20261110/queued-ws-race-red-parent.log"
+    }
+  },
+  "local_implementation_hardening": {
+    "preparation_exception": {
+      "red_log": "build/mm-feed-quote-offline-20261110/preparation-exception-red.log",
+      "green_log": "build/mm-feed-quote-offline-20261110/native-final.log"
+    },
+    "fixture_attempts": "Initial async/stimulus/row/identity/quantization/consumer-fixture mistakes retained under raw root; excluded from runtime bug claims"
+  },
+  "e2e": {
+    "feed-recovery": {
+      "result_path": "build/e2e-offline/20261110-165526-282640/result.json",
+      "result_sha256": "adcaf4b8ab858a95c3dbc4b981d46b64d46946f6866d91c981b49cf6d9bbc231",
+      "passed": true,
+      "metrics": {
+        "feed-recovery_startup_s": 17.834,
+        "feed_recovery": {
+          "quiet_seconds": 13,
+          "samples": 10,
+          "eth_snapshot_reads": 2,
+          "healthy_btc_snapshot_reads": 0,
+          "stale_rest_withdrawal": true,
+          "rest_failure_stays_blocked": true,
+          "ws_recovered_same_process": true,
+          "session_and_deadline_preserved": true,
+          "stopped": true,
+          "simulated": true
+        }
+      }
+    },
+    "availability": {
+      "result_path": "build/e2e-offline/20261110-165639-56ee19/result.json",
+      "result_sha256": "3be209dd8f29e0386940ba517545ab0561fa08b641dbcc4f9bf73906e3bc31c8",
+      "passed": true,
+      "metrics": {
+        "availability_startup_s": 23.438,
+        "availability": {
+          "optional_failures_recovered": 3,
+          "startup_read_recovered": true,
+          "stale_feed_recovered": true,
+          "preserved_anchor_deadline": true,
+          "unexpected_process_restarts": 0,
+          "failed_controller_halted": true
+        }
+      }
+    },
+    "drawdown": {
+      "result_path": "build/e2e-offline/20261110-165851-69e470/result.json",
+      "result_sha256": "77eacfd51b7eadd12f14fd72b5aa19a4c814df0c4cae13ed4bdff2f3a24cdea3",
+      "passed": true,
+      "metrics": {
+        "drawdown_startup_s": 18.536,
+        "drawdown_shutdown_s": 2.208,
+        "drawdown-clean-restart_startup_s": 19.953,
+        "restart_shutdown_s": 1.116,
+        "drawdown-halt-restart_startup_s": 18.981,
+        "drawdown": {
+          "retained_disabled_market": true,
+          "partial_fill_preserved": true,
+          "stale_coverage_waits": true,
+          "coverage_recovers": true,
+          "clean_restart_peak": true,
+          "global_breach_halt": true,
+          "restart_halt": true,
+          "post_halt_start_rejected": true,
+          "retained_feed_has_no_account_mutations": true,
+          "global_peak_quote": "0.125262626000",
+          "fresh_stopped_pnl_not_invented": true,
+          "effective_config_sha256": "a2b8d8ca75f8e355639a0ef7df7ecc45f6891f41d148181e8942f0ae4f112c59"
+        }
+      }
+    },
+    "spread-policy": {
+      "result_path": "build/e2e-offline/20261110-170050-e4787b/result.json",
+      "result_sha256": "21db4b958f676de714d5b2bb7eb2a41002f567e7c2a03a23ddccac40db5dbd41",
+      "passed": true,
+      "metrics": {
+        "spread-policy_startup_s": 19.686,
+        "spread_policy": {
+          "baseline": {
+            "spot": {
+              "state": "dynamic",
+              "enabled": true,
+              "raw_natr": "0.010000000000000009",
+              "fee_floor": true,
+              "multiplier": "1.0000000000000009",
+              "buy_spreads": [
+                "0.010000000000000009",
+                "0.020000000000000018"
+              ],
+              "valid_until": 1794304892.0,
+              "completed_at": 1794304890.0,
+              "sell_spreads": [
+                "0.010000000000000009",
+                "0.020000000000000018"
+              ]
+            },
+            "perpetual": {
+              "state": "dynamic",
+              "enabled": true,
+              "raw_natr": "0.010000000000000009",
+              "fee_floor": true,
+              "multiplier": "1.0000000000000009",
+              "buy_spreads": [
+                "0.010000000000000009",
+                "0.020000000000000018"
+              ],
+              "valid_until": 1794304892.0,
+              "completed_at": 1794304890.0,
+              "sell_spreads": [
+                "0.010000000000000009",
+                "0.020000000000000018"
+              ]
+            }
+          },
+          "shock": {
+            "spot": {
+              "state": "dynamic",
+              "enabled": true,
+              "raw_natr": "0.04518518518518513",
+              "fee_floor": true,
+              "multiplier": "3",
+              "buy_spreads": [
+                "0.03",
+                "0.06"
+              ],
+              "valid_until": 1794304898.0,
+              "completed_at": 1794304896.0,
+              "sell_spreads": [
+                "0.03",
+                "0.06"
+              ]
+            },
+            "perpetual": {
+              "state": "dynamic",
+              "enabled": true,
+              "raw_natr": "0.04518518518518513",
+              "fee_floor": true,
+              "multiplier": "3",
+              "buy_spreads": [
+                "0.03",
+                "0.06"
+              ],
+              "valid_until": 1794304898.0,
+              "completed_at": 1794304896.0,
+              "sell_spreads": [
+                "0.03",
+                "0.06"
+              ]
+            }
+          },
+          "outage_recovers_in_place": true,
+          "candle_recovery_seconds": 7.208329708315432,
+          "service_restarts": 0,
+          "fee_floor": true,
+          "configured_maker_prices": true,
+          "events": 18,
+          "effective_config_sha256": "2d7be292890161b70881177d4dabf8740879418d8124b4843ea56a60a37be706"
+        }
+      }
+    }
+  },
+  "diagnostic_load": {
+    "passed": true,
+    "result_path": "build/mm-load/20261110-170155-b73741/result.json",
+    "result_sha256": "8638217b9bb2a65bec338c4b24e6b034798881bf7a9e1257dd8ebf8bdba064b6",
+    "duration_seconds": 120,
+    "diagnostic": true,
+    "release_scope_complete": false,
+    "simulated_exchange": true,
+    "bot_limits": {
+      "cpus": 2,
+      "memory_bytes": 2147483648
+    },
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "enabled_features": {
+      "enhancements": true,
+      "volatility_defense": true,
+      "operations_reads_per_second": 3,
+      "mm_activity_diagnostics": true,
+      "incident_diagnostics": true
+    },
+    "requested_reads_per_second": 20,
+    "completed_reads_per_second": 20.0,
+    "market_updates_per_second": 100.01413047109507,
+    "fills_per_second": 1.0,
+    "read_p95_ms": 231.8180240001766,
+    "read_p99_ms": 540.7031470001584,
+    "unexpected_errors": 0,
+    "violations": [],
+    "ledger": {
+      "unique_exchange_fills": 120,
+      "unique_recorder_fills": 120,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "peak_rss_bytes": 776462336,
+    "measured_log_counts": {
+      "child_restart_scheduled": 0,
+      "ownership_lost": 0,
+      "phase=halted": 0,
+      "child_probe_failed": 1,
+      "child_probe_recovered": 1
+    },
+    "probe_failures_in_window": 1,
+    "probe_episodes": [
+      {
+        "role": "engine",
+        "observed_transition_seconds": 1.067753917,
+        "trading_activity": {
+          "status": "observed",
+          "context_start_ns": 1003540343583,
+          "context_end_ns": 1008608097500,
+          "evidence_overflow": false,
+          "venue_observer_errors": 0,
+          "invalid_venue_clock_samples": 0,
+          "venue_tracking_incomplete": false,
+          "has_venue_sample_before_failure": true,
+          "has_venue_sample_after_recovery": true,
+          "max_venue_sample_gap_ms": 1051.802375,
+          "observed_empty_venue_samples": 0,
+          "min_observed_live_orders": 12,
+          "max_empty_sample_span_ms": null,
+          "empty_group_max_gap_ms": 1500,
+          "max_strategy_tick_start_gap_ms": 1001.935334,
+          "max_controller_cycle_start_gap_ms": 1303.027334,
+          "max_observed_live_order_age_ms": 34872.814058,
+          "order_call_returns": [],
+          "venue_terminals": [],
+          "continuous_quoting_proven": false,
+          "interpretation": "Attempt gaps and resting-order ages are not quote downtime. A completed tick does not prove admission; a connector return is not terminal venue readback. Samples are discrete and incident capture is bounded; inspect runtime/file loss and observer gaps. Clocks align only on the shared Linux kernel, not a remote OKX server. API incidents also use engine activity as an independent observation."
+        },
+        "overlapping_span_summary": [
+          {
+            "operation": "candle_sample_ms",
+            "duration_ms": 292.759959,
+            "intersects_transition": false
+          },
+          {
+            "operation": "natr_ms",
+            "duration_ms": 251.452792,
+            "intersects_transition": false
+          },
+          {
+            "operation": "service.observe_once",
+            "duration_ms": 205.890667,
+            "intersects_transition": true
+          },
+          {
+            "operation": "ownership_check_ms",
+            "duration_ms": 79.597708,
+            "intersects_transition": true
+          },
+          {
+            "operation": "sql",
+            "duration_ms": 71.11,
+            "intersects_transition": false
+          }
+        ]
+      }
+    ],
+    "analysis_path": "build/mm-load/20261110-170155-b73741/probe-incident-analysis.json",
+    "analysis_sha256": "68de3ee09233acccc6072f4e2b6337edf631a8370abed3e4b5ee558f9d57795a",
+    "probe_scope_note": "One additional probe failure/recovery appears after the measured window. No unique historical cause or continuous quoting guarantee is established."
+  },
+  "raw_root": "build/mm-feed-quote-offline-20261110",
+  "cloud_changes": false,
+  "risk_policy_changes": false,
+  "real_exchange_writes": false,
+  "unverified": [
+    "Connected Cloud Run effectiveness on a newly deployed candidate",
+    "Full new-image release/long soak",
+    "A unique cause for residual probe latency"
+  ],
+  "image_cleanup": {
+    "removed": [
+      {
+        "image_id": "sha256:2b7184718ce393ca02de4caa8574de73b09b72dbb5aef83e9bf5b7923f8ad663",
+        "references_removed": [
+          "127.0.0.1:55369/hummingbot:offline",
+          "hummingbot-cloudrun:feed-quote-20261110",
+          "127.0.0.1:55369/hummingbot@sha256:f5ab0e6debfa0f212149740edb7fdad1c1a5f691d05a97ad737a0a8890a5843c"
+        ]
+      },
+      {
+        "image_id": "sha256:9467941e5f8803b8058db0b2003601f4c17459b27450548c11bbda370ed8ad28",
+        "references_removed": [
+          "127.0.0.1:57579/hummingbot:offline",
+          "hummingbot-cloudrun:feed-quote-20261110-final",
+          "127.0.0.1:57579/hummingbot@sha256:a72f368eaf9c93bcac1e1c677e474b68985abb30dc4e4076cb20b3e86604c039"
+        ]
+      }
+    ],
+    "kept": [
+      "hummingbot-cloudrun:feed-quote-recovery-20261110",
+      "hummingbot-cloudrun:startup-visibility-20261110",
+      "4198f2fab28b"
+    ]
+  }
+}

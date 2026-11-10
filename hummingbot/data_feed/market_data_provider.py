@@ -44,6 +44,7 @@ class MarketDataProvider:
         self.connectors = connectors  # Stores instances of connectors
         self._rates_update_task = None
         self._stopping_tasks = set()
+        self._book_recovery = None
         self._rates_update_interval = rates_update_interval
         self._rates = {}
         self._non_trading_connectors = LazyDict[str, ConnectorBase](self._create_non_trading_connector)
@@ -57,6 +58,8 @@ class MarketDataProvider:
         self.conn_settings = AllConnectorSettings.get_connector_settings()
 
     def stop(self):
+        if self._book_recovery is not None:
+            self._book_recovery.stop()
         for candle_feed in self.candles_feeds.values():
             candle_feed.stop()
         if self._rates_update_task:
@@ -87,6 +90,17 @@ class MarketDataProvider:
             tasks = tuple(self._stopping_tasks)
             await asyncio.gather(*tasks, return_exceptions=True)
             self._stopping_tasks.difference_update(tasks)
+
+    def acquire_book_recovery(self, connector_name, trading_pairs, consumer, max_age):
+        from hummingbot.data_feed.order_book_recovery import OrderBookRecovery
+        if self._book_recovery is None:
+            self._book_recovery = OrderBookRecovery(self)
+        for pair in dict.fromkeys(trading_pairs):
+            self._book_recovery.acquire(connector_name, pair, consumer, max_age)
+
+    def release_book_recovery(self, consumer):
+        if self._book_recovery is not None:
+            self._book_recovery.release(consumer)
 
     @property
     def ready(self) -> bool:

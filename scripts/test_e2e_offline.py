@@ -909,10 +909,10 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         restored_config = self.admin(port, "/sessions/" + session["id"] + "/configuration")[1]
         assert restored_config["catalogue_hash"] == profiles["catalogue_hash"]
         # One stale reference blocks both markets without extending the session.
-        self.control(stale_pairs=["BTC-USDT"])
+        self.control(stale_pairs=["BTC-USDT"], rest_stale_instruments=["BTC-USDT"])
         poll(lambda: not self.state()["status"]["running"] or self.state()["status"]["phase"] == "waiting_for_mm_readiness",
              timeout=25, description="joint stale-reference readiness closes quotes")
-        self.control(stale_pairs=[])
+        self.control(stale_pairs=[], rest_stale_instruments=[])
         self.wait_running(port)
         assert self.state()["mm_session"]["expires_at"] == session["expires_at"]
         # Observe real recorder fees and shared wallet via FE, then both position holds.
@@ -1160,14 +1160,14 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         peak = Decimal(risk()["global_peak_quote"])
         assert peak > 0 and len(risk()["scope"]) == 2
         session = self.state()["mm_session"]
-        self.control(stale_instruments=["LIFE-USDT-SWAP"])
+        self.control(stale_instruments=["LIFE-USDT-SWAP"], rest_stale_instruments=["LIFE-USDT-SWAP"])
         poll(lambda: risk().get("stale") and not risk().get("ready"), timeout=25,
              description="stale disabled-market valuation blocks new spot risk")
         poll(lambda: all(row["state"] in ("filled", "canceled") for row in self.ledger()["orders"]),
              description="missing drawdown coverage cancels new quotes without closing held exposure")
         assert risk()["global_pnl_quote"] is None and position_exposure(self.ledger()["positions"]) == held
         assert http(port, "/live")[0] == 200 and not self.state()["recovery_state"].get("halt")
-        self.control(stale_instruments=[])
+        self.control(stale_instruments=[], rest_stale_instruments=[])
         self.wait_running(port)
         poll(lambda: risk().get("ready"), description="drawdown coverage recovers in the same process")
         assert Decimal(risk()["global_peak_quote"]) >= peak
@@ -1653,13 +1653,13 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             assert not self.state()["recovery_state"].get("halt")
             inject()
             poll(lambda: not incident(reason), description=reason + " recovery")
-        self.control(stale_pairs=["BTC-USDT"])
+        self.control(stale_pairs=["BTC-USDT"], rest_stale_instruments=["BTC-USDT"])
         poll(lambda: self.state()["status"]["phase"] == "waiting_for_mm_readiness",
              timeout=25, description="stale basket suspends quoting without process exit")
         poll(lambda: all(order["state"] in ("filled", "canceled") for order in self.ledger()["orders"]),
              description="stale quotes cancelled")
         assert http(port, "/live")[0] == 200 and http(port, "/ready")[0] == 503
-        self.control(stale_pairs=[])
+        self.control(stale_pairs=[], rest_stale_instruments=[])
         poll(lambda: self.state()["status"]["phase"] == "running", description="fresh basket automatically resumes")
         assert self.state()["mm_session"]["expires_at"] == deadline
         assert self.state()["mm_session"]["anchors"] == session["anchors"]
@@ -1813,7 +1813,7 @@ def main():
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
     from scripts.mm_cleanup_faults import SCENARIOS as cleanup_fault_scenarios
     from scripts.mm_managed_lifecycle import SCENARIOS as managed_scenarios
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
@@ -1850,7 +1850,7 @@ def main():
                   "architecture": "amd64", "config_sha256": hashlib.sha256((assets / "pmm.yml").read_bytes()).hexdigest(),
                   "fixture_sha256": {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(assets.iterdir())}}
         result['harness_source_sha256'] = {name: hashlib.sha256((ROOT / 'scripts' / name).read_bytes()).hexdigest()
-                                           for name in ('test_e2e_offline.py', 'mm_managed_environment.py', 'mm_managed_lifecycle.py', 'mm_cleanup_faults.py', 'mm_quote_refresh_checks.py')}
+                                           for name in ('test_e2e_offline.py', 'mm_managed_environment.py', 'mm_managed_lifecycle.py', 'mm_cleanup_faults.py', 'mm_quote_refresh_checks.py', 'mm_feed_recovery_checks.py')}
         try:
             print("Offline E2E: runtime ABI, JIT, TLS, SDK discovery and size budget", flush=True)
             smoke = docker("run", "--rm", "--platform", "linux/amd64", "--network", "none", "--read-only",
@@ -1858,7 +1858,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery") if args.scenario == "all" else (args.scenario,)
             if args.scenario == 'all':
                 scenarios += managed_scenarios + cleanup_fault_scenarios
             elif args.scenario == 'managed-lifecycle':
@@ -1923,6 +1923,9 @@ def main():
                         harness.quote_guard_scenario()
                     elif scenario == "drawdown":
                         harness.drawdown_scenario()
+                    elif scenario == "feed-recovery":
+                        from scripts.mm_feed_recovery_checks import scenario as feed_recovery_scenario
+                        feed_recovery_scenario(harness)
                     elif scenario == "spread-policy":
                         harness.spread_policy_scenario()
                     elif scenario == 'volatility-defense':

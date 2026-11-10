@@ -268,6 +268,7 @@ class ExecutorOrchestrator:
         return market is not None and (market.connector_name, market.trading_pair) == (connector_name, trading_pair)
 
     def _mm_mark_price(self, controller_id, connector_name, trading_pair):
+        from hummingbot.core.operational_warnings import DrawdownValuationUnavailable
         if not self._mm_contains(controller_id, connector_name, trading_pair):
             raise ValueError("drawdown_position_scope_unavailable")
         provider = self.strategy.market_data_provider
@@ -276,12 +277,15 @@ class ExecutorOrchestrator:
             stamp = max(book.snapshot_uid, book.last_diff_uid) / (1000 if connector_name == "okx_perpetual" else 1)
             age = provider.time() - stamp
             price = Decimal(str(provider.get_price_by_type(connector_name, trading_pair, PriceType.MidPrice)))
-            if (stamp <= 0 or not -1 <= age <= float(self.strategy.config.mm_drawdown_max_data_age_seconds)
-                    or not price.is_finite() or price <= 0):
-                raise ValueError("drawdown_valuation_unavailable")
+            if stamp <= 0 or not -1 <= age <= float(self.strategy.config.mm_drawdown_max_data_age_seconds):
+                raise DrawdownValuationUnavailable(connector_name, trading_pair, 'book_not_fresh', age)
+            if not price.is_finite() or price <= 0:
+                raise DrawdownValuationUnavailable(connector_name, trading_pair, 'invalid_mark_price', age)
             return price
+        except DrawdownValuationUnavailable:
+            raise
         except (ValueError, KeyError, TypeError, ArithmeticError, EnvironmentError):
-            raise ValueError("drawdown_valuation_unavailable") from None
+            raise DrawdownValuationUnavailable(connector_name, trading_pair, 'book_or_price_unavailable') from None
 
     def mm_valuation_ready(self):
         if getattr(self, "mm_scope_incomplete", False):

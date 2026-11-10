@@ -58,6 +58,7 @@ class PositionExecutor(ExecutorBase):
         self._close_order: Optional[TrackedOrder] = None
         self._take_profit_limit_order: Optional[TrackedOrder] = None
         self._failed_orders: List[TrackedOrder] = []
+        self._entry_quote_prepared = False
         self._trailing_stop_trigger_pct: Optional[Decimal] = None
 
         self._total_executed_amount_backup: Decimal = Decimal("0")
@@ -478,6 +479,21 @@ class PositionExecutor(ExecutorBase):
 
         :return: None
         """
+        if (not self._entry_quote_prepared and self._open_order is None and not self._failed_orders
+                and self.config.mm_session_id is not None and self.config.use_configured_entry_price):
+            controllers = getattr(self._strategy, 'controllers', {})
+            controller = controllers.get(self.config.controller_id) if isinstance(controllers, dict) else None
+            prepare = getattr(type(controller), 'prepare_entry_order', None)
+            if controller is None:
+                self.early_stop(keep_position=True)
+                return
+            if prepare is not None:
+                fresh = prepare(controller, self.config)
+                if fresh is None:
+                    self.early_stop(keep_position=True)
+                    return
+                self.config = fresh
+            self._entry_quote_prepared = True
         order_id = self.place_order(
             connector_name=self.config.connector_name,
             trading_pair=self.config.trading_pair,
@@ -774,6 +790,10 @@ class PositionExecutor(ExecutorBase):
             self.logger().error(f"{role} order failed {event.order_id}. Retrying {self._current_retries}/{self._max_retries}")
             return
         level, reason = context
+        if event.error_type == 'QuoteRefreshRequired':
+            # The connector owns the bounded operational warning; executor
+            # retirement and its per-order diagnostic remain intact.
+            level = logging.DEBUG
         action = "Retiring entry executor for a fresh quote." if reprice else f"Retry count {self._current_retries}/{self._max_retries}."
         self.logger().log(
             level, "%s order blocked by service checks: order_id=%s reason=%s. %s",

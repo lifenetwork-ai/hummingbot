@@ -768,6 +768,7 @@ class StrategyV2Base(StrategyPyBase):
         """
         Update the unified controller reports and publish the updates to the active controllers.
         """
+        from hummingbot.core.operational_warnings import DrawdownValuationUnavailable, OperationalWarnings
         try:
             # Get all reports in a single call and store them
             self.controller_reports = self.executor_orchestrator.get_all_reports()
@@ -782,6 +783,20 @@ class StrategyV2Base(StrategyPyBase):
                 controller.positions_held = controller_report.get("positions", [])
                 controller.performance_report = controller_report.get("performance", [])
                 controller.executors_update_event.set()
+            warnings = getattr(self, '_valuation_warnings', None)
+            if warnings is not None:
+                for key in list(warnings.states):
+                    self.logger().info('Controller report valuation recovered scope=%s summary=%s', key, warnings.recover(key))
+        except DrawdownValuationUnavailable as error:
+            self.controller_reports_error = type(error).__name__
+            warnings = getattr(self, '_valuation_warnings', None)
+            if warnings is None:
+                warnings = self._valuation_warnings = OperationalWarnings()
+            key = (error.connector, error.pair, error.reason)
+            emit, summary = warnings.observe(key)
+            if emit:
+                self.logger().warning('Controller report valuation unavailable connector=%s pair=%s reason=%s age_s=%s summary=%s',
+                                      error.connector, error.pair, error.reason, error.age, summary)
         except Exception as e:
             self.controller_reports_error = type(e).__name__
             self.logger().error(f"Error updating controller reports: {e}", exc_info=True)

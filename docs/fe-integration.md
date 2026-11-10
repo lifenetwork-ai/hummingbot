@@ -1000,10 +1000,18 @@ insufficient-funds error. Sizing/spread policy remains YAML-owned.
 An individual protected quote rejection (`spread_policy_quote_rejected`) does not,
 alone, prove service failure or an exchange-accepted order. The revision48 test
 logged these as ERROR. The subsequent source fix classifies a fresh spread-check
-rejection as `QuoteRefreshRequired` at WARNING: the configured entry retires,
+rejection as `QuoteRefreshRequired`: the connector emits a bounded WARNING
+(first occurrence and thirty-second summaries per pair/side/level), while
+the executor keeps per-order DEBUG diagnostics. The configured entry retires,
 keeps its level reserved through shutdown, and lets the controller propose a
 fresh quote. Missing controller/policy data and other safety failures remain
 errors. This does not guarantee every replacement will pass a later fresh gate.
+Queued managed LIFE entries re-evaluate price and size before creating their
+first order identity, preserving the original base/notional ceiling. Retries and
+durable order intents retain their original parameters. Quiet WS books may recover
+through bounded public snapshots with real venue timestamps; stale REST still
+blocks readiness. Expected unavailable drawdown valuations warn with summaries
+and recovery, without making old report values ready. These changes add no API.
 Keep available API quote reasons and repeated no-quote duration visible, and
 use observed runtime/receipts/venue reconciliation for operational state.
 Platform-log correlation is a maintainer diagnostic; the frontend does not gain

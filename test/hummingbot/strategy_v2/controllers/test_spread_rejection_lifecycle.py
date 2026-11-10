@@ -1,4 +1,5 @@
 """A rejected configured entry must reprice through the controller, not retry stale prices."""
+import logging
 from decimal import ROUND_DOWN, Decimal
 from test.hummingbot.strategy_v2.controllers.test_inventory_cap_lifecycle import (
     controller_actions,
@@ -27,6 +28,7 @@ from hummingbot.strategy_v2.utils.mm_spread import SpreadPolicy
 @pytest.mark.parametrize('side', [TradeType.BUY, TradeType.SELL])
 @pytest.mark.parametrize('change', ['reference', 'fee'])
 async def test_rejected_entry_retires_and_reprices_without_optional_defense(monkeypatch, caplog, connector_name, side, change):
+    caplog.set_level(logging.DEBUG)
     state = await setup_lifecycle(
         monkeypatch, connector_name, side, scenario='follow_token',
         references=[dict(pair='BTC-USDT', weight='1')], spread_policy=dict(volatility=dict(
@@ -61,7 +63,7 @@ async def test_rejected_entry_retires_and_reprices_without_optional_defense(monk
     assert executor.close_type == CloseType.POSITION_HOLD
     assert 'reference_price=' in str(blocked.value) and 'buy_spreads' in str(blocked.value)
     record = next(record for record in caplog.records if getattr(record, 'event', None) == 'order_submission_blocked')
-    assert record.levelname == 'WARNING' and record.reason_code == 'spread_policy_quote_rejected'
+    assert record.levelname == 'DEBUG' and record.reason_code == 'spread_policy_quote_rejected'
     assert 'Retiring entry executor' in record.getMessage()
     # The old level stays reserved until shutdown; it cannot overlap a new entry.
     assert not any(isinstance(action, CreateExecutorAction) and action.executor_config.side == side

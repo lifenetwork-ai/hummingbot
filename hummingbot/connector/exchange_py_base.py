@@ -501,6 +501,13 @@ class ExchangePyBase(ExchangeBase, ABC):
         )
         self._order_tracker.process_order_update(order_update)
 
+        limiter = getattr(self, '_quote_refresh_warnings', None)
+        if limiter is not None:
+            from hummingbot.core.order_submission_guard import current_quote_level
+            summary = limiter.recover((order.trading_pair, order.trade_type.name, current_quote_level()))
+            if summary is not None:
+                self.logger().info('Quote submission recovered pair=%s side=%s summary=%s',
+                                   order.trading_pair, order.trade_type.name, summary)
         return exchange_order_id
 
     def _on_order_failure(
@@ -518,9 +525,23 @@ class ExchangePyBase(ExchangeBase, ABC):
         if isinstance(exception, SubmissionBlocked):
             error_type = type(exception).__name__
             level, reason = submission_block_log_context(error_type) or submission_block_log_context("SubmissionBlocked")
+            summary = None
+            if error_type == 'QuoteRefreshRequired':
+                from hummingbot.core.operational_warnings import OperationalWarnings
+                from hummingbot.core.order_submission_guard import current_quote_level
+                limiter = getattr(self, '_quote_refresh_warnings', None)
+                if limiter is None:
+                    limiter = self._quote_refresh_warnings = OperationalWarnings()
+                emit, summary = limiter.observe((trading_pair, trade_type.name, current_quote_level()))
+                if not emit:
+                    level = logging.DEBUG
+            message = "Order submission blocked by service checks on %s: order_id=%s side=%s pair=%s reason=%s"
+            arguments = (self.name_cap, order_id, trade_type.name, trading_pair, str(exception))
+            if summary is not None:
+                message += " summary=%s"
+                arguments += (summary,)
             self.logger().log(
-                level, "Order submission blocked by service checks on %s: order_id=%s side=%s pair=%s reason=%s",
-                self.name_cap, order_id, trade_type.name, trading_pair, str(exception),
+                level, message, *arguments,
                 extra={"event": "order_submission_blocked", "reason_code": reason,
                        "scope": "connector", "error_type": error_type},
             )

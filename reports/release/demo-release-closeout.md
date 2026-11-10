@@ -1,5 +1,10 @@
 # Demo and release closeout — 2026-11-10
 
+The [quiet-feed / unsent-quote follow-up](../performance/mm-feed-quote-recovery.md)
+adds bounded snapshot recovery and clearer operational diagnostics, with its own
+targeted offline evidence. It makes no Cloud deployment or risk-policy changes
+and does not inherit the historical full release qualification below.
+
 Latest incident: revision80 retained an untracked-order startup HALT. After
 independent venue/accounting verification and a rehearsed, audited recovery,
 separate Start55 succeeds at07:50 UTC and initially places two actual Spot SELL

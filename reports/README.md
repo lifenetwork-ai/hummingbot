@@ -5,7 +5,10 @@ Start with the [Demo/release closeout](release/demo-release-closeout.md),
 [remaining-work register](../docs/plans/README.md). Operational/API contracts
 live in [docs](../docs/README.md).
 
-Latest source `f53885fda`, regular image `4198f2fa…`: canonical native3,085 +16,
+The [quiet-feed / unsent-quote follow-up](performance/mm-feed-quote-recovery.md)
+keeps its targeted offline evidence separate from the historical full release.
+
+Last full release baseline `f53885fda`, regular image `4198f2fa…`: canonical native3,085 +16,
 PostgreSQL605 and all30 packaged E2E pass. Full unchanged load/Random soak3600/six faults/retention
 pass: main p99 96.87/96.46/103.11/283.41ms,4,885 simulated fills, growth18.02MiB.
 Historical rollout attribution is closed; latest merged CI artifact verification remains open. Actual Demo revision73 qualifies BUY/SELL

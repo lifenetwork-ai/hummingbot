@@ -50,9 +50,9 @@ def _run(harness):
     assert all(row['ordType'] == 'post_only' for row in ledger['accepted'])
     assert not ledger['fills'], 'This continuity fixture intentionally injects no fills'
     assert not absent, 'Rolling refresh lost an acknowledged side: ' + json.dumps(absent[:3])
-    harness.control(stale_pairs=['LIFE-USDT'])
+    harness.control(stale_pairs=['LIFE-USDT'], rest_stale_instruments=['LIFE-USDT', 'LIFE-USDT-SWAP'])
     poll(lambda: not any(counts().values()), timeout=25, description='stale input withdraws all sides despite rolling refresh')
-    harness.control(stale_pairs=[])
+    harness.control(stale_pairs=[], rest_stale_instruments=[])
     poll(lambda: all(counts().values()), timeout=60, description='fresh market data restores admitted quotes')
     harness.mm_command(port, 'stop')
     assert not any(counts().values())
