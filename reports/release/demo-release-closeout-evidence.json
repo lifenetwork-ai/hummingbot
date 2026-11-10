@@ -1,6 +1,6 @@
 {
   "scope": "Controlled actual OKX Demo plus frozen local/offline release; excludes real GCP KMS, actual FE and live funds.",
-  "updated_at": "2026-11-10T03:49:45.532684+00:00",
+  "updated_at": "2026-11-10T05:00:51.733083+00:00",
   "demo_qualification_passed": true,
   "offline_release_passed": true,
   "closeout_scope_complete": false,
@@ -781,7 +781,13 @@
     "build/acceptance-closeout-20261110/revision-audit/update-audit-private.json": "35636e5eb05a93e41f2ad0098597e6b29f04ecd9d426fdccf116e23aaecb3209",
     "build/acceptance-closeout-20261110/revision-audit/native-lifecycle.log": "9041de5dab4fa9a7379bee149bc2285d7e2662a9cf9271f6bf41c36f153bfeca",
     "build/acceptance-closeout-20261110/revision-audit/overlap-e2e.log": "24e80e62f5fc4163b2d413b99535a5151cc87a95f7215753bb011d7e534c3ff8",
-    "build/e2e-offline/20261110-104353-22f70e/result.json": "45fe073f0eaa44e46c7c4971c5369fa6eb89484bd6f6ac53668f890514c12627"
+    "build/e2e-offline/20261110-104353-22f70e/result.json": "45fe073f0eaa44e46c7c4971c5369fa6eb89484bd6f6ac53668f890514c12627",
+    "build/mm-oom/20261110-115629-0956eb/result.json": "6fe7bbfeaa06d9ed5b6a0ee121b5561b18d89bc2c83112d1afe6a9d776b9a55a",
+    "test/e2e/offline/oom_entrypoint.py": "ceefc7650250578286e7faad175b6f68596fd077656956a18615f7ddcc8b1597",
+    "scripts/test_mm_oom.py": "6c9687d1ca76a7140cb9a688676288a5c4e38eef3b7521b507d381f168945377",
+    "test/hummingbot/cli/test_mm_oom_evidence.py": "8bc4949739c67451da2981f1d0a727f42d188b73de47ce39e1ec882ece06f867",
+    "build/mm-oom-native.log": "0cce6ccfb1e4654012b387f88dbd6f8244a3b74971df985f6f50a0697af672cf",
+    "build/mm-oom/20261110-115504-6c910c/result.json": "87198132b9898e8743b8f71108cce53fe63f7e80447680d558312053082082e5"
   },
   "healthy_probe_observations": {
     "count": 6,
@@ -881,5 +887,128 @@
       "subsequent_status_healthy": true,
       "separate_from_0141_rollout": true
     }
+  },
+  "oom_fault_diagnostics": {
+    "image": "asia-southeast1-docker.pkg.dev/lifeai-438107/cloud-run-source-deploy/hummingbot/hummingbot-demo@sha256:1e7cf901cbe376268d167fde18db0a9f18fa6818ba51052bae9cceba188e2e1b",
+    "report": "build/mm-oom/20261110-115629-0956eb/result.json",
+    "passed": true,
+    "actual_okx": false,
+    "bot_limits": {
+      "cpus": 2,
+      "memory_bytes": 1073741824,
+      "swap_disabled": true,
+      "startup_memory_bytes": 2147483648,
+      "memory_limit_scope": "1GiB applied after harness startup; not cold-start capacity qualification."
+    },
+    "native_related_passed": 23,
+    "test_only_target_oom_score_adj": 1000,
+    "production_victim_selection_unchanged": true,
+    "new_runtime_patch": false,
+    "full_release_or_cloud_capacity_qualification": false,
+    "cases": {
+      "api": {
+        "scenario": "api",
+        "memory_mib": 1024,
+        "actual_okx": false,
+        "passed": true,
+        "marker": {
+          "pid": 34,
+          "role": "api",
+          "boundary": "now"
+        },
+        "memory_events_before": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "memory_events_after": {
+          "low": 0,
+          "high": 0,
+          "max": 26,
+          "oom": 1,
+          "oom_kill": 1,
+          "oom_group_kill": 0
+        },
+        "peer_pid_preserved": true,
+        "owner_session_preserved": true,
+        "unique_fills": 1,
+        "exact_original_fees_verified": true,
+        "clean_shutdown_exit_code": 0
+      },
+      "engine": {
+        "scenario": "engine",
+        "memory_mib": 1024,
+        "actual_okx": false,
+        "passed": true,
+        "marker": {
+          "pid": 32,
+          "role": "engine",
+          "boundary": "create",
+          "order": "93027a12dac34fBCBLEUT4009aa23cd4"
+        },
+        "memory_events_before": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "memory_events_after": {
+          "low": 0,
+          "high": 0,
+          "max": 41,
+          "oom": 1,
+          "oom_kill": 1,
+          "oom_group_kill": 0
+        },
+        "peer_pid_preserved": true,
+        "halt_preserved": true,
+        "no_automatic_resubmission": true,
+        "unique_fills": 1,
+        "exact_original_fees_verified": true,
+        "clean_shutdown_exit_code": 0
+      },
+      "container": {
+        "scenario": "container",
+        "memory_mib": 1024,
+        "actual_okx": false,
+        "passed": true,
+        "fill_boundary": {
+          "pid": 32,
+          "role": "engine",
+          "boundary": "fill",
+          "order": "93027a12dac34fBCBBCUT485dc097dc5",
+          "trade": "1"
+        },
+        "marker": {
+          "pid": 1,
+          "role": "supervisor",
+          "boundary": "now"
+        },
+        "memory_events_before": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "physical_exit": {
+          "Status": "exited",
+          "ExitCode": 137,
+          "OOMKilled": true
+        },
+        "halt_preserved": true,
+        "no_automatic_resubmission": true,
+        "unique_fills": 1,
+        "exact_original_fees_verified": true,
+        "clean_shutdown_exit_code": 0
+      }
+    },
+    "retained_initial_failure": "build/mm-oom/20261110-115504-6c910c/result.json: aggregate failed the ordinary no-OOM shutdown assertion after an intentional API OOM. Preserved separately; no pass or runtime correction claimed."
   }
 }

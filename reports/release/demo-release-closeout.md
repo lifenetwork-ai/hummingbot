@@ -165,6 +165,29 @@ and enters the connector's existing retry path. Subsequent status and all three
 health endpoints are healthy; no control change or HALT is observed. It is not
 the01:41 rollout event and is not evidence of a newly reproduced logic defect.
 
+## Real OOM fault diagnostics
+
+Separate real-OOM diagnostics on immutable image4198 pass all three cases with
+2 CPU/1 GiB and swap disabled at the fault stage (harness startup uses2 GiB, not
+a cold-start capacity qualification at1 GiB). API OOM increments kernel `oom_kill` from0 to1;
+API is replaced while engine PID/owner/session remain. Engine OOM after a real
+simulator create response also increments0→1; API PID survives, replacement
+retains HALT and does not resubmit the uncertain order. Whole-container OOM
+targets PID1 while a fill transaction has flushed but not committed: Docker
+records exit137/OOMKilled=true, and restart reconciles the one venue fill/fee
+exactly once while retaining HALT. Each case verifies exact independent fills
+and ends with a bounded clean shutdown; owned containers/networks are removed.
+
+Raw evidence: `build/mm-oom/20261110-115629-0956eb/result.json`. The initial API
+attempt reaches real OOM/recovery but fails the ordinary healthy-shutdown gate
+because Docker retains its OOMKilled flag; that aggregate failed attempt is kept.
+The OOM-specific shutdown check preserves the cause and requires physical exit0;
+the ordinary release gate remains unchanged. No runtime defect/fix is claimed.
+The mounted test-only wrapper selects its victim with oom_score_adj1000; this
+does not establish production victim selection, memory isolation or uninterrupted
+quotes in a shared cgroup. These simulator fault diagnostics do not extend the
+earlier full load gate or qualify a different CI image.
+
 ## Limits still open
 
 - The original I/O delay's unique infrastructure trigger is unproved. SQL reads

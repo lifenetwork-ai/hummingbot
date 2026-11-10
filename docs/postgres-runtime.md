@@ -271,6 +271,32 @@ new full-image release qualification. Run just these cases with:
 /path/to/hummingbot/python scripts/test_postgres.py -k network_loss_at_commit
 ```
 
+The opt-in `make test-mm-oom CLOUDRUN_IMAGE=<immutable-image>` uses the shipping
+supervisor and real child processes on the existing internal-network exchange
+simulator/PostgreSQL harness. Fault-stage limits are 2 CPU/1 GiB with swap disabled;
+the existing harness starts at2 GiB before applying the fault limit, so this does
+not qualify cold startup at1 GiB.
+It allocates and touches pages inside the selected process until the kernel kills
+it; no SIGKILL is substituted for memory exhaustion. API/engine cases require an
+increase in cgroup `memory.events.oom_kill`; whole-container failure
+requires Docker `OOMKilled=true` and a physical exit137.
+
+- API OOM must replace the API while preserving engine PID, owner and session.
+- Engine OOM is triggered after a real simulator order response but before the
+  connector acknowledges it. Replacement must preserve HALT, retain committed
+  fills/fees and never automatically resubmit the uncertain order.
+- Whole-container OOM targets PID1 while the recorder is paused after fill flush
+  and before COMMIT. Restart must reconcile the one venue fill exactly once and
+  retain the unresolved-effect HALT.
+
+Only the selected test process raises its own `oom_score_adj` to1000 so the victim
+is reproducible; production victim selection is unchanged. API and engine share
+one memory cgroup in production, so these tests do not promise memory isolation
+or uninterrupted quotes during pressure. They are finite fault diagnostics on the
+chosen image, separate from healthy soak/retention and actual OKX acceptance.
+The test wrapper is mounted only from `test/e2e/offline/oom_entrypoint.py`; no
+fault trigger or allocator is added to a production entrypoint or API.
+
 ## Environment connector credentials and YAML
 
 With PostgreSQL selected, exchange secrets come only from process variables (or
