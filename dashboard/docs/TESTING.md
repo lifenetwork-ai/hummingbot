@@ -1,5 +1,9 @@
 # Testing and quality gates
 
+## Temporary dashboard E2E policy
+
+While dashboard UI/UX is still evolving, do not write new E2E tests or expand existing E2E coverage as part of feature implementation. Defer this work until UI/UX is stable or the user explicitly requests it: repeated test rewrites for changing UI/UX provide little value during this phase. Continue applicable unit/component tests, lint, typecheck and build checks. Existing E2E tests and CI gates remain in place.
+
 This is a **frontend starter**, not an integration with Life Vesting. The MSW fixture
 is an example endpoint only; no external API, wallet or smart contract is required.
 
@@ -7,7 +11,6 @@ is an example endpoint only; no external API, wallet or smart contract is requir
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm run skills:check` | Validate skill metadata and relative links without node_modules |
 | `pnpm run lint` | ESLint 9 flat config, TypeScript, hooks and JSX accessibility rules; zero-warning gate |
 | `pnpm run lint:fix` | Apply ESLint's safe automatic fixes |
 | `pnpm run typecheck` | TypeScript (strict) |

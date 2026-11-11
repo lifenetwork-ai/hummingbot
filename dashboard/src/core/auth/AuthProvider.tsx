@@ -4,23 +4,12 @@ import { ApiError } from '../api/client'
 import type { ApiSession } from '../api/ApiProvider'
 import type { ResponseBody } from '../api/types'
 import { AuthContext, type AuthContextValue, type AuthStatus } from './auth-context'
+import { authTokenStorageKey, isRestorableGoogleIdToken, readAuthToken, removeAuthTokenIfMatches, storeAuthToken, tokenExpiry } from './auth-persistence'
 
-const { adminApiBaseUrl: baseUrl } = getAppConfig()
+const { adminApiBaseUrl: baseUrl, googleClientId } = getAppConfig()
+const storageKey = authTokenStorageKey(baseUrl, googleClientId)
 
 type State = { status: AuthStatus; identity: ResponseBody<'getAdminIdentity'> | null; error: string | null }
-
-function tokenExpiry(token: string): number | null {
-  try {
-    const payload = token.split('.')[1]
-    if (!payload) return null
-    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
-    const claims: unknown = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')))
-    if (!claims || typeof claims !== 'object' || !('exp' in claims) || typeof claims.exp !== 'number') return null
-    return claims.exp * 1000
-  } catch {
-    return null
-  }
-}
 
 async function requestIdentity(token: string): Promise<ResponseBody<'getAdminIdentity'>> {
   const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/access/me`, {
@@ -39,26 +28,99 @@ async function requestIdentity(token: string): Promise<ResponseBody<'getAdminIde
 }
 
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [state, setState] = useState<State>({ status: 'anonymous', identity: null, error: null })
+  const [state, setState] = useState<State>({ status: 'restoring', identity: null, error: null })
   const tokenRef = useRef<string | null>(null)
+  const persistedToken = useRef<string | null>(null)
   const generation = useRef(0)
   const loginInFlight = useRef<Promise<void> | null>(null)
+  const identityRefresh = useRef<{ token: string; generation: number; promise: Promise<ResponseBody<'getAdminIdentity'>> } | null>(null)
   const sessionRevision = useRef(0)
 
-  const logout = useCallback(() => {
+  const endSession = useCallback((error: string | null, removePersisted = true) => {
+    const previous = tokenRef.current
     generation.current += 1
     loginInFlight.current = null
     tokenRef.current = null
-    setState({ status: 'anonymous', identity: null, error: null })
+    persistedToken.current = null
+    identityRefresh.current = null
+    if (removePersisted && previous !== null) removeAuthTokenIfMatches(storageKey, previous)
+    setState({ status: 'anonymous', identity: null, error })
   }, [])
+
+  const logout = useCallback(() => {
+    const stored = readAuthToken(storageKey)
+    endSession(null)
+    // Explicit logout also clears a credential awaiting restoration or login.
+    if (stored !== null) removeAuthTokenIfMatches(storageKey, stored)
+  }, [endSession])
+
+  const restore = useCallback(async (credential: string) => {
+    const attempt = ++generation.current
+    loginInFlight.current = null
+    identityRefresh.current = null
+    tokenRef.current = credential
+    persistedToken.current = credential
+    setState({ status: 'restoring', identity: null, error: null })
+    if (!isRestorableGoogleIdToken(credential)) {
+      endSession(null)
+      return
+    }
+    try {
+      const identity = await requestIdentity(credential)
+      if (generation.current !== attempt || tokenRef.current !== credential) return
+      if (!isRestorableGoogleIdToken(credential)) { endSession(null); return }
+      // A cross-tab change must not be overwritten by an older /me response.
+      if (readAuthToken(storageKey) !== credential) { endSession(null, false); return }
+      sessionRevision.current += 1
+      setState({ status: 'authenticated', identity, error: null })
+    } catch (error) {
+      if (generation.current !== attempt || tokenRef.current !== credential) return
+      const rejected = error instanceof ApiError && (error.status === 401 || error.status === 403)
+      endSession(error instanceof Error ? error.message : 'Could not restore sign-in.', rejected)
+    }
+  }, [endSession])
+
+  useEffect(() => {
+    const syncStoredCredential = () => {
+      const stored = readAuthToken(storageKey)
+      if (stored !== null && stored === tokenRef.current) {
+        if (!isRestorableGoogleIdToken(stored)) endSession(null)
+        return
+      }
+      if (stored !== null) void restore(stored)
+      else if (persistedToken.current) endSession(null, false)
+      else if (!tokenRef.current) setState((current) => current.status === 'restoring'
+        ? { status: 'anonymous', identity: null, error: null } : current)
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === storageKey || event.key === null) syncStoredCredential()
+    }
+    const onResume = () => { if (!loginInFlight.current) syncStoredCredential() }
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('focus', onResume)
+    window.addEventListener('online', onResume)
+    syncStoredCredential()
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('focus', onResume)
+      window.removeEventListener('online', onResume)
+      generation.current += 1
+      tokenRef.current = null
+      persistedToken.current = null
+      loginInFlight.current = null
+      identityRefresh.current = null
+    }
+  }, [endSession, restore])
 
   const login = useCallback((credential: string): Promise<void> => {
     if (loginInFlight.current) return loginInFlight.current
     if (!credential.trim()) {
-      setState({ status: 'anonymous', identity: null, error: 'Login token is missing.' })
+      endSession('Login token is missing.')
       return Promise.resolve()
     }
     const attempt = ++generation.current
+    tokenRef.current = credential
+    identityRefresh.current = null
     setState({ status: 'authenticating', identity: null, error: null })
     const pending = (async () => {
       try {
@@ -74,48 +136,56 @@ export function AuthProvider({ children }: PropsWithChildren) {
           } catch { /* keep status message */ }
           throw new ApiError(response.status, { detail })
         }
-        // The login response confirms authentication; /me supplies the canonical current role.
         await response.json()
         const identity = await requestIdentity(credential)
         if (generation.current !== attempt) return
+        const expiry = tokenExpiry(credential)
+        if (expiry !== null && expiry <= Date.now()) { endSession('Sign-in token expired. Please sign in again.'); return }
         tokenRef.current = credential
+        persistedToken.current = storeAuthToken(storageKey, credential) ? credential : null
         sessionRevision.current += 1
         setState({ status: 'authenticated', identity, error: null })
       } catch (error) {
         if (generation.current !== attempt) return
-        tokenRef.current = null
-        setState({ status: 'anonymous', identity: null, error: error instanceof Error ? error.message : 'Sign-in failed.' })
+        endSession(error instanceof Error ? error.message : 'Sign-in failed.')
       } finally {
         if (generation.current === attempt) loginInFlight.current = null
       }
     })()
     loginInFlight.current = pending
     return pending
-  }, [])
+  }, [endSession])
 
   useEffect(() => {
     if (state.status !== 'authenticated' || !tokenRef.current) return
     const expiry = tokenExpiry(tokenRef.current)
     if (expiry === null) return
-    const delay = expiry - Date.now()
-    if (delay <= 0) {
-      logout()
-      return
+    const expirationGeneration = generation.current
+    let timer: number | undefined
+    const schedule = () => {
+      if (generation.current !== expirationGeneration) return
+      const remaining = expiry - Date.now()
+      if (remaining <= 0) endSession(null)
+      else timer = window.setTimeout(schedule, Math.min(remaining, 2_147_483_647))
     }
-    const timer = window.setTimeout(logout, Math.min(delay, 2_147_483_647))
+    schedule()
     return () => window.clearTimeout(timer)
-  }, [logout, state.status, state.identity])
+  }, [endSession, state.status, state.identity])
 
   const sessionFetch = useCallback<typeof globalThis.fetch>(async (input, init) => {
     const requestToken = tokenRef.current
     const requestGeneration = generation.current
     const response = await globalThis.fetch(input, { ...init, credentials: 'omit' })
     if (requestToken && tokenRef.current === requestToken && generation.current === requestGeneration) {
-      if (response.status === 401) {
-        logout()
-      } else if (response.status === 403) {
+      if (response.status === 401) endSession(null)
+      else if (response.status === 403) {
+        let refresh = identityRefresh.current
+        if (!refresh || refresh.token !== requestToken || refresh.generation !== requestGeneration) {
+          refresh = { token: requestToken, generation: requestGeneration, promise: requestIdentity(requestToken) }
+          identityRefresh.current = refresh
+        }
         try {
-          const identity = await requestIdentity(requestToken)
+          const identity = await refresh.promise
           if (generation.current === requestGeneration && tokenRef.current === requestToken) {
             setState((current) => {
               if (current.identity?.role !== identity.role || JSON.stringify(current.identity?.permissions) !== JSON.stringify(identity.permissions)) sessionRevision.current += 1
@@ -123,14 +193,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
             })
           }
         } catch (error) {
-          if (error instanceof ApiError && (error.status === 401 || error.status === 403) && generation.current === requestGeneration) logout()
+          if (generation.current === requestGeneration && tokenRef.current === requestToken) {
+            const rejected = error instanceof ApiError && (error.status === 401 || error.status === 403)
+            endSession(error instanceof Error ? error.message : 'Could not verify your current permissions. Please sign in again.', rejected)
+          }
+        } finally {
+          if (identityRefresh.current === refresh) identityRefresh.current = null
         }
       }
     }
     return response
-  }, [logout])
+  }, [endSession])
   const apiSession = useMemo<ApiSession | undefined>(() => state.status === 'authenticated' && state.identity ? {
     baseUrl,
+    principalId: state.identity.id,
     cacheIdentity: `${state.identity.id}:${sessionRevision.current}`,
     getToken: () => tokenRef.current,
     fetch: sessionFetch,

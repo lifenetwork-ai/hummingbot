@@ -38,7 +38,7 @@ import type { RequestBody, ResponseBody } from '../src/core/api/types'
 
 const api = createApiClient({
   baseUrl: 'https://your-service.example/api/v1/admin',
-  getToken: () => currentGoogleIdToken(), // Supply from the future auth integration.
+  getToken: () => currentGoogleIdToken(), // Supplied by the in-memory auth session.
 })
 const orders = await api.request<ResponseBody<'listOrders'>>('/orders?limit=50')
 // Start/Stop bodies use RequestBody<'submitCommand'>.
@@ -65,6 +65,25 @@ The integration layers are:
 OpenAPI → generated DTOs → typed admin operation adapter → query options/keys → hooks → feature UI
 ```
 
+The shared server data for authenticated routes follows the workspace boundary:
+
+```text
+AppProviders (Theme → Auth → authenticated API session)
+└── root AppShell (brand/theme/footer)
+    └── AuthenticatedWorkspace (auth guard)
+        └── OperationalProvider (useOperationalController → React Query)
+            └── OperationalShell (useOperationalContext consumer)
+                ├── ContextBar
+                └── Outlet → protected route pages
+```
+
+The operational provider mounts only below the authenticated API boundary. It
+composes the controller once and exposes a derived context to the shell and protected
+pages. `ContextBar` and page views consume that context or receive explicit props;
+they do not read auth/config directly or start duplicate context queries. Server
+observations remain in TanStack Query; the provider does not copy them to a second
+store. Public routes such as Login and UI Kit do not mount the provider or its polling.
+
 `admin.ts` maps every current JSON admin operation, excluding Swagger/docs assets.
 Operation names, paths, filters, required bodies, idempotency headers and response
 types come from the checked backend contract. A test rejects operation-map drift.
@@ -75,15 +94,16 @@ types come from the checked backend contract. A test rejects operation-map drift
 <AppProviders apiSession={{
   baseUrl: serviceUrl + '/api/v1/admin',
   cacheIdentity: verifiedPrincipalId + ':' + loginSessionRevision,
+  principalId: verifiedPrincipalId,
   getToken: getCurrentGoogleIdToken,
 }}>
   <Application />
 </AppProviders>
 ```
 
-Supply these from the future authentication/connection flow. No URL, token or
-identity is fabricated by the starter. With no session, the existing starter UI
-still works and sends no admin requests; consuming admin hooks requires a session.
+The application supplies these from `AuthProvider`; the optional provider override
+is also available for tests. No URL, token or identity is fabricated. Without a
+session, public routes send no admin requests; consuming admin hooks requires a session.
 Never put tokens in `cacheIdentity`, query keys or Vite configuration. Change
 `cacheIdentity` on every login/logout or privilege change, even for the same email.
 A service/identity change remounts the provider with a fresh QueryClient, cancels
@@ -153,9 +173,21 @@ are removed from the temporary request map as submission begins and on settlemen
 Consumers must clear secret form fields after submission. No query/mutation cache
 persistence or Devtools are installed. Do not add persistence of secret input state.
 
-Persistent receipt-ID/idempotency-key recovery, auth screens and product UI mappings
-remain feature work. A caller can resume receipt reads with a retained ID after
-remount/reload; the stack does not automatically store it in browser storage.
+Successful operation responses with a valid receipt identity retain a bounded,
+non-secret reference through `receipt-tracking.ts`. Capture requires a stable
+`principalId` and a successful, non-invalidated status observation with a bot ID;
+the API/principal/bot scope is captured before submission so a late response cannot
+be attributed to a new context. The list retains up to 50 references for seven days.
+Browser storage failure does not fail an accepted mutation. This list is a local
+convenience; deletion or concurrent tab updates can lose references, so backend
+history remains the authoritative lookup.
+
+`useTrackedReceipts()` reads that scoped list after the current backend bot identity
+is available. UI can select a reference and call the corresponding read-only receipt
+hook. The list does not poll receipts or replay mutations automatically. Only kind,
+ID and an internal retention timestamp are persisted: no bodies, idempotency keys,
+Google tokens, recovery confirmation tokens or exchange credentials. Timeout before
+receiving an ID, same-body/key persistence and product recovery UI remain T-13 work.
 
 ## Test scenarios
 
@@ -195,9 +227,29 @@ API proxy automatically. A private Cloud Run endpoint requires the documented ga
 
 The official Google Identity Services script supplies an ID token. The dashboard
 calls header-only `POST /access/login`, then verifies identity through `/access/me`.
-Tokens remain in memory and requests omit cookies. All workspace routes are gated;
-logout, expiry and 401 clear the session and its API cache. A safe local deep link
-is restored after login. Reload requires signing in again. The backend issues no
-refresh token: reconnect obtains a new Google credential, with no automatic mutation
-replay. Neither frontend configuration nor mocked browser tests prove live Google,
-CORS, gateway, IAM or account-whitelist acceptance.
+After verification, auth keeps the active token in memory and persists the same
+credential in localStorage under an API-base-URL/Google-client-ID scoped key
+(`life-mm.auth-token.v1:...`). Requests still use Bearer headers and omit cookies;
+no backend session or refresh-token flow was added.
+
+On reload, a new tab or reopening the browser, auth reads the stored token and
+filters malformed/expired credentials locally, then calls only `GET /access/me`.
+Identity, current permissions and protected API consumers remain unavailable until
+that request succeeds. Routes show a restoring state without redirecting to Login
+or starting operational polling early. A safe local deep link is preserved.
+
+Logout, expiry and active 401 responses remove the matching persisted token and
+clear the session/API cache. Storage events synchronize logout and token replacement
+across tabs; focus/online rechecks catch suspended-tab expiry and allow a retry after
+transient restoration failure. A changed token is verified before publishing its
+identity. Late responses cannot overwrite a newer attempt or remove another tab's
+new credential. A restore 401/403 removes storage; transient lookup failure denies
+workspace access but keeps the unexpired credential for a later verification attempt.
+
+Persistence never extends Google's expiry and never replays a mutation. If browser
+storage is unavailable, a verified login can still work in memory for the current
+page, but restoration across reload is unavailable. Only the Google sign-in token
+has this approved persistence path: exchange secrets, recovery confirmation tokens,
+query caches and mutation bodies are not persisted by auth. Tokens never belong in
+URLs or logs. Hosted Google/CORS/gateway/IAM and real account acceptance still need
+separate evidence.

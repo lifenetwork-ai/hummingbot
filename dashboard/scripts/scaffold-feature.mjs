@@ -42,5 +42,5 @@ for (const filename of entries.keys()) {
 if (!input.includes('--dry-run')) {
   await mkdir(featureDir, { recursive: true })
   for (const [filename, contents] of entries) await writeFile(filename, contents, { flag: 'wx' })
-  console.log('Next: implement real behavior and register the page in src/app/router.tsx.')
+  console.log('Next: implement real behavior and register the page under its public or authenticated layout in src/app/router.tsx. Keep views presentational; put shared providers at the matching layout boundary and server state in TanStack Query.')
 }

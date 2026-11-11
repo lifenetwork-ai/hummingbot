@@ -6,7 +6,9 @@
 src/
 ├── app/                # app-wide providers, layout and route registration
 │   ├── AppProviders.tsx # ThemeProvider and TanStack Query
-│   ├── AppShell.tsx     # responsive header / footer / outlet
+│   ├── AppShell.tsx     # public brand/theme shell / outlet
+│   ├── AuthenticatedWorkspace.tsx # auth guard and protected workspace composition
+│   ├── OperationalShell.tsx # context bar and protected route outlet
 │   └── router.tsx       # centralized route definitions
 ├── core/               # shared service adapters and authentication session
 ├── features/           # isolated user-facing capabilities
@@ -21,6 +23,23 @@ src/
     └── useTheme.tsx    # persistent light/dark theme provider
 ```
 
+The root `AppShell` owns the shared brand header, theme control and footer for public and protected pages. Protected routes flow through `AuthenticatedWorkspace`:
+
+```text
+root AppShell
+└── AuthenticatedWorkspace (auth guard)
+    └── features/operational-context/OperationalProvider
+        └── app/OperationalShell
+            ├── ContextBar
+            └── Outlet → protected pages
+```
+
+The workspace provider mounts only after authentication. It owns the cross-page operational context and its server queries. `OperationalShell` renders the persistent operational layout, `ContextBar` presents the shared context, and route pages compose page-specific content. Public routes such as `/login` and `/ui-kit` do not mount the operational provider or its polling queries. `HomePage` is an Overview page; it does not own the provider or global context bar.
+
+`OperationalProvider` calls the feature's `useOperationalController()` once. Its
+consumer hook, `useOperationalContext()`, reads the already-derived model; it does
+not create another controller or query subscription.
+
 ## Dependency rules
 
 - `pages` compose features and shared presentation components.
@@ -30,6 +49,7 @@ src/
 - `core` houses external service adapters and domain types. The LIFE MM transport, typed operation adapters, session provider, React Query hooks and generated API DTOs live in `src/core/api/`; see [API](API.md).
 - Prefer semantic Tailwind tokens (`bg-app-surface`, `text-app-action`) over hard-coded colors.
 - Use `AppProviders` for app-wide context; don't introduce global state without a cross-cutting requirement.
+- Use `OperationalProvider` for authenticated, cross-page operational context. Keep server observations in TanStack Query; derive the shared model from query data and auth identity instead of copying it into a second store.
 - Keep API/network calls out of presentational components. Data fetching may use TanStack Query when needed.
 - Respect reduced motion and keyboard accessibility.
 
@@ -46,6 +66,7 @@ and composed UI, not a required `atoms/molecules/organisms` folder hierarchy.
 | `features/<name>` | Named UI blocks with product meaning, feature interactions and state. Separate orchestration from presentation when it makes either independently understandable or testable. |
 | `shared/components` | Product-neutral primitives with an existing reuse need or an explicit design-system contract; no feature imports, routing policy or backend requests. |
 | `app` | Application-wide shell, provider composition and route policy. |
+| Authenticated workspace | Auth guard, operational provider/shell, shared context bar and protected outlet. |
 
 Before building a screen, identify the existing primitives to reuse, the meaningful
 feature blocks and the route's orchestration responsibilities. Extract a component
@@ -88,18 +109,24 @@ The original repository's `.git`, builds, and environment files are not included
 
 ## Authentication boundaries
 
-- `core/auth/` owns the shared session context/provider, identity, in-memory token
-  lifecycle and backend authentication adapter. It depends on `core/api` contracts
+- `core/auth/` owns the shared session context/provider, identity, scoped localStorage token persistence/restoration, the active in-memory
+  token lifecycle and backend authentication adapter. It depends on `core/api` contracts
   and never imports `features`, `pages` or `app`.
 - `features/auth/` owns Google sign-in presentation and its SDK loader. It may
   consume shared authentication services from `core/auth`.
-- `app/ProtectedRoute.tsx` owns route access policy; `app/redirect.ts` validates
-  local return destinations. `app/AppProviders.tsx` composes auth and API providers.
+- `app/AuthenticatedWorkspace.tsx` owns protected-route access policy and composes
+  the operational provider/shell after auth. `app/redirect.ts` validates local return
+  destinations. `app/AppProviders.tsx` composes theme, auth, API and feedback providers.
 - `pages/LoginPage.tsx` composes sign-in UI with the shared authentication service.
 
-Context placement follows responsibility: feature-local context stays in its
-feature; authentication services used across the app belong in `core/auth`.
-Application composition and navigation policy belong in `app`.
+Context placement follows responsibility: authentication services belong in
+`core/auth`; operational context belongs in `features/operational-context` and is
+mounted by the authenticated workspace. Its provider exposes a consumer hook for
+protected UI. The controller hook inside the provider owns query composition; the
+ContextBar and pages receive the model and do not fetch, read auth, or read config
+directly. Component-local state stays local. TanStack Query remains the source of
+server state; add a separate client-state library only for a demonstrated need that
+is not server cache or provider-derived operational context.
 
 ## Environment configuration
 

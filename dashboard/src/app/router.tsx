@@ -1,5 +1,5 @@
 import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
-import { ProtectedRoute } from './ProtectedRoute'
+import { AuthenticatedWorkspace } from './AuthenticatedWorkspace'
 import { safeRedirect } from './redirect'
 import { LoginPage } from '../pages/LoginPage'
 import { AppShell } from './AppShell'
@@ -9,7 +9,7 @@ import { NotFoundPage } from '../pages/NotFoundPage'
 
 const rootRoute = createRootRoute({ component: AppShell })
 
-const protectedRoute = createRoute({ getParentRoute: () => rootRoute, id: 'protected', component: ProtectedRoute })
+const protectedRoute = createRoute({ getParentRoute: () => rootRoute, id: 'protected', component: AuthenticatedWorkspace })
 const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: '/login', validateSearch: (search: Record<string, unknown>) => ({ redirect: safeRedirect(search.redirect) }), component: LoginPage })
 const homeRoute = createRoute({
   getParentRoute: () => protectedRoute,

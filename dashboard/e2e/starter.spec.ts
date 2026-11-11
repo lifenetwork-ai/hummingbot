@@ -1,10 +1,10 @@
-import { expect, test } from './auth-fixture'
+import { expect, test, setAccountTheme } from './auth-fixture'
 
 test('starter navigation and theme switching', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Sign in with Google' }).click()
   await expect(page.getByRole('heading', { name: 'A clean canvas for what comes next.' })).toBeVisible()
-  await page.getByRole('button', { name: 'Use dark theme' }).click()
+  await setAccountTheme(page, 'dark')
   await expect(page.locator('html')).toHaveClass(/dark/)
   await page.getByRole('link', { name: 'Explore UI kit' }).click()
   await expect(page.getByRole('heading', { name: 'UI kit.' })).toBeVisible()
@@ -34,9 +34,11 @@ for (const width of [390, 1280]) {
       await expect(page).toHaveURL('/')
       await expect(page.getByRole('heading', { name: 'A clean canvas for what comes next.' })).toBeVisible()
       await page.reload()
-      await page.getByRole('button', { name: 'Sign in with Google' }).click()
+      await expect(page.getByRole('button', { name: /^Tài khoản / })).toBeVisible()
       await expect(homeLink).toBeVisible()
-      await expect(page.getByRole('button', { name: theme === 'dark' ? 'Use light theme' : 'Use dark theme' })).toBeVisible()
+      await page.getByRole('button', { name: /^Tài khoản / }).click()
+      await expect(page.getByRole('menu').getByRole('button', { name: `Use ${theme} theme` })).toBeVisible()
+      await expect(page.locator('html')).toHaveCSS('color-scheme', theme)
     })
   }
 }

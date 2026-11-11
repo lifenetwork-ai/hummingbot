@@ -5,13 +5,18 @@ import type { PropsWithChildren } from 'react'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { ApiProvider, type ApiSession } from './ApiProvider'
-import { useAdminMutation, useAdminQuery, useCommandReceipt } from './hooks'
+import { useAdminMutation, useAdminQuery, useCommandReceipt, useRecoveryReceipt, useReceiptInspection } from './hooks'
 import { createAdminApi } from './admin'
 import { createApiClient } from './client'
 import { adminKeys, adminQueryOptions, pollingInterval } from './queries'
+import { readTrackedReceipts, receiptStorageKey, rememberAcceptedReceipt, type ReceiptReference } from './receipt-tracking'
+import { useTrackedReceipts } from './useTrackedReceipts'
+import type { ReceiptScope } from './receipt-tracking'
+import type { ReadResponse } from './admin'
 import { createDashboardQueryClient } from './queryClient'
 import { server } from '../../test/mocks/server'
 import { apiFailure, emptyOrders, pendingCommand, recordedOrders } from '../../test/mocks/adminFixtures'
+import { commandReceipt, credentialReceipt, reconciliationReceipt, recoveryCheckReceipt, recoveryResetReceipt } from '../../test/mocks/receiptFixtures'
 
 // jsdom's AbortSignal is a different realm from Node fetch; use Node's pair.
 const nativeController = transferableAbortController()
@@ -20,17 +25,78 @@ vi.stubGlobal('AbortSignal', nativeController.signal.constructor)
 afterAll(() => vi.unstubAllGlobals())
 
 const baseUrl = 'https://query.example.test/api/v1/admin'
-const session: ApiSession = { baseUrl, cacheIdentity: 'user-a:login-1', getToken: () => 'token-a' }
+const session: ApiSession = { baseUrl, cacheIdentity: 'user-a:login-1', principalId: 'google:user-a', getToken: () => 'token-a' }
 function Wrapper({ children }: PropsWithChildren) { return <ApiProvider session={session}>{children}</ApiProvider> }
 
 describe('admin React Query integration', () => {
+  it('captures the successful bot scope before awaiting the write response', async () => {
+    let release: (() => void) | undefined
+    let submitted = false
+    server.use(http.post(`${baseUrl}/commands`, async () => {
+      submitted = true
+      await new Promise<void>((resolve) => { release = resolve })
+      return HttpResponse.json(pendingCommand, { status: 202 })
+    }))
+    const { result } = renderHook(() => ({ mutation: useAdminMutation('submitCommand'), client: useQueryClient() }), { wrapper: Wrapper })
+    result.current.client.setQueryData(adminKeys.query('getRuntimeStatus', {}), { bot_id: 'bot-original' } as ReadResponse<'getRuntimeStatus'>)
+    const pending = result.current.mutation.mutateAsync({ body: pendingCommand.payload, idempotencyKey: 'scope-key' })
+    await waitFor(() => expect(submitted).toBe(true))
+    result.current.client.setQueryData(adminKeys.query('getRuntimeStatus', {}), { bot_id: 'bot-after-switch' } as ReadResponse<'getRuntimeStatus'>)
+    await act(async () => { release?.(); await pending })
+    const originalScope: ReceiptScope = { apiBaseUrl: baseUrl, principalId: 'google:user-a', botId: 'bot-original' }
+    const changedScope: ReceiptScope = { ...originalScope, botId: 'bot-after-switch' }
+    expect(readTrackedReceipts(originalScope)).toEqual([{ kind: 'command', id: pendingCommand.id }])
+    expect(readTrackedReceipts(changedScope)).toEqual([])
+  })
+
+  it('ignores successful receipt responses when no trusted bot status has been observed', async () => {
+    server.use(http.post(`${baseUrl}/commands`, () => HttpResponse.json(pendingCommand, { status: 202 })))
+    const { result } = renderHook(() => useAdminMutation('submitCommand'), { wrapper: Wrapper })
+    await act(async () => { await result.current.mutateAsync({ body: pendingCommand.payload, idempotencyKey: 'no-scope-key' }) })
+    expect(window.localStorage.length).toBe(0)
+  })
+
+  it('does not use invalidated bot context to scope an accepted receipt', async () => {
+    server.use(http.post(`${baseUrl}/commands`, () => HttpResponse.json(pendingCommand, { status: 202 })))
+    const { result } = renderHook(() => ({ mutation: useAdminMutation('submitCommand'), client: useQueryClient() }), { wrapper: Wrapper })
+    const key = adminKeys.query('getRuntimeStatus', {})
+    result.current.client.setQueryData(key, { bot_id: 'possibly-old-bot' } as ReadResponse<'getRuntimeStatus'>)
+    await result.current.client.invalidateQueries({ queryKey: key })
+    await act(async () => { await result.current.mutation.mutateAsync({ body: pendingCommand.payload, idempotencyKey: 'stale-scope-key' }) })
+    expect(window.localStorage.length).toBe(0)
+  })
+
+  it('resumes current-scope receipt references after status identity is confirmed', async () => {
+    const scope: ReceiptScope = { apiBaseUrl: baseUrl, principalId: 'google:user-a', botId: 'bot-reloaded' }
+    window.localStorage.setItem(receiptStorageKey(scope),
+      JSON.stringify({ version: 1, receipts: [{ kind: 'command', id: 'cmd-1', acceptedAt: Date.now() }] }))
+    server.use(http.get(`${baseUrl}/status`, () => HttpResponse.json({ bot_id: 'bot-reloaded' })))
+    const { result } = renderHook(() => useTrackedReceipts(), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current).toEqual([{ kind: 'command', id: 'cmd-1' }]))
+    expect(readTrackedReceipts(scope)).toEqual(result.current)
+  })
+
+  it('updates scoped references after same-tab acceptance and another tab clears browser storage', async () => {
+    const scope: ReceiptScope = { apiBaseUrl: baseUrl, principalId: 'google:user-a', botId: 'bot-reloaded' }
+    server.use(http.get(`${baseUrl}/status`, () => HttpResponse.json({ bot_id: scope.botId })))
+    const { result } = renderHook(() => ({ refs: useTrackedReceipts(), status: useAdminQuery('getRuntimeStatus', {}, { poll: false }) }), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.status.isSuccess).toBe(true))
+    act(() => { rememberAcceptedReceipt(scope, { kind: 'command', id: 'cmd-new' }) })
+    await waitFor(() => expect(result.current.refs).toEqual([{ kind: 'command', id: 'cmd-new' }]))
+    act(() => {
+      window.localStorage.clear()
+      window.dispatchEvent(new StorageEvent('storage', { key: null }))
+    })
+    await waitFor(() => expect(result.current.refs).toEqual([]))
+  })
+
   it('skipToken prevents even manual fetches when a receipt ID is missing', async () => {
     const { result } = renderHook(() => useCommandReceipt(undefined), { wrapper: Wrapper })
     expect(result.current.fetchStatus).toBe('idle')
     expect(result.current.data).toBeUndefined()
   })
 
-  it.each([409, 422])('returns mutation HTTP %s without retrying or invalidating accepted state', async (status) => {
+  it.each([401, 409, 422])('returns mutation HTTP %s without replaying or invalidating accepted state', async (status) => {
     let calls = 0
     server.use(http.post(`${baseUrl}/commands`, () => {
       calls++
@@ -197,5 +263,124 @@ describe('admin React Query integration', () => {
     await act(async () => { await result.current.mutation.mutateAsync({ path: { exchange: 'okx', connector: 'okx' },
       body: { credentials: { api_key: 'SECRET-FIXTURE-KEY' }, expected_version: 0, expected_control_version: 0 }, idempotencyKey: 'secret-operation' }) })
     expect(JSON.stringify(result.current.client.getMutationCache().getAll().map((item) => item.state))).not.toContain('SECRET-FIXTURE-KEY')
+  })
+
+  it('inspects read-only receipts without replay and isolates cross-reference queries', async () => {
+    let commandGets = 0
+    let credentialGets = 0
+    let posts = 0
+    server.use(
+      http.get(`${baseUrl}/commands/:id`, ({ params }) => {
+        commandGets++
+        return HttpResponse.json({ ...commandReceipt, id: String(params.id), status: 'accepted' })
+      }),
+      http.get(`${baseUrl}/credentials/operations/:id`, ({ params }) => {
+        credentialGets++
+        return HttpResponse.json({ ...credentialReceipt, id: String(params.id) })
+      }),
+      http.post(`${baseUrl}/*`, () => {
+        posts++
+        return HttpResponse.json({}, { status: 400 })
+      }),
+    )
+
+    // Initially null reference -> no calls, returns null
+    const { result, rerender } = renderHook(
+      ({ ref }: { ref: ReceiptReference | null }) => useReceiptInspection(ref),
+      { initialProps: { ref: null as ReceiptReference | null }, wrapper: Wrapper }
+    )
+    expect(result.current).toBeNull()
+    expect(commandGets).toBe(0)
+    expect(credentialGets).toBe(0)
+
+    // Select command reference
+    rerender({ ref: { kind: 'command', id: 'cmd-inspection-1' } })
+    await waitFor(() => expect(result.current?.phase).toBe('ready'))
+    expect(result.current?.status).toBe('accepted')
+    expect(result.current?.outcome).toEqual({ kind: 'command', action: 'stop', sessionId: 'fixture-session', error: null })
+    expect(commandGets).toBe(1)
+    expect(credentialGets).toBe(0)
+
+    // Switch to credential reference -> does not leak previous command data
+    rerender({ ref: { kind: 'credential', id: 'cred-inspection-2' } })
+    await waitFor(() => expect(result.current?.reference.kind).toBe('credential'))
+    await waitFor(() => expect(result.current?.phase).toBe('ready'))
+    expect(result.current?.status).toBe('failed')
+    expect(result.current?.detail).toBe('cleanup_pending')
+    expect(result.current?.outcome).toMatchObject({ kind: 'credential', action: 'credentials_disconnect', stage: 'exchange_cleanup', operatorActionRequired: true })
+    expect(credentialGets).toBe(1)
+
+    // Deselect -> returns null
+    rerender({ ref: null })
+    expect(result.current).toBeNull()
+
+    // No POST operations were ever called
+    expect(posts).toBe(0)
+  })
+
+  it('projects reconciliation state and recovery check/reset outcome without confirmation tokens', async () => {
+    const { result: idleRecovery } = renderHook(() => useRecoveryReceipt(undefined), { wrapper: Wrapper })
+    expect(idleRecovery.current.fetchStatus).toBe('idle')
+
+    server.use(
+      http.get(`${baseUrl}/reconciliation/:id`, () => HttpResponse.json(reconciliationReceipt)),
+      http.get(`${baseUrl}/recovery/operations/:id`, ({ params }) => HttpResponse.json(
+        params.id === 'recovered' ? recoveryResetReceipt : recoveryCheckReceipt,
+      )),
+    )
+
+    const { result, rerender } = renderHook(
+      ({ ref }: { ref: ReceiptReference | null }) => useReceiptInspection(ref),
+      { initialProps: { ref: { kind: 'reconciliation', id: 'rec-1' } as ReceiptReference | null }, wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current?.phase).toBe('ready'))
+    expect(result.current?.status).toBe('succeeded')
+    expect(result.current?.outcome).toEqual({ kind: 'reconciliation', state: 'mismatch', reasons: ['exchange_order_missing_locally'] })
+
+    rerender({ ref: { kind: 'recovery', id: 'recov-1' } })
+    await waitFor(() => expect(result.current?.reference.kind).toBe('recovery'))
+    await waitFor(() => expect(result.current?.phase).toBe('ready'))
+    expect(result.current?.status).toBe('succeeded')
+    expect(result.current?.outcome).toEqual({ kind: 'recovery', action: 'recovery_check', stage: 'review_required', canRecover: false,
+      blockers: [{ code: 'review_required', detail: 'Review proposed repair', next_action: 'review' }] })
+    expect(JSON.stringify(result.current?.outcome)).not.toContain('SECRET-FIXTURE-CONFIRMATION-TOKEN')
+
+    rerender({ ref: { kind: 'recovery', id: 'recovered' } })
+    await waitFor(() => expect(result.current?.outcome).toEqual({ kind: 'recovery', action: 'recovery_reset', stage: 'recovered', canRecover: true, blockers: [] }))
+    expect(JSON.stringify(result.current?.outcome)).not.toContain('SECRET-FIXTURE-RESET-TOKEN')
+  })
+
+  it('preserves incomplete reconciliation outcome separately from successful processing status', async () => {
+    const incomplete = { ...reconciliationReceipt, report: { ...reconciliationReceipt.report, state: 'incomplete' as const,
+      markets: [{ ...reconciliationReceipt.report.markets![0], state: 'incomplete' as const, complete: false, reasons: ['exchange_page_limit_reached'] }] } }
+    server.use(http.get(`${baseUrl}/reconciliation/:id`, () => HttpResponse.json(incomplete)))
+    const { result } = renderHook(() => useReceiptInspection({ kind: 'reconciliation', id: 'incomplete-check' }), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current?.phase).toBe('ready'))
+    expect(result.current?.status).toBe('succeeded')
+    expect(result.current?.outcome).toEqual({ kind: 'reconciliation', state: 'incomplete', reasons: ['exchange_page_limit_reached'] })
+  })
+
+  it('keeps the selected receipt isolated when an older inspection response arrives late', async () => {
+    let releaseCommand!: () => void
+    let commandStarted = false
+    server.use(
+      http.get(`${baseUrl}/commands/:id`, async () => {
+        commandStarted = true
+        await new Promise<void>((resolve) => { releaseCommand = resolve })
+        return HttpResponse.json(commandReceipt)
+      }),
+      http.get(`${baseUrl}/credentials/operations/:id`, () => HttpResponse.json(credentialReceipt)),
+    )
+    const { result, rerender } = renderHook(
+      ({ ref }: { ref: ReceiptReference }) => useReceiptInspection(ref),
+      { initialProps: { ref: { kind: 'command', id: 'slow-command' } as ReceiptReference }, wrapper: Wrapper },
+    )
+    await waitFor(() => expect(commandStarted).toBe(true))
+    rerender({ ref: { kind: 'credential', id: 'selected-credential' } })
+    await waitFor(() => expect(result.current?.outcome?.kind).toBe('credential'))
+    act(() => releaseCommand())
+    await waitFor(() => expect(result.current?.reference).toEqual({ kind: 'credential', id: 'selected-credential' }))
+    expect(result.current?.status).toBe('failed')
+    expect(result.current?.outcome).toMatchObject({ kind: 'credential', action: 'credentials_disconnect' })
   })
 })

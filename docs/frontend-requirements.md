@@ -54,7 +54,7 @@ Bảng là cơ sở đặc tả từ contract và đối chiếu backend; không
 | Thiếu lệnh — UC-04 | Thiếu phía nào và vì sao? Chờ hay cần can thiệp? Sau xử lý đã phục hồi chưa? | **Có/Tổng hợp**: lý do từng phía, readiness, policy, incidents và next action. Giữ trạng thái chưa xác định khi thiếu bằng chứng; xác nhận phục hồi bằng dữ liệu mới. |
 | Vốn và tài sản — UC-05, UC-06 | Có bao nhiêu tài sản khả dụng? Allocation khác số dư thế nào? Thiếu gì để tiếp tục? | **Có/Một phần**: balances, allocation, orders và policy. Chưa có đối chiếu vốn toàn diện hoặc khuyến nghị tổng quát cần nạp/cân bằng bao nhiêu. Số dư mới không xác nhận riêng từng giao dịch nạp/rút. |
 | Rủi ro và dừng — UC-07 | Giới hạn nào gần/chạm ngưỡng? Dừng đã hoàn tất chưa? Còn lệnh/vị thế gì? | **Có/Một phần**: policy observations, receipt, status, positions và reconciliation. Mỗi giới hạn có phạm vi riêng. Stop giữ tài sản/vị thế đã khớp; thiếu connector/dữ liệu có thể khiến xác minh chưa đầy đủ. |
-| Sự cố và phục hồi — UC-08 | Hệ thống đang bảo vệ thế nào? Còn trạng thái chưa rõ nào? Có thể kiểm tra với sàn không? | **Có/Một phần**: HALT, incidents, pending mutations và đối soát có phạm vi/thời điểm. **Chưa hỗ trợ** reset/resume HALT tổng quát; reconciliation chỉ quan sát, không sửa sai lệch. Chuyển kỹ thuật khi cần. |
+| Sự cố và phục hồi — UC-08 | Hệ thống đang bảo vệ thế nào? Còn trạng thái chưa rõ nào? Có thể kiểm tra với sàn không? | **Có/Một phần**: HALT, incidents, pending mutations, đối soát và luồng Admin recovery có kiểm chứng. Admin có thể check exchange/ledger, review preview và xác nhận reset kỹ thuật khi `can_recover=true`; blocker hoặc bằng chứng thiếu cần chuyển kỹ thuật. Không có thao tác resume tổng quát, không tự chạy lại trading; reconciliation chỉ quan sát và không sửa sai lệch. |
 | Lịch sử và kết thúc — UC-09, UC-10 | Phiên/profile nào đã chạy, ai thao tác, khớp/chi phí gì, còn việc nào chưa xong? | **Có/Tổng hợp/Một phần**: sessions, commands, events, audit, fills, statistics và performance. Chưa có lịch sử mọi khoảng thiếu lệnh, ghi chú bàn giao riêng hoặc tổng hợp hiệu quả năm mục tiêu. Basic bootstrap chỉ nhận diện tài khoản dùng chung. |
 
 ## 4. Yêu cầu hành vi cốt lõi
@@ -69,8 +69,10 @@ Bảng là cơ sở đặc tả từ contract và đối chiếu backend; không
 ### FE-02 — Nhiệm vụ, lệnh và vấn đề
 
 - Cho phép đọc nhiệm vụ hiện hành cùng kết quả quan sát, đủ để đối chiếu bot đang làm gì với nhiệm vụ được giao.
+- Operator summary dùng `status.operator.state`, `label`, `detail`, `next_action` cùng `observation`, `actions` và `recovery` để nêu tình trạng, ảnh hưởng và bước tiếp theo. `actions` là khả năng hiện tại có lý do chặn; quyết định cuối vẫn được backend kiểm tra khi nhận POST.
 - Thể hiện hai phía mua/bán độc lập; phân biệt lệnh xác nhận, chờ đặt, chờ hủy, bị chặn và chưa xác định.
 - Mỗi vấn đề cần nêu ảnh hưởng, lý do đã biết và hành động được phép. Đưa chi tiết kỹ thuật vào phần tra cứu; không trình bày giả thuyết thành nguyên nhân đã xác nhận.
+- Với thiếu lệnh bất thường, cảnh báo sau hơn 20 giây và yêu cầu điều tra sau hơn 60 giây; tuổi lệnh không tự chứng minh engine chậm. Mục tiêu ban đầu là ít nhất 99% sampled two-sided availability trong 30 phút, tính riêng theo thị trường và eligible conditions. Hiện total session coverage cùng unknown/restricted time; không tính unknown là thành công, không che thời gian bị hạn chế và không tuyên bố đạt mục tiêu từ mẫu ngắn. Deployment phải chủ động đặt `MM_NO_QUOTE_WARNING_SECONDS=20` vì default backend là 120 giây.
 - Sau khớp hoặc can thiệp, dùng lệnh/readiness mới để xác minh tiếp tục hoạt động; không suy diễn chỉ từ thao tác của người dùng.
 
 ### FE-03 — Chạy, chuyển và theo dõi yêu cầu
@@ -88,15 +90,15 @@ Bảng là cơ sở đặc tả từ contract và đối chiếu backend; không
 - Hiển thị tồn kho/vị thế và mức sử dụng giới hạn theo đúng định nghĩa policy; không gọi controller drawdown là tổn thất toàn bộ vốn Foundation.
 - Stop có xác nhận ngắn, nêu phiên/thị trường và việc vị thế vẫn mở. Không báo thành công khi kết quả chưa rõ; tiếp tục cho xem lệnh/tài sản/vị thế sau dừng.
 - Chỉ kết luận lệnh đã được xử lý trong phạm vi xác minh. Zero row, thiếu dữ liệu hay dừng process không đủ chứng minh hết lệnh/rủi ro.
-- Đối soát cần hiện phạm vi, thời điểm, chênh lệch và phần không kiểm tra được; không có nút reset HALT hoặc sửa sai lệch giả định.
+- Đối soát cần hiện phạm vi, thời điểm, chênh lệch và phần không kiểm tra được. Không có nút reset HALT tổng quát hoặc sửa sai lệch giả định; chỉ Admin được dùng recovery check/review/reset theo preview và bằng chứng của contract.
 
 ### FE-05 — Thiết lập và kết nối
 
-- Hỗ trợ đăng nhập và quyền theo contract; quản lý tài khoản chỉ dành cho quyền được cấp. Khi hết phiên xác thực/đổi quyền, ngừng tự gửi mutation và cập nhật khả năng thao tác.
+- Hỗ trợ Google sign-in theo contract; Google ID token được lưu ở memory và localStorage theo API/Google client ID; reload/tab mới khôi phục qua `/access/me` khi token còn hạn, chờ xác minh trước khi vào workspace. Logout đồng bộ giữa các tab. Persistence không gia hạn token. Hết hạn hoặc 401 xóa phiên và API cache; 403 làm mới identity/quyền qua `/access/me` rồi cập nhật khả năng thao tác. Sau đăng nhập lại, khôi phục safe local deep link và tiếp tục theo dõi operation cũ bằng receipt/history; không tự gửi lại mutation. Quản lý tài khoản chỉ dành cho quyền được cấp.
 - Chỉ cung cấp cấu hình khóa khi nguồn/capability cho phép. Nguồn environment thể hiện do triển khai quản lý; không cung cấp form sửa YAML hoặc hạ tầng.
 - Với kết nối managed, phân biệt Set, Start, Stop và Disconnect. Set thành công không tự chạy. Disconnect dừng bot-wide, xử lý lệnh và đóng vị thế perpetual được quản lý, rồi gỡ slot được chọn; tài sản spot còn lại. Cần xác nhận tác động này trước gửi.
 - Theo dõi credential receipt riêng với command receipt; theo root operation khi retry/repair cleanup. Chỉ kết luận Disconnected khi có trạng thái cuối và các proof theo integration contract; không có force-delete để bỏ qua cleanup.
-- Khóa và token không xuất hiện trong URL, log hoặc browser storage; xóa secret input khỏi trạng thái form sau gửi. Chỉ giữ metadata không chứa bí mật cần thiết để theo dõi.
+- Khóa và token không xuất hiện trong URL hoặc log. Chỉ Google ID token được phép lưu localStorage theo luồng auth đã chốt; không lưu khóa sàn, recovery confirmation token hoặc secret form vào browser storage; xóa secret input khỏi trạng thái form sau gửi. Chỉ giữ metadata không chứa bí mật cần thiết để theo dõi.
 
 ### FE-06 — Lịch sử, lỗi và khả năng tiếp tục vận hành
 
@@ -120,7 +122,9 @@ Bảng là cơ sở đặc tả từ contract và đối chiếu backend; không
 | Sàn/dịch vụ gián đoạn, dữ liệu stale hoặc khởi động lại | Nêu phần chưa rõ; không hiển thị trạng thái tốt từ dữ liệu cũ; đối soát/phục hồi theo quyền và contract |
 | Đối soát thiếu dữ liệu hoặc có chênh lệch | Hiện phạm vi chưa xác minh; không tuyên bố sạch lệnh hoặc đã sửa; có hướng chuyển kỹ thuật |
 | Lỗi tạm thời/kéo dài, rate limit, lỗi báo cáo | Backoff đúng hướng dẫn; status/điều khiển vẫn dùng được khi backend khả dụng; giữ timestamp cũ và không tạo dữ liệu 0 giả |
-| Hết xác thực hoặc quyền thay đổi | Không tự gửi lại mutation; yêu cầu đăng nhập/cập nhật quyền và tải trạng thái trước thao tác tiếp |
+| Hết xác thực, reload hoặc quyền thay đổi | Yêu cầu đăng nhập lại khi cần; khôi phục safe local deep link và theo dõi receipt/history cũ, tải identity/trạng thái mới; không tự gửi lại mutation |
+| Thiếu lệnh bất thường hoặc đo availability | Cảnh báo sau 20 giây, điều tra sau 60 giây; xem availability theo từng market, eligible/total coverage, unknown và restricted time; không tuyên bố đạt mục tiêu 99%/30 phút từ mẫu ngắn |
+| Admin recovery | Chỉ Admin có `manage_recovery`; dừng session và đợi version được xác nhận trước check; check thành công vẫn có thể bị blocked; review preview chỉ khi `can_recover=true`; chỉ `succeeded` + `stage=recovered` mới hoàn tất, trading vẫn stopped và không tự Start |
 | Set/Disconnect managed và cleanup bị chặn | Set không tự Start; Stop không bị hiểu thành Disconnect; theo đúng root receipt, slot version và proof; retry/repair theo actions |
 | Tra cứu cuối ca | Xem được nhiệm vụ, thao tác, fills/chi phí và việc còn tồn đọng trong phạm vi dữ liệu; phần thiếu được ghi rõ |
 

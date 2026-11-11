@@ -21,6 +21,18 @@ vi.mock('../features/auth/LoginCard', () => ({
 }))
 
 describe('LoginPage', () => {
+  it('waits for stored credential verification instead of mounting Google login', () => {
+    const navigate = vi.fn()
+    vi.spyOn(router, 'useSearch').mockReturnValue({ redirect: '/?market=spot#orders' } as never)
+    vi.spyOn(router, 'useNavigate').mockReturnValue(navigate)
+    vi.spyOn(authContext, 'useAuth').mockReturnValue({ status: 'restoring', identity: null, error: null,
+      login: vi.fn(), logout: vi.fn(), apiSession: undefined })
+    render(<LoginPage />)
+    expect(screen.queryByTestId('login-card')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Đang khôi phục phiên đăng nhập')
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
   it('orchestrates routing, passes state to LoginCard, and triggers login', () => {
     const login = vi.fn()
     vi.spyOn(router, 'useSearch').mockReturnValue({ redirect: '/ui-kit' } as never)

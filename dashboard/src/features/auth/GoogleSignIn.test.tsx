@@ -9,7 +9,7 @@ describe('Google sign-in control', () => {
   it('explains missing configuration without loading Google', () => {
     vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '')
     render(<GoogleSignIn onCredential={vi.fn()} disabled={false} />)
-    expect(screen.getByRole('status')).toHaveTextContent('not configured')
+    expect(screen.getByRole('status')).toHaveTextContent('Chưa cấu hình')
     expect(loadGoogleIdentity).not.toHaveBeenCalled()
   })
   it('reports a script failure and supports explicit retry', async () => {
@@ -17,9 +17,9 @@ describe('Google sign-in control', () => {
     vi.mocked(loadGoogleIdentity).mockRejectedValue(new Error('offline'))
     render(<GoogleSignIn onCredential={vi.fn()} disabled={false} />)
     await screen.findByRole('alert')
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }))
     await waitFor(() => expect(loadGoogleIdentity).toHaveBeenCalledTimes(2))
-    expect(screen.getByRole('alert')).toHaveTextContent('Google could not load')
+    expect(screen.getByRole('alert')).toHaveTextContent('Không thể tải Google')
   })
   it('ignores callbacks while submitting and after unmount', async () => {
     vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'public-client-id')

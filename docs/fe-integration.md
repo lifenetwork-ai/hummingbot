@@ -184,8 +184,12 @@ There are no usable password/audience defaults. The API does not issue its own
 tokens or sessions. Initial Google sign-in binds the approved email to its verified
 subject; a pending invitation alone cannot replace a working Google administrator.
 
-Use TLS for the hosted dashboard. Credentials stay out of FE builds, URLs, logs
-and persistent browser storage. Direct browser requests send an explicit
+Use TLS for the hosted dashboard. Exchange credentials and recovery confirmation
+tokens stay out of FE builds, URLs, logs and persistent browser storage. The React
+dashboard persists its verified Google ID token in scoped localStorage and restores
+it through `/access/me` while unexpired; this client behavior does not add API-issued
+sessions or refresh tokens. Google tokens stay out of builds, URLs and logs.
+Direct browser requests send an explicit
 `Authorization` header and `credentials: "omit"`. A gateway route needs its own
 browser authentication and forwarding behavior; that deployment decision is not
 implemented by the bot API.
