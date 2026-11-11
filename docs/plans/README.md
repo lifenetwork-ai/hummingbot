@@ -1,7 +1,10 @@
 # Plans and remaining verification
 
-Updated 2026-11-10. Start with [Demo/release closeout](DEMO_RELEASE_CLOSEOUT.md)
-and its [current acceptance matrix](../../reports/release/demo-release-closeout.md).
+Updated 2026-11-11. Current recovery work is tracked in
+[automatic recovery and availability](MM_AUTOMATIC_RECOVERY_AVAILABILITY_TDD_PLAN.md)
+and its [connected baseline/handoff report](../../reports/demo/cloudrun-runtime-baseline-handoff.md).
+Earlier qualification remains in [Demo/release closeout](DEMO_RELEASE_CLOSEOUT.md)
+and its [acceptance matrix](../../reports/release/demo-release-closeout.md).
 Detailed rejected attempts retain their original image/date scopes; removing old
 files does not close unresolved evidence or policy items.
 
@@ -156,6 +159,7 @@ historical failures, capture omissions and finite-retention limits are in the
 
 ## Retained plans
 
+- [Automatic MM recovery / availability](MM_AUTOMATIC_RECOVERY_AVAILABILITY_TDD_PLAN.md) — implemented source, offline and connected qualification tracked separately
 - [Admin recovery — completed source and Cloud workflow](ADMIN_RECOVERY_API_TDD_PLAN.md)
 - [PostgreSQL / Cloud Run](POSTGRES_CLOUD_RUN_PORT_PLAN.md)
 - [Admin identity and encrypted credentials](ADMIN_ACCESS_OKX_CREDENTIALS_TDD_PLAN.md)

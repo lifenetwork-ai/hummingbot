@@ -368,7 +368,10 @@ def test_performance_fenced_fill_transaction(owned, pg_engine):
     # and retains lost-ack identities in one statement, independent of order count.
     # Steady fills reuse the existing status; coalescing the Order update removes
     # its premature owner-check roundtrip, while every real flush stays fenced.
-    assert measurements["indexed"]["statements"] == measurements["unindexed"]["statements"] == 10
+    # One additional INSERT durably journals the fill in its existing transaction.
+    # The applied-order flag reuses the already-loaded Order; no extra lookup or
+    # ownership roundtrip is added to the fill path.
+    assert measurements["indexed"]["statements"] == measurements["unindexed"]["statements"] == 11
     with pg_engine.connect() as connection:
         assert connection.execute(text("SELECT count(*) FROM trade_fills")).scalar() == counter
         assert connection.execute(select(func.sum(TradeFill.amount))).scalar() == counter * Decimal(".0001")

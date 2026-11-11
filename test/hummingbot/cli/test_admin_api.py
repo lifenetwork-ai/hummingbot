@@ -16,7 +16,7 @@ PAYLOAD = dict(action="start", expected_version=0, market_mode="spot", profile_i
 
 
 @asynccontextmanager
-async def client():
+async def client(*, state=None):
     catalogue = await MMProfilesConfig.load(CATALOGUE)
     settings = AdminSettings(True, "operator", "test-password", basic_auth_enabled=True)
     storage = MagicMock()
@@ -27,6 +27,8 @@ async def client():
     host = SimpleNamespace(settings=SimpleNamespace(bot_id="hummingbot"), phase="bootstrapping", store=MagicMock())
     host.store.read.return_value = dict(bot_id="hummingbot", desired_state="running", control_version=1,
                                         acknowledged_version=0, heartbeat_age_s=None, owner_uuid=None, status=None, mm_session=None)
+    if state is not None:
+        host.store.read.return_value = state
     app = web.Application(middlewares=[admin_middleware(settings)])
     AdminAPI(host, settings, store=storage, catalogue=catalogue).register(app)
     async with TestClient(TestServer(app), headers={"Authorization": BasicAuth("operator", "test-password").encode()}) as http:

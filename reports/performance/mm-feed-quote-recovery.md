@@ -1,5 +1,11 @@
 # MM feed / unsent quote recovery — 2026-11-10
 
+Latest status (2026-11-10 21:44 local): **revision85 is trading again**, all health
+endpoints200, no HALT, with two live Spot SELLs and seven new independently verified
+Demo fills. Operator-approved scoped maintenance and an explicit Start completed;
+see [recovery result](../demo/cloudrun-busy-submission-recovery.md). Earlier HALT
+and passing/failed windows below are historical.
+
 The offline change addresses three separate paths observed in the Cloud review:
 quiet reference books, queued entry prices overtaken by a fresh reference/fee
 check, and repeated diagnostics for expected operational conditions. It does not
@@ -122,5 +128,163 @@ the actual Cloud quote window is converted into a pass.
 The final L2 diagnostic also has one engine probe recovery transition of 1.041s;
 its unique cause remains unproved.
 
-The new maker fix is local, not deployed to revision83. Actual Cloud effectiveness,
-residual own-depth/probe behavior and full release qualification remain open.
+Revision83 above still has the old source. The subsequent revision84 verification
+is recorded below; residual own-depth/probe behavior and full release qualification
+remain open.
+
+
+## Revision84: connected Demo deployment verification
+
+On 2026-11-10, revision `hummingbot-demo-00084-9bv` runs source `860314b62`,
+Cloud image `sha256:9f619d5ac20046420d4d23e4a134d9785701bc608de8c32b4344ebece1356646`,
+2 CPU / 1 GiB, 100% traffic. This is the actual CI-built image, distinct from the
+local overlay image above. Verification was read-only; no Stop/Start, risk changes,
+credential changes or financial maintenance were performed.
+
+At 11:16:26–11:19:16 UTC (18:16–18:19 local), all 18 samples of each startup/live/ready
+endpoint return 200. Engine is running without HALT throughout the samples, with
+one session and control/ack55. Spot has two working SELL orders in 17 samples,
+one in the remaining sample, and no BUY: inventory skew has BUY multiplier zero.
+Perpetual has no working orders in all 18 samples, with `inventory_limit` on both
+sides. These are discrete short observations, not continuous or two-sided qualification.
+
+Independent OKX Demo REST reads at 11:17:36 and 11:23:04 UTC find respectively two
+and one live Spot SELL orders, all matched by client ID to the bot API. The latest
+eight order details in each read include filled orders and client cancellations
+(cancelSource1, including a roughly 61-second refresh); none has cancelSource31.
+This sampled readback no longer exhibits the old repeated post-only rejection loop.
+The closing API read at 11:23:35 UTC again has two working Spot SELLs, all health
+endpoints200 and no HALT.
+
+At 11:20:42 UTC, **20 actual new Spot Demo fills** after revision readiness match
+native REST trade IDs, quantities, prices and original USDT fees exactly, with no
+duplicate API fill identities. Native perpetual contract quantities converted to
+BTC match the API: LONG0.0030 / SHORT0.0048. This checks the selected recent fills
+and current perpetual quantities, not the entire historical account ledger.
+
+Retrieved revision logs through 11:22:46 UTC contain no ERROR or scheduled child
+restart. Before sampling, one engine probe timeout301.097ms and one controller
+progress-overdue warning5.878s remain recorded. Later warnings are perpetual no-quote
+reports consistent with its exposure cap; absence of an INFO recovery line does
+not establish an exact recovery duration. This does not close the residual probe
+root cause, thin-book71/120 failure, thirty-minute quote target, or full release/soak.
+
+
+## Revision84 later incident: venue busy / unresolved submission (open)
+
+At 11:32:01 UTC (18:32 local), Spot POST `/api/v5/trade/order` returns HTTP429,
+OKX50013, "System is busy, please try again later." This is the specific initial
+failure; the generic log advising an API-key/network check is less informative.
+Shutdown then reports order-not-found51603, exits the engine, and subsequent
+startup attempts stop at ownership `_check_intents` with unresolved submission.
+At 11:39:33 UTC the API reports HALT, `owner_unavailable`, `StrategyStartFailed`,
+startup/ready503 and live200. The short successful window above does not qualify
+this later operating period.
+
+Independent read-only OKX Demo checks at 11:40:21 UTC return51603 for the failed
+client ID, zero pending BTC-USDT Spot orders, and no matching client ID in the
+latest100 Spot fills. This limited evidence is not used to erase an intent or
+reset HALT. The API recovery operation shown is an older failed check from07:34,
+not a new verification of this incident. No recovery command was sent.
+
+A separate perpetual private-WS disconnect1006 at11:30 has an automatic retry log;
+its causal connection to the Spot50013 is unproved. There is no evidence here for
+an OOM or deploy-triggered restart. Next investigation must reproduce the
+50013 response -> durable intent/tracker transition ->51603 lookup -> restart
+sequence, then determine safe reconciliation behavior without blindly resubmitting.
+
+
+## Busy-send remediation: local implementation and qualification
+
+The runtime issue is not the venue's busy response itself. The managed guard
+retains a sent intent and HALT, but the generic connector catch previously emitted
+OrderFailure/FAILED anyway. Native late acceptance/fill readback then lost the
+normal create transition; executor failure callbacks could request another order.
+Four real-PG/native-OKX tests reproduce that discrepancy on the parent runtime.
+A separate native Red reproduces the cold host starting a strategy despite HALT.
+The process test also catches early env-mode validation of a missing old YAML,
+which prevented the recovery API from reaching startup at all.
+
+The fix keeps the native tracker pending when the managed send gate reports
+uncertainty, emits `order_submission_uncertain` with the original exception, and
+retains the durable fence. Positive native status/fills still run through the
+existing tracker/recorder. Not-found51603 remains an error, not a terminal event
+or permission to retry. Proven-unsent/correlated-expiry failures and unmanaged
+connector behavior retain their normal failure path.
+
+A cold HALTed host now keeps its owner, observer, health and operation APIs alive
+without constructing another trading strategy. Startup/live200 and ready503 mean
+"service available, trading blocked." It skips old trading YAML/credential
+validation while HALTed; a later reset and separate Start validate normally, with
+fresh owner/control checks across awaits. An already-running reconciliation still
+drains its known restored orders. Incomplete in-flight cleanup still forces the
+original bounded process exit; the replacement is stable rather than looping.
+Check reports `recovery_pending_intents` before position replay/KMS or exchange
+proof when a pending intent exists. No automatic reset/financial repair is added.
+
+**1,720 native tests + nine subtests and 126 PostgreSQL tests pass.** The PG cases
+exercise the actual REST send gate and native OKX tracker/recorder with HTTP429,
+not-found51603, late OPEN/partial/full execution, duplicate observation and exact
+fees. A real shipping supervisor/API/engine accepts Stop while HALTed, reports the
+pending-intent blocker, preserves the intent and owner identity, and does not
+restart. This includes existing commit-outcome, ownership and recovery controls.
+
+The broader native run initially found seven economic-replay fixture failures:
+its LocalProvider lacked the already-existing book-recovery lease methods. The
+controller and adapter source hashes matched the parent before that fixture fix.
+The adapter now records/releases deterministic tape leases without introducing
+network prices or weakening stale-data checks. Its 20 tests and the final full
+native selection pass; those fixture errors are not counted as new trading bugs.
+
+Tested Linux amd64 image `sha256:696c0d7d3d640e539ae59aae387da4639a507f0a64d759148b5b265126b70636`,
+manifest `sha256:6138fba08427463068ce10df6df9d9e05d2cfd056511b230d3290d9f4ea6755b`,
+overlays five verified runtime files on the prior maker candidate. Both packaged
+`submission-uncertainty` and `maker-entry` E2E groups pass on that exact image.
+The former injects four real HTTP429 responses without venue acceptance, exercises
+51603 and engine replacement, then proves stable HALT, usable Stop, no additional
+POST and preserved pending intents. All venue activity here is simulated.
+
+At local qualification time this candidate was not yet deployed. The old Cloud
+intent/HALT is not repaired by those tests, and a recent empty exchange read is
+not sufficient to erase it.
+Rollout and reviewed reconciliation of that incident remain open, together with
+the prior thin-book failure, residual probe cause and full release/long soak.
+
+
+## Revision85: deployed HALT availability verified
+
+User-deployed revision `hummingbot-demo-00085-fnl` is Ready at14:02:12 UTC,
+100% traffic, source tag `d1f0894cf48bf1939ae3ebe95b6c29c1d45885d3`.
+Artifact Registry resolves that tag to the actual revision image digest
+`sha256:07b5d67863cb37f14ce71101f71cb40160c29f9f3d2958aabe230dbfc89a08e5`.
+
+Read-only monitoring at14:13:19–14:15:09 UTC (21:13–21:15 local), twelve samples
+about ten seconds apart, consistently finds owner available, phase `halted`,
+`RecoveryRequired`, running=false, control/ack55. All startup/live reads return200;
+all ready reads return503. The maximum sampled heartbeat age is0.537s.
+
+Retrieved application logs for this revision contain one expected warning at
+14:02:06 UTC: `trading_bootstrap_blocked`, durable HALT requires operator recovery.
+There are no retrieved application ERRORs or scheduled child restarts. The11
+retrieved HTTP ERROR records are GET /ready503, including this monitor's own
+requests; this is blocked trading readiness rather than a new application crash.
+Log ingestion and discrete sampling do not establish uninterrupted behavior.
+
+The restart-loop remediation is verified in deployed HALT operation. The old
+intent and HALT remain; the fresh recovery view says Stop is required before
+Check. No Stop/Start, recovery, financial maintenance or Cloud configuration
+mutation was sent. This is not a resumed-trading/fill or long-soak acceptance.
+
+
+## Approved incident recovery and resumed trading
+
+The full maintenance proof, operator approval, atomic repair and resumed Demo
+verification are in the [recovery report](../demo/cloudrun-busy-submission-recovery.md).
+The shipping API history bound was not changed. The transaction resolves one
+intent, removes its one obsolete saved tracker entry, extends one proved Spot
+checkpoint by73 already-verified SELL fills and clears only the technical recovery
+fence. It retains10,295 orders,613 fills,30,440 statuses, both perpetual rows and all
+risk/credential state. Maintenance audit177 and explicit Start at control/ack57
+provide the operation trail. Seven new real Demo fills and twelve healthy running
+samples are independently checked afterward. Trading remains enabled; no full
+release or two-sided SLO pass is inferred from this short window.

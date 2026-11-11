@@ -1,6 +1,6 @@
 {
   "date": "2026-11-10",
-  "scope": "Targeted offline source/image verification; not full release, connected OKX, or Cloud acceptance",
+  "scope": "Targeted offline source/image verification plus short read-only Cloud revision84 / actual OKX Demo readback; not full release acceptance",
   "base_source_commit": "a7c4f858c871706f37cecb7cd27cbbd492d6c396",
   "image": {
     "id": "sha256:1d3c3a6703b987df4a1fcadbfa2f7a876afca457c023d4915e207e9aeaf5896c",
@@ -321,7 +321,6 @@
   "risk_policy_changes": false,
   "real_exchange_writes": false,
   "unverified": [
-    "Connected Cloud Run effectiveness on a newly deployed candidate",
     "Full new-image release/long soak",
     "A unique cause for residual probe latency"
   ],
@@ -667,11 +666,10 @@
       "probe_analysis_path": "build/mm-load/20261110-175115-014648/probe-incident-analysis.json"
     },
     "depth_interpretation": "Single-level healthy fill gate remains failed; conservative recent-own-order L1 filtering can exhaust provable outside depth. Native controls prove this with unchanged guards. Healthy L2 adds independent next-tick external rows, preserving original L1 prices/quantities and all budgets. This is a different input, not an unchanged benchmark comparison.",
-    "new_fix_deployed_to_cloud": false,
+    "new_fix_deployed_to_cloud": true,
     "raw_root": "build/mm-post-only-20261110",
     "cloud_raw_root": "build/mm-feed-quote-cloud-20261110",
     "deferred": [
-      "Cloud verification after separately controlled new rollout",
       "Residual own-depth/probe root cause",
       "New full release/long soak"
     ],
@@ -707,6 +705,536 @@
         "post_only_zero_cancels": 2,
         "unknown_submissions": 0,
         "fills": 0
+      }
+    },
+    "cloud_revision84_readback": {
+      "source_commit": "860314b627f691580fd38fd136dcbd18efe18ffc",
+      "revision": "hummingbot-demo-00084-9bv",
+      "cloud_image_digest": "sha256:9f619d5ac20046420d4d23e4a134d9785701bc608de8c32b4344ebece1356646",
+      "ready_at": "2026-11-10T11:13:03.377525Z",
+      "cpu": 2,
+      "memory": "1Gi",
+      "traffic_percent": 100,
+      "sample_window_utc": [
+        "2026-11-10T11:16:26.670810+00:00",
+        "2026-11-10T11:19:16.666672+00:00"
+      ],
+      "samples": 18,
+      "interval_seconds": 10,
+      "health": {
+        "/startup": {
+          "200": 18
+        },
+        "/live": {
+          "200": 18
+        },
+        "/ready": {
+          "200": 18
+        }
+      },
+      "running_all_samples": true,
+      "halted_samples": 0,
+      "same_session": true,
+      "control_and_acknowledgment": [
+        55,
+        55
+      ],
+      "spot_sell_counts": {
+        "2": 17,
+        "1": 1
+      },
+      "spot_buy_block": "inventory skew BUY multiplier 0; order_size_rejected",
+      "perpetual_block": "inventory_limit",
+      "native_order_reads": [
+        {
+          "at": "2026-11-10T11:17:36.876007+00:00",
+          "pending": 2,
+          "matching_api": 2,
+          "sides": [
+            "sell",
+            "sell"
+          ],
+          "recent_order_states": {
+            "live": 2,
+            "canceled": 2,
+            "filled": 4
+          },
+          "recent_cancel_sources": {
+            "1": 2
+          }
+        },
+        {
+          "at": "2026-11-10T11:23:04.777263+00:00",
+          "pending": 1,
+          "matching_api": 1,
+          "sides": [
+            "sell"
+          ],
+          "recent_order_states": {
+            "canceled": 1,
+            "live": 1,
+            "filled": 6
+          },
+          "recent_cancel_sources": {
+            "1": 1
+          }
+        }
+      ],
+      "financial_readback": {
+        "at": "2026-11-10T11:20:42.162804+00:00",
+        "fills_after_revision_ready": 20,
+        "quantity_price_original_fee_exact": true,
+        "duplicate_api_fill_identities": false,
+        "perpetual_quantities_match": true,
+        "perpetual_base_amounts": {
+          "LONG": "0.0030",
+          "SHORT": "0.0048"
+        },
+        "scope": "Selected recent Spot Demo fills matched by native trade ID; perpetual native contracts converted to BTC. Not a full account ledger audit."
+      },
+      "cloud_log_severity_counts": {
+        "WARNING": 11,
+        "INFO": 1
+      },
+      "cloud_log_latest_at": "2026-11-10T11:22:46.797959Z",
+      "pre_sample_warnings": {
+        "probe_timeout_ms": 301.097,
+        "controller_progress_overdue_seconds": 5.878
+      },
+      "restart_scheduled_logs": 0,
+      "closing_status_at": "2026-11-10T11:23:35.666832Z",
+      "closing_health_all_200": true,
+      "closing_spot_sell_count": 2,
+      "cloud_mutations": false,
+      "trading_commands_sent": false,
+      "financial_maintenance": false,
+      "raw_root": "build/mm-maker-cloud-20261110",
+      "raw_sha256": {
+        "observations-private.json": "04c0d1b0e2954735466b4e8e12eb09b5c56c102b20c1c7bc17c5fa9e47b9ad8a",
+        "financial-readback-private.json": "a7950884ebfa478146e0c111af92ef4b640f3d04ea038e8e35d82cf9c2a68b1e",
+        "logs-close-private.json": "25d87549d0154d6191de4620097a56b6462d6b4e84e7405d970413401121f9c9",
+        "venue-111738-private.json": "e76518a58973a08cb78d96cd9fd7e5ff461b44f1683227a6b322af06a4d4ad61",
+        "venue-112305-private.json": "4f0965b43d9821f5e358f5e31d3a474b69316607ce393dede030b3b60599cc21"
+      },
+      "limitations": [
+        "Discrete short samples do not establish uninterrupted quoting or the 30-minute two-sided target",
+        "Perpetual remains blocked by existing exposure cap; no new perpetual fill qualification",
+        "Thin-book 71/120 diagnostic remains failed",
+        "Residual probe cause and full new-image release/long soak remain open"
+      ]
+    },
+    "cloud_revision84_incident": {
+      "status": "open; trading halted",
+      "first_submission_failure_at": "2026-11-10T11:32:01.959577Z",
+      "http_status": 429,
+      "okx_code": "50013",
+      "okx_message": "System is busy, please try again later.",
+      "shutdown_failure": "OKX order does not exist (51603)",
+      "restart_blocker": "Unresolved order submission requires reconciliation.",
+      "status_read_at": "2026-11-10T11:39:33.903175Z",
+      "health": {
+        "startup": 503,
+        "live": 200,
+        "ready": 503
+      },
+      "phase": "owner_unavailable",
+      "halted": true,
+      "native_read_at": "2026-11-10T11:40:21.785379+00:00",
+      "native_failed_order_lookup_code": "51603",
+      "native_pending_spot_orders": 0,
+      "failed_client_found_in_recent_100_fills": false,
+      "interpretation": "Observed venue busy response is the trigger. Unresolved durable submission blocks restart. Exact handling defect and safe recovery require further reproduction; not attributed to maker-bound patch, memory, deployment or the earlier WS disconnect. Current not-found plus recent fills is not treated as sufficient proof to reset HALT.",
+      "separate_ws_error": {
+        "at": "2026-11-10T11:30:00.737618Z",
+        "connector": "okx_perpetual",
+        "close_code": 1006,
+        "causal_link_to_spot_failure": "unproved"
+      },
+      "cloud_or_financial_mutations": false,
+      "raw_sha256": {
+        "logs-latest-private.json": "f7d8596576d1bae8591a0afe6477eacd92dbf03f100ab19c672ae21611a985e9",
+        "incident-context-private.json": "5c987154a00a72de48c4695bad680502844463d9c9115d5689c380ac15c37003",
+        "status-latest-private.json": "90fbf36310662a13a67b93686162fac195c9ab5152c228eecfcefe5292a31e09",
+        "recovery-latest-private.json": "26de3f4cb194771e26c7c643f3da29dda4f9f6916020ac2f1832e065ed099b80",
+        "incident-venue-private.json": "d2edab37a1f78b3dd921a7306f09689e1de1f65abf3c437bec149d445175cfea"
+      }
+    },
+    "busy_submission_followup": {
+      "base_source_commit": "860314b627f691580fd38fd136dcbd18efe18ffc",
+      "deployed_to_cloud": true,
+      "cloud_financial_maintenance": false,
+      "root_cause": {
+        "transport": "Actual Cloud POST returns HTTP429/OKX50013; no positive order acknowledgment",
+        "tracker": "Generic failure handling emits FAILED/OrderFailure despite managed sent intent still unresolved; late native acceptance/fills lose the normal create transition",
+        "restart": "Cold host bootstraps trading despite prior HALT, fails unresolved-intent cleanup, exits and repeats",
+        "bootstrap": "Env-credential mode also validates removed YAML/credentials before HALT; recovery API can be lost before observer startup"
+      },
+      "changes": [
+        "Retain native pending tracker entry and explicit uncertain log when managed guard confirms a possibly sent request; preserve HALT and durable intent",
+        "Keep a cold HALTed owner/API alive without strategy bootstrap; do not alter warm in-progress restored-order reconciliation or forced drain deadlines",
+        "Validate removed trading configuration only after confirmed reset/separate Start; recheck owner/control and validation state across awaits",
+        "Report recovery_pending_intents before financial replay/KMS/venue reads; no negative lookup proof, auto resubmission, pending-intent reset or new recovery authority"
+      ],
+      "red": {
+        "native_cold_halt": "build/mm-busy-recovery-20261110/native-red.log",
+        "postgres_native_429_tracker_and_late_acceptance": "build/mm-busy-recovery-20261110/pg-red-v2.log",
+        "recovery_blocker_priority": "build/mm-busy-recovery-20261110/recovery-priority-red.log",
+        "cold_process_bootstrap_missing_yaml": "build/mm-busy-recovery-20261110/pg-process.log"
+      },
+      "excluded_setup_failures": [
+        "Initial native test fixture used obsolete OKX constructor; not a runtime Red",
+        "Initial fixture unit passed unsupported query argument; corrected before qualification",
+        "First API Stop test seeded v1 config but sent MM Stop without session_id; fixed to a real MM session",
+        "First local PG launch raced directory creation; rerun sequentially"
+      ],
+      "native": {
+        "passed": 1720,
+        "subtests_passed": 9,
+        "raw": "build/mm-busy-recovery-20261110/native-final-v2.log",
+        "scope": "CLI, ownership terminal reads, REST assistant, recovery, trading core, OKX spot/perpetual"
+      },
+      "postgres": {
+        "passed": 126,
+        "raw": "build/mm-busy-recovery-20261110/pg-final.log",
+        "scope": "Owned native SDK+simulated HTTP429 REST response at transport boundary, late OPEN/partial/full fill+duplicate observation, 51603 uncertainty, ownership, recovery, real supervisor/API/engine, commit-outcome unknown, service/managed service"
+      },
+      "image": {
+        "id": "sha256:696c0d7d3d640e539ae59aae387da4639a507f0a64d759148b5b265126b70636",
+        "manifest_digest": "sha256:6138fba08427463068ce10df6df9d9e05d2cfd056511b230d3290d9f4ea6755b",
+        "tag": "hummingbot-cloudrun:submission-uncertainty-20261110-final",
+        "architecture": "amd64",
+        "base_image_id": "sha256:2d4d7561e0808a8f4efaa716283637975a909454c8ad5cf3459593453b443196",
+        "runtime_overlay_sha256": {
+          "hummingbot/cli/service.py": "3cf4438e7f27f476a9af8901f4c576b33bddbfb98687f610815c484a6a089e9b",
+          "hummingbot/cli/recovery_runtime.py": "6f897dd8fa2e56d264241f0ca36c48a3e0f771db39524ff1c5f52d60811d3044",
+          "hummingbot/connector/exchange_py_base.py": "49fba4c90b5aa128eafab521c01e9669a60da7ecf9cd52ef418f24909539ac18",
+          "hummingbot/core/bot_ownership.py": "27fb28f4b3230c98dabe99943e372ff486e455c8b873239ab2c01054a42c1521",
+          "hummingbot/core/order_submission_guard.py": "e107eff45901205b626b909da075c0c8601d034673979b8a2bd16722aa6fd638"
+        },
+        "all_five_runtime_sources_match": true
+      },
+      "e2e": [
+        {
+          "scenario": "submission-uncertainty",
+          "passed": true,
+          "raw": "build/e2e-offline/20261110-185802-294608/result.json",
+          "metrics": {
+            "passed": true,
+            "metrics": {
+              "submission-uncertainty_startup_s": 22.121,
+              "submission_uncertainty": {
+                "busy_http_posts": 4,
+                "accepted": 0,
+                "fills": 0,
+                "no_automatic_resubmission": true,
+                "stable_halted_owner": true,
+                "stop_acknowledged": true,
+                "pending_intents_preserved": true,
+                "simulated": true
+              }
+            }
+          }
+        },
+        {
+          "scenario": "maker-entry",
+          "passed": true,
+          "raw": "build/e2e-offline/20261110-185937-fee6a2/result.json",
+          "metrics": {
+            "passed": true,
+            "metrics": {
+              "maker-entry_startup_s": 22.655,
+              "maker_entry": {
+                "native_zero_cancels": 2,
+                "passive_requote_seconds": 5.4673393331468105,
+                "both_sides_restored": true,
+                "no_same_identity_replay": true,
+                "fills": 0,
+                "preserved_session": true,
+                "stopped": true,
+                "simulated": true
+              }
+            }
+          }
+        }
+      ],
+      "economic_replay_fixture": {
+        "initial_failures": 7,
+        "cause": "Existing LocalProvider adapter lacked current acquire/release_book_recovery lifecycle; unchanged in parent, static source hashes retained",
+        "fix": "Track/release deterministic tape leases without a network source or freshness/risk changes",
+        "parent_comparison": "build/mm-busy-recovery-20261110/economics-fixture-parent.json",
+        "isolated_retest_passed": 20,
+        "final_full_native_suite_passed": true
+      },
+      "raw_root": "build/mm-busy-recovery-20261110",
+      "limitations": [
+        "Operator-approved maintenance reconciled the old intent/checkpoint; revision85 is trading again with separately verified new Demo fills",
+        "An empty pending set, a recent fill page or a 51603 alone does not authorize clearing the old sent intent",
+        "No full release, new load/long soak or live-money acceptance is claimed"
+      ],
+      "proof_sha256": {
+        "build/mm-busy-recovery-20261110/native-red.log": "464adec042e3a8f9ecda298d966b181cf83ed8bf3eee9143c5828ef48cd8262a",
+        "build/mm-busy-recovery-20261110/pg-red-v2.log": "a5afeb5eccccef9a590e6aa6f8caea86d02979d8c02526efb03605d1b94c4dfa",
+        "build/mm-busy-recovery-20261110/recovery-priority-red.log": "3795c4ebdf3263c14f3d02feba43fb7cfd1bbfb6d7d68904d804b3fb7bdcc1b6",
+        "build/mm-busy-recovery-20261110/pg-process.log": "1ad4b05a0e78a435bcd6cd92cc5f443a9724da41991a8493e937c189023a7943",
+        "build/mm-busy-recovery-20261110/native-final-v2.log": "3d5766b95087bf99cffc77d1558003ca0d3ff7a4b25f1096482971fe4d59a5bb",
+        "build/mm-busy-recovery-20261110/pg-final.log": "39b517cb7ab803b4c1fb6eb23bcafa760ddf937e31889cb706ece16d7fabbf88",
+        "build/mm-busy-recovery-20261110/image-runtime-sha256.txt": "3d37f544819aa0c3bc09558f42a7b47ae6c43de36faead7c2760e34863709ace",
+        "build/e2e-offline/20261110-185802-294608/result.json": "09e1711aa06bd4bd4f6ba17408b86bc1353e549dd6e13225d39672b59d37486d",
+        "build/e2e-offline/20261110-185937-fee6a2/result.json": "6c446386c861a1de55d7965cc19091d9b5a5e45bf06ec324062e6abe905132d5"
+      },
+      "cloud_revision85_readback": {
+        "revision": "hummingbot-demo-00085-fnl",
+        "source_commit": "d1f0894cf48bf1939ae3ebe95b6c29c1d45885d3",
+        "image_digest": "sha256:07b5d67863cb37f14ce71101f71cb40160c29f9f3d2958aabe230dbfc89a08e5",
+        "source_tag_digest_matches_actual_revision": true,
+        "revision_created_at": "2026-11-10T14:00:14.401928Z",
+        "revision_ready_at": "2026-11-10T14:02:12.877544Z",
+        "traffic_percent": 100,
+        "window_utc": [
+          "2026-11-10T14:13:19.630624+00:00",
+          "2026-11-10T14:15:09.633598+00:00"
+        ],
+        "samples": 12,
+        "interval_seconds": 10,
+        "health": {
+          "/startup": {
+            "200": 12
+          },
+          "/live": {
+            "200": 12
+          },
+          "/ready": {
+            "503": 12
+          }
+        },
+        "all_samples_halted_with_owner_available": true,
+        "trading_running": false,
+        "control_version": 55,
+        "acknowledged_version": 55,
+        "max_observed_heartbeat_age_seconds": 0.536951,
+        "application_log_severities": {
+          "WARNING": 1
+        },
+        "application_log_events": [
+          {
+            "at": "2026-11-10T14:02:06.782551Z",
+            "event": "trading_bootstrap_blocked",
+            "message": "Trading bootstrap withheld: durable HALT requires operator recovery."
+          }
+        ],
+        "scheduled_restarts_in_retrieved_revision_logs": 0,
+        "application_errors_in_retrieved_revision_logs": 0,
+        "http_error_logs": {
+          "count": 11,
+          "scope": "all retrieved ERROR entries are GET /ready503, consistent with deliberately blocked trading; includes this monitoring client; ingestion cutoff is separate from sample window"
+        },
+        "recovery_blockers": [
+          {
+            "code": "recovery_stop_required",
+            "detail": "Stop the session before checking recovery.",
+            "next_action": "refresh_state"
+          }
+        ],
+        "cloud_mutations": false,
+        "financial_maintenance": false,
+        "stop_start_or_recovery_commands_sent": false,
+        "raw_root": "build/mm-busy-cloud-20261110",
+        "raw_sha256": {
+          "first-private.json": "a46ac8a193f2316c3c4cb893cda76bef1f44b310e495de31625dee463bd6f529",
+          "service-private.json": "c9733ca10901ca478a838421c1fb0a21092770981d00cd0f6c4f6f50a1e40205",
+          "revision-private.json": "adb26ab7ec8a8adf982e33ef46458d352253a6787368011f6754ae9608eb3641",
+          "monitor-private.json": "8aa1427d3bef14fb325c032f8ac9fde52d4336fb5cd383fa9f4b957b8bcbd0fb",
+          "logs-close-private.json": "73ee0aee1aa32ce6cec90b095f1513c1874fa0d9005265f2c6166e7f5813d179"
+        },
+        "limitations": [
+          "This verifies stable halted control/recovery availability, not resumed trading or cleared old intent",
+          "No new venue submission/fill or long-soak qualification was performed",
+          "No negative order lookup was used to reset financial state"
+        ]
+      },
+      "approved_demo_recovery_and_resume": {
+        "operator_approved": true,
+        "approval_question_call": "call_621a87e200384380a31c86505b9c7d3f",
+        "proposal": "reports/demo/cloudrun-busy-submission-recovery.md",
+        "plan_sha256": "4e0eee7194e47f7cf9f4ac693776915b79b0ae8d05b5384a6cc5b3ad70e9ae93",
+        "api_stop": {
+          "control_version": 56,
+          "acknowledged_version": 56,
+          "actor_kind": "basic",
+          "actor_id": "basic:bootstrap-admin"
+        },
+        "api_check_blocker": "recovery_scope_limit",
+        "maintenance_backup": {
+          "size_bytes": 1388037,
+          "sha256": "5691b7088a22a1b37d8cdd13352aebe94fc21797555349bf6a30c3585bd8b92e"
+        },
+        "local_orders": 10295,
+        "local_fills": 613,
+        "local_order_statuses": 30440,
+        "venue_proof": {
+          "completed_at": "2026-11-10T14:38:24.059651+00:00",
+          "verified_fills": 613,
+          "spot_fills": 355,
+          "perpetual_fills": 258,
+          "complete_scans_per_market": 2,
+          "active_account_bindings_match": true,
+          "pending_orders_per_market": {
+            "spot": 0,
+            "perpetual": 0
+          },
+          "perpetual_base_quantities": {
+            "LONG": "0.003",
+            "SHORT": "0.0048"
+          },
+          "uncertain_order_not_found": true
+        },
+        "position_proof": {
+          "prior_audited_fill_baseline": 261,
+          "stored_spot_checkpoint_native_prefix_fill_count": 282,
+          "later_spot_sell_fills": 73,
+          "native_held_orders_verified": 315,
+          "late_fills_not_yet_transferred": 25,
+          "spot": {
+            "id": "bae1325b-551f-4b50-b4f9-bfe6a1f79ef8",
+            "controller_id": "demo_btc_spot",
+            "before": {
+              "amount": "0.11619787",
+              "volume_traded_quote": "10922.707656565",
+              "breakeven_price": "74621.09528061673448260725164",
+              "realized_pnl_quote": "-5.718631957716833234514687103",
+              "cum_fees_quote": "8.7381661252520",
+              "unrealized_pnl_quote": "89.76811608621683323451468712",
+              "side": "SELL"
+            },
+            "after": {
+              "amount": "0.16440497",
+              "volume_traded_quote": "14503.853868841",
+              "breakeven_price": "74523.04234446633111659893664",
+              "realized_pnl_quote": "-5.718631957716833234514687103",
+              "cum_fees_quote": "11.6030830950728",
+              "unrealized_pnl_quote": "0E-31",
+              "side": "SELL"
+            }
+          },
+          "perpetual_checkpoint_rows_changed": 0
+        },
+        "rehearsal": {
+          "passed": true,
+          "negative_cases": [
+            "position_drift_atomic_rejection",
+            "risk_halt_atomic_rejection",
+            "repeat_atomic_rejection"
+          ]
+        },
+        "applied": {
+          "audit_id": 177,
+          "intent_rows_resolved": 1,
+          "spot_positions_repaired": 1,
+          "saved_market_state_entries_removed": 1,
+          "preserved_order_count": 10295,
+          "preserved_fill_count": 613,
+          "preserved_order_status_count": 30440,
+          "risk_checkpoints_unchanged": true,
+          "immutable_table_hashes_preserved": true,
+          "technical_halt_cleared": true,
+          "trading_stayed_stopped_during_maintenance": true,
+          "runtime_active_after_maintenance": false
+        },
+        "service": {
+          "revision": "hummingbot-demo-00085-fnl",
+          "source_commit": "d1f0894cf48bf1939ae3ebe95b6c29c1d45885d3",
+          "original_image_env_resources_traffic_preserved": true,
+          "restored_scaling": {
+            "scalingMode": "AUTOMATIC",
+            "minInstanceCount": 1,
+            "maxInstanceCount": 1
+          }
+        },
+        "start": {
+          "operation_id": "50711cfd-223d-44d9-b9c1-2f07d1f4b3f7",
+          "control_version": 57,
+          "acknowledged_version": 57,
+          "market_mode": "both",
+          "selection": "fixed",
+          "profile_id": "follow_market",
+          "duration_mode": "until_stopped",
+          "actor_kind": "basic",
+          "actor_id": "basic:bootstrap-admin"
+        },
+        "running_window": {
+          "utc": [
+            "2026-11-10T14:41:16.072338+00:00",
+            "2026-11-10T14:43:06.075399+00:00"
+          ],
+          "samples": 12,
+          "health": {
+            "/startup": {
+              "200": 12
+            },
+            "/live": {
+              "200": 12
+            },
+            "/ready": {
+              "200": 12
+            }
+          },
+          "all_running_without_halt": true,
+          "spot_sell_counts": {
+            "2": 10,
+            "0": 1,
+            "1": 1
+          },
+          "perpetual_quotes_blocked_by_inventory_limit": true
+        },
+        "new_demo_fills": {
+          "verified_count": 7,
+          "at": "2026-11-10T14:44:00.515565+00:00",
+          "quantity_price_original_fees_exact": true,
+          "duplicate_api_identities": false,
+          "native_perpetual_quantities_match": true
+        },
+        "closing": {
+          "at": "2026-11-10T14:44:38.920673Z",
+          "phase": "running",
+          "halt": false,
+          "health": {
+            "/startup": 200,
+            "/live": 200,
+            "/ready": 200
+          },
+          "spot_live_sells": 2
+        },
+        "logs": {
+          "through": "2026-11-10T14:44:53.488515Z",
+          "application_errors": 0,
+          "scheduled_restarts": 0,
+          "startup_probe_timeout_ms": 300.734,
+          "startup_controller_progress_overdue_seconds": 6.039,
+          "later_warnings": "Perpetual no-quotes under existing inventory_limit"
+        },
+        "raw_root": "build/mm-busy-resume-20261110",
+        "raw_sha256": {
+          "operator-approval-private.json": "b1187449cd5ca25567c3da858342c63e3af2d61af0c74c607f479d575f3a6bd0",
+          "complete-snapshot-private.json": "64c8da7a35789258c7668c3a6246f1fd390ad4790d86f960635ba45a486dd373",
+          "venue-proof-private.json": "2ad9e519da81bf458090505cf2b2443393ffbe79f0a9ac86547999f0bd8f998d",
+          "position-proof-private.json": "048a621dcc7ef6fcc292f5272fa7866e4ef0078534bf4a053a403071fb742f56",
+          "baseline-and-market-proof-private.json": "67cb8d7606dad0eadc4220ee7f87068f30becbc3b82369e867fe73e4319846f3",
+          "rehearsal-private.json": "b5dd531538d5161618504367d433851f83943e222b6afedf8f8c3a1ab10ab011",
+          "applied-private.json": "e977922a7aec32024bf66188cff89582d7039681e2d9f8259add08e093c8f588",
+          "monitor-running-private.json": "5fb7a62d2d66d2ec5fb388332b80b9dabcf8fecd72315c0410e63f9df3a40cd0",
+          "financial-readback-private.json": "6e3b684fe05d3cadc44d1de843964e73332407958260f3cfd7d6b26bcd02a45f",
+          "closing-running-private.json": "f1c1d10f432a25182656683141b9635d23bdb35e81b7dfa56006deddcc7fcd4a",
+          "logs-closing-private.json": "2828cca4a2a7b20b6373e9744969eefee5cfd7616d0586037fd29762e3732781"
+        },
+        "temporary_resources_removed": [
+          "local rehearsal PostgreSQL container",
+          "local Cloud SQL Auth Proxy"
+        ],
+        "limitations": [
+          "Discrete short samples include one Spot sample without a working order; no uninterrupted or two-sided quote SLO is claimed",
+          "Spot BUY remains inventory-skew blocked and perpetual quotes remain exposure-cap blocked",
+          "No full release/long soak, thin-book availability or unique residual probe cause qualification is added"
+        ]
       }
     }
   }

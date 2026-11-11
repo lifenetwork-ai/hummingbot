@@ -3,6 +3,7 @@ import logging
 import math
 import uuid
 from contextlib import closing
+from copy import deepcopy
 from decimal import Decimal
 from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
@@ -756,6 +757,44 @@ class ExecutorOrchestrator:
         executor.early_stop(action.keep_position)
 
     def _update_positions_from_done_executors(self, executor_reports=None):
+        recorder = MarketsRecorder._shared_instance
+        reports = executor_reports if executor_reports is not None else self.get_executors_report()
+        # Session durability is independent of the optional drawdown policy.
+        # Preserve the legacy path for executors outside managed MM sessions.
+        managed = self._mm_scope() or any(
+            getattr(info.config, 'mm_session_id', None) is not None
+            and getattr(info.config, 'mm_generation', None) is not None
+            for infos in reports.values() for info in infos)
+        durable = managed and recorder is not None and recorder.durable_position_checkpoints is True
+        if not durable:
+            return self._apply_position_updates(reports)
+        candidates = [info for infos in reports.values() for info in infos
+                      if info.is_done and info.close_type == CloseType.POSITION_HOLD
+                      and info.id not in self.executors_ids_position_held]
+        if not candidates:
+            return self._apply_position_updates(reports)
+        applied = recorder.applied_position_executors([info.id for info in candidates])
+        old_positions, old_ids = self.positions_held, self.executors_ids_position_held
+        self.positions_held = deepcopy(old_positions)
+        self.executors_ids_position_held = set(old_ids) | applied
+        try:
+            self._apply_position_updates(reports)
+            fresh = [info for info in candidates if info.id not in applied]
+            if fresh:
+                snapshots = []
+                for controller_id, holds in self.positions_held.items():
+                    for held in holds:
+                        summary = held.get_position_summary(held.avg_entry_price)
+                        snapshots.append(Position(id=str(uuid.uuid4()), controller_id=controller_id,
+                                                  timestamp=int(self.strategy.market_data_provider.time() * 1000),
+                                                  **{key: (value.name if key == 'side' else value)
+                                                     for key, value in summary.model_dump().items()}))
+                recorder.checkpoint_held_positions(snapshots, fresh)
+        except BaseException:
+            self.positions_held, self.executors_ids_position_held = old_positions, old_ids
+            raise
+
+    def _apply_position_updates(self, executor_reports=None):
         """
         Update positions from executors that are done but haven't been processed yet.
         This is called before generating reports to ensure position state is current.

@@ -137,6 +137,19 @@ def verify_cleanup(harness, port, root, spot, *, expected_sends=None, fill_count
     assert all(Decimal(row['pos']) == 0 for row in harness.ledger()['positions'])
     assert not [row for row in harness.ledger()['orders'] if row['state'] in ('live', 'partially_filled')]
     assert harness.sql('SELECT count(*) FROM trade_fills') == str(fill_count)
+    # Cleanup has its own recorder config. Its fills must also advance the
+    # original MM baseline, or a later Set/Start cannot transfer a new hold.
+    program = """
+import os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from hummingbot.model.runtime_journal import RuntimeCheckpoint, financial_hash
+with Session(create_engine(os.environ['DATABASE_URL'])) as session:
+    checkpoints = session.query(RuntimeCheckpoint).all()
+    assert checkpoints, 'MM checkpoint missing after cleanup'
+    assert all(row.financial_hash == financial_hash(session) for row in checkpoints), 'Cleanup left MM baseline stale'
+"""
+    docker('exec', port, 'python', '-c', program)
     assert not harness.ledger()['unknown']
     assert harness.state()['desired_state'] == 'stopped'
     # The selected connector is intentionally gone; do not demand a new private

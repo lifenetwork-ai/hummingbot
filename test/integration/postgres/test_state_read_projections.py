@@ -21,7 +21,7 @@ def test_publication_projection_excludes_private_recovery_and_catalogue_but_read
     public = store.read(publication=True)
     assert "recovery_state" not in public
     assert public["recovery_summary"] == {"halted": True, "pending_mutations": False, "credential_operation_pending": False,
-                                          "recovery_operation_pending": False}
+                                          "recovery_operation_pending": False, "automatic_recovery": None, "shutdown_pending": False}
     assert "private_diagnostic" not in str(public)
     assert "catalogue" not in public["mm_session"]
     assert public["mm_session"] == {key: value for key, value in full["mm_session"].items() if key != "catalogue"}
@@ -65,3 +65,22 @@ def test_owner_gate_keeps_fresh_authority_without_reporting_payload(pg_engine):
         assert owner.check_owner()["control_version"] == 1
     finally:
         owner.release()
+
+
+@pytest.mark.parametrize('halt,kind,reason,expected', [
+    (True, 'shutdown_pending', None, True),
+    (False, 'shutdown_pending', None, False),
+    (True, 'manual', None, False),
+    (True, 'shutdown_pending', 'drawdown_controller_limit', False),
+])
+def test_publication_distinguishes_shutdown_fence_without_exposing_reason(pg_engine, halt, kind, reason, expected):
+    bootstrap_postgres(pg_engine, auto_migrate=True)
+    store = BotStateStore(pg_engine, 'hummingbot')
+    store.ensure()
+    with pg_engine.begin() as connection:
+        connection.execute(BotState.__table__.update().values(
+            recovery_state={'halt': halt, 'halt_kind': kind, 'reason': reason}))
+    public = store.read(publication=True)
+    assert public['recovery_summary']['shutdown_pending'] is expected
+    assert public['recovery_summary']['halted'] is halt
+    assert 'halt_kind' not in public['recovery_summary'] and 'reason' not in public['recovery_summary']

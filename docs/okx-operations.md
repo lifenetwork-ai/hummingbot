@@ -339,6 +339,43 @@ stores `recovery_state.startup_untracked_orders`, including control version and
 owner generation, for technical investigation. No credential payload is logged.
 Use the existing Stop → Check → reviewed Recover workflow for a retained HALT.
 
+### Busy submission with unknown outcome
+
+HTTP429/OKX50013 means the venue is busy; it is not a local spread guard rejection.
+Treat a request already passed to transport as unresolved until positive order
+evidence or reviewed reconciliation proves its outcome. A single51603 lookup
+and an empty recent fill page do not establish that proof. See the official
+[OKX request-expiry contract](https://www.okx.com/docs-v5/en/#overview-transaction-timeouts);
+the request deadline does not by itself prove there were no earlier fills.
+
+Managed order creation keeps its pending tracker entry and records
+`order_submission_uncertain`, rather than publishing a false OrderFailure that
+prompts retries. Late native status/fills are still processed. Supported managed
+MM maker entries now enter automatic reconciliation with new shared-account risk
+paused, without latching a manual HALT. A bounded read-only worker proves the exact
+order and complete original fills before reopening admission under current
+ownership/session/control/credentials/readiness. Unknown/not-found stays paused;
+the worker never resubmits an uncertain POST. Known cancel transport failures use
+the same proof path; an ACK of the cancel request is not terminal evidence.
+
+Cold recovery requires migration021 and a verified account/financial baseline.
+Empty ledgers can establish it at normal startup; an existing ledger requires
+reviewed cutover/recovery. A successor restores only outstanding effects and new
+fill work, not all lifetime history. An unsupported scope, inconsistent baseline,
+unresolved account-setting mutation or risk latch retains manual protection.
+See [automatic status contract](fe-integration.md#automatic-order-reconciliation).
+
+An in-flight runtime that
+cannot prove cleanup still exits within its existing deadline. Its replacement
+with a retained manual HALT stays in `halted`, serving health/control/recovery without another trading
+bootstrap, even if the old YAML/credentials are missing. Existing already-started
+reconciliation still drains its known restored orders.
+
+For manual HALT, Stop the session, then Check. A `recovery_pending_intents` result requires technical
+review of the complete scoped exchange/ledger evidence; this API does not erase
+the intent. Do not interpret startup/live200 as readiness: ready remains503 until
+an explicitly recovered and separately started strategy is running.
+
 ### Cloud Run configuration
 
 Use the same Demo image with the existing

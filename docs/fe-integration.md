@@ -984,10 +984,13 @@ orders. For a two-sided operating target, report guard-constrained samples and
 unknown coverage separately; a zero eligible denominator is not a passing SLO.
 Do not label a strategy-wide `running=true` as proof of two-sided liquidity.
 
-During a joint readiness transition, a market can have `eligible=false` and a
+During a joint readiness transition, fresh liquidity observations use the shared
+service reason when the controller has no local reason. Local restrictions and
+unavailable observations retain their own reasons. Other non-running phases use
+`session_not_admitted` when no local reason exists. Older images can return a
 null market `reason_code` while `/status.service.reason_code` reports a global
-restriction such as `exposure_limit` or `insufficient_collateral`. Show that
-service reason alongside the market state when both reads are fresh, refer to
+restriction such as `exposure_limit` or `insufficient_collateral`. For those images,
+show that service reason alongside the market state when both reads are fresh, refer to
 the same session and describe the same transition. Previously acknowledged
 orders can remain visible while withdrawal settles; their presence does not
 prove renewed admission. If the observations cannot be correlated, show unknown
@@ -1318,12 +1321,72 @@ production-account acceptance remain external delivery work.
 
 Recovery is available only to `admin` (`GET /access/me` exposes
 `permissions.manage_recovery`). It does not alter YAML or risk limits. When
-`halted=false`, show **No recovery needed** (or the last completed result) and
-hide Check/Recover; `recovery_not_halted` is an availability reason, not a new
+`halted=false`, hide manual Check/Recover and inspect `automatic_recovery`
+before showing **No recovery needed**; `recovery_not_halted` is an availability reason, not a new
 service fault. Stop the session first and wait for its control version to be
 acknowledged before checking an existing HALT. Recovery never
-starts trading, cancels orders or closes exposure. If exchange orders remain,
+starts trading, cancels orders or closes exposure. This statement concerns the
+reviewed manual API, not automatic startup's owned-order drain. If exchange orders remain,
 resolve them through the existing cleanup/runbook before retrying.
+
+A send error after physical transport (including OKX HTTP429/50013) can leave an
+unresolved intent. Show **Order outcome unknown — verifying**, not
+"order rejected" or "safe to retry". A managed connector retains the pending
+native tracker entry so late acceptance/fills can still be recorded; it does not
+emit a terminal failure event without proof. One order-not-found51603 is not
+proof that the request had no effect. Supported PostgreSQL MM maker entries use
+the automatic flow below. A replacement engine with durable manual HALT
+keeps its owner/control API alive without constructing a new strategy: startup
+and live may be200 while ready remains503. This does not mean trading resumed.
+After Stop, Check returns `recovery_pending_intents` before position replay or
+credential loading when a pending send exists. Keep Recover disabled and show
+the supplied technical-review action; no force/reset or automatic Start.
+
+### Automatic order reconciliation
+
+`GET /status` adds optional `automatic_recovery`. This is an observation, not a
+new reset endpoint or permission. Keep the existing error/control envelope and
+render `stale=true` as unknown. `running=true` can mean the engine is alive while
+order admission is paused; use quote activity to show actual working quotes.
+
+| `phase` | Display / available action |
+| --- | --- |
+| `idle` | No automatic work pending; ordinary guard/session admission still applies. |
+| `reconciling` | Verifying order outcome; new shared-account risk is paused. Keep Stop available. |
+| `bootstrapping_recovery` | Replacement owner is restoring journaled effects before trading. |
+| `waiting_for_readiness` | Order proof is complete; waiting for current market/risk readiness. |
+| `settled_stopped` | Proof cannot override Stop, expired session or changed control. No automatic Start. |
+| `manual_required` | Conflicting evidence needs the existing reviewed recovery procedure. |
+
+Show `reason_code`, `started_at`, `last_progress_at`, `next_retry_at`, `order_id`
+and `operator_required` where present. After five minutes without resolution the
+operator flag requests investigation; it does not discard the reservation or
+prove absence. Start/Switch during an active running reconciliation return
+`automatic_recovery_in_progress`; follow the returned action availability.
+An explicit Start from stopped may initialize a pending cold proof, never bypass it.
+Use `phase` as the current state: an idle result may retain the last order/timing
+context; render a retry countdown only while automatic work is active.
+
+`cold_recovery_supported=true` means a verified financial/account checkpoint is
+available for supported journaled effects. False does not mean a current warm
+reconciliation failed; legacy ledgers need a reviewed baseline for cold recovery.
+The flag does not bypass current account, ownership, risk or control checks.
+During a verified owner shutdown, `recovery.halted` can briefly remain true as
+the admission fence. When `recovery.next_action=wait`, render the returned
+`operator` guidance instead of a manual-HALT banner: Start/Switch remain disabled,
+Stop remains available, and Check/Recover are unavailable. A stale owner remains
+unavailable; this is not proof that quotes are working. Risk stops, unresolved
+mutations and an unsupported baseline retain the ordinary recovery block.
+The worker issues authenticated reads, never repeats the uncertain POST. It
+rechecks current ownership/control/session/credentials/readiness before admission.
+Cancel ACK alone is not terminal proof; complete terminal quantity and original
+fills must be durable before retiring a managed order.
+
+Audit actions `automatic_recovery_paused`, `automatic_recovery_order_verified`
+and `automatic_recovery_resumed` use a runtime owner actor, generation and order
+correlation. Financial proof/context stays private; no secret is returned.
+
+### Reviewed manual recovery
 
 | Endpoint under `/api/v1/admin` | Purpose |
 | --- | --- |

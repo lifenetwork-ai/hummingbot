@@ -552,6 +552,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             trading_pair=tracked_order.trading_pair,
             update_timestamp=int(order_data["uTime"]) / 1000,
             new_state=new_state,
+            misc_updates={'venue_order': order_data} if getattr(tracked_order, '_managed_recovery_order', False) else None,
         )
         return order_update
 
@@ -835,6 +836,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                 new_state=order_status,
                 client_order_id=client_order_id,
                 exchange_order_id=order_msg["ordId"],
+                misc_updates={'venue_order': order_msg} if getattr(updatable_order, '_managed_recovery_order', False) else None,
             )
             self._order_tracker.process_order_update(new_order_update)
 

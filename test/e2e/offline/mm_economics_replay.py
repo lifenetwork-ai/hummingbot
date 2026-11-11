@@ -87,6 +87,7 @@ class LocalProvider:
         self.cfg = cfg
         self.now, self.mark, self.orders = EPOCH, wallet.initial_mark, []
         self.candles_feeds, self.books = {}, {}
+        self.book_recovery_leases = {}
         self.connectors = {name: LocalConnector(name, self) for name in ('okx', 'okx_perpetual')}
         self.feed = SimpleNamespace(_candles=deque(maxlen=120), interval_in_seconds=1)
         self.leverage = 2
@@ -105,6 +106,17 @@ class LocalProvider:
 
     async def release_order_books(self, *_):
         pass
+
+    def acquire_book_recovery(self, connector, pairs, consumer, max_age):
+        # This provider's books come only from the deterministic tape. Record
+        # the production lifecycle lease without introducing a REST/WS source
+        # that could change replay prices or make stale tape look fresh.
+        leases = self.book_recovery_leases.setdefault(consumer, {})
+        for pair in pairs:
+            leases[connector, pair] = max_age
+
+    def release_book_recovery(self, consumer):
+        self.book_recovery_leases.pop(consumer, None)
 
     def _generate_candle_feed_key(self, config):
         return f'{config.connector}_{config.trading_pair}_{config.interval}'

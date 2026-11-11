@@ -2,7 +2,11 @@
 
 [All reports](../README.md) · [Latest Demo/release](../release/demo-release-closeout.md)
 
-**Latest API state at03:48 UTC: revision77, RUNNING Until stopped, same session/control53/53, no HALT; startup/live/ready200. Historical revision74→75 rollout is attributed to CI. New CI artifact gates remain separate.**
+2026-11-11 follow-up: [verified runtime baseline and owner handoff](cloudrun-runtime-baseline-handoff.md).
+The legacy ledger now supports cold recovery. The new connected quote window is
+being measured separately; the older results below keep their own image scope.
+
+**Earlier API state at03:48 UTC on 2026-11-10: revision77, RUNNING Until stopped, same session/control53/53, no HALT; startup/live/ready200. Historical revision74→75 rollout is attributed to CI. New CI artifact gates remain separate.**
 The [latest closeout](../release/demo-release-closeout.md) qualifies actual
 perpetual BUY/SELL handoff and a complete30-minute conditional quote target on
 revision73 (spot99.7700%/perpetual99.7133%, zero unknown). Temporary settings are

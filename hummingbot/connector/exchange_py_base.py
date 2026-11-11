@@ -469,7 +469,14 @@ class ExchangePyBase(ExchangeBase, ABC):
             raise
         except Exception as ex:
             from hummingbot.core.order_submission_guard import order_failed
-            order_failed(self, order, ex)
+            if order_failed(self, order, ex):
+                self.logger().error(
+                    "Order submission outcome unknown on %s: order_id=%s; reconciliation required, no automatic resubmission.",
+                    self.name_cap, order_id, exc_info=True,
+                    extra={"event": "order_submission_uncertain", "reason_code": "submission_outcome_unknown",
+                           "error_type": type(ex).__name__},
+                )
+                return
             self._on_order_failure(
                 order_id=order_id,
                 trading_pair=trading_pair,
@@ -578,6 +585,10 @@ class ExchangePyBase(ExchangeBase, ABC):
         except asyncio.CancelledError:
             raise
         except asyncio.TimeoutError:
+            from hummingbot.core.order_submission_guard import cancel_failed
+            if cancel_failed(self, order):
+                self.logger().warning('Cancel outcome awaits reconciliation: order_id=%s', order.client_order_id)
+                return None
             # some exchanges do not allow cancels with the client/user order id
             # so log a warning and wait for the creation of the order to complete
             self.logger().warning(
@@ -585,6 +596,10 @@ class ExchangePyBase(ExchangeBase, ABC):
             )
             await self._order_tracker.process_order_not_found(order.client_order_id)
         except Exception as ex:
+            from hummingbot.core.order_submission_guard import cancel_failed
+            if cancel_failed(self, order):
+                self.logger().warning('Cancel outcome awaits reconciliation: order_id=%s', order.client_order_id)
+                return None
             if self._is_order_not_found_during_cancelation_error(cancelation_exception=ex):
                 self.logger().warning(f"Failed to cancel order {order.client_order_id} (order not found)")
                 await self._order_tracker.process_order_not_found(order.client_order_id)
@@ -593,6 +608,7 @@ class ExchangePyBase(ExchangeBase, ABC):
         return None
 
     async def _execute_order_cancel_and_process_update(self, order: InFlightOrder) -> bool:
+        from hummingbot.core.order_submission_guard import managed_terminal_order
         cancelled = await self._place_cancel(order.client_order_id, order)
         if cancelled and not order.is_done:
             update_timestamp = self.current_timestamp
@@ -603,7 +619,7 @@ class ExchangePyBase(ExchangeBase, ABC):
                 trading_pair=order.trading_pair,
                 update_timestamp=update_timestamp,
                 new_state=(OrderState.CANCELED
-                           if self.is_cancel_request_in_exchange_synchronous
+                           if self.is_cancel_request_in_exchange_synchronous and not managed_terminal_order(order)
                            else OrderState.PENDING_CANCEL),
             )
             self._order_tracker.process_order_update(order_update)

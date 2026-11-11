@@ -75,8 +75,12 @@ class RecoveryCoordinator:
         if row is None:
             return
         core = host.hb.trading_core
+        from hummingbot.core.automatic_recovery import AutomaticOrderRecovery
+        automatic = owner.automatic_recovery
         if (host.running or host.start_task is not None or core.strategy is not None
-                or core._is_running or core.connector_manager.connectors or owner.submission_tasks or owner.transport_tasks):
+                or core._is_running or core.connector_manager.connectors or owner.submission_tasks or owner.transport_tasks
+                or owner.terminal_tasks
+                or isinstance(automatic, AutomaticOrderRecovery) and automatic.task is not None and not automatic.task.done()):
             raise RecoveryBlocked('recovery_stop_incomplete')
         owner.allow_new_orders = False
         snapshot = await self.call(self.store.snapshot)
@@ -86,6 +90,11 @@ class RecoveryCoordinator:
                 self.store.finish_check(owner, row, snapshot, [], dict(verified=False), blockers=blockers)
                 return
             raise RecoveryBlocked(blockers[0])
+        if any(order['creation_pending'] for order in snapshot['orders']):
+            # An ambiguous send is the primary blocker. Do not bury it behind
+            # position replay, KMS setup or a not-found GET, and never turn
+            # negative order lookup into proof of no exchange effects.
+            raise RecoveryBlocked('recovery_pending_intents')
         plan = await self.call(replay_positions, snapshot)
         if host.managed_credentials is None:
             raise RecoveryBlocked('recovery_credentials_unavailable')
@@ -102,6 +111,9 @@ class RecoveryCoordinator:
             self.store.finish_check(owner, row, snapshot, plan, proof, blockers=[])
         else:
             self.store.finish_reset(owner, row, snapshot, plan, proof)
+            # The reviewed transaction committed while all old work was drained.
+            # Its in-memory resume scope must not survive into a new Start.
+            owner.automatic_recovery = AutomaticOrderRecovery(owner)
             host.error = None
             host.halt_requested = False
             host.applied_version = None

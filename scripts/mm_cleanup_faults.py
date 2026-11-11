@@ -158,6 +158,11 @@ def database_scenario(harness, target):
         row = operation(harness, port, root['id'])
         assert row['status'] != 'failed', row['error']
         if row['result']['operator_action_required']:
+            if retries:
+                (harness.report / 'blocked-recovery-snapshot.json').write_text(json.dumps(dict(
+                    operation=row,
+                    orders=json.loads(harness.sql("SELECT COALESCE(json_agg(t),'[]') FROM orders t")),
+                    tracking=json.loads(harness.sql("SELECT COALESCE(json_agg(t),'[]') FROM market_states t"))), indent=2))
             assert not retries, ('Cleanup remained blocked after one normal recovery Retry', row['result']['reason_code'])
             request = dict(expected_version=slot(harness, port, 'okx_perpetual')['version'],
                            expected_control_version=harness.state()['control_version'],

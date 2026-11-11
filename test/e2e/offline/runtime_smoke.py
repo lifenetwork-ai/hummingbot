@@ -123,8 +123,9 @@ def main():
     ssl.create_default_context()
     trust = ssl.get_default_verify_paths()
     assert trust.cafile and Path(trust.cafile).is_file()
-    assert len(list(SCRIPTS.glob("*.sql"))) == 20
-    for name in ('018_create_admin_access.sql', '019_create_exchange_credentials.sql', '020_add_cleanup_order_scope.sql'):
+    assert len(list(SCRIPTS.glob("*.sql"))) == 21
+    for name in ('018_create_admin_access.sql', '019_create_exchange_credentials.sql', '020_add_cleanup_order_scope.sql',
+                 '021_create_runtime_journal.sql'):
         assert (SCRIPTS / name).is_file(), name
     assert (SCRIPTS / "017_add_session_discovery_index.sql").is_file()
     assert (SCRIPTS / "016_create_mm_events.sql").is_file()

@@ -2,6 +2,7 @@
 import json
 import threading
 import time
+import traceback
 from datetime import datetime
 from decimal import Decimal
 
@@ -30,8 +31,8 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
         def invoke():
             try:
                 action()
-            except Exception as error:
-                errors.append(repr(error))
+            except Exception:
+                errors.append(traceback.format_exc())
         timer = threading.Timer(delay, invoke)
         timer.start()
         try:
@@ -195,25 +196,39 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
     window("queued-expiry", queued_expiry, duration=75, delay=max(.1, expiry - time.time() - 1))
     start()
 
+    def verified_database_restart(sent, generation, started_at):
+        def recovered():
+            row = harness.state()
+            observation = row['status'].get('availability') or {}
+            return (row.get('owner_uuid') and row['owner_generation'] > generation and row['status'].get('running')
+                    and float(observation.get('observed_at') or 0) >= started_at
+                    and not row['recovery_state'].get('halt')
+                    and row['recovery_state'].get('automatic_recovery', {}).get('phase') == 'idle'
+                    and all(order['state'] in ('filled', 'canceled') for order in harness.ledger()['orders'][:sent]))
+        poll(recovered, timeout=30, description='fresh successor and terminal proof after DB dependency restoration')
+        ledger = harness.ledger()
+        assert all(order['state'] in ('filled', 'canceled') for order in ledger['orders'][:sent])
+        assert len({order['clOrdId'] for order in ledger['accepted']}) == len(ledger['accepted'])
+        assert not ledger['unknown']
+
     def delayed_database():
         # A real catalog lock blocks runtime SELECTs; runtime lock/statement
         # timeouts must fail closed rather than keeping trading on cached state.
         identity = harness.engine_identity(bot)
+        generation, started_at = harness.state()['owner_generation'], time.time()
         harness.sql("BEGIN; LOCK TABLE bot_state IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(4); COMMIT")
         harness.wait_failed_engine(bot, identity, timeout=12)
         sent = len(harness.ledger()["accepted"])
         docker("start", bot)
-        poll(lambda: harness.state()["status"].get("phase") == "halted", timeout=30, description="delayed DB restart retains HALT")
-        assert len(harness.ledger()["accepted"]) == sent
+        verified_database_restart(sent, generation, started_at)
     window("database-delay", delayed_database)
     verify(harness, port)
-    # Reuse explicit test-only recovery only after independent exposure review.
-    harness.reviewed_test_recovery()
     harness.mm_command(port, "stop")
     start()
 
     def failed_database():
         identity = harness.engine_identity(bot)
+        generation, started_at = harness.state()['owner_generation'], time.time()
         docker("stop", "--time", "5", harness.pg)
         try:
             harness.wait_failed_engine(bot, identity, timeout=12)
@@ -222,8 +237,7 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
         poll(lambda: docker("exec", harness.pg, "pg_isready", "-U", "postgres", check=False).returncode == 0, timeout=30, description="fault PG restored")
         sent = len(harness.ledger()["accepted"])
         docker("start", bot)
-        poll(lambda: harness.state()["status"].get("phase") == "halted", timeout=30, description="failed DB restart retains HALT")
-        assert harness.state()["recovery_state"]["halt"] and len(harness.ledger()["accepted"]) == sent
+        verified_database_restart(sent, generation, started_at)
     window("database-failure", failed_database)
     verify(harness, port)
     return results

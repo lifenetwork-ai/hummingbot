@@ -387,6 +387,23 @@ history remain blocked. Those cases still require an explicit operator-reviewed
 database maintenance change after independent reconciliation. Do not change only
 `halt`, delete history or reset risk checkpoints to make startup pass.
 
+Migration021 adds immutable submission attempts, a fill/application journal and
+verified runtime checkpoints, plus `orders.position_applied`. Apply it through
+the existing controlled migration/handover procedure. It does not backfill an
+opening position or certify old fills. Existing financial data needs a reviewed
+baseline; normal Start cannot manufacture one. A successful fully verified admin
+Recover can bind that baseline in its atomic repair transaction; histories beyond
+that API's review limits still need reviewed maintenance. No live cutover is
+performed by installing the source change.
+
+Supported MM maker orders may pause in automatic reconciliation instead of manual
+HALT. Native held-position rows, executor receipt and consumed fill work commit
+together; after process death a verified checkpoint plus outstanding journal work
+avoids lifetime replay. Missing/changed account keys, environment, financial basis
+or an older non-journaling writer blocks automatic cold recovery. Do not roll back
+by dropping the additive schema or editing application markers. Stop/Switch,
+owner fencing, DB-commit uncertainty and risk checkpoints retain their authority.
+
 Runtime connections also set `idle_session_timeout=30000` on PostgreSQL14+.
 This bounds an idle upstream session that a broken intermediary can retain after
 the client discards its socket; the session can otherwise keep the advisory lock.

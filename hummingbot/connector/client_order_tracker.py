@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 from collections import defaultdict
 from decimal import Decimal
 from itertools import chain
@@ -216,6 +217,7 @@ class ClientOrderTracker:
                     fill_fee=trade_update.fee,
                     trade_id=trade_update.trade_id,
                     exchange_order_id=trade_update.exchange_order_id,
+                    fill_timestamp=trade_update.fill_timestamp,
                 )
 
     async def process_order_not_found(self, client_order_id: str):
@@ -226,6 +228,9 @@ class ClientOrderTracker:
         :param client_order_id: Client order id of an order.
         :type client_order_id: str
         """
+        from hummingbot.core.order_submission_guard import unresolved_submission
+        if unresolved_submission(client_order_id):
+            return
         # Only concerned with active orders.
         tracked_order: Optional[InFlightOrder] = self.fetch_tracked_order(client_order_id=client_order_id)
 
@@ -274,6 +279,32 @@ class ClientOrderTracker:
         )
 
         if tracked_order:
+            from hummingbot.core.order_submission_guard import (
+                SubmissionBlocked,
+                managed_terminal_order,
+                terminal_proof_conflict,
+                verify_terminal_update,
+            )
+            if (order_update.new_state in (OrderState.CANCELED, OrderState.FILLED)
+                    and not tracked_order.is_done and managed_terminal_order(tracked_order)):
+                if getattr(tracked_order, '_terminal_proof_active', False):
+                    return  # The in-flight read revalidates the latest complete outcome.
+                tracked_order._terminal_proof_active = True
+                try:
+                    order_update = await verify_terminal_update(self._connector, tracked_order, order_update)
+                except (IOError, asyncio.TimeoutError):
+                    if not getattr(tracked_order, '_terminal_proof_pending', False):
+                        self.logger().warning(f"Terminal order evidence pending: order_id={tracked_order.client_order_id}")
+                    tracked_order._terminal_proof_pending = True
+                    return
+                except SubmissionBlocked as error:
+                    terminal_proof_conflict(str(error))
+                    return
+                finally:
+                    tracked_order._terminal_proof_active = False
+                if getattr(tracked_order, '_terminal_proof_pending', False):
+                    self.logger().info(f"Terminal order evidence verified: order_id={tracked_order.client_order_id}")
+                    tracked_order._terminal_proof_pending = False
             if order_update.new_state == OrderState.FILLED and not tracked_order.is_done:
                 try:
                     await asyncio.wait_for(
@@ -339,11 +370,12 @@ class ClientOrderTracker:
         fill_fee: TradeFeeBase,
         trade_id: str,
         exchange_order_id: str,
+        fill_timestamp: Optional[float] = None,
     ):
         self._connector.trigger_event(
             MarketEvent.OrderFilled,
             OrderFilledEvent(
-                timestamp=self.current_timestamp,
+                timestamp=self.current_timestamp if math.isfinite(self.current_timestamp) else fill_timestamp,
                 order_id=order.client_order_id,
                 trading_pair=order.trading_pair,
                 trade_type=order.trade_type,
@@ -404,7 +436,7 @@ class ClientOrderTracker:
                              fill_price: Decimal,
                              fill_fee: TradeFeeBase,
                              trade_id: str,
-                             exchange_order_id: str):
+                             exchange_order_id: str, fill_timestamp: Optional[float] = None):
         if prev_executed_amount_base < tracked_order.executed_amount_base:
             self.logger().info(
                 f"The {tracked_order.trade_type.name.upper()} order {tracked_order.client_order_id} "
@@ -418,6 +450,7 @@ class ClientOrderTracker:
                 fill_fee=fill_fee,
                 trade_id=trade_id,
                 exchange_order_id=exchange_order_id,
+                fill_timestamp=fill_timestamp,
             )
 
     def _trigger_order_completion(self, tracked_order: InFlightOrder, order_update: Optional[OrderUpdate] = None):

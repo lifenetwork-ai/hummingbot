@@ -33,6 +33,11 @@ def operator_view(row, process):
     pending = bool(recovery.get("pending_mutations"))
     connection_pending = bool(recovery.get("credential_operation_pending"))
     recovery_pending = bool(recovery.get("recovery_operation_pending"))
+    automatic = recovery.get('automatic_recovery') or snapshot.get('automatic_recovery') or {}
+    automatic_pending = automatic.get('phase') in ('reconciling', 'bootstrapping_recovery', 'waiting_for_readiness')
+    shutdown_pending = (halted and recovery.get('shutdown_pending') is True and not pending
+                        and not checkpoint_reason and automatic.get('cold_recovery_supported') is True
+                        and not automatic.get('operator_required'))
     owner = snapshot.get("identity")
     mismatch = bool(available and owner and owner.get("trading_environment") != process["trading_environment"])
     if recovery_pending:
@@ -43,13 +48,17 @@ def operator_view(row, process):
         common = checkpoint_reason
     elif halted or pending:
         common = "recovery_required"
+    elif automatic_pending:
+        common = 'automatic_recovery_in_progress'
     elif not available:
         common = "owner_unavailable"
     else:
         common = "environment_mismatch" if mismatch else None
     current_active = session.get("status") in ("preparing", "running", "stopping")
     reasons = {
-        "start": common or ("session_active" if row["desired_state"] == "running" or current_active else None),
+        "start": (None if common == 'automatic_recovery_in_progress' and row['desired_state'] == 'stopped'
+                  and automatic.get('phase') == 'bootstrapping_recovery' else common)
+        or ("session_active" if row["desired_state"] == "running" or current_active else None),
         "switch": common or (None if session.get("status") in ("preparing", "running") else "session_not_active"),
         # Stop is a durable intent and remains useful during startup/owner loss.
         "stop": "recovery_operation_in_progress" if recovery_pending else "credential_operation_in_progress" if connection_pending else None if session.get("id") else "session_not_active",
@@ -68,6 +77,10 @@ def operator_view(row, process):
         state, label, detail, next_action = "preparing", "Applying connection", "Wait for the connection operation. Trading will not start automatically.", "wait"
     elif checkpoint_reason:
         state, label, detail, next_action = "needs_attention", "Risk data needs review", "Saved risk information cannot be verified. Contact support before starting trading.", "contact_support"
+    elif shutdown_pending:
+        state = 'stopping' if available and not observation_old else 'unavailable'
+        label, detail, next_action = ('Trading owner is shutting down',
+                                      'New orders are fenced while shutdown completes. Wait for the next owner to verify recovery; no manual reset is required at this stage.', 'wait')
     elif halted or pending:
         state, label, detail, next_action = "needs_attention", "Technical review needed", "Trading cannot restart until the cause is resolved.", "contact_support"
     elif mismatch:
@@ -84,6 +97,9 @@ def operator_view(row, process):
         state, label, detail, next_action = "running", "Session active", "Check the liquidity panels for current orders on each market.", "monitor"
     elif phase == "waiting_for_mm_readiness":
         state, label, detail, next_action = "waiting", "Waiting for market readiness", "The service is available. Trading is waiting for required data or limits.", "wait"
+    elif phase == 'reconciling_orders' or automatic_pending:
+        state, label, detail, next_action = ('waiting', 'Reconciling exchange orders',
+                                             'New orders are paused while the service verifies an uncertain exchange response. Do not resubmit the order.', 'wait')
     else:
         state, label, detail, next_action = "preparing", "Preparing session", "Connecting and checking the selected markets.", "wait"
     markets = deepcopy(snapshot.get("mm_markets") or [])
@@ -115,7 +131,8 @@ def operator_view(row, process):
         for market in markets:
             defense = (market.get('spread_policy') or {}).get('defense')
             if defense:
-                defense.update(automatic_recovery_expected=False, next_action='Contact support before restarting trading.')
+                defense.update(automatic_recovery_expected=False, next_action=(
+                    'Wait for shutdown and owner recovery.' if shutdown_pending else 'Contact support before restarting trading.'))
     if stale:
         for market in markets:
             market.update(ready=False, admitted=False, reference_price=None)
@@ -137,8 +154,11 @@ def operator_view(row, process):
                                  reason_code="owner_unavailable" if not available else "session_transition" if not matches else
                                  "observation_stale" if observation_old else None),
                 operator=dict(state=state, label=label, detail=detail, next_action=next_action), actions=actions,
-                recovery=dict(halted=halted, pending_mutations=pending, next_action="wait" if recovery_pending else "contact_support" if halted or pending or checkpoint_reason else "none",
+                recovery=dict(halted=halted, pending_mutations=pending, next_action="wait" if recovery_pending or shutdown_pending else
+                              "contact_support" if halted or pending or checkpoint_reason else "wait" if automatic_pending else "none",
                               detail="Saved risk information needs technical review." if checkpoint_reason else
-                              "Contact support before restarting trading." if halted or pending else "No recovery block is recorded."),
+                              'Shutdown is protected by a temporary fence. Wait for owner recovery; do not reset the fence.' if shutdown_pending else
+                              "Contact support before restarting trading." if halted or pending else
+                              'Exchange order reconciliation is in progress. New submissions are paused.' if automatic_pending else 'No recovery block is recorded.'),
                 session_configuration_url=f"/api/v1/admin/sessions/{session['id']}/configuration" if session.get("id") else None,
                 markets=markets, drawdown=drawdown)

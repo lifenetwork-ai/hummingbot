@@ -370,6 +370,103 @@
         "title": "AuditPage",
         "type": "object"
       },
+      "AutomaticRecoveryStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "cold_recovery_supported": {
+            "default": false,
+            "title": "Cold Recovery Supported",
+            "type": "boolean"
+          },
+          "last_progress_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Progress At"
+          },
+          "next_retry_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Retry At"
+          },
+          "operator_required": {
+            "default": false,
+            "title": "Operator Required",
+            "type": "boolean"
+          },
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Order Id"
+          },
+          "phase": {
+            "enum": [
+              "idle",
+              "reconciling",
+              "bootstrapping_recovery",
+              "waiting_for_readiness",
+              "settled_stopped",
+              "manual_required"
+            ],
+            "title": "Phase",
+            "type": "string"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason Code"
+          },
+          "stale": {
+            "default": false,
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Started At"
+          }
+        },
+        "required": [
+          "phase"
+        ],
+        "title": "AutomaticRecoveryStatus",
+        "type": "object"
+      },
       "BalanceObservationOutput": {
         "additionalProperties": false,
         "properties": {
@@ -8171,6 +8268,17 @@
             },
             "title": "Actions",
             "type": "object"
+          },
+          "automatic_recovery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutomaticRecoveryStatusOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "bot_id": {
             "title": "Bot Id",

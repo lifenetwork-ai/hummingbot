@@ -78,7 +78,9 @@ def test_connector_block_logs_reason_without_network_advice(caplog, error_type, 
 ])
 @pytest.mark.parametrize('kind,level', [
     ('SessionSubmissionBlocked', logging.INFO), ('MarketReadinessBlocked', logging.WARNING),
-    ('QuoteRefreshRequired', logging.WARNING),
+    # Connector owns the bounded warning; executor keeps its per-order DEBUG
+    # diagnostic and unchanged failure bookkeeping.
+    ('QuoteRefreshRequired', logging.DEBUG),
     ('SubmissionBlocked', logging.ERROR), ('OwnershipLost', logging.ERROR),
     ('IOError', logging.ERROR), (None, logging.ERROR),
 ])
@@ -92,7 +94,7 @@ def test_executor_classifies_logs_without_changing_failure_bookkeeping(caplog, s
     executor._failed_orders, executor._current_retries, executor._max_retries = [], 2, 10
     event = MarketOrderFailureEvent(1, 'order-1', OrderType.LIMIT_MAKER, 'test admission reason', kind)
     logger = logging.getLogger('test.submission.executor')
-    with patch.object(PositionExecutor, 'logger', return_value=logger), caplog.at_level(logging.INFO):
+    with patch.object(PositionExecutor, 'logger', return_value=logger), caplog.at_level(logging.DEBUG):
         executor.process_order_failed_event(None, None, event)
     records = [r for r in caplog.records if r.name == logger.name]
     assert len(records) == 1 and records[0].levelno == level

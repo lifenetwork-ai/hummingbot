@@ -31,6 +31,15 @@ async def test_running_selection_still_requires_deployed_yaml():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('kind', ['v1-strategy', 'controller', 'mm-session'])
+async def test_halted_bootstrap_does_not_load_removed_trading_configuration(kind):
+    await service_host().validate_selection({
+        'desired_state': 'running', 'config_type': kind, 'config_file_path': 'removed.yml',
+        'recovery_state': {'halt': True},
+    })
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("await_point", ["cleanup", "validation"])
 @pytest.mark.parametrize("replacement", ["stop", "switch"])
 async def test_superseded_start_during_cleanup_or_validation_never_initializes_old_strategy(

@@ -159,8 +159,12 @@ def capture_liquidity(host):
                     or not -1 <= now - private_at <= connector.TICK_INTERVAL_LIMIT):
                 raise ValueError('liquidity_observation_unavailable')
             value.update(own_quotes(connector, controller.config.trading_pair, max_orders=controller.config.quote_guards.max_own_orders))
+            reason = controller.processed_data.get('reason')
+            if reason is None and host.phase != 'running':
+                reason = (getattr(host, 'mm_readiness_reason', None)
+                          if host.phase == 'waiting_for_mm_readiness' else None) or 'session_not_admitted'
             value.update(valid=True, eligible=host.phase == 'running' and bool(controller.processed_data.get('ready')),
-                         reason_code=controller.processed_data.get('reason'))
+                         reason_code=reason)
         except Exception:
             pass
         observations[market] = value

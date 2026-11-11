@@ -459,7 +459,20 @@ class RecoverySummary(APIModel):
     status_url: str = "/api/v1/admin/recovery"
 
 
+class AutomaticRecoveryStatus(APIModel):
+    cold_recovery_supported: bool = False
+    phase: Literal['idle', 'reconciling', 'bootstrapping_recovery', 'waiting_for_readiness', 'settled_stopped', 'manual_required']
+    reason_code: Optional[str] = None
+    operator_required: bool = False
+    stale: bool = False
+    started_at: Optional[float] = None
+    next_retry_at: Optional[float] = None
+    last_progress_at: Optional[float] = None
+    order_id: Optional[str] = None
+
+
 class StatusResponse(APIModel):
+    automatic_recovery: Optional[AutomaticRecoveryStatus] = None
     quote_activity: Dict[Literal['spot', 'perpetual'], QuoteActivity] = Field(default_factory=dict)
     process_identity: Optional[RuntimeIdentity] = None
     owner_identity: Optional[RuntimeIdentity] = None

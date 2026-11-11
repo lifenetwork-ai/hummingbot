@@ -140,6 +140,8 @@ class SQLConnectionManager(TransactionBase):
                 for name, kind in (("cleanup_operation_id", "TEXT"), ("cleanup_scope", "JSON")):
                     if name not in present:
                         connection.execute(text(f'ALTER TABLE orders ADD COLUMN {name} {kind}'))
+                if 'position_applied' not in present:
+                    connection.execute(text('ALTER TABLE orders ADD COLUMN position_applied BOOLEAN NOT NULL DEFAULT false'))
 
     def get_new_session(self) -> Session:
         return self._session_cls()

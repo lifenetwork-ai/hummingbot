@@ -1,0 +1,399 @@
+{
+  "updated_at_utc": "2026-11-10T23:50:13.201473+00:00",
+  "status": "r7_offline_qualification_passed_connected_acceptance_pending",
+  "source_manifest": "build/mm-auto-recovery-20261110/source.json",
+  "remaining": [
+    "writer-free migration 021 and verified legacy baseline cutover before controlled Demo",
+    "30-minute live eligible two-sided quote acceptance",
+    "kernel OOM/complete connected fault matrix",
+    "optional worst-case trading under unresolved outcomes deferred"
+  ],
+  "safety": {
+    "no_uncertain_post_retry": true,
+    "no_time_based_absence_proof": true,
+    "manual_risk_latches_preserved": true,
+    "live_deployment_changed": false,
+    "live_database_changed": false
+  },
+  "historical_r3": {
+    "image": {
+      "Id": "sha256:7d129129e59ca46d49c672a16b3d60461d7fe37083f02e4bb54050662fc76424",
+      "Size": 1376974037,
+      "Architecture": "amd64",
+      "RepoDigests": [
+        "127.0.0.1:57451/hummingbot@sha256:ff3d21f8a3b8f7beea2da69c0e42cbcd5d794a9777776eb58bb20b400d298da2"
+      ]
+    },
+    "package": {
+      "image_id": "sha256:7d129129e59ca46d49c672a16b3d60461d7fe37083f02e4bb54050662fc76424",
+      "manifest": "127.0.0.1:57451/hummingbot@sha256:ff3d21f8a3b8f7beea2da69c0e42cbcd5d794a9777776eb58bb20b400d298da2",
+      "application_files": 1035,
+      "mismatches": []
+    },
+    "tests": {
+      "canonical_native": {
+        "passed": 3150,
+        "subtests": 16,
+        "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-canonical-native-r3.log",
+        "sha256": "a98ecba684e815957c519b4cc10cf24e69c1163bb8da31f45e51bfa38ea722fd"
+      },
+      "recovery_postgres": {
+        "passed": 26,
+        "subtests": 0,
+        "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-terminal-bounds-green.log",
+        "sha256": "683664950639e21ac20b26cf35fdb544020b77b91321b8cdd51397c724c92fb6"
+      },
+      "coordinator": {
+        "passed": 15,
+        "subtests": 0,
+        "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-review-reset-green.log",
+        "sha256": "1829cabd3f268029921f28ea974b29d0aecc14fac9048171acef774d92839697"
+      },
+      "terminal_bounds_red": {
+        "passed": 0,
+        "subtests": 0,
+        "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-terminal-bounds-red.log",
+        "sha256": "616af7c8154c750900f770e27a2c65a0fd38013ca67f29c587316c52dd826460",
+        "expected_failures": 2
+      },
+      "full_postgres": {
+        "passed": 679,
+        "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-postgres-r3.log",
+        "sha256": "1fc62a8ecac458b1c7558a7666dd34cfee298d0d6d1547693b5911c6091a12b2"
+      }
+    }
+  },
+  "image": {
+    "Id": "sha256:6d6dd5926e5664ff2cf631f750ceb2ca3bad5620be6977a3720e625af02303a3",
+    "Size": 1376980172,
+    "Architecture": "amd64",
+    "RepoDigests": [
+      "127.0.0.1:60103/hummingbot@sha256:0e25f88890415ca24c2de2fe8e8782622c155e5c1d9346bb03a42a9f4326fa7a"
+    ]
+  },
+  "tests": {
+    "canonical-native-r7": {
+      "passed": 3154,
+      "subtests": 16,
+      "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-canonical-native-r7.log",
+      "sha256": "ec43f44698967e1dcd92c700c9ef697c3f1e68ef7f75dabe881efab7db917e3b"
+    },
+    "postgres-r7": {
+      "passed": 686,
+      "subtests": 0,
+      "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-postgres-r7.log",
+      "sha256": "3b6ae71d91a5061a39d0f3e3d7d2fa9bd9599cbe394f0e482d1af4920de1386b"
+    },
+    "missing-fill-green": {
+      "passed": 45,
+      "subtests": 0,
+      "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-missing-fill-green.log",
+      "sha256": "5087f81867c321545be2885866914fc793ebd7ad038e9bcf29f4bcce06672fb1"
+    },
+    "missing_durable_evidence_red": {
+      "expected_failures": 2,
+      "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-missing-fill-red.log",
+      "sha256": "3b1a1b3ef0bf5c0d9af248c75d90340c807126fa589e6c98daa2df7dff776b99"
+    },
+    "packaged_e2e": {
+      "passed": true,
+      "release_scope_complete": true,
+      "groups": 34,
+      "result": "build/e2e-offline/20261111-024232-de2295/result.json",
+      "sha256": "b09be4baa605090d3bd36c29225a19feb63eaf57650b041db7b8eca0983fab5d",
+      "automatic_recovery": {
+        "accepted_response_lost": 1,
+        "restore_seconds": 1.125230624806136,
+        "duplicate_submissions": 0,
+        "owner_preserved": true,
+        "quotes_restored": true,
+        "stopped": true,
+        "simulated": true
+      },
+      "database_recovery": true
+    },
+    "full_load": {
+      "path": "build/mm-load/20261111-033756-bb07c8/result.json",
+      "sha256": "91756e00d00682f50cc69003eca07df4b52d99b0f07d4b98d246dd2ab6b64a7f",
+      "passed": true,
+      "release_scope_complete": true,
+      "image_id": "sha256:6d6dd5926e5664ff2cf631f750ceb2ca3bad5620be6977a3720e625af02303a3",
+      "bot_limits": {
+        "cpus": 2,
+        "memory_bytes": 2147483648
+      },
+      "history_orders": 100000,
+      "history_fills": 100000,
+      "emulation": true,
+      "budgets_relaxed": false,
+      "windows": {
+        "warmup": {
+          "duration_seconds": 300,
+          "read_p95_ms": 52.56478399860498,
+          "read_p99_ms": 93.18125799836707,
+          "unexpected_errors": 0,
+          "violations": []
+        },
+        "mixed": {
+          "duration_seconds": 900,
+          "read_p95_ms": 56.51149799996347,
+          "read_p99_ms": 107.52730199965299,
+          "unexpected_errors": 0,
+          "violations": []
+        },
+        "bursts": {
+          "duration_seconds": 90,
+          "read_p95_ms": 57.55371200211812,
+          "read_p99_ms": 105.12827800084779,
+          "unexpected_errors": 0,
+          "violations": []
+        },
+        "soak": {
+          "duration_seconds": 3600,
+          "read_p95_ms": 59.14626000230783,
+          "read_p99_ms": 110.76130700166686,
+          "unexpected_errors": 0,
+          "violations": []
+        }
+      },
+      "faults": {
+        "feed": {
+          "violations": []
+        },
+        "volatility-defense": {
+          "violations": []
+        },
+        "owner-restart": {
+          "violations": []
+        },
+        "queued-expiry": {
+          "violations": []
+        },
+        "database-delay": {
+          "violations": []
+        },
+        "database-failure": {
+          "violations": []
+        }
+      },
+      "soak_memory_retention": {
+        "basis": "cgroup_current_minus_file_plus_shmem",
+        "early_median_bytes": 745844736,
+        "late_median_bytes": 763043840,
+        "growth_bytes": 17199104,
+        "budget_bytes": 67108864,
+        "raw_cgroup_growth_bytes": 19492864
+      },
+      "cumulative_simulated_fills": 4886,
+      "healthy_engine_api_pids_unchanged": true,
+      "healthy_halts_or_restarts": 0,
+      "healthy_probe_failures": {
+        "warmup": 0,
+        "mixed": 0,
+        "bursts": 1,
+        "soak": 0
+      },
+      "before_measurement_probe_failures": 2,
+      "injected_fault_phase_probe_failures": 7
+    },
+    "mm_activity_diagnostic": {
+      "path": "build/mm-load/20261111-050801-cdb72e/result.json",
+      "sha256": "a4cd2da8225a954f49d515fe8cb28bdf232db6c9e82fd83a1d7f68fa33838d97",
+      "passed": true,
+      "diagnostic": true,
+      "release_scope_complete": false,
+      "image_id": "sha256:6d6dd5926e5664ff2cf631f750ceb2ca3bad5620be6977a3720e625af02303a3",
+      "seconds": 180,
+      "read_p99_ms": 89.61095500126248,
+      "incident_analysis": {
+        "path": "build/mm-load/20261111-050801-cdb72e/probe-incident-analysis.json",
+        "sha256": "aa28789080075039aaa8e2a79a6f1ba6a12cb04179de122364fc4bd4e7ea5283"
+      },
+      "probe_failures": 1,
+      "recovery_observed_seconds": 1.037176001,
+      "venue_observer": {
+        "samples": 180,
+        "errors": 0,
+        "clock_errors": 0,
+        "sink_errors": 0,
+        "max_sample_gap_ms": 1013.609,
+        "nominal_sample_interval_ms": 1000,
+        "clock": "shared Linux-kernel monotonic clock",
+        "sink": {
+          "written_records": 180,
+          "written_bytes": 1262908,
+          "ordinary_written_bytes": 1262908,
+          "reserved_written_bytes": 0,
+          "dropped_records": 0,
+          "writer_cpu_ms": 40.629379999999976,
+          "dropped_by_kind": {},
+          "queue_depth": 0,
+          "max_bytes": 16777216,
+          "reserved_bytes": 0,
+          "reserved_kinds": [],
+          "writer_alive": false
+        }
+      },
+      "incident_activity": {
+        "min_observed_live_orders": 5,
+        "observed_empty_venue_samples": 0,
+        "max_strategy_tick_start_gap_ms": 1209.455793,
+        "max_controller_cycle_start_gap_ms": 1011.144375,
+        "continuous_quoting_proven": false,
+        "interpretation": "Attempt gaps and resting-order ages are not quote downtime. A completed tick does not prove admission; a connector return is not terminal venue readback. Samples are discrete and incident capture is bounded; inspect runtime/file loss and observer gaps. Clocks align only on the shared Linux kernel, not a remote OKX server. API incidents also use engine activity as an independent observation."
+      }
+    },
+    "burst_incident_analysis": {
+      "path": "build/mm-load/20261111-033756-bb07c8/bursts-incident-analysis.json",
+      "sha256": "cae938756f7e2d5ab6b78935dbd4396e039e9105c58ba54e3625036495563255"
+    }
+  },
+  "targeted_log_provenance": {
+    "hbot-auto-canonical-native-r5": {
+      "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-canonical-native-r5.log",
+      "sha256": "cacc4ead7633d0861d24146ca60972e1533157d25d346261a572434e7622e26f"
+    },
+    "hbot-auto-no-drawdown-pg-green": {
+      "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-no-drawdown-pg-green.log",
+      "sha256": "443b1b5302b3c969b2ac0ca5ea2d057f9892d7fef7a04d924f2481ec440ee308"
+    },
+    "hbot-auto-no-drawdown-native-green": {
+      "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-no-drawdown-native-green.log",
+      "sha256": "c144cc003cf5be5daba2e84d10eb74f33627582213dbd15d9aec601d279e6d26"
+    },
+    "hbot-auto-no-drawdown-pg-red": {
+      "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-no-drawdown-pg-red.log",
+      "sha256": "ae22fff3f13c32a4be1b7f5c9733272d760709a3fb7606b0ea5e6e60f9df15de"
+    },
+    "hbot-auto-no-drawdown-native-red": {
+      "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-no-drawdown-native-red.log",
+      "sha256": "e52798ad2aaad1c681ef1389a044d0d1722093f2fff2e57b7b04a07f022de20a"
+    },
+    "hbot-auto-cleanup-atomic-final": {
+      "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-cleanup-atomic-final.log",
+      "sha256": "0c59c577ae7aa0d91cb93c0c3fe6f94e49077c0f01850427a1fbdf03c6675532"
+    },
+    "hbot-auto-cleanup-baseline-red": {
+      "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-cleanup-baseline-red.log",
+      "sha256": "cee16ab22ccac463f1730a7399702fa57f34e75a885a7eee143826245348d62b"
+    }
+  },
+  "package": {
+    "image_id": "sha256:6d6dd5926e5664ff2cf631f750ceb2ca3bad5620be6977a3720e625af02303a3",
+    "manifest": "127.0.0.1:60103/hummingbot@sha256:0e25f88890415ca24c2de2fe8e8782622c155e5c1d9346bb03a42a9f4326fa7a",
+    "application_files": 1035,
+    "application_mismatches": [],
+    "host_harness_utility_differences": [
+      "scripts/test_mm_load.py",
+      "scripts/mm_load_faults.py",
+      "scripts/mm_cleanup_faults.py",
+      "scripts/mm_managed_lifecycle.py",
+      "scripts/mm_quote_refresh_checks.py"
+    ],
+    "runtime_overlay_files": 27
+  },
+  "historical_r5": {
+    "image": {
+      "Id": "sha256:94d3867bf62be616bf98f8cc2189d2e90ba3a7ea207a27fdd9312ca5e025a296",
+      "Size": 1376979305,
+      "Architecture": "amd64",
+      "RepoDigests": [
+        "127.0.0.1:57983/hummingbot@sha256:cba75241fd41f4192cb527300bd971f9e61ec16e02d9dc81434f2b8c65bf6c7e"
+      ]
+    },
+    "tests": {
+      "cleanup_and_no_drawdown_postgres": {
+        "passed": 42,
+        "raw_log": "/tmp/hbot-auto-no-drawdown-pg-green.log"
+      },
+      "no_drawdown_and_terminal_native": {
+        "passed": 15,
+        "raw_log": "/tmp/hbot-auto-no-drawdown-native-green.log"
+      },
+      "canonical_native": {
+        "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-canonical-native-r5.log",
+        "sha256": "cacc4ead7633d0861d24146ca60972e1533157d25d346261a572434e7622e26f",
+        "passed": 3152,
+        "subtests": 16
+      },
+      "packaged_cleanup": {
+        "passed": true,
+        "result": "build/e2e-offline/20261111-013702-738209/result.json",
+        "cases": [
+          "managed-close-visibility"
+        ]
+      },
+      "packaged_cleanup_database_fault": {
+        "passed": true,
+        "result": "build/e2e-offline/20261111-013905-26201e/result.json",
+        "cases": [
+          "managed-cleanup-fill-db-fault"
+        ]
+      }
+    }
+  },
+  "historical_r6": {
+    "image": {
+      "Id": "sha256:43104f55f45c794bcb78355d26a31483695563eb11e0de06c9e8caf463fdc4ae",
+      "Size": 1376979814,
+      "Architecture": "amd64",
+      "RepoDigests": [
+        "127.0.0.1:56335/hummingbot@sha256:9fb425f1cd328d60c91085f269486ce7e2f7d491cfb84f1533a61f62d5c253d1"
+      ]
+    },
+    "tests": {
+      "canonical-native-r6": {
+        "passed": 3154,
+        "subtests": 16,
+        "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-canonical-native-r6.log",
+        "sha256": "2b61424e53d8c8b3daeb5088c42ad789eb10205f07406b919cba367df26dccae"
+      },
+      "postgres-r6": {
+        "passed": 684,
+        "subtests": 0,
+        "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-postgres-r6.log",
+        "sha256": "f37e64e9451ccaf1b7213aefeb356e15e2b749e73b7008fd2a5e920dc88dcd3e"
+      },
+      "start-scope-green": {
+        "passed": 22,
+        "subtests": 0,
+        "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-start-scope-green.log",
+        "sha256": "b1f04a068315ec45ef636a30e06b362b261a39e2c85bfaa2943b1f149465775d"
+      },
+      "start-scope-pg-green": {
+        "passed": 1,
+        "subtests": 0,
+        "raw_log": "build/mm-auto-recovery-20261110/logs/hbot-auto-start-scope-pg-green.log",
+        "sha256": "7b8e840450418349cd5f440ba9b6bb884890d150c531a8a22e72abc92d4f54b3"
+      },
+      "fault_windows": {
+        "passed": true,
+        "results": "build/mm-load/20261111-020722-0202f9/result.json",
+        "cases": [
+          "feed",
+          "volatility-defense",
+          "owner-restart",
+          "queued-expiry",
+          "database-delay",
+          "database-failure"
+        ],
+        "healthy_performance_acceptance": false
+      }
+    },
+    "full_e2e": {
+      "passed": true,
+      "groups": 34,
+      "result": "build/e2e-offline/20261111-015905-c6885d/result.json"
+    }
+  },
+  "load_result": "build/mm-load/20261111-033756-bb07c8/result.json",
+  "image_cleanup": {
+    "removed_intermediate_images": 7,
+    "receipt": {
+      "path": "build/mm-auto-recovery-20261110/image-cleanup.json",
+      "sha256": "1cf9b991693611a23ba945870b706a102a18149d37af44ef1a99fdc57dc3d8b1"
+    },
+    "current_base_rollback_and_infrastructure_preserved": true,
+    "volumes_deleted": false
+  }
+}

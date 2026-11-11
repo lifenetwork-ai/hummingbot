@@ -398,7 +398,8 @@ class ServiceHost:
                   "migrating": "migration_in_progress",
                   "waiting_for_mm_readiness": "market_data_unavailable", "halted": "recovery_required",
                   "starting": "strategy_initializing", "stopping": "strategy_stopping",
-                  "recovery_checking": "recovery_checking", "recovering": "recovery_applying"}.get(self.phase)
+                  "recovery_checking": "recovery_checking", "recovering": "recovery_applying",
+                  "reconciling_orders": "order_outcome_unknown"}.get(self.phase)
         if self.phase == "waiting_for_mm_readiness":
             reason = self.mm_readiness_reason or reason
         if self.mm_session is not None and self.mm_session.status == "expired":
@@ -450,9 +451,10 @@ class ServiceHost:
         self.log.info("Service bootstrap completed bot=%s revision=%s", self.settings.bot_id, self.revision)
 
     async def validate_selection(self, row):
-        # A stopped service must remain available for control even when its
-        # previous revision's YAML or connector credentials were removed.
-        if row["desired_state"] == "stopped":
+        # A stopped/halted service must remain available for recovery even when
+        # its previous revision's YAML or credentials were removed. A later
+        # confirmed reset + Start revalidates before constructing a strategy.
+        if row["desired_state"] == "stopped" or (row.get("recovery_state") or {}).get("halt"):
             return
         from hummingbot.cli.strategy_configs import config_path, read_yaml
         from hummingbot.client import settings
@@ -525,6 +527,8 @@ class ServiceHost:
     async def stop_core(self):
         self.running = False
         self.owner.allow_new_orders = False
+        if self.automatic_order_recovery is not None:
+            await self.automatic_order_recovery.close()
         if self.outflow_task is not None and not self.outflow_task.done():
             self.outflow_task.cancel()
             await asyncio.gather(self.outflow_task, return_exceptions=True)
@@ -553,6 +557,7 @@ class ServiceHost:
         return {"name": self.settings.bot_id, "running": self.running, "phase": self.phase,
                 "identity": process_identity(self),
                 "error": self.error, "available_configs": self.catalogue,
+                "automatic_recovery": dict(self.automatic_order_recovery.status) if self.automatic_order_recovery else None,
                 "configuration_sha256": self.config_hashes, "engine": observations["engine"],
                 "balances": observations["balances"], "reporting_unavailable": observations["reporting_unavailable"],
                 "availability": self.service_status(persisted=True),
@@ -707,15 +712,35 @@ class ServiceHost:
                                                                 operation["id"], self.owner.owner_uuid, self.owner.generation, versions=versions)
                     finally:
                         self.observer_wait_until = None
-                await self.validate_selection(row)
+                # Recovery must remain reachable even if the old trading
+                # configuration/credentials cannot currently be loaded. Reset
+                # increments control_version; a later Start validates normally.
+                selection_validated = not (row["recovery_state"] or {}).get("halt")
+                if selection_validated:
+                    await self.validate_selection(row)
                 self.availability.clear("configuration")
                 # Cleanup and configuration loading can both yield to a newer
                 # stop/switch. Never prepare an engine from the old intent.
                 latest = self.owner.check_owner()
                 if latest["control_version"] != version or latest.get("mm_session") != row.get("mm_session"):
                     return
+                if not selection_validated and not (latest["recovery_state"] or {}).get("halt"):
+                    # A concurrent maintenance/reset cannot use the skipped
+                    # validation as trading authority, even on the same version.
+                    self.applied_version = None
+                    return
                 row = latest
-                if row["desired_state"] == "running":
+                if row["desired_state"] == "running" and (row["recovery_state"] or {}).get("halt"):
+                    # A replacement process cannot resolve an ambiguous send by
+                    # repeatedly constructing a trading strategy. Keep its owner,
+                    # observer and recovery API alive, without touching the prior
+                    # runtime/intent fences. Already-started reconciliation still
+                    # drains its restored orders in the path below.
+                    self.owner.allow_new_orders = False
+                    self.phase = "halted"
+                    self.log.warning("Trading bootstrap withheld: durable HALT requires operator recovery.",
+                                     extra={"event": "trading_bootstrap_blocked", "reason_code": "recovery_required"})
+                elif row["desired_state"] == "running":
                     self.owner.prepare(version, row["config_file_path"])
                     self.hb.trading_core.before_strategy_start = self.owner.reconcile
                     self.phase = "starting"
@@ -762,7 +787,15 @@ class ServiceHost:
                 if not await self.stop_core():
                     raise RuntimeError("Failed runtime-task cleanup did not complete.")
         if self.running:
-            if self.mm_session is not None:
+            automatic = self.automatic_order_recovery
+            if automatic is not None:
+                automatic.poll(core)
+            automatic_active = automatic is not None and automatic.active
+            if automatic_active:
+                self.phase = 'reconciling_orders'
+                for controller in self._mm_controllers():
+                    controller.revoke_session()
+            if self.mm_session is not None and not automatic_active:
                 try:
                     admitted = not (row["recovery_state"] or {}).get("halt") and await self.admit_mm_session()
                 except (ValueError, ControlConflict):
@@ -773,7 +806,7 @@ class ServiceHost:
                         controller.revoke_session()
                         await controller.send_actions(controller.stop_quote_actions())
             if (core.trade_fill_db is None or not core.trade_fill_db.persistence_healthy
-                    or not self.owner.allow_new_orders or not core._strategy_running):
+                    or (not self.owner.allow_new_orders and not automatic_active) or not core._strategy_running):
                 self.owner.require_recovery("Trading/recorder health requires reconciliation.")
                 self.phase, self.error = "halted", "TradingHealthFailed"
                 if not await self.stop_core():
@@ -1002,6 +1035,12 @@ class ServiceHost:
     async def collect_funding(self):
         await self.funding.collect(self.engine, self.owner, self.hb.trading_core)
 
+    @property
+    def automatic_order_recovery(self):
+        from hummingbot.core.automatic_recovery import AutomaticOrderRecovery
+        recovery = getattr(self.owner, 'automatic_recovery', None)
+        return recovery if isinstance(recovery, AutomaticOrderRecovery) else None
+
     async def poll_reconciliation(self):
         if self.reconciliation_task is not None and not self.reconciliation_task.done():
             return
@@ -1066,6 +1105,8 @@ class ServiceHost:
         self._publication_closing = True
         if self.owner is not None:
             self.owner.begin_shutdown()
+            if self.automatic_order_recovery is not None:
+                await self.automatic_order_recovery.close()
         if self.recovery_task is not None:
             self.recovery_task.cancel()
             await asyncio.gather(self.recovery_task, return_exceptions=True)

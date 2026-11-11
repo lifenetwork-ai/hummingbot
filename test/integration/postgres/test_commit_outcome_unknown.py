@@ -25,6 +25,19 @@ from hummingbot.model.trade_fill import TradeFill
 recording = recording_fixture
 
 
+@pytest.mark.parametrize('committed', [False, True], ids=['commit-not-delivered', 'commit-reply-lost'])
+def test_position_executor_and_application_receipt_share_the_unknown_commit_outcome(recording, committed):
+    from hummingbot.model.executors import Executors
+    from hummingbot.model.runtime_journal import RuntimeJournal
+    recorder, manager, market = recording
+    asyncio.run(cut_commit(manager.engine, 'hold', committed))
+    with manager.get_new_session() as session:
+        assert session.query(Position).count() == int(committed)
+        assert session.query(Executors).count() == int(committed)
+        assert session.query(RuntimeJournal).filter_by(event_key='hold:held').count() == int(committed)
+        assert session.query(RuntimeJournal).filter_by(event_key='applied-order:held-order').count() == int(committed)
+
+
 async def cut_commit(engine, mode, committed):
     async with response_loss_proxy(engine.url) as proxy:
         process = subprocess.Popen(
@@ -63,6 +76,11 @@ async def cut_commit(engine, mode, committed):
 @pytest.mark.parametrize('mode', ['intent', 'fill', 'cleanup'])
 def test_network_loss_at_commit_keeps_gate_closed_and_restart_reads_durable_truth(recording, mode, committed):
     recorder, manager, market = prepare(recording) if mode == 'cleanup' else recording
+    if mode == 'cleanup':
+        from hummingbot.model.runtime_journal import RuntimeCheckpoint, financial_hash
+        with manager.get_new_session() as session, session.begin():
+            session.add(RuntimeCheckpoint(config_file_path='life_mm_profiles.yaml', financial_hash=financial_hash(session),
+                                          bindings_hash='keep-account-binding', watermark=0, payload={}))
     asyncio.run(cut_commit(manager.engine, mode, committed))
     # This manager/recorder is in the parent process: no child-side session/cache
     # or success acknowledgement can influence its independent PostgreSQL read.
@@ -72,6 +90,9 @@ def test_network_loss_at_commit_keeps_gate_closed_and_restart_reads_durable_trut
             position = session.get(Position, 'long-hold')
             assert position.amount == (Decimal('.2') if committed else Decimal('.3'))
             assert position.realized_pnl_quote == (Decimal('1') if committed else 0)
+            checkpoint = session.get(RuntimeCheckpoint, 'life_mm_profiles.yaml')
+            assert checkpoint.financial_hash == financial_hash(session)
+            assert bool(checkpoint.watermark) is committed and checkpoint.bindings_hash == 'keep-account-binding'
         else:
             for model in (Order, OrderStatus, MarketState):
                 assert session.query(model).count() == int(committed)

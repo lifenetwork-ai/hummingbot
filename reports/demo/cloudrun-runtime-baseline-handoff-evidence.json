@@ -1,0 +1,578 @@
+{
+  "scope": "Actual OKX Demo, verified legacy baseline and graceful Cloud Run handoff",
+  "status": "regular_demo_running_conditional_target_pass_strict_unknown_gate_open",
+  "baseline": {
+    "applied_at": "2026-11-11T00:51:33.398561+00:00",
+    "audit_id": 183,
+    "orders": 10375,
+    "fills": 650,
+    "financial_hash": "4c92c5719e627b02fa0c10f7552c81ffc9177e04322129938cb5f0fbab4dbf12",
+    "watermark": 19,
+    "native_bootstrap_passed": true,
+    "mutations": [
+      "insert runtime checkpoint",
+      "mark historical orders position_applied",
+      "append audit 183"
+    ],
+    "preserved": "All other order fields, fills, positions, credentials, risk checkpoints, terminal attempts and applied journal values"
+  },
+  "baseline_checks": {
+    "prior_baseline_audits": [
+      107,
+      177
+    ],
+    "spot_extension_exact": true,
+    "perpetual_replay_from_zero_exact": true,
+    "spot_cash_exact": true,
+    "all_tracker_entries_terminal": true,
+    "all_submission_attempts_terminal": true,
+    "all_journal_work_applied": true,
+    "fees_and_volume_exact": true,
+    "account_bindings_exact": {
+      "okx": true,
+      "okx_perpetual": true
+    }
+  },
+  "negative_cases": [
+    {
+      "case": "risk_stop",
+      "rejected": "recovery_not_clear"
+    },
+    {
+      "case": "position_drift",
+      "rejected": "position_changed"
+    },
+    {
+      "case": "binding_drift",
+      "rejected": "binding_changed"
+    },
+    {
+      "case": "fill_fee_drift",
+      "rejected": "fill_changed"
+    },
+    {
+      "case": "new_control",
+      "rejected": "owner_or_control_changed"
+    },
+    {
+      "case": "repeat",
+      "rejected": true
+    }
+  ],
+  "handoffs": [
+    {
+      "old_revision": "hummingbot-demo-00097-wbm",
+      "new_revision": "hummingbot-demo-00098-zfg",
+      "samples": 163,
+      "api_errors": 0,
+      "first_new_running_seconds": 111.14773891633376,
+      "observed_running_gap_seconds": 15.432835124898702,
+      "scope": "graceful Cloud Run rolling handoff, not kernel OOM/SIGKILL",
+      "session_control_preserved": true,
+      "manual_halt_observed": false,
+      "shutdown_fence_samples": 0,
+      "cold_recovery_supported": true
+    },
+    {
+      "old_revision": "hummingbot-demo-00098-zfg",
+      "new_revision": "hummingbot-demo-00099-gj7",
+      "samples": 158,
+      "api_errors": 0,
+      "first_new_running_seconds": 124.578253749758,
+      "observed_running_gap_seconds": 16.45675454195589,
+      "scope": "graceful Cloud Run rolling handoff, not kernel OOM/SIGKILL",
+      "session_control_preserved": true,
+      "manual_halt_observed": false,
+      "shutdown_fence_samples": 1,
+      "cold_recovery_supported": true
+    }
+  ],
+  "post_cleanup": {
+    "verified_fills": 663,
+    "by_market": {
+      "okx": 399,
+      "okx_perpetual": 264
+    },
+    "complete_scans_per_market": 2,
+    "accounts_match": {
+      "okx": true,
+      "okx_perpetual": true
+    },
+    "perpetual_base_quantities": {},
+    "pending_orders": {
+      "okx": 0,
+      "okx_perpetual": 0
+    }
+  },
+  "images": {
+    "regular_fixed": "sha256:913ec2960c6f680ed79794a50546ae5b42f2e2e5511f8cb46e1738fb01eee8f6",
+    "temporary_qualification": "sha256:66c9f8e14aa49e312a65bf17abb15b316c453715cf9228202f68c8318b69a93c",
+    "final_regular": "sha256:b7d81b87a2454b095efb1181df88cbfbcccfa369fabe0bef13d4a796b37e5424"
+  },
+  "base_source": "4f44d42593eb00127aa08dd1d8064299fc87b60b",
+  "limits": {
+    "drawdown_controller": 1000,
+    "drawdown_global": 2000,
+    "hard_caps_changed": false
+  },
+  "quote_result": {
+    "method": "quote-window-v2",
+    "analyzed_at": "2026-11-11T01:45:41.794647+00:00",
+    "target_percent": 99,
+    "unknown_counts_as_failure": true,
+    "description": "Conditional acknowledged quote availability; guard exclusions are not uptime.",
+    "session_id": "4eef6eda-996e-4507-a4f6-ead3b18b5c3c",
+    "revision": "hummingbot-demo-00100-mz6",
+    "samples": 895,
+    "completed": true,
+    "markets": {
+      "spot": {
+        "two_sided": 880,
+        "guard_excluded": 9,
+        "eligible_gap": 5,
+        "unknown": 1,
+        "total": 895,
+        "confirmed_eligible": 885,
+        "eligible_fraction_of_all": 0.9888268156424581,
+        "conservative_denominator": 886,
+        "conditional_quote_fraction": 0.9943502824858758,
+        "conservative_quote_fraction": 0.9932279909706546,
+        "reasons": {
+          "guard_recovering": 6,
+          "session_not_admitted": 1,
+          "allocation_limit": 1,
+          "unexplained_ineligibility": 1,
+          "spot_outflow_blocked": 1
+        },
+        "target_pass": true
+      },
+      "perpetual": {
+        "two_sided": 128,
+        "eligible_gap": 1,
+        "guard_excluded": 766,
+        "total": 895,
+        "confirmed_eligible": 129,
+        "eligible_fraction_of_all": 0.1441340782122905,
+        "conservative_denominator": 129,
+        "conditional_quote_fraction": 0.9922480620155039,
+        "conservative_quote_fraction": 0.9922480620155039,
+        "reasons": {
+          "session_not_admitted": 3,
+          "guard_recovering": 6,
+          "inventory_limit": 757
+        },
+        "target_pass": true
+      }
+    },
+    "sampled_wall_span_seconds": 1798.762885,
+    "max_sample_gap_seconds": 5.22855,
+    "quality_pass": true,
+    "target_pass": true,
+    "strict_zero_unknown_runner_pass": false,
+    "unknown_reclassified": false
+  },
+  "temporary_quote_configuration": {
+    "differences": [
+      {
+        "path": "markets.spot.buy_spreads",
+        "regular": [
+          0.001,
+          0.002
+        ],
+        "qualification": [
+          "0.002",
+          "0.006"
+        ]
+      },
+      {
+        "path": "markets.spot.inventory_skew.target_base_pct",
+        "regular": "0.5",
+        "qualification": "0.76"
+      },
+      {
+        "path": "markets.spot.inventory_skew.inventory_range_multiplier",
+        "regular": "1",
+        "qualification": "20"
+      },
+      {
+        "path": "markets.spot.sell_spreads",
+        "regular": [
+          0.001,
+          0.002
+        ],
+        "qualification": [
+          "0.002",
+          "0.006"
+        ]
+      },
+      {
+        "path": "markets.perpetual.buy_spreads",
+        "regular": [
+          0.001,
+          0.002
+        ],
+        "qualification": [
+          "0.0008",
+          "0.004"
+        ]
+      },
+      {
+        "path": "markets.perpetual.sell_spreads",
+        "regular": [
+          0.001,
+          0.002
+        ],
+        "qualification": [
+          "0.0008",
+          "0.004"
+        ]
+      }
+    ],
+    "regular_catalogue_hash": "56728db15a00719629ae4571b418442bbaae53d0f94583033317f16bb325084f",
+    "qualification_catalogue_hash": "6fed75fd4327382cc239f795f98fe00d1d0df2fcf1f2c1f7b4cf67963fa0b206",
+    "hard_caps_guards_fees_unchanged": true,
+    "scope": "Declared temporary Demo qualification, not regular catalogue two-sided acceptance"
+  },
+  "perpetual_fill_handoff": {
+    "verified_orders": 4,
+    "verified_sides": [
+      "BUY",
+      "SELL"
+    ],
+    "all_maker": true,
+    "original_fees_exact": true,
+    "matching_fresh_account_observations": true,
+    "before_refresh": true,
+    "witnesses": [
+      {
+        "side": 2,
+        "executor_age_at_close_seconds": 54.4845871925354,
+        "replacement_age_from_original_entry_seconds": 56.21094036102295,
+        "close_type": "POSITION_HOLD",
+        "timing_precision_note": "Stored close timestamp has whole-second precision; not an exact RTT."
+      },
+      {
+        "side": 1,
+        "executor_age_at_close_seconds": 16.184475421905518,
+        "replacement_age_from_original_entry_seconds": 18.114323139190674,
+        "close_type": "POSITION_HOLD",
+        "timing_precision_note": "Stored close timestamp has whole-second precision; not an exact RTT."
+      }
+    ]
+  },
+  "baseline_growth_checks": [
+    {
+      "counts": {
+        "orders": 10408,
+        "trade_fills": 655,
+        "positions": 3,
+        "runtime_journal": 67,
+        "submission_attempts": 52
+      },
+      "generation": 465,
+      "control_version": 61,
+      "desired_state": "running",
+      "halted": false,
+      "can_bootstrap": true,
+      "checkpoint_count": 1,
+      "financial_hash_matches": true,
+      "financial_hash": "f51cea23f915dd2abab7b57d4856fd4e921c966800b5533aa7b6f8543dfef411",
+      "watermarks": [
+        62
+      ],
+      "pending_orders": 0,
+      "unapplied_journal": 0,
+      "duplicate_fill_keys": 0
+    },
+    {
+      "counts": {
+        "orders": 10437,
+        "trade_fills": 667,
+        "positions": 3,
+        "runtime_journal": 118,
+        "submission_attempts": 81
+      },
+      "generation": 467,
+      "control_version": 65,
+      "desired_state": "running",
+      "halted": false,
+      "can_bootstrap": true,
+      "checkpoint_count": 1,
+      "financial_hash_matches": true,
+      "financial_hash": "87ea95661bf429bad8ed102a4a1020bbec1fa09bf2ea14fe3b3c706e6c44751d",
+      "watermarks": [
+        117
+      ],
+      "pending_orders": 0,
+      "unapplied_journal": 0,
+      "duplicate_fill_keys": 0
+    },
+    {
+      "counts": {
+        "orders": 10539,
+        "trade_fills": 692,
+        "positions": 3,
+        "runtime_journal": 295,
+        "submission_attempts": 183
+      },
+      "generation": 467,
+      "control_version": 65,
+      "desired_state": "running",
+      "halted": false,
+      "can_bootstrap": true,
+      "checkpoint_count": 1,
+      "financial_hash_matches": true,
+      "financial_hash": "80dfc9b18cb008bec828b43bf7db8a51f67e84b2550d7a48bb988395d47e380d",
+      "watermarks": [
+        268
+      ],
+      "pending_orders": 0,
+      "unapplied_journal": 0,
+      "duplicate_fill_keys": 0
+    },
+    {
+      "counts": {
+        "orders": 10655,
+        "trade_fills": 716,
+        "positions": 3,
+        "runtime_journal": 483,
+        "submission_attempts": 299
+      },
+      "generation": 467,
+      "control_version": 66,
+      "desired_state": "stopped",
+      "halted": false,
+      "can_bootstrap": true,
+      "checkpoint_count": 1,
+      "financial_hash_matches": true,
+      "financial_hash": "7ee4aeae6dd71eff03db99e2970bba6a7a4d3f80cf23084289179850b6c78676",
+      "watermarks": [
+        483
+      ],
+      "pending_orders": 0,
+      "unapplied_journal": 0,
+      "duplicate_fill_keys": 0
+    },
+    {
+      "counts": {
+        "orders": 10657,
+        "trade_fills": 716,
+        "positions": 3,
+        "runtime_journal": 485,
+        "submission_attempts": 301
+      },
+      "generation": 468,
+      "control_version": 67,
+      "desired_state": "running",
+      "halted": false,
+      "can_bootstrap": true,
+      "checkpoint_count": 1,
+      "financial_hash_matches": true,
+      "financial_hash": "7ee4aeae6dd71eff03db99e2970bba6a7a4d3f80cf23084289179850b6c78676",
+      "watermarks": [
+        483
+      ],
+      "pending_orders": 0,
+      "unapplied_journal": 0,
+      "duplicate_fill_keys": 0
+    }
+  ],
+  "tests": {
+    "api_operator_unique_cases_passed": 37,
+    "liquidity_and_observer_cases_passed": 56,
+    "postgres_projection_cases_passed": 6,
+    "liquidity_valid_red": {
+      "failed": 2,
+      "passed": 3
+    },
+    "pre_commit_passed": true,
+    "api_operator_files": [
+      "test_automatic_recovery_status.py",
+      "test_admin_operations.py",
+      "test_risk_observation_operator_view.py",
+      "test_admin_api.py"
+    ]
+  },
+  "quote_gap_metrics": {
+    "samples": 895,
+    "span_seconds": 1798.762885,
+    "markets": {
+      "spot": {
+        "counts": {
+          "two_sided": 880,
+          "guard_excluded": 9,
+          "eligible_gap": 5,
+          "unknown": 1
+        },
+        "eligible_gap_runs": [
+          {
+            "samples": 1,
+            "first": "2026-11-11T01:19:33.679533+00:00",
+            "last": "2026-11-11T01:19:33.679533+00:00",
+            "observed_span_seconds": 0.0,
+            "bracketed_by_two_sided": false,
+            "bracket_seconds": null
+          },
+          {
+            "samples": 1,
+            "first": "2026-11-11T01:19:55.707033+00:00",
+            "last": "2026-11-11T01:19:55.707033+00:00",
+            "observed_span_seconds": 0.0,
+            "bracketed_by_two_sided": false,
+            "bracket_seconds": null
+          },
+          {
+            "samples": 1,
+            "first": "2026-11-11T01:35:13.596911+00:00",
+            "last": "2026-11-11T01:35:13.596911+00:00",
+            "observed_span_seconds": 0.0,
+            "bracketed_by_two_sided": true,
+            "bracket_seconds": 4.027582
+          },
+          {
+            "samples": 1,
+            "first": "2026-11-11T01:39:54.581945+00:00",
+            "last": "2026-11-11T01:39:54.581945+00:00",
+            "observed_span_seconds": 0.0,
+            "bracketed_by_two_sided": true,
+            "bracket_seconds": 4.007929
+          },
+          {
+            "samples": 1,
+            "first": "2026-11-11T01:41:30.781435+00:00",
+            "last": "2026-11-11T01:41:30.781435+00:00",
+            "observed_span_seconds": 0.0,
+            "bracketed_by_two_sided": false,
+            "bracket_seconds": null
+          }
+        ],
+        "max_reported_no_quote_seconds": 6.045478593000098
+      },
+      "perpetual": {
+        "counts": {
+          "two_sided": 128,
+          "eligible_gap": 1,
+          "guard_excluded": 766
+        },
+        "eligible_gap_runs": [
+          {
+            "samples": 1,
+            "first": "2026-11-11T01:16:35.335213+00:00",
+            "last": "2026-11-11T01:16:35.335213+00:00",
+            "observed_span_seconds": 0.0,
+            "bracketed_by_two_sided": true,
+            "bracket_seconds": 4.03545
+          }
+        ],
+        "max_reported_no_quote_seconds": 215.1137200209996
+      }
+    }
+  },
+  "window_logs": {
+    "logs": 12,
+    "truncated": false,
+    "severity": {
+      "WARNING": 12
+    },
+    "revisions": {
+      "hummingbot-demo-00100-mz6": 12
+    },
+    "patterns": {
+      "ownership_lost": 0,
+      "child_probe_failed": 1,
+      "child_restart_scheduled": 0,
+      "schema_incompatible": 0,
+      "shutdown_pending": 0,
+      "No working MM quotes observed": 4,
+      "Service stopped": 0,
+      "funding_observation_unavailable": 0,
+      "spread_policy_rejected": 0,
+      "spread_policy_quote_rejected": 1,
+      "websocket connection was closed": 4
+    },
+    "probe": {
+      "at": "2026-11-11T01:39:54.440312Z",
+      "elapsed_ms": 300.905,
+      "max_probe_gap_seconds": 1.306,
+      "restart_observed": false
+    }
+  },
+  "post_window_financial": {
+    "fills": 716,
+    "new_fills": 66,
+    "spot_native_journal_orders": 20,
+    "spot_new_fills_exact_once": 20,
+    "spot_financial_deltas": {
+      "amount": "0E-8",
+      "volume_traded_quote": "0E-9",
+      "breakeven_price": "0E-23",
+      "realized_pnl_quote": "0E-27",
+      "cum_fees_quote": "0E-13"
+    },
+    "perpetual_full_replay_exact": true,
+    "btc_cash_conservation_exact": true,
+    "fees_and_volume_exact": true,
+    "prior_fills_unchanged": true,
+    "venue_fill_proof_complete": true
+  },
+  "qualification_source_overlay": {
+    "hummingbot/cli/admin_api.py": "b70bff935c7e390091810a1d8dc281abb3ede18f7fb4c53083ad7bc65c49a3ae",
+    "hummingbot/cli/admin_operations.py": "3b4965f55b5159c5f9a6bb6590c40c17e70bd9db118486acee18c963ef303cea",
+    "hummingbot/model/bot_state_store.py": "2aae795b25951a555a395587bf05ced72c12442af5b542f7d3e5b9f1ac4456c9"
+  },
+  "final_source_overlay": {
+    "hummingbot/cli/admin_api.py": "b70bff935c7e390091810a1d8dc281abb3ede18f7fb4c53083ad7bc65c49a3ae",
+    "hummingbot/cli/admin_operations.py": "baca6683b6c9968c6b346b3f4afa9b804650dd6e8c8b0a7ca2af08758aac8653",
+    "hummingbot/model/bot_state_store.py": "2aae795b25951a555a395587bf05ced72c12442af5b542f7d3e5b9f1ac4456c9",
+    "hummingbot/core/mm_liquidity.py": "04b3ebe633f7095d5f3761ac0c064a0a0964ad2a94477b4c5f13383a3453bd16"
+  },
+  "final_runtime": {
+    "revision": "hummingbot-demo-00101-qmh",
+    "phase": "running",
+    "running": true,
+    "halted": false,
+    "control_version": 67,
+    "cold_recovery_supported": true,
+    "regular_catalogue_restored": true,
+    "quote_activity": {
+      "spot": {
+        "state": "one_sided",
+        "sides": {
+          "BUY": {
+            "state": "blocked",
+            "order_count": 0,
+            "reason_codes": [
+              "order_size_rejected"
+            ]
+          },
+          "SELL": {
+            "state": "working",
+            "order_count": 2,
+            "reason_codes": [
+              "active_executor"
+            ]
+          }
+        }
+      },
+      "perpetual": {
+        "state": "no_quotes",
+        "sides": {
+          "BUY": {
+            "state": "blocked",
+            "order_count": 0,
+            "reason_codes": [
+              "inventory_limit"
+            ]
+          },
+          "SELL": {
+            "state": "blocked",
+            "order_count": 0,
+            "reason_codes": [
+              "inventory_limit"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
