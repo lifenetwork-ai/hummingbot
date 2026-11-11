@@ -1,7 +1,11 @@
 # MM automatic recovery and availability
 
-Status: source implemented; r7 native/PostgreSQL/E2E/full load/soak qualification passed. No Cloud Run deployment,
-live database cutover or risk-reset authority is included in this change.
+Status: r7 offline qualification passed. Cloud Run migration 021 is now installed
+and schema-validated. Revision 93 now runs Demo after the operator-approved
+drawdown policy increase to 1,000/controller and 2,000/global; the old risk stop
+was explicitly re-armed with peaks preserved. Historical baseline and controlled
+Demo recovery/quote acceptance remain open (`cold_recovery_supported=false`).
+See [policy application evidence](../../reports/demo/cloudrun-drawdown-1000-2000.md).
 Scope: existing single Cloud Run service, PostgreSQL and native connector/recorder/V2
 execution. Preserve ownership fencing, financial evidence, risk limits and audit.
 
@@ -121,8 +125,13 @@ resending with the same ID is not a general exactly-once transport guarantee.
   mixed 15 min, burst 90 s, Random soak 60 min and all six fault windows without
   relaxed budgets. Independent 180 s MM diagnostic passed; residual probe events
   and sampling limits are recorded in the linked evidence.
-- [ ] Controlled Demo cutover and fault injection after writer-free migration 021
-  and verified legacy baseline. Separate injected failures from natural venue
+- [x] Install migration 021 with physical owner-lock exclusion and validate schema
+  and all 21 SQL checksums on Cloud Run (2026-11-11); revision 91 is Ready
+  and acquired ownership generation 460. At migration completion startup/live
+  returned 200; the existing drawdown HALT was preserved and readiness returned 503.
+  The subsequent approved policy re-arm and restart are recorded above.
+- [ ] Verify the legacy baseline and run controlled
+  Demo recovery/fault injection. Separate injected failures from natural venue
   errors; preserve guards and financial truth.
 - [ ] Measure the 30-minute live eligible two-sided quote objective and longest
   interruption separately from API uptime; classify one-sided, risk-blocked and
@@ -174,3 +183,5 @@ Cleanup advances only a baseline matching financial state before the transaction
 it never certifies pre-existing drift. Migration 021 requires a writer-free schema
 installation before compatible rolling takeover; it is not an online migration
 while an older image owns trading.
+
+Connected rollout evidence: [Cloud Run schema cutover](../../reports/platform/cloudrun-auto-recovery-migration-20261111.md).

@@ -1,0 +1,51 @@
+{
+  "observed_at_utc": "2026-11-11 00:20:01.971209+00:00",
+  "image_commit": "c8f023a4e408a846292b6f2d6de3de8374390da5",
+  "revision": "hummingbot-demo-00091-4qs",
+  "owner_generation": 460,
+  "traffic_percent": 100,
+  "scaling": {
+    "minInstanceCount": 1,
+    "scalingMode": "AUTOMATIC",
+    "maxInstanceCount": 1
+  },
+  "template_restored": true,
+  "counts": {
+    "orders": 10356,
+    "trade_fills": 650,
+    "positions": 3,
+    "runtime_checkpoints": 0,
+    "submission_attempts": 0,
+    "runtime_journal": 0
+  },
+  "health": {
+    "/startup": {
+      "http": 200,
+      "body": {
+        "state": "halted"
+      }
+    },
+    "/live": {
+      "http": 200,
+      "body": {
+        "state": "api_running"
+      }
+    },
+    "/ready": {
+      "http": 503,
+      "body": {
+        "state": "halted"
+      }
+    }
+  },
+  "halt_reason": "drawdown_controller_limit",
+  "backup_waived": true,
+  "baseline_certified": false,
+  "risk_reset": false,
+  "migration_checksums_verified": 21,
+  "raw_evidence_sha256": {
+    "migration-receipt.json": "d3daad669b39e9bbf62c0fcaedae89b7657d110283036f4e01a6b34f8d29960d",
+    "auto-applied-migrations.json": "93e271116bf6db682736ce274350f0a08f2180e59d931551cf48cdf1dba448a3",
+    "final-check.json": "7c92b2dadbb241977b9951c3d2455334eadb15ec8fb507b8e3d614afb408b2df"
+  }
+}

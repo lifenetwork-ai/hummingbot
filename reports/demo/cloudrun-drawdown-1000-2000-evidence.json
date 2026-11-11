@@ -1,0 +1,290 @@
+{
+  "applied_at": "2026-11-11T00:32:44.456300+00:00",
+  "revision": "hummingbot-demo-00093-p5p",
+  "base_image_digest": "sha256:6453558a1962cd5a724fb32cd57fb54f96d681b4a05f785b3d0ef934c3a889df",
+  "image_digest": "sha256:46f48ba28c2ece4b8c1212fba4e2d7c5e6091395b42056418fd5f6870de77923",
+  "old_policy": {
+    "scope": {
+      "demo_btc_spot": {
+        "trading_pair": "BTC-USDT",
+        "connector_name": "okx"
+      },
+      "demo_btc_perpetual": {
+        "trading_pair": "BTC-USDT",
+        "connector_name": "okx_perpetual"
+      }
+    },
+    "metric": "covered_v2_report_drawdown",
+    "max_global_drawdown_quote": "200",
+    "max_controller_drawdown_quote": "100"
+  },
+  "new_policy": {
+    "metric": "covered_v2_report_drawdown",
+    "max_global_drawdown_quote": "2000",
+    "max_controller_drawdown_quote": "1000",
+    "scope": {
+      "demo_btc_perpetual": {
+        "connector_name": "okx_perpetual",
+        "trading_pair": "BTC-USDT"
+      },
+      "demo_btc_spot": {
+        "connector_name": "okx",
+        "trading_pair": "BTC-USDT"
+      }
+    }
+  },
+  "audit_id": 180,
+  "peaks_preserved_at_maintenance": true,
+  "native_bind_passed": true,
+  "unchanged_table_fingerprints": {
+    "admin_accounts": {
+      "count": 1,
+      "hash": "e6f5848f2517a8c00801e5b604067518"
+    },
+    "admin_commands": {
+      "count": 64,
+      "hash": "3556d6d54de6ff8a6b58a25204e302f7"
+    },
+    "controllers": {
+      "count": 835,
+      "hash": "76fc10a5555f9b4ceeba16e7338d1ad4"
+    },
+    "daily_balance_snapshots": {
+      "count": 8,
+      "hash": "4e428c9874c0fb81b3d49a7065b19294"
+    },
+    "exchange_credentials": {
+      "count": 2,
+      "hash": "71486f008c2589b233108fdf39c17db2"
+    },
+    "executors": {
+      "count": 3626,
+      "hash": "3b02e1207e90076c7ff22af806321e5a"
+    },
+    "funding_bills": {
+      "count": 25,
+      "hash": "b6157974ef8bc6cc20333af442efee38"
+    },
+    "funding_payments": {
+      "count": 0,
+      "hash": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "hbot_schema_migrations": {
+      "count": 21,
+      "hash": "5338d6c6d63d334841af88f100e395bf"
+    },
+    "inventory_costs": {
+      "count": 0,
+      "hash": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "market_data": {
+      "count": 0,
+      "hash": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "market_states": {
+      "count": 3,
+      "hash": "2e1b0c57c1501d656a9f178ed53ac83e"
+    },
+    "metadata": {
+      "count": 0,
+      "hash": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "mm_events": {
+      "count": 5050,
+      "hash": "4866f6c37a13de538b9715d929eccab2"
+    },
+    "order_statuses": {
+      "count": 30660,
+      "hash": "7161c16d75667f68d00173a62806b9eb"
+    },
+    "orders": {
+      "count": 10356,
+      "hash": "c8219d3e776b6a8a9a77d09407a344c6"
+    },
+    "positions": {
+      "count": 3,
+      "hash": "313e9018689c96769167953cf42c418f"
+    },
+    "range_position_collected_fees": {
+      "count": 0,
+      "hash": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "range_position_updates": {
+      "count": 0,
+      "hash": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "runtime_checkpoints": {
+      "count": 0,
+      "hash": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "runtime_journal": {
+      "count": 0,
+      "hash": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "submission_attempts": {
+      "count": 0,
+      "hash": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "trade_fills": {
+      "count": 650,
+      "hash": "9acad0b25a198a1bf984acbde506a727"
+    }
+  },
+  "verified_fills": 650,
+  "verified_by_market": {
+    "okx": 392,
+    "okx_perpetual": 258
+  },
+  "complete_scans_per_market": 2,
+  "after_start": {
+    "phase": "running",
+    "halted": false,
+    "drawdown": {
+      "enabled": true,
+      "ready": true,
+      "stale": false,
+      "metric": "covered_v2_report_drawdown",
+      "reason_code": null,
+      "breached_controller_id": null,
+      "observed_at": "2026-11-11T00:34:21.000959Z",
+      "global_pnl_quote": "127.2922050366695999999999935",
+      "global_peak_quote": "129.8902721616695999999999935",
+      "global_drawdown_quote": "2.5980671250000000000000000",
+      "max_global_drawdown_quote": "2000",
+      "max_controller_drawdown_quote": "1000",
+      "scope": {
+        "demo_btc_spot": {
+          "connector_name": "okx",
+          "trading_pair": "BTC-USDT"
+        },
+        "demo_btc_perpetual": {
+          "connector_name": "okx_perpetual",
+          "trading_pair": "BTC-USDT"
+        }
+      },
+      "controllers": {
+        "demo_btc_spot": {
+          "peak_quote": "128.8327808704695999999999935",
+          "pnl_quote": "126.2859957454695999999999935",
+          "drawdown_quote": "2.5467851250000000000000000"
+        },
+        "demo_btc_perpetual": {
+          "peak_quote": "1.062090291199999999999999959",
+          "pnl_quote": "1.006209291199999999999999959",
+          "drawdown_quote": "0.055881000000000000000000000"
+        }
+      },
+      "fees": "executor_and_held_trade_quote_fees",
+      "funding": "excluded",
+      "operator_action_required": false
+    },
+    "automatic_recovery": {
+      "cold_recovery_supported": false,
+      "phase": "idle",
+      "reason_code": null,
+      "operator_required": false,
+      "stale": false,
+      "started_at": null,
+      "next_retry_at": null,
+      "last_progress_at": null,
+      "order_id": null
+    },
+    "quote_activity": {
+      "spot": {
+        "state": "one_sided",
+        "label": "Orders working on one side",
+        "detail": "Check the side without working orders. Current working orders have no observed fills.",
+        "fill_observation": "no_fills_on_working_orders",
+        "fill_observation_basis": "current_working_orders",
+        "no_quote_seconds": 0.0,
+        "warning_after_seconds": 20.0,
+        "warning_active": false,
+        "proposal_observed_at": "2026-11-11T00:34:20.502952Z",
+        "sides": {
+          "BUY": {
+            "state": "blocked",
+            "order_count": 0,
+            "proposed_count": 0,
+            "reason_codes": [
+              "order_size_rejected"
+            ],
+            "detail": "The rounded order did not pass size or allocation checks.",
+            "diagnosis": {
+              "stage": "trading_conditions",
+              "source": "controller_observation",
+              "observed_seconds": 26.602791979000017,
+              "next_action": "Check the reported trading condition and service incidents; contact support if unresolved.",
+              "error_type": null
+            }
+          },
+          "SELL": {
+            "state": "working",
+            "order_count": 2,
+            "proposed_count": 0,
+            "reason_codes": [
+              "active_executor"
+            ],
+            "detail": "Acknowledged working orders are present.",
+            "diagnosis": null
+          }
+        }
+      },
+      "perpetual": {
+        "state": "no_quotes",
+        "label": "No working orders observed",
+        "detail": "Check the BUY and SELL reasons for this market.",
+        "fill_observation": "not_applicable",
+        "fill_observation_basis": "current_working_orders",
+        "no_quote_seconds": 27.385524498999985,
+        "warning_after_seconds": 20.0,
+        "warning_active": true,
+        "proposal_observed_at": "2026-11-11T00:34:20.973664Z",
+        "sides": {
+          "BUY": {
+            "state": "blocked",
+            "order_count": 0,
+            "proposed_count": 0,
+            "reason_codes": [
+              "inventory_limit"
+            ],
+            "detail": "The configured exposure or inventory limit blocks new orders. Review exposure and managed limits.",
+            "diagnosis": {
+              "stage": "trading_conditions",
+              "source": "controller_observation",
+              "observed_seconds": 26.602791979000017,
+              "next_action": "Review exposure and configured limits; do not reset protective state to bypass them.",
+              "error_type": null
+            }
+          },
+          "SELL": {
+            "state": "blocked",
+            "order_count": 0,
+            "proposed_count": 0,
+            "reason_codes": [
+              "inventory_limit"
+            ],
+            "detail": "The configured exposure or inventory limit blocks new orders. Review exposure and managed limits.",
+            "diagnosis": {
+              "stage": "trading_conditions",
+              "source": "controller_observation",
+              "observed_seconds": 26.602791979000017,
+              "next_action": "Review exposure and configured limits; do not reset protective state to bypass them.",
+              "error_type": null
+            }
+          }
+        }
+      }
+    }
+  },
+  "venue_readback": {
+    "at": "2026-11-11T00:34:30.740600+00:00",
+    "pending_spot_orders": 2,
+    "matching_api": 2,
+    "sides": [
+      "sell",
+      "sell"
+    ]
+  },
+  "tests": "22 drawdown tests passed; packaged YAML parse passed; native binding dry-run passed",
+  "qualification_limit": "Brief post-start check, not full release or 30-minute quote acceptance"
+}
