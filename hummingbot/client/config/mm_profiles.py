@@ -4,7 +4,7 @@ import json
 from decimal import Decimal
 from typing import Dict, List, Literal, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 from controllers.market_making.life_mm import LifeMMConfig, ReferencePair
 from hummingbot.client.config.config_helpers import load_yml_into_dict
@@ -52,6 +52,7 @@ class MMProfilesConfig(BaseModel):
     markets: Dict[Literal["spot", "perpetual"], LifeMMConfig]
     random: RandomSelection
     min_duration_seconds: int = Field(default=60, gt=0, strict=True)
+    default_duration_mode: DurationMode = Field(default='timed', description='Default for new Start/Switch commands omitting both duration mode and seconds. Until stopped also requires allow_until_stopped.')
     default_duration_seconds: int = Field(default=3600, gt=0, strict=True)
     max_duration_seconds: int = Field(default=86400, gt=0, strict=True)
     allow_until_stopped: bool = Field(default=False, strict=True, description='Allow explicitly requested sessions with no overall expiry; risk policies and random-step deadlines remain active.')
@@ -59,6 +60,14 @@ class MMProfilesConfig(BaseModel):
     max_global_drawdown_quote: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
     max_controller_drawdown_quote: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
     spot_outflow: Optional[SpotOutflowConfig] = None
+
+    @model_serializer(mode='wrap')
+    def serialize_duration_default(self, handler):
+        values = handler(self)
+        # Preserve archived timed catalogues and their existing hashes.
+        if self.default_duration_mode == 'timed':
+            values.pop('default_duration_mode', None)
+        return values
 
     def catalogue_hash(self):
         return hashlib.sha256(json.dumps(self.model_dump(mode="json"), sort_keys=True,
@@ -95,6 +104,8 @@ class MMProfilesConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_catalogue(self):
+        if self.default_duration_mode == 'until_stopped' and not self.allow_until_stopped:
+            raise ValueError('Until-stopped default requires explicit YAML permission')
         self.outflow_policy()
         bootstrap = self.bootstrap_policies()
         if bootstrap is not None:

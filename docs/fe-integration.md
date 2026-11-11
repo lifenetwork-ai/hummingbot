@@ -347,7 +347,10 @@ restarting a child does not apply new YAML settings to a running session.
 Environment precedence is existing process values, then local dotenv, then shared
 defaults. YAML profile settings are not an additional layer of API overrides.
 
-`duration_mode=timed` is the default. `until_stopped` must omit duration_seconds
+For a new Start/Switch, omitted/null `duration_mode` uses
+`/profiles.catalogue.default_duration_mode` (fall back to `timed` when absent).
+Explicit `duration_seconds` without a mode selects Timed; an explicit mode wins
+over the YAML default. `until_stopped` must omit duration_seconds
 and be offered only when `/profiles.duration_modes` advertises it. It removes
 the overall session deadline, not risk limits or the finite random step windows.
 Permission is in YAML, not `.env` or a writable command field. The API must reject
@@ -842,7 +845,7 @@ edits if another operator changes state. `/profiles` supplies configured
 | Market | `market_mode: spot | perpetual | both` | Offer only configured modes; show shared wallet once and market allocations separately |
 | One profile | `selection: fixed`, `profile_id` | Choose one deployed profile; display its references/weights read-only |
 | Random profiles | `selection: random` | Use the YAML pool and step duration; equal probability, with consecutive repeats allowed |
-| Timed | `duration_mode: timed`, `duration_seconds` | Default mode; YAML bounds apply and omitted seconds use the YAML default |
+| Timed | `duration_mode: timed`, `duration_seconds` | YAML bounds apply and omitted seconds use the YAML default |
 | Until stopped | `duration_mode: until_stopped` | Offer only when advertised; omit `duration_seconds` and retain a separate random-step countdown |
 
 Use these plain labels for shipped profiles; other deployed IDs need a readable
@@ -862,6 +865,13 @@ pool/step timing, budgets, spreads, leverage, target pair and guards are read-on
 change alongside the active session. For an active session use `switch`, which
 creates a replacement session; it does not patch the old timer or flatten exposure.
 Do not generate a giant editable form from every controller field.
+
+Initialize the duration selection from `catalogue.default_duration_mode`, using
+Timed when that field is absent. The Demo preset selects Until stopped. Offer
+that default only when `duration_modes` also advertises it. Send the operator's
+explicit selection for a reviewed command. Receipt payloads preserve the original
+request and may have a null mode; the session/configuration response contains the
+resolved, pinned mode. Changing YAML never rewrites an existing session's timer.
 
 Older servers omitting `duration_modes` fall back to Timed. Keep hidden timed
 input drafts separate so Until stopped never submits stale seconds. Its request

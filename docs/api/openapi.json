@@ -4322,6 +4322,16 @@
             "title": "Allow Until Stopped",
             "type": "boolean"
           },
+          "default_duration_mode": {
+            "default": "timed",
+            "description": "Default for new Start/Switch commands omitting both duration mode and seconds. Until stopped also requires allow_until_stopped.",
+            "enum": [
+              "timed",
+              "until_stopped"
+            ],
+            "title": "Default Duration Mode",
+            "type": "string"
+          },
           "default_duration_seconds": {
             "default": 3600,
             "exclusiveMinimum": 0,
@@ -6486,14 +6496,21 @@
             "type": "string"
           },
           "duration_mode": {
-            "default": "timed",
-            "description": "Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.",
-            "enum": [
-              "timed",
-              "until_stopped"
+            "anyOf": [
+              {
+                "enum": [
+                  "timed",
+                  "until_stopped"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Duration Mode",
-            "type": "string"
+            "default": null,
+            "description": "Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.",
+            "title": "Duration Mode"
           },
           "duration_seconds": {
             "anyOf": [
@@ -6620,14 +6637,21 @@
             "type": "string"
           },
           "duration_mode": {
-            "default": "timed",
-            "description": "Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.",
-            "enum": [
-              "timed",
-              "until_stopped"
+            "anyOf": [
+              {
+                "enum": [
+                  "timed",
+                  "until_stopped"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Duration Mode",
-            "type": "string"
+            "default": null,
+            "description": "Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.",
+            "title": "Duration Mode"
           },
           "duration_seconds": {
             "anyOf": [
@@ -8351,14 +8375,21 @@
             "type": "string"
           },
           "duration_mode": {
-            "default": "timed",
-            "description": "Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.",
-            "enum": [
-              "timed",
-              "until_stopped"
+            "anyOf": [
+              {
+                "enum": [
+                  "timed",
+                  "until_stopped"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Duration Mode",
-            "type": "string"
+            "default": null,
+            "description": "Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.",
+            "title": "Duration Mode"
           },
           "duration_seconds": {
             "anyOf": [
@@ -8774,14 +8805,21 @@
             "type": "string"
           },
           "duration_mode": {
-            "default": "timed",
-            "description": "Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.",
-            "enum": [
-              "timed",
-              "until_stopped"
+            "anyOf": [
+              {
+                "enum": [
+                  "timed",
+                  "until_stopped"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Duration Mode",
-            "type": "string"
+            "default": null,
+            "description": "Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.",
+            "title": "Duration Mode"
           },
           "duration_seconds": {
             "anyOf": [

@@ -21,7 +21,11 @@ GUARDS = dict(enabled=True, max_deviation_bps='200', resume_deviation_bps='100')
     (str(DEMO), 'a37de043654129137af216a52e8fa2af99389d9a48a6a4e28e4c3c5444f3416b'),  # noqa: documentation
 ])
 async def test_disabled_policy_preserves_the_pre_reduction_catalogue_hash(path, expected):
-    catalogue = await MMProfilesConfig.load(path)
+    raw = (await MMProfilesConfig.load(path)).model_dump(mode='json')
+    # Demo now opts into a continuous default. Keep the historical timed
+    # catalogue as this regression's original compatibility reference.
+    raw.pop('default_duration_mode', None)
+    catalogue = MMProfilesConfig.model_validate(raw)
     assert catalogue.catalogue_hash() == expected
     raw = catalogue.model_dump(mode='json')
     assert all('inventory_reduction' not in template for template in raw['markets'].values())

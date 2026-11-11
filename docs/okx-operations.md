@@ -10,6 +10,13 @@ ownership and HALT recovery use [PostgreSQL operations](postgres-runtime.md).
 Deployment is documented in [Cloud Run operations](cloudrun.md), and FE session
 controls in [FE integration](fe-integration.md).
 
+The Demo YAML sets `default_duration_mode: until_stopped` with
+`allow_until_stopped: true`. New Start/Switch commands can omit duration fields
+to run continuously; explicit Timed still uses the configured bounds/default
+seconds. Random rotates every ten minutes. This default applies only after
+deploying the supporting code and YAML, and does not start or alter a saved
+session. See [session duration defaults](life-mm-controls.md#session-duration-defaults).
+
 Active LIFE controllers share bounded public snapshot recovery for each required
 OKX book. A book at half its configured freshness budget may request its native
 REST snapshot; healthy books need no extra request. At most two reads run at once,

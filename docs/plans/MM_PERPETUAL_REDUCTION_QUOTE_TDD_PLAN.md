@@ -5,8 +5,11 @@ gates, remaining-cost accounting and native cold recovery are implemented and
 covered by unit/PostgreSQL tests. Packaged LONG/SHORT full-cycle fault cases and
 two default-path regression groups pass on the same local image. Closing quotes are not
 enabled on Demo. The operator selected fee-inclusive
-breakeven pricing. Last verified Demo was revision103 with long/short/gross caps
-of 0.05/0.05/0.1 BTC; this work has not deployed or changed its session.
+breakeven pricing. Revision106 contains commit `768ee611c`; its installed 18-file
+feature source matches the original local qualification. Closing quotes remain
+disabled. The operator subsequently requested continuous operation: Start80
+resumed Random Spot + Perpetual with no overall expiry, preserving existing
+caps/guards. The later YAML duration-default work below is still local.
 
 ## Outcome and scope
 
@@ -300,7 +303,8 @@ The local amd64 runtime is image `bf6177dc408d…`, registry manifest
 `68db092b1560…`. It overlays 18 current Python/schema files on the newly built
 Cloud Run runtime target; it is not an unmodified full Dockerfile build of the
 final source. `build/reduction-overlay-r6-20261111/source-manifest.json` records
-the exact source hashes, all checked against the current worktree.
+the exact source hashes checked at the original feature qualification. Later
+duration-default changes have separate verification below.
 
 | Case | Result | Local evidence directory under `build/e2e-offline/` |
 | --- | --- | --- |
@@ -335,3 +339,31 @@ no duplicate economic effects or manual financial repair. Quote continuity is a
 separate measured gate: the previous regular-profile result was 97.219%, not a
 passing baseline. Wider spreads or new exclusions cannot be used silently to
 declare the unchanged 99% target passed.
+
+### Deployment and continuous-operation follow-up — 2026-11-11
+
+Cloud Build `669d7dd8…` successfully deployed commit `768ee611c` as
+`hummingbot-demo-00106-8kt`, manifest `9bbaebb6eaab…`. The full CI image's 18
+feature source/schema hashes match the original qualified feature source.
+Startup/live return 200 and the post-deploy WARNING/ERROR slice was empty.
+The initial stopped state was `session_expired`: the previous 30-minute Random
+session ran from 14:27:55 to 14:57:55 Vietnam time. It was not a deployment HALT.
+
+At the operator's request, native Start80 created a continuous Random session
+for both markets, retaining the YAML ten-minute steps and existing protection.
+The receipt succeeded; status was running with `expires_at=null` and no HALT.
+The actual audited API principal is the configured Basic bootstrap account.
+No HALT reset, financial repair or close-first activation was performed.
+Private receipts and installed-source proof are under
+`build/cloudrun-reduction-acceptance-20261111/`.
+
+The local follow-up adds `default_duration_mode: until_stopped` to the Demo YAML
+and resolves omitted Start/Switch modes against that default. Explicit timers
+still win, permission is required, old timed hashes remain compatible and saved
+sessions retain their accepted mode/deadlines. The initial tests reproduced the
+missing configuration support, then the backend selection passed 1,428 tests;
+the duration and admin/session PostgreSQL selections passed 23 tests. This small
+follow-up also passes OpenAPI/FE type consistency, dashboard lint/typecheck/
+coverage/build and pre-commit checks. It changes the original frozen source
+and has not yet been deployed.
+It does not close the close-first, full-release/load or quote-target gates above.

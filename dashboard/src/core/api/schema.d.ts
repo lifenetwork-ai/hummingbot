@@ -2355,6 +2355,13 @@ export interface components {
              */
             allow_until_stopped: boolean;
             /**
+             * Default Duration Mode
+             * @description Default for new Start/Switch commands omitting both duration mode and seconds. Until stopped also requires allow_until_stopped.
+             * @default timed
+             * @enum {string}
+             */
+            default_duration_mode: "timed" | "until_stopped";
+            /**
              * Default Duration Seconds
              * @default 3600
              */
@@ -3266,11 +3273,10 @@ export interface components {
             action: "start";
             /**
              * Duration Mode
-             * @description Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.
-             * @default timed
-             * @enum {string}
+             * @description Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.
+             * @default null
              */
-            duration_mode: "timed" | "until_stopped";
+            duration_mode: ("timed" | "until_stopped") | null;
             /**
              * Duration Seconds
              * @description Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.
@@ -3328,11 +3334,10 @@ export interface components {
             action: "switch";
             /**
              * Duration Mode
-             * @description Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.
-             * @default timed
-             * @enum {string}
+             * @description Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.
+             * @default null
              */
-            duration_mode: "timed" | "until_stopped";
+            duration_mode: ("timed" | "until_stopped") | null;
             /**
              * Duration Seconds
              * @description Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.
@@ -4013,11 +4018,10 @@ export interface components {
             action: "start";
             /**
              * Duration Mode
-             * @description Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.
-             * @default timed
-             * @enum {string}
+             * @description Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.
+             * @default null
              */
-            duration_mode: "timed" | "until_stopped";
+            duration_mode: ("timed" | "until_stopped") | null;
             /**
              * Duration Seconds
              * @description Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.
@@ -4160,11 +4164,10 @@ export interface components {
             action: "switch";
             /**
              * Duration Mode
-             * @description Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.
-             * @default timed
-             * @enum {string}
+             * @description Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.
+             * @default null
              */
-            duration_mode: "timed" | "until_stopped";
+            duration_mode: ("timed" | "until_stopped") | null;
             /**
              * Duration Seconds
              * @description Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.

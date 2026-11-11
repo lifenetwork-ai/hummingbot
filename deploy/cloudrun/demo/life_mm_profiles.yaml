@@ -2,6 +2,9 @@
 # Loading this catalogue does not start trading. Use a dedicated Demo account/DB.
 reference_connector: okx
 min_duration_seconds: 60
+# New sessions run continuously unless the operator explicitly selects a timer.
+default_duration_mode: until_stopped
+# Applies only to explicitly timed sessions; Random still rotates every 600s.
 default_duration_seconds: 1800
 max_duration_seconds: 7200
 allow_until_stopped: true
