@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hummingbot.cli.service import ServiceHost
-from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.event.events import MarketOrderFailureEvent, OrderCancelledEvent
@@ -99,7 +99,7 @@ def test_policy_evaluation_error_is_not_a_refresh_instruction():
     host._mm_controllers = lambda: [controller]
     with pytest.raises(SubmissionBlocked) as blocked:
         host.mm_quote_valid(SimpleNamespace(name='okx'), SimpleNamespace(
-            trading_pair='LIFE-USDT', trade_type=TradeType.BUY, price=Decimal('.099'), amount=Decimal('1')))
+            trading_pair='LIFE-USDT', trade_type=TradeType.BUY, price=Decimal('.099'), amount=Decimal('1'), position=PositionAction.NIL))
     assert type(blocked.value) is SubmissionBlocked
     assert 'private exception details' not in str(blocked.value)
 

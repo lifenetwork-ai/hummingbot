@@ -7,8 +7,9 @@ from hummingbot.connector.exchange_py_base import ExchangePyBase
 from hummingbot.connector.gateway.gateway import Gateway
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
-from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, TradeUpdate
 from hummingbot.core.data_type.order_candidate import OrderCandidate, PerpetualOrderCandidate
+from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.event.events import MarketOrderFailureEvent
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.order_executor.data_types import (
@@ -177,6 +178,11 @@ class TestOrderExecutor(IsolatedAsyncioWrapperTestCase, LoggerMixinForTest):
         executor = self.get_order_executor_from_config(config)
         executor._status = RunnableStatus.RUNNING
         executor._order = TrackedOrder("OID-COMPLETE")
+        order.update_with_trade_update(TradeUpdate(
+            trade_id='completed-fill', client_order_id=order.client_order_id, exchange_order_id='EOID4',
+            trading_pair=config.trading_pair, fill_timestamp=1640001113,
+            fill_price=config.price, fill_base_amount=config.amount, fill_quote_amount=config.amount * config.price,
+            fee=AddedToCostTradeFee()))
 
         # Create and process the completed event
         from hummingbot.core.event.events import BuyOrderCompletedEvent
@@ -555,6 +561,11 @@ class TestOrderExecutor(IsolatedAsyncioWrapperTestCase, LoggerMixinForTest):
             initial_state=OrderState.PARTIALLY_FILLED
         )
         tracked_order = TrackedOrder("OID-PARTIAL")
+        order.update_with_trade_update(TradeUpdate(
+            trade_id='shutdown-partial', client_order_id=order.client_order_id, exchange_order_id='venue-partial',
+            trading_pair=config.trading_pair, fill_timestamp=1640001113,
+            fill_price=Decimal('100'), fill_base_amount=Decimal('.2'), fill_quote_amount=Decimal('20'),
+            fee=AddedToCostTradeFee()))
         tracked_order.order = order
         executor._partial_filled_orders = [tracked_order]
 
@@ -881,6 +892,7 @@ class TestOrderExecutor(IsolatedAsyncioWrapperTestCase, LoggerMixinForTest):
         order = MagicMock()
         order.executed_amount_base = Decimal("1")
         order.average_executed_price = Decimal("105")
+        order.executed_amount_quote = Decimal("105")
         tracked_order = TrackedOrder("OID-1")
         tracked_order.order = order
         executor._order = tracked_order
@@ -905,12 +917,14 @@ class TestOrderExecutor(IsolatedAsyncioWrapperTestCase, LoggerMixinForTest):
         order1 = MagicMock()
         order1.executed_amount_base = Decimal("0.6")
         order1.average_executed_price = Decimal("100")
+        order1.executed_amount_quote = Decimal("60")
         tracked1 = TrackedOrder("OID-1")
         tracked1.order = order1
 
         order2 = MagicMock()
         order2.executed_amount_base = Decimal("0.4")
         order2.average_executed_price = Decimal("110")
+        order2.executed_amount_quote = Decimal("44")
         tracked2 = TrackedOrder("OID-2")
         tracked2.order = order2
 
@@ -953,6 +967,7 @@ class TestOrderExecutor(IsolatedAsyncioWrapperTestCase, LoggerMixinForTest):
         order = MagicMock()
         order.executed_amount_base = Decimal("0.5")
         order.average_executed_price = Decimal("100")
+        order.executed_amount_quote = Decimal("50")
         tracked_order = TrackedOrder("OID-1")
         tracked_order.order = order
         executor._order = tracked_order
@@ -1000,6 +1015,11 @@ class TestOrderExecutor(IsolatedAsyncioWrapperTestCase, LoggerMixinForTest):
             initial_state=OrderState.PARTIALLY_FILLED
         )
         tracked_partial = TrackedOrder("OID-PARTIAL")
+        partial.update_with_trade_update(TradeUpdate(
+            trade_id='partial-fill', client_order_id=partial.client_order_id, exchange_order_id='venue-partial',
+            trading_pair=config.trading_pair, fill_timestamp=1640001113,
+            fill_price=Decimal('99'), fill_base_amount=Decimal('.5'), fill_quote_amount=Decimal('49.5'),
+            fee=AddedToCostTradeFee()))
         tracked_partial.order = partial
         executor._partial_filled_orders = [tracked_partial]
 

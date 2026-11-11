@@ -25,6 +25,7 @@ from hummingbot.strategy_v2.executors.dca_executor.dca_executor import DCAExecut
 from hummingbot.strategy_v2.executors.executor_base import ExecutorBase
 from hummingbot.strategy_v2.executors.grid_executor.grid_executor import GridExecutor
 from hummingbot.strategy_v2.executors.lp_executor.lp_executor import LPExecutor
+from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
 from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
 from hummingbot.strategy_v2.executors.position_executor.position_executor import PositionExecutor
@@ -39,6 +40,7 @@ from hummingbot.strategy_v2.models.executor_actions import (
 )
 from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo, PerformanceReport
+from hummingbot.strategy_v2.utils.perpetual_reduction import HedgeCostBasis
 
 
 class PositionHold:
@@ -58,12 +60,39 @@ class PositionHold:
         self.realized_pnl_quote = Decimal("0")
         self.volume_traded_quote = Decimal("0")
         self.cum_fees_quote = Decimal("0")
+        self._reduction_basis = None
 
         # Separate tracking for buys and sells (for logging/diagnostics)
         self.buy_amount_base = Decimal("0")
         self.buy_amount_quote = Decimal("0")
         self.sell_amount_base = Decimal("0")
         self.sell_amount_quote = Decimal("0")
+
+    @property
+    def reduction_basis(self):
+        if self.connector_name != 'okx_perpetual' or self.side not in (TradeType.BUY, TradeType.SELL):
+            return None
+        if not self.net_amount_base:
+            return HedgeCostBasis(self.side, Decimal(0), Decimal(0), Decimal(0))
+        basis = self._reduction_basis
+        if (basis is not None and basis.leg == self.side and basis.amount == abs(self.net_amount_base)
+                and (self.net_amount_base > 0) == (self.side == TradeType.BUY)):
+            return basis
+        return None
+
+    def _apply_reduction_basis(self, order, is_buy, amount, quote, fee):
+        basis = self.reduction_basis
+        try:
+            effect = PositionAction(order.get('position'))
+            expected_buy = (self.side == TradeType.BUY) == (effect == PositionAction.OPEN)
+            if (basis is None or is_buy != expected_buy or 'cumulative_fee_paid_quote' not in order
+                    or order['cumulative_fee_paid_quote'] is None):
+                raise ValueError('Unproven hedge cost scope')
+            self._reduction_basis = basis.apply(effect, amount, quote, fee)
+        except (ValueError, ArithmeticError, TypeError):
+            # Retain native financial accounting, but grant no closing-price
+            # authority to legacy, foreign, or unproven cost/effect evidence.
+            self._reduction_basis = None
 
     def _process_order(self, is_buy: bool, amount_base: Decimal, amount_quote: Decimal):
         """
@@ -161,7 +190,11 @@ class PositionHold:
                 self.sell_amount_quote += executed_amount_quote
 
             # Update fees (tx fees paid)
-            self.cum_fees_quote += Decimal(str(order.get("cumulative_fee_paid_quote", 0)))
+            fee_quote = Decimal(str(order.get("cumulative_fee_paid_quote", 0)))
+            self.cum_fees_quote += fee_quote
+
+            if executed_amount_base and self.connector_name == 'okx_perpetual' and self.side in (TradeType.BUY, TradeType.SELL):
+                self._apply_reduction_basis(order, is_buy, executed_amount_base, executed_amount_quote, fee_quote)
 
             # Process order for incremental PnL calculation
             self._process_order(is_buy, executed_amount_base, executed_amount_quote)
@@ -259,6 +292,67 @@ class ExecutorOrchestrator:
         self._initial_positions_initialized = False
         self._checkpoint_candidates = []
         self._initialize_cached_performance()
+
+    def reduction_runtime(self, controller_id):
+        """Project resident ownership/receipts only; never fetch history here."""
+        from hummingbot.core.order_submission_guard import active_guard
+        from hummingbot.strategy_v2.utils.perpetual_reduction_runtime import (
+            MAX_REDUCTION_RESIDENT_ROWS,
+            ExecutorQuoteState,
+            ReductionRuntime,
+        )
+        recorder = MarketsRecorder.get_instance()
+        if (recorder.durable_position_checkpoints is not True or recorder.sql_manager.persistence_healthy is not True
+                or getattr(self, 'mm_scope_incomplete', False)):
+            raise ValueError('reduction_basis_unavailable')
+        controller = self.strategy.controllers.get(controller_id)
+        config = controller.config if controller is not None else None
+        if config is None or config.connector_name != 'okx_perpetual' or config.inventory_reduction.mode != 'close_first':
+            raise ValueError('reduction_basis_unavailable')
+        bases = {TradeType.BUY: HedgeCostBasis(TradeType.BUY, Decimal(0), Decimal(0), Decimal(0)),
+                 TradeType.SELL: HedgeCostBasis(TradeType.SELL, Decimal(0), Decimal(0), Decimal(0))}
+        seen = set()
+        for hold in self.positions_held.get(controller_id, []):
+            if (hold.connector_name, hold.trading_pair) != (config.connector_name, config.trading_pair):
+                raise ValueError('reduction_basis_unavailable')
+            if hold.side not in bases or hold.side in seen:
+                raise ValueError('reduction_basis_unavailable')
+            seen.add(hold.side)
+            bases[hold.side] = hold.reduction_basis
+        rows = self.active_executors.get(controller_id, [])
+        if len(rows) > MAX_REDUCTION_RESIDENT_ROWS:
+            raise ValueError('reduction_reservation_limit')
+        guard = active_guard()
+        states = []
+        for executor in rows:
+            if not isinstance(executor, (PositionExecutor, OrderExecutor)):
+                raise ValueError('reduction_runtime_conflict')
+            refs = ((executor._open_order, *executor._failed_orders, executor._close_order, executor._take_profit_limit_order)
+                    if isinstance(executor, PositionExecutor) else tuple(executor._execution_orders(include_retired=True)))
+            identities, orders = [], {}
+            for tracked in refs:
+                if tracked is None or not tracked.order_id or tracked.order_id in identities:
+                    continue
+                identities.append(tracked.order_id)
+                native = tracked.order or executor.get_in_flight_order(executor.config.connector_name, tracked.order_id)
+                if native is not None:
+                    orders[tracked.order_id] = native
+            if len(identities) > 32:
+                raise ValueError('reduction_reservation_limit')
+            applied = executor.config.id in self.executors_ids_position_held
+            if executor.is_closed and executor.close_type != CloseType.POSITION_HOLD:
+                # Positive terminal zero-fill proof releases a level even if
+                # admission caches await the next unrelated before_order call.
+                # Locally rejected unsent orders use the released registry path.
+                resolved = len(orders) == len(identities) and all(
+                    order.is_done and not order.executed_amount_base for order in orders.values())
+                released = guard is not None and all(
+                    identity not in guard.active_intents and identity not in guard.sent_intents for identity in identities)
+                proved = all(getattr(order, '_managed_terminal_proved', False) is True
+                             and order.current_state in (OrderState.CANCELED, OrderState.FILLED) for order in orders.values())
+                applied = not identities or (resolved and (released or proved))
+            states.append(ExecutorQuoteState(executor.config, executor.status, applied, tuple(identities), tuple(orders.values())))
+        return ReductionRuntime(bases[TradeType.BUY], bases[TradeType.SELL], tuple(states), True)
 
     def _mm_scope(self):
         scope = getattr(getattr(self.strategy, "config", None), "mm_drawdown_scope", None)
@@ -358,6 +452,15 @@ class ExecutorOrchestrator:
                                       f"not available in current strategy markets")
                 continue
             self._load_position_from_db(controller_id, position)
+        bases = MarketsRecorder.get_instance().get_reduction_bases()
+        if isinstance(bases, dict):
+            for controller_id, holds in self.positions_held.items():
+                for hold in holds:
+                    key = (controller_id, hold.connector_name, hold.trading_pair, hold.side.name if hold.side else None)
+                    basis = bases.get(key)
+                    if (isinstance(basis, HedgeCostBasis) and basis.amount == abs(hold.net_amount_base)
+                            and basis.leg == hold.side):
+                        hold._reduction_basis = basis
 
     def _update_cached_performance(self, controller_id: str, executor_info: Union[ExecutorInfo, Executors, Row]):
         """
@@ -503,19 +606,24 @@ class ExecutorOrchestrator:
             candidates = {executor.config.id: executor for executor in self._checkpoint_candidates}
             candidates.update({executor.config.id: executor for rows in self.active_executors.values()
                                for executor in rows if not executor.is_closed})
-            # Only PositionExecutor's live InFlightOrder references support this
-            # terminal-first path. Other executor types retain the old guarded
-            # shutdown, including HALT when their saved snapshot changes.
-            supported = all(isinstance(executor, PositionExecutor) and not executor._held_position_orders
-                            for executor in candidates.values())
+            # These executors retain live InFlightOrder references after their
+            # loops/listeners freeze. Other types retain the guarded legacy path.
+            supported = all((isinstance(executor, PositionExecutor) or (
+                isinstance(executor, OrderExecutor) and executor.config.mm_session_id is not None
+                and executor.config.mm_generation is not None)) and not executor._held_position_orders
+                for executor in candidates.values())
             if self._checkpoint_candidates and not supported:
                 raise ValueError('Pending position checkpoint cannot be finalized safely')
             if supported:
                 self._checkpoint_candidates = list(candidates.values())
                 orders = {}
                 for executor in self._checkpoint_candidates:
-                    for tracked in (*executor._failed_orders, executor._open_order,
-                                    executor._close_order, executor._take_profit_limit_order):
+                    references = ((*executor._failed_orders, executor._open_order,
+                                   executor._close_order, executor._take_profit_limit_order)
+                                  if isinstance(executor, PositionExecutor) else
+                                  (*executor._failed_orders, *executor._canceled_orders,
+                                   *executor._partial_filled_orders, executor._order))
+                    for tracked in references:
                         if tracked is None or not tracked.order_id:
                             continue
                         if tracked.order is None:
@@ -754,6 +862,11 @@ class ExecutorOrchestrator:
         if not executor:
             self.logger().error(f"Executor ID {executor_id} not found for controller {controller_id}.")
             return
+        # Actions are queued from report snapshots. A delayed duplicate must
+        # not turn a terminated task back into SHUTTING_DOWN: its loop has
+        # already exited and cannot release its reservation a second time.
+        if executor.is_closed:
+            return
         executor.early_stop(action.keep_position)
 
     def _update_positions_from_done_executors(self, executor_reports=None):
@@ -789,7 +902,10 @@ class ExecutorOrchestrator:
                                                   timestamp=int(self.strategy.market_data_provider.time() * 1000),
                                                   **{key: (value.name if key == 'side' else value)
                                                      for key, value in summary.model_dump().items()}))
-                recorder.checkpoint_held_positions(snapshots, fresh)
+                bases = {(controller_id, hold.connector_name, hold.trading_pair, hold.side.name): hold.reduction_basis
+                         for controller_id, holds in self.positions_held.items() for hold in holds
+                         if hold.reduction_basis is not None}
+                recorder.checkpoint_held_positions(snapshots, fresh, reduction_bases=bases)
         except BaseException:
             self.positions_held, self.executors_ids_position_held = old_positions, old_ids
             raise
@@ -840,6 +956,22 @@ class ExecutorOrchestrator:
 
                 # Find or create position
                 existing_position = self._find_existing_position(positions, executor_info, position_side)
+
+                config = executor_info.config
+                if (isinstance(config, OrderExecutorConfig) and config.position_action == PositionAction.CLOSE
+                        and config.mm_session_id is not None and config.connector_name == 'okx_perpetual'):
+                    from hummingbot.core.order_submission_guard import SubmissionBlocked
+                    amounts = [Decimal(str(order.get('executed_amount_base', 0))) for order in held_orders]
+                    closed = sum(amounts, Decimal(0))
+                    valid = (all(amount.is_finite() and amount >= 0 for amount in amounts)
+                             and all(order.get('position') == 'CLOSE' and order.get('trade_type') == config.side.name
+                                     for order in held_orders))
+                    if (not valid or closed and (existing_position is None or position_side is None
+                                                 or existing_position.net_amount_base * (1 if position_side == TradeType.BUY else -1) <= 0
+                                                 or closed > abs(existing_position.net_amount_base))):
+                        raise SubmissionBlocked('recovery_position_application_conflict')
+                    if not closed:
+                        continue
 
                 if existing_position:
                     existing_position.add_orders_from_executor(executor_info)
@@ -1006,6 +1138,48 @@ class ExecutorOrchestrator:
             for controller_id in all_controller_ids
         }
 
+    def _active_reduction_adjustment(self, controller_id, info, reserved):
+        """Replace a filled close's old mark contribution until its atomic hold transfer.
+
+        The owned hold stays unchanged for risk/capacity authority. This report-only
+        correction removes that filled quantity's marked PnL and adds its original
+        execution proceeds/cost and closing fee. Terminal holds already include it.
+        """
+        from hummingbot.model.runtime_journal import held_order_snapshot
+        config = info.config
+        executor = next((item for item in self.active_executors.get(controller_id, [])
+                         if item.config.id == config.id and isinstance(item, OrderExecutor)), None)
+        if executor is None:
+            raise ValueError('drawdown_reduction_evidence_unavailable')
+        amount, quote, fee = Decimal(0), Decimal(0), Decimal(0)
+        for tracked in executor._execution_orders(include_retired=True):
+            order = tracked.order or executor.get_in_flight_order(config.connector_name, tracked.order_id)
+            if order is None:
+                if tracked.executed_amount_base:
+                    raise ValueError('drawdown_reduction_evidence_unavailable')
+                continue
+            if not order.executed_amount_base:
+                continue
+            if order.position != PositionAction.CLOSE or order.trade_type != config.side:
+                raise ValueError('drawdown_reduction_evidence_unavailable')
+            saved = held_order_snapshot(order)
+            amount += order.executed_amount_base
+            quote += order.executed_amount_quote
+            fee += Decimal(saved['cumulative_fee_paid_quote'])
+        if quote != info.filled_amount_quote or amount > config.amount:
+            raise ValueError('drawdown_reduction_evidence_unavailable')
+        if not amount:
+            return Decimal(0)
+        leg = TradeType.BUY if config.side == TradeType.SELL else TradeType.SELL
+        held = [hold for hold in self.positions_held.get(controller_id, [])
+                if (hold.connector_name, hold.trading_pair, hold.side) == (config.connector_name, config.trading_pair, leg)]
+        key = config.connector_name, config.trading_pair, leg
+        reserved[key] = reserved.get(key, Decimal(0)) + amount
+        if len(held) != 1 or reserved[key] > abs(held[0].net_amount_base):
+            raise ValueError('drawdown_reduction_evidence_unavailable')
+        mark = self._mm_mark_price(controller_id, config.connector_name, config.trading_pair)
+        return (quote - amount * mark) * (1 if config.side == TradeType.SELL else -1) - fee
+
     def generate_performance_report(self, controller_id: str, *, executor_infos=None,
                                     position_summaries=None) -> PerformanceReport:
         # Create a new report starting from cached base values
@@ -1023,11 +1197,17 @@ class ExecutorOrchestrator:
             executor_infos = (executor.executor_info for executor in self.active_executors.get(controller_id, []))
         positions = self.positions_held.get(controller_id, []) if position_summaries is None else position_summaries
 
+        reductions = {}
         for executor_info in executor_infos:
             if not executor_info.is_done:
                 if self._mm_scope() and executor_info.filled_amount_quote:
                     self._mm_mark_price(controller_id, executor_info.config.connector_name, executor_info.config.trading_pair)
                 report.unrealized_pnl_quote += executor_info.net_pnl_quote
+                config = executor_info.config
+                if (self._mm_scope() and isinstance(config, OrderExecutorConfig)
+                        and config.mm_session_id is not None and config.position_action == PositionAction.CLOSE
+                        and config.connector_name == 'okx_perpetual'):
+                    report.unrealized_pnl_quote += self._active_reduction_adjustment(controller_id, executor_info, reductions)
                 report.volume_traded += executor_info.filled_amount_quote
             else:
                 # For done executors, only add to realized PnL if they're not already in position holds

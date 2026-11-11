@@ -541,6 +541,32 @@ drawdown and spot outflow have separate effects. For example, a spot BUY denial
 does not imply funded SELL or perpetual admission is blocked. A disabled optional
 policy is labelled **Disabled**, not **Healthy** or **Failed**.
 
+### Optional perpetual reduction diagnostics
+
+`GET /status.markets[].inventory_reduction` is null when the policy is disabled.
+For opt-in managed OKX perpetual sessions it describes the controller's last
+cached evaluation: `mode=close_first`, `price_mode=breakeven`, `observed_at`,
+`stale`, `fee_ready` and `sides.BUY|SELL`. Each side carries `effect=OPEN|CLOSE`
+(nullable when unknown), `target_leg=LONG|SHORT`, `owned_base`, `venue_base`,
+`reserved_base`, `available_base` and `reason_code`. Quantities are decimal strings.
+
+This is capacity/pricing evidence, **not** exchange admission or working liquidity.
+It expires after five seconds; stale or absent values cannot imply an active
+quote. An OPEN side's `available_base=0` is not opening headroom: the normal
+opening-cap/collateral checks remain separate. Pending closing reservations can
+exceed newly observed exposure; remaining closing capacity is clamped to zero.
+
+Show `reduction_price_not_profitable` as waiting for a maker price covering
+allocated remaining opening fees and closing fees; no automatic loss-taking or
+market fallback exists. `reduction_basis_unavailable` needs verified remaining
+cost, `reduction_fee_unavailable` waits for authenticated fee data,
+`reduction_reserved` waits for existing orders/financial confirmation and
+`reduction_dust` means below the venue minimum. These reasons also appear in
+per-side quote activity. Use the existing working-order observations to determine
+actual liquidity. Native executor `config.position_action=CLOSE` and
+`custom_info.position_action` identify closing orders; BUY/CLOSE targets SHORT,
+SELL/CLOSE targets LONG. Funding remains a separate account observation.
+
 ### Working orders, fills and missing-order warnings
 
 A quote is a resting buy or sell limit order placed by the bot. A fill is an

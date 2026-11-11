@@ -1845,6 +1845,63 @@ export interface components {
             /** Trading Pair */
             trading_pair: string;
         };
+        /** InventoryReductionConfig */
+        InventoryReductionConfigOutput: {
+            /**
+             * Mode
+             * @default disabled
+             * @enum {string}
+             */
+            mode: "disabled" | "close_first";
+            /**
+             * Price Mode
+             * @default null
+             */
+            price_mode: "breakeven" | null;
+        };
+        /** InventoryReductionSide */
+        InventoryReductionSideOutput: {
+            /** Available Base */
+            available_base: string;
+            /** Effect */
+            effect: ("OPEN" | "CLOSE") | null;
+            /** Owned Base */
+            owned_base: string | null;
+            /** Reason Code */
+            reason_code: string | null;
+            /** Reserved Base */
+            reserved_base: string;
+            /**
+             * Target Leg
+             * @enum {string}
+             */
+            target_leg: "LONG" | "SHORT";
+            /** Venue Base */
+            venue_base: string;
+        };
+        /** InventoryReductionStatus */
+        InventoryReductionStatusOutput: {
+            /** Fee Ready */
+            fee_ready: boolean | null;
+            /**
+             * Mode
+             * @constant
+             */
+            mode: "close_first";
+            /** Observed At */
+            observed_at: string | null;
+            /**
+             * Price Mode
+             * @constant
+             */
+            price_mode: "breakeven";
+            /** Sides */
+            sides: {
+                [key: string]: components["schemas"]["InventoryReductionSideOutput"];
+            };
+            /** Stale */
+            stale: boolean;
+        };
         /** InventorySkewConfig */
         InventorySkewConfigOutput: {
             /**
@@ -1953,6 +2010,7 @@ export interface components {
              * @default []
              */
             initial_positions: components["schemas"]["InitialPositionConfigOutput"][];
+            inventory_reduction?: components["schemas"]["InventoryReductionConfigOutput"];
             inventory_skew?: components["schemas"]["InventorySkewConfigOutput"];
             /**
              * Leverage
@@ -2392,6 +2450,11 @@ export interface components {
             admitted: boolean;
             /** Connector */
             connector: string;
+            /**
+             * @description Last local reduction-capacity evaluation; null when disabled. Never order admission or current quote availability.
+             * @default null
+             */
+            inventory_reduction: components["schemas"]["InventoryReductionStatusOutput"] | null;
             /** @default null */
             inventory_skew: components["schemas"]["InventorySkewStatusOutput"] | null;
             /**

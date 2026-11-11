@@ -347,6 +347,25 @@ class QuoteActivity(APIModel):
     sides: Dict[Literal['BUY', 'SELL'], QuoteSideActivity]
 
 
+class InventoryReductionSide(APIModel):
+    effect: Optional[Literal['OPEN', 'CLOSE']]
+    target_leg: Literal['LONG', 'SHORT']
+    owned_base: Optional[Decimal] = Field(ge=0)
+    venue_base: Decimal = Field(ge=0)
+    reserved_base: Decimal = Field(ge=0)
+    available_base: Decimal = Field(ge=0)
+    reason_code: Optional[str]
+
+
+class InventoryReductionStatus(APIModel):
+    mode: Literal['close_first']
+    price_mode: Literal['breakeven']
+    observed_at: Optional[UTCDateTime]
+    stale: bool
+    fee_ready: Optional[bool]
+    sides: Dict[Literal['BUY', 'SELL'], InventoryReductionSide]
+
+
 class MarketReadiness(APIModel):
     market: Literal["spot", "perpetual"]
     connector: str
@@ -358,6 +377,8 @@ class MarketReadiness(APIModel):
     quote_guard: Optional[QuoteGuardStatus] = None
     inventory_skew: Optional[InventorySkewStatus] = None
     spread_policy: Optional[SpreadPolicyStatus] = None
+    inventory_reduction: Optional[InventoryReductionStatus] = Field(default=None,
+                                                                    description='Last local reduction-capacity evaluation; null when disabled. Never order admission or current quote availability.')
 
 
 class FundingSyncStatus(APIModel):

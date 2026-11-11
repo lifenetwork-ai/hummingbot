@@ -279,6 +279,14 @@ class ClientOrderTracker:
         )
 
         if tracked_order:
+            if (getattr(tracked_order, '_managed_terminal_proved', False) is True
+                    and tracked_order.current_state in (OrderState.CANCELED, OrderState.FILLED)
+                    and order_update.new_state not in (OrderState.CANCELED, OrderState.FILLED, OrderState.FAILED)):
+                # A REST response or local cancel ACK can arrive after the
+                # private terminal proof. It cannot reopen the same identity
+                # or make its proved reservation nonterminal again. Trade
+                # updates still follow their independent deduplicated path.
+                return
             from hummingbot.core.order_submission_guard import (
                 SubmissionBlocked,
                 managed_terminal_order,

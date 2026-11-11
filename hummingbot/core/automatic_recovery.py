@@ -28,12 +28,18 @@ def eligible(context):
     config, scope = context.get('executor') or {}, context.get('session')
     barriers, order = config.get('triple_barrier_config') or {}, context.get('order') or {}
     side = 'BUY' if config.get('side') in (1, 'BUY') else 'SELL' if config.get('side') in (2, 'SELL') else None
-    return (config.get('type') == 'position_executor' and isinstance(scope, list) and len(scope) == 2
-            and scope == [config.get('mm_session_id'), config.get('mm_generation')]
-            and config.get('connector_name') in ('okx', 'okx_perpetual') and not context.get('cleanup')
-            and not any(barriers.get(key) is not None for key in ('stop_loss', 'take_profit', 'time_limit', 'trailing_stop'))
-            and order.get('trade_type') == side and order.get('position') in ('OPEN', 'NIL')
-            and order.get('order_type') == 'LIMIT_MAKER' and isinstance(context.get('credential_fingerprint'), str))
+    common = (isinstance(scope, list) and len(scope) == 2
+              and scope == [config.get('mm_session_id'), config.get('mm_generation')]
+              and config.get('connector_name') in ('okx', 'okx_perpetual') and not context.get('cleanup')
+              and order.get('trade_type') == side
+              and order.get('order_type') == 'LIMIT_MAKER' and isinstance(context.get('credential_fingerprint'), str))
+    opening = (config.get('type') == 'position_executor' and order.get('position') in ('OPEN', 'NIL')
+               and not any(barriers.get(key) is not None for key in ('stop_loss', 'take_profit', 'time_limit', 'trailing_stop')))
+    closing = (config.get('type') == 'order_executor' and config.get('connector_name') == 'okx_perpetual'
+               and config.get('position_action') == order.get('position') == 'CLOSE'
+               and config.get('execution_strategy') == 'LIMIT_MAKER' and type(config.get('mm_generation')) is int
+               and all(isinstance(config.get(key), str) and config[key] for key in ('id', 'controller_id', 'level_id', 'mm_session_id')))
+    return bool(common and (opening or closing))
 
 
 def proof_covers_local(order, status, trades):
@@ -311,6 +317,7 @@ class AutomaticOrderRecovery:
                 if state == update.new_state and filled == order.executed_amount_base:
                     with self.owner.engine.connect() as connection:
                         if durable_fills(connection, order.client_order_id, list(order.order_fills.values()), missing_ok=True):
+                            order._managed_terminal_proved = True
                             return update
             async with self.terminal_slots:
                 self.owner.check_owner()
@@ -320,6 +327,7 @@ class AutomaticOrderRecovery:
                 persist_proved_trades(recorder, connector, order, trades)
                 with self.owner.engine.connect() as connection:
                     durable_fills(connection, order.client_order_id, trades)
+                order._managed_terminal_proved = True
                 return proof
         finally:
             self.owner.terminal_tasks.discard(task)
@@ -371,6 +379,7 @@ class AutomaticOrderRecovery:
     async def project(self, core):
         """Apply only terminal, fully proved orders missing their native hold transfer."""
         from hummingbot.model.runtime_journal import RuntimeJournal
+        from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
         from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
         from hummingbot.strategy_v2.models.base import RunnableStatus
         from hummingbot.strategy_v2.models.executors import CloseType
@@ -392,7 +401,9 @@ class AutomaticOrderRecovery:
             attempt = self._attempt(identity)
             if not attempt or not eligible(attempt['context']):
                 raise SubmissionBlocked('recovery_fill_context_missing')
-            config = PositionExecutorConfig.model_validate(attempt['context']['executor'])
+            raw = attempt['context']['executor']
+            model = OrderExecutorConfig if raw.get('type') == 'order_executor' else PositionExecutorConfig
+            config = model.model_validate(raw)
             orchestrator = core.strategy.executor_orchestrator
             if (not orchestrator._mm_contains(config.controller_id, config.connector_name, config.trading_pair)
                     or core.markets_recorder.applied_position_executors([config.id])):
@@ -449,7 +460,7 @@ class AutomaticOrderRecovery:
                 self.owner._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.status)))
                 return
             if self.resume_scope is not None:
-                self.owner._check_mm_authority(row, self.resume_scope)
+                self.owner._check_mm_authority(row, self.resume_scope, submission=False)
             elif self.owner.mm_ready_check is not None and not self.owner.mm_ready_check():
                 raise SubmissionBlocked('recovery_readiness_pending')
             self.owner._check_intents(core.markets_recorder)

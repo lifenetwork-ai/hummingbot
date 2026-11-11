@@ -34,6 +34,47 @@ an empty bootstrap. Unmanaged upstream strategies retain explicit YAML position
 override behavior. Changing the YAML seed does not repair existing MM exposure;
 use the reviewed recovery procedure in [PostgreSQL operations](postgres-runtime.md).
 
+## Opt-in perpetual inventory reduction
+
+Managed OKX HEDGE/CROSS sessions can select this YAML policy:
+
+```yaml
+inventory_reduction:
+  mode: close_first
+  price_mode: breakeven
+```
+
+It is disabled by default and is not enabled in the deployment presets. BUY closes
+an owned SHORT before opening a LONG; SELL closes an owned LONG before opening a
+SHORT. Each side waits if its opposing inventory cannot be proven or priced
+safely. It never substitutes an opening or market order for an unavailable close.
+
+The maker price must cover allocated **remaining opening trading fees** and a
+fresh authenticated closing-fee bound. Funding is accounted separately. This
+policy can leave positions open indefinitely while prices are unfavorable; it
+does not promise fills, profitability or continuous two-sided liquidity.
+
+Closing capacity uses the lesser of fresh venue exposure and durable bot-owned
+exposure, minus queued, working, canceling and terminal-unapplied reservations.
+Unknown legacy remaining costs require verified initialization before that leg
+can close. Never copy lifetime cumulative fees into its remaining opening costs.
+An above-cap close still requires the ordinary session, ownership, credential,
+data, price and drawdown checks. Existing Stop/Disconnect workflows remain separate.
+
+The background fee read is bounded and cached; failed/expired evidence cancels
+obsolete closes and waits for fresh data. Status exposes `inventory_reduction`
+with effect, target leg, owned/venue/reserved/available quantity and freshness.
+Reasons such as `reduction_price_not_profitable`, `reduction_fee_unavailable`,
+`reduction_reserved` and `reduction_dust` explain waiting; none authorizes an
+automatic taker exit. Unsupported rollback must reject an enabled stored policy.
+The position worker wakes the native serialized account reader when its full
+snapshot exceeds half the configured freshness budget. This also keeps an
+absent hedge leg known while private WebSocket traffic remains healthy. Failed
+reads cannot renew evidence; `reduction_position_unavailable` waits for verified
+data. Quote and transport checks do not perform that network read.
+See the [implementation and qualification checklist](plans/MM_PERPETUAL_REDUCTION_QUOTE_TDD_PLAN.md)
+before activation; local tests alone do not close Demo or release gates.
+
 ## Environment and credentials
 
 `OKX_TRADING_ENV=live|demo` selects one environment for the entire process,

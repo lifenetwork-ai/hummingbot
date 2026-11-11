@@ -11,6 +11,14 @@ files does not close unresolved evidence or policy items.
 The [quiet-feed / unsent-quote plan](MM_FEED_QUOTE_RECOVERY_TDD_PLAN.md) tracks the
 new targeted offline work; its gates do not replace the full release below.
 
+The [perpetual close-first quote plan](MM_PERPETUAL_REDUCTION_QUOTE_TDD_PLAN.md)
+tracks the fee-inclusive breakeven policy. Local economic/reservation arithmetic,
+native executor shutdown, durable costs, controller/fee/transport integration
+and API diagnostics are implemented. Both full-cycle closing fault cases and
+two default-path packaged regression groups pass on one local image;
+Demo and the broader release/load qualification remain open.
+Closing quotes are not enabled on Demo.
+
 Last full release baseline `f53885fda` / regular image `4198f2fa…` passes native3,085 +16
 subtests, full PostgreSQL605 and all30 packaged E2E groups in one `all` execution,
 including distinct-image upgrade/takeover/rollback. Full unchanged load/Random soak3600/six faults/retention pass: p99

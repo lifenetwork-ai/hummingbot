@@ -100,6 +100,8 @@ class BotOwnership:
         self.account_lock = asyncio.Lock()
         self.account_token = None
         self.mm_ready_check = None
+        self.mm_order_ready_check = None
+        self.mm_order_readiness_reason = None
         self.mm_quote_check = None
         self.runtime_ready_check = None
         self.intent_scopes = {}
@@ -306,7 +308,7 @@ class BotOwnership:
             raise SubmissionBlocked("A required runtime task is not healthy.")
         scope = current_session_scope()
         if cleanup is None:
-            self._check_mm_authority(row, scope)
+            self._check_mm_authority(row, scope, connector=connector, order=order)
         if connector.name not in SUPPORTED_CONNECTORS:
             raise SubmissionBlocked("This connector has not been verified for the PostgreSQL service.")
         from hummingbot.connector.markets_recorder import MarketsRecorder
@@ -467,6 +469,7 @@ class BotOwnership:
             if (row['state'] != 'prepared' or row['context']['owner_uuid'] != self.owner_uuid
                     or row['context']['generation'] != self.generation):
                 raise SubmissionBlocked('Submission attempt was already sent or belongs to another owner.')
+            self._validate_close_transport(row['context'], client_id, data)
             from hummingbot.core.automatic_recovery import eligible
             if eligible(row['context']):
                 key = headers.get('OK-ACCESS-KEY')
@@ -477,6 +480,36 @@ class BotOwnership:
             self.sent_intents.add(client_id)
             self.connection.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == client_id).values(
                 state='possibly_sent', payload_hash=digest(data), deadline_ms=deadline))
+
+    def _validate_close_transport(self, context, identity, data):
+        """Bind a managed close to its immutable intent at the existing SQL gate."""
+        config = context.get('executor') or {}
+        if (config.get('type') != 'order_executor' or config.get('position_action') != 'CLOSE'
+                or config.get('mm_session_id') is None):
+            return
+        from hummingbot.core.data_type.common import OrderType, PositionAction
+        try:
+            original = context['order']
+            connector = self.connectors[config['connector_name']]
+            order = connector.in_flight_orders[identity]
+            side = 'BUY' if config['side'] in (1, 'BUY') else 'SELL' if config['side'] in (2, 'SELL') else None
+            quantity, price = Decimal(original['amount']), Decimal(original['price'])
+            allowed = {'clOrdId', 'tdMode', 'ordType', 'instId', 'side', 'sz', 'px', 'posSide'}
+            if (connector.name != 'okx_perpetual' or set(data) != allowed or original['client_order_id'] != identity
+                    or original['trading_pair'] != config['trading_pair'] or original['trading_pair'] != order.trading_pair
+                    or original['trade_type'] != side or order.trade_type.name != side
+                    or original['position'] != 'CLOSE' or order.position != PositionAction.CLOSE
+                    or original['order_type'] != 'LIMIT_MAKER' or order.order_type != OrderType.LIMIT_MAKER
+                    or not quantity.is_finite() or quantity <= 0 or order.amount != quantity
+                    or not price.is_finite() or price <= 0 or order.price != price
+                    or data['clOrdId'] != identity or data['tdMode'] != 'cross' or data['ordType'] != 'post_only'
+                    or data['instId'] != order.trading_pair + '-SWAP' or data['side'] != side.lower()
+                    or data['posSide'] != ('short' if side == 'BUY' else 'long')
+                    or Decimal(data['px']) != price
+                    or connector._format_size_to_amount(order.trading_pair, Decimal(data['sz'])) != quantity):
+                raise ValueError
+        except (KeyError, ValueError, TypeError, ArithmeticError, AttributeError):
+            raise SubmissionBlocked('reduction_transport_identity_mismatch: closing payload differs from its durable intent') from None
 
     def transport_finished(self):
         task = asyncio.current_task()
@@ -535,7 +568,9 @@ class BotOwnership:
             if self.runtime_ready_check is not None and not self.runtime_ready_check():
                 raise SubmissionBlocked("A required runtime task is not healthy.")
             client_id = data.get("clOrdId")
-            self._check_mm_authority(row, self.intent_scopes.get(client_id))
+            connector, order = next(((connector, connector.in_flight_orders[client_id])
+                                     for connector in self.connectors.values() if client_id in connector.in_flight_orders), (None, None))
+            self._check_mm_authority(row, self.intent_scopes.get(client_id), connector=connector, order=order)
             from hummingbot.connector.markets_recorder import MarketsRecorder
             recorder = MarketsRecorder._shared_instance
             if recorder is None:
@@ -601,7 +636,8 @@ class BotOwnership:
             self.account_lock.release()
             raise
 
-    def _check_mm_authority(self, row, scope):
+    def _check_mm_authority(self, row, scope, *, connector=None, order=None, submission=True):
+        """Recovery may check readiness; each actual send still requires its native order."""
         if row["config_type"] != "mm-session":
             if scope is not None:
                 raise SessionSubmissionBlocked("A previous MM executor cannot submit in another strategy.")
@@ -613,8 +649,21 @@ class BotOwnership:
             raise SessionSubmissionBlocked("MM session/step authority expired or changed.")
         if self.mm_ready_check is None:
             raise SubmissionBlocked("MM market readiness check is unavailable.")
-        if not self.mm_ready_check():
-            raise MarketReadinessBlocked("MM markets/data/exposure are not jointly ready.")
+        markets = ((row['mm_session'] or {}).get('catalogue') or {}).get('markets') or {}
+        reduction = any((market.get('inventory_reduction') or {}).get('mode') == 'close_first'
+                        for market in markets.values() if isinstance(market, dict))
+        if reduction and (self.mm_order_ready_check is None or self.mm_quote_check is None
+                          or submission and (connector is None or order is None)):
+            raise SubmissionBlocked('Close-first order authority is unavailable')
+        if self.mm_order_ready_check is None or connector is None or order is None:
+            self.mm_order_readiness_reason = None
+        ready = (self.mm_order_ready_check(connector, order) if self.mm_order_ready_check is not None
+                 and connector is not None and order is not None else self.mm_ready_check())
+        if not ready:
+            reason = getattr(self, 'mm_order_readiness_reason', None)
+            detail = (' reason=' + reason if isinstance(reason, str) and 0 < len(reason) <= 80
+                      and reason.isascii() and all(c.islower() or c.isdigit() or c == '_' for c in reason) else '')
+            raise MarketReadinessBlocked("MM markets/data/exposure are not jointly ready." + detail)
 
     async def finish_account_mutation(self, token, response):
         try:

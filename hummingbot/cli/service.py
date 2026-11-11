@@ -183,6 +183,13 @@ class ServiceHost:
                            if (value.config.connector_name, value.config.trading_pair) == (connector.name, order.trading_pair)), None)
         if controller is None:
             raise SubmissionBlocked("spread_policy_quote_rejected: controller unavailable")
+        from hummingbot.core.data_type.common import PositionAction
+        from hummingbot.core.order_submission_guard import current_executor_scope
+        reduction = getattr(getattr(controller.config, 'inventory_reduction', None), 'mode', None) == 'close_first'
+        if order.position == PositionAction.CLOSE and not reduction:
+            raise SubmissionBlocked('reduction_disabled: managed closing quotes are not enabled')
+        if reduction and not controller.reduction_order_valid(order, current_executor_scope()):
+            raise QuoteRefreshRequired('reduction_quote_rejected: ' + (getattr(controller, '_reduction_rejection', None) or 'authority unavailable'))
         try:
             if controller.config.spread_policy.volatility.defense is not None:
                 from hummingbot.core.order_submission_guard import current_quote_level
@@ -198,7 +205,29 @@ class ServiceHost:
                 f"ready={controller.processed_data.get('ready')} reason={controller.processed_data.get('reason')} "
                 f"policy={controller.processed_data.get('spread_policy')}")
 
-    def mm_runtime_ready(self, *, allow_bootstrap_start=False):
+    def mm_runtime_order_ready(self, connector, order):
+        from hummingbot.core.data_type.common import PositionAction
+        from hummingbot.core.order_submission_guard import current_executor_scope
+        self.owner.mm_order_readiness_reason = None
+        controller = next((value for value in self._mm_controllers()
+                           if (value.config.connector_name, value.config.trading_pair) == (connector.name, order.trading_pair)), None)
+        if controller is None:
+            self.owner.mm_order_readiness_reason = 'controllers_unavailable'
+            return False
+        if order.position == PositionAction.CLOSE:
+            if (getattr(getattr(controller.config, 'inventory_reduction', None), 'mode', None) != 'close_first'
+                    or not controller.reduction_order_valid(order, current_executor_scope())):
+                self.mm_readiness_reason = getattr(controller, '_reduction_rejection', None) or 'reduction_quote_rejected'
+                self.owner.mm_order_readiness_reason = self.mm_readiness_reason
+                return False
+            ready = self.mm_runtime_ready()
+        else:
+            ready = self.mm_runtime_ready(opening=True)
+        if not ready:
+            self.owner.mm_order_readiness_reason = self.mm_readiness_reason
+        return ready
+
+    def mm_runtime_ready(self, *, allow_bootstrap_start=False, opening=False):
         self.mm_readiness_reason = None
 
         def waiting(reason):
@@ -228,16 +257,46 @@ class ServiceHost:
                     return waiting(reason if reason in MM_READINESS_REASONS else "market_data_unavailable")
                 if not controller.market_data_provider.ready:
                     return waiting("market_data_unavailable")
-                if not controller.exposure_within_caps():
-                    return waiting("exposure_limit")
+                if getattr(getattr(controller.config, 'inventory_reduction', None), 'mode', None) == 'close_first':
+                    within_caps = controller._within_caps(*controller._reduction_exposure())
+                else:
+                    within_caps = controller.exposure_within_caps()
+                if not within_caps:
+                    if (opening or getattr(getattr(controller.config, 'inventory_reduction', None), 'mode', None) != 'close_first'
+                            or not controller.reduction_ready()):
+                        return waiting("exposure_limit")
             pending_quote = Decimal("0")
             for controller in controllers:
+                if getattr(getattr(controller.config, 'inventory_reduction', None), 'mode', None) == 'close_first':
+                    from hummingbot.core.data_type.common import PositionAction
+                    from hummingbot.strategy_v2.utils.perpetual_reduction_runtime import quote_effect, quote_price
+                    state = controller._reduction_runtime()
+                    closing = [config for config in controller._reduction_configs(state)
+                               if quote_effect(config) == PositionAction.CLOSE]
+                    if closing:
+                        fee = controller._closing_fee()
+                        pending_quote += sum((config.amount * quote_price(config) * fee.rate + fee.flat_quote
+                                              for config in closing), Decimal(0))
+                    pending_quote += sum((config.amount * quote_price(config) / config.leverage
+                                          for config in controller._reduction_configs(state)
+                                          if quote_effect(config) != PositionAction.CLOSE), Decimal(0))
+                    continue
                 for executor in controller.executors_info:
                     if executor.is_active and not executor.is_trading:
                         config = executor.config
                         if config.connector_name != "okx" or config.side.name == "BUY":
                             pending_quote += config.amount * config.entry_price / config.leverage
-            return True if pending_quote <= self._mm_available_quote(controllers) else waiting("insufficient_collateral")
+            if pending_quote <= self._mm_available_quote(controllers):
+                return True
+            if not opening and any(getattr(getattr(controller.config, 'inventory_reduction', None), 'mode', None) == 'close_first'
+                                   and controller.reduction_ready() for controller in controllers):
+                return True
+            return waiting("insufficient_collateral")
+        except ValueError as error:
+            reason = str(error)
+            return waiting(reason if reason in {'reduction_position_unavailable', 'reduction_basis_unavailable',
+                                                'reduction_runtime_conflict', 'reduction_fee_unavailable',
+                                                'reduction_reservation_limit'} else 'readiness_check_unavailable')
         except Exception:
             return waiting("readiness_check_unavailable")
 
@@ -572,6 +631,7 @@ class ServiceHost:
                                 "reason": controller.processed_data.get("reason"),
                                 "quote_guard": controller.processed_data.get("quote_guard"),
                                 "inventory_skew": controller.processed_data.get("inventory_skew"),
+                                "inventory_reduction": getattr(controller, 'reduction_status', None),
                                 "spread_policy": controller.processed_data.get("spread_policy")} for controller in self._mm_controllers()],
                 "reporting": observations["reporting"],
                 "funding_sync": self.funding.status(now_ms=int(time.time() * 1000)),
@@ -677,6 +737,8 @@ class ServiceHost:
             self.mm_session = None
         mm_identity = (self.mm_session.id, self.mm_session.generation) if self.mm_session else None
         self.owner.mm_ready_check = self.mm_runtime_ready if self.mm_session else None
+        self.owner.mm_order_ready_check = (self.mm_runtime_order_ready if self.mm_session and any(
+            config.inventory_reduction.mode == 'close_first' for config in self.mm_session.catalogue.markets.values()) else None)
         self.owner.mm_quote_check = (self.mm_quote_valid if self.mm_session and any(
             config.spread_policy.enabled for config in self.mm_session.catalogue.markets.values()) else None)
         version = row["control_version"]

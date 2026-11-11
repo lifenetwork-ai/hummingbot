@@ -358,7 +358,24 @@ class MarketsRecorder:
                                                                 'credential_fingerprints': anchors}))
         return True
 
-    def checkpoint_held_positions(self, positions, infos):
+    def get_reduction_bases(self):
+        """Startup-only read; no history scans or I/O on the quote/send path."""
+        from hummingbot.model.runtime_journal import RuntimeCheckpoint, financial_hash
+        from hummingbot.strategy_v2.utils.perpetual_reduction import restore_basis_checkpoint
+        if not self.durable_position_checkpoints:
+            return {}
+        with self._sql_manager.get_new_session() as session:
+            checkpoint = session.get(RuntimeCheckpoint, self._config_file_path)
+            if checkpoint is None or 'reduction_basis' not in checkpoint.payload:
+                return {}
+            try:
+                if checkpoint.financial_hash != financial_hash(session):
+                    return {}
+                return restore_basis_checkpoint(checkpoint.payload['reduction_basis'], checkpoint.financial_hash)
+            except (ValueError, ArithmeticError, TypeError):
+                return {}
+
+    def checkpoint_held_positions(self, positions, infos, *, reduction_bases=None):
         """Native transfer order, financial rows and application receipt commit together.
 
         The caller only publishes the new in-memory hold after this transaction.
@@ -379,6 +396,13 @@ class MarketsRecorder:
             checkpoint = session.get(RuntimeCheckpoint, self._config_file_path)
             if checkpoint is not None and checkpoint.financial_hash != financial_hash(session):
                 raise ValueError('Position checkpoint changed outside its application journal')
+            previous_bases = {}
+            if checkpoint is not None and reduction_bases is not None and 'reduction_basis' in checkpoint.payload:
+                from hummingbot.strategy_v2.utils.perpetual_reduction import restore_basis_checkpoint
+                try:
+                    previous_bases = restore_basis_checkpoint(checkpoint.payload['reduction_basis'], checkpoint.financial_hash)
+                except (ValueError, ArithmeticError, TypeError):
+                    pass  # Unproven old costs cannot supply authority to a new session.
             self.update_or_store_positions(positions, session=session)
             for info in infos:
                 data = json.loads(info.model_dump_json())
@@ -427,6 +451,19 @@ class MarketsRecorder:
                         {RuntimeJournal.applied: True}, synchronize_session=False)
             if checkpoint is not None:
                 advance_checkpoints(session, [checkpoint])
+                if reduction_bases is not None:
+                    from hummingbot.strategy_v2.utils.perpetual_reduction import basis_checkpoint
+                    scope = {(row.controller_id, row.connector_name, row.trading_pair, row.side): row.amount
+                             for row in positions}
+                    if any(key not in scope or basis.amount != scope[key] for key, basis in reduction_bases.items()):
+                        raise ValueError('Remaining costs do not cover the exact owned position snapshot')
+                    # An inactive controller's unchanged position is outside this
+                    # batch. Carry its verified costs; drop costs for any updated
+                    # position whose new basis is unavailable.
+                    retained = {key: basis for key, basis in previous_bases.items() if key not in scope}
+                    retained.update(reduction_bases)
+                    checkpoint.payload = {**checkpoint.payload,
+                                          'reduction_basis': basis_checkpoint(checkpoint.financial_hash, retained)}
 
     def store_controller_config(self, controller_config: ControllerConfigBase):
         with self._sql_manager.get_new_session() as session:

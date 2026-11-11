@@ -93,6 +93,7 @@ class Exchange:
         self.fills = []
         self.funding_bills = []
         self.funding_error = False
+        self.reduction_fee_error = False
         self.accepted = []
         self.requests = []
         self.unknown = []
@@ -372,6 +373,11 @@ class Exchange:
             return self.ok([self.funding(request.query.get("instId", "BTC-USDT-SWAP"))])
         if path == "/api/v5/account/config":
             return self.ok([{"posMode": self.position_mode, "uid": "offline-account-1", "acctLv": "2", "perm": "read_only,trade"}])
+        if path == '/api/v5/account/trade-fee':
+            if (self.reduction_fee_error or request.query.get('instType') != 'SWAP'
+                    or request.query.get('instFamily') != 'LIFE-USDT'):
+                return web.json_response(dict(code='50013', msg='fixture fee observation unavailable', data=[]))
+            return self.ok([dict(instType='SWAP', ts=millis(), feeGroup=[dict(groupId='2', maker='-.0002', taker='-.0005')])])
         if path == "/api/v5/account/positions":
             if self.cleanup_barrier == 'verified_fill' and self.cleanup_close_id is not None:
                 await self.cleanup_wait('verified_fill')
@@ -680,6 +686,8 @@ class Exchange:
             self.funding_bills = copy.deepcopy(data["funding_bills"])
         if "funding_error" in data:
             self.funding_error = bool(data["funding_error"])
+        if 'reduction_fee_error' in data:
+            self.reduction_fee_error = bool(data['reduction_fee_error'])
         if data.get("clear_positions"):
             self.positions.clear()
         if "initial_positions" in data:
