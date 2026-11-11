@@ -354,6 +354,7 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
         if model.recovery and model.recovery.halted and actor and actor.allows('admin'):
             pending = bool((row.get('recovery_summary') or {}).get('recovery_operation_pending'))
             model.recovery.check_available = (owner_available and row['desired_state'] == 'stopped'
+                                              and model.recovery.next_action != 'wait'
                                               and row['acknowledged_version'] == row['control_version'] and not pending
                                               and not model.recovery.pending_mutations
                                               and not (row.get('recovery_summary') or {}).get('credential_operation_pending'))

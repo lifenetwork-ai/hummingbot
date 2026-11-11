@@ -28,6 +28,9 @@ class BotStateStore:
         # but not private recovery details or the full archived catalogue.
         columns = ("bot_id, desired_state, control_version, acknowledged_version, owner_uuid, owner_generation, "
                    "heartbeat, status, revision, jsonb_build_object('halted', recovery_state->'halt' = 'true'::jsonb, "
+                   "'shutdown_pending', COALESCE(recovery_state->'halt' = 'true'::jsonb "
+                   "AND recovery_state->>'halt_kind'='shutdown_pending' "
+                   "AND COALESCE(recovery_state->>'reason', '')='', false), "
                    "'credential_operation_pending', COALESCE(jsonb_typeof(recovery_state->'credential_operation')='object', false), "
                    "'recovery_operation_pending', COALESCE(jsonb_typeof(recovery_state->'recovery_operation')='object', false), "
                    "'pending_mutations', COALESCE(recovery_state->'pending_mutations', '[]'::jsonb) "

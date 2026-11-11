@@ -35,6 +35,9 @@ def operator_view(row, process):
     recovery_pending = bool(recovery.get("recovery_operation_pending"))
     automatic = recovery.get('automatic_recovery') or snapshot.get('automatic_recovery') or {}
     automatic_pending = automatic.get('phase') in ('reconciling', 'bootstrapping_recovery', 'waiting_for_readiness')
+    shutdown_pending = (halted and recovery.get('shutdown_pending') is True and not pending
+                        and not checkpoint_reason and automatic.get('cold_recovery_supported') is True
+                        and not automatic.get('operator_required'))
     owner = snapshot.get("identity")
     mismatch = bool(available and owner and owner.get("trading_environment") != process["trading_environment"])
     if recovery_pending:
@@ -74,6 +77,10 @@ def operator_view(row, process):
         state, label, detail, next_action = "preparing", "Applying connection", "Wait for the connection operation. Trading will not start automatically.", "wait"
     elif checkpoint_reason:
         state, label, detail, next_action = "needs_attention", "Risk data needs review", "Saved risk information cannot be verified. Contact support before starting trading.", "contact_support"
+    elif shutdown_pending:
+        state = 'stopping' if available and not observation_old else 'unavailable'
+        label, detail, next_action = ('Trading owner is shutting down',
+                                      'New orders are fenced while shutdown completes. Wait for the next owner to verify recovery; no manual reset is required at this stage.', 'wait')
     elif halted or pending:
         state, label, detail, next_action = "needs_attention", "Technical review needed", "Trading cannot restart until the cause is resolved.", "contact_support"
     elif mismatch:
@@ -124,7 +131,8 @@ def operator_view(row, process):
         for market in markets:
             defense = (market.get('spread_policy') or {}).get('defense')
             if defense:
-                defense.update(automatic_recovery_expected=False, next_action='Contact support before restarting trading.')
+                defense.update(automatic_recovery_expected=False, next_action=(
+                    'Wait for shutdown and owner recovery.' if shutdown_pending else 'Contact support before restarting trading.'))
     if stale:
         for market in markets:
             market.update(ready=False, admitted=False, reference_price=None)
@@ -146,8 +154,10 @@ def operator_view(row, process):
                                  reason_code="owner_unavailable" if not available else "session_transition" if not matches else
                                  "observation_stale" if observation_old else None),
                 operator=dict(state=state, label=label, detail=detail, next_action=next_action), actions=actions,
-                recovery=dict(halted=halted, pending_mutations=pending, next_action="wait" if recovery_pending or automatic_pending else "contact_support" if halted or pending or checkpoint_reason else "none",
+                recovery=dict(halted=halted, pending_mutations=pending, next_action="wait" if recovery_pending or shutdown_pending else
+                              "contact_support" if halted or pending or checkpoint_reason else "wait" if automatic_pending else "none",
                               detail="Saved risk information needs technical review." if checkpoint_reason else
+                              'Shutdown is protected by a temporary fence. Wait for owner recovery; do not reset the fence.' if shutdown_pending else
                               "Contact support before restarting trading." if halted or pending else
                               'Exchange order reconciliation is in progress. New submissions are paused.' if automatic_pending else 'No recovery block is recorded.'),
                 session_configuration_url=f"/api/v1/admin/sessions/{session['id']}/configuration" if session.get("id") else None,

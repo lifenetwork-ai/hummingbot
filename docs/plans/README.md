@@ -1,7 +1,10 @@
 # Plans and remaining verification
 
-Updated 2026-11-10. Start with [Demo/release closeout](DEMO_RELEASE_CLOSEOUT.md)
-and its [current acceptance matrix](../../reports/release/demo-release-closeout.md).
+Updated 2026-11-11. Current recovery work is tracked in
+[automatic recovery and availability](MM_AUTOMATIC_RECOVERY_AVAILABILITY_TDD_PLAN.md)
+and its [connected baseline/handoff report](../../reports/demo/cloudrun-runtime-baseline-handoff.md).
+Earlier qualification remains in [Demo/release closeout](DEMO_RELEASE_CLOSEOUT.md)
+and its [acceptance matrix](../../reports/release/demo-release-closeout.md).
 Detailed rejected attempts retain their original image/date scopes; removing old
 files does not close unresolved evidence or policy items.
 

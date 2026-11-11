@@ -980,10 +980,13 @@ orders. For a two-sided operating target, report guard-constrained samples and
 unknown coverage separately; a zero eligible denominator is not a passing SLO.
 Do not label a strategy-wide `running=true` as proof of two-sided liquidity.
 
-During a joint readiness transition, a market can have `eligible=false` and a
+During a joint readiness transition, fresh liquidity observations use the shared
+service reason when the controller has no local reason. Local restrictions and
+unavailable observations retain their own reasons. Other non-running phases use
+`session_not_admitted` when no local reason exists. Older images can return a
 null market `reason_code` while `/status.service.reason_code` reports a global
-restriction such as `exposure_limit` or `insufficient_collateral`. Show that
-service reason alongside the market state when both reads are fresh, refer to
+restriction such as `exposure_limit` or `insufficient_collateral`. For those images,
+show that service reason alongside the market state when both reads are fresh, refer to
 the same session and describe the same transition. Previously acknowledged
 orders can remain visible while withdrawal settles; their presence does not
 prove renewed admission. If the observations cannot be correlated, show unknown
@@ -1364,6 +1367,12 @@ context; render a retry countdown only while automatic work is active.
 available for supported journaled effects. False does not mean a current warm
 reconciliation failed; legacy ledgers need a reviewed baseline for cold recovery.
 The flag does not bypass current account, ownership, risk or control checks.
+During a verified owner shutdown, `recovery.halted` can briefly remain true as
+the admission fence. When `recovery.next_action=wait`, render the returned
+`operator` guidance instead of a manual-HALT banner: Start/Switch remain disabled,
+Stop remains available, and Check/Recover are unavailable. A stale owner remains
+unavailable; this is not proof that quotes are working. Risk stops, unresolved
+mutations and an unsupported baseline retain the ordinary recovery block.
 The worker issues authenticated reads, never repeats the uncertain POST. It
 rechecks current ownership/control/session/credentials/readiness before admission.
 Cancel ACK alone is not terminal proof; complete terminal quantity and original

@@ -1,11 +1,14 @@
 # MM automatic recovery and availability
 
-Status: r7 offline qualification passed. Cloud Run migration 021 is now installed
-and schema-validated. Revision 93 now runs Demo after the operator-approved
-drawdown policy increase to 1,000/controller and 2,000/global; the old risk stop
-was explicitly re-armed with peaks preserved. Historical baseline and controlled
-Demo recovery/quote acceptance remain open (`cold_recovery_supported=false`).
+Status: r7 offline qualification passed. Cloud Run migration 021 is installed
+and schema-validated. The approved drawdown policy remains 1,000/controller and
+2,000/global, with peaks preserved. The 650-fill historical baseline was verified
+and bound under audit 183; `cold_recovery_supported=true` survived subsequent
+fills and two measured graceful rolling handoffs. The temporary-profile 30-minute
+conditional quote target passed; its stricter zero-unknown gate failed one sample.
+The broader connected fault matrix remains open.
 See [policy application evidence](../../reports/demo/cloudrun-drawdown-1000-2000.md).
+See [baseline and handoff evidence](../../reports/demo/cloudrun-runtime-baseline-handoff.md).
 Scope: existing single Cloud Run service, PostgreSQL and native connector/recorder/V2
 execution. Preserve ownership fencing, financial evidence, risk limits and audit.
 
@@ -130,19 +133,27 @@ resending with the same ID is not a general exactly-once transport guarantee.
   and acquired ownership generation 460. At migration completion startup/live
   returned 200; the existing drawdown HALT was preserved and readiness returned 503.
   The subsequent approved policy re-arm and restart are recorded above.
-- [ ] Verify the legacy baseline and run controlled
-  Demo recovery/fault injection. Separate injected failures from natural venue
-  errors; preserve guards and financial truth.
-- [ ] Measure the 30-minute live eligible two-sided quote objective and longest
+- [x] Verify and bind the legacy baseline: complete venue fill/fee proof, native
+  financial replay, isolated-clone negative cases and audited application.
+- [x] Verify graceful Cloud Run owner handoff on the bound Demo ledger: unchanged
+  session/control, automatic resume, no manual reset, and preserved financial
+  checkpoint. This does not substitute for the remaining fault matrix.
+- [ ] Complete broader connected Demo recovery/fault injection. Separate injected
+  failures from natural venue errors; preserve guards and financial truth.
+- [x] Measure the 30-minute live eligible two-sided quote objective and longest
   interruption separately from API uptime; classify one-sided, risk-blocked and
-  unknown observations truthfully. Offline diagnostic samples do not close this.
+  unknown observations truthfully. Revision100: Spot99.323%, perpetual99.225%,
+  counting the one unknown as failure; guard exclusions are not uptime.
+- [ ] Confirm a fresh zero-unknown window on the final observer fix; the original
+  strict runner remains failed, and its temporary profile is not regular acceptance.
 
 Proposed acceptance: zero manual DB edits for the supported fault matrix; exact
 order/fill/fee/position reconciliation; automatic resume after verified recovery.
 Target recovery within 30 seconds for resolvable cases once dependencies recover,
 measured rather than implemented as a forced reset deadline. Persistent ambiguity
 remains explicitly blocked. Existing 99% eligible two-sided observations over
-30 minutes remains a separate qualification; this plan does not claim it passed.
+30 minutes passed conditionally on revision100 as scoped above, not as a blanket
+production or fault-matrix approval.
 
 Implementation order: financial durability and durable attempt state, automatic
 reconciler/classification, incremental recovery, then connected fault qualification.
