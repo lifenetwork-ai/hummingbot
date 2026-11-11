@@ -8,7 +8,8 @@ live in [docs](../docs/README.md).
 The 2026-11-11 [runtime baseline / connected handoff follow-up](demo/cloudrun-runtime-baseline-handoff.md)
 records the newly verified legacy ledger, shutdown-state presentation fix and
 the separately measured quote window. Older release results below retain their
-original image and date scope.
+original image and date scope. The [perpetual cap follow-up](demo/cloudrun-perpetual-cap-qualification.md)
+tracks the revised Demo exposure limits and the regular-profile observation.
 
 The [quiet-feed / unsent-quote follow-up](performance/mm-feed-quote-recovery.md)
 keeps its targeted offline evidence separate from the historical full release.

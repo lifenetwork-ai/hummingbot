@@ -1,0 +1,193 @@
+{
+  "scope": "Actual OKX Demo, regular catalogue with operator-approved caps",
+  "status": "running; zero-unknown window verified; two-sided target not qualified",
+  "policy": {
+    "long_btc": "0.05",
+    "short_btc": "0.05",
+    "gross_btc": "0.1",
+    "drawdown_controller_usdt": "1000",
+    "drawdown_global_usdt": "2000",
+    "catalogue_hash": "a37de043654129137af216a52e8fa2af99389d9a48a6a4e28e4c3c5444f3416b"
+  },
+  "image": {
+    "revision": "hummingbot-demo-00103-5gn",
+    "digest": "sha256:a3aa81c24de2c8309a6239840001c950b623d0387d369c1ddfaf95e42ca28d4c",
+    "base_digest": "sha256:7e018863bca6b7ca3fcc7f2d499cb35c74ec86350147f5d2dda1dc2a926e0185",
+    "base_commit": "db1b809be5dde7258a973ae69164dfdf9590b074",
+    "overlay": "Only three perpetual cap values in deployed catalogue YAML",
+    "observer_source_hashes": {
+      "hummingbot/cli/admin_api.py": "b70bff935c7e390091810a1d8dc281abb3ede18f7fb4c53083ad7bc65c49a3ae",
+      "hummingbot/cli/admin_operations.py": "baca6683b6c9968c6b346b3f4afa9b804650dd6e8c8b0a7ca2af08758aac8653",
+      "hummingbot/model/bot_state_store.py": "2aae795b25951a555a395587bf05ced72c12442af5b542f7d3e5b9f1ac4456c9",
+      "hummingbot/core/mm_liquidity.py": "04b3ebe633f7095d5f3761ac0c064a0a0964ad2a94477b4c5f13383a3453bd16"
+    }
+  },
+  "window": {
+    "method": "quote-window-v2",
+    "analyzed_at": "2026-11-11T02:52:32.509193+00:00",
+    "target_percent": 99,
+    "unknown_counts_as_failure": true,
+    "description": "Conditional acknowledged quote availability; guard exclusions are not uptime.",
+    "session_id": "6ba335a9-24a7-459d-9179-c40be9b40e74",
+    "revision": "hummingbot-demo-00103-5gn",
+    "samples": 899,
+    "completed": true,
+    "markets": {
+      "spot": {
+        "guard_excluded": 899,
+        "total": 899,
+        "confirmed_eligible": 0,
+        "eligible_fraction_of_all": 0.0,
+        "conservative_denominator": 0,
+        "conditional_quote_fraction": null,
+        "conservative_quote_fraction": null,
+        "reasons": {
+          "order_size_rejected": 899
+        },
+        "target_pass": false
+      },
+      "perpetual": {
+        "two_sided": 874,
+        "eligible_gap": 25,
+        "total": 899,
+        "confirmed_eligible": 899,
+        "eligible_fraction_of_all": 1.0,
+        "conservative_denominator": 899,
+        "conditional_quote_fraction": 0.9721913236929922,
+        "conservative_quote_fraction": 0.9721913236929922,
+        "reasons": {},
+        "target_pass": false
+      }
+    },
+    "sampled_wall_span_seconds": 1799.651146,
+    "max_sample_gap_seconds": 2.314235,
+    "quality_pass": true,
+    "target_pass": false
+  },
+  "window_start_utc": "2026-11-11T02:21:47.187628+00:00",
+  "window_end_utc": "2026-11-11T02:51:48.837479+00:00",
+  "unknown_samples": {
+    "spot": 0,
+    "perpetual": 0
+  },
+  "perpetual_gap_summary": {
+    "samples": 25,
+    "runs": 17,
+    "max_observed_run_span_seconds": 2.025267,
+    "max_two_sided_bracket_seconds": 6.216558,
+    "max_reported_no_quote_seconds": 0.0,
+    "bracket_is_not_exact_exchange_downtime": true
+  },
+  "actual_window_fills": {
+    "perpetual": 95,
+    "all_venue_exec_type_M": true
+  },
+  "handoff": {
+    "verified_orders": 4,
+    "sides": [
+      1,
+      2
+    ],
+    "before_60_second_refresh": true,
+    "original_fees_exact": true,
+    "fresh_account_observations": true
+  },
+  "post_window_venue": {
+    "fills": 852,
+    "by_market": {
+      "okx": 424,
+      "okx_perpetual": 428
+    },
+    "complete_scans_per_market": 2,
+    "bindings_match": {
+      "okx": true,
+      "okx_perpetual": true
+    },
+    "positions_btc": {
+      "LONG": "0.0158",
+      "SHORT": "0.0108"
+    }
+  },
+  "financial": {
+    "fills": 852,
+    "new_fills": 202,
+    "spot_native_journal_orders": 26,
+    "spot_new_fills_exact_once": 32,
+    "spot_financial_deltas": {
+      "amount": "0E-8",
+      "volume_traded_quote": "0E-9",
+      "breakeven_price": "0E-23",
+      "realized_pnl_quote": "0E-27",
+      "cum_fees_quote": "0E-13"
+    },
+    "perpetual_full_replay_exact": true,
+    "btc_cash_conservation_exact": true,
+    "fees_and_volume_exact": true,
+    "prior_fills_unchanged": true,
+    "venue_fill_proof_complete": true
+  },
+  "stopped_runtime_proof": {
+    "counts": {
+      "orders": 11023,
+      "trade_fills": 852,
+      "positions": 3,
+      "runtime_journal": 1241,
+      "submission_attempts": 667
+    },
+    "generation": 470,
+    "control_version": 74,
+    "desired_state": "stopped",
+    "halted": false,
+    "can_bootstrap": true,
+    "checkpoint_count": 1,
+    "financial_hash_matches": true,
+    "financial_hash": "2553d32255001b68addc20664f4e36c91e4be0f6e08ce55b3be7687dc388a0b0",
+    "watermarks": [
+      1239
+    ],
+    "pending_orders": 0,
+    "unapplied_journal": 0,
+    "duplicate_fill_keys": 0
+  },
+  "window_logs": {
+    "logs": 7,
+    "truncated": false,
+    "severity": {
+      "WARNING": 7
+    },
+    "revisions": {
+      "hummingbot-demo-00103-5gn": 7
+    },
+    "patterns": {
+      "ownership_lost": 0,
+      "child_probe_failed": 2,
+      "child_restart_scheduled": 0,
+      "schema_incompatible": 0,
+      "shutdown_pending": 0,
+      "No working MM quotes observed": 0,
+      "Service stopped": 0,
+      "funding_observation_unavailable": 0,
+      "spread_policy_rejected": 0,
+      "spread_policy_quote_rejected": 1,
+      "websocket connection was closed": 0
+    }
+  },
+  "tests": {
+    "selected_controller_cap_cases": 10,
+    "pre_commit_passed": true
+  },
+  "final_runtime": {
+    "revision": "hummingbot-demo-00103-5gn",
+    "control_version": 75,
+    "running": true,
+    "phase": "running",
+    "halted": false,
+    "cold_recovery_supported": true
+  },
+  "limits": [
+    "Spot had zero eligible two-sided samples; no passing rate is assigned.",
+    "Regular-profile perpetual rate is below99%; retained as failed.",
+    "HEDGE entries hold exposure; cap increase does not implement inventory reduction.",
+    "Graceful operation and sampled observations do not qualify every crash/OOM fault."
+  ]
+}

@@ -6,6 +6,8 @@ and schema-validated. The approved drawdown policy remains 1,000/controller and
 and bound under audit 183; `cold_recovery_supported=true` survived subsequent
 fills and two measured graceful rolling handoffs. The temporary-profile 30-minute
 conditional quote target passed; its stricter zero-unknown gate failed one sample.
+A subsequent regular-profile revision103 window has zero unknown samples but
+fails the two-sided target (perpetual97.219%; Spot has no eligible samples).
 The broader connected fault matrix remains open.
 See [policy application evidence](../../reports/demo/cloudrun-drawdown-1000-2000.md).
 See [baseline and handoff evidence](../../reports/demo/cloudrun-runtime-baseline-handoff.md).
@@ -144,8 +146,11 @@ resending with the same ID is not a general exactly-once transport guarantee.
   interruption separately from API uptime; classify one-sided, risk-blocked and
   unknown observations truthfully. Revision100: Spot99.323%, perpetual99.225%,
   counting the one unknown as failure; guard exclusions are not uptime.
-- [ ] Confirm a fresh zero-unknown window on the final observer fix; the original
-  strict runner remains failed, and its temporary profile is not regular acceptance.
+- [x] Confirm a fresh zero-unknown observation window on the final observer fix:
+  revision103,899 samples. This closes observation coverage, not quote availability.
+- [ ] Meet the regular-profile two-sided target: revision103 perpetual97.219%
+  fails99%; Spot has no eligible denominator. See the
+  [cap / regular-profile evidence](../../reports/demo/cloudrun-perpetual-cap-qualification.md).
 
 Proposed acceptance: zero manual DB edits for the supported fault matrix; exact
 order/fill/fee/position reconciliation; automatic resume after verified recovery.

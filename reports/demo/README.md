@@ -3,8 +3,11 @@
 [All reports](../README.md) · [Latest Demo/release](../release/demo-release-closeout.md)
 
 2026-11-11 follow-up: [verified runtime baseline and owner handoff](cloudrun-runtime-baseline-handoff.md).
-The legacy ledger now supports cold recovery. The new connected quote window is
-being measured separately; the older results below keep their own image scope.
+The legacy ledger now supports cold recovery. Revision100 passed the conditional
+quote target but retained one unknown sample. The subsequent
+[perpetual cap / regular-profile qualification](cloudrun-perpetual-cap-qualification.md)
+records the operator-approved 0.05/0.05/0.1 BTC policy. Older results below keep
+their own image scope.
 
 **Earlier API state at03:48 UTC on 2026-11-10: revision77, RUNNING Until stopped, same session/control53/53, no HALT; startup/live/ready200. Historical revision74→75 rollout is attributed to CI. New CI artifact gates remain separate.**
 The [latest closeout](../release/demo-release-closeout.md) qualifies actual

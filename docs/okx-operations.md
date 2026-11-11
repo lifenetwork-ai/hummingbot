@@ -205,13 +205,13 @@ not synthesize outside liquidity or automatically turn bootstrap on when blocked
 | Random | Equal selection among the three profiles, ten-minute steps |
 | Sessions | Default 30 minutes; accepted duration 60–7200 seconds |
 | Quote guard | Strict, 200-bps deviation limit, 100-bps resume boundary, five-second recovery delay |
-| Drawdown | Global 200 USDT, per controller 100 USDT from covered V2 PnL peaks |
+| Drawdown | Global 2,000 USDT, per controller 1,000 USDT from covered V2 PnL peaks |
 | Spot outflow | 500 USDT per rolling hour, with a 1% fee allowance for admission |
 | Maker fee floor | Enabled on both markets |
 | NATR | Enabled, completed one-minute candles, length 14, target 0.01, multiplier 0.5–3 |
 | Candle fallback | Explicit 0.1%/0.2% spreads; fee floor still applies |
 | Spot inventory skew | Enabled; target 50% BTC share of observed BTC+USDT cash value, range multiplier 1 |
-| Perpetual | HEDGE/CROSS, leverage 1; long/short/gross caps 0.005/0.005/0.008 BTC |
+| Perpetual | HEDGE/CROSS, leverage 1; long/short/gross caps 0.05/0.05/0.1 BTC |
 
 `total_amount_quote` limits proposals; the spending cap, actual account balance,
 inventory/exposure limits, post-only checks and ownership fence remain independent.
@@ -224,6 +224,18 @@ BTC uses strict external-depth qualification. Listing bootstrap is intentionally
 absent from this liquid-market preset; use the existing
 [bootstrap guide](life-mm-controls.md#listing-bootstrap) and offline simulator for
 empty/own-only LIFE books. Perpetual has no spot-cash inventory skew.
+
+In the current HEDGE preset, both quote sides open positions. Refresh and filled
+entry handoff keep the position; an opposite-side quote opens the opposite hedge
+leg rather than reducing the first leg. Gross exposure is the sum of absolute
+long and short amounts. Under the former 0.005/0.005/0.008 BTC policy, long 0.0030 BTC plus short
+0.0049 BTC left only 0.0001 BTC gross headroom and blocked larger new entries on
+both sides. The operator revised the Demo policy to long 0.05, short 0.05 and
+gross 0.1 BTC; the same whole-entry reservation checks still apply. A restart does not
+clear these positions or create headroom. Continuous inventory reduction needs
+an explicit close/reduce policy; it is not provided by this entry-and-hold preset.
+The existing Disconnect workflow can close managed perpetual positions and verify
+them before detaching credentials; reconnecting the same account preserves history.
 
 ### Build and run locally
 

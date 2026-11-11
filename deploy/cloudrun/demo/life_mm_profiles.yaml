@@ -100,9 +100,9 @@ markets:
     min_price: "1"
     max_price: "1000000"
     # BTC base quantities, not numbers of contracts.
-    max_long_base: "0.005"
-    max_short_base: "0.005"
-    max_gross_base: "0.008"
+    max_long_base: "0.05"
+    max_short_base: "0.05"
+    max_gross_base: "0.1"
     max_data_age_seconds: "10"
     # Inventory skew is a spot-cash policy; it does not apply to perpetual.
     quote_guards:
