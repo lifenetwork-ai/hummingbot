@@ -68,7 +68,11 @@ async def test_legacy_timed_catalogue_hash_and_restored_session_do_not_change():
 
 
 @pytest.mark.asyncio
-async def test_demo_preset_defaults_to_continuous_without_enabling_reduction():
+async def test_demo_preset_continuous_with_explicit_fee_covered_reduction():
+    baseline = await MMProfilesConfig.load(CATALOGUE)
+    assert baseline.markets['perpetual'].inventory_reduction.mode == 'disabled'
     cfg = await MMProfilesConfig.load(Path('deploy/cloudrun/demo/life_mm_profiles.yaml'))
     assert cfg.default_duration_mode == 'until_stopped' and cfg.allow_until_stopped
-    assert cfg.markets['perpetual'].inventory_reduction.mode == 'disabled'
+    assert cfg.markets['perpetual'].inventory_reduction.mode == 'close_first'
+    assert cfg.markets['perpetual'].inventory_reduction.price_mode == 'breakeven'
+    assert cfg.markets['spot'].inventory_reduction.mode == 'disabled'

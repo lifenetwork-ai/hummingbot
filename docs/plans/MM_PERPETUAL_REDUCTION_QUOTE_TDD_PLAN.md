@@ -227,9 +227,11 @@ pass after these changes, including full close followed by OPEN quotes.
 - [x] Prepare a read-only opening-cost proposal tool: 16 positive/negative tests,
   independent replay of the older stopped 764-fill perpetual snapshot, and
   rejection of foreign, duplicate or isolated venue legs.
-- [ ] Establish verified opening-cost baselines for existing nonflat Demo positions;
-  never infer them from lifetime totals. The older proposal is stale and unapplied;
-  fresh stopped venue/hash revalidation remains required.
+- [x] Establish verified remaining opening costs for the nonflat Demo legs:
+  control83,1,686 fills verified twice (777 perpetual), native/rational replay,
+  guarded clone rehearsal and maintenance audit242. Cold restart preserves both
+  bases and risk. The older stale proposal was not used. See the
+  [connected baseline record](../../reports/demo/cloudrun-close-first-baseline.md).
 - [x] Add fresh, instrument/account-scoped closing-fee observations and validation.
 - [x] Add validated, default-disabled, hash-compatible policy and session capability fence.
 - [x] Verify the disabled OPEN-only baseline and enabled nonflat side/effect matrix.
