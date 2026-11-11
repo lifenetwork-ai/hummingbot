@@ -216,6 +216,50 @@ def test_pre_identity_refresh_only_shrinks_and_cannot_flip_close_into_open():
     assert controller.prepare_reduction_quote(original) is None
 
 
+@pytest.mark.parametrize('remaining', ['.001', '.002'])
+def test_small_close_rounds_price_before_spending_the_level_budget(remaining):
+    controller, _, _ = maker(remaining, '0')
+    # A non-tick-aligned model price must not donate one amount lot when the
+    # actual level allocation is much larger than the remaining owned position.
+    price, requested = D('101.00000000000009'), D('.1')
+    close = controller.get_executor_config('sell_0', price, requested)
+    assert close is not None
+    assert close.position_action == PositionAction.CLOSE
+    assert close.amount == D(remaining)
+    assert close.price == D('101.01')
+    assert close.amount * close.price <= price * requested
+    controller.update_reference = lambda: None
+    controller._fresh_price = lambda *args: D('100')
+    controller.get_price_and_amount = lambda level: (price, requested)
+    controller.market_data_provider.get_price_by_type.return_value = D('101')
+    prepared = controller.prepare_reduction_quote(close)
+    assert prepared is not None
+    assert (prepared.id, prepared.amount, prepared.price) == (close.id, close.amount, close.price)
+
+
+def test_small_close_cannot_round_up_past_its_actual_allocation():
+    controller, _, _ = maker('.001', '0')
+    assert controller.get_executor_config('sell_0', D('101.00000000000009'), D('.001')) is None
+
+
+@pytest.mark.parametrize('long,short,level,model,maker_price', [
+    ('.001', '0', 'sell_0', '101', '101.03'),
+    ('0', '.001', 'buy_0', '99', '98.97'),
+])
+def test_small_close_budgets_the_passive_book_bound_before_identity(long, short, level, model, maker_price):
+    controller, _, _ = maker(long, short)
+    controller.market_data_provider.get_price_by_type.side_effect = lambda *args: D(maker_price)
+    close = controller.get_executor_config(level, D(model), D('.1'))
+    assert close is not None and close.price == D(maker_price)
+    assert close.amount == D('.001')
+    controller.update_reference = lambda: None
+    controller._fresh_price = lambda *args: D('100')
+    controller.get_price_and_amount = lambda level: (D(model), D('.1'))
+    prepared = controller.prepare_reduction_quote(close)
+    assert prepared is not None
+    assert (prepared.id, prepared.price, prepared.amount) == (close.id, close.price, close.amount)
+
+
 def test_reduction_status_is_cached_and_reports_capacity_separately_from_opening_limits():
     from hummingbot.cli.admin_models import InventoryReductionStatus
     controller, _, _ = maker('.1', '.1', max_long_base='.1', max_short_base='.1', max_gross_base='.2')

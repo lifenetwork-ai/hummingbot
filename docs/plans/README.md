@@ -1,12 +1,17 @@
 # Plans and remaining verification
 
-Updated 2026-11-11. Current recovery work is tracked in
+Updated 2026-11-12 local. Current recovery work is tracked in
 [automatic recovery and availability](MM_AUTOMATIC_RECOVERY_AVAILABILITY_TDD_PLAN.md)
 and its [connected baseline/handoff report](../../reports/demo/cloudrun-runtime-baseline-handoff.md).
 Earlier qualification remains in [Demo/release closeout](DEMO_RELEASE_CLOSEOUT.md)
 and its [acceptance matrix](../../reports/release/demo-release-closeout.md).
 Detailed rejected attempts retain their original image/date scopes; removing old
 files does not close unresolved evidence or policy items.
+
+The current [availability open-item follow-up](../../reports/release/mm-availability-closeout.md)
+records the revision108-based candidate, duplicate startup-write and cold-fill
+recovery fixes, real OOM qualification, opt-in CLOSE load/rollback work and the
+remaining connected gates. Older release results do not qualify this new image.
 
 The [quiet-feed / unsent-quote plan](MM_FEED_QUOTE_RECOVERY_TDD_PLAN.md) tracks the
 new targeted offline work; its gates do not replace the full release below.
@@ -15,11 +20,17 @@ The [perpetual close-first quote plan](MM_PERPETUAL_REDUCTION_QUOTE_TDD_PLAN.md)
 tracks the fee-inclusive breakeven policy. Local economic/reservation arithmetic,
 native executor shutdown, durable costs, controller/fee/transport integration
 and API diagnostics are implemented. Both full-cycle closing fault cases and
-two default-path packaged regression groups pass on one local image;
-Demo and the broader release/load qualification remain open.
+two default-path packaged regression groups pass. The revision108-based follow-up
+also passes nonflat rollback, four healthy load windows and a corrected six-fault
+target; original failed `all` runs and close-specific measurement scopes remain
+explicit. Connected Demo baselines/CLOSE and the regular quote target remain open.
 Closing quotes are not enabled on Demo.
 
-Last full release baseline `f53885fda` / regular image `4198f2fa…` passes native3,085 +16
+The later [automatic-recovery r7 release](../../reports/performance/mm-automatic-recovery.md)
+passes native3,154+16, PostgreSQL686, all34 E2E and full unchanged load/soak/six faults.
+The current follow-up candidate requires its own gates.
+
+Earlier full release baseline `f53885fda` / regular image `4198f2fa…` passes native3,085 +16
 subtests, full PostgreSQL605 and all30 packaged E2E groups in one `all` execution,
 including distinct-image upgrade/takeover/rollback. Full unchanged load/Random soak3600/six faults/retention pass: p99
 96.87/96.46/103.11/283.41ms,4,885 simulated fills, growth18.02MiB/64MiB.
@@ -128,9 +139,11 @@ separate verification; they do not inherit image4198 release gates. See [closeou
 - [ ] Production/live cutover acceptance when the operator chooses that scope;
   current connected trading is Demo, with real GCP KMS still deferred above.
 
-The recorded Cloud migration setting is false. If the operator later enables
-guarded auto-migration=true, verify a controlled Cloud rollout with that setting;
-its local PG/process contracts do not constitute that enabled Cloud exercise.
+The earlier false migration setting is historical. On 2026-11-11 migration021
+was installed with physical owner-lock exclusion and all21 checksums verified;
+revision91 became Ready. Current rollout/recovery observations are in the
+[automatic-recovery plan](MM_AUTOMATIC_RECOVERY_AVAILABILITY_TDD_PLAN.md).
+Do not transfer one revision's settings or readiness to a later deployment.
 
 ## Unresolved policy and historical attribution
 

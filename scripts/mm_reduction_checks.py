@@ -7,10 +7,16 @@ from fractions import Fraction
 SCENARIOS = ('perpetual-reduction-long', 'perpetual-reduction-short')
 
 
-def scenario(harness, leg):
+def scenario(harness, leg, *, previous_image=None):
     import yaml
 
-    from scripts.test_e2e_offline import poll as wait_until
+    from scripts.test_e2e_offline import docker, poll as wait_until
+
+    candidate_image = harness.image
+    if previous_image:
+        assert json.loads(docker('image', 'inspect', previous_image).stdout)[0]['Id'] != json.loads(
+            docker('image', 'inspect', candidate_image).stdout)[0]['Id']
+        harness.image = previous_image
 
     def poll(check, **kwargs):
         try:
@@ -24,6 +30,7 @@ def scenario(harness, leg):
             raise
     print('Offline E2E: maker reduction, lost ACK, partial, fee outage and cold restart: ' + leg, flush=True)
     path = harness.assets / 'life_mm_profiles.yaml'
+    original_profiles = path.read_bytes()
     profiles = yaml.safe_load(path.read_text())
     market = profiles['markets']['perpetual']
     market.update(buy_spreads=[.01], sell_spreads=[.01], leverage=1,
@@ -31,6 +38,7 @@ def scenario(harness, leg):
                   quote_guards=dict(enabled=True, max_deviation_bps='200', resume_deviation_bps='100', recovery_delay_seconds=0),
                   spread_policy=dict(fee_floor=True), inventory_reduction=dict(mode='close_first', price_mode='breakeven'))
     path.write_text(yaml.safe_dump(profiles))
+    harness.report.joinpath('effective-reduction-profiles.yaml').write_bytes(path.read_bytes())
     harness.env.update(ADMIN_API_ENABLED='true', ADMIN_BASIC_AUTH_ENABLED='true',
                        ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')
     for field, value in (('API_KEY', 'offline-key'), ('SECRET_KEY', 'offline-secret'), ('PASSPHRASE', 'offline-pass')):
@@ -70,15 +78,38 @@ def scenario(harness, leg):
     orders = poll(recovered_close, timeout=60, description='GET proof recovers the new closing quote without a second POST')
     assert sum(Decimal(row['sz']) for row in orders) <= Decimal(opening['sz'])
     assert positions() == {leg: Decimal(opening['sz'])}
-    close = orders[0]
-    assert close['ordType'] == 'post_only' and close['tdMode'] == 'cross'
-    quantity = (Decimal(close['sz']) / 2).quantize(Decimal('1'), rounding=ROUND_DOWN)
-    assert quantity > 0
-    base = quantity * Decimal('.01')
-    fee = base * Decimal(close['px']) * Decimal('.0002')
-    trading_pnl = (Decimal(close['px']) - Decimal(opening['px'])) * base * (1 if leg == 'long' else -1)
-    assert trading_pnl >= opening_fee * base / opening_base + fee
-    harness.control(fill=dict(clOrdId=close['clOrdId'], amount=str(quantity), fee=str(fee)), duplicate=True)
+    canceled_fill_candidates = 0
+
+    def fill_current_close(final_base=None):
+        from scripts.test_e2e_offline import http
+        nonlocal canceled_fill_candidates
+        candidates = closing()
+        if not candidates:
+            return None
+        order = candidates[0]
+        assert order['ordType'] == 'post_only' and order['tdMode'] == 'cross'
+        quantity = ((Decimal(order['sz']) / 2).quantize(Decimal('1'), rounding=ROUND_DOWN)
+                    if final_base is None else final_base / Decimal('.01'))
+        assert quantity > 0
+        if final_base is not None:
+            assert Decimal(order['sz']) == quantity
+        base = quantity * Decimal('.01')
+        fee = base * Decimal(order['px']) * Decimal('.0002')
+        pnl = (Decimal(order['px']) - Decimal(opening['px'])) * base * (1 if leg == 'long' else -1)
+        opening_cost = (Fraction(opening_fee) * Fraction(base) / Fraction(opening_base) if final_base is None
+                        else Fraction(Decimal(basis['opening_fees_quote'])))
+        assert Fraction(pnl) >= opening_cost + Fraction(fee)
+        code, result = http(harness.exchange_port, '/control', dict(
+            fill=dict(clOrdId=order['clOrdId'], amount=str(quantity), fee=str(fee)), duplicate=True))
+        if code == 409 and result.get('error') == 'order_not_fillable':
+            # No fill occurred. Read a new live quote; never reopen the canceled ID.
+            canceled_fill_candidates += 1
+            return None
+        assert code == 200, result
+        return order, quantity, base, fee, pnl
+
+    close, quantity, base, fee, trading_pnl = poll(fill_current_close, timeout=60,
+                                                   description='partial fill of a still-live proven closing quote')
     harness.mm_command(port, 'stop')
     assert not live() and positions() == {leg: Decimal(opening['sz']) - quantity}
     expected = opening_base - base
@@ -96,7 +127,8 @@ def scenario(harness, leg):
     assert Fraction(Decimal(basis['opening_fees_quote'])) >= Fraction(opening_fee) * Fraction(expected) / Fraction(opening_base)
     assert not harness.state()['recovery_state'].get('halt')
     harness.terminate(first)
-    _, port = harness.start('reduction-restart-' + leg, auto_migrate=False)
+    harness.image = candidate_image
+    upgraded, port = harness.start('reduction-restart-' + leg, auto_migrate=False)
     harness.mm_command(port, 'start', market_mode='perpetual', selection='fixed', profile_id='sideways', duration_seconds=600)
     poll(closing, timeout=60, description='cold owner restores owned remaining cost and maker closing quotes')
     assert positions() == {leg: Decimal(opening['sz']) - quantity}
@@ -104,13 +136,27 @@ def scenario(harness, leg):
     poll(lambda: not closing(), timeout=40, description='lost fee authority cancels resting closing quotes')
     assert not harness.state()['recovery_state'].get('halt')
     harness.control(reduction_fee_error=False, cancel_delay_seconds=0)
-    restored = poll(closing, timeout=40, description='fresh authenticated fee observation restores the closing quote')
-    final = restored[0]
-    assert Decimal(final['sz']) * Decimal('.01') == expected
-    final_fee = expected * Decimal(final['px']) * Decimal('.0002')
-    final_pnl = (Decimal(final['px']) - Decimal(opening['px'])) * expected * (1 if leg == 'long' else -1)
-    assert Fraction(final_pnl) >= Fraction(Decimal(basis['opening_fees_quote'])) + Fraction(final_fee)
-    harness.control(fill=dict(clOrdId=final['clOrdId'], amount=final['sz'], fee=str(final_fee)), duplicate=True)
+    poll(closing, timeout=40, description='fresh authenticated fee observation restores the closing quote')
+    if previous_image:
+        # Roll back while nonflat, after the new image has restored and used
+        # the same exact remaining-cost basis. An empty/flat rollback cannot
+        # qualify preservation of the fee-covered closing price authority.
+        harness.mm_command(port, 'stop')
+        before_rollback = json.loads(harness.sql(
+            "SELECT payload FROM runtime_checkpoints WHERE config_file_path='life_mm_profiles.yaml'"))['reduction_basis']
+        harness.terminate(upgraded)
+        harness.image = previous_image
+        _, port = harness.start('reduction-rollback-' + leg, auto_migrate=False)
+        harness.mm_command(port, 'start', market_mode='perpetual', selection='fixed', profile_id='sideways', duration_seconds=600)
+        poll(closing, timeout=60, description='old image restores nonflat fee-covered closing quotes after rollback')
+        after_rollback = json.loads(harness.sql(
+            "SELECT payload FROM runtime_checkpoints WHERE config_file_path='life_mm_profiles.yaml'"))['reduction_basis']
+        assert after_rollback == before_rollback
+        assert positions() == {leg: Decimal(opening['sz']) - quantity}
+        assert harness.sql('SELECT count(*) FROM trade_fills') == '2'
+        assert not harness.state()['recovery_state'].get('halt')
+    final, _, _, final_fee, final_pnl = poll(lambda: fill_current_close(expected), timeout=60,
+                                             description='full fill of a still-live fee-covered closing quote')
 
     def flat_open_quotes():
         orders = live()
@@ -141,4 +187,7 @@ def scenario(harness, leg):
         original_fees=str(opening_fee + fee + final_fee), realized_trading_pnl=str(trading_pnl + final_pnl),
         partial_applied_once=True, maker_only=True, lost_ack_without_duplicate_post=True,
         cold_restart=True, fee_outage_canceled_quotes=True, fee_recovery=True, full_close_returns_to_open=True,
-        outside_book='two_levels_each_side_with_own_quotes', simulated=True)
+        upgrade_rollback=bool(previous_image), previous_image=previous_image,
+        outside_book='two_levels_each_side_with_own_quotes', canceled_fill_candidates=canceled_fill_candidates, simulated=True)
+    harness.image = candidate_image
+    path.write_bytes(original_profiles)

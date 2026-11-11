@@ -9,7 +9,10 @@ breakeven pricing. Revision106 contains commit `768ee611c`; its installed 18-fil
 feature source matches the original local qualification. Closing quotes remain
 disabled. The operator subsequently requested continuous operation: Start80
 resumed Random Spot + Perpetual with no overall expiry, preserving existing
-caps/guards. The later YAML duration-default work below is still local.
+caps/guards. Revision108 also contains the duration-default and bounded startup
+wait fixes; closing quotes remain disabled. The current remaining-cost proposal,
+nonflat upgrade/rollback and opt-in load qualification are tracked in the
+[availability follow-up](../../reports/release/mm-availability-closeout.md).
 
 ## Outcome and scope
 
@@ -221,20 +224,33 @@ pass after these changes, including full close followed by OPEN quotes.
 - [x] Operator selected fee-inclusive breakeven pricing.
 - [x] Define remaining-cost/fee allocation, conservative partitioning and exact tick boundaries.
 - [x] Persist/restore the basis with native financial checkpoints; verify commit rollback and duplicate receipts in PostgreSQL.
-- [ ] Establish verified opening-cost baselines for existing nonflat Demo positions; never infer them from lifetime totals.
+- [x] Prepare a read-only opening-cost proposal tool: 16 positive/negative tests,
+  independent replay of the older stopped 764-fill perpetual snapshot, and
+  rejection of foreign, duplicate or isolated venue legs.
+- [ ] Establish verified opening-cost baselines for existing nonflat Demo positions;
+  never infer them from lifetime totals. The older proposal is stale and unapplied;
+  fresh stopped venue/hash revalidation remains required.
 - [x] Add fresh, instrument/account-scoped closing-fee observations and validation.
 - [x] Add validated, default-disabled, hash-compatible policy and session capability fence.
 - [x] Verify the disabled OPEN-only baseline and enabled nonflat side/effect matrix.
 - [x] Test pure side/effect selection and finite shared closing-reservation arithmetic.
 - [x] Bind those decisions/reservations to live controller levels and native order lifecycles.
 - [x] Integrate native close order executors with maker preparation and quote refresh.
+- [x] Reproduce and fix one/two-lot SELL close loss during price quantization,
+  including pre-identity refresh. Round the maker price before allocating the
+  original level budget; never increase queued base/notional or bypass fees.
+  Include all reduction-specific regression files in the canonical CI target.
 - [x] Extend native terminal-first shutdown to managed order executors; test late fills, retries and rejected proofs.
 - [x] Split runtime admission and collateral accounting; verify CLOSE at both send gates.
 - [x] Validate exactly-once native held application, PnL/fees and cold recovery in PostgreSQL.
 - [x] Expose cached effect, target leg, reducible/reserved amount and bounded wait reasons in status/API.
 - [x] Update OpenAPI/FE types, configuration and operations documentation.
 - [x] Run focused PostgreSQL and packaged CLOSE fault/E2E gates on the resulting local image.
-- [ ] Qualify full service upgrade/rollback and the broader release/load suite with the opt-in policy.
+- [x] Qualify nonflat LONG/SHORT upgrade/rollback and local release coverage on
+  the revision108-based candidate: native3,363+16, PostgreSQL724, OOM7, E2E36
+  plus its corrected host target, four unchanged healthy load windows and the
+  corrected six-fault target. Original failed `all` executions remain failed;
+  CLOSE restriction-decision timing and older input bounds are reported separately.
 - [ ] Run actual Demo close-first qualification; reconcile REST orders/fills/fees/positions.
 - [ ] Run the regular-profile 30-minute quote target without weakening its classifier.
 

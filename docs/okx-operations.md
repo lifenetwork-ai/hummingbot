@@ -65,6 +65,14 @@ Closing capacity uses the lesser of fresh venue exposure and durable bot-owned
 exposure, minus queued, working, canceling and terminal-unapplied reservations.
 Unknown legacy remaining costs require verified initialization before that leg
 can close. Never copy lifetime cumulative fees into its remaining opening costs.
+For a supported legacy history, `scripts/mm_reduction_baseline.py` can prepare
+a read-only proposal from a stopped maintenance snapshot, complete independent
+venue proof and exact contract metadata. It checks native financial replay,
+original fees, verified flat anchors and the remaining opening tail; duplicate,
+foreign or isolated venue positions are rejected. The output is not an applied
+checkpoint. Applying it requires fresh venue evidence, matching financial/account
+hashes, stopped writers and an audited operator-reviewed maintenance transaction.
+Do not apply a proposal prepared before subsequent fills or account changes.
 An above-cap close still requires the ordinary session, ownership, credential,
 data, price and drawdown checks. Existing Stop/Disconnect workflows remain separate.
 

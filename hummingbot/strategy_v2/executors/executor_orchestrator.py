@@ -452,7 +452,12 @@ class ExecutorOrchestrator:
                                       f"not available in current strategy markets")
                 continue
             self._load_position_from_db(controller_id, position)
-        bases = MarketsRecorder.get_instance().get_reduction_bases()
+        # Cost evidence only applies to retained perpetual holds. Keep Spot-only
+        # and empty startup on their original two-query/zero-query paths. Even a
+        # disabled reduction policy still restores an existing perpetual basis.
+        perpetual_holds = any(hold.connector_name == 'okx_perpetual'
+                              for holds in self.positions_held.values() for hold in holds)
+        bases = MarketsRecorder.get_instance().get_reduction_bases() if perpetual_holds else {}
         if isinstance(bases, dict):
             for controller_id, holds in self.positions_held.items():
                 for hold in holds:

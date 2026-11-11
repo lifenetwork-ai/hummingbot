@@ -368,6 +368,7 @@ async def probe(host):
             if orchestrator:
                 from hummingbot.core.admin_reconciliation import expected_positions
                 expected, unsettled = expected_positions(core)
+                data['positions_scope_supported'] = expected is not None
                 data["expected_positions"] = [dict(pair=pair, side=side, amount=str(amount)) for (pair, side), amount in (expected or {}).items()]
                 data["positions_unsettled"] = unsettled
                 data["held_positions"] = {key: [dict(side=row.side.name if row.side else None, amount=str(row.net_amount_base)) for row in rows]

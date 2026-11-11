@@ -28,7 +28,8 @@ owned = _owned
 
 
 @pytest.mark.parametrize('leg', [TradeType.BUY, TradeType.SELL])
-def test_native_close_lost_ack_cold_recovery_reduces_held_leg_and_applies_original_fees_once(owned, leg):
+@pytest.mark.parametrize('drawdown', [True, False])
+def test_native_close_lost_ack_cold_recovery_reduces_held_leg_and_applies_original_fees_once(owned, leg, drawdown):
     seeded(owned, leg)
     # The seed represents an already acknowledged and applied opening baseline.
     with owned.manager.get_new_session() as session, session.begin():
@@ -101,6 +102,9 @@ def test_native_close_lost_ack_cold_recovery_reduces_held_leg_and_applies_origin
         successor.prepare(1, 'test.yml')
         successor.connectors = {'okx_perpetual': exchange}
         restarted = runtime()
+        if not drawdown:
+            restarted.strategy.config.mm_drawdown_scope = None
+            restarted.strategy.controllers = {'maker': controller}
         core = SimpleNamespace(markets_recorder=recorder, trade_fill_db=owned.manager,
                                strategy=SimpleNamespace(executor_orchestrator=restarted))
         size = str(exchange._format_amount_to_size('BTC-USDT', config.amount))

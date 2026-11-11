@@ -281,6 +281,13 @@ class PerpetualReductionMixin:
             self._quote_reason('active_executor', config.side)
         return self.get_not_active_levels_ids(working)
 
+    def _reduction_maker_price(self, connector, side, price):
+        rounded = connector.quantize_order_price(self.config.trading_pair, price)
+        if side == TradeType.SELL and rounded < price:
+            tick = connector.get_order_price_quantum(self.config.trading_pair, price)
+            rounded = connector.quantize_order_price(self.config.trading_pair, rounded + tick)
+        return rounded
+
     def _make_reduction_config(self, level_id, price, amount, *, reservation_id=None):
         side = self.get_trade_type_from_level_id(level_id)
         try:
@@ -302,6 +309,20 @@ class PerpetualReductionMixin:
             tick = connector.get_order_price_quantum(self.config.trading_pair, price)
             boundary = basis.closing_price(quantity, fee, tick)
             price = min(price, boundary) if side == TradeType.BUY else max(price, boundary)
+            kind = PriceType.BestBid if side == TradeType.BUY else PriceType.BestAsk
+            maker = Decimal(str(self.market_data_provider.get_price_by_type(
+                self.config.connector_name, self.config.trading_pair, kind)))
+            if not maker.is_finite() or maker <= 0:
+                raise ValueError('reduction_price_not_profitable')
+            # Use the same resident passive bound as pre-identity preparation.
+            # Delaying this until then can make even one remaining lot exceed
+            # the artificially smaller queued notional on every fresh attempt.
+            price = min(price, maker) if side == TradeType.BUY else max(price, maker)
+            # Spend the level's original allocation at the actual maker tick.
+            # Passing an unaligned small close to the OPEN builder would shrink
+            # it against quantity * raw_price, inventing a smaller budget and
+            # losing an amount lot even when the level can fund the whole close.
+            price = self._reduction_maker_price(connector, side, price)
             with localcontext() as context:
                 context.rounding = ROUND_DOWN
                 quantity = connector.quantize_order_amount(self.config.trading_pair, min(quantity, budget / price))
@@ -458,6 +479,9 @@ class PerpetualReductionMixin:
             if not maker.is_finite() or maker <= 0:
                 return None
             price = min(price, maker) if original.side == TradeType.BUY else max(price, maker)
+            if quote_effect(original) == PositionAction.CLOSE:
+                connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
+                price = self._reduction_maker_price(connector, original.side, price)
             budget = min(original.amount * quote_price(original), price * amount)
             with localcontext() as context:
                 context.rounding = ROUND_DOWN

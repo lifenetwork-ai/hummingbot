@@ -1261,6 +1261,12 @@ Each market's exchange reads have a 20-second deadline and reuse connector
 throttlers/read helpers. Fill pagination uses OKX `billId`; position quantities
 use the existing contract metadata conversion. Active and held perpetual exposure
 are compared as separate long/short legs.
+For managed maker CLOSE executors, only executed quantity reduces the opposite
+owned hedge leg. Working reservations do not count as executions. A completed
+transfer still awaiting its native financial application makes the comparison
+incomplete; an already applied receipt is not counted twice. Unsupported or
+invalid local position scope is unavailable, never a verified flat account.
+The check does not change orders, accounting or trading authority.
 Order comparisons include instrument, side, original quantity, type and limit
 price, plus base-currency sizing for spot market orders. Missing required terms
 make a check incomplete; changed terms between reads invalidate its snapshot.

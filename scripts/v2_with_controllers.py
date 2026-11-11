@@ -371,6 +371,8 @@ class V2WithControllers(StrategyV2Base):
             config_dict = controller.config.model_dump()
             if "connector_name" in config_dict:
                 if self.is_perpetual(config_dict["connector_name"]):
+                    if getattr(controller, 'manages_account_settings', False) is True:
+                        continue
                     if "position_mode" in config_dict:
                         connectors_position_mode[config_dict["connector_name"]] = config_dict["position_mode"]
                     if "leverage" in config_dict and "trading_pair" in config_dict:

@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from hummingbot.connector.derivative.okx_perpetual import okx_perpetual_constants
 from hummingbot.connector.exchange.okx import okx_constants
 from hummingbot.core.bot_ownership import BotOwnership
-from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder
 
 
@@ -29,6 +29,7 @@ class ReconciliationRequest(BaseModel):
 
 def expected_positions(core, pair=None):
     expected, unsettled = {}, False
+    held, reductions = {}, {}
     orchestrator = getattr(core.strategy, "executor_orchestrator", None) if core.strategy else None
     if orchestrator is None:
         return None, False
@@ -38,11 +39,14 @@ def expected_positions(core, pair=None):
             key = trading_pair, side
             expected[key] = expected.get(key, Decimal(0)) + abs(Decimal(amount))
 
-    for holds in orchestrator.positions_held.values():
+    for controller_id, holds in orchestrator.positions_held.items():
         for hold in holds:
             if hold.connector_name == "okx_perpetual":
-                add(hold.trading_pair, "LONG" if hold.net_amount_base > 0 else "SHORT", hold.net_amount_base)
-    for executors in orchestrator.active_executors.values():
+                side = "LONG" if hold.net_amount_base > 0 else "SHORT"
+                add(hold.trading_pair, side, hold.net_amount_base)
+                key = controller_id, hold.trading_pair, side
+                held[key] = held.get(key, Decimal(0)) + abs(Decimal(hold.net_amount_base))
+    for controller_id, executors in orchestrator.active_executors.items():
         for executor in executors:
             config = executor.config
             if config.connector_name != "okx_perpetual" or (pair and config.trading_pair != pair):
@@ -53,9 +57,36 @@ def expected_positions(core, pair=None):
                         and config.id not in orchestrator.executors_ids_position_held):
                     unsettled = True
                 continue
+            if getattr(config, 'type', None) == 'order_executor':
+                if (getattr(config, 'position_action', None) != PositionAction.CLOSE
+                        or getattr(config, 'mm_session_id', None) is None
+                        or type(getattr(config, 'mm_generation', None)) is not int
+                        or config.controller_id != controller_id or config.side not in (TradeType.BUY, TradeType.SELL)):
+                    return None, False
+                if config.id in orchestrator.executors_ids_position_held:
+                    continue
+                try:
+                    amount = Decimal(executor.executed_amount_base)
+                except (AttributeError, ValueError, TypeError, ArithmeticError):
+                    return None, False
+                if not amount.is_finite() or amount < 0:
+                    return None, False
+                # Executed CLOSE fills reduce the opposite owned hedge leg.
+                # Queued/working unfilled quantity remains a reservation only.
+                if amount:
+                    key = controller_id, config.trading_pair, 'LONG' if config.side == TradeType.SELL else 'SHORT'
+                    reductions[key] = reductions.get(key, Decimal(0)) + amount
+                continue
             if not hasattr(executor, "amount_to_close"):
                 return None, False
             add(config.trading_pair, "LONG" if config.side == TradeType.BUY else "SHORT", executor.amount_to_close)
+    for key, amount in reductions.items():
+        if amount > held.get(key, Decimal(0)):
+            return None, False
+        bucket = key[1:]
+        expected[bucket] -= amount
+        if not expected[bucket]:
+            del expected[bucket]
     return expected, unsettled
 
 

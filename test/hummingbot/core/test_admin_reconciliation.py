@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hummingbot.core.admin_reconciliation import ReconciliationRequest, check_market, expected_positions, perform_check
-from hummingbot.core.data_type.common import TradeType
+from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
 
 
 def fixture():
@@ -234,6 +234,101 @@ def test_expected_positions_uses_the_actual_executor_runtime_interface():
     executor._open_order = executor._close_order = None
     core = SimpleNamespace(strategy=SimpleNamespace(executor_orchestrator=SimpleNamespace(
         positions_held={}, active_executors={"life": [executor]})))
+    assert expected_positions(core) == ({}, False)
+
+
+def native_closing_scope(side=TradeType.SELL, *, filled='.4', held='2', identity='close'):
+    from hummingbot.core.data_type.in_flight_order import InFlightOrder
+    from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
+    from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
+    from hummingbot.strategy_v2.models.base import RunnableStatus
+    from hummingbot.strategy_v2.models.executors import TrackedOrder
+    executor = object.__new__(OrderExecutor)
+    executor.config = OrderExecutorConfig(
+        id=identity, timestamp=1000, controller_id='maker',
+        connector_name='okx_perpetual', trading_pair='LIFE-USDT', side=side,
+        amount=Decimal('2'), price=Decimal('100'), position_action=PositionAction.CLOSE,
+        execution_strategy=ExecutionStrategy.LIMIT_MAKER,
+        mm_session_id='session', mm_generation=0, level_id='close')
+    executor._status = RunnableStatus.RUNNING
+    executor.close_type = None
+    order = InFlightOrder(
+        identity + '-order', 'LIFE-USDT', OrderType.LIMIT_MAKER, side, Decimal('2'),
+        creation_timestamp=1000, price=Decimal('100'), position=PositionAction.CLOSE)
+    order.executed_amount_base = Decimal(filled)
+    executor._order = TrackedOrder(identity + '-order')
+    executor._order.order = order
+    executor._partial_filled_orders, executor._failed_orders, executor._canceled_orders = [], [], []
+    sign = 1 if side == TradeType.SELL else -1
+    hold = SimpleNamespace(connector_name='okx_perpetual', trading_pair='LIFE-USDT', net_amount_base=Decimal(held) * sign)
+    runtime = SimpleNamespace(
+        positions_held={'maker': [hold]}, active_executors={'maker': [executor]}, executors_ids_position_held=set())
+    return SimpleNamespace(strategy=SimpleNamespace(executor_orchestrator=runtime)), executor, hold, runtime
+
+
+@pytest.mark.parametrize('side', [TradeType.BUY, TradeType.SELL])
+@pytest.mark.parametrize('stage', ['active', 'terminal_unapplied', 'applied'])
+def test_native_partial_close_reconciles_the_opposite_held_leg_exactly_once(side, stage):
+    from hummingbot.strategy_v2.models.base import RunnableStatus
+    from hummingbot.strategy_v2.models.executors import CloseType
+    core, executor, hold, runtime = native_closing_scope(side)
+    if stage != 'active':
+        executor._status, executor.close_type = RunnableStatus.TERMINATED, CloseType.POSITION_HOLD
+    if stage == 'applied':
+        hold.net_amount_base *= Decimal('.8')
+        runtime.executors_ids_position_held.add(executor.config.id)
+    before = hold.net_amount_base, executor.executed_amount_base, set(runtime.executors_ids_position_held)
+    expected = Decimal('2') if stage == 'terminal_unapplied' else Decimal('1.6')
+    positions, unsettled = expected_positions(core)
+    assert positions == {('LIFE-USDT', 'SHORT' if side == TradeType.BUY else 'LONG'): expected}
+    assert unsettled is (stage == 'terminal_unapplied')
+    assert before == (hold.net_amount_base, executor.executed_amount_base, runtime.executors_ids_position_held)
+
+
+def test_unfilled_closing_order_does_not_subtract_its_reserved_quantity():
+    core, _, _, _ = native_closing_scope(filled='0')
+    assert expected_positions(core) == ({('LIFE-USDT', 'LONG'): Decimal('2')}, False)
+
+
+@pytest.mark.parametrize('filled', ['2.1', '-.1', 'NaN'])
+def test_invalid_or_excess_close_cannot_be_reconciled_as_a_clamped_flat_position(filled):
+    core, _, _, _ = native_closing_scope(filled=filled)
+    assert expected_positions(core) == (None, False)
+
+
+def test_closing_projection_cannot_borrow_another_controllers_hold():
+    core, executor, _, runtime = native_closing_scope()
+    executor.config.controller_id = 'other'
+    runtime.active_executors = {'other': [executor]}
+    assert expected_positions(core) == (None, False)
+
+
+def test_unmanaged_order_executor_still_requires_an_explicit_supported_projection():
+    core, executor, _, _ = native_closing_scope()
+    executor.config.mm_session_id = executor.config.mm_generation = None
+    assert expected_positions(core) == (None, False)
+
+
+def test_concurrent_closes_keep_hedge_legs_separate_and_include_untransferred_open_fills():
+    core, _, _, runtime = native_closing_scope()
+    _, short_close, short_hold, _ = native_closing_scope(TradeType.BUY, filled='.7', held='3', identity='short')
+    opened = SimpleNamespace(config=SimpleNamespace(connector_name='okx_perpetual', trading_pair='LIFE-USDT', side=TradeType.BUY),
+                             is_closed=False, amount_to_close=Decimal('.2'))
+    runtime.positions_held['maker'].append(short_hold)
+    runtime.active_executors['maker'].extend([short_close, opened])
+    assert expected_positions(core) == ({('LIFE-USDT', 'LONG'): Decimal('1.8'),
+                                        ('LIFE-USDT', 'SHORT'): Decimal('2.3')}, False)
+
+
+def test_combined_filled_closes_cannot_exceed_the_same_owned_hedge_bucket():
+    core, _, _, runtime = native_closing_scope(filled='.6', held='1')
+    _, other, _, _ = native_closing_scope(filled='.6', held='1', identity='other')
+    runtime.active_executors['maker'].append(other)
+    assert expected_positions(core) == (None, False)
+
+
+def test_a_fully_filled_active_close_projects_flat_before_its_held_transfer():
+    core, _, _, _ = native_closing_scope(filled='2')
     assert expected_positions(core) == ({}, False)
 
 

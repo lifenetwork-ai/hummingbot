@@ -113,6 +113,7 @@ class Exchange:
         self.cancel_before_ack_remaining = None
         self.cancel_delay_seconds = 0
         self.account_mutation_delay_seconds = 0
+        self.account_read_delay_seconds = 0
         self.cancel_pending_visibility = {}
         self.cancel_pending_visibility_served = 0
         self.cancel_pending_visibility_reads = 0
@@ -373,6 +374,9 @@ class Exchange:
         if path in ("/api/v5/public/mark-price", "/api/v5/market/index-tickers", "/api/v5/public/funding-rate"):
             return self.ok([self.funding(request.query.get("instId", "BTC-USDT-SWAP"))])
         if path == "/api/v5/account/config":
+            if self.account_read_delay_seconds:
+                observed['injected_account_read_delay_s'] = self.account_read_delay_seconds
+                await asyncio.sleep(self.account_read_delay_seconds)
             return self.ok([{"posMode": self.position_mode, "uid": "offline-account-1", "acctLv": "2", "perm": "read_only,trade"}])
         if path == '/api/v5/account/trade-fee':
             if (self.reduction_fee_error or request.query.get('instType') != 'SWAP'
@@ -643,6 +647,10 @@ class Exchange:
             delay = float(data['account_mutation_delay_seconds'])
             assert 0 <= delay <= 40
             self.account_mutation_delay_seconds = delay
+        if 'account_read_delay_seconds' in data:
+            delay = float(data['account_read_delay_seconds'])
+            assert 0 <= delay <= 40
+            self.account_read_delay_seconds = delay
         if 'cancel_pending_visibility_reads' in data:
             count = data['cancel_pending_visibility_reads']
             if type(count) is not int or not 0 <= count <= 5:

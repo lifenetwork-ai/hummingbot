@@ -187,6 +187,7 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
 
 class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
     STARTUP_OPERATION_TIMEOUT = 30
+    manages_account_settings = True
 
     def __init__(self, config: LifeMMConfig, *args, **kwargs):
         if config.inventory_reduction.mode == 'close_first' and (not config.runtime_config_managed or not config.mm_session_id):

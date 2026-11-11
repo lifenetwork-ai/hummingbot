@@ -405,7 +405,18 @@ class AutomaticOrderRecovery:
             model = OrderExecutorConfig if raw.get('type') == 'order_executor' else PositionExecutorConfig
             config = model.model_validate(raw)
             orchestrator = core.strategy.executor_orchestrator
-            if (not orchestrator._mm_contains(config.controller_id, config.connector_name, config.trading_pair)
+            # Position durability is also required when optional drawdown
+            # limits are disabled. In that case require the actual controller's
+            # managed session/market, rather than treating an absent risk
+            # policy as a financial conflict or accepting arbitrary journals.
+            controller = orchestrator.strategy.controllers.get(config.controller_id)
+            current = getattr(controller, 'config', None)
+            covered = (orchestrator._mm_contains(config.controller_id, config.connector_name, config.trading_pair)
+                       if orchestrator._mm_scope() else current is not None
+                       and getattr(current, 'mm_session_id', None) == config.mm_session_id
+                       and (getattr(current, 'connector_name', None), getattr(current, 'trading_pair', None))
+                       == (config.connector_name, config.trading_pair))
+            if (not covered
                     or core.markets_recorder.applied_position_executors([config.id])):
                 raise SubmissionBlocked('recovery_position_application_conflict')
             connector = self.owner.connectors[config.connector_name]

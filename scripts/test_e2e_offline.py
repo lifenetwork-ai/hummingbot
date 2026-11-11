@@ -202,7 +202,7 @@ class Harness:
 
     def start(self, revision, *, auto_migrate=True, runtime_role=False, expect_failure=False, additive_fixture=False,
               storage_backend="postgres", instrumented=False, trace_directory=None, incident_directory=None, availability=False,
-              instrumented_entrypoint='load_entrypoint.py', cpus=1, network_alias=None):
+              instrumented_entrypoint='load_entrypoint.py', cpus=1, network_alias=None, memory_mib=None):
         name = self.prefix + "-" + revision
         env = {**self.env, "K_REVISION": revision, "ENABLE_AUTO_MIGRATION": str(auto_migrate).lower(),
                "STORAGE_BACKEND": storage_backend}
@@ -228,7 +228,11 @@ class Harness:
             assert instrumented
             env['HBOT_LOAD_INCIDENT_DIRECTORY'] = '/incident-output'
             mounts += ['--mount', f'type=bind,source={incident_directory},target=/incident-output']
-        self.run_container(name, ["--platform", "linux/amd64", "--cpus", str(cpus), "--memory", "2g", "--read-only",
+        if memory_mib is not None:
+            assert memory_mib in (1024, 1536, 2048)
+        memory = '2g' if memory_mib is None else str(memory_mib) + 'm'
+        self.run_container(name, ["--platform", "linux/amd64", "--cpus", str(cpus), "--memory", memory,
+                                  *(['--memory-swap', memory] if memory_mib is not None else []), "--read-only",
                                   "--tmpfs", "/tmp:rw,nosuid,size=128m",
                                   *(['--network-alias', network_alias or 'bot'] if instrumented or network_alias else []), *mounts],
                            env=env, publish=True, command=(["python", "/test-assets/availability_service.py"] if availability else
@@ -2016,7 +2020,7 @@ def main():
                         positive_scenario(harness)
                     elif scenario in reduction_scenarios:
                         from scripts.mm_reduction_checks import scenario as reduction_scenario
-                        reduction_scenario(harness, scenario.rsplit('-', 1)[1])
+                        reduction_scenario(harness, scenario.rsplit('-', 1)[1], previous_image=previous_image)
                     elif scenario == "submission-uncertainty":
                         from scripts.mm_submission_uncertainty_checks import scenario as submission_uncertainty
                         submission_uncertainty(harness)

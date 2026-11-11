@@ -143,7 +143,9 @@ def test_repeated_not_found_does_not_retire_an_uncertain_native_order(managed_na
     assert transport.call.await_count == 1
 
 
-def test_crash_after_send_recovers_from_new_journal_without_lifetime_replay(managed_native):
+@pytest.mark.parametrize('scope', ['drawdown', 'managed', 'foreign_pair', 'foreign_session', 'missing_controller',
+                                   'foreign_drawdown'])
+def test_crash_after_send_recovers_from_new_journal_without_lifetime_replay(managed_native, scope):
     from hummingbot.core.bot_ownership import BotOwnership
     from hummingbot.core.order_submission_guard import install_guard
     from hummingbot.model.runtime_journal import RuntimeJournal
@@ -158,6 +160,18 @@ def test_crash_after_send_recovers_from_new_journal_without_lifetime_replay(mana
         successor.prepare(1, 'test.yml')
         successor.connectors = {'okx': exchange}
         strategy = orchestrator()
+        if scope not in ('drawdown', 'foreign_drawdown'):
+            strategy.strategy.config.mm_drawdown_scope = None
+            strategy.strategy.controllers['maker'] = SimpleNamespace(config=executor_info('auto').config.model_copy(
+                update={'mm_session_id': 'mm-auto', 'mm_generation': 0}))
+            if scope == 'foreign_pair':
+                strategy.strategy.controllers['maker'].config.trading_pair = 'ETH-USDT'
+            elif scope == 'foreign_session':
+                strategy.strategy.controllers['maker'].config.mm_session_id = 'another-session'
+            elif scope == 'missing_controller':
+                strategy.strategy.controllers.clear()
+        elif scope == 'foreign_drawdown':
+            strategy.strategy.config.mm_drawdown_scope['maker'].trading_pair = 'ETH-USDT'
         core = SimpleNamespace(markets_recorder=recorder, trade_fill_db=context.manager,
                                strategy=SimpleNamespace(executor_orchestrator=strategy))
         status = dict(clOrdId='auto-order', ordId='venue-auto', instId='BTC-USDT', side='buy', ordType='post_only',
@@ -167,6 +181,14 @@ def test_crash_after_send_recovers_from_new_journal_without_lifetime_replay(mana
         with patch.object(exchange, '_request_order_update', AsyncMock(return_value={'code': '0', 'data': [status]})), \
                 patch.object(exchange, '_request_order_fills', AsyncMock(return_value={'code': '0', 'data': [trade]})):
             context.loop.run_until_complete(successor.automatic_recovery.restore(core))
+            if scope not in ('drawdown', 'managed'):
+                from hummingbot.core.order_submission_guard import SubmissionBlocked
+                with pytest.raises(SubmissionBlocked, match='recovery_position_application_conflict'):
+                    context.loop.run_until_complete(successor.automatic_recovery.project(core))
+                assert recorder.get_all_positions() == []
+                with context.manager.get_new_session() as db:
+                    assert db.query(RuntimeJournal).filter_by(kind='fill', applied=False).count() == 1
+                return
             context.loop.run_until_complete(successor.automatic_recovery.project(core))
             context.loop.run_until_complete(successor.automatic_recovery.project(core))
         held = recorder.get_all_positions()
