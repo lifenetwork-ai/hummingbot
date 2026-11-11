@@ -34,7 +34,7 @@ for (const width of [390, 1280]) {
       await expect(page).toHaveURL('/')
       await expect(page.getByRole('heading', { name: 'A clean canvas for what comes next.' })).toBeVisible()
       await page.reload()
-      await page.getByRole('button', { name: 'Sign in with Google' }).click()
+      await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
       await expect(homeLink).toBeVisible()
       await expect(page.getByRole('button', { name: theme === 'dark' ? 'Use light theme' : 'Use dark theme' })).toBeVisible()
     })

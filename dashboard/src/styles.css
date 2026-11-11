@@ -51,4 +51,17 @@
       linear-gradient(to bottom, rgba(0, 118, 245, 0.045) 1px, transparent 1px);
     background-size: 48px 48px;
   }
+
+  @keyframes shimmer-slide {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(300%);
+    }
+  }
+
+  .animate-shimmer {
+    animation: shimmer-slide 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
 }

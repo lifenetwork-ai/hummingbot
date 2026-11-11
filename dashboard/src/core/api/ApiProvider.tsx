@@ -4,10 +4,13 @@ import { createApiClient, type ApiClientOptions } from './client'
 import { createAdminApi } from './admin'
 import { createDashboardQueryClient } from './queryClient'
 import { ApiContext } from './ApiContext'
+import { ApiSessionContext } from './ApiSessionContext'
 
 export type ApiSession = ApiClientOptions & {
   /** Public, non-secret ID; change on login/logout, principal or privilege changes. */
   cacheIdentity: string
+  /** Stable backend principal ID; needed to isolate non-secret receipt references. */
+  principalId?: string
 }
 
 function SessionProvider({ session, children }: PropsWithChildren<{ session?: ApiSession }>) {
@@ -20,12 +23,14 @@ function SessionProvider({ session, children }: PropsWithChildren<{ session?: Ap
     queryClient.clear()
   }, [queryClient])
   return <QueryClientProvider client={queryClient}>
-    <ApiContext.Provider value={api}>{children}</ApiContext.Provider>
+    <ApiSessionContext.Provider value={session ? { apiBaseUrl: session.baseUrl, principalId: session.principalId } : undefined}>
+      <ApiContext.Provider value={api}>{children}</ApiContext.Provider>
+    </ApiSessionContext.Provider>
   </QueryClientProvider>
 }
 
 /** A fresh cache and API instance per connection/auth session. No requests without consumers. */
 export function ApiProvider({ session, children }: PropsWithChildren<{ session?: ApiSession }>) {
-  const key = session ? JSON.stringify([session.baseUrl, session.cacheIdentity]) : 'disconnected'
+  const key = session ? JSON.stringify([session.baseUrl, session.principalId, session.cacheIdentity]) : 'disconnected'
   return <SessionProvider key={key} session={session}>{children}</SessionProvider>
 }

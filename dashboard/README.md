@@ -18,13 +18,14 @@ and the production build. For browser checks, run `pnpm exec playwright install 
 and `pnpm run test:e2e`. See [Testing and quality](docs/TESTING.md) for MSW,
 accessibility, snapshot bootstrapping and CI expectations.
 
-## AI coding agents and frontend skills
+## AI coding agents
 
-- [`AGENTS.md`](AGENTS.md): repository-wide non-negotiable boundaries for coding agents.
-- [`docs/SKILLS.md`](docs/SKILLS.md): **10 focused frontend skills** (feature delivery, UI components, page UX, tokens, routing, APIs, testing, accessibility, performance and debugging/review).
-- Canonical skills at `.agents/skills/` for **Codex and Cursor**. Optional `pnpm run skills:sync:claude` generates a `.claude/skills/` copy for **Claude Code**.
-- `pnpm run skills:check` validates skill metadata/local links without third-party dependencies.
-- `pnpm run skills:scaffold user-profile --dry-run` previews a small, non-destructive feature scaffold; omit `--dry-run` to generate.
+[`AGENTS.md`](AGENTS.md) defines repository conventions and links to the architecture,
+API, design and testing guidance. Keep implementation details in those documents.
+
+`pnpm run feature:scaffold user-profile --dry-run` previews a small feature scaffold;
+omit `--dry-run` to generate it. The generator refuses to overwrite existing files
+and does not register routes or create API integrations.
 
 ## Stack
 
@@ -45,9 +46,13 @@ src/
   theme/         source tokens, generated CSS, light/dark provider
 scripts/         theme generator
 e2e/             interaction, accessibility and visual regression tests
-docs/            architecture, design system, development, testing, agent skills
-.agents/skills/  task-specific SKILL.md workflows for Codex and Cursor
+docs/            architecture, design system, development, testing
 ```
+
+Protected operational routes use the authenticated workspace composition documented in
+[Architecture](docs/ARCHITECTURE.md): `AuthenticatedWorkspace` → `OperationalProvider` →
+`OperationalShell` → `ContextBar` and the protected route outlet. Route pages own their
+page content, not the workspace provider or persistent context bar.
 
 ## What stays
 
@@ -63,7 +68,7 @@ docs/            architecture, design system, development, testing, agent skills
 - Wagmi, viem, RainbowKit, wallet/network/transaction UI and on-chain configuration.
 - The original `.git`, `.env*` values, builds, old screenshots, product-specific tests.
 
-`/login` provides Google sign-in. `/` is the starter home and `/ui-kit` previews design components; only `/` requires a verified session. `/ui-kit` is public and works without signing in. Copy `.env.example` to `.env.local` and configure the public Google client ID and admin API URL. See [API integration](docs/API.md#dashboard-sign-in) for setup and session behavior.
+`/login` provides Google sign-in. `/` is the starter home and `/ui-kit` previews design components; only `/` requires a verified session. `/ui-kit` is public and works without signing in. Copy `.env.example` to `.env.local` and configure the public Google client ID and admin API URL. See [API integration](docs/API.md#dashboard-sign-in) for setup and session behavior. A valid stored Google token is reverified through `/access/me` on reload or a new tab; logout and expiry clear it without extending its lifetime.
 
 ## Quality gates
 
@@ -80,7 +85,13 @@ needs a separate accessibility review.
 
 See [ARCHITECTURE](docs/ARCHITECTURE.md), [DESIGN_SYSTEM](docs/DESIGN_SYSTEM.md),
 [DEVELOPMENT](docs/DEVELOPMENT.md), [TESTING](docs/TESTING.md) and
-[UX_MOTION](docs/UX_MOTION.md) and [SKILLS](docs/SKILLS.md).
+[UX_MOTION](docs/UX_MOTION.md).
+
+## Delivery checklist
+
+[Dashboard TODO](TODO.md) tracks the operations scope, priorities, current foundations and acceptance work against the product requirements and FE integration contract.
+
+[UI and logic coordination](docs/COORDINATION.md) defines the two implementation responsibilities, interface handoffs, file ownership, backlog mapping and integrated acceptance criteria.
 
 ## Backend contract
 

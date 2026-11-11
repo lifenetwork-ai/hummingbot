@@ -4,6 +4,10 @@ import type { ReadInput, ReadOperation, WriteInput, WriteOperation } from './adm
 import { useAdminApi } from './ApiContext'
 import { adminQueryOptions, receiptFinished } from './queries'
 import { invalidateAfterMutation, invalidateAfterReceipt } from './invalidation'
+import { useApiSessionScope } from './ApiSessionContext'
+import { acceptedReceiptReference, rememberAcceptedReceipt, type ReceiptReference, type ReceiptScope } from './receipt-tracking'
+import { trustedBotId } from './trustedBotId'
+import { projectReceiptOutcome, type ReceiptOutcome } from './receipt-inspection'
 
 export function useAdminQuery<K extends ReadOperation>(operation: K, input: ReadInput<K> | undefined, options: { enabled?: boolean; poll?: boolean } = {}) {
   const api = useAdminApi()
@@ -24,16 +28,20 @@ export function useAdminQuery<K extends ReadOperation>(operation: K, input: Read
 export function useAdminMutation<K extends WriteOperation>(operation: K) {
   const api = useAdminApi()
   const client = useQueryClient()
-  const requests = useRef(new Map<number, WriteInput<K>>())
+  const session = useApiSessionScope()
+  const requests = useRef(new Map<number, { input: WriteInput<K>; scope: ReceiptScope | undefined }>())
   const sequence = useRef(0)
   const busy = useRef(false)
   const mutation = useMutation({
     mutationKey: ['admin', operation],
     mutationFn: async (ticket: number) => {
-      const input = requests.current.get(ticket)
+      const request = requests.current.get(ticket)
       requests.current.delete(ticket)
-      if (!input) throw new Error('Mutation request is no longer available')
-      return api.mutate(operation, input)
+      if (!request) throw new Error('Mutation request is no longer available')
+      const response = await api.mutate(operation, request.input)
+      const receipt = acceptedReceiptReference(operation, response)
+      if (receipt) rememberAcceptedReceipt(request.scope, receipt)
+      return response
     },
     retry: false, gcTime: 0, networkMode: 'always',
     onSuccess: () => { void invalidateAfterMutation(client, operation) },
@@ -42,7 +50,11 @@ export function useAdminMutation<K extends WriteOperation>(operation: K) {
     if (busy.current) throw new Error('A request is already pending; follow its receipt before submitting again')
     busy.current = true
     const ticket = ++sequence.current
-    requests.current.set(ticket, input)
+    const botId = trustedBotId(client)
+    const scope = session?.apiBaseUrl && session.principalId && botId
+      ? { apiBaseUrl: session.apiBaseUrl, principalId: session.principalId, botId }
+      : undefined
+    requests.current.set(ticket, { input, scope })
     try { return await mutation.mutateAsync(ticket) }
     finally { requests.current.delete(ticket); busy.current = false }
   }
@@ -59,4 +71,44 @@ export function useCredentialReceipt(id: string | undefined) {
 }
 export function useReconciliationReceipt(id: string | undefined) {
   return useAdminQuery('getReconciliationById', id ? { path: { check_id: id } } : undefined)
+}
+export function useRecoveryReceipt(id: string | undefined) {
+  return useAdminQuery('getRecoveryOperation', id ? { path: { operation_id: id } } : undefined)
+}
+
+export type TrackedReceiptInspection = {
+  reference: ReceiptReference
+  phase: 'idle' | 'loading' | 'ready' | 'error'
+  status?: string
+  detail?: string
+  error: Error | null
+  outcome?: ReceiptOutcome
+}
+
+export function useReceiptInspection(reference: ReceiptReference | null | undefined): TrackedReceiptInspection | null {
+  const isCommand = reference?.kind === 'command'
+  const isCredential = reference?.kind === 'credential'
+  const isReconciliation = reference?.kind === 'reconciliation'
+  const isRecovery = reference?.kind === 'recovery'
+
+  const command = useCommandReceipt(isCommand ? reference.id : undefined)
+  const credential = useCredentialReceipt(isCredential ? reference.id : undefined)
+  const reconciliation = useReconciliationReceipt(isReconciliation ? reference.id : undefined)
+  const recovery = useRecoveryReceipt(isRecovery ? reference.id : undefined)
+
+  if (!reference) return null
+
+  const active = isCommand ? command : isCredential ? credential : isReconciliation ? reconciliation : recovery
+  const data = active.data as { status?: string; detail?: string; error?: string } | undefined
+  const status = typeof data?.status === 'string' ? data.status : undefined
+  const detail = typeof data?.detail === 'string' ? data.detail : typeof data?.error === 'string' ? data.error : undefined
+
+  return {
+    reference,
+    phase: active.isLoading ? 'loading' : active.isError ? 'error' : active.data !== undefined ? 'ready' : 'idle',
+    status,
+    detail,
+    error: active.error,
+    outcome: active.data ? projectReceiptOutcome(reference, active.data) : undefined,
+  }
 }

@@ -3,6 +3,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useAuth } from '../core/auth/auth-context'
 import { LoginCard } from '../features/auth/LoginCard'
 import { MotionPage } from '../shared/motion/MotionPage'
+import { SessionRestoring } from '../features/auth/SessionRestoring'
 
 export function LoginPage() {
   const auth = useAuth()
@@ -16,6 +17,7 @@ export function LoginPage() {
   }, [auth.status, navigate, redirect])
 
   if (auth.status === 'authenticated') return null
+  if (auth.status === 'restoring') return <SessionRestoring />
 
   return (
     <MotionPage>

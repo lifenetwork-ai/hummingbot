@@ -71,6 +71,9 @@ describe('AppShell', () => {
     )
     expect(screen.getByText('operator@example.test')).toBeInTheDocument()
     expect(screen.getByText('Administrator')).toBeInTheDocument()
+
+    const menuTrigger = screen.getByRole('button', { name: /Tài khoản operator@example\.test/i })
+    fireEvent.click(menuTrigger)
     const signOutBtn = screen.getByRole('button', { name: 'Sign out' })
     expect(signOutBtn).toBeInTheDocument()
 

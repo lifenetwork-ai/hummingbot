@@ -14,7 +14,7 @@ function wrapper({ children }: PropsWithChildren) { return <AuthProvider>{childr
 afterEach(() => vi.useRealTimers())
 
 describe('AuthProvider', () => {
-  it('authenticates, exposes a session token only in memory, and logs out', async () => {
+  it('authenticates, exposes the current token through the API session, and logs out', async () => {
     const calls: { path: string; authorization: string | null; credentials: RequestCredentials | undefined }[] = []
     server.use(
       http.post(`${base}/access/login`, ({ request }) => { calls.push({ path: new URL(request.url).pathname, authorization: request.headers.get('authorization'), credentials: request.credentials }); return HttpResponse.json(identity) }),
@@ -155,6 +155,55 @@ describe('AuthProvider', () => {
     expect(result.current.status).toBe('anonymous')
   })
 
+  it('fails closed when permission refresh cannot verify the current identity', async () => {
+    let identityCalls = 0
+    server.use(
+      http.post(`${base}/access/login`, () => HttpResponse.json(identity)),
+      http.get(`${base}/access/me`, () => {
+        identityCalls += 1
+        return identityCalls === 1 ? HttpResponse.json(identity) : HttpResponse.json({ error: 'identity_unavailable' }, { status: 503 })
+      }),
+      http.get(`${base}/private`, () => HttpResponse.json({ error: 'forbidden' }, { status: 403 })),
+    )
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await act(async () => { await result.current.login('token') })
+    const session = result.current.apiSession!
+    await act(async () => { await session.fetch!(`${base}/private`) })
+    expect(result.current.status).toBe('anonymous')
+    expect(result.current.identity).toBeNull()
+    expect(result.current.apiSession).toBeUndefined()
+    expect(result.current.error).toContain('identity_unavailable')
+  })
+
+  it('coalesces concurrent 403 identity refreshes and ignores stale refresh failure after re-login', async () => {
+    let releaseRefresh!: () => void
+    let identityCalls = 0
+    server.use(
+      http.post(`${base}/access/login`, () => HttpResponse.json(identity)),
+      http.get(`${base}/access/me`, async ({ request }) => {
+        identityCalls += 1
+        if (request.headers.get('authorization') === 'Bearer old-token' && identityCalls > 1) {
+          await new Promise<void>((resolve) => { releaseRefresh = resolve })
+          return HttpResponse.json({ error: 'identity_unavailable' }, { status: 503 })
+        }
+        return HttpResponse.json(identity)
+      }),
+      http.get(`${base}/private/:name`, () => HttpResponse.json({ error: 'forbidden' }, { status: 403 })),
+    )
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await act(async () => { await result.current.login('old-token') })
+    const oldSession = result.current.apiSession!
+    let pending!: Promise<Response[]>
+    act(() => { pending = Promise.all([oldSession.fetch!(`${base}/private/one`), oldSession.fetch!(`${base}/private/two`)]) })
+    await waitFor(() => expect(releaseRefresh).toBeTypeOf('function'))
+    expect(identityCalls).toBe(2)
+    act(() => result.current.logout())
+    await act(async () => { await result.current.login('new-token') })
+    await act(async () => { releaseRefresh(); await pending })
+    expect(result.current.status).toBe('authenticated')
+    expect(result.current.apiSession?.getToken?.()).toBe('new-token')
+  })
+
   it('expires an authenticated session at the JWT exp time', async () => {
     vi.useFakeTimers()
     const future = Math.floor((Date.now() + 2_000) / 1000)
@@ -168,5 +217,7 @@ describe('AuthProvider', () => {
     expect(result.current.status).toBe('authenticated')
     await act(async () => { vi.advanceTimersByTime(2_001) })
     expect(result.current.status).toBe('anonymous')
+    expect(result.current.identity).toBeNull()
+    expect(result.current.apiSession).toBeUndefined()
   })
 })

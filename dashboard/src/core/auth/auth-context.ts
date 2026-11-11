@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react'
 import type { ApiSession } from '../api/ApiProvider'
 import type { ResponseBody } from '../api/types'
 
-export type AuthStatus = 'anonymous' | 'authenticating' | 'authenticated'
+export type AuthStatus = 'anonymous' | 'restoring' | 'authenticating' | 'authenticated'
 export type AuthContextValue = {
   status: AuthStatus
   identity: ResponseBody<'getAdminIdentity'> | null

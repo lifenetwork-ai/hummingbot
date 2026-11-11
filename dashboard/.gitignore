@@ -11,6 +11,3 @@ playwright-report/
 
 # Local browser artifacts and temporary visual snapshot diffs
 .vitest/
-
-# Opt-in generated copy of canonical Agent Skills for Claude Code
-.claude/skills/

@@ -16,7 +16,7 @@ export function loadGoogleIdentity(): Promise<GoogleIdentity> {
       window.clearTimeout(timeout)
       script.remove()
       loading = undefined
-      reject(new Error('Google sign-in could not load'))
+      reject(new Error('Không thể tải đăng nhập Google'))
     }
     const timeout = window.setTimeout(fail, 15_000)
     script.src = 'https://accounts.google.com/gsi/client'
