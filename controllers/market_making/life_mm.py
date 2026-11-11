@@ -6,6 +6,7 @@ from copy import deepcopy
 from decimal import ROUND_DOWN, Decimal, localcontext
 from typing import Dict, List, Literal, Optional
 
+from async_timeout import timeout
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 from controllers.market_making import pmm_simple
@@ -185,6 +186,8 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
 
 
 class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
+    STARTUP_OPERATION_TIMEOUT = 30
+
     def __init__(self, config: LifeMMConfig, *args, **kwargs):
         if config.inventory_reduction.mode == 'close_first' and (not config.runtime_config_managed or not config.mm_session_id):
             raise ValueError('Close-first requires a managed PostgreSQL MM session')
@@ -989,14 +992,28 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
             pass
         return None
 
+    async def _startup_once(self, operation):
+        """One bounded startup await; account mutations must never be retried.
+
+        Use the same task so cancellation cannot strand a successfully acquired
+        lock in an unobserved child task. Completion is actual progress before
+        the next startup stage; the ordinary control-loop deadline is unchanged.
+        """
+        self._control_progress_at = time.monotonic()
+        self._control_wait_until = self._control_progress_at + self.STARTUP_OPERATION_TIMEOUT + 1
+        try:
+            async with timeout(self.STARTUP_OPERATION_TIMEOUT):
+                return await operation()
+        finally:
+            self._control_progress_at = time.monotonic()
+            self._control_wait_until = None
+
     async def _startup_read(self, operation):
         """Retry only the supplied read; never replay an enclosing account mutation."""
         attempt, first = 0, time.time()
         while True:
-            self._control_progress_at = time.monotonic()
-            self._control_wait_until = time.monotonic() + 31
             try:
-                result = await asyncio.wait_for(operation(), timeout=30)
+                result = await self._startup_once(operation)
             except Exception as error:
                 if not transient_read(error):
                     self._startup_retry = None
@@ -1014,12 +1031,15 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 self._startup_retry = None
                 return result
             finally:
+                self._control_progress_at = time.monotonic()
                 self._control_wait_until = None
 
     async def on_start(self):
         if self.config.connector_name == "okx_perpetual":
             connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
-            async with connector._set_position_mode_lock:
+            self._startup_stage = 'position_mode_lock'
+            await self._startup_once(connector._set_position_mode_lock.acquire)
+            try:
                 self._startup_stage = "position_mode_read"
                 current_mode = await self._startup_read(connector._fetch_account_position_mode)
                 if current_mode is None:
@@ -1028,16 +1048,19 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                     if connector.account_positions or connector.in_flight_orders:
                         raise ValueError("Cannot change account mode with existing orders or positions")
                     self._startup_stage = "position_mode_change"
-                    success, reason = await connector._trading_pair_position_mode_set(
-                        PositionMode.HEDGE, self.config.trading_pair)
+                    success, reason = await self._startup_once(lambda: connector._trading_pair_position_mode_set(
+                        PositionMode.HEDGE, self.config.trading_pair))
                     if not success:
                         raise ValueError(f"Perpetual account mode rejected: {reason}")
                     self._startup_stage = "position_mode_confirmation"
-                    if await connector._fetch_account_position_mode() != PositionMode.HEDGE:
+                    if await self._startup_read(connector._fetch_account_position_mode) != PositionMode.HEDGE:
                         raise ValueError("Perpetual account mode was not confirmed")
                 connector._perpetual_trading.set_position_mode(PositionMode.HEDGE)
+            finally:
+                connector._set_position_mode_lock.release()
             self._startup_stage = "leverage_change"
-            success, reason = await connector._set_trading_pair_leverage(self.config.trading_pair, self.config.leverage)
+            success, reason = await self._startup_once(lambda: connector._set_trading_pair_leverage(
+                self.config.trading_pair, self.config.leverage))
             if not success:
                 raise ValueError(f"Perpetual leverage rejected: {reason}")
             connector._perpetual_trading.set_leverage(self.config.trading_pair, self.config.leverage)

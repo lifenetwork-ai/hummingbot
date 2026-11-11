@@ -112,6 +112,7 @@ class Exchange:
         self.cancel_before_ack = False
         self.cancel_before_ack_remaining = None
         self.cancel_delay_seconds = 0
+        self.account_mutation_delay_seconds = 0
         self.cancel_pending_visibility = {}
         self.cancel_pending_visibility_served = 0
         self.cancel_pending_visibility_reads = 0
@@ -395,6 +396,9 @@ class Exchange:
             self.mutations.append({"path": path, "data": data})
             if "posMode" in data:
                 self.position_mode = data["posMode"]
+            if self.account_mutation_delay_seconds:
+                observed['injected_account_delay_s'] = self.account_mutation_delay_seconds
+                await asyncio.sleep(self.account_mutation_delay_seconds)
             return self.ok([data])
         if path == "/api/v5/account/balance":
             return web.json_response(self.fixtures["balances"])
@@ -635,6 +639,10 @@ class Exchange:
             delay = float(data['cancel_delay_seconds'])
             assert 0 <= delay <= 10
             self.cancel_delay_seconds = delay
+        if 'account_mutation_delay_seconds' in data:
+            delay = float(data['account_mutation_delay_seconds'])
+            assert 0 <= delay <= 40
+            self.account_mutation_delay_seconds = delay
         if 'cancel_pending_visibility_reads' in data:
             count = data['cancel_pending_visibility_reads']
             if type(count) is not int or not 0 <= count <= 5:

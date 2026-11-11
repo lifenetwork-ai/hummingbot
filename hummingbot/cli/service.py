@@ -325,7 +325,7 @@ class ServiceHost:
             task = getattr(controller, "_control_loop_task", None)
             if isinstance(task, asyncio.Task) and task.done():
                 stage = getattr(controller, "_startup_stage", None)
-                if stage in {"position_mode_read", "position_mode_change", "position_mode_confirmation",
+                if stage in {"position_mode_lock", "position_mode_read", "position_mode_change", "position_mode_confirmation",
                              "leverage_change", "reference_metadata", "reference_books"}:
                     return f"controller_{stage}_failed"
                 return "controller_task_stopped"
@@ -355,10 +355,12 @@ class ServiceHost:
         now = time.monotonic()
         for identity, controller in getattr(self.hb.trading_core.strategy, "controllers", {}).items():
             progress = getattr(controller, "_control_progress_at", None)
-            if isinstance(progress, (float, int)) and now - progress > max(5, 3 * controller.update_interval):
+            if isinstance(progress, (float, int)) and now > max(
+                    progress + max(5, 3 * controller.update_interval), controller._control_wait_until or 0):
                 self.log.warning(
-                    "Controller progress overdue id=%s stage=%s age_s=%.3f; confirming after ready callbacks",
-                    identity, getattr(controller, "_control_stage", "unknown"), now - progress,
+                    "Controller progress overdue id=%s stage=%s startup_stage=%s age_s=%.3f; confirming after ready callbacks",
+                    identity, getattr(controller, "_control_stage", "unknown"),
+                    getattr(controller, '_startup_stage', 'unknown'), now - progress,
                     extra={"event": "controller_stall_confirmation", "reason_code": problem, "scope": "runtime"})
         # After a delayed event loop the observer can run before an expired
         # timer wakes the controller. A timer checkpoint follows already-due

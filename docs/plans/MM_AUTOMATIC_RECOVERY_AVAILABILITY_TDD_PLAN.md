@@ -201,3 +201,45 @@ installation before compatible rolling takeover; it is not an online migration
 while an older image owns trading.
 
 Connected rollout evidence: [Cloud Run schema cutover](../../reports/platform/cloudrun-auto-recovery-migration-20261111.md).
+
+
+## 2026-11-11: bounded controller startup waits
+
+At 16:40:51 ICT revision 106 latched `controller_task_stalled` during Random
+Perpetual startup (`stage=startup`, age 5.324s). This precedes revision 107's
+16:45 deployment of `a67c723f`; the continuous session had `expires_at=null`.
+Revision107 correctly retained that HALT. At 17:11 the service was still halted;
+no recovery, reset, financial change or Cloud deployment was performed here.
+
+The old log cannot identify the particular startup await. Code review found
+unbudgeted waits for the position-mode lock, mode write/confirmation and leverage
+write, plus a stale progress timestamp after a completed slow read. TDD reproduces
+these watchdog gaps without admitting any quotes while setup is incomplete.
+
+- [x] Red: five controller/watchdog regressions fail on the previous source.
+- [x] Green: bound each startup operation to 30s, declare that wait to the existing
+  watchdog, refresh progress on completion and retain same-task cancellation.
+  Mutation HTTP deadlines remain 5s; mutations are never automatically retried.
+  Only transient reads, including mode confirmation, may retry.
+- [x] Preserve real timeout/stall HALTs, lock ownership on cancellation and
+  no order admission before account setup succeeds. Name the actual startup
+  stage in future stall-confirmation logs.
+- [x] Physical HTTP Red/Green: delay each of two serialized native account
+  writes by 4s (each below its 5s HTTP deadline). The immutable revision 106 image
+  HALTs at 5.353s; a two-file overlay on that same image restores both quote
+  sides after an observed 9.309s account-setup wait, advances Random without
+  replacing the owner/session and stops cleanly.
+  This proves a matching code defect, not the unique historical slow RPC.
+- [x] Continuous handoff and availability HTTP regression scenarios pass: same
+  session/control after overlapping revision takeover, exact four-fill projection,
+  optional observation/feed recovery without restart, and a genuine failed
+  controller still HALTs. Native regression: 1,568 tests + 13 subtests; CLI: 1,370;
+  logging: 22; focused stall diagnostic: 6. Pre-commit passes.
+- [ ] Deploy the fix, then perform verified HALT recovery and observe actual Demo
+  trading. Offline success does not close this connected gate or the quote SLO.
+
+Private reproducible evidence: `build/cloudrun-startup-wait-fix-20261111/`;
+physical Red `build/e2e-offline/20261111-170856-123d87/`, Green
+`build/e2e-offline/20261111-171533-a4c1d1`. Earlier 6.5s-response experiments
+correctly failed with `controller_leverage_change_failed`: they exceeded the real
+HTTP mutation deadline and are not watchdog Red/Green evidence.
