@@ -92,6 +92,42 @@ async def test_wait_diagnosis_is_identical_in_status_and_liquidity_and_reads_do_
 
 
 @pytest.mark.asyncio
+async def test_liquidity_api_serializes_live_order_rows_and_pending_counts_and_keeps_legacy_unknown():
+    catalogue, row = await quote_state()
+    live = observation(at=1006)
+    live['pending_orders']['BUY']['submission_pending'] = 1
+    live['pending_orders']['SELL']['cancel_confirmation'] = 2
+    session = row['mm_session']
+    row['status']['mm_liquidity'] = LiquidityObserver().observe(
+        dict(session_id=session['id'], generation=session['generation'], profile_id=session['profile_id'],
+             started_at=session['started_at'], status='running'), {'spot': live},
+        now=1006, monotonic_now=1006, owner_generation=1, warning_seconds=5)
+
+    async with api(catalogue, row) as http:
+        body = await (await http.get(ADMIN_PREFIX + '/statistics/liquidity')).json()
+        current = body['markets']['spot']
+        assert current['working_orders'] == [
+            {'side': 'BUY', 'price': '0.099', 'remaining_quantity': '8', 'remaining_notional': '0.792',
+             'order_type': 'LIMIT_MAKER', 'state': 'PARTIALLY_FILLED'},
+            {'side': 'SELL', 'price': '0.101', 'remaining_quantity': '20', 'remaining_notional': '2.020',
+             'order_type': 'LIMIT_MAKER', 'state': 'OPEN'},
+        ]
+        assert current['quote_activity']['sides']['BUY']['pending_create_count'] == 1
+        assert current['quote_activity']['sides']['SELL']['pending_cancel_count'] == 2
+
+        persisted = row['status']['mm_liquidity']['markets']['spot']
+        persisted.pop('working_orders')
+        for side in persisted['quote_activity']['sides'].values():
+            side.pop('pending_create_count')
+            side.pop('pending_cancel_count')
+        legacy = await (await http.get(ADMIN_PREFIX + '/statistics/liquidity')).json()
+        legacy_market = legacy['markets']['spot']
+        assert legacy_market['working_orders'] is None
+        assert legacy_market['quote_activity']['sides']['BUY']['pending_create_count'] is None
+        assert legacy_market['quote_activity']['sides']['SELL']['pending_cancel_count'] is None
+
+
+@pytest.mark.asyncio
 async def test_legacy_stored_activity_without_diagnosis_remains_readable():
     catalogue, row = await quote_state()
     for side in row['status']['mm_liquidity']['markets']['spot']['quote_activity']['sides'].values():

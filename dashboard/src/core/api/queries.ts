@@ -9,7 +9,8 @@ export const adminKeys = {
 }
 
 const cadence: Partial<Record<ReadOperation, number>> = {
-  getRuntimeStatus: 2000, getLiquidity: 2000, getBalances: 5000, getPositions: 5000,
+  getRuntimeStatus: 15_000, getLiquidity: 2000, getBalances: 5000, getPositions: 5000,
+  getExchangeCredentialStatus: 5000,
   listOrders: 10_000, listFills: 10_000, getSessionEvents: 10_000,
   getPerformance: 30_000, getDailyStatistics: 30_000,
 }

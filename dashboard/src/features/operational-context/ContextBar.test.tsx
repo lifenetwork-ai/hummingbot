@@ -1,10 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { staleBalances } from '../../test/mocks/adminFixtures'
 import { contextPrincipal, contextStatus } from '../../test/mocks/contextFixtures'
 import { deriveOperationalContext, type ContextSource, type OperationalContextInput } from './context'
-import { ContextBar } from './ContextBar'
+import { ContextBar, type ContextBarProps } from './ContextBar'
 import type { TrackedReceiptInspection } from '../../core/api/hooks'
 import type { ReceiptOutcome } from '../../core/api/receipt-inspection'
 
@@ -14,9 +14,12 @@ const input: OperationalContextInput = {
   status: ready(contextStatus),
   balances: ready(staleBalances),
 }
-function renderContext(overrides: Partial<OperationalContextInput> = {}) {
+function renderContext(
+  overrides: Partial<OperationalContextInput> = {},
+  barProps: Partial<ContextBarProps> = { defaultOpen: true }
+) {
   const context = deriveOperationalContext({ ...input, ...overrides })
-  return render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" />)
+  return render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" defaultOpen={true} {...barProps} />)
 }
 
 describe('ContextBar', () => {
@@ -28,7 +31,7 @@ describe('ContextBar', () => {
     expect(screen.getByText(/fixture-account/)).toBeInTheDocument()
     expect(screen.getByText('okx · spot · LIFE-USDT')).toBeInTheDocument()
     expect(screen.getByText('Operator · google:operator')).toBeInTheDocument()
-    expect(screen.getByText('start: bị chặn')).toBeInTheDocument()
+    expect(screen.getByText('start: blocked')).toBeInTheDocument()
     expect(screen.getByText('Session is active.')).toBeInTheDocument()
   })
 
@@ -37,9 +40,9 @@ describe('ContextBar', () => {
       status: { phase: 'error', error: new Error('offline'), refreshing: false },
       balances: { phase: 'error', error: new Error('offline'), refreshing: false },
     })
-    expect(screen.getByText('Không đọc được trạng thái')).toBeInTheDocument()
-    expect(screen.getByText('Không đọc được trạng thái tài khoản')).toBeInTheDocument()
-    expect(screen.getByText('Chưa đọc được khả năng thao tác; hãy tải lại trạng thái.')).toBeInTheDocument()
+    expect(screen.getByText('Failed to read status')).toBeInTheDocument()
+    expect(screen.getByText('Failed to read account status')).toBeInTheDocument()
+    expect(screen.getByText('Cannot read operational capabilities; please reload status.')).toBeInTheDocument()
   })
 
   it('shows status source error while balances source is ready', () => {
@@ -47,9 +50,9 @@ describe('ContextBar', () => {
       status: { phase: 'error', error: new Error('status down'), refreshing: false },
       balances: ready(staleBalances),
     })
-    expect(screen.getByText('Không đọc được trạng thái')).toBeInTheDocument()
+    expect(screen.getByText('Failed to read status')).toBeInTheDocument()
     expect(screen.getByText(/fixture-account/)).toBeInTheDocument()
-    expect(screen.queryByText('Không đọc được trạng thái tài khoản')).not.toBeInTheDocument()
+    expect(screen.queryByText('Failed to read account status')).not.toBeInTheDocument()
   })
 
   it('shows balances source error while status source is ready', () => {
@@ -58,16 +61,16 @@ describe('ContextBar', () => {
       balances: { phase: 'error', error: new Error('balances down'), refreshing: false },
     })
     expect(screen.getByText('bot-a')).toBeInTheDocument()
-    expect(screen.getByText('Không đọc được trạng thái tài khoản')).toBeInTheDocument()
-    expect(screen.queryByText('Không đọc được trạng thái')).not.toBeInTheDocument()
-    expect(screen.getByText('stop: được phép')).toBeInTheDocument()
+    expect(screen.getByText('Failed to read account status')).toBeInTheDocument()
+    expect(screen.queryByText('Failed to read status')).not.toBeInTheDocument()
+    expect(screen.getByText('stop: allowed')).toBeInTheDocument()
   })
 
   it('retains last-known bot context with an error label and does not claim capabilities', () => {
     renderContext({ status: { phase: 'error', data: contextStatus, error: new Error('offline'), refreshing: false } })
     expect(screen.getByText('bot-a')).toBeInTheDocument()
-    expect(screen.getByText(/Dữ liệu được giữ lại từ lần đọc trước/)).toBeInTheDocument()
-    expect(screen.getByText('Chưa đọc được khả năng thao tác; hãy tải lại trạng thái.')).toBeInTheDocument()
+    expect(screen.getByText(/Retaining last-read data/)).toBeInTheDocument()
+    expect(screen.getByText('Cannot read operational capabilities; please reload status.')).toBeInTheDocument()
   })
 
   it('shows unknown environment and unverified account from the source model', () => {
@@ -76,8 +79,8 @@ describe('ContextBar', () => {
       status: ready({ ...contextStatus, process_identity: null, owner_identity: null }),
       balances: ready({ ...staleBalances, accounts: [{ ...account, account_id: null, identity_verified: false, environment: 'unknown', balances: [] }] }),
     })
-    expect(screen.getAllByText('Chưa xác định')).toHaveLength(2)
-    expect(screen.getByText('Chưa xác minh danh tính tài khoản')).toBeInTheDocument()
+    expect(screen.getAllByText('Unknown')).toHaveLength(2)
+    expect(screen.getByText('Unverified account identity')).toBeInTheDocument()
   })
 
   it('shows a mismatch only for a verified current account observation', () => {
@@ -86,7 +89,7 @@ describe('ContextBar', () => {
       balances: ready({ ...staleBalances, owner_available: true, accounts: [{ ...account, environment: 'live',
         balances: account.balances.map((balance) => ({ ...balance, stale: false, present_in_latest_snapshot: true })) }] }),
     })
-    expect(screen.getByRole('alert')).toHaveTextContent('các nguồn nhận diện môi trường từ backend không khớp')
+    expect(screen.getByRole('alert')).toHaveTextContent('backend environment identifiers do not agree')
   })
 
   it('shows every account without selecting a trading account', () => {
@@ -95,7 +98,7 @@ describe('ContextBar', () => {
       { ...account, environment: 'demo' },
       { ...account, account_id: 'second-account', environment: 'live' },
     ] }) })
-    expect(screen.getByText('Có 2 tài khoản được backend trả về')).toBeInTheDocument()
+    expect(screen.getByText('2 accounts returned by backend')).toBeInTheDocument()
     expect(screen.getByText('fixture-account · Demo')).toBeInTheDocument()
     expect(screen.getByText('second-account · Live')).toBeInTheDocument()
   })
@@ -104,7 +107,7 @@ describe('ContextBar', () => {
     renderContext({ status: ready({ ...contextStatus,
       owner_identity: { ...contextStatus.owner_identity!, trading_environment: 'live' } }),
     balances: ready({ ...staleBalances, accounts: [] }) })
-    expect(screen.getByRole('alert')).not.toHaveTextContent('tài khoản đã xác minh')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('verified account')
     expect(screen.getByRole('alert')).toHaveTextContent('Mismatch')
   })
 
@@ -116,7 +119,7 @@ describe('ContextBar', () => {
       }),
     })
     expect(screen.getByText('2026-11-10T12:00:00Z')).toBeInTheDocument()
-    expect(screen.getAllByText('Dữ liệu cũ').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Stale data').length).toBeGreaterThanOrEqual(1)
   })
 
   it('does not label a failed status refresh fresh', () => {
@@ -125,9 +128,9 @@ describe('ContextBar', () => {
       status: { phase: 'error', data: contextStatus, error: new Error('offline'), refreshing: false },
       balances: { phase: 'ready', data: staleBalances, error: null, refreshing: false },
     })
-    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" />)
-    expect(screen.queryByText('Mới', { exact: true })).not.toBeInTheDocument()
-    expect(screen.getAllByText('Dữ liệu cũ').length).toBeGreaterThanOrEqual(1)
+    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" defaultOpen={true} />)
+    expect(screen.queryByText('Recently updated', { exact: true })).not.toBeInTheDocument()
+    expect(screen.getAllByText('Stale data').length).toBeGreaterThanOrEqual(1)
   })
 
   it('discloses stale account observations even for a single account', () => {
@@ -136,9 +139,9 @@ describe('ContextBar', () => {
       status: { phase: 'ready', data: contextStatus, error: null, refreshing: false },
       balances: { phase: 'ready', data: staleBalances, error: null, refreshing: false },
     })
-    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" />)
+    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" defaultOpen={true} />)
     expect(context.accounts[0].observation).toBe('stale')
-    expect(screen.getByText('Dữ liệu cũ', { exact: true })).toBeInTheDocument()
+    expect(screen.getByText('Stale data', { exact: true })).toBeInTheDocument()
   })
 
   it('offers an interactive way to resume a retained operation', () => {
@@ -162,9 +165,9 @@ describe('ContextBar', () => {
       ...input,
       status: ready({ ...contextStatus, observation: null, owner_available: false }),
     })
-    const { rerender } = render(<ContextBar context={unknownCtx} apiBaseUrl="/api/v1/admin" />)
-    expect(screen.getByText('Chưa có mốc thời gian')).toBeInTheDocument()
-    expect(screen.getByText('Chưa xác định')).toBeInTheDocument()
+    const { rerender } = render(<ContextBar context={unknownCtx} apiBaseUrl="/api/v1/admin" defaultOpen={true} />)
+    expect(screen.getByText('No timestamp')).toBeInTheDocument()
+    expect(screen.getByText('Unknown')).toBeInTheDocument()
 
     const mismatchCtx = deriveOperationalContext({
       ...input,
@@ -173,8 +176,8 @@ describe('ContextBar', () => {
         observation: { observed_at: '2026-11-10T12:00:00Z', reason_code: null, stale: false, session_matches: false },
       }),
     })
-    rerender(<ContextBar context={mismatchCtx} apiBaseUrl="/api/v1/admin" />)
-    expect(screen.getByText('Phiên không khớp')).toBeInTheDocument()
+    rerender(<ContextBar context={mismatchCtx} apiBaseUrl="/api/v1/admin" defaultOpen={true} />)
+    expect(screen.getByText('Session mismatch')).toBeInTheDocument()
 
     const freshCtx = deriveOperationalContext({
       ...input,
@@ -183,8 +186,8 @@ describe('ContextBar', () => {
         observation: { observed_at: '2026-11-10T12:00:00Z', reason_code: null, stale: false, session_matches: true },
       }),
     })
-    rerender(<ContextBar context={freshCtx} apiBaseUrl="/api/v1/admin" />)
-    expect(screen.getByText('Mới')).toBeInTheDocument()
+    rerender(<ContextBar context={freshCtx} apiBaseUrl="/api/v1/admin" defaultOpen={true} />)
+    expect(screen.getByText('Recently updated')).toBeInTheDocument()
   })
 
   it('renders tracked operation references and allows keyboard selection and inspection', async () => {
@@ -195,13 +198,14 @@ describe('ContextBar', () => {
       <ContextBar
         context={context}
         apiBaseUrl="/api/v1/admin"
+        defaultOpen={true}
         trackedReceipts={[
           { kind: 'command', id: longId },
           { kind: 'recovery', id: 'rec-0987654321fedcba' },
         ]}
       />
     )
-    expect(screen.getByText(/Thao tác trước đó đang theo dõi/)).toBeInTheDocument()
+    expect(screen.getByText(/Tracked prior operations/)).toBeInTheDocument()
     const cmdBtn = screen.getByRole('button', { name: /command: cmd-12345678…/ })
     const recBtn = screen.getByRole('button', { name: /recovery: rec-09876543…/ })
     expect(cmdBtn).toBeInTheDocument()
@@ -210,13 +214,14 @@ describe('ContextBar', () => {
 
     await user.click(cmdBtn)
     expect(cmdBtn).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByLabelText('Chi tiết thao tác đang theo dõi')).toBeInTheDocument()
+    expect(screen.getByLabelText('Tracked operation details')).toBeInTheDocument()
     expect(screen.getByText(longId)).toBeInTheDocument()
 
     rerender(
       <ContextBar
         context={context}
         apiBaseUrl="/api/v1/admin"
+        defaultOpen={true}
         trackedReceipts={[
           { kind: 'command', id: longId },
           { kind: 'recovery', id: 'rec-0987654321fedcba' },
@@ -226,16 +231,16 @@ describe('ContextBar', () => {
           reference: { kind: 'command', id: longId },
           phase: 'ready',
           status: 'succeeded',
-          detail: 'Thao tác hoàn tất',
+          detail: 'Operation complete',
           error: null,
           outcome: { kind: 'command', action: 'stop', sessionId: 'session-1', error: null },
         }}
       />
     )
-    expect(screen.getByText('Tiến trình receipt: succeeded')).toBeInTheDocument()
-    expect(screen.getByText(/không xác nhận trạng thái lệnh hoặc vị thế hiện tại/)).toBeInTheDocument()
+    expect(screen.getByText('Receipt progress: succeeded')).toBeInTheDocument()
+    expect(screen.getByText(/does not confirm current order status or position/)).toBeInTheDocument()
 
-    const closeBtn = screen.getByRole('button', { name: 'Đóng' })
+    const closeBtn = screen.getByRole('button', { name: 'Close' })
     await user.click(closeBtn)
   })
 
@@ -243,52 +248,52 @@ describe('ContextBar', () => {
     const reference = { kind: outcome.kind, id: 'receipt-1' } as const
     const inspection: TrackedReceiptInspection = { reference, phase: 'ready', status, error: null, outcome }
     render(<ContextBar context={deriveOperationalContext(input)} apiBaseUrl="/api/v1/admin"
-      trackedReceipts={[reference]} selectedReceipt={reference} receiptInspection={inspection} />)
+      trackedReceipts={[reference]} selectedReceipt={reference} receiptInspection={inspection} defaultOpen={true} />)
   }
 
   it('keeps a succeeded reconciliation receipt distinct from mismatch outcome', () => {
     renderReceipt('succeeded', { kind: 'reconciliation', state: 'mismatch', reasons: ['missing order'] })
-    expect(screen.getByText('Tiến trình receipt: succeeded')).toBeInTheDocument()
-    expect(screen.getByText('Kết quả đối soát: Có chênh lệch')).toBeInTheDocument()
+    expect(screen.getByText('Receipt progress: succeeded')).toBeInTheDocument()
+    expect(screen.getByText('Reconciliation result: Mismatch')).toBeInTheDocument()
     expect(screen.getByText('missing order')).toBeInTheDocument()
   })
 
   it('shows a succeeded but blocked recovery as not recoverable', () => {
     renderReceipt('succeeded', { kind: 'recovery', action: 'recovery_check', stage: 'blocked', canRecover: false,
       blockers: [{ code: 'owner_unavailable', detail: 'Owner is offline.', next_action: 'wait' }] })
-    expect(screen.getByText('Tiến trình receipt: succeeded')).toBeInTheDocument()
-    expect(screen.getByText('Backend chưa xác nhận có thể phục hồi.')).toBeInTheDocument()
+    expect(screen.getByText('Receipt progress: succeeded')).toBeInTheDocument()
+    expect(screen.getByText('Backend has not confirmed recoverable.')).toBeInTheDocument()
     expect(screen.getByText('owner_unavailable')).toBeInTheDocument()
     expect(screen.getByText(/Owner is offline./)).toBeInTheDocument()
   })
 
   it('shows recovery success only when succeeded and stage is recovered', () => {
     renderReceipt('succeeded', { kind: 'recovery', action: 'recovery_reset', stage: 'recovered', canRecover: false, blockers: [] })
-    expect(screen.getByText('Đã phục hồi theo receipt.')).toBeInTheDocument()
+    expect(screen.getByText('Recovered per receipt.')).toBeInTheDocument()
   })
 
   it('keeps pending receipt progress separate from the final credential stage', () => {
     renderReceipt('applying', { kind: 'credential', action: 'credentials_disconnect', stage: 'canceling_orders',
       operatorActionRequired: false, reasonCode: null, error: null })
-    expect(screen.getByText('Tiến trình receipt: applying')).toBeInTheDocument()
-    expect(screen.getByText('Giai đoạn')).toBeInTheDocument()
+    expect(screen.getByText('Receipt progress: applying')).toBeInTheDocument()
+    expect(screen.getByText('Stage')).toBeInTheDocument()
     expect(screen.getByText('canceling_orders')).toBeInTheDocument()
-    expect(screen.getByText(/chưa xác nhận trạng thái kết nối hiện tại/)).toBeInTheDocument()
+    expect(screen.getByText(/does not yet confirm current connection state/)).toBeInTheDocument()
   })
 
   it('shows receipt read errors separately from operation outcome', () => {
     const reference = { kind: 'command', id: 'cmd-fail-read' } as const
     const inspection: TrackedReceiptInspection = { reference, phase: 'error', error: new Error('receipt unavailable') }
     render(<ContextBar context={deriveOperationalContext(input)} apiBaseUrl="/api/v1/admin" trackedReceipts={[reference]}
-      selectedReceipt={reference} receiptInspection={inspection} />)
+      selectedReceipt={reference} receiptInspection={inspection} defaultOpen={true} />)
     expect(screen.getByText('receipt unavailable')).toBeInTheDocument()
-    expect(screen.queryByText(/Kết quả đối soát/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Reconciliation result/)).not.toBeInTheDocument()
   })
 
   it('renders technical diagnostics details disclosure', () => {
     const context = deriveOperationalContext(input)
-    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" />)
-    expect(screen.getByText('Chi tiết kỹ thuật & chẩn đoán')).toBeInTheDocument()
+    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" defaultOpen={true} />)
+    expect(screen.getByText('Technical & diagnostic details')).toBeInTheDocument()
     expect(screen.getByText('Control Version:')).toBeInTheDocument()
     expect(screen.getByText('2')).toBeInTheDocument()
   })
@@ -299,17 +304,238 @@ describe('ContextBar', () => {
       status: { ...input.status, refreshing: true },
       balances: { ...input.balances, refreshing: true },
     })
-    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" />)
+    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" defaultOpen={true} />)
 
-    // Global header indicator
-    expect(screen.getByText('Đang đồng bộ…')).toBeInTheDocument()
+    // Badge overwrites freshness label with syncing status
+    expect(screen.getByText('Syncing…')).toBeInTheDocument()
+    expect(screen.queryByText('Recently updated')).not.toBeInTheDocument()
 
     // Card overlays
-    expect(screen.getByText('Đang đồng bộ bot & số dư…')).toBeInTheDocument()
-    expect(screen.getByText('Đang cập nhật quyền…')).toBeInTheDocument()
+    expect(screen.getByText('Syncing bot & balances…')).toBeInTheDocument()
+    expect(screen.getByText('Updating permissions…')).toBeInTheDocument()
 
     // Screen reader live status
-    expect(screen.getByRole('status')).toHaveTextContent('Đang cập nhật trạng thái bot.')
-    expect(screen.getByRole('status')).toHaveTextContent('Đang cập nhật số dư tài khoản.')
+    expect(screen.getByRole('status')).toHaveTextContent('Updating bot status.')
+    expect(screen.getByRole('status')).toHaveTextContent('Updating account balances.')
+  })
+
+  // --- Specific Disclosure / Secondary Info Tests ---
+
+  it('is collapsed by default and presents summary indicator without detail cards', () => {
+    const context = deriveOperationalContext(input)
+    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" />)
+
+    // Header title and trigger button
+    expect(screen.getByText('Operational context')).toBeInTheDocument()
+    const trigger = screen.getByRole('button', { name: /Details/ })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).toHaveAttribute('aria-controls', 'operational-context-panel')
+
+    // Essential summary signals visible on the compact bar
+    expect(screen.getByText('bot-a')).toBeInTheDocument()
+    expect(screen.getByText(/fixture-account/)).toBeInTheDocument()
+    expect(screen.getByText('Demo')).toBeInTheDocument()
+    expect(screen.getByText('Recently updated')).toBeInTheDocument()
+
+    // Detailed cards remain hidden when collapsed
+    expect(screen.queryByText('Connection and bot')).not.toBeInTheDocument()
+    expect(screen.queryByText('Permissions and operational capabilities')).not.toBeInTheDocument()
+    expect(screen.queryByText('Technical & diagnostic details')).not.toBeInTheDocument()
+  })
+
+  it('opens and closes via mouse click on disclosure trigger', async () => {
+    const user = userEvent.setup()
+    const context = deriveOperationalContext(input)
+    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" />)
+
+    const trigger = screen.getByRole('button', { name: /Details/ })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+
+    // Open disclosure
+    await user.click(trigger)
+    expect(screen.getByRole('button', { name: /Collapse/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Connection and bot')).toBeInTheDocument()
+    expect(screen.getByText('Permissions and operational capabilities')).toBeInTheDocument()
+    expect(screen.getByText('Technical & diagnostic details')).toBeInTheDocument()
+
+    // Close disclosure
+    await user.click(screen.getByRole('button', { name: /Collapse/ }))
+    expect(screen.getByRole('button', { name: /Details/ })).toHaveAttribute('aria-expanded', 'false')
+    await waitFor(() => expect(screen.queryByText('Connection and bot')).not.toBeInTheDocument())
+  })
+
+  it('toggles open and close via Enter and Space keyboard interactions', async () => {
+    const user = userEvent.setup()
+    const context = deriveOperationalContext(input)
+    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" />)
+
+    const trigger = screen.getByRole('button', { name: /Details/ })
+    trigger.focus()
+    expect(trigger).toHaveFocus()
+
+    // Press Enter to open
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('button', { name: /Collapse/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Connection and bot')).toBeInTheDocument()
+
+    // Press Space to close
+    await user.keyboard(' ')
+    expect(screen.getByRole('button', { name: /Details/ })).toHaveAttribute('aria-expanded', 'false')
+    await waitFor(() => expect(screen.queryByText('Connection and bot')).not.toBeInTheDocument())
+  })
+
+  it('closes expanded drawer when Escape key is pressed', async () => {
+    const user = userEvent.setup()
+    const context = deriveOperationalContext(input)
+    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" />)
+
+    const trigger = screen.getByRole('button', { name: /Details/ })
+    await user.click(trigger)
+    expect(screen.getByRole('button', { name: /Collapse/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Connection and bot')).toBeInTheDocument()
+
+    // Press Escape
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('button', { name: /Details/ })).toHaveAttribute('aria-expanded', 'false')
+    await waitFor(() => expect(screen.queryByText('Connection and bot')).not.toBeInTheDocument())
+  })
+
+  it('prominently indicates stale state without auto-opening panel', () => {
+    const context = deriveOperationalContext({
+      ...input,
+      status: ready({
+        ...contextStatus,
+        observation: { observed_at: '2026-11-10T12:00:00Z', reason_code: null, stale: true, session_matches: true },
+      }),
+    })
+    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" />)
+
+    // Stale indicator on compact bar
+    expect(screen.getByText('Stale data')).toBeInTheDocument()
+
+    // Panel remains closed
+    const trigger = screen.getByRole('button', { name: /Details/ })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Connection and bot')).not.toBeInTheDocument()
+  })
+
+  it('prominently indicates error state without auto-opening panel', () => {
+    const context = deriveOperationalContext({
+      ...input,
+      status: { phase: 'error', data: contextStatus, error: new Error('connection lost'), refreshing: false },
+    })
+    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" />)
+
+    // Prominent error badge on compact bar
+    expect(screen.getByText('Cannot verify bot')).toBeInTheDocument()
+
+    // Panel remains closed
+    const trigger = screen.getByRole('button', { name: /Details/ })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Connection and bot')).not.toBeInTheDocument()
+  })
+
+  it('prominently indicates session mismatch and environment mismatch without auto-opening panel', () => {
+    const account = staleBalances.accounts[0]
+    const context = deriveOperationalContext({
+      ...input,
+      status: ready({
+        ...contextStatus,
+        observation: { observed_at: '2026-11-10T12:00:00Z', reason_code: null, stale: false, session_matches: false },
+      }),
+      balances: ready({
+        ...staleBalances,
+        owner_available: true,
+        accounts: [{
+          ...account,
+          environment: 'live',
+          balances: account.balances.map((b) => ({ ...b, stale: false, present_in_latest_snapshot: true })),
+        }],
+      }),
+    })
+    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" />)
+
+    // Warning indicators on compact bar
+    expect(screen.getByText('Session mismatch')).toBeInTheDocument()
+    expect(screen.getByText('Environment mismatch')).toBeInTheDocument()
+
+    // Panel remains closed
+    const trigger = screen.getByRole('button', { name: /Details/ })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Connection and bot')).not.toBeInTheDocument()
+  })
+
+  it('prominently indicates unknown observation state without auto-opening panel', () => {
+    const context = deriveOperationalContext({
+      ...input,
+      status: ready({ ...contextStatus, observation: null, owner_available: false }),
+    })
+    render(<ContextBar context={context} apiBaseUrl="/api/v1/admin" />)
+
+    // Unknown indicator
+    expect(screen.getByText('Unknown')).toBeInTheDocument()
+
+    // Panel remains closed
+    const trigger = screen.getByRole('button', { name: /Details/ })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Connection and bot')).not.toBeInTheDocument()
+  })
+
+  it('allows selecting receipt from collapsed bar and automatically opens panel for inspection', async () => {
+    const user = userEvent.setup()
+    const context = deriveOperationalContext(input)
+    const receiptRef = { kind: 'command' as const, id: 'cmd-retained-test-456' }
+    const onSelectReceipt = vi.fn()
+
+    render(
+      <ContextBar
+        context={context}
+        apiBaseUrl="/api/v1/admin"
+        trackedReceipts={[receiptRef]}
+        onSelectReceipt={onSelectReceipt}
+        receiptInspection={{
+          reference: receiptRef,
+          phase: 'ready',
+          status: 'accepted',
+          detail: 'Command accepted',
+          error: null,
+          outcome: { kind: 'command', action: 'start', sessionId: 'sess-abc', error: null },
+        }}
+      />
+    )
+
+    // Open the panel via Details button to inspect tracked receipts
+    const toggleBtn = screen.getByRole('button', { name: /Details/ })
+    await user.click(toggleBtn)
+
+    const receiptBtn = screen.getByRole('button', { name: /command: cmd-retained…/ })
+    expect(receiptBtn).toBeInTheDocument()
+
+    // Clicking receipt pill selects it and displays inspection
+    await user.click(receiptBtn)
+    expect(onSelectReceipt).toHaveBeenCalledWith(receiptRef)
+    expect(screen.getByRole('button', { name: /Collapse/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByLabelText('Tracked operation details')).toBeInTheDocument()
+    expect(screen.getByText('cmd-retained-test-456')).toBeInTheDocument()
+    expect(screen.getByText('Receipt progress: accepted')).toBeInTheDocument()
+  })
+
+  it('supports controlled open state via open and onOpenChange', async () => {
+    const user = userEvent.setup()
+    const context = deriveOperationalContext(input)
+    const onOpenChange = vi.fn()
+
+    const { rerender } = render(
+      <ContextBar context={context} apiBaseUrl="/api/v1/admin" open={false} onOpenChange={onOpenChange} />
+    )
+
+    const trigger = screen.getByRole('button', { name: /Details/ })
+    await user.click(trigger)
+    expect(onOpenChange).toHaveBeenCalledWith(true)
+
+    // Rerender as open
+    rerender(<ContextBar context={context} apiBaseUrl="/api/v1/admin" open={true} onOpenChange={onOpenChange} />)
+    expect(screen.getByRole('button', { name: /Collapse/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Connection and bot')).toBeInTheDocument()
   })
 })

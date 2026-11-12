@@ -328,6 +328,8 @@ class QuoteSideActivity(APIModel):
     state: Literal['working', 'blocked', 'pending', 'unavailable', 'idle']
     order_count: Optional[int] = Field(ge=0)
     proposed_count: Optional[int] = Field(ge=0, description='Last controller proposals, not exchange-accepted orders; null when outdated.')
+    pending_create_count: Optional[int] = Field(default=None, ge=0, description='Current order-tracker submissions awaiting exchange acknowledgement; null when unavailable or legacy.')
+    pending_cancel_count: Optional[int] = Field(default=None, ge=0, description='Current order-tracker cancellations awaiting exchange confirmation; null when unavailable or legacy.')
     reason_codes: List[str]
     detail: str
     diagnosis: Optional[QuoteWaitDiagnosis] = Field(default=None,
@@ -882,6 +884,15 @@ class LiquidityQuery(MarketQuery):
     session_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
 
 
+class LiquidityWorkingOrder(APIModel):
+    side: Literal["BUY", "SELL"]
+    price: Decimal
+    remaining_quantity: Decimal
+    remaining_notional: Decimal
+    order_type: str
+    state: Literal["OPEN", "PARTIALLY_FILLED"]
+
+
 class LiquidityMarket(APIModel):
     connector: Optional[str]
     pair: Optional[str]
@@ -903,6 +914,8 @@ class LiquidityMarket(APIModel):
     buy_order_count: Optional[int] = Field(default=None, ge=0)
     sell_order_count: Optional[int] = Field(default=None, ge=0)
     working_orders_with_fills: Optional[int] = Field(default=None, ge=0)
+    # Null means legacy/unavailable; [] is a fresh observation with no acknowledged own orders.
+    working_orders: Optional[List[LiquidityWorkingOrder]] = None
     quote_activity: Optional[QuoteActivity] = None
 
 

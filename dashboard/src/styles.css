@@ -12,6 +12,7 @@
 
   html {
     background: var(--app-background);
+    scrollbar-gutter: stable;
   }
 
   body {

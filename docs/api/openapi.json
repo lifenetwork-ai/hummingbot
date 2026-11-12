@@ -3591,6 +3591,56 @@
         "title": "LifeMMConfig",
         "type": "object"
       },
+      "LiquidityWorkingOrderOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "order_type": {
+            "title": "Order Type",
+            "type": "string"
+          },
+          "price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Price",
+            "type": "string"
+          },
+          "remaining_notional": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Remaining Notional",
+            "type": "string"
+          },
+          "remaining_quantity": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Remaining Quantity",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "OPEN",
+              "PARTIALLY_FILLED"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "side",
+          "price",
+          "remaining_quantity",
+          "remaining_notional",
+          "order_type",
+          "state"
+        ],
+        "title": "LiquidityWorkingOrder",
+        "type": "object"
+      },
       "LiquidityMarketOutput": {
         "additionalProperties": false,
         "properties": {
@@ -3779,6 +3829,22 @@
             ],
             "default": null,
             "title": "Working Orders With Fills"
+          },
+          "working_orders": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LiquidityWorkingOrderOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Current acknowledged own limit orders. Null means unavailable or legacy; an empty array means freshly observed with no acknowledged orders.",
+            "title": "Working Orders"
           }
         },
         "required": [
@@ -5728,6 +5794,34 @@
             ],
             "title": "State",
             "type": "string"
+          },
+          "pending_create_count": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Current order-tracker submissions awaiting exchange acknowledgement; null when unavailable or legacy.",
+            "title": "Pending Create Count"
+          },
+          "pending_cancel_count": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Current order-tracker cancellations awaiting exchange confirmation; null when unavailable or legacy.",
+            "title": "Pending Cancel Count"
           }
         },
         "required": [

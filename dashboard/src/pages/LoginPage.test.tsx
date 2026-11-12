@@ -29,7 +29,7 @@ describe('LoginPage', () => {
       login: vi.fn(), logout: vi.fn(), apiSession: undefined })
     render(<LoginPage />)
     expect(screen.queryByTestId('login-card')).not.toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Đang khôi phục phiên đăng nhập')
+    expect(screen.getByRole('status')).toHaveTextContent('Restoring session')
     expect(navigate).not.toHaveBeenCalled()
   })
 

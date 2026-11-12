@@ -17,6 +17,7 @@ def own_quotes(connector, pair, *, max_orders):
     if len(orders) > max_orders:
         raise ValueError("liquidity_order_limit")
     sides = {TradeType.BUY: [], TradeType.SELL: []}
+    working_orders = []
     pending = {side.name: dict(submission_pending=0, cancel_confirmation=0) for side in sides}
     with_fills = 0
     for order in orders:
@@ -32,7 +33,11 @@ def own_quotes(connector, pair, *, max_orders):
         if any(not value.is_finite() for value in (price, amount, filled)) or price <= 0 or not 0 <= filled <= amount:
             raise ValueError("liquidity_order_unavailable")
         if amount > filled:
-            sides[order.trade_type].append((price, amount - filled, order.client_order_id))
+            remaining = amount - filled
+            sides[order.trade_type].append((price, remaining, order.client_order_id))
+            working_orders.append(dict(side=order.trade_type.name, price=price, remaining_quantity=remaining,
+                                       remaining_notional=price * remaining, order_type=order.order_type.name,
+                                       state=order.current_state.name))
             with_fills += filled > 0
     bids, asks = sides[TradeType.BUY], sides[TradeType.SELL]
     bid = max((item[0] for item in bids), default=None)
@@ -44,6 +49,7 @@ def own_quotes(connector, pair, *, max_orders):
                 spread_bps=(ask - bid) / ((ask + bid) / 2) * 10000 if bid is not None and ask is not None else None,
                 two_sided=bool(bids and asks), bid_ids=[item[2] for item in bids], ask_ids=[item[2] for item in asks],
                 buy_order_count=len(bids), sell_order_count=len(asks), working_orders_with_fills=with_fills,
+                working_orders=working_orders,
                 pending_orders=pending)
 
 
@@ -96,7 +102,8 @@ class LiquidityObserver:
         for market in set(old).union(observations):
             observation = observations.get(market, dict(valid=False, eligible=False, reason_code='liquidity_observation_unavailable',
                                                         best_bid=None, best_ask=None, bid_notional=None, ask_notional=None, spread_bps=None, two_sided=False,
-                                                        connector=old.get(market, {}).get('connector'), pair=old.get(market, {}).get('pair')))
+                                                        connector=old.get(market, {}).get('connector'), pair=old.get(market, {}).get('pair'),
+                                                        working_orders=None, pending_orders=None))
             prior = old.get(market, {})
             totals = {key: float(prior.get(key, 0)) for key in ('observed_seconds', 'eligible_seconds', 'two_sided_seconds')}
             if any(not math.isfinite(value) or value < 0 or value > elapsed for value in totals.values()):
@@ -118,6 +125,7 @@ class LiquidityObserver:
             self._log_warning(market, activity, monotonic_now)
             current[market] = {**{key: value for key, value in observation.items()
                                   if key not in ('bid_ids', 'ask_ids', 'proposal', 'pending_orders', 'awaiting_executor_report')},
+                               'working_orders': observation.get('working_orders') if observation.get('valid') else None,
                                'quote_activity': activity,
                                **totals, 'elapsed_seconds': elapsed, 'unknown_seconds': max(0, elapsed - totals['observed_seconds']),
                                'two_sided_fraction_of_elapsed': totals['two_sided_seconds'] / elapsed if elapsed else None}
@@ -144,7 +152,8 @@ def capture_liquidity(host):
         market = 'spot' if name == 'okx' else 'perpetual'
         value = dict(valid=False, eligible=False, reason_code='liquidity_observation_unavailable',
                      best_bid=None, best_ask=None, bid_notional=None, ask_notional=None, spread_bps=None, two_sided=False,
-                     connector=name, pair=controller.config.trading_pair, bid_ids=[], ask_ids=[])
+                     connector=name, pair=controller.config.trading_pair, bid_ids=[], ask_ids=[], working_orders=None,
+                     pending_orders=None)
         value['proposal'] = getattr(controller, 'quote_diagnostics', None)
         event = getattr(controller, 'executors_update_event', None)
         value['awaiting_executor_report'] = not event.is_set() if isinstance(event, asyncio.Event) else None
@@ -197,7 +206,7 @@ def _liquidity_view(row, *, session_id=None, market='all'):
         value['two_sided_fraction_of_elapsed'] = value['two_sided_seconds'] / elapsed if elapsed else None
         if stale:
             value.update(valid=False, eligible=False, reason_code='owner_observation_unavailable', best_bid=None, best_ask=None,
-                         bid_notional=None, ask_notional=None, spread_bps=None, two_sided=False)
+                         bid_notional=None, ask_notional=None, spread_bps=None, two_sided=False, working_orders=None)
             activity = value.get('quote_activity') or {}
             value.update(buy_order_count=None, sell_order_count=None, working_orders_with_fills=None,
                          quote_activity=unavailable_activity(activity.get('warning_after_seconds', 120),

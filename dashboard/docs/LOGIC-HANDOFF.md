@@ -2,6 +2,10 @@
 
 ## Phạm vi và trạng thái
 
+Đợt hoàn thiện các tiêu chí PARTIAL được phân lane tại [COMPLETION-COORDINATION.md](COMPLETION-COORDINATION.md). [Prompt UI](UI-COMPLETION-PROMPT.md) giới hạn component/props và checkout snapshot riêng; page/provider do integrator nối sau khi nhận UI-only patch.
+
+Interface triển khai cho các đợt T-05–31 được tập hợp tại [Logic interfaces](LOGIC-INTERFACES.md); ma trận và bằng chứng kiểm tra tại [Logic verification](LOGIC-VERIFICATION.md). Các module này không tự mount route hoặc View. Người tích hợp giữ các gate UI/browser/runtime của TODO riêng.
+
 Bản đề xuất đầu vào cho thiết kế cấu trúc UI, dựa trên adapter và DTO hiện có. Tên khối dưới đây thể hiện trách nhiệm dữ liệu, chưa chốt tên component, props hoặc layout. Hai bên đối chiếu với cây component UI trước khi triển khai interface TypeScript chi tiết.
 
 Áp dụng [quy ước phối hợp](COORDINATION.md) và tiêu chí [TODO](../TODO.md). Nguồn ngữ nghĩa là [FE integration](../../docs/fe-integration.md); nguồn kiểu là [generated schema](../src/core/api/schema.d.ts). Không xem phần code dang dở là interface đã nghiệm thu.
@@ -179,3 +183,7 @@ Chạy `pnpm run api:check`, `pnpm run check` và `pnpm run test:e2e` từ `dash
 4. UI triển khai ContextBar/Views; logic triển khai controller/provider theo file sở hữu; người tích hợp mount provider dưới auth guard, nối shell/outlet và nghiệm thu workflow.
 
 UI có thể chọn bố cục hoặc ghép/tách khối theo nhu cầu người dùng. Mỗi cách ghép vẫn phải giữ các trạng thái và bằng chứng nghiệp vụ độc lập.
+
+## UI completion đã tích hợp
+
+Xem [UI completion integration](UI-COMPLETION-INTEGRATION.md) cho binding cuối cùng, regression cases, kết quả local và các gate chưa xác minh. Báo cáo UI riêng không thay cho nghiệm thu tích hợp.

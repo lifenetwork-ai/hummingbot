@@ -1,6 +1,13 @@
 import { test as base, expect, type Page } from '@playwright/test'
+import { contextStatus } from '../src/test/mocks/contextFixtures'
+import { staleBalances } from '../src/test/mocks/adminFixtures'
 
 export async function mockGoogle(page: Page) {
+  // Mock all mounted operational reads; browser checks must not contact a real backend.
+  await page.route('**/api/v1/admin/status', (route) => route.fulfill({ json: contextStatus }))
+  await page.route('**/api/v1/admin/balances', (route) => route.fulfill({ json: staleBalances }))
+  await page.route('**/api/v1/admin/positions', (route) => route.fulfill({ json: { owner_available: false, markets: [], server_time: '2026-11-11T00:00:00Z' } }))
+  await page.route('**/api/v1/admin/statistics/liquidity*', (route) => route.fulfill({ json: { markets: {}, state: 'unavailable', measurement: 'sampled_owner_observations', session_id: null, observed_at: null } }))
   // Behavioral checks must not depend on external font availability.
   await page.route('https://fonts.googleapis.com/**', (route) => route.fulfill({ contentType: 'text/css', body: '' }))
   await page.route('https://accounts.google.com/gsi/client', (route) => route.fulfill({
@@ -26,3 +33,19 @@ export const test = base.extend<{ authenticated: void }>({
   }, { auto: true }],
 })
 export { expect }
+
+export async function openAccountMenu(page: Page) {
+  const logout = page.getByRole('button', { name: 'Sign out', exact: true })
+  if (!(await logout.isVisible())) await page.getByRole('button', { name: /^Tài khoản / }).click()
+}
+export async function selectTheme(page: Page, theme: 'light' | 'dark') {
+  const button = page.getByRole('button', { name: theme === 'dark' ? 'Use dark theme' : 'Use light theme', exact: true })
+  if (!(await button.isVisible())) await openAccountMenu(page)
+  await button.click()
+  const account = page.getByRole('button', { name: /^Tài khoản / })
+  if (await account.count() && await account.getAttribute('aria-expanded') === 'true') await account.click()
+}
+export async function openContext(page: Page) {
+  const trigger = page.locator('#operational-context-trigger')
+  if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click()
+}

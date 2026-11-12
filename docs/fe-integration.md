@@ -968,7 +968,13 @@ create no event. Global HALT remains visible after controllers have stopped.
 
 Liquidity uses existing exchange-acknowledged limit orders in OPEN/PARTIALLY_FILLED
 state. Remaining quantities determine notionals; pending creation/cancellation and
-unacknowledged orders are excluded. Counters use consecutive fresh owner samples
+unacknowledged orders are excluded from the live working-order rows. Each market's
+`working_orders` rows expose exact decimal `price`, `remaining_quantity`, and
+`remaining_notional`, plus side, order type and OPEN/PARTIALLY_FILLED state. `null`
+means the current or legacy observation cannot provide rows; `[]` means a fresh
+observation found no acknowledged own limit orders. Per-side `pending_create_count`
+and `pending_cancel_count` come from the order tracker and remain separate from
+exchange-acknowledged rows. Counters use consecutive fresh owner samples
 within five seconds and persistent bid/ask identities for two-sided coverage.
 They measure sampled observations, not guaranteed continuous exchange availability.
 Zero quotes on a valid sample means zero two-sided coverage. Feed gaps, restart,
@@ -983,6 +989,12 @@ ready while inventory, sizing or another per-side guard prevents an order. Use
 orders. For a two-sided operating target, report guard-constrained samples and
 unknown coverage separately; a zero eligible denominator is not a passing SLO.
 Do not label a strategy-wide `running=true` as proof of two-sided liquidity.
+These readiness counters are not the approved rolling eligible two-sided SLO
+denominator: they do not identify historical intervals excluded by explicit
+inventory/guard restrictions or prove that both sides were funded. The API keeps
+the cumulative session fraction and latest side diagnosis separate; until an
+interval-level eligibility history is available, do not derive rolling 30-minute
+coverage or historical restricted duration from the cumulative counters.
 
 During a joint readiness transition, fresh liquidity observations use the shared
 service reason when the controller has no local reason. Local restrictions and

@@ -14,8 +14,8 @@ export function SessionRestoring() {
 
   return (
     <MotionPage>
-      <div className="mx-auto flex min-h-[calc(100vh-76px-88px)] max-w-lg items-center justify-center px-4 py-10 sm:px-6 sm:py-16">
-        <Surface className="relative w-full overflow-hidden p-6 shadow-card sm:p-10">
+      <div className="mx-auto flex w-full flex-1 max-w-lg items-center justify-center px-4 py-4 sm:px-6">
+        <Surface className="relative w-full overflow-hidden p-6 shadow-card sm:p-8">
           <div className="brand-grid pointer-events-none absolute inset-0 opacity-30" />
           <div className="pointer-events-none absolute -right-20 -top-20 h-44 w-44 rounded-full bg-app-action/10 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-20 -left-20 h-44 w-44 rounded-full bg-app-accent/10 blur-3xl" />
@@ -35,10 +35,10 @@ export function SessionRestoring() {
             </div>
 
             <h1 className="mt-5 font-heavy text-2xl font-extrabold tracking-tight text-app-text sm:text-3xl">
-              Đang khôi phục phiên đăng nhập…
+              Restoring session…
             </h1>
             <p className="mt-2.5 max-w-sm text-sm leading-6 text-app-muted">
-              Đang kiểm tra thông tin đăng nhập đã lưu và xác minh quyền truy cập không gian làm việc.
+              Verifying saved credentials and checking workspace authorization.
             </p>
 
             <div
@@ -65,7 +65,7 @@ export function SessionRestoring() {
 
             <div className="mt-8 flex items-center justify-center gap-2 border-t border-app-border/80 pt-5 text-xs text-app-muted">
               <ShieldCheck size={16} className="shrink-0 text-app-action" aria-hidden="true" />
-              <span>Đang xác minh phiên làm việc với cổng truy cập quản trị</span>
+              <span>Verifying session with authentication gateway</span>
             </div>
           </section>
         </Surface>

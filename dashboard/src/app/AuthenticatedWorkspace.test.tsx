@@ -21,7 +21,7 @@ describe('AuthenticatedWorkspace auth boundary', () => {
   it('does not redirect or mount operational queries while restoring a token', () => {
     setAuth('restoring')
     render(<AuthenticatedWorkspace />)
-    expect(screen.getByRole('status')).toHaveTextContent('Restoring your sign-in')
+    expect(screen.getByRole('status')).toHaveTextContent('Restoring session…')
     expect(screen.queryByTestId('operational-provider')).not.toBeInTheDocument()
     expect(navigate).not.toHaveBeenCalled()
   })

@@ -24,6 +24,25 @@ def test_only_acknowledged_live_remaining_quote_is_counted():
     assert own_quotes(market, 'LIFE-USDT', max_orders=20)['bid_notional'] == 0
 
 
+def test_public_order_rows_keep_exact_remaining_values_and_pending_counts():
+    market = connector()
+    market.in_flight_orders['buy-submit'] = order(identity='buy-submit', price='.098', amount='3', state=OrderState.PENDING_CREATE)
+    market.in_flight_orders['sell-cancel'] = order(identity='sell-cancel', side=TradeType.SELL, price='.102', amount='4', state=OrderState.PENDING_CANCEL)
+
+    result = own_quotes(market, 'LIFE-USDT', max_orders=20)
+
+    assert result['working_orders'] == [
+        dict(side='BUY', price=Decimal('.099'), remaining_quantity=Decimal('8'),
+             remaining_notional=Decimal('.792'), order_type='LIMIT_MAKER', state='PARTIALLY_FILLED'),
+        dict(side='SELL', price=Decimal('.101'), remaining_quantity=Decimal('20'),
+             remaining_notional=Decimal('2.020'), order_type='LIMIT_MAKER', state='OPEN'),
+    ]
+    assert result['pending_orders'] == {
+        'BUY': {'submission_pending': 1, 'cancel_confirmation': 0},
+        'SELL': {'submission_pending': 0, 'cancel_confirmation': 1},
+    }
+
+
 def test_gaps_boundaries_and_restart_never_inflate_observed_duration():
     observer = LiquidityObserver()
     current = dict(session_id='session', generation=0, profile_id='sideways', started_at=1000)
@@ -88,6 +107,24 @@ def test_valid_empty_book_quote_observation_is_zero_availability_not_unknown():
     observer.observe(session, {'spot': value}, now=1000, monotonic_now=0, owner_generation=1)
     result = observer.observe(session, {'spot': value}, now=1002, monotonic_now=2, owner_generation=1)['markets']['spot']
     assert result['observed_seconds'] == 2 and result['two_sided_seconds'] == 0 and result['unknown_seconds'] == 0
+
+
+def test_public_order_rows_distinguish_fresh_empty_from_stale_unknown():
+    from hummingbot.core.mm_liquidity import liquidity_view
+    observer = LiquidityObserver()
+    session = dict(session_id='session', generation=0, profile_id='sideways', started_at=1000)
+    empty = connector()
+    empty.in_flight_orders = {}
+    value = dict(own_quotes(empty, 'LIFE-USDT', max_orders=20), valid=True, eligible=True)
+    frame = observer.observe(session, {'spot': value}, now=1000, monotonic_now=0, owner_generation=1)
+    assert frame['markets']['spot']['working_orders'] == []
+    assert frame['markets']['spot']['quote_activity']['sides']['BUY']['pending_create_count'] == 0
+
+    row = dict(database_now=1006, heartbeat_age_s=20, owner_uuid='owner',
+               mm_session={'id': 'session', 'generation': 0}, status={'mm_liquidity': frame})
+    stale = liquidity_view(row)['markets']['spot']
+    assert stale['working_orders'] is None
+    assert stale['quote_activity']['sides']['BUY']['pending_create_count'] is None
 
 
 def test_checkpoint_market_count_is_bounded():

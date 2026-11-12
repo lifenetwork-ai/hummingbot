@@ -53,4 +53,17 @@ describe('Dialog', () => {
     fireEvent.keyDown(window, { key: 'Tab', shiftKey: true })
     expect(last).toHaveFocus()
   })
+
+  it('keeps focus inside when the last control is a policy disclosure', () => {
+    render(
+      <Dialog open onClose={vi.fn()} title="Policy details">
+        <details><summary>Market policies</summary></details>
+      </Dialog>,
+    )
+    const close = screen.getByRole('button', { name: 'Close' })
+    const summary = screen.getByText('Market policies')
+    summary.focus()
+    fireEvent.keyDown(window, { key: 'Tab' })
+    expect(close).toHaveFocus()
+  })
 })

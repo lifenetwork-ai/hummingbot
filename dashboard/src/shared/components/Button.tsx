@@ -1,21 +1,19 @@
-import type { ButtonHTMLAttributes, PropsWithChildren } from 'react'
+import { forwardRef, type ButtonHTMLAttributes, type PropsWithChildren } from 'react'
 import { buttonClassName, type ButtonVariant } from './buttonClassName'
 
-type ButtonProps = PropsWithChildren<
+export type ButtonProps = PropsWithChildren<
   ButtonHTMLAttributes<HTMLButtonElement> & {
     variant?: ButtonVariant
   }
 >
 
-export function Button({
-  variant = 'primary',
-  className,
-  children,
-  type = 'button',
-  ...props
-}: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = 'primary', className, children, type = 'button', ...props },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       type={type}
       className={buttonClassName(variant, className)}
       {...props}
@@ -23,4 +21,4 @@ export function Button({
       {children}
     </button>
   )
-}
+})

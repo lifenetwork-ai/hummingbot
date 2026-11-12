@@ -1,7 +1,7 @@
-import type { PropsWithChildren } from 'react'
+import type { HTMLAttributes, PropsWithChildren } from 'react'
 import { cn } from '../utils/cn'
 
-type BadgeProps = PropsWithChildren<{
+export type BadgeProps = PropsWithChildren<HTMLAttributes<HTMLSpanElement> & {
   tone?: 'neutral' | 'brand' | 'success' | 'danger' | 'warning'
   className?: string
 }>
@@ -14,9 +14,9 @@ const styles = {
   warning: 'border-app-warning/25 bg-app-warning/10 text-app-warning',
 } as const
 
-export function Badge({ tone = 'neutral', className, children }: BadgeProps) {
+export function Badge({ tone = 'neutral', className, children, ...rest }: BadgeProps) {
   return (
-    <span className={cn('inline-flex items-center rounded-pill border px-3 py-1 text-xs font-semibold', styles[tone], className)}>
+    <span className={cn('inline-flex items-center rounded-pill border px-3 py-1 text-xs font-semibold', styles[tone], className)} {...rest}>
       {children}
     </span>
   )

@@ -12,8 +12,8 @@ export function ToastHost() {
       closeButton
       theme={theme}
       gap={8}
-      offset={{ bottom: 24, right: 24 }}
-      mobileOffset={{ bottom: 16, left: 16, right: 16 }}
+      offset={{ bottom: 48, right: 24 }}
+      mobileOffset={{ bottom: 48, left: 16, right: 16 }}
       toastOptions={{
         className: 'life-toast font-sans',
         classNames: {

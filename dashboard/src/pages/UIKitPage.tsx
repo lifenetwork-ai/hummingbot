@@ -22,7 +22,7 @@ export function UIKitPage() {
 
   return (
     <MotionPage>
-      <div className="mx-auto max-w-[1200px] space-y-12 px-5 py-10 md:px-10 md:py-16 lg:px-16">
+      <div className="mx-auto w-full max-w-[1536px] space-y-12 px-4 py-10 sm:px-6 md:px-8 lg:px-10 md:py-16">
         <div>
           <SectionLabel tone="brand">Design system preview</SectionLabel>
           <h1 className="mt-4 font-heavy text-5xl font-black tracking-[-0.055em] md:text-6xl">UI kit.</h1>

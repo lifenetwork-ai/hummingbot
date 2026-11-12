@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockGoogle } from './auth-fixture'
+import { mockGoogle, openAccountMenu, openContext, selectTheme } from './auth-fixture'
 import { contextStatus } from '../src/test/mocks/contextFixtures'
 import { pendingCommand, staleBalances } from '../src/test/mocks/adminFixtures'
 import { credentialReceipt, reconciliationReceipt, recoveryCheckReceipt, recoveryResetReceipt } from '../src/test/mocks/receiptFixtures'
@@ -30,18 +30,18 @@ test('public routes never mount operational polling, including while signed in',
   await page.setViewportSize({ width: 320, height: 900 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.screenshot({ path: '/tmp/life-mm-workspace-mobile.png', fullPage: true })
-  await page.getByRole('button', { name: 'Use dark theme' }).click()
+  await selectTheme(page, 'dark')
   await page.screenshot({ path: '/tmp/life-mm-workspace-mobile-dark.png', fullPage: true })
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.screenshot({ path: '/tmp/life-mm-workspace-desktop-dark.png', fullPage: true })
-  await page.getByRole('button', { name: 'Use light theme' }).click()
+  await selectTheme(page, 'light')
   await page.screenshot({ path: '/tmp/life-mm-workspace-desktop.png', fullPage: true })
-  await page.getByRole('link', { name: 'Explore UI kit' }).click()
+  await page.goto('/ui-kit')
   await expect(page.getByRole('heading', { name: 'UI kit.' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Ngữ cảnh vận hành' })).toHaveCount(0)
   const stoppedReads = [statusReads, balanceReads]
-  // Observe beyond the fastest (2s) operational interval to prove it was removed.
-  await page.waitForTimeout(2600)
+  // Observe beyond the current status (15s) and balance (5s) operational intervals to prove it was removed.
+  await page.waitForTimeout(16000)
   expect([statusReads, balanceReads]).toEqual(stoppedReads)
 })
 
@@ -58,11 +58,12 @@ test('logout removes workspace polling and a new login reads fresh context witho
   await page.goto('/?market=spot#orders')
   await page.getByRole('button', { name: 'Sign in with Google' }).click()
   await expect(page.getByText(botId, { exact: true })).toBeVisible()
+  await openAccountMenu(page)
   await page.getByRole('button', { name: 'Sign out' }).click()
-  await expect(page.getByRole('heading', { name: 'Sign in to dashboard' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Đăng nhập' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Ngữ cảnh vận hành' })).toHaveCount(0)
   const stoppedReads = reads
-  await page.waitForTimeout(2600)
+  await page.waitForTimeout(16000)
   expect(reads).toBe(stoppedReads)
   botId = 'bot-after-login'
   await page.getByRole('button', { name: 'Sign in with Google' }).click()
@@ -113,7 +114,8 @@ test('retained receipts can be inspected without replaying commands across reloa
   await page.getByRole('button', { name: 'Sign in with Google' }).click()
   await expect(page.getByText('bot-a', { exact: true })).toBeVisible()
 
-  const receiptBtn = page.getByRole('button', { name: /command: cmd-retained…/ })
+  const receiptBtn = page.getByTitle('command: cmd-retained-test-1234')
+  await openContext(page)
   await expect(receiptBtn).toBeVisible()
 
   await receiptBtn.click()
@@ -122,9 +124,11 @@ test('retained receipts can be inspected without replaying commands across reloa
   await expect(page.getByText('fixture-session', { exact: true })).toBeVisible()
 
   await page.reload()
+  await openAccountMenu(page)
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
   await expect(page.getByText('bot-a', { exact: true })).toBeVisible()
-  const reloadedReceiptBtn = page.getByRole('button', { name: /command: cmd-retained…/ })
+  const reloadedReceiptBtn = page.getByTitle('command: cmd-retained-test-1234')
+  await openContext(page)
   await expect(reloadedReceiptBtn).toBeVisible()
 
   expect(writes).toEqual([])
@@ -157,6 +161,7 @@ test('receipt inspection keeps processing success separate from business outcome
   await page.goto('/')
   await page.getByRole('button', { name: 'Sign in with Google' }).click()
   const details = page.getByLabel('Chi tiết thao tác đang theo dõi')
+  await openContext(page)
   await page.getByTitle('credential: cred-inspect').click()
   await expect(details.getByText('exchange_cleanup', { exact: true })).toBeVisible()
   await page.getByTitle('reconciliation: rec-inspect').click()
@@ -193,6 +198,7 @@ test('receipt completion refreshes observations without closing its result or re
   })
   await page.goto('/')
   await page.getByRole('button', { name: 'Sign in with Google' }).click()
+  await openContext(page)
   await page.getByTitle('command: cmd-terminal').click()
   const details = page.getByLabel('Chi tiết thao tác đang theo dõi')
   await expect(details.getByText('Tiến trình receipt: accepted', { exact: true })).toBeVisible()

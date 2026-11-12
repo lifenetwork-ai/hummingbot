@@ -29,7 +29,8 @@ describe('read and polling policies', () => {
   })
   it('uses observed stale-statistics retry hints and never polls unsupported reads', () => {
     expect(pollingInterval('getDailyStatistics', { freshness: 'stale', retry_after_seconds: 3 }, null, 0)).toBe(3000)
-    expect(pollingInterval('getRuntimeStatus', {}, null, 0)).toBe(2000)
+    expect(pollingInterval('getRuntimeStatus', {}, null, 0)).toBe(15_000)
+    expect(pollingInterval('getExchangeCredentialStatus', {}, null, 0)).toBe(5000)
     expect(pollingInterval('getDailyStatistics', {}, null, 0)).toBe(30_000)
     expect(pollingInterval('listProfiles', {}, null, 0)).toBe(false)
     expect(pollingInterval('getCommand', {}, new ApiError(401), 0)).toBe(false)

@@ -47,7 +47,7 @@ export function GoogleSignIn({ onCredential, disabled }: GoogleSignInProps) {
         className="flex items-start gap-3 rounded-card border border-app-border bg-app-surface-muted p-4 text-sm text-app-muted"
       >
         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-app-muted" />
-        <p>Chưa cấu hình đăng nhập Google. Vui lòng liên hệ quản trị viên.</p>
+        <p>Google sign-in is not configured. Please contact an administrator.</p>
       </div>
     )
   }
@@ -70,21 +70,21 @@ export function GoogleSignIn({ onCredential, disabled }: GoogleSignInProps) {
             aria-hidden="true"
           >
             <Loader2 className="mr-2 h-4 w-4 animate-spin text-app-muted" />
-            <span>Đang khởi tạo Google…</span>
+            <span>Initializing Google…</span>
           </div>
           <p role="status" className="flex items-center gap-1.5 text-xs text-app-muted">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-app-action" />
-            <span>Đang tải đăng nhập Google…</span>
+            <span>Loading Google sign-in…</span>
           </p>
         </div>
       )}
 
       {state === 'error' && (
         <AuthAlert
-          title="Không thể tải Google. Vui lòng kiểm tra kết nối và thử lại."
+          title="Failed to load Google. Please check your connection and try again."
           action={
             <Button variant="secondary" onClick={() => setAttempt((value) => value + 1)}>
-              Thử lại
+              Retry
             </Button>
           }
           className="w-full max-w-md"

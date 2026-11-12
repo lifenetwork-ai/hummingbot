@@ -12,7 +12,7 @@ const affected: Record<WriteOperation, ReadOperation[]> = {
   repairCleanupCredentials: credentials,
   retryCredentialCleanup: credentials,
   requestReconciliation: ['getReconciliation'],
-  checkRecovery: ['getRecovery'],
+  checkRecovery: ['getRecovery', 'getRuntimeStatus', 'getExchangeCredentialStatus'],
   resetRecovery: [...controls, 'getRecovery', 'getReconciliation'],
   adminLogin: ['getAdminIdentity', 'getAdminBootstrap', 'listAdminAccounts'],
   addAdminAccount: ['listAdminAccounts', 'getAdminBootstrap'],

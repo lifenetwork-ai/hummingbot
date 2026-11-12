@@ -2104,6 +2104,27 @@ export interface components {
             /** @default null */
             trailing_stop: components["schemas"]["TrailingStopOutput"] | null;
         };
+        /** LiquidityWorkingOrder */
+        LiquidityWorkingOrderOutput: {
+            /** Order Type */
+            order_type: string;
+            /** Price */
+            price: string;
+            /** Remaining Notional */
+            remaining_notional: string;
+            /** Remaining Quantity */
+            remaining_quantity: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "BUY" | "SELL";
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "OPEN" | "PARTIALLY_FILLED";
+        };
         /** LiquidityMarket */
         LiquidityMarketOutput: {
             /** Ask Notional */
@@ -2157,6 +2178,12 @@ export interface components {
              * @default null
              */
             working_orders_with_fills: number | null;
+            /**
+             * Working Orders
+             * @description Current acknowledged own limit orders. Null means unavailable or legacy; an empty array means freshly observed with no acknowledged orders.
+             * @default null
+             */
+            working_orders: components["schemas"]["LiquidityWorkingOrderOutput"][] | null;
         };
         /** LiquidityResponse */
         LiquidityResponseOutput: {
@@ -2952,6 +2979,18 @@ export interface components {
              * @enum {string}
              */
             state: "working" | "blocked" | "pending" | "unavailable" | "idle";
+            /**
+             * Pending Create Count
+             * @description Current order-tracker submissions awaiting exchange acknowledgement; null when unavailable or legacy.
+             * @default null
+             */
+            pending_create_count: number | null;
+            /**
+             * Pending Cancel Count
+             * @description Current order-tracker cancellations awaiting exchange confirmation; null when unavailable or legacy.
+             * @default null
+             */
+            pending_cancel_count: number | null;
         };
         /** QuoteWaitDiagnosis */
         QuoteWaitDiagnosisOutput: {

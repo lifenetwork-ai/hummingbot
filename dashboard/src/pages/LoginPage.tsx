@@ -21,7 +21,7 @@ export function LoginPage() {
 
   return (
     <MotionPage>
-      <div className="mx-auto flex min-h-[calc(100vh-76px-88px)] max-w-xl items-center justify-center px-3 py-10 sm:px-6 sm:py-16">
+      <div className="mx-auto flex w-full flex-1 max-w-lg items-center justify-center px-4 py-4 sm:px-6">
         <LoginCard
           status={auth.status}
           error={auth.error}

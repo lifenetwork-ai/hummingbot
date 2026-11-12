@@ -7,7 +7,7 @@ import { MotionPage } from '../shared/motion/MotionPage'
 export function NotFoundPage() {
   return (
     <MotionPage>
-      <div className="mx-auto max-w-[1440px] px-5 py-20 md:px-10 lg:px-16">
+      <div className="mx-auto w-full max-w-[1536px] px-4 py-20 sm:px-6 md:px-8 lg:px-10">
         <section className="brand-grid relative min-h-[55vh] overflow-hidden rounded-card border border-app-border bg-app-surface p-8 md:p-14">
           <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-app-action/10 blur-3xl" />
           <div className="relative max-w-3xl">

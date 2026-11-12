@@ -1,8 +1,10 @@
 import { transferableAbortController } from 'node:util'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { ApiProvider } from '../core/api/ApiProvider'
+import { completionStatus } from '../test/mocks/completionFixtures'
+import { commandReceipt } from '../test/mocks/receiptFixtures'
 import { rememberAcceptedReceipt } from '../core/api/receipt-tracking'
 import { OperationalProvider } from '../features/operational-context/OperationalProvider'
 import { contextPrincipal, contextStatus } from '../test/mocks/contextFixtures'
@@ -33,6 +35,7 @@ describe('OperationalShell receipt lifecycle', () => {
         return HttpResponse.json(contextStatus)
       }),
       http.get(`${baseUrl}/balances`, () => HttpResponse.json(staleBalances)),
+      http.get(`${baseUrl}/positions`, () => HttpResponse.json({ markets: [] })),
       http.get(`${baseUrl}/commands/:id`, ({ params }) => HttpResponse.json({ ...pendingCommand, id: params.id, status: 'succeeded' })),
       http.post(`${baseUrl}/*`, () => { posts++; return HttpResponse.json({}) }),
     )
@@ -41,13 +44,14 @@ describe('OperationalShell receipt lifecycle', () => {
     render(<ApiProvider session={{ baseUrl, principalId: contextPrincipal.id, cacheIdentity: 'shell:1' }}>
       <OperationalProvider><OperationalShell /></OperationalProvider>
     </ApiProvider>)
+    fireEvent.click(await screen.findByRole('button', { name: /Details/ }))
     fireEvent.click(await screen.findByTitle('command: cmd-done'))
     try {
       await waitFor(() => expect(statusReads).toBe(2))
-      if (scenario === 'error') await screen.findByText(/Không thể xác minh thông tin bot từ backend/)
+      if (scenario === 'error') await screen.findByText(/Cannot verify bot information from backend/)
       // Both hook and shell must preserve the read-only reference during invalidation.
-      expect(screen.getByLabelText('Chi tiết thao tác đang theo dõi')).toBeInTheDocument()
-      expect(screen.getByText('Tiến trình receipt: succeeded')).toBeInTheDocument()
+      expect(screen.getByLabelText('Tracked operation details')).toBeInTheDocument()
+      expect(screen.getByText('Receipt progress: succeeded')).toBeInTheDocument()
       expect(posts).toBe(0)
     } finally { releaseStatus?.() }
   })
@@ -57,6 +61,7 @@ describe('OperationalShell receipt lifecycle', () => {
     server.use(
       http.get(`${baseUrl}/status`, () => HttpResponse.json(contextStatus)),
       http.get(`${baseUrl}/balances`, () => HttpResponse.json(staleBalances)),
+      http.get(`${baseUrl}/positions`, () => HttpResponse.json({ markets: [] })),
       http.get(`${baseUrl}/commands/:id`, ({ params }) => {
         receiptReads++
         return HttpResponse.json({ ...pendingCommand, id: params.id, status: 'accepted' })
@@ -67,15 +72,37 @@ describe('OperationalShell receipt lifecycle', () => {
     const { rerender } = render(<ApiProvider session={{ baseUrl, principalId: contextPrincipal.id, cacheIdentity: 'shell:user-one' }}>
       <OperationalProvider><OperationalShell /></OperationalProvider>
     </ApiProvider>)
+    fireEvent.click(await screen.findByRole('button', { name: /Details/ }))
     fireEvent.click(await screen.findByTitle('command: cmd-private'))
-    await screen.findByText('Tiến trình receipt: accepted')
+    await screen.findByText('Receipt progress: accepted')
     expect(receiptReads).toBe(1)
     rerender(<ApiProvider session={{ baseUrl, principalId: 'google:user-two', cacheIdentity: 'shell:user-two' }}>
       <OperationalProvider><OperationalShell /></OperationalProvider>
     </ApiProvider>)
     await screen.findByText('bot-a')
-    expect(screen.queryByLabelText('Chi tiết thao tác đang theo dõi')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Tracked operation details')).not.toBeInTheDocument()
     expect(screen.queryByTitle('command: cmd-private')).not.toBeInTheDocument()
     expect(receiptReads).toBe(1)
   })
+  it('binds global Stop to a refreshed target/version while an independent position read fails', async () => {
+    let reads = 0
+    const bodies: unknown[] = []
+    server.use(http.get(`${baseUrl}/status`, () => {
+      reads++
+      return HttpResponse.json({ ...contextStatus, control_version: reads === 1 ? 2 : 3,
+        session: { ...completionStatus.session, id: reads === 1 ? 'previous-session' : 'current-session' } })
+    }), http.get(`${baseUrl}/balances`, () => HttpResponse.json(staleBalances)),
+      http.get(`${baseUrl}/positions`, () => HttpResponse.json({ detail: 'Positions unavailable' }, { status: 422 })),
+      http.post(`${baseUrl}/commands`, async ({ request }) => { bodies.push(await request.json()); return HttpResponse.json({ ...commandReceipt, id: 'global-stop', status: 'accepted', session_id: 'current-session' }, { status: 202 }) }),
+      http.get(`${baseUrl}/commands/:id`, ({ params }) => HttpResponse.json({ ...commandReceipt, id: params.id, status: 'succeeded', session_id: 'current-session' })))
+    render(<ApiProvider session={{ baseUrl, principalId: contextPrincipal.id, cacheIdentity: 'shell:stop' }}><OperationalProvider><OperationalShell /></OperationalProvider></ApiProvider>)
+    await screen.findByText('bot-a')
+    act(() => { window.dispatchEvent(new CustomEvent('open-stop-dialog')) })
+    const confirm = await screen.findByRole('button', { name: 'Confirm stop bot now' })
+    await waitFor(() => expect(confirm).toBeEnabled())
+    fireEvent.click(confirm)
+    await waitFor(() => expect(bodies).toEqual([{ action: 'stop', expected_version: 3, session_id: 'current-session' }]))
+    expect(await screen.findByText(/Stop global-stop: succeeded/)).toBeInTheDocument()
+  })
+
 })

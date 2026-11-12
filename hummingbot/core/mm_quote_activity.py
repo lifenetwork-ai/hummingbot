@@ -88,6 +88,7 @@ def unavailable_activity(warning_seconds, *, observed_at=None):
                 no_quote_seconds=None, warning_after_seconds=warning_seconds, warning_active=False,
                 proposal_observed_at=observed_at,
                 sides={side: dict(state='unavailable', order_count=None, proposed_count=None,
+                                  pending_create_count=None, pending_cancel_count=None,
                                   reason_codes=['quote_observation_unavailable'], detail='Current working orders cannot be confirmed.',
                                   diagnosis=None)
                        for side in ('BUY', 'SELL')})
@@ -102,6 +103,7 @@ def quote_activity(observation, *, now, previous, delta, continuous, monitoring,
         return unavailable_activity(warning_seconds, observed_at=stamp if fresh else None)
     counts = {'BUY': observation.get('buy_order_count', len(observation.get('bid_ids', []))),
               'SELL': observation.get('sell_order_count', len(observation.get('ask_ids', [])))}
+    pending_orders = observation.get('pending_orders')
     sides = {}
     for side, count in counts.items():
         codes = (proposal.get('reasons', {}).get(side) or []) if fresh else []
@@ -125,7 +127,11 @@ def quote_activity(observation, *, now, previous, delta, continuous, monitoring,
             diagnosis = wait_diagnosis(observation, side, codes, proposal=proposal, fresh=fresh,
                                        previous=previous_side, delta=delta, continuous=continuous,
                                        warning_seconds=warning_seconds)
-        sides[side] = dict(state=state, order_count=count, proposed_count=proposed, reason_codes=codes, detail=detail,
+        pending = pending_orders.get(side) if isinstance(pending_orders, dict) else None
+        sides[side] = dict(state=state, order_count=count, proposed_count=proposed,
+                           pending_create_count=pending.get('submission_pending') if isinstance(pending, dict) else None,
+                           pending_cancel_count=pending.get('cancel_confirmation') if isinstance(pending, dict) else None,
+                           reason_codes=codes, detail=detail,
                            diagnosis=diagnosis)
     working = sum(counts.values())
     prior = (previous or {}).get('quote_activity') or {}

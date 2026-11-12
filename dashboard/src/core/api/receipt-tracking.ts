@@ -93,6 +93,21 @@ export function rememberAcceptedReceipt(scope: ReceiptScope | undefined, referen
   } catch { return false }
 }
 
+export function findReceiptAcceptedAt(id: string, storage = storageOrNull()): number | undefined {
+  if (!storage) return undefined
+  try {
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i)
+      if (key && key.startsWith(storagePrefix)) {
+        const store = parseStore(storage.getItem(key))
+        const found = store?.receipts.find((r) => r.id === id)
+        if (found?.acceptedAt) return found.acceptedAt
+      }
+    }
+  } catch { return undefined }
+  return undefined
+}
+
 export function subscribeTrackedReceipts(scope: ReceiptScope | undefined, onChange: () => void): () => void {
   if (!usableScope(scope) || typeof window === 'undefined') return () => undefined
   const key = receiptStorageKey(scope)

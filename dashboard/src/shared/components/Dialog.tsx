@@ -16,6 +16,7 @@ type DialogProps = PropsWithChildren<{
   description?: string
   footer?: ReactNode
   className?: string
+  placement?: 'center' | 'right'
 }>
 
 export function Dialog({
@@ -25,6 +26,7 @@ export function Dialog({
   description,
   footer,
   className,
+  placement = 'center',
   children,
 }: DialogProps) {
   const titleId = useId()
@@ -40,7 +42,7 @@ export function Dialog({
 
     const focusable = () => Array.from(
       dialogRef.current?.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        'a[href], button:not([disabled]), summary, input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       ) ?? [],
     )
 
@@ -83,7 +85,7 @@ export function Dialog({
   if (!open) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] grid place-items-center p-4">
+    <div className={cn('fixed inset-0 z-[100] grid p-4', placement === 'right' ? 'justify-items-end p-0' : 'place-items-center')}>
       <button
         type="button"
         aria-label="Close dialog"
@@ -100,6 +102,7 @@ export function Dialog({
         aria-describedby={description ? descriptionId : undefined}
         className={cn(
           'relative z-10 w-full max-w-lg rounded-card border border-app-border bg-app-surface p-6 shadow-card md:p-7',
+          placement === 'right' && 'min-h-0 h-full max-h-dvh max-w-xl overflow-y-auto rounded-none border-y-0 border-r-0 p-4 shadow-2xl sm:p-6',
           className,
         )}
       >

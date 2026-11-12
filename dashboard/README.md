@@ -1,4 +1,4 @@
-# LifeAI FE Starter
+# LifeAI Market Making
 
 A clean React frontend foundation extracted from the supplied `life-vesting` codebase.
 It preserves architecture and LifeAI's visual design language **without** any

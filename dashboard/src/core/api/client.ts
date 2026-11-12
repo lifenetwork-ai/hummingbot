@@ -12,6 +12,7 @@ export type ApiErrorBody = {
 }
 
 export class ApiError extends Error {
+  readonly observedAt = Date.now()
   readonly status: number
   readonly body: ApiErrorBody | undefined
   readonly requestId: string | undefined

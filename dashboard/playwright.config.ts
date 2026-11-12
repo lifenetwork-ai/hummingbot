@@ -21,9 +21,9 @@ export default defineConfig({
     locale: 'en-US',
   },
   webServer: {
-    command: 'VITE_GOOGLE_CLIENT_ID=browser-test.apps.googleusercontent.com pnpm run dev --host 127.0.0.1 --port 4173',
+    command: 'VITE_ADMIN_API_BASE_URL=/api/v1/admin VITE_GOOGLE_CLIENT_ID=browser-test.apps.googleusercontent.com pnpm run dev --host 127.0.0.1 --port 4173',
     url: 'http://127.0.0.1:4173',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
   projects: [{
