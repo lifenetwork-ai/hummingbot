@@ -1,12 +1,12 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest: revision120/`847f38e1e` is Ready with100% traffic, but is halted at
-23:32 local. Its20:15 startup check was running without HALT; at20:28–20:29,
-OKX Demo WS handshakes return502 and connector readiness exhausts the30s
-reconciliation budget. The exception path creates durable recovery. The scoped
-absence proof is deployed; this separate readiness-wait correction is local.
-No recovery/reset or financial mutation was issued during this investigation.
-See [revision120 incident](#revision120-connector-readiness-outage).
+Latest 2026-11-13: revision121/`e635f3da7` is verified and the previous technical
+HALT is recovered under maintenance audit264. Start succeeds on control86 in a
+new both/Random/until-stopped session. The00:13 local check is running, no HALT,
+with two Spot BUY and two perpetual SELL orders; the opposite sides retain their
+size/inventory guards. The short post-Start window has no ERROR/restart/shutdown
+timeout and one probe timeout. This is not a new30-minute99% quote acceptance.
+See [revision121 recovery](#revision121-verified-maintenance-recovery-and-restart).
 
 Earlier: revision117/`5c36bb7bd` has a completed901-sample baseline. Observation
 quality passes, but the unchanged99% target fails: Spot98.36%, perpetual97.58%.
@@ -16,6 +16,58 @@ sharing, executor-identity and freshness-fixture changes are separately qualifie
 not deployed. See [baseline results](#revision117-thirty-minute-baseline-during-local-follow-up).
 Revision112's completed verification and the revision111 record below remain
 historical, with their original failed99% quote gates and scope limits intact.
+
+## Revision121 verified maintenance recovery and restart
+
+Revision `hummingbot-demo-00121-z6s` runs commit
+`e635f3da74e751fd0ef0d16f77a87657ec2c332e`; its exact commit tag resolves to
+`sha256:9e2b8860e54a42d92cd862dc96d7eb85ea19bd26d002ba8abbe1f850dfc207f6`,
+matching the Ready revision with100% traffic. It contains the readiness-wait fix.
+The old technical HALT remains until the explicitly delegated recovery below.
+
+Stop completes at control85. Recovery Check receipt
+`b066f6c6-6453-45b0-97b1-80f5ad6298f6` is genuinely blocked with
+`recovery_scope_limit`: the ledger contains21,860 orders and3,697 fills. No
+force field or API limit change is used. The last API check remains a historical
+failed receipt; it is not a newly active HALT after maintenance.
+
+Independent read-only verification anchors650 immutable fills and position costs
+to audit183 and its original proof hashes. Two complete authenticated native
+scans verify the3,047 newer fills (Spot1,202; perpetual1,845), exact identities,
+quantities, prices and fees. No exchange order remains open, perpetual exposure
+matches, and Spot cash matches the audited prefix plus verified trades/fees.
+There are no pending intents, nonterminal attempts or unapplied journal entries;
+the current financial/binding hashes match the verified runtime checkpoint.
+
+Replaying individual fills by event timestamp is not the native application
+order. Exact replay uses2,969 executor applications plus9 direct cleanup fills
+across2 audited disconnects. All financial fields of all3 positions then match
+exactly. Local event-clock and venue execution timestamps are retained separately;
+no timestamp, order, fill or position is rewritten to make the proof pass.
+
+After fresh venue revalidation, the stopped writer is quiesced using temporary
+service scaling. Under the physical advisory fence and version85 CAS, preview
+and apply remove only `halt`, `halt_kind`, `reason`, adding audit264 at
+17:10:22.152017UTC on12 November (00:10 local on13 November). All financial rows,
+credentials and risk checkpoints remain unchanged. Original AUTOMATIC min/max1
+scaling, service template and traffic are restored, with no new revision/image.
+This is reviewed delegated maintenance after independent proof, not successful
+self-service recovery or a claim that the API scope limit has been solved.
+
+The normal admin API Start receipt `0894bdcb-54ad-4ab2-bf0c-c9afedca1beb` succeeds
+at17:11:46.686274UTC on12 November, control86, session
+`da0f6de4-face-4fdd-8dab-70181ffb6715`. It preserves both markets, Random and
+until-stopped duration, and binds the deployed catalogue hash. Maintenance audit
+uses an operator-delegated actor; control receipts use the enabled Basic admin.
+
+Thirteen GET observations over about61 seconds remain running with no HALT. The
+final17:13:25UTC check has2 Spot BUY and2 perpetual SELL orders. Spot SELL reports
+`order_size_rejected`; perpetual BUY reports `inventory_limit`. The bounded log
+query from Start through that check returns6 WARNING records, one probe timeout,
+zero ERROR/restart/shutdown-timeout events. No full30-minute quote gate, new
+load/soak, Google login or GCP KMS acceptance is claimed. Incremental reviewed
+recovery beyond the lifetime-history limit remains an open operational item.
+Evidence/receipts: `build/readiness-recovery-20261112/`.
 
 ## Revision120 connector readiness outage
 

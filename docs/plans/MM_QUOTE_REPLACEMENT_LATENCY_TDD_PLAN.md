@@ -228,7 +228,11 @@ acceptance; see the [qualification record](../../reports/performance/mm-quote-re
   all unresolved-order/intent/financial verification authoritative.
 - [x] Test service startup/live200 versus ready503 during the wait and actual Stop;
   verify durable state against disposable PostgreSQL.
-- [ ] Deploy the fix, verify exchange/ledger state, then recover the old incident
-  through the reviewed recovery procedure. The fix does not clear existing HALT.
+- [x] Deploy as revision121/e635f3da7. Stop/Check exposes the existing history
+  limit; independent audited-prefix/native-journal verification permits delegated
+  maintenance recovery with zero financial/risk changes, audit264. Normal Start
+  succeeds at control86; retain the failed API receipt and short-check limits.
+- [ ] Support reviewed incremental recovery from a verified baseline so lifetime
+  history does not require this separate maintenance procedure.
 - [ ] Repeat the unchanged30-minute quote gate on one revision/session. See the
   [incident record](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision120-connector-readiness-outage).

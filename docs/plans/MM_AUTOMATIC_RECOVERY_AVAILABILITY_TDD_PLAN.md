@@ -1,11 +1,12 @@
 # MM automatic recovery and availability
 
-Latest 2026-11-12: revision120/847f38e1e deploys scoped absent-leg proof and
-passes its20:15 startup check. A subsequent OKX Demo WS502 outage exhausts the
-30s startup reconciliation budget; at23:32 the same revision is durably halted.
-The separate connector-readiness correction is locally tested, not deployed;
-it does not erase that HALT. No new30-minute99% quote gate is closed. See the
-[revision120 incident](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision120-connector-readiness-outage).
+Latest 2026-11-13: revision121/e635f3da7 deploys the readiness-wait correction.
+The old technical HALT is recovered after independent verification, audit264,
+with zero financial/risk changes. Start succeeds at control86, both/Random/
+until-stopped. The00:13 local short check is running with active orders, no HALT,
+no ERROR/restart/shutdown timeout and one probe timeout. Original99% quote
+acceptance and recovery beyond the API history limit remain open. See the
+[revision121 recovery](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision121-verified-maintenance-recovery-and-restart).
 
 Earlier 2026-11-12: revision117/5c36bb7bd automatically clears the old verified
 shutdown fence and returns to quotes on session/control84. Its next scheduled
