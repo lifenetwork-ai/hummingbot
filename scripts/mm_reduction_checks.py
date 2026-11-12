@@ -128,10 +128,27 @@ def scenario(harness, leg, *, previous_image=None):
     assert not harness.state()['recovery_state'].get('halt')
     harness.terminate(first)
     harness.image = candidate_image
+    # Move the venue book after native preparation, exactly as a live post-only
+    # cancellation can do. The default fixture still moves only SELL entries.
+    # Keep the shift within the existing price guard and preserve the fee floor.
+    moved = (dict(bids=[['.10105', '100000'], ['.10100', '100000']],
+                  asks=[['.10115', '100000'], ['.10120', '100000']]) if leg == 'long' else
+             dict(bids=[['.09885', '100000'], ['.09880', '100000']],
+                  asks=[['.09895', '100000'], ['.09900', '100000']]))
+    harness.control(enforce_post_only=True, post_only_move_on_submit={'LIFE-USDT-SWAP': moved},
+                    post_only_move_on_submit_side='sell' if leg == 'long' else 'buy')
     upgraded, port = harness.start('reduction-restart-' + leg, auto_migrate=False)
     harness.mm_command(port, 'start', market_mode='perpetual', selection='fixed', profile_id='sideways', duration_seconds=600)
-    poll(closing, timeout=60, description='cold owner restores owned remaining cost and maker closing quotes')
+    poll(closing, timeout=20, description='cold owner replaces the rejected close with a fresh passive quote')
     assert positions() == {leg: Decimal(opening['sz']) - quantity}
+    cancellations = [row for row in harness.ledger()['orders'] if row.get('cancelSource') == '31'
+                     and row.get('posSide') == leg and row['side'] == ('sell' if leg == 'long' else 'buy')]
+    assert cancellations and all(row['accFillSz'] == '0' for row in cancellations)
+    assert len(cancellations) <= 2, 'Managed CLOSE replayed its stale prepared price'
+    passive = closing()
+    assert all(Decimal(row['px']) >= Decimal('.10115') if leg == 'long'
+               else Decimal(row['px']) <= Decimal('.09885') for row in passive)
+    assert harness.sql('SELECT count(*) FROM trade_fills') == '2'
     harness.control(reduction_fee_error=True, cancel_delay_seconds=1)
     poll(lambda: not closing(), timeout=40, description='lost fee authority cancels resting closing quotes')
     assert not harness.state()['recovery_state'].get('halt')
@@ -186,7 +203,7 @@ def scenario(harness, leg, *, previous_image=None):
         leg=leg, opening_base=str(opening_base), partial_closed_base=str(base), closed_base=str(opening_base), remaining_base='0',
         original_fees=str(opening_fee + fee + final_fee), realized_trading_pnl=str(trading_pnl + final_pnl),
         partial_applied_once=True, maker_only=True, lost_ack_without_duplicate_post=True,
-        cold_restart=True, fee_outage_canceled_quotes=True, fee_recovery=True, full_close_returns_to_open=True,
+        cold_restart=True, post_only_close_requoted=True, post_only_close_cancels=len(cancellations), fee_outage_canceled_quotes=True, fee_recovery=True, full_close_returns_to_open=True,
         upgrade_rollback=bool(previous_image), previous_image=previous_image,
         outside_book='two_levels_each_side_with_own_quotes', canceled_fill_candidates=canceled_fill_candidates, simulated=True)
     harness.image = candidate_image

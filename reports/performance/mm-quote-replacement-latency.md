@@ -1,9 +1,10 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
-Status: local fixes implemented; connected recovery and a new quote window need
-the new artifact deployed. Cloud Run revision110 remains paused at startup on a
-saved expired-order receipt, without a HALT. No Cloud database maintenance or
-Start was performed during this follow-up.
+Status: revision111 resolves the50037 block and is trading continuously. Its
+completed30-minute quote window fails99%. A separate post-only CLOSE retry bug
+has a tested local correction, not yet deployed. See the
+[connected acceptance and follow-up](../demo/cloudrun-quote-replacement-acceptance.md).
+The local and historical artifact results below retain their own scope.
 
 ## Changes and their boundaries
 
@@ -31,7 +32,7 @@ Start was performed during this follow-up.
 The official [OKX error-code reference](https://www.okx.com/docs-v5/en/#error-code)
 identifies50037 as request expiry. A51603 read alone is not that evidence.
 
-## Why the deployed bot is paused
+## Why revision110 was paused
 
 Read-only observation at04:28–04:30UTC and a later status check finds owner483,
 control84, revision110 in `bootstrapping_recovery`. A Spot SELL creation has a

@@ -129,6 +129,7 @@ class Exchange:
         self.book_overrides = {}
         self.enforce_post_only = False
         self.post_only_move_on_submit = {}
+        self.post_only_move_on_submit_side = 'sell'
         self.include_own_orders = False
         self.markets_task = None
         self.target_updates_per_second = 0
@@ -500,7 +501,7 @@ class Exchange:
                 return web.json_response({'code': '50013', 'msg': 'Response unavailable'}, status=503)
             if self.enforce_post_only and data.get('ordType') == 'post_only':
                 movement = self.post_only_move_on_submit.get(data['instId'])
-                if movement and data['side'] == 'sell':
+                if movement and data['side'] == self.post_only_move_on_submit_side:
                     self.book_overrides[data['instId']] = self.post_only_move_on_submit.pop(data['instId'])
                 book = self.book(data['instId'])
                 opposite = book['asks' if data['side'] == 'buy' else 'bids']
@@ -673,6 +674,10 @@ class Exchange:
             self.stale_pairs = set(data["stale_pairs"])
         if 'enforce_post_only' in data:
             self.enforce_post_only = bool(data['enforce_post_only'])
+        if 'post_only_move_on_submit_side' in data:
+            if data['post_only_move_on_submit_side'] not in ('buy', 'sell'):
+                return web.json_response({'error': 'invalid_post_only_move_side'}, status=400)
+            self.post_only_move_on_submit_side = data['post_only_move_on_submit_side']
         if 'post_only_move_on_submit' in data:
             self.post_only_move_on_submit = copy.deepcopy(data['post_only_move_on_submit'])
         if "stale_instruments" in data:

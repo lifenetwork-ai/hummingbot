@@ -432,7 +432,13 @@ class OrderExecutor(ExecutorBase):
             else:
                 self._canceled_orders.append(self._order)
             self._order = None
-            if self.status == RunnableStatus.SHUTTING_DOWN:
+            if (self._quote_wakeup is not None and self.config.mm_session_id is not None
+                    and self.status == RunnableStatus.RUNNING):
+                # A venue cancel may reject a crossing post-only price. Retire
+                # this prepared quote through native financial application;
+                # the controller must authorize a fresh maker quote afterward.
+                self.early_stop(keep_position=True)
+            elif self.status == RunnableStatus.SHUTTING_DOWN:
                 self._wake_quote_control()
 
     def process_order_failed_event(self, _, market, event: MarketOrderFailureEvent):

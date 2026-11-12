@@ -1,9 +1,10 @@
 # Perpetual close-first quotes
 
-Follow-up 2026-11-12 at04:30UTC: revision110/owner483 is paused in startup
-on an exact saved50037 rejection, without HALT. The classifier/replay and
-operator-attention fixes are local and awaiting deployment; see the
-[quote/recovery follow-up](../../reports/performance/mm-quote-replacement-latency.md).
+Follow-up 2026-11-12: revision111/`d8f90c13b` resolves the old50037 block
+through native audited recovery. The bot is running. Its completed30-minute
+quote window fails99% (Spot93.46%, perpetual87.89%). A confirmed repeated-price
+post-only CLOSE defect has a separate tested local fix awaiting deployment;
+see [connected acceptance](../../reports/demo/cloudrun-quote-replacement-acceptance.md).
 
 Status: implemented and locally qualified. Demo revision110 contains activation
 commit `3af2e3419`: the explicit Demo perpetual policy is now close-first with
@@ -262,9 +263,11 @@ pass after these changes, including full close followed by OPEN quotes.
   0.0246BTC and0.3665058882USDT closing fees. Two final native scans match all
   1,805 fills. All118 native applied-order receipts since initialization replay
   exactly from the accepted baseline into financial rows and remaining costs.
-  Cold restarts preserve session/control and both remaining-cost bases. A natural SHORT
-  close fill has not yet been observed; its fee-covered BUY quote is verified
-  on the venue and is not forced to fill.
+  Cold restarts preserve session/control and both remaining-cost bases. At that earlier cutoff, a natural SHORT
+  close fill had not yet been observed. Revision111 now has47 verified
+  post-deployment SHORT close fills in the06:26UTC native/financial readback,
+  with allocated opening/closing fees covered. No fill was forced. See the
+  [new connected record](../../reports/demo/cloudrun-quote-replacement-acceptance.md).
 - [ ] Run the regular-profile 30-minute quote target without weakening its classifier.
   Revision110's completed898-sample regular Random window fails: Spot489/513
   (95.32%) and perpetual819/884 (92.65%), including unknown in the failure

@@ -1,9 +1,10 @@
 # OKX Demo and current offline image acceptance
 
-Follow-up 2026-11-12 at04:30UTC: revision110/owner483 is paused in startup
-on an exact saved50037 rejection, without HALT. The classifier/replay and
-operator-attention fixes are local and awaiting deployment; see the
-[quote/recovery follow-up](../../reports/performance/mm-quote-replacement-latency.md).
+Follow-up 2026-11-12: revision111/`d8f90c13b` resolves the old50037 block
+through native audited recovery. The bot is running. Its completed30-minute
+quote window fails99% (Spot93.46%, perpetual87.89%). A confirmed repeated-price
+post-only CLOSE defect has a separate tested local fix awaiting deployment;
+see [connected acceptance](../../reports/demo/cloudrun-quote-replacement-acceptance.md).
 
 Updated 2026-11-12. Revision110's connected close-first results are in the
 [current acceptance record](../../reports/demo/cloudrun-close-first-baseline.md):

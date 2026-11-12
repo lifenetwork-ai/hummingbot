@@ -118,3 +118,46 @@ async def test_completion_exits_a_managed_long_period_loop_without_another_timer
         assert executor.executed_amount_base == 1
     finally:
         await close_task(task)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('side', [TradeType.BUY, TradeType.SELL])
+@pytest.mark.parametrize('partial', ['0', '.2'])
+async def test_managed_live_cancel_retires_quote_instead_of_resubmitting_prepared_price(monkeypatch, side, partial):
+    _, executor, order, _ = closing_quote(monkeypatch, side)
+    executor.validate_sufficient_balance = AsyncMock()
+    executor._managed_quote_prepared = True
+    if Decimal(partial):
+        fill(order, 'before-venue-cancel', partial)
+    order.current_state = OrderState.CANCELED
+    executor.process_order_canceled_event(None, None, SimpleNamespace(order_id=order.client_order_id))
+    # A proved cancel can be a post-only rejection. The old preparation is not
+    # new maker authority; native financial application must release this level.
+    assert executor.status == RunnableStatus.SHUTTING_DOWN
+    task = asyncio.create_task(executor.control_loop())
+    try:
+        await asyncio.wait_for(asyncio.shield(task), .25)
+        executor.process_order_canceled_event(None, None, SimpleNamespace(order_id=order.client_order_id))
+        assert executor.status == RunnableStatus.TERMINATED
+        assert executor.close_type == (CloseType.POSITION_HOLD if Decimal(partial) else CloseType.EARLY_STOP)
+        assert sum((Decimal(x['executed_amount_base']) for x in executor._held_position_orders), Decimal(0)) == Decimal(partial)
+        executor._strategy.buy.assert_not_called()
+        executor._strategy.sell.assert_not_called()
+    finally:
+        await close_task(task)
+
+
+def test_foreign_cancel_does_not_retire_a_live_managed_quote(monkeypatch):
+    _, executor, order, _ = closing_quote(monkeypatch)
+    executor.process_order_canceled_event(None, None, SimpleNamespace(order_id='foreign'))
+    assert executor.status == RunnableStatus.RUNNING
+    assert executor._order.order is order
+
+
+def test_unmanaged_maker_cancel_keeps_native_retry_behavior(monkeypatch):
+    _, executor, order, _ = closing_quote(monkeypatch)
+    executor.config = executor.config.model_copy(update={'mm_session_id': None, 'mm_generation': None})
+    order.current_state = OrderState.CANCELED
+    executor.process_order_canceled_event(None, None, SimpleNamespace(order_id=order.client_order_id))
+    assert executor.status == RunnableStatus.RUNNING
+    assert executor._order is None

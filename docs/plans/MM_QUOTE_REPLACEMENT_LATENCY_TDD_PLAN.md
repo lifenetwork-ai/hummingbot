@@ -53,7 +53,7 @@ The startup retry path also fails to raise `operator_required` after five minute
   no financial/checkpoint change; ordinary51603 still pauses and requests review.
 - [x] Startup and post-cancellation bootstrap waits use the same attention policy.
   Operator presentation requests support without inventing a HALT or reset button.
-- [ ] Deploy the qualified changes and verify the existing blocked intent follows
+- [x] Deploy the qualified changes and verify the existing blocked intent follows
   the native recovery path, then repeat connected quote qualification.
 
 Do not mark this incident fixed on Cloud Run from local tests. No manual Cloud DB
@@ -74,3 +74,25 @@ passes a real-network simulator lost-ACK E2E: recovery2.97s, same owner, no dupl
 submission, quotes restored. This is scoped local acceptance, not a full new soak
 or a connected quote-target pass. See the
 [evidence record](../../reports/performance/mm-quote-replacement-latency.md).
+
+## Connected revision111 and post-only follow-up
+
+The50037 intent is resolved automatically with exactly one runtime audit; bot
+control84 continues on owner484. The completed901-sample regular Random window
+is quality-valid but fails99%: Spot93.46%, perpetual87.89%. The original classifier
+and all unknown/guard categories are retained. No incident HALT reset or owner
+restart occurs; transient profile-shutdown fences remain failing observations.
+See [connected acceptance](../../reports/demo/cloudrun-quote-replacement-acceptance.md).
+
+- [x] Prove native cancelSource31 and nineteen same-price attempts by one CLOSE
+  executor; separate this from an unknown submission or a financial mismatch.
+- [x] RED four live-cancel cases, then retire managed maker CLOSE through native
+  terminal/financial application rather than replay its prepared price.
+- [x] Verify partial/zero fills, both sides, duplicate/foreign events and the
+  unmanaged path. Native3,491+16, PostgreSQL35 and both packaged hedge cases pass.
+  The old image fails; its failed run is retained. No proof or risk guard is relaxed.
+- [ ] Deploy this additional local correction and repeat connected qualification.
+
+Three event-clock timestamps exceed the manual verifier's one-second allowance;
+retained native snapshots still match the actual execution times. Keep that
+separate limitation visible without rewriting history or widening the tolerance.
