@@ -455,6 +455,13 @@ with a retained manual HALT stays in `halted`, serving health/control/recovery w
 bootstrap, even if the old YAML/credentials are missing. Existing already-started
 reconciliation still drains its known restored orders.
 
+Startup can remain in `starting` while native connectors reconnect. This passive
+readiness wait does not consume the30s normal exchange-reconciliation deadline;
+new orders remain blocked, startup/live can return200 and ready remains503.
+Stop/Switch still cancels the wait, and ownership is rechecked. Once ready,
+normal exchange reconciliation retains its30s limit and all financial/intent
+checks. This change does not clear a HALT already persisted by an older revision.
+
 For manual HALT, Stop the session, then Check. A `recovery_pending_intents` result requires technical
 review of the complete scoped exchange/ledger evidence; this API does not erase
 the intent. Do not interpret startup/live200 as readiness: ready remains503 until

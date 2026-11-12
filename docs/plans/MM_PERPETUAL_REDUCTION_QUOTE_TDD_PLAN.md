@@ -1,12 +1,11 @@
 # Perpetual close-first quotes
 
-Latest 2026-11-12: revision119/709700c70 completes901 samples on one
-revision/session. Quality passes; the unchanged99% quote gate fails
-(Spot89.61%, perpetual87.59%). Recorder history has146 perpetual fills. There
-is no ERROR/restart/shutdown-timeout event, but two position-unavailable samples
-and narrow shutdown margin remain. Per-leg absence proof is reproduced and
-qualified locally, not deployed. See the
-[revision119 record](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision119-connected-window-and-per-leg-absence-proof).
+Latest 2026-11-12: revision120/847f38e1e deploys scoped absent-leg proof and
+passes its20:15 startup check. A subsequent OKX Demo WS502 outage exhausts the
+30s startup reconciliation budget; at23:32 the same revision is durably halted.
+The separate connector-readiness correction is locally tested, not deployed;
+it does not erase that HALT. No new30-minute99% quote gate is closed. See the
+[revision120 incident](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision120-connector-readiness-outage).
 
 Earlier 2026-11-12: revision117/5c36bb7bd clears the old shutdown fence and
 returns to quotes, then recovers quotes after its next scheduled profile change.

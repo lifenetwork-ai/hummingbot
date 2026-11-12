@@ -1,12 +1,12 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest: revision119/`709700c70` completes901 samples on one revision/session.
-Observation quality passes; the unchanged99% target fails: Spot89.61%,
-perpetual87.59%. Recorder history contains146 perpetual fills in the window.
-There is no ERROR/restart/shutdown-timeout event, but49 probes time out and two
-samples report unavailable position evidence. A separate per-leg absence-proof
-race is reproduced and corrected locally, not deployed. See
-[revision119 results](#revision119-connected-window-and-per-leg-absence-proof).
+Latest: revision120/`847f38e1e` is Ready with100% traffic, but is halted at
+23:32 local. Its20:15 startup check was running without HALT; at20:28–20:29,
+OKX Demo WS handshakes return502 and connector readiness exhausts the30s
+reconciliation budget. The exception path creates durable recovery. The scoped
+absence proof is deployed; this separate readiness-wait correction is local.
+No recovery/reset or financial mutation was issued during this investigation.
+See [revision120 incident](#revision120-connector-readiness-outage).
 
 Earlier: revision117/`5c36bb7bd` has a completed901-sample baseline. Observation
 quality passes, but the unchanged99% target fails: Spot98.36%, perpetual97.58%.
@@ -16,6 +16,65 @@ sharing, executor-identity and freshness-fixture changes are separately qualifie
 not deployed. See [baseline results](#revision117-thirty-minute-baseline-during-local-follow-up).
 Revision112's completed verification and the revision111 record below remain
 historical, with their original failed99% quote gates and scope limits intact.
+
+## Revision120 connector readiness outage
+
+Revision `hummingbot-demo-00120-l7h` runs commit
+`847f38e1ec21c3ab6a7b0808548065dc36ec59a6`, digest
+`sha256:da552642ceea0d1fc3f593a7dcbebe1dad9c7706b1fb6ae8204ba653ed4e3ab0`.
+The commit tag resolves to the same registry digest. It remains the latest Ready
+revision and receives100% traffic; no later deploy explains the incident.
+
+The20:15 local check has three running samples, no HALT and no active service
+incident. Spot is two-sided; perpetual BUY waits at its inventory cap while
+SELL reduces LONG. Two probe timeouts are retained. This brief check is not
+30-minute quote acceptance.
+
+From13:28:52.931UTC (20:28:52 local), both private and public OKX Demo WS
+handshakes fail with HTTP502. There are39 such ERROR records, followed by a
+startup reconciliation `TimeoutError` at13:29:22.614UTC and a failed-start
+summary. The stack waits in `BotOwnership.reconcile` for `connector.ready`;
+that passive wait currently consumes the30s exchange-reconciliation deadline.
+The exception handler calls `require_recovery`. This establishes the readiness
+failure path, not the ultimate infrastructure origin of the502 responses and
+not a causal link to the previously corrected absent-leg race.
+
+At16:32:19–16:32:29UTC (23:32 local), all three API samples remain
+`halted / RecoveryRequired`, on the same session/control84, generation80.
+Current working-order observations are unavailable, not confirmed empty.
+The complete bounded WARNING/ERROR query since revision creation returns81
+records:40 WARNING and41 ERROR, below the1,000 limit. It includes six probe
+failures, zero child-restart events and zero shutdown-timeout records. A later
+funding observation OSError is separately retained and does not explain the
+20:29 startup failure. No operator Stop/Start, recovery check/reset, exchange
+mutation, DB repair, cap or credential change was issued by this investigation.
+
+The local correction moves passive connector readiness outside the ordinary
+30s reconciliation deadline, matching the existing cold-recovery readiness wait.
+Native connector tasks keep reconnecting; admission stays disabled while waiting.
+Ownership is rechecked. Stop/Switch can cancel the task. The30s deadline still
+bounds normal open-order reconciliation/cancellation after readiness; its
+conservative failure handling and unknown-order/intent/financial checks remain.
+A pre-existing HALT is never erased. No env or API contract change is required.
+This does not generalize retries to arbitrary post-readiness exchange failures.
+
+Three RED cases reproduce the original deadline failure. The five added native
+cases cover delayed recovery, actual service Stop/health, prior HALT, and bounded
+read/cancel reconciliation. Three added PostgreSQL cases prove durable-state
+preservation across readiness recovery/Stop/prior HALT. Tests shorten the30s
+deadline while letting readiness remain blocked for multiple deadline budgets;
+they are deterministic lifecycle checks, not network latency benchmarks.
+Final native regression passes3,567 tests plus16 subtests; the42 focused tests
+are included. Disposable PostgreSQL ownership/reconciliation passes67 tests,
+including the earlier9-case selection. Hooks pass. No new packaged-image E2E,
+full load/soak, per-fill exchange reconciliation or connected quote gate is
+claimed by these lifecycle checks.
+
+Evidence: `build/cloudrun-status-20261112-2332/` and
+`build/readiness-outage-fix-20261112/`. The local fix is not deployed and does not
+clear the HALT already written by revision120. Exchange/ledger verification and
+reviewed recovery remain necessary before restarting that session. The original
+99% quote target remains open; no new full observation window is claimed.
 
 ## Revision119 connected window and per-leg absence proof
 

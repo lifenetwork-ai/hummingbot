@@ -777,9 +777,6 @@ class BotOwnership:
 
         async def perform():
             nonlocal may_have_exchange_effects
-            while not all(connector.ready for connector in self.connectors.values()):
-                await asyncio.sleep(0.1)
-                self.check_owner()
             # Query the dedicated account's complete open-order set. Unknown client
             # IDs require reconciliation; never cancel another writer's orders blindly.
             known = {order_id for connector in self.connectors.values() for order_id in connector.in_flight_orders}
@@ -808,13 +805,17 @@ class BotOwnership:
             core.trade_fill_db.assert_persistence_healthy()
             self._check_intents(core.markets_recorder)
         try:
+            # Native connector tasks reconnect in the background. Waiting for
+            # readiness grants no send authority and attempts no cancellation;
+            # it must not consume the deadline for exchange reconciliation.
+            # Stop/Switch still cancels this task and ownership is rechecked.
+            while not all(connector.ready for connector in self.connectors.values()):
+                self.check_owner()
+                await asyncio.sleep(.1)
             if automatic_bootstrap:
                 # Each venue request/work unit is bounded. Unknown outcomes may
                 # outlast startup's ordinary drain deadline without inventing a
                 # terminal order or requiring a process restart.
-                while not all(connector.ready for connector in self.connectors.values()):
-                    self.check_owner()
-                    await asyncio.sleep(.1)
                 await self.automatic_recovery.restore(core)
             if automatic_bootstrap:
                 while True:

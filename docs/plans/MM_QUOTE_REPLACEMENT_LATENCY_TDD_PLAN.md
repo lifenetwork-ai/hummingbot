@@ -212,7 +212,23 @@ acceptance; see the [qualification record](../../reports/performance/mm-quote-re
   final-image LONG/SHORT partial/cold-restart scenarios. The deployed window and
   new local artifact remain separate; see the
   [record](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision119-connected-window-and-per-leg-absence-proof).
-- [ ] Deploy scoped absence proof and repeat connected qualification. Capture
-  the exact live failed predicate if unavailable-position evidence recurs.
+- [x] Deploy scoped absence proof as revision120/847f38e1e; startup check passes.
+- [ ] Repeat connected qualification after the independent startup-readiness
+  HALT is resolved. Capture the exact failed predicate if position evidence fails.
 - [ ] Resolve ordinary replacement gaps, profile-handoff unknowns and narrow
   shutdown proof margin without changing the original99% qualification rules.
+
+## Connector readiness outage follow-up
+
+- [x] Reproduce the revision120 failure: passive readiness consumes the ordinary
+  reconciliation deadline and creates durable HALT before open-order reads.
+- [x] Keep readiness outside that deadline, on native reconnect tasks, with no
+  send authority. Preserve ownership checks and Stop/Switch cancellation.
+- [x] Keep the30s post-readiness reconciliation/cancel deadline, prior HALT and
+  all unresolved-order/intent/financial verification authoritative.
+- [x] Test service startup/live200 versus ready503 during the wait and actual Stop;
+  verify durable state against disposable PostgreSQL.
+- [ ] Deploy the fix, verify exchange/ledger state, then recover the old incident
+  through the reviewed recovery procedure. The fix does not clear existing HALT.
+- [ ] Repeat the unchanged30-minute quote gate on one revision/session. See the
+  [incident record](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision120-connector-readiness-outage).
