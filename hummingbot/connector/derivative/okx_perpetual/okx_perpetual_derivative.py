@@ -70,7 +70,10 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         self.account_balance_observations = {}
         self.position_observations = {}
         self.position_snapshot_times = {}
+        self.position_absence_times = {}
         self._position_event_versions = {}
+        self._position_leg_event_versions = {}
+        self._position_read_lock = asyncio.Lock()
         self._position_refresh_notifier = asyncio.Event()
 
         super().__init__(balance_asset_limit, rate_limits_share_pct)
@@ -685,14 +688,25 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             self._process_trade_event_message(trade)
 
     async def _update_positions(self):
+        # Startup/recovery callers share the same native reader as polling.
+        # An older REST response must not arrive after a newer one and renew
+        # its obsolete absence evidence.
+        async with self._position_read_lock:
+            await self._read_positions()
+
+    async def _read_positions(self):
         """
         Retrieves all positions using the REST API.
         """
         position_tasks = []
         versions = {pair: self._position_event_versions.get(pair, 0) for pair in self._trading_pairs}
+        leg_versions = {(pair, side): self._position_leg_event_versions.get((pair, side), 0)
+                        for pair in self._trading_pairs for side in (PositionSide.LONG, PositionSide.SHORT)}
+        symbols = {}
 
         for trading_pair in self._trading_pairs:
             ex_trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair)
+            symbols[trading_pair] = ex_trading_pair
             body_params = {"instId": ex_trading_pair}
             position_tasks.append(
                 asyncio.create_task(self._api_get(
@@ -709,6 +723,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         parsed_resps: List[Dict[str, Any]] = []
         successful_pairs = set()
         for resp, trading_pair in zip(raw_responses, self._trading_pairs):
+            self._observe_position_absence(trading_pair, symbols[trading_pair], resp, leg_versions)
             if self._position_event_versions.get(trading_pair, 0) != versions[trading_pair]:
                 continue
             if not isinstance(resp, Exception) and resp.get("code") in (None, CONSTANTS.RET_CODE_OK):
@@ -761,6 +776,41 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             if self._position_event_versions.get(pair, 0) == versions.get(pair):
                 self._record_position_observation(pair, data)
 
+    def _observe_position_absence(self, pair, symbol, response, versions):
+        """Full REST proof for an unchanged absent hedge leg only.
+
+        A LONG WS update still fences the entire old REST position application.
+        It cannot invalidate the response's independent proof of absent SHORT,
+        unless SHORT itself changed. Never advance the full-pair snapshot here.
+        """
+        if (self.position_mode != PositionMode.HEDGE or not isinstance(response, dict)
+                or response.get('code') != CONSTANTS.RET_CODE_OK or not isinstance(response.get('data'), list)):
+            return
+        present, seen = set(), set()
+        try:
+            for row in response['data']:
+                if (not isinstance(row, dict) or row.get('instId') != symbol or row.get('mgnMode') != 'cross'
+                        or row.get('posSide') not in ('long', 'short') or row['posSide'] in seen):
+                    return
+                seen.add(row['posSide'])
+                amount = Decimal(str(row['pos']))
+                if not amount.is_finite() or any(not Decimal(str(row[key] or '0')).is_finite()
+                                                 for key in ('avgPx', 'lever', 'upl')):
+                    return
+                if amount:
+                    present.add(PositionSide.LONG if row['posSide'] == 'long' else PositionSide.SHORT)
+        except (KeyError, ValueError, TypeError, ArithmeticError):
+            return
+        now = time.time()
+        for side in (PositionSide.LONG, PositionSide.SHORT):
+            key = (pair, side)
+            if self._position_leg_event_versions.get(key, 0) != versions[key]:
+                continue
+            if side in present:
+                self.position_absence_times.pop(key, None)
+            else:
+                self.position_absence_times[key] = now
+
     def _record_position_observation(self, pair, data):
         from hummingbot.connector.okx_account_observations import optional_decimal
         key = self._perpetual_trading.position_key(pair, self.get_position_side(data))
@@ -806,6 +856,18 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             ex_trading_pair = position_msg["instId"]
             trading_pair = await self.trading_pair_associated_to_exchange_symbol(symbol=ex_trading_pair)
             self._position_event_versions[trading_pair] = self._position_event_versions.get(trading_pair, 0) + 1
+            side = position_msg.get('posSide')
+            changed = ((PositionSide.LONG if side == 'long' else PositionSide.SHORT,)
+                       if self.position_mode == PositionMode.HEDGE and side in ('long', 'short')
+                       else (PositionSide.LONG, PositionSide.SHORT))
+            for leg in changed:
+                key = (trading_pair, leg)
+                self._position_leg_event_versions[key] = self._position_leg_event_versions.get(key, 0) + 1
+                self.position_absence_times.pop(key, None)
+                # Failed/cancelled parsing must not leave old metadata looking
+                # current after this leg's version has changed. Retain exposure;
+                # only a valid application below can publish a fresh observation.
+                self.position_observations.pop(self._perpetual_trading.position_key(trading_pair, leg), None)
             # OKX's symbol shortcut does not initialize instrument metadata.
             # Retain this event on the existing await/lock until cold metadata
             # is available. Record its version first to fence older REST reads.

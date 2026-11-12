@@ -187,5 +187,32 @@ acceptance; see the [qualification record](../../reports/performance/mm-quote-re
 - [x] Qualify3,541 native tests plus16 subtests and final-image LONG/SHORT
   packaged cases, including partial fills and cold restart. Scope and artifacts
   are in the [local follow-up record](../../reports/performance/mm-quote-replacement-latency.md#native-position-poll-scheduling-follow-up).
-- [ ] Deploy the poll correction and repeat connected quote/latency qualification.
-  This local scheduling proof does not identify every live probe/API delay.
+- [x] Deploy the poll correction as revision119/709700c70 and repeat901 samples:
+  quality pass, unchanged quote target fail (Spot89.61%, perpetual87.59%). Retain
+  two unavailable-position samples and all guard/unknown observations.
+
+## Scoped absent-leg proof follow-up
+
+- [x] RED: a LONG WS update during full REST preserves the newer LONG and must
+  not discard independent proof that SHORT is absent. Cover the reverse direction.
+- [x] Keep whole-pair REST/WS fencing and full-snapshot timestamps unchanged.
+  Add per-leg absence evidence only for a complete successful scoped response,
+  with exact instrument, CROSS/HEDGE, valid unique sides and finite fields.
+- [x] Same-leg WS invalidates old/in-flight absence proof; net/unknown side
+  invalidates both. Invalidate changed-leg metadata before WS parsing so a
+  malformed/canceled event cannot reuse an old fresh observation; retain quantity.
+  Positive REST presence clears old absence evidence. Stale,
+  future, failed and incomplete evidence cannot borrow a fresh pair timestamp.
+- [x] RED: invalid leg evidence must request a native refresh even when the pair
+  timestamp is fresh. Validate cached venue evidence before skipping refresh,
+  preserving the regular polling cadence and unchanged admission age limit.
+- [x] Serialize native REST position callers, including cancellation/retry, so
+  an older response cannot arrive last and renew obsolete proof.
+- [x] Qualify21 new native cases,3,562 canonical tests plus16 subtests and exact
+  final-image LONG/SHORT partial/cold-restart scenarios. The deployed window and
+  new local artifact remain separate; see the
+  [record](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision119-connected-window-and-per-leg-absence-proof).
+- [ ] Deploy scoped absence proof and repeat connected qualification. Capture
+  the exact live failed predicate if unavailable-position evidence recurs.
+- [ ] Resolve ordinary replacement gaps, profile-handoff unknowns and narrow
+  shutdown proof margin without changing the original99% qualification rules.

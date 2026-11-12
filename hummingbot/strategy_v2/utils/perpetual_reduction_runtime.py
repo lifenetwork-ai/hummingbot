@@ -127,7 +127,12 @@ class PerpetualReductionMixin:
             raise ValueError('reduction_position_unavailable')
         if (isinstance(stamp, (int, float)) and not isinstance(stamp, bool) and math.isfinite(stamp)
                 and 0 <= now - stamp <= float(self.config.max_data_age_seconds) / 2):
-            return False
+            try:
+                self._reduction_venue()
+            except (ValueError, ArithmeticError, AttributeError, TypeError):
+                pass  # A newer WS event may have invalidated a leg's evidence.
+            else:
+                return False
         request = connector.request_position_refresh
         if not callable(request):
             raise ValueError('reduction_position_unavailable')
@@ -215,7 +220,7 @@ class PerpetualReductionMixin:
             if len(rows) > 1:
                 raise ValueError('reduction_position_unavailable')
             if not rows:
-                if not fresh(connector.position_snapshot_times.get(self.config.trading_pair)):
+                if not fresh(connector.position_absence_times.get((self.config.trading_pair, leg))):
                     raise ValueError('reduction_position_unavailable')
                 amounts.append(ZERO)
                 continue

@@ -38,6 +38,9 @@ def maker(long='0', short='0', *, levels=1, **updates):
     connector._position_refresh_notifier = asyncio.Event()
     connector.request_position_refresh.side_effect = lambda: OkxPerpetualDerivative.request_position_refresh(connector)
     connector.position_snapshot_times = {'BTC-USDT': 1000}
+    connector.position_absence_times = {('BTC-USDT', side): 1000
+                                        for side, amount in ((PositionSide.LONG, long), (PositionSide.SHORT, short))
+                                        if not D(amount)}
     connector.position_observations = {}
     connector.account_positions = {}
     for key, side, amount in (('long', PositionSide.LONG, long), ('short', PositionSide.SHORT, short)):
@@ -321,6 +324,7 @@ def test_healthy_ws_does_not_leave_an_absent_hedge_leg_waiting_for_the_120_secon
         controller._reduction_venue()
     # Only a successful native full snapshot makes the absent leg known again.
     connector.position_snapshot_times['BTC-USDT'] = 1011
+    connector.position_absence_times['BTC-USDT', PositionSide.SHORT] = 1011
     connector._poll_notifier.clear()
     assert not controller.request_reduction_position_refresh()
     assert controller._reduction_venue() == (D(1), D(0))

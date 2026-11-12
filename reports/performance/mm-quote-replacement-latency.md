@@ -1,9 +1,9 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
-Connected status: revision118/1e5d15bda completes897 samples with quality pass
-and the original99% gate failed (Spot94.50%, perpetual94.03%). No ERROR/restart/
-shutdown timeout is observed; probe and API latency tails remain. The native
-position-poll scheduling correction below is locally qualified, not deployed.
+Connected status: revision119/709700c70 completes901 samples with quality pass
+and the original99% gate failed (Spot89.61%, perpetual87.59%). No ERROR/restart/
+shutdown timeout is observed, but position evidence and deadline margin remain
+open. The scoped per-leg absence-proof correction below is local, not deployed.
 
 Earlier: revision112 includes the post-only CLOSE correction and native readback
 confirms fresh-price replacement. Its completed901-sample window still fails99%
@@ -314,6 +314,62 @@ This is scoped simulator/local-encryption qualification, not a new full load/soa
 real Google/GCP KMS or fresh per-fill OKX REST reconciliation.
 
 Evidence/source identities are under
-`build/revision118-quote-qualification-20261112/`. This correction is local;
-revision118 still runs1e5d15bda. No new env setting is required. Deploy the
-correction and repeat the original connected target before claiming improvement.
+`build/revision118-quote-qualification-20261112/`. This poll correction was subsequently deployed as revision119/709700c70.
+Its connected window and the new local absence-proof correction are recorded
+below; no new env setting is required.
+
+
+## Per-leg absence proof follow-up
+
+The completed revision119 window is quality-valid but still fails the unchanged
+quote gate. Keep901 samples, all guard/unknown states,146 recorded perpetual
+fills and49 probe transitions. One shutdown core takes7.947s, including4.874s
+proof after checkpoint, without a logged deadline failure. Two unavailable
+position samples recur after fills. See the [connected record](../demo/cloudrun-quote-replacement-acceptance.md#revision119-connected-window-and-per-leg-absence-proof)
+for exact timing, coverage, workload restrictions and remaining gaps.
+
+The custom pair-level WS fence can discard a successful REST response proving
+SHORT absent merely because LONG changed while the request was pending. A RED
+native/controller test preserves newer LONG but fails absent-SHORT admission;
+the reverse direction is covered too. Another RED demonstrates concurrent REST
+position callers, which can otherwise let an older response arrive last.
+These reproduce mechanisms, not a unique predicate captured in the live samples.
+
+The correction keeps whole-pair position application/snapshot fencing unchanged.
+Independent in-memory absence evidence requires a complete successful scoped
+CROSS/HEDGE response, correct instrument, unique sides, finite fields and no WS
+change of that specific leg. Same-leg WS invalidates proof before metadata waits;
+net/unknown sides invalidate both. REST presence clears obsolete absence proof.
+Missing, stale or future absence proof cannot use a fresh whole-pair timestamp.
+Five RED assertions also demonstrate that a fresh pair timestamp can suppress
+refresh after leg evidence has become invalid. Refresh scheduling now checks the
+in-memory venue evidence before skipping a native refresh; regular polling cadence
+and admission age limits remain unchanged. Native REST readers share a lock,
+including cancellation/retry. There is no
+partial native quantity application, DB repair or pricing/cap/age relaxation.
+
+Twenty-one new native cases cover both directions, same-leg zero/nonzero WS,
+malformed/failed responses, fresh-pair/invalid-leg evidence and serial-reader
+cancellation. Two additional REDs exercise malformed WS after version change: old
+quantity is retained but its observation is invalidated before parsing. The logs
+are `/tmp/hbot-position-absence-race-red.log` and
+`/tmp/hbot-position-absence-malformed-ws-red.log`, plus the refresh assertions in
+`/tmp/hbot-position-proof-refresh-red.log`; final canonical
+regression passes3,562 tests plus16 subtests in
+`/tmp/hbot-position-absence-refresh-native-final.log`. The51 focused cases overlap that
+total. Fixtures publish absence proof only for actually empty legs. Hooks pass.
+
+Final amd64 image
+`sha256:d380cd6f94330d8c1f5f8dda628f292179404f5e8819be172cb9b71239dfc49c`
+matches8 runtime sources. Packaged LONG/SHORT pass lost ACK, partial application
+once, original fees, maker replacement and cold restart. Receipts:
+`build/e2e-offline/20261112-195606-e37e27/result.json` and
+`build/e2e-offline/20261112-195606-0938bc/result.json`; manifest
+`sha256:28fdb1934486ffc7081f79c76f0e802ac81a9f82fb9c137d28c6c013bca01ce8`.
+This is scoped simulator/local-encryption qualification, not a new full load/soak,
+real Google/GCP KMS or per-fill native OKX reconciliation. Evidence/source
+identities are under `build/revision119-quote-qualification-20261112/`.
+
+The absence-proof correction is not deployed and requires no new env setting.
+Repeat connected qualification after deployment. Ordinary replacement gaps,
+profile-handoff unknowns and proof deadline margin remain separate open items.

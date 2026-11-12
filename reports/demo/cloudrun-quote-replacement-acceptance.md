@@ -1,11 +1,12 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest: revision118/`1e5d15bda` completes897 samples on one revision/session.
-Observation quality passes, but the unchanged99% target fails: Spot94.50%,
-perpetual94.03%. Three profile changes finish without ERROR, restart or shutdown
-timeout; transient fences and unavailable data remain failing unknown samples.
-A separately reproduced position-poll scheduling defect is fixed and qualified
-locally, not deployed. See [revision118 results](#revision118-connected-window-and-position-poll-follow-up).
+Latest: revision119/`709700c70` completes901 samples on one revision/session.
+Observation quality passes; the unchanged99% target fails: Spot89.61%,
+perpetual87.59%. Recorder history contains146 perpetual fills in the window.
+There is no ERROR/restart/shutdown-timeout event, but49 probes time out and two
+samples report unavailable position evidence. A separate per-leg absence-proof
+race is reproduced and corrected locally, not deployed. See
+[revision119 results](#revision119-connected-window-and-per-leg-absence-proof).
 
 Earlier: revision117/`5c36bb7bd` has a completed901-sample baseline. Observation
 quality passes, but the unchanged99% target fails: Spot98.36%, perpetual97.58%.
@@ -15,6 +16,100 @@ sharing, executor-identity and freshness-fixture changes are separately qualifie
 not deployed. See [baseline results](#revision117-thirty-minute-baseline-during-local-follow-up).
 Revision112's completed verification and the revision111 record below remain
 historical, with their original failed99% quote gates and scope limits intact.
+
+## Revision119 connected window and per-leg absence proof
+
+Revision `hummingbot-demo-00119-hd7` is Ready with100% traffic. Its registry tag
+is commit `709700c7061d02dece8539522e07d362b8988c1f`, resolved digest
+`sha256:5ef986daff314fcc0214d3e658d50633fea646cbb0e369885524fca647a251a1`.
+Diagnostics are enabled. This deploys the position-poll scheduling correction;
+it does not contain the subsequent local absence-proof correction below.
+
+Measurement12:05:27.497461–12:35:28.135187UTC (19:05–19:35 local) retains901
+samples on the same revision, session and control84 across generations71–74.
+Wall span1,800.638s, maximum gap3.762s, zero API errors. The original classifier
+hash `ce60b823674db68a850cafd03fe7e90d77dc8cd0484716bee31b315e6a03e753`
+and its unknown/guard rules are unchanged. Quality passes; the target fails.
+
+| Market | Two-sided | Eligible gap | Unknown | Guard excluded | Conservative result |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Spot |345|30|10|516|345/385=89.61%, fail |
+| Perpetual |360|41|10|490|360/411=87.59%, fail |
+
+Only375/901 Spot and401/901 perpetual samples are confirmed eligible. Inventory
+skew suppresses Spot BUY sizing in many samples; the early perpetual LONG is
+0.0499BTC against the unchanged0.05BTC cap. Size, cap, allocation and readiness
+restrictions are retained separately. These different market/inventory/profile
+conditions do not form a controlled speed comparison with revision118. Even
+removing ordinary replacement gaps would leave375/385 and401/411 because the
+unknowns still count as failures; both paths need attention to meet99%.
+
+All three scheduled profile changes finish without restart. Six raw HALT
+samples and two owner-unavailable samples remain in the original classification.
+Forty-two samples wait for readiness. `reduction_position_unavailable` occurs at
+12:12:25.165535 and12:12:51.197463UTC, then clears; it is not relabeled as fixed.
+A bounded, two-page recorder read finds146 perpetual fills:75 CLOSE and71 OPEN,
+no pagination truncation. All have subsequent samples; two lack a complete15s
+follow-up before window end. Twenty overlapping post-fill15s windows contain
+one of the two unavailable samples, not twenty distinct incidents. This is
+recorded history plus observations, not fresh per-trade OKX REST reconciliation.
+
+Exact-window logs contain146 WARNING records below the1,000-query limit:
+49 supervisor probe-timeout transitions,31 diagnostic stall/recovery pairs and
+25 slow-stage packets, zero ERROR, child restart or shutdown-timeout events.
+Fourteen probes have a sampled stall within2s; rate-limited packets do not
+explain every probe. Sampled maxima include controller7.01ms, tick341.47ms,
+reports382.83ms, SQL217.22ms and guarded submission1.397s. These are sampled
+spans, not complete operation percentiles. Client-read status p99/max is
+1.133/2.114s; liquidity0.933/1.873s. Neither is exchange ACK latency.
+
+Observed shutdown totals are1.520s,8.040s and2.421s. The second core span is
+7.947s; proof-before2.933s and proof-after4.874s explain most of it. The total
+span also includes work before the8s core deadline is established, so8.040s
+does not itself imply a logged deadline violation. The core has very little
+margin; retain this concern and the historical timeout investigation. At
+12:36:47UTC the API is running, error/HALT/pending false, both markets two-sided.
+
+Code inspection plus RED tests find another availability coupling in the custom
+WS-versus-REST fencing, introduced before this release: any leg's WS version
+change discards the entire pair response. With fresh LONG WS updates, that can
+discard otherwise valid full-REST proof that SHORT remains absent. Earlier race
+coverage protected LONG from overwrite but did not assert fresh absent-peer
+admission. This mechanism is reproduced; the exact failed predicate was not
+captured in the two live unavailable samples, so unique causality is unproved.
+
+The local correction retains the existing whole-pair fence and does not advance
+the full-pair snapshot on a raced response. Separate in-memory absence timestamps
+require a complete successful CROSS/HEDGE REST response, exact instrument,
+valid unique sides and finite values, and an unchanged WS version for that
+specific absent leg. A WS update to that leg invalidates its proof; net/unknown
+side events invalidate both. A version change also invalidates old position
+metadata before WS parsing, retaining quantity but blocking admission if parsing
+fails or is canceled. Positive REST presence clears old absence proof.
+Absent-leg admission cannot fall back to a fresh pair timestamp. A recent pair
+timestamp also cannot suppress a refresh when required leg evidence is invalid;
+the controller wakes the existing native reader without doing REST itself. The
+regular full-snapshot polling cadence and admission age limit are unchanged. All native REST
+position callers share a lock, preventing out-of-order responses from renewing
+old absence evidence. No native position quantity is partially reapplied.
+
+Local qualification:21 new native cases,3,562 canonical tests plus16 subtests,
+and both packaged LONG/SHORT cases pass. The final amd64 image
+`sha256:d380cd6f94330d8c1f5f8dda628f292179404f5e8819be172cb9b71239dfc49c`
+matches8 relevant runtime sources; manifest
+`sha256:28fdb1934486ffc7081f79c76f0e802ac81a9f82fb9c137d28c6c013bca01ce8`.
+LONG/SHORT receipts are `build/e2e-offline/20261112-195606-e37e27/` and
+`build/e2e-offline/20261112-195606-0938bc/`, including partial application once,
+lost ACK, fees, maker replacement and cold restart. No new full soak, real
+Google/GCP KMS or per-fill native reconciliation is claimed. No operator Cloud
+configuration, trading command, DB repair, credential, cap, pricing or
+freshness-threshold mutation was issued during this observation.
+
+Evidence: `build/revision119-quote-qualification-20261112/`, including the raw
+samples, unchanged analysis, logs/correlations, recorded-fill follow-up and local
+source identities. Deploy and measure the local correction separately. Keep
+ordinary replacement gaps, profile-handoff unknowns and proof deadline margin
+open; this correction does not establish continuous99% quoting.
 
 ## Revision118 connected window and position-poll follow-up
 

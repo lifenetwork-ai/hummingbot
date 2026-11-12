@@ -1,12 +1,12 @@
 # MM automatic recovery and availability
 
-Latest 2026-11-12: revision118/1e5d15bda completes897 samples on one
+Latest 2026-11-12: revision119/709700c70 completes901 samples on one
 revision/session. Quality passes; the unchanged99% quote gate fails
-(Spot94.50%, perpetual94.03%). Three profile changes complete without observed
-ERROR/restart/shutdown timeout. The separately reproduced native position-poll
-scheduling correction is locally qualified, not deployed; probe/API delay and
-connected acceptance stay open. See the
-[revision118 record](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision118-connected-window-and-position-poll-follow-up).
+(Spot89.61%, perpetual87.59%). Recorder history has146 perpetual fills. There
+is no ERROR/restart/shutdown-timeout event, but two position-unavailable samples
+and narrow shutdown margin remain. Per-leg absence proof is reproduced and
+qualified locally, not deployed. See the
+[revision119 record](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision119-connected-window-and-per-leg-absence-proof).
 
 Earlier 2026-11-12: revision117/5c36bb7bd automatically clears the old verified
 shutdown fence and returns to quotes on session/control84. Its next scheduled
