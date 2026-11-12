@@ -32,8 +32,8 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
   commit/rollback/recovery checks. Qualify the packaged candidate separately.
 - [x] Review profile preparation and status/liquidity sampling delays using
   retained evidence. Preserve the shutdown fence and unknown-as-failure rule.
-- [ ] Connected quote qualification needs a new deployed artifact; do not assign
-  new local behavior or a99% pass to the currently running revision110.
+- [x] Deploy the earlier correction and repeat connected quote qualification.
+  Revision111/112 windows retain their failures; deployment is not a99% pass.
 
 ## Additional incident found during connected observation
 
@@ -91,8 +91,47 @@ See [connected acceptance](../../reports/demo/cloudrun-quote-replacement-accepta
 - [x] Verify partial/zero fills, both sides, duplicate/foreign events and the
   unmanaged path. Native3,491+16, PostgreSQL35 and both packaged hedge cases pass.
   The old image fails; its failed run is retained. No proof or risk guard is relaxed.
-- [ ] Deploy this additional local correction and repeat connected qualification.
+- [x] Deploy this additional local correction and repeat connected qualification.
+  Revision112 confirms269 CLOSE orders from269 executors and five native
+  post-only cancellations followed by new executors/prices. No manual reset.
+- [ ] Close the unchanged99% target: the new901-sample window still fails
+  Spot86.84%/perpetual94.74%, with35 probe timeout transitions. The timeout values
+  are deadline-censored; cached report progress around15/18 overlapping probes
+  is scoped evidence, not uninterrupted ticks. Preserve the two shutdown-fence
+  samples as unknown and retain bounded timing/stack capture as follow-up.
 
 Three event-clock timestamps exceed the manual verifier's one-second allowance;
 retained native snapshots still match the actual execution times. Keep that
 separate limitation visible without rewriting history or widening the tolerance.
+
+## Follow-up: production diagnostics and terminal publication
+
+Keep revision112's connected results intact. The following work is local until
+a separately verified artifact is deployed; no Cloud policy or trading mutation
+is part of this implementation.
+
+- [x] RED native executor completion/cancellation without another engine tick:
+  terminal financial application must precede controller publication. Include
+  partial fills, rollback/retry, duplicate bursts, stale session and shutdown.
+- [x] Coalesce managed terminal notifications on the existing strategy loop,
+  using its unchanged native report/checkpoint path. No extra order authority,
+  independent financial writer, report polling loop or clock acceleration. The
+  one-shot50ms notification window batches adjacent ACKs; a regular report
+  consumes any queued notification. Callback context excludes retired order and
+  cleanup authority, including a RED/green inheritance test.
+- [x] Add opt-in bounded engine heartbeat/stage/SQL diagnostics on one monotonic
+  clock, with sanitized stack summaries. Capture neither locals, SQL/parameters,
+  credentials nor raw arguments. Rate-limit WARNING evidence independently of
+  the project's missing INFO; telemetry failure must not alter trading results.
+- [x] Verify real loop stalls, task cancellation, SQL exceptions, retention,
+  log budgets, disabled overhead and complete hook/task/thread teardown.
+- [x] Run native regression, PostgreSQL terminal/financial tests and packaged
+  LONG/SHORT replacement cases. Preserve all failed evidence and scope limits.
+- [ ] Deploy the candidate with diagnostics explicitly enabled, correlate actual
+  slow episodes and repeat the original connected quote target.
+
+Local qualification:3,523 tests plus16 subtests,62 related PostgreSQL tests and
+both packaged hedge-leg scenarios pass. The final diagnostic image also passes
+the unchanged300-second load budgets at2CPU/1GiB:300 matching fills, both-leg
+closes and verified flat managed-key cleanup. This remains scoped offline
+acceptance; see the [qualification record](../../reports/performance/mm-quote-replacement-latency.md#terminal-publication-and-production-diagnostics-follow-up).

@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_valid
 from controllers.market_making import pmm_simple
 from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSide, PriceType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
+from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.core.mm_readiness import MM_READINESS_REASONS
 from hummingbot.core.utils.read_retry import retry_delay, transient_read
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
@@ -660,6 +661,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
     async def update_processed_data(self):
         self.update_reference(sample_guard=True)
 
+    @trace_runtime('controller.cycle')
     async def control_task(self):
         if self._executor_progress is not None:
             self._executor_progress.clear()

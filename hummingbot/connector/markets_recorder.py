@@ -20,6 +20,7 @@ from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.connector.utils import TradeFillOrderDetails
 from hummingbot.core.data_type.common import PriceType
 from hummingbot.core.data_type.trade_fee import TradeFeeBase
+from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.core.event.event_forwarder import SourceInfoEventForwarder
 from hummingbot.core.event.events import (
     BuyOrderCompletedEvent,
@@ -375,6 +376,7 @@ class MarketsRecorder:
             except (ValueError, ArithmeticError, TypeError):
                 return {}
 
+    @trace_runtime('position.checkpoint')
     def checkpoint_held_positions(self, positions, infos, *, reduction_bases=None):
         """Native transfer order, financial rows and application receipt commit together.
 

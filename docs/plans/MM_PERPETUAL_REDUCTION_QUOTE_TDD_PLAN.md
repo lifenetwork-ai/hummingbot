@@ -1,10 +1,10 @@
 # Perpetual close-first quotes
 
-Follow-up 2026-11-12: revision111/`d8f90c13b` resolves the old50037 block
-through native audited recovery. The bot is running. Its completed30-minute
-quote window fails99% (Spot93.46%, perpetual87.89%). A confirmed repeated-price
-post-only CLOSE defect has a separate tested local fix awaiting deployment;
-see [connected acceptance](../../reports/demo/cloudrun-quote-replacement-acceptance.md).
+Follow-up 2026-11-12: revision112/`1c1fa280a` runs the post-only CLOSE
+correction; native readback confirms fresh-price replacements without same-executor
+replay. Its completed901-sample window still fails99% (Spot86.84%, perpetual94.74%).
+The bot is running without an incident HALT reset/owner restart. Probe causality
+remains open; see [connected acceptance](../../reports/demo/cloudrun-quote-replacement-acceptance.md).
 
 Status: implemented and locally qualified. Demo revision110 contains activation
 commit `3af2e3419`: the explicit Demo perpetual policy is now close-first with

@@ -19,7 +19,8 @@ def test_valuation_outage_warns_once_preserves_unready_and_reports_recovery(capl
     reports, price = orchestrator([item])
     price.stamp = 980000
     logger = logging.getLogger('test.mm.valuation')
-    strategy = SimpleNamespace(executor_orchestrator=reports, controllers={}, logger=lambda: logger)
+    strategy = SimpleNamespace(executor_orchestrator=reports, controllers={}, logger=lambda: logger,
+                               _managed_report_handle=None, _managed_report_pending={})
     with caplog.at_level(logging.INFO):
         StrategyV2Base.update_executors_info(strategy)
         StrategyV2Base.update_executors_info(strategy)
@@ -71,6 +72,7 @@ def test_unexpected_report_error_retains_error_trace(caplog):
     reports = MagicMock()
     reports.get_all_reports.side_effect = RuntimeError('unexpected_report_failure')
     strategy = SimpleNamespace(executor_orchestrator=reports, controllers={},
+                               _managed_report_handle=None, _managed_report_pending={},
                                logger=lambda: logging.getLogger('test.mm.unexpected'))
     with caplog.at_level(logging.ERROR):
         StrategyV2Base.update_executors_info(strategy)

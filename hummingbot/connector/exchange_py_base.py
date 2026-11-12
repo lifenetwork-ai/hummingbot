@@ -27,6 +27,7 @@ from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTr
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.data_type.user_stream_tracker import UserStreamTracker
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
+from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.core.network_iterator import NetworkStatus
 from hummingbot.core.utils.async_utils import safe_ensure_future, safe_gather
 from hummingbot.core.web_assistant.auth import AuthBase
@@ -397,6 +398,7 @@ class ExchangePyBase(ExchangeBase, ABC):
         failed_cancellations = [CancellationResult(oid, False) for oid in order_id_set]
         return successful_cancellations + failed_cancellations
 
+    @trace_runtime('order.submit', order_parameter='order_id')
     async def _create_order(self,
                             trade_type: TradeType,
                             order_id: str,
@@ -577,6 +579,7 @@ class ExchangePyBase(ExchangeBase, ABC):
         )
         self._order_tracker.process_order_update(order_update)
 
+    @trace_runtime('order.cancel', order_parameter='order')
     async def _execute_order_cancel(self, order: InFlightOrder) -> Optional[str]:
         try:
             cancelled = await self._execute_order_cancel_and_process_update(order=order)

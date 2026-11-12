@@ -11,6 +11,7 @@ from cachetools import TTLCache
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.trade_fee import TradeFeeBase
+from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.core.event.events import (
     BuyOrderCompletedEvent,
     BuyOrderCreatedEvent,
@@ -360,6 +361,7 @@ class ClientOrderTracker:
             ),
         )
 
+    @trace_runtime('order.terminal', order_parameter='order')
     def _trigger_cancelled_event(self, order: InFlightOrder):
         self._connector.trigger_event(
             MarketEvent.OrderCancelled,
@@ -398,6 +400,7 @@ class ClientOrderTracker:
             ),
         )
 
+    @trace_runtime('order.terminal', order_parameter='order')
     def _trigger_completed_event(self, order: InFlightOrder):
         event_tag = (
             MarketEvent.BuyOrderCompleted if order.trade_type is TradeType.BUY else MarketEvent.SellOrderCompleted
@@ -417,6 +420,7 @@ class ClientOrderTracker:
             ),
         )
 
+    @trace_runtime('order.terminal', order_parameter='order')
     def _trigger_failure_event(self, order: InFlightOrder, order_update: OrderUpdate):
         misc_updates = order_update.misc_updates or {}
         self._connector.trigger_event(
