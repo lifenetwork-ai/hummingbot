@@ -10,6 +10,7 @@ from sqlalchemy import update
 
 from hummingbot.cli.admin_api import ADMIN_PREFIX, AdminAPI, admin_middleware
 from hummingbot.client.config.admin_config import AdminSettings
+from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.core.bot_ownership import BotOwnership
 from hummingbot.core.mm_session import MMSession
 from hummingbot.core.order_submission_guard import SubmissionBlocked
@@ -24,6 +25,56 @@ def client(store, cfg):
     app = web.Application(middlewares=[admin_middleware(settings)])
     AdminAPI(SimpleNamespace(store=store, revision='test'), settings, catalogue=cfg).register(app)
     return TestClient(TestServer(app), headers={'Authorization': BasicAuth('operator', 'test-password').encode()})
+
+
+@pytest.mark.asyncio
+async def test_yaml_duration_default_pins_new_commands_without_rewriting_retry_or_restored_deadlines(pg_engine):
+    bootstrap_postgres(pg_engine, auto_migrate=True)
+    store = BotStateStore(pg_engine, 'hummingbot')
+    store.ensure()
+    timed = await catalogue()
+    continuous = MMProfilesConfig.model_validate({**timed.model_dump(mode='json'), 'default_duration_mode': 'until_stopped'})
+    owner = BotOwnership(pg_engine, 'hummingbot')
+    assert owner.try_acquire()
+    try:
+        async with client(store, timed) as old, client(store, continuous) as new:
+            payload = dict(action='start', expected_version=0, market_mode='both', selection='random')
+            response = await old.post(ADMIN_PREFIX + '/commands', json=payload, headers={'Idempotency-Key': 'old-default'})
+            first = await response.json()
+            assert response.status == 202
+            prior = store.read()['mm_session']
+            assert prior['request']['duration_mode'] == 'timed'
+            assert 'default_duration_mode' not in prior['catalogue']
+            retry = await new.post(ADMIN_PREFIX + '/commands', json=payload, headers={'Idempotency-Key': 'old-default'})
+            assert retry.status == 202 and (await retry.json())['id'] == first['id']
+            assert store.read()['mm_session'] == prior
+            profiles = await (await new.get(ADMIN_PREFIX + '/profiles')).json()
+            assert profiles['catalogue']['default_duration_mode'] == 'until_stopped'
+            switch = dict(action='switch', expected_version=1, session_id=first['session_id'], market_mode='both', selection='random')
+            response = await new.post(ADMIN_PREFIX + '/commands', json=switch, headers={'Idempotency-Key': 'continuous-default'})
+            receipt = await response.json()
+            assert response.status == 202
+            assert receipt['payload']['duration_mode'] is None  # Original request did not choose a mode.
+            session = store.update_mm_session(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=2,
+                                              session_id=receipt['session_id'], generation=0,
+                                              change=lambda current, now: current.ready(now=now, anchors=anchors(current)))
+            restored = MMSession.model_validate(store.read()['mm_session'])
+            assert restored == session and session.expires_at is None
+            config = await (await new.get(ADMIN_PREFIX + f'/sessions/{session.id}/configuration')).json()
+            assert config['catalogue']['default_duration_mode'] == config['request']['duration_mode'] == 'until_stopped'
+            switch = dict(action='switch', expected_version=2, session_id=session.id, market_mode='both',
+                          selection='random', duration_seconds=60)
+            response = await new.post(ADMIN_PREFIX + '/commands', json=switch, headers={'Idempotency-Key': 'explicit-timer'})
+            receipt = await response.json()
+            assert response.status == 202
+            selected = store.read()['mm_session']['request']
+            assert selected['duration_mode'] == 'timed' and selected['duration_seconds'] == 60
+            response = await new.post(ADMIN_PREFIX + '/commands', json=dict(action='stop', expected_version=3,
+                                                                            session_id=receipt['session_id']),
+                                      headers={'Idempotency-Key': 'stop-continuous-default'})
+            assert response.status == 202 and store.read()['desired_state'] == 'stopped'
+    finally:
+        owner.release()
 
 
 @pytest.mark.asyncio

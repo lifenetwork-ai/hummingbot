@@ -149,6 +149,9 @@ def digest(value):
 
 def held_order_snapshot(order):
     """Exact native held-order payload; unavailable quote fees cannot become zero."""
+    if (sum((trade.fill_base_amount for trade in order.order_fills.values()), Decimal(0)) != order.executed_amount_base
+            or sum((trade.fill_quote_amount for trade in order.order_fills.values()), Decimal(0)) != order.executed_amount_quote):
+        raise ValueError('Held position execution coverage is unavailable')
     value = order.to_json(include_fee_totals=False)
     fee = sum((trade.fee.fee_amount_in_token(trading_pair=order.trading_pair, price=trade.fill_price,
                                              order_amount=trade.fill_base_amount, token=order.quote_asset)

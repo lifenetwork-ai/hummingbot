@@ -358,7 +358,24 @@ class MarketsRecorder:
                                                                 'credential_fingerprints': anchors}))
         return True
 
-    def checkpoint_held_positions(self, positions, infos):
+    def get_reduction_bases(self):
+        """Startup-only read; no history scans or I/O on the quote/send path."""
+        from hummingbot.model.runtime_journal import RuntimeCheckpoint, financial_hash
+        from hummingbot.strategy_v2.utils.perpetual_reduction import restore_basis_checkpoint
+        if not self.durable_position_checkpoints:
+            return {}
+        with self._sql_manager.get_new_session() as session:
+            checkpoint = session.get(RuntimeCheckpoint, self._config_file_path)
+            if checkpoint is None or 'reduction_basis' not in checkpoint.payload:
+                return {}
+            try:
+                if checkpoint.financial_hash != financial_hash(session):
+                    return {}
+                return restore_basis_checkpoint(checkpoint.payload['reduction_basis'], checkpoint.financial_hash)
+            except (ValueError, ArithmeticError, TypeError):
+                return {}
+
+    def checkpoint_held_positions(self, positions, infos, *, reduction_bases=None):
         """Native transfer order, financial rows and application receipt commit together.
 
         The caller only publishes the new in-memory hold after this transaction.
@@ -379,6 +396,13 @@ class MarketsRecorder:
             checkpoint = session.get(RuntimeCheckpoint, self._config_file_path)
             if checkpoint is not None and checkpoint.financial_hash != financial_hash(session):
                 raise ValueError('Position checkpoint changed outside its application journal')
+            previous_bases = {}
+            if checkpoint is not None and reduction_bases is not None and 'reduction_basis' in checkpoint.payload:
+                from hummingbot.strategy_v2.utils.perpetual_reduction import restore_basis_checkpoint
+                try:
+                    previous_bases = restore_basis_checkpoint(checkpoint.payload['reduction_basis'], checkpoint.financial_hash)
+                except (ValueError, ArithmeticError, TypeError):
+                    pass  # Unproven old costs cannot supply authority to a new session.
             self.update_or_store_positions(positions, session=session)
             for info in infos:
                 data = json.loads(info.model_dump_json())
@@ -427,6 +451,19 @@ class MarketsRecorder:
                         {RuntimeJournal.applied: True}, synchronize_session=False)
             if checkpoint is not None:
                 advance_checkpoints(session, [checkpoint])
+                if reduction_bases is not None:
+                    from hummingbot.strategy_v2.utils.perpetual_reduction import basis_checkpoint
+                    scope = {(row.controller_id, row.connector_name, row.trading_pair, row.side): row.amount
+                             for row in positions}
+                    if any(key not in scope or basis.amount != scope[key] for key, basis in reduction_bases.items()):
+                        raise ValueError('Remaining costs do not cover the exact owned position snapshot')
+                    # An inactive controller's unchanged position is outside this
+                    # batch. Carry its verified costs; drop costs for any updated
+                    # position whose new basis is unavailable.
+                    retained = {key: basis for key, basis in previous_bases.items() if key not in scope}
+                    retained.update(reduction_bases)
+                    checkpoint.payload = {**checkpoint.payload,
+                                          'reduction_basis': basis_checkpoint(checkpoint.financial_hash, retained)}
 
     def store_controller_config(self, controller_config: ControllerConfigBase):
         with self._sql_manager.get_new_session() as session:
@@ -626,18 +663,47 @@ class MarketsRecorder:
                 return order.config_file_path, order.strategy
         raise ValueError("Order identity conflicts with its recorded configuration")
 
-    def reject_unsent_order(self, market: ConnectorBase, order_id: str, *, require_existing: bool = False) -> None:
+    def reject_unsent_order(self, market: ConnectorBase, order_id: str, *, require_existing: bool = False,
+                            expiry_receipt=None) -> None:
+        from hummingbot.connector.okx_order_status import is_expired_rejection_receipt
+        from hummingbot.model.runtime_journal import SubmissionAttempt
         with self._sql_manager.get_new_session() as session, session.begin():
-            order = session.get(Order, order_id)
-            if order is None and require_existing:
+            order = session.get(Order, order_id, with_for_update=True)
+            attempt = None
+            if expiry_receipt is not None:
+                from hummingbot.core.order_submission_guard import active_guard
+                guard = active_guard()
+                if guard is None or guard.engine is not self.sql_manager.engine:
+                    raise ValueError("Expired rejection requires the current trading owner.")
+                guard.check_owner()
+                attempt = session.get(SubmissionAttempt, order_id, with_for_update=True)
+                if (not is_expired_rejection_receipt(expiry_receipt, order_id) or attempt is None
+                        or attempt.receipt != expiry_receipt
+                        or attempt.state not in ('possibly_sent', 'uncertain', 'rejected')
+                        or session.query(TradeFill.order_id).filter_by(order_id=order_id).first() is not None):
+                    raise ValueError("Expired rejection conflicts with durable submission evidence.")
+            if order is None and (require_existing or expiry_receipt is not None):
                 raise ValueError("Rejected order has no durable submission intent.")
             if order is not None:
-                if (not order.creation_pending or order.exchange_order_id
+                already_rejected = (attempt is not None and attempt.state == 'rejected'
+                                    and order.last_status == MarketEvent.OrderFailure.name and not order.creation_pending)
+                if ((not order.creation_pending and not already_rejected) or order.exchange_order_id
                         or order.market != market.display_name or order.config_file_path != self._config_file_path):
                     raise ValueError("Unsent rejection conflicts with acknowledged order history.")
                 order.creation_pending = False
                 order.last_status = MarketEvent.OrderFailure.name
-                self._attempt_observation(session, order_id, 'rejected')
+                if attempt is not None:
+                    if not already_rejected:
+                        from hummingbot.core.admin_identity import Principal
+                        from hummingbot.model.admin_access import AdminAccessStore
+                        AdminAccessStore(guard.engine, guard.store.bot_id).audit(
+                            session.connection(), actor=Principal('owner:' + guard.owner_uuid, 'runtime', 'write'),
+                            action='automatic_recovery_order_rejected', outcome='succeeded',
+                            request_id='automatic:' + order_id, target_id=order_id,
+                            reason_code='exchange_expired_request', details={'order_id': order_id})
+                    attempt.state = 'rejected'
+                else:
+                    self._attempt_observation(session, order_id, 'rejected')
             saved = self.get_market_states(self._config_file_path, market, session)
             if saved is not None:
                 state = dict(saved.saved_state)

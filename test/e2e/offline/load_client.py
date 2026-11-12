@@ -124,7 +124,7 @@ async def measure_market_burst(exchange, rate, duration=10, *, on_measurement=No
     return measurement
 
 
-def fill_candidate(working, cursor):
+def fill_candidate(working, cursor, *, opening_leg=None):
     """Round-robin executable families; unavailable quotes do not block others."""
     families = (('LIFE-USDT', 'buy'), ('LIFE-USDT-SWAP', 'buy'),
                 ('LIFE-USDT', 'sell'), ('LIFE-USDT-SWAP', 'sell'))
@@ -133,10 +133,22 @@ def fill_candidate(working, cursor):
         market, side = families[selected]
         amount = Decimal('0.001') if market == 'LIFE-USDT' else Decimal('0.1')
         for order in working:
+            fill_amount = amount
+            if opening_leg is not None and market.endswith('-SWAP'):
+                leg = order.get('posSide')
+                if leg not in ('long', 'short'):
+                    continue
+                opening = (leg, order['side']) in (('long', 'buy'), ('short', 'sell'))
+                if opening and leg != opening_leg:
+                    continue
+                if not opening:
+                    # Guarded closes may reserve less than the ordinary driver
+                    # chunk after quantization/repricing or a partial fill.
+                    fill_amount = min(amount, Decimal(order['sz']) - Decimal(order['accFillSz']))
             if (order['instId'] == market and order['side'] == side
                     and order['state'] in ('live', 'partially_filled')
-                    and Decimal(order['accFillSz']) + amount <= Decimal(order['sz'])):
-                return order, amount, (selected + 1) % len(families)
+                    and fill_amount > 0 and Decimal(order['accFillSz']) + fill_amount <= Decimal(order['sz'])):
+                return order, fill_amount, (selected + 1) % len(families)
     return None
 
 
@@ -333,6 +345,7 @@ async def main(args):
             nonlocal valid_fills, fill_attempts, fill_candidate_conflicts
             index = 0
             cursor = 0
+            next_opening_leg = 'long'
             # Generation ends with the measurement window. Drain only requests
             # already dispatched, not hypothetical fills needing future quotes.
             # Fixed-profile throughput is still enforced by the rate budget;
@@ -360,15 +373,21 @@ async def main(args):
                     working = [order for order in ledger["orders"] if order["state"] in ("live", "partially_filled")]
                     # Advance only after an accepted fill; use another actually
                     # executable family during normal refresh of the next one.
-                    candidate = fill_candidate(working, cursor)
+                    reduction = getattr(args, 'perpetual_reduction', False)
+                    candidate = fill_candidate(working, cursor, opening_leg=next_opening_leg if reduction else None)
                     if candidate:
                         order, amount, next_cursor = candidate
                         fill_attempts += 1
-                        accepted = await try_fill({"fill": {"clOrdId": order["clOrdId"], "amount": str(amount), "fee": "0.000001"}, "duplicate": index % 7 == 0})
+                        fee = (amount * Decimal('.01') * Decimal(order['px']) * Decimal('.0002')
+                               if reduction and order['instId'].endswith('-SWAP') else Decimal('.000001'))
+                        accepted = await try_fill({"fill": {"clOrdId": order["clOrdId"], "amount": str(amount), "fee": str(fee)}, "duplicate": index % 7 == 0})
                         if accepted:
                             valid_fills += 1
                             index += 1
                             cursor = next_cursor
+                            if reduction and order['instId'].endswith('-SWAP'):
+                                if (order.get('posSide'), order['side']) in (('long', 'buy'), ('short', 'sell')):
+                                    next_opening_leg = 'short' if order['posSide'] == 'long' else 'long'
                             fill_counts[order['instId'] + ':' + order['side']] += 1
                         else:
                             fill_candidate_conflicts += 1
@@ -509,6 +528,7 @@ if __name__ == "__main__":
     parser.add_argument("--burst", action="store_true")
     parser.add_argument('--market-diagnostics', action='store_true', help='Bounded simulator burst scheduling/send diagnostics')
     parser.add_argument('--mm-activity', action='store_true', help='Independent bounded simulator quote-age sampling')
+    parser.add_argument('--perpetual-reduction', action='store_true', help='Alternate opening legs and use the authenticated fixture maker fee for actual close cycles')
     parser.add_argument("--fills", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--controls", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--random-soak", action="store_true", help="Stop injecting synthetic fills in the five-second scheduled handover window; rates remain recorded")

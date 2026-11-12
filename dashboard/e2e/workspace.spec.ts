@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockGoogle, openAccountMenu, openContext, selectTheme } from './auth-fixture'
+import { mockGoogle, openAccountMenu, openContext, selectTheme, signOut } from './auth-fixture'
 import { contextStatus } from '../src/test/mocks/contextFixtures'
 import { pendingCommand, staleBalances } from '../src/test/mocks/adminFixtures'
 import { credentialReceipt, reconciliationReceipt, recoveryCheckReceipt, recoveryResetReceipt } from '../src/test/mocks/receiptFixtures'
@@ -58,8 +58,7 @@ test('logout removes workspace polling and a new login reads fresh context witho
   await page.goto('/?market=spot#orders')
   await page.getByRole('button', { name: 'Sign in with Google' }).click()
   await expect(page.getByText(botId, { exact: true })).toBeVisible()
-  await openAccountMenu(page)
-  await page.getByRole('button', { name: 'Sign out' }).click()
+  await signOut(page)
   await expect(page.getByRole('heading', { name: 'Đăng nhập' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Ngữ cảnh vận hành' })).toHaveCount(0)
   const stoppedReads = reads

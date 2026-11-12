@@ -130,11 +130,19 @@ def emit_trace(record):
 mm_activity = None
 mm_activity_sink = None
 if os.environ.get('HBOT_MM_ACTIVITY_DIAGNOSTICS') == '1' and process_role == 'engine':
-    from load_mm_activity import ActivityRecorder, instrument_cycle, instrument_order, instrument_stop_actions
+    from load_mm_activity import (
+        ActivityRecorder,
+        instrument_checkpoint,
+        instrument_cycle,
+        instrument_order,
+        instrument_stop_actions,
+        instrument_terminal,
+    )
 
     from controllers.market_making.life_mm import LifeMMController
     from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
     from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
+    from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
     from hummingbot.strategy_v2.executors.position_executor.position_executor import PositionExecutor
 
     if incidents is None:
@@ -156,6 +164,13 @@ if os.environ.get('HBOT_MM_ACTIVITY_DIAGNOSTICS') == '1' and process_role == 'en
     for connector in (OkxExchange, OkxPerpetualDerivative):
         instrument_order(connector, '_place_order', 'order.submit', mm_activity)
         instrument_order(connector, '_place_cancel', 'order.cancel', mm_activity)
+    for method in ('process_order_completed_event', 'process_order_canceled_event'):
+        instrument_terminal(OrderExecutor, method, mm_activity)
+    instrument_checkpoint(MarketsRecorder, 'checkpoint_held_positions', mm_activity)
+    for method, operation in (('stop_core', 'service.stop_core'),
+                              ('validate_selection', 'service.prepare'), ('start_strategy', 'service.start')):
+        instrument_cycle(service.ServiceHost, method, operation, mm_activity, asynchronous=True,
+                         start_details=lambda actor: dict(service_phase=actor.phase))
 
     def shutdown_context(actor):
         orders = (actor._open_order, actor._close_order, actor._take_profit_limit_order)
@@ -165,6 +180,10 @@ if os.environ.get('HBOT_MM_ACTIVITY_DIAGNOSTICS') == '1' and process_role == 'en
     instrument_cycle(PositionExecutor, 'control_shutdown_process', 'executor.shutdown', mm_activity, asynchronous=True,
                      start_details=shutdown_context,
                      details=lambda actor: dict(status=actor.status.name, all_orders_completed=actor.all_orders_completed()))
+    instrument_cycle(OrderExecutor, 'control_shutdown_process', 'executor.shutdown', mm_activity, asynchronous=True,
+                     start_details=lambda actor: dict(executor_id=actor.config.id,
+                                                      order_ids=[tracked.order_id for tracked in actor._execution_orders()]),
+                     details=lambda actor: dict(status=actor.status.name))
     for method, reason in (('stop_quote_actions', 'readiness_or_inventory'),
                            ('_defense_refresh_actions', 'spread_quote_invalid'),
                            ('executors_to_refresh', 'executor_refresh'),
@@ -368,6 +387,7 @@ async def probe(host):
             if orchestrator:
                 from hummingbot.core.admin_reconciliation import expected_positions
                 expected, unsettled = expected_positions(core)
+                data['positions_scope_supported'] = expected is not None
                 data["expected_positions"] = [dict(pair=pair, side=side, amount=str(amount)) for (pair, side), amount in (expected or {}).items()]
                 data["positions_unsettled"] = unsettled
                 data["held_positions"] = {key: [dict(side=row.side.name if row.side else None, amount=str(row.net_amount_base)) for row in rows]

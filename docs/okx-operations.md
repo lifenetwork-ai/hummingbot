@@ -10,6 +10,13 @@ ownership and HALT recovery use [PostgreSQL operations](postgres-runtime.md).
 Deployment is documented in [Cloud Run operations](cloudrun.md), and FE session
 controls in [FE integration](fe-integration.md).
 
+The Demo YAML sets `default_duration_mode: until_stopped` with
+`allow_until_stopped: true`. New Start/Switch commands can omit duration fields
+to run continuously; explicit Timed still uses the configured bounds/default
+seconds. Random rotates every ten minutes. This default applies only after
+deploying the supporting code and YAML, and does not start or alter a saved
+session. See [session duration defaults](life-mm-controls.md#session-duration-defaults).
+
 Active LIFE controllers share bounded public snapshot recovery for each required
 OKX book. A book at half its configured freshness budget may request its native
 REST snapshot; healthy books need no extra request. At most two reads run at once,
@@ -33,6 +40,71 @@ continues to require reconciliation. A database read failure cannot authorize
 an empty bootstrap. Unmanaged upstream strategies retain explicit YAML position
 override behavior. Changing the YAML seed does not repair existing MM exposure;
 use the reviewed recovery procedure in [PostgreSQL operations](postgres-runtime.md).
+
+## Opt-in perpetual inventory reduction
+
+Managed OKX HEDGE/CROSS sessions can select this YAML policy:
+
+```yaml
+inventory_reduction:
+  mode: close_first
+  price_mode: breakeven
+```
+
+It is disabled by default and is not enabled in the deployment presets. BUY closes
+an owned SHORT before opening a LONG; SELL closes an owned LONG before opening a
+SHORT. Each side waits if its opposing inventory cannot be proven or priced
+safely. It never substitutes an opening or market order for an unavailable close.
+
+The maker price must cover allocated **remaining opening trading fees** and a
+fresh authenticated closing-fee bound. Funding is accounted separately. This
+policy can leave positions open indefinitely while prices are unfavorable; it
+does not promise fills, profitability or continuous two-sided liquidity.
+
+Closing capacity uses the lesser of fresh venue exposure and durable bot-owned
+exposure, minus queued, working, canceling and terminal-unapplied reservations.
+Unknown legacy remaining costs require verified initialization before that leg
+can close. Never copy lifetime cumulative fees into its remaining opening costs.
+For a supported legacy history, `scripts/mm_reduction_baseline.py` can prepare
+a read-only proposal from a stopped maintenance snapshot, complete independent
+venue proof and exact contract metadata. It checks native financial replay,
+original fees, verified flat anchors and the remaining opening tail; duplicate,
+foreign or isolated venue positions are rejected. The output is not an applied
+checkpoint. Applying it requires fresh venue evidence, matching financial/account
+hashes, stopped writers and an audited operator-reviewed maintenance transaction.
+Do not apply a proposal prepared before subsequent fills or account changes.
+An above-cap close still requires the ordinary session, ownership, credential,
+data, price and drawdown checks. Existing Stop/Disconnect workflows remain separate.
+
+The background fee read is bounded and cached; failed/expired evidence cancels
+obsolete closes and waits for fresh data. Status exposes `inventory_reduction`
+with effect, target leg, owned/venue/reserved/available quantity and freshness.
+Reasons such as `reduction_price_not_profitable`, `reduction_fee_unavailable`,
+`reduction_reserved` and `reduction_dust` explain waiting; none authorizes an
+automatic taker exit. Unsupported rollback must reject an enabled stored policy.
+The position worker wakes the native serialized account reader when its full
+snapshot exceeds half the configured freshness budget. This also keeps an
+absent hedge leg known while private WebSocket traffic remains healthy. Failed
+reads cannot renew evidence; `reduction_position_unavailable` waits for verified
+data. Quote and transport checks do not perform that network read.
+See the [implementation and qualification checklist](plans/MM_PERPETUAL_REDUCTION_QUOTE_TDD_PLAN.md)
+before activation; local tests alone do not close Demo or release gates.
+
+## Explicit expired submission receipts
+
+OKX50036 and50037 can prove request expiry when the HTTP200 response contains
+exactly the requested `clOrdId`, an empty `ordId` and the explicit rejection code.
+The normal connector failure path retires that intent without resubmitting it.
+After a crash, managed recovery may consume the same persisted receipt only after
+checking current account/environment bindings and absence of conflicting fills or
+venue identity. Intent, saved tracker and runtime audit commit together; no
+position, cost basis or risk checkpoint is reset.
+
+A51603 read, timeout, elapsed time or retry count does not prove non-admission.
+Those cases remain fenced. After five minutes, both startup and warm recovery
+request operator investigation while reads continue; the operator panel directs
+support instead of offering a blind reset. This does not itself create a HALT.
+The official meanings are in the [OKX error-code reference](https://www.okx.com/docs-v5/en/#error-code).
 
 ## Environment and credentials
 
@@ -205,13 +277,13 @@ not synthesize outside liquidity or automatically turn bootstrap on when blocked
 | Random | Equal selection among the three profiles, ten-minute steps |
 | Sessions | Default 30 minutes; accepted duration 60–7200 seconds |
 | Quote guard | Strict, 200-bps deviation limit, 100-bps resume boundary, five-second recovery delay |
-| Drawdown | Global 200 USDT, per controller 100 USDT from covered V2 PnL peaks |
+| Drawdown | Global 2,000 USDT, per controller 1,000 USDT from covered V2 PnL peaks |
 | Spot outflow | 500 USDT per rolling hour, with a 1% fee allowance for admission |
 | Maker fee floor | Enabled on both markets |
 | NATR | Enabled, completed one-minute candles, length 14, target 0.01, multiplier 0.5–3 |
 | Candle fallback | Explicit 0.1%/0.2% spreads; fee floor still applies |
 | Spot inventory skew | Enabled; target 50% BTC share of observed BTC+USDT cash value, range multiplier 1 |
-| Perpetual | HEDGE/CROSS, leverage 1; long/short/gross caps 0.005/0.005/0.008 BTC |
+| Perpetual | HEDGE/CROSS, leverage 1; long/short/gross caps 0.05/0.05/0.1 BTC |
 
 `total_amount_quote` limits proposals; the spending cap, actual account balance,
 inventory/exposure limits, post-only checks and ownership fence remain independent.
@@ -224,6 +296,18 @@ BTC uses strict external-depth qualification. Listing bootstrap is intentionally
 absent from this liquid-market preset; use the existing
 [bootstrap guide](life-mm-controls.md#listing-bootstrap) and offline simulator for
 empty/own-only LIFE books. Perpetual has no spot-cash inventory skew.
+
+In the current HEDGE preset, both quote sides open positions. Refresh and filled
+entry handoff keep the position; an opposite-side quote opens the opposite hedge
+leg rather than reducing the first leg. Gross exposure is the sum of absolute
+long and short amounts. Under the former 0.005/0.005/0.008 BTC policy, long 0.0030 BTC plus short
+0.0049 BTC left only 0.0001 BTC gross headroom and blocked larger new entries on
+both sides. The operator revised the Demo policy to long 0.05, short 0.05 and
+gross 0.1 BTC; the same whole-entry reservation checks still apply. A restart does not
+clear these positions or create headroom. Continuous inventory reduction needs
+an explicit close/reduce policy; it is not provided by this entry-and-hold preset.
+The existing Disconnect workflow can close managed perpetual positions and verify
+them before detaching credentials; reconnecting the same account preserves history.
 
 ### Build and run locally
 

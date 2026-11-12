@@ -1,6 +1,6 @@
 # Kế hoạch cấu trúc màn hình và cây component — LIFE MM Dashboard
-> **Tài liệu đối ứng cho:** [`docs/LOGIC-HANDOFF.md`](LOGIC-HANDOFF.md)  
-> **Tuân thủ quy ước:** [`docs/COORDINATION.md`](COORDINATION.md), [`dashboard/TODO.md`](../TODO.md), [`docs/frontend-requirements.md`](../../docs/frontend-requirements.md), [`docs/fe-integration.md`](../../docs/fe-integration.md)  
+> **Tài liệu đối ứng cho:** [`docs/LOGIC-HANDOFF.md`](LOGIC-HANDOFF.md)
+> **Tuân thủ quy ước:** [`docs/COORDINATION.md`](COORDINATION.md), [`dashboard/TODO.md`](../TODO.md), [`docs/frontend-requirements.md`](../../docs/frontend-requirements.md), [`docs/fe-integration.md`](../../docs/fe-integration.md)
 > **Phiên bản:** 1.3.0 (Phạm vi, bàn giao và nghiệm thu đủ sáu đợt triển khai)
 
 ---
@@ -27,13 +27,13 @@
 
 Dashboard được thiết kế để người vận hành (Operator) trả lời tức thì 4 câu hỏi nghiệp vụ theo thứ tự ưu tiên:
 
-1. **Bot đang thực hiện nhiệm vụ gì?**  
+1. **Bot đang thực hiện nhiệm vụ gì?**
    *Profile nào đang chạy (Fixed hay Random)? Thị trường nào (Spot, Perp hay cả hai)? Thời hạn còn bao lâu (hay Until stopped)? Cấu hình ghim (pinned configuration) hiện tại là gì?*
-2. **Tình trạng thực tế có đáp ứng nhiệm vụ không?**  
+2. **Tình trạng thực tế có đáp ứng nhiệm vụ không?**
    *Thực tế trên sàn có đủ working orders 2 phía BUY và SELL không? Giá, khối lượng còn lại, own spread, own notional? Tỷ lệ đáp ứng mục tiêu (sampled two-sided coverage 30m $\ge 99\%$, hoặc trạng thái "chưa đủ thời gian đánh giá")? Vốn khả dụng và vị thế held exposure?*
-3. **Nếu có vấn đề, nguyên nhân và hành động tiếp theo là gì?**  
+3. **Nếu có vấn đề, nguyên nhân và hành động tiếp theo là gì?**
    *Vấn đề là gì? Phía/thị trường nào bị ảnh hưởng? Lý do có bằng chứng (thiếu số dư, lệch tồn kho, chạm quote guard, tạm dừng biến động)? Hành động tiếp theo rõ ràng (chờ, nạp vốn thủ công, chuyển profile, hay liên hệ kỹ thuật)?*
-4. **Sau can thiệp hoặc Stop, kết quả và tài sản/vị thế còn lại ra sao?**  
+4. **Sau can thiệp hoặc Stop, kết quả và tài sản/vị thế còn lại ra sao?**
    *Lệnh dừng đã hoàn tất chưa? Các working orders đã hủy hết chưa? Vị thế perpetual còn giữ nguyên ra sao (positions remain open)? Số dư spot còn lại là bao nhiêu? Kết quả đối soát (reconciliation) với sàn thế nào?*
 
 ---

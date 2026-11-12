@@ -58,6 +58,10 @@ class OrderExecutor(ExecutorBase):
         # order has a price and a book and nothing to be tolerant about. Widens only on a
         # failure Gateway attributed to slippage, never past max_slippage_pct.
         self._slippage_pct: Decimal = config.slippage_pct
+        self._managed_quote_prepared = False
+        self._quote_wakeup = (asyncio.Event() if config.mm_session_id is not None
+                              and config.position_action == PositionAction.CLOSE
+                              and config.execution_strategy == ExecutionStrategy.LIMIT_MAKER else None)
 
     # Shutdown ticks (5s apart) tolerated for an order stuck in a state that is
     # neither open nor filled (e.g. the created event never arrived) before the
@@ -81,11 +85,20 @@ class OrderExecutor(ExecutorBase):
 
         :return: The total executed amount.
         """
-        total = Decimal("0")
-        if self._order:
-            total += self._order.executed_amount_base
-        total += sum(order.executed_amount_base for order in self._partial_filled_orders)
-        return total
+        return sum((order.executed_amount_base for order in self._execution_orders()), Decimal('0'))
+
+    def _execution_orders(self, *, include_retired=False):
+        """One native reference per identity, including late retired fills."""
+        seen = set()
+        # Ordinary legacy chasers may accumulate many zero-fill cancellations.
+        # Preserve their report cost; managed quotes retain retired references
+        # until financial/terminal proof, and forced snapshots inspect them all.
+        retired = ((*self._failed_orders, *self._canceled_orders)
+                   if include_retired or self.config.mm_session_id is not None else ())
+        for tracked in (self._order, *self._partial_filled_orders, *retired):
+            if tracked is not None and tracked.order_id not in seen:
+                seen.add(tracked.order_id)
+                yield tracked
 
     @property
     def average_executed_price(self) -> Decimal:
@@ -94,18 +107,8 @@ class OrderExecutor(ExecutorBase):
 
         :return: The average executed price.
         """
-        total_amount = Decimal("0")
-        total_value = Decimal("0")
-
-        if self._order and self._order.executed_amount_base > Decimal("0"):
-            total_amount += self._order.executed_amount_base
-            total_value += self._order.executed_amount_base * self._order.average_executed_price
-
-        for order in self._partial_filled_orders:
-            if order.executed_amount_base > Decimal("0"):
-                total_amount += order.executed_amount_base
-                total_value += order.executed_amount_base * order.average_executed_price
-
+        total_amount = self.executed_amount_base
+        total_value = sum((order.executed_amount_quote for order in self._execution_orders()), Decimal('0'))
         return total_value / total_amount if total_amount > Decimal("0") else Decimal("0")
 
     @property
@@ -115,12 +118,14 @@ class OrderExecutor(ExecutorBase):
 
         :return: The filled amount in quote currency.
         """
-        return self.executed_amount_base * self.average_executed_price
+        return sum((order.executed_amount_quote for order in self._execution_orders()), Decimal('0'))
 
     async def control_task(self):
         """
         Control the order execution process based on the execution strategy.
         """
+        if self._quote_wakeup is not None:
+            self._quote_wakeup.clear()  # This iteration consumes all progress already observed.
         if self.status == RunnableStatus.RUNNING:
             self.control_order()
         elif self.status == RunnableStatus.SHUTTING_DOWN:
@@ -167,12 +172,32 @@ class OrderExecutor(ExecutorBase):
 
         :return: None
         """
+        if (self._quote_wakeup is not None and self.config.mm_session_id is not None
+                and self.status in (RunnableStatus.SHUTTING_DOWN, RunnableStatus.TERMINATED)):
+            return
         if not keep_position:
             self.logger().warning(
                 f"Executor {self.config.id}: keep_position=False is not supported by "
                 "OrderExecutor — filled quantity (if any) will be held, not unwound."
             )
         self._status = RunnableStatus.SHUTTING_DOWN
+        self._wake_quote_control()
+
+    def _wake_quote_control(self):
+        if self._quote_wakeup is not None and self.config.mm_session_id is not None:
+            self._quote_wakeup.set()
+
+    def stop(self):
+        super().stop()
+        self._wake_quote_control()
+
+    async def _wait_for_control_tick(self):
+        if self._quote_wakeup is None or self.config.mm_session_id is None:
+            return await super()._wait_for_control_tick()
+        try:
+            await self._sleep(self.update_interval)
+        finally:
+            self._quote_wakeup.clear()
 
     def _cancel_outstanding_orders(self):
         self.cancel_order()
@@ -180,18 +205,21 @@ class OrderExecutor(ExecutorBase):
     def _collect_held_position_orders(self) -> List[Dict]:
         """Snapshot residual exposure for a forced stop at the shutdown deadline.
 
-        Same fills control_shutdown_process would retain: the tracked order if
-        filled, plus any partial fills from renewals.
+        Keep the live reference as well as retired references: terminal proof
+        may deliver a final partial after the executor's listeners have stopped.
         """
         held = list(self._held_position_orders)
         seen = {order.get("client_order_id") for order in held}
-        candidates = list(self._partial_filled_orders)
-        if self._order and self._order.is_filled:
-            candidates.append(self._order)
-        for tracked in candidates:
-            if tracked.order and tracked.order.client_order_id not in seen:
+        for tracked in self._execution_orders(include_retired=True):
+            if (tracked and tracked.order and (tracked.is_filled or tracked.executed_amount_base > 0)
+                    and tracked.order.client_order_id not in seen):
                 seen.add(tracked.order.client_order_id)
-                held.append(tracked.order.to_json())
+                from hummingbot.client.config.runtime_config import postgres_requested
+                if self.config.mm_session_id is not None and postgres_requested():
+                    from hummingbot.model.runtime_journal import held_order_snapshot
+                    held.append(held_order_snapshot(tracked.order))
+                else:
+                    held.append(tracked.order.to_json())
         return held
 
     async def control_shutdown_process(self):
@@ -203,8 +231,7 @@ class OrderExecutor(ExecutorBase):
                 self.cancel_order()
             elif self._order.is_filled:
                 self.close_type = CloseType.POSITION_HOLD
-                self._held_position_orders.append(self._order.order.to_json())
-                self._held_position_orders.extend([order.order.to_json() for order in self._partial_filled_orders])
+                self._held_position_orders = self._collect_held_position_orders()
                 self.stop()
             else:
                 # Neither open nor filled — usually the created event never arrived
@@ -216,13 +243,12 @@ class OrderExecutor(ExecutorBase):
                         f"Executor {self.config.id}: order {self._order.order_id} stuck in an "
                         "indeterminate state at shutdown; force-stopping with known fills."
                     )
-                    self._held_position_orders.extend(
-                        [order.order.to_json() for order in self._partial_filled_orders])
+                    self._held_position_orders = self._collect_held_position_orders()
                     self.close_type = CloseType.POSITION_HOLD if self._held_position_orders else CloseType.FAILED
                     self.stop()
         else:
-            if self._partial_filled_orders:
-                self._held_position_orders.extend([order.order.to_json() for order in self._partial_filled_orders])
+            self._held_position_orders = self._collect_held_position_orders()
+            if self._held_position_orders:
                 self.close_type = CloseType.POSITION_HOLD
             else:
                 self.close_type = CloseType.EARLY_STOP
@@ -234,13 +260,29 @@ class OrderExecutor(ExecutorBase):
         Place the order based on the execution strategy.
         Accounts for previously filled amounts so renewals only order the remaining quantity.
         """
+        if (not self._managed_quote_prepared and self.config.mm_session_id is not None
+                and self.config.position_action == PositionAction.CLOSE and self._order is None
+                and not self._partial_filled_orders and not self._failed_orders and not self._canceled_orders):
+            controllers = getattr(self._strategy, 'controllers', {})
+            controller = controllers.get(self.config.controller_id) if isinstance(controllers, dict) else None
+            prepare = getattr(type(controller), 'prepare_reduction_quote', None)
+            # No reviewed controller means no managed closing-quote authority.
+            if prepare is None:
+                self.early_stop(keep_position=True)
+                return
+            fresh = prepare(controller, self.config)
+            if fresh is None or fresh.type != self.config.type or fresh.position_action != PositionAction.CLOSE:
+                self.early_stop(keep_position=True)
+                return
+            self.config = fresh
+            self._managed_quote_prepared = True
         remaining = self.config.amount - self.executed_amount_base
         if remaining <= Decimal("0"):
             self.logger().info(
                 f"Executor {self.config.id}: fully filled ({self.executed_amount_base}/{self.config.amount}). "
                 f"No new order needed."
             )
-            self._held_position_orders.extend([order.order.to_json() for order in self._partial_filled_orders])
+            self._held_position_orders = self._collect_held_position_orders()
             self.close_type = CloseType.POSITION_HOLD
             self.stop()
             return
@@ -300,6 +342,8 @@ class OrderExecutor(ExecutorBase):
             else:
                 return self.current_market_price * (Decimal("1") + self.config.chaser_config.distance)
         elif self.config.execution_strategy == ExecutionStrategy.LIMIT_MAKER:
+            if self.config.mm_session_id is not None and self.config.position_action == PositionAction.CLOSE:
+                return self.config.price
             if self.config.side == TradeType.BUY:
                 return min(self.config.price, self.current_market_price)
             else:
@@ -374,8 +418,7 @@ class OrderExecutor(ExecutorBase):
         if self._order and self._order.order_id == event.order_id:
             # Hold the completed order AND every earlier partial fill from renewals —
             # the position store must see the executor's full exposure.
-            self._held_position_orders.append(self._order.order.to_json())
-            self._held_position_orders.extend([order.order.to_json() for order in self._partial_filled_orders])
+            self._held_position_orders = self._collect_held_position_orders()
             self.close_type = CloseType.POSITION_HOLD
             self.stop()
 
@@ -389,12 +432,28 @@ class OrderExecutor(ExecutorBase):
             else:
                 self._canceled_orders.append(self._order)
             self._order = None
+            if (self._quote_wakeup is not None and self.config.mm_session_id is not None
+                    and self.status == RunnableStatus.RUNNING):
+                # A venue cancel may reject a crossing post-only price. Retire
+                # this prepared quote through native financial application;
+                # the controller must authorize a fresh maker quote afterward.
+                self.early_stop(keep_position=True)
+            elif self.status == RunnableStatus.SHUTTING_DOWN:
+                self._wake_quote_control()
 
     def process_order_failed_event(self, _, market, event: MarketOrderFailureEvent):
         """
         Process the order failed event.
         """
         if self._order and event.order_id == self._order.order_id:
+            managed_close = self.config.mm_session_id is not None and self.config.position_action == PositionAction.CLOSE
+            if managed_close and self._order.order is None:
+                # Failed local admission has no creation callback. Retain the
+                # native reference for terminal/financial proof and late fills.
+                from hummingbot.core.data_type.in_flight_order import InFlightOrder
+                native = self.get_in_flight_order(self.config.connector_name, event.order_id)
+                if isinstance(native, InFlightOrder):
+                    self._order.order = native
             # An order that failed AFTER partially filling carries real exposure:
             # keep those fills in the partial list so they count toward
             # executed_amount_base (sizing) and the terminal hold.
@@ -403,6 +462,11 @@ class OrderExecutor(ExecutorBase):
             else:
                 self._failed_orders.append(self._order)
             self._order = None
+            if managed_close and event.error_type in (
+                    'QuoteRefreshRequired', 'MarketReadinessBlocked', 'SessionSubmissionBlocked', 'SubmissionBlocked'):
+                self.logger().info('Managed closing quote retired after local admission changed: reason=%s', event.error_type)
+                self.early_stop(keep_position=True)
+                return
             self._widen_slippage_if_that_was_it(event.order_id)
             self.logger().error(f"Order failed {event.order_id}. Retrying {self._current_retries}/{self._max_retries}")
             self._current_retries += 1
@@ -447,9 +511,7 @@ class OrderExecutor(ExecutorBase):
         quantity sits in the account.
         """
         if self._current_retries > self._max_retries:
-            if self._order and self._order.is_filled:
-                self._held_position_orders.append(self._order.order.to_json())
-            self._held_position_orders.extend([order.order.to_json() for order in self._partial_filled_orders])
+            self._held_position_orders = self._collect_held_position_orders()
             if self._held_position_orders:
                 self.close_type = CloseType.POSITION_HOLD
             else:
@@ -469,6 +531,8 @@ class OrderExecutor(ExecutorBase):
             "current_retries": self._current_retries,
             "max_retries": self._max_retries,
             "order_id": self._order.order_id if self._order else None,
+            "order_ids": [self._order.order_id] if self._order else [],
+            "position_action": self.config.position_action.value,
             "order_last_update": self._order.last_update_timestamp if self._order else None,
             "held_position_orders": self._held_position_orders,
             "executed_amount_base": self.executed_amount_base,
@@ -555,7 +619,15 @@ class OrderExecutor(ExecutorBase):
 
         :param delay: The delay in seconds.
         """
-        await asyncio.sleep(delay)
+        if self._quote_wakeup is None or self.config.mm_session_id is None:
+            await asyncio.sleep(delay)
+        elif not self.terminated.is_set():
+            # Leave the event set until the outer loop consumes it. A cancel
+            # ACK during the shutdown backoff must not incur another tick wait.
+            try:
+                await asyncio.wait_for(self._quote_wakeup.wait(), timeout=delay)
+            except asyncio.TimeoutError:
+                pass
 
     def get_net_pnl_pct(self) -> Decimal:
         """
@@ -579,9 +651,4 @@ class OrderExecutor(ExecutorBase):
 
         :return: The cumulative fees in quote currency.
         """
-        total = Decimal("0")
-        if self._order:
-            total += self._order.cum_fees_quote
-        for order in self._partial_filled_orders:
-            total += order.cum_fees_quote
-        return total
+        return sum((order.cum_fees_quote for order in self._execution_orders()), Decimal('0'))

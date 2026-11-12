@@ -1,12 +1,25 @@
 # MM automatic recovery and availability
 
+Follow-up 2026-11-12: revision111/`d8f90c13b` resolves the old50037 block
+through native audited recovery. The bot is running. Its completed30-minute
+quote window fails99% (Spot93.46%, perpetual87.89%). A confirmed repeated-price
+post-only CLOSE defect has a separate tested local fix awaiting deployment;
+see [connected acceptance](../../reports/demo/cloudrun-quote-replacement-acceptance.md).
+
 Status: r7 offline qualification passed. Cloud Run migration 021 is installed
 and schema-validated. The approved drawdown policy remains 1,000/controller and
 2,000/global, with peaks preserved. The 650-fill historical baseline was verified
 and bound under audit 183; `cold_recovery_supported=true` survived subsequent
 fills and two measured graceful rolling handoffs. The temporary-profile 30-minute
 conditional quote target passed; its stricter zero-unknown gate failed one sample.
-The broader connected fault matrix remains open.
+A subsequent regular-profile revision103 window has zero unknown samples but
+fails the two-sided target (perpetual97.219%; Spot has no eligible samples).
+The broader connected fault matrix remains open. The later revision110
+close-first qualification verifies83 native maker LONG close fills and two cold
+handoffs on continuous Start84. Its completed898-sample regular Random window
+still fails99%: conservative Spot95.32%,perpetual92.65%, with unknown counted as
+failure and guards excluded separately. See the
+[connected close-first record](../../reports/demo/cloudrun-close-first-baseline.md).
 See [policy application evidence](../../reports/demo/cloudrun-drawdown-1000-2000.md).
 See [baseline and handoff evidence](../../reports/demo/cloudrun-runtime-baseline-handoff.md).
 Scope: existing single Cloud Run service, PostgreSQL and native connector/recorder/V2
@@ -118,13 +131,24 @@ resending with the same ID is not a general exactly-once transport guarantee.
 - [ ] Fault matrix: process death/OOM/deploy at every send/ACK/fill/commit/checkpoint
   boundary, owner handover, delayed/duplicate/out-of-order events, stale not-found,
   intermittent REST/WS/DB failures, queue saturation and shared-account exposure.
+- [x] Verify the finite seven-case physical cgroup OOM subset on the current
+  r7 follow-up image at 1 GiB: six verified MM resumes with working quotes and
+  exact financial accounting, plus a legacy negative case that preserves its
+  unresolved-effect HALT. This closes that local subset, not the broader
+  connected matrix. Evidence is linked in the availability follow-up report.
+- [x] Complete current revision108-based local follow-up coverage: native3,363
+  plus16 subtests, PostgreSQL724, E2E36 plus the corrected host target, all four
+  healthy load windows and the corrected six-fault target. Retain the failed
+  original `all` runs. OPEN input and CLOSE restriction-decision cancellation
+  scopes remain explicit; the older uniform CLOSE input bound is not declared met.
 - [x] Negative tests: no blind POST retry, no lost/duplicate fill or fee, no stale
   owner mutation, no risk-latch reset, no resume after Stop, no unchecked queue growth.
 - [x] Large-history regression exceeding current limits with the same one-intent
   fault; verify work per cycle depends on unresolved/new data, not account lifetime.
-- [x] Run native/PostgreSQL fault tests and packaged offline E2E: r7 passed
+- [x] Run native/PostgreSQL fault tests and packaged offline E2E: the previous
+  automatic-recovery release's r7 passed
   3,154 native tests plus 16 subtests, 686 PostgreSQL tests and all 34 E2E groups.
-- [x] Repeat release/load/soak on one identified image: r7 passed warmup 5 min,
+- [x] Repeat release/load/soak on one identified image: that previous r7 passed warmup 5 min,
   mixed 15 min, burst 90 s, Random soak 60 min and all six fault windows without
   relaxed budgets. Independent 180 s MM diagnostic passed; residual probe events
   and sampling limits are recorded in the linked evidence.
@@ -144,8 +168,11 @@ resending with the same ID is not a general exactly-once transport guarantee.
   interruption separately from API uptime; classify one-sided, risk-blocked and
   unknown observations truthfully. Revision100: Spot99.323%, perpetual99.225%,
   counting the one unknown as failure; guard exclusions are not uptime.
-- [ ] Confirm a fresh zero-unknown window on the final observer fix; the original
-  strict runner remains failed, and its temporary profile is not regular acceptance.
+- [x] Confirm a fresh zero-unknown observation window on the final observer fix:
+  revision103,899 samples. This closes observation coverage, not quote availability.
+- [ ] Meet the regular-profile two-sided target: revision103 perpetual97.219%
+  fails99%; Spot has no eligible denominator. See the
+  [cap / regular-profile evidence](../../reports/demo/cloudrun-perpetual-cap-qualification.md).
 
 Proposed acceptance: zero manual DB edits for the supported fault matrix; exact
 order/fill/fee/position reconciliation; automatic resume after verified recovery.
@@ -196,3 +223,92 @@ installation before compatible rolling takeover; it is not an online migration
 while an older image owns trading.
 
 Connected rollout evidence: [Cloud Run schema cutover](../../reports/platform/cloudrun-auto-recovery-migration-20261111.md).
+
+
+## 2026-11-11: bounded controller startup waits
+
+At 16:40:51 ICT revision 106 latched `controller_task_stalled` during Random
+Perpetual startup (`stage=startup`, age 5.324s). This precedes revision 107's
+16:45 deployment of `a67c723f`; the continuous session had `expires_at=null`.
+Revision 107 correctly retained that HALT. At 17:11 the service was still halted;
+the initial investigation performed no recovery, reset, financial change or Cloud
+deployment. The separately requested connected recovery is recorded below.
+
+The old log cannot identify the particular startup await. Code review found
+unbudgeted waits for the position-mode lock, mode write/confirmation and leverage
+write, plus a stale progress timestamp after a completed slow read. TDD reproduces
+these watchdog gaps without admitting any quotes while setup is incomplete.
+
+- [x] Red: five controller/watchdog regressions fail on the previous source.
+- [x] Green: bound each startup operation to 30s, declare that wait to the existing
+  watchdog, refresh progress on completion and retain same-task cancellation.
+  Mutation HTTP deadlines remain 5s; mutations are never automatically retried.
+  Only transient reads, including mode confirmation, may retry.
+- [x] Preserve real timeout/stall HALTs, lock ownership on cancellation and
+  no order admission before account setup succeeds. Name the actual startup
+  stage in future stall-confirmation logs.
+- [x] Physical HTTP Red/Green: delay each of two serialized native account
+  writes by 4s (each below its 5s HTTP deadline). The immutable revision 106 image
+  HALTs at 5.353s; a two-file overlay on that same image restores both quote
+  sides after an observed 9.309s account-setup wait, advances Random without
+  replacing the owner/session and stops cleanly.
+  This proves a matching code defect, not the unique historical slow RPC.
+- [x] Continuous handoff and availability HTTP regression scenarios pass: same
+  session/control after overlapping revision takeover, exact four-fill projection,
+  optional observation/feed recovery without restart, and a genuine failed
+  controller still HALTs. Native regression: 1,568 tests + 13 subtests; CLI: 1,370;
+  logging: 22; focused stall diagnostic: 6. Pre-commit passes.
+- [x] Deploy the fix, perform independently verified HALT recovery and observe
+  actual Demo trading through the next normal Random step (see below). This
+  bounded lifecycle qualification does not close the two-sided quote SLO.
+
+Private reproducible evidence: `build/cloudrun-startup-wait-fix-20261111/`;
+physical Red `build/e2e-offline/20261111-170856-123d87/`, Green
+`build/e2e-offline/20261111-171533-a4c1d1`. Earlier 6.5s-response experiments
+correctly failed with `controller_leverage_change_failed`: they exceeded the real
+HTTP mutation deadline and are not watchdog Red/Green evidence.
+
+
+Connected recovery on revision 108 (`ed7501bb1`): the operator requested removal
+of this technical HALT. Native Stop reached control/ack 81. Check succeeded but
+returned `recovery_reason_unsupported`; the generic runtime-task reason is outside
+the shipping API allowlist. Its history limits/allowlist were not bypassed or
+changed. A separate scoped maintenance proof independently matched all 1,334 fills
+(570 Spot, 764 Perpetual) in two complete REST scans per market, extended the
+previous audited 650-fill baseline by 684 exact fills using native accounting,
+and matched Spot cash, LONG 0.05/SHORT 0.0472 BTC and the runtime financial/binding
+hashes. All tracker entries were terminal; no pending intent, account mutation,
+unapplied journal work, venue open order or risk stop was present.
+
+With service writers stopped at MANUAL 0 and physical ownership released, the
+advisory-locked preview passed. The atomic maintenance transaction removed only
+`halt`, `halt_kind` and `reason`, adding audit 237 under maintenance authority.
+It preserved 12,348 orders, 1,334 fills, 3 position rows, all risk checkpoints and
+all other recovery fields. Original AUTOMATIC min 1/max 1 scaling, revision/image,
+configuration and resources were restored. Start by the actual Basic admin reached
+control/ack 82 at 17:43:25 ICT with `both`, `random`, `until_stopped`, a 600s step and
+`expires_at=null`; credentials and risk limits were not changed.
+
+Initial live REST confirms bot-owned post-only working orders on both markets.
+Observed quotes are one-sided: Spot inventory sizing suppresses BUY, and Perpetual
+BUY is blocked at the existing long cap. The cold startup has three ~301ms probe
+timeouts and one 5.733s `stage=sleep/startup_stage=ready` confirmation warning;
+these do not latch another HALT. The measured window then reaches step 1, waits
+for readiness and resumes running on the same owner/session/control through
+17:54:22 ICT: 60 samples, zero unknown or HALTed samples. Independent REST verifies
+3 new Spot fills and 13 new Perpetual fills including original fees; native
+positions match LONG 0.05/SHORT 0.0498 BTC. Spot retains 2 pending SELL orders;
+Perpetual now reports `inventory_limit` on both sides because its 0.0002 BTC gross
+headroom cannot fit a configured quote. The bot remains running with unchanged
+limits. Retrieved logs through the final check have zero ERRORs, four ~301ms
+self-recovered probe warnings in total, the startup confirmation warning and
+two cap-related no-quote warnings. This is sampled trading/lifecycle evidence,
+not uninterrupted quoting or the regular two-sided SLO.
+Private receipts, preview/application proof and observations:
+`build/cloudrun-startup-halt-recovery-20261111/`.
+
+The subsequent open-item audit and qualification are tracked in the
+[availability follow-up](../../reports/release/mm-availability-closeout.md).
+It includes duplicate initial account writes and the independent cold-fill
+projection defect when drawdown is disabled. Historical r7 passes above are not
+transferred to the new five-file candidate; its OOM and release gates are rerun.

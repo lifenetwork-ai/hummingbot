@@ -73,10 +73,22 @@ def main():
 
         def after_flush(session, context):
             trade = next((row for row in session.new if isinstance(row, TradeFill)), None)
-            if trade is not None and consume('fill', order=trade.order_id, trade=trade.exchange_trade_id):
-                threading.Event().wait(20)  # SQL has flushed; COMMIT must not happen.
+            if trade is not None:
+                session.info['oom_fill'] = dict(order=trade.order_id, trade=trade.exchange_trade_id)
+                if consume('fill', **session.info['oom_fill']):
+                    threading.Event().wait(20)  # SQL flushed, before COMMIT.
+            from hummingbot.model.runtime_journal import RuntimeJournal
+            held = next((row for row in session.new if isinstance(row, RuntimeJournal) and row.kind == 'hold'), None)
+            if held is not None and consume('hold', executor=held.event_key):
+                threading.Event().wait(20)  # Positions/receipt/checkpoint share the transaction.
+
+        def after_commit(session):
+            identity = session.info.pop('oom_fill', None)
+            if identity is not None and consume('fill-commit', **identity):
+                threading.Event().wait(20)  # Durable COMMIT, before recorder acknowledgement.
 
         event.listen(Session, 'after_flush', after_flush)
+        event.listen(Session, 'after_commit', after_commit)
     service.main()
 
 

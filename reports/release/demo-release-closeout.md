@@ -1,5 +1,15 @@
 # Demo and release closeout — 2026-11-10
 
+Later follow-up: revision110/owner483 is paused on an explicit50037 receipt,
+with no HALT. Local fixes and their separate qualification are in the
+[quote/recovery record](../performance/mm-quote-replacement-latency.md).
+
+The later revision110 connected close-first qualification is tracked in the
+[2026-11-12 acceptance record](../demo/cloudrun-close-first-baseline.md).
+Actual CLOSE and cold handoffs pass their scoped checks; the regular99% quote
+target remains failed. The earlier image/revision results below retain their
+original scope.
+
 The [quiet-feed / unsent-quote follow-up](../performance/mm-feed-quote-recovery.md)
 adds bounded snapshot recovery and clearer operational diagnostics, with its own
 targeted offline evidence. It makes no Cloud deployment or risk-policy changes

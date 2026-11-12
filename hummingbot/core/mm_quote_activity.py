@@ -27,6 +27,22 @@ REASONS = {
     'readiness_unavailable': 'Required trading conditions are not ready.',
     'quote_reason_unavailable': 'No recent proposal reason is available. Check order and service details.',
     'proposal_pending_confirmation': 'A proposed order is awaiting runtime or exchange confirmation.',
+    'reduction_basis_unavailable': 'Verified remaining position cost is unavailable; this side cannot fall back to opening.',
+    'reduction_position_unavailable': 'Fresh cross-margin hedge positions cannot be confirmed.',
+    'reduction_fee_unavailable': 'The authenticated closing-fee observation is unavailable or expired.',
+    'reduction_ownership_unavailable': 'No overlapping venue and bot-owned quantity is available to close.',
+    'reduction_reserved': 'Existing closing orders still reserve this position; wait for terminal financial confirmation.',
+    'reduction_reservation_limit': 'The bounded closing-reservation scope is full.',
+    'reduction_runtime_conflict': 'Closing authority conflicts with the current session or resident order state.',
+    'reduction_dust': 'The reducible quantity is below the instrument minimum; no market fallback is enabled.',
+    'reduction_price_not_profitable': 'No permitted maker price currently covers allocated opening fees and closing fees.',
+    'reduction_price_rejected': 'The closing maker price does not pass the current price/spread guards.',
+    'reduction_authority_unavailable': 'The native closing-order authority cannot be confirmed.',
+    'reduction_market_not_ready': 'The closing quote is waiting for current session and market readiness.',
+    'reduction_identity_mismatch': 'The proposed closing order differs from its reviewed immutable identity.',
+    'reduction_effect_changed': 'The current position requires a different order effect; wait for a new proposal.',
+    'reduction_quantity_unavailable': 'The original closing quantity is no longer available; cancel and re-evaluate.',
+    'reduction_fee_balance_unavailable': 'Available USDT does not cover reserved and proposed closing fees.',
 }
 
 

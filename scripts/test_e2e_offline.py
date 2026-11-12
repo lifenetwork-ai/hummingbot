@@ -202,7 +202,7 @@ class Harness:
 
     def start(self, revision, *, auto_migrate=True, runtime_role=False, expect_failure=False, additive_fixture=False,
               storage_backend="postgres", instrumented=False, trace_directory=None, incident_directory=None, availability=False,
-              instrumented_entrypoint='load_entrypoint.py', cpus=1, network_alias=None):
+              instrumented_entrypoint='load_entrypoint.py', cpus=1, network_alias=None, memory_mib=None):
         name = self.prefix + "-" + revision
         env = {**self.env, "K_REVISION": revision, "ENABLE_AUTO_MIGRATION": str(auto_migrate).lower(),
                "STORAGE_BACKEND": storage_backend}
@@ -228,7 +228,11 @@ class Harness:
             assert instrumented
             env['HBOT_LOAD_INCIDENT_DIRECTORY'] = '/incident-output'
             mounts += ['--mount', f'type=bind,source={incident_directory},target=/incident-output']
-        self.run_container(name, ["--platform", "linux/amd64", "--cpus", str(cpus), "--memory", "2g", "--read-only",
+        if memory_mib is not None:
+            assert memory_mib in (1024, 1536, 2048)
+        memory = '2g' if memory_mib is None else str(memory_mib) + 'm'
+        self.run_container(name, ["--platform", "linux/amd64", "--cpus", str(cpus), "--memory", memory,
+                                  *(['--memory-swap', memory] if memory_mib is not None else []), "--read-only",
                                   "--tmpfs", "/tmp:rw,nosuid,size=128m",
                                   *(['--network-alias', network_alias or 'bot'] if instrumented or network_alias else []), *mounts],
                            env=env, publish=True, command=(["python", "/test-assets/availability_service.py"] if availability else
@@ -1896,7 +1900,8 @@ def main():
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
     from scripts.mm_cleanup_faults import SCENARIOS as cleanup_fault_scenarios
     from scripts.mm_managed_lifecycle import SCENARIOS as managed_scenarios
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery"), default="all")
+    from scripts.mm_reduction_checks import SCENARIOS as reduction_scenarios
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, *reduction_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument('--keep-going', action='store_true', help='Collect all independent scenario failures; the final gate still fails.')
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
@@ -1934,7 +1939,7 @@ def main():
                   "architecture": "amd64", "config_sha256": hashlib.sha256((assets / "pmm.yml").read_bytes()).hexdigest(),
                   "fixture_sha256": {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(assets.iterdir())}}
         result['harness_source_sha256'] = {name: hashlib.sha256((ROOT / 'scripts' / name).read_bytes()).hexdigest()
-                                           for name in ('test_e2e_offline.py', 'mm_managed_environment.py', 'mm_managed_lifecycle.py', 'mm_cleanup_faults.py', 'mm_quote_refresh_checks.py', 'mm_feed_recovery_checks.py', 'mm_post_only_checks.py', 'mm_submission_uncertainty_checks.py', 'mm_legacy_recovery_fixture.py')}
+                                           for name in ('test_e2e_offline.py', 'mm_managed_environment.py', 'mm_managed_lifecycle.py', 'mm_cleanup_faults.py', 'mm_quote_refresh_checks.py', 'mm_feed_recovery_checks.py', 'mm_post_only_checks.py', 'mm_submission_uncertainty_checks.py', 'mm_legacy_recovery_fixture.py', 'mm_reduction_checks.py', 'mm_startup_checks.py')}
         try:
             print("Offline E2E: runtime ABI, JIT, TLS, SDK discovery and size budget", flush=True)
             smoke = docker("run", "--rm", "--platform", "linux/amd64", "--network", "none", "--read-only",
@@ -1942,9 +1947,9 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery") if args.scenario == "all" else (args.scenario,)
             if args.scenario == 'all':
-                scenarios += managed_scenarios + cleanup_fault_scenarios
+                scenarios += managed_scenarios + cleanup_fault_scenarios + reduction_scenarios
             elif args.scenario == 'managed-lifecycle':
                 scenarios = managed_scenarios
             elif args.scenario == 'managed-cleanup-faults':
@@ -2007,9 +2012,15 @@ def main():
                         harness.quote_guard_scenario()
                     elif scenario == "drawdown":
                         harness.drawdown_scenario()
+                    elif scenario == "startup-latency":
+                        from scripts.mm_startup_checks import scenario as startup_latency
+                        startup_latency(harness)
                     elif scenario == "automatic-recovery":
                         from scripts.mm_submission_uncertainty_checks import positive_scenario
                         positive_scenario(harness)
+                    elif scenario in reduction_scenarios:
+                        from scripts.mm_reduction_checks import scenario as reduction_scenario
+                        reduction_scenario(harness, scenario.rsplit('-', 1)[1], previous_image=previous_image)
                     elif scenario == "submission-uncertainty":
                         from scripts.mm_submission_uncertainty_checks import scenario as submission_uncertainty
                         submission_uncertainty(harness)

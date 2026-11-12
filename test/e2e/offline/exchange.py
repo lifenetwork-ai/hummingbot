@@ -93,6 +93,7 @@ class Exchange:
         self.fills = []
         self.funding_bills = []
         self.funding_error = False
+        self.reduction_fee_error = False
         self.accepted = []
         self.requests = []
         self.unknown = []
@@ -111,6 +112,8 @@ class Exchange:
         self.cancel_before_ack = False
         self.cancel_before_ack_remaining = None
         self.cancel_delay_seconds = 0
+        self.account_mutation_delay_seconds = 0
+        self.account_read_delay_seconds = 0
         self.cancel_pending_visibility = {}
         self.cancel_pending_visibility_served = 0
         self.cancel_pending_visibility_reads = 0
@@ -126,6 +129,7 @@ class Exchange:
         self.book_overrides = {}
         self.enforce_post_only = False
         self.post_only_move_on_submit = {}
+        self.post_only_move_on_submit_side = 'sell'
         self.include_own_orders = False
         self.markets_task = None
         self.target_updates_per_second = 0
@@ -371,7 +375,15 @@ class Exchange:
         if path in ("/api/v5/public/mark-price", "/api/v5/market/index-tickers", "/api/v5/public/funding-rate"):
             return self.ok([self.funding(request.query.get("instId", "BTC-USDT-SWAP"))])
         if path == "/api/v5/account/config":
+            if self.account_read_delay_seconds:
+                observed['injected_account_read_delay_s'] = self.account_read_delay_seconds
+                await asyncio.sleep(self.account_read_delay_seconds)
             return self.ok([{"posMode": self.position_mode, "uid": "offline-account-1", "acctLv": "2", "perm": "read_only,trade"}])
+        if path == '/api/v5/account/trade-fee':
+            if (self.reduction_fee_error or request.query.get('instType') != 'SWAP'
+                    or request.query.get('instFamily') != 'LIFE-USDT'):
+                return web.json_response(dict(code='50013', msg='fixture fee observation unavailable', data=[]))
+            return self.ok([dict(instType='SWAP', ts=millis(), feeGroup=[dict(groupId='2', maker='-.0002', taker='-.0005')])])
         if path == "/api/v5/account/positions":
             if self.cleanup_barrier == 'verified_fill' and self.cleanup_close_id is not None:
                 await self.cleanup_wait('verified_fill')
@@ -389,6 +401,9 @@ class Exchange:
             self.mutations.append({"path": path, "data": data})
             if "posMode" in data:
                 self.position_mode = data["posMode"]
+            if self.account_mutation_delay_seconds:
+                observed['injected_account_delay_s'] = self.account_mutation_delay_seconds
+                await asyncio.sleep(self.account_mutation_delay_seconds)
             return self.ok([data])
         if path == "/api/v5/account/balance":
             return web.json_response(self.fixtures["balances"])
@@ -486,7 +501,7 @@ class Exchange:
                 return web.json_response({'code': '50013', 'msg': 'Response unavailable'}, status=503)
             if self.enforce_post_only and data.get('ordType') == 'post_only':
                 movement = self.post_only_move_on_submit.get(data['instId'])
-                if movement and data['side'] == 'sell':
+                if movement and data['side'] == self.post_only_move_on_submit_side:
                     self.book_overrides[data['instId']] = self.post_only_move_on_submit.pop(data['instId'])
                 book = self.book(data['instId'])
                 opposite = book['asks' if data['side'] == 'buy' else 'bids']
@@ -629,6 +644,14 @@ class Exchange:
             delay = float(data['cancel_delay_seconds'])
             assert 0 <= delay <= 10
             self.cancel_delay_seconds = delay
+        if 'account_mutation_delay_seconds' in data:
+            delay = float(data['account_mutation_delay_seconds'])
+            assert 0 <= delay <= 40
+            self.account_mutation_delay_seconds = delay
+        if 'account_read_delay_seconds' in data:
+            delay = float(data['account_read_delay_seconds'])
+            assert 0 <= delay <= 40
+            self.account_read_delay_seconds = delay
         if 'cancel_pending_visibility_reads' in data:
             count = data['cancel_pending_visibility_reads']
             if type(count) is not int or not 0 <= count <= 5:
@@ -651,6 +674,10 @@ class Exchange:
             self.stale_pairs = set(data["stale_pairs"])
         if 'enforce_post_only' in data:
             self.enforce_post_only = bool(data['enforce_post_only'])
+        if 'post_only_move_on_submit_side' in data:
+            if data['post_only_move_on_submit_side'] not in ('buy', 'sell'):
+                return web.json_response({'error': 'invalid_post_only_move_side'}, status=400)
+            self.post_only_move_on_submit_side = data['post_only_move_on_submit_side']
         if 'post_only_move_on_submit' in data:
             self.post_only_move_on_submit = copy.deepcopy(data['post_only_move_on_submit'])
         if "stale_instruments" in data:
@@ -680,6 +707,8 @@ class Exchange:
             self.funding_bills = copy.deepcopy(data["funding_bills"])
         if "funding_error" in data:
             self.funding_error = bool(data["funding_error"])
+        if 'reduction_fee_error' in data:
+            self.reduction_fee_error = bool(data['reduction_fee_error'])
         if data.get("clear_positions"):
             self.positions.clear()
         if "initial_positions" in data:

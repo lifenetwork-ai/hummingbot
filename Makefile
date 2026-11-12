@@ -75,6 +75,7 @@ test-cloudrun-regression:
 		test/hummingbot/core/test_trading_core.py test/hummingbot/core/web_assistant \
 		test/hummingbot/core/test_ownership_order_refresh.py \
 		test/hummingbot/core/test_recovery.py test/hummingbot/core/test_recovery_exchange.py \
+		test/hummingbot/core/test_reduction_auto_recovery.py \
 		test/hummingbot/strategy/test_strategy_v2_base.py \
 		test/hummingbot/strategy/test_mm_initial_position_bootstrap.py \
 		test/hummingbot/strategy_v2/executors/test_executor_orchestrator.py \
@@ -84,6 +85,12 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/executors/test_mm_drawdown_reports.py \
 		test/hummingbot/strategy_v2/executors/test_executor_retention.py \
 		test/hummingbot/strategy_v2/executors/test_terminal_position_checkpoint.py \
+		test/hummingbot/strategy_v2/executors/test_reduction_runtime_projection.py \
+		test/hummingbot/strategy_v2/executors/test_reduction_valuation.py \
+		test/hummingbot/strategy_v2/executors/test_reduction_cost_basis.py \
+		test/hummingbot/strategy_v2/executors/test_managed_quote_wakeup.py \
+		test/hummingbot/strategy_v2/executors/order_executor \
+		test/hummingbot/strategy_v2/test_runnable_base.py \
 		test/hummingbot/strategy_v2/executors/position_executor
 	$(PYTHON) -m pytest -q test/hummingbot/connector/test_okx_environment.py \
 		test/hummingbot/connector/test_credential_adapter.py test/hummingbot/connector/test_cleanup_positions_reader.py \
@@ -108,6 +115,10 @@ test-cloudrun-regression:
 		test/hummingbot/core/test_mm_quote_wait.py \
 		test/hummingbot/core/utils/test_read_retry.py \
 		test/hummingbot/strategy_v2/controllers/test_life_mm.py \
+		test/hummingbot/strategy_v2/controllers/test_perpetual_reduction.py \
+		test/hummingbot/strategy_v2/controllers/test_reduction_controller.py \
+		test/hummingbot/strategy_v2/controllers/test_mm_controller_wakeup.py \
+		test/hummingbot/strategy_v2/controllers/test_reduction_fee_observation.py \
 		test/hummingbot/strategy_v2/controllers/test_life_mm_exposure_decision.py \
 		test/hummingbot/strategy_v2/controllers/test_inventory_cap_lifecycle.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_withdrawal_lifecycle.py \

@@ -11,16 +11,27 @@ def scenario(harness):
     _, port = harness.start('submission-uncertainty')
     harness.mm_command(port, 'start', wait=False, market_mode='spot', selection='fixed',
                        profile_id='follow_market', duration_seconds=600)
+    identity = None
 
     def paused_owner():
+        nonlocal identity
         state = harness.state()
-        return state if (not state['recovery_state'].get('halt')
-                         and state['recovery_state'].get('automatic_recovery', {}).get('phase') == 'reconciling'
-                         and state.get('owner_uuid')) else None
+        if (not state['recovery_state'].get('halt')
+                and state['recovery_state'].get('automatic_recovery', {}).get('phase') == 'reconciling'
+                and state.get('owner_uuid')):
+            current = state['owner_uuid'], state['owner_generation']
+            if identity is None:
+                identity = current
+            assert current == identity, 'The reconciling owner changed before order proof was observed'
+            # Publishing the pause precedes the asynchronous worker's HTTP GET.
+            # Require both observations inside the original single 60s bound.
+            ledger = harness.ledger()
+            if any(r['path'] == '/api/v5/trade/order' and r['method'] == 'GET' for r in ledger['requests']):
+                return state, ledger
+        return None
 
-    state = poll(paused_owner, timeout=60, description='uncertain request remains with its reconciling owner')
-    identity = state['owner_uuid'], state['owner_generation']
-    requests = harness.ledger()['requests']
+    state, ledger = poll(paused_owner, timeout=60, description='uncertain owner remains reconciling and attempts order GET')
+    requests = ledger['requests']
     attempts = [r for r in requests if r.get('injected_submission_busy')]
     assert attempts and not harness.ledger()['accepted'] and not harness.ledger()['fills']
     assert any(r['path'] == '/api/v5/trade/order' and r['method'] == 'GET' for r in requests)

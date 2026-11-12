@@ -347,7 +347,10 @@ restarting a child does not apply new YAML settings to a running session.
 Environment precedence is existing process values, then local dotenv, then shared
 defaults. YAML profile settings are not an additional layer of API overrides.
 
-`duration_mode=timed` is the default. `until_stopped` must omit duration_seconds
+For a new Start/Switch, omitted/null `duration_mode` uses
+`/profiles.catalogue.default_duration_mode` (fall back to `timed` when absent).
+Explicit `duration_seconds` without a mode selects Timed; an explicit mode wins
+over the YAML default. `until_stopped` must omit duration_seconds
 and be offered only when `/profiles.duration_modes` advertises it. It removes
 the overall session deadline, not risk limits or the finite random step windows.
 Permission is in YAML, not `.env` or a writable command field. The API must reject
@@ -540,6 +543,32 @@ Quote guards, spread fallback,
 drawdown and spot outflow have separate effects. For example, a spot BUY denial
 does not imply funded SELL or perpetual admission is blocked. A disabled optional
 policy is labelled **Disabled**, not **Healthy** or **Failed**.
+
+### Optional perpetual reduction diagnostics
+
+`GET /status.markets[].inventory_reduction` is null when the policy is disabled.
+For opt-in managed OKX perpetual sessions it describes the controller's last
+cached evaluation: `mode=close_first`, `price_mode=breakeven`, `observed_at`,
+`stale`, `fee_ready` and `sides.BUY|SELL`. Each side carries `effect=OPEN|CLOSE`
+(nullable when unknown), `target_leg=LONG|SHORT`, `owned_base`, `venue_base`,
+`reserved_base`, `available_base` and `reason_code`. Quantities are decimal strings.
+
+This is capacity/pricing evidence, **not** exchange admission or working liquidity.
+It expires after five seconds; stale or absent values cannot imply an active
+quote. An OPEN side's `available_base=0` is not opening headroom: the normal
+opening-cap/collateral checks remain separate. Pending closing reservations can
+exceed newly observed exposure; remaining closing capacity is clamped to zero.
+
+Show `reduction_price_not_profitable` as waiting for a maker price covering
+allocated remaining opening fees and closing fees; no automatic loss-taking or
+market fallback exists. `reduction_basis_unavailable` needs verified remaining
+cost, `reduction_fee_unavailable` waits for authenticated fee data,
+`reduction_reserved` waits for existing orders/financial confirmation and
+`reduction_dust` means below the venue minimum. These reasons also appear in
+per-side quote activity. Use the existing working-order observations to determine
+actual liquidity. Native executor `config.position_action=CLOSE` and
+`custom_info.position_action` identify closing orders; BUY/CLOSE targets SHORT,
+SELL/CLOSE targets LONG. Funding remains a separate account observation.
 
 ### Working orders, fills and missing-order warnings
 
@@ -816,7 +845,7 @@ edits if another operator changes state. `/profiles` supplies configured
 | Market | `market_mode: spot | perpetual | both` | Offer only configured modes; show shared wallet once and market allocations separately |
 | One profile | `selection: fixed`, `profile_id` | Choose one deployed profile; display its references/weights read-only |
 | Random profiles | `selection: random` | Use the YAML pool and step duration; equal probability, with consecutive repeats allowed |
-| Timed | `duration_mode: timed`, `duration_seconds` | Default mode; YAML bounds apply and omitted seconds use the YAML default |
+| Timed | `duration_mode: timed`, `duration_seconds` | YAML bounds apply and omitted seconds use the YAML default |
 | Until stopped | `duration_mode: until_stopped` | Offer only when advertised; omit `duration_seconds` and retain a separate random-step countdown |
 
 Use these plain labels for shipped profiles; other deployed IDs need a readable
@@ -836,6 +865,13 @@ pool/step timing, budgets, spreads, leverage, target pair and guards are read-on
 change alongside the active session. For an active session use `switch`, which
 creates a replacement session; it does not patch the old timer or flatten exposure.
 Do not generate a giant editable form from every controller field.
+
+Initialize the duration selection from `catalogue.default_duration_mode`, using
+Timed when that field is absent. The Demo preset selects Until stopped. Offer
+that default only when `duration_modes` also advertises it. Send the operator's
+explicit selection for a reviewed command. Receipt payloads preserve the original
+request and may have a null mode; the session/configuration response contains the
+resolved, pinned mode. Changing YAML never rewrites an existing session's timer.
 
 Older servers omitting `duration_modes` fall back to Timed. Keep hidden timed
 input drafts separate so Until stopped never submits stale seconds. Its request
@@ -1237,6 +1273,12 @@ Each market's exchange reads have a 20-second deadline and reuse connector
 throttlers/read helpers. Fill pagination uses OKX `billId`; position quantities
 use the existing contract metadata conversion. Active and held perpetual exposure
 are compared as separate long/short legs.
+For managed maker CLOSE executors, only executed quantity reduces the opposite
+owned hedge leg. Working reservations do not count as executions. A completed
+transfer still awaiting its native financial application makes the comparison
+incomplete; an already applied receipt is not counted twice. Unsupported or
+invalid local position scope is unavailable, never a verified flat account.
+The check does not change orders, accounting or trading authority.
 Order comparisons include instrument, side, original quantity, type and limit
 price, plus base-currency sizing for spot market orders. Missing required terms
 make a check incomplete; changed terms between reads invalidate its snapshot.
@@ -1376,6 +1418,10 @@ operator flag requests investigation; it does not discard the reservation or
 prove absence. Start/Switch during an active running reconciliation return
 `automatic_recovery_in_progress`; follow the returned action availability.
 An explicit Start from stopped may initialize a pending cold proof, never bypass it.
+When active reconciliation has `operator_required=true`, the operator panel returns
+`needs_attention` / `contact_support`, including during bootstrap. Keep Stop
+available and follow action availability; `halted=false` still means no manual
+HALT reset is needed. Investigation must not discard the uncertain reservation.
 Use `phase` as the current state: an idle result may retain the last order/timing
 context; render a retry countdown only while automatic work is active.
 
@@ -1396,7 +1442,8 @@ fills must be durable before retiring a managed order.
 
 Audit actions `automatic_recovery_paused`, `automatic_recovery_order_verified`
 and `automatic_recovery_resumed` use a runtime owner actor, generation and order
-correlation. Financial proof/context stays private; no secret is returned.
+correlation. `automatic_recovery_order_rejected` records an exact durable venue
+expiry rejection atomically with retirement of its intent and saved tracker. Financial proof/context stays private; no secret is returned.
 
 ### Reviewed manual recovery
 

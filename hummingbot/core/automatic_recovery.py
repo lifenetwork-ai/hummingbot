@@ -10,7 +10,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select, update
 
-from hummingbot.connector.okx_order_status import OKXOrderNotFoundError, order_status_data
+from hummingbot.connector.okx_order_status import OKXOrderNotFoundError, is_expired_rejection_receipt, order_status_data
 from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate
 from hummingbot.core.order_submission_guard import MarketReadinessBlocked, SessionSubmissionBlocked, SubmissionBlocked
 from hummingbot.model.order import Order
@@ -28,12 +28,18 @@ def eligible(context):
     config, scope = context.get('executor') or {}, context.get('session')
     barriers, order = config.get('triple_barrier_config') or {}, context.get('order') or {}
     side = 'BUY' if config.get('side') in (1, 'BUY') else 'SELL' if config.get('side') in (2, 'SELL') else None
-    return (config.get('type') == 'position_executor' and isinstance(scope, list) and len(scope) == 2
-            and scope == [config.get('mm_session_id'), config.get('mm_generation')]
-            and config.get('connector_name') in ('okx', 'okx_perpetual') and not context.get('cleanup')
-            and not any(barriers.get(key) is not None for key in ('stop_loss', 'take_profit', 'time_limit', 'trailing_stop'))
-            and order.get('trade_type') == side and order.get('position') in ('OPEN', 'NIL')
-            and order.get('order_type') == 'LIMIT_MAKER' and isinstance(context.get('credential_fingerprint'), str))
+    common = (isinstance(scope, list) and len(scope) == 2
+              and scope == [config.get('mm_session_id'), config.get('mm_generation')]
+              and config.get('connector_name') in ('okx', 'okx_perpetual') and not context.get('cleanup')
+              and order.get('trade_type') == side
+              and order.get('order_type') == 'LIMIT_MAKER' and isinstance(context.get('credential_fingerprint'), str))
+    opening = (config.get('type') == 'position_executor' and order.get('position') in ('OPEN', 'NIL')
+               and not any(barriers.get(key) is not None for key in ('stop_loss', 'take_profit', 'time_limit', 'trailing_stop')))
+    closing = (config.get('type') == 'order_executor' and config.get('connector_name') == 'okx_perpetual'
+               and config.get('position_action') == order.get('position') == 'CLOSE'
+               and config.get('execution_strategy') == 'LIMIT_MAKER' and type(config.get('mm_generation')) is int
+               and all(isinstance(config.get(key), str) and config[key] for key in ('id', 'controller_id', 'level_id', 'mm_session_id')))
+    return bool(common and (opening or closing))
 
 
 def proof_covers_local(order, status, trades):
@@ -248,7 +254,7 @@ class AutomaticOrderRecovery:
             rows = session.execute(select(SubmissionAttempt).where(SubmissionAttempt.order_id.in_(ids))).scalars().all()
             if {row.order_id for row in rows} != ids or any(not eligible(row.context) for row in rows):
                 raise SubmissionBlocked('automatic_recovery_context_missing')
-            return [dict(order_id=row.order_id, state=row.state, context=row.context) for row in rows]
+            return [dict(order_id=row.order_id, state=row.state, context=row.context, receipt=row.receipt) for row in rows]
 
     def _restore_order(self, connector, attempt):
         from hummingbot.core.data_type.in_flight_order import InFlightOrder
@@ -261,6 +267,27 @@ class AutomaticOrderRecovery:
         self.owner.intent_scopes[order.client_order_id] = tuple(attempt['context']['session'])
         order._managed_recovery_order = eligible(attempt['context'])
         return order
+
+    async def _reject_saved_expiry(self, core, connector, attempt, order):
+        receipt = attempt.get('receipt')
+        if not is_expired_rejection_receipt(receipt, attempt['order_id']):
+            return False
+        self.owner.check_owner()
+        context = attempt['context']
+        if (context.get('environment') != environment_identity()
+                or context['credential_fingerprint'] != credential_fingerprint(connector)
+                or context.get('config_file_path') != self.owner.config_file_path
+                or sorted(context['bindings'], key=digest) != sorted(self._bindings(), key=digest)):
+            raise SubmissionBlocked('recovery_account_binding_changed')
+        if order.exchange_order_id or order.executed_amount_base or order.order_fills:
+            raise SubmissionBlocked('recovery_order_identity_mismatch')
+        core.markets_recorder.reject_unsent_order(connector, order.client_order_id,
+                                                  require_existing=True, expiry_receipt=receipt)
+        await connector._order_tracker.process_order_update(OrderUpdate(
+            order.trading_pair, time.time(), OrderState.FAILED, order.client_order_id))
+        self.owner.sent_intents.discard(order.client_order_id)
+        self.owner._release_unsent_admission(order.client_order_id)
+        return True
 
     def _record_verified(self, core, attempt, status, trades):
         core.trade_fill_db.assert_persistence_healthy()
@@ -311,6 +338,7 @@ class AutomaticOrderRecovery:
                 if state == update.new_state and filled == order.executed_amount_base:
                     with self.owner.engine.connect() as connection:
                         if durable_fills(connection, order.client_order_id, list(order.order_fills.values()), missing_ok=True):
+                            order._managed_terminal_proved = True
                             return update
             async with self.terminal_slots:
                 self.owner.check_owner()
@@ -320,9 +348,20 @@ class AutomaticOrderRecovery:
                 persist_proved_trades(recorder, connector, order, trades)
                 with self.owner.engine.connect() as connection:
                     durable_fills(connection, order.client_order_id, trades)
+                order._managed_terminal_proved = True
                 return proof
         finally:
             self.owner.terminal_tasks.discard(task)
+
+    def note_bootstrap_wait(self, error, delay, *, order_id=None):
+        self.status.setdefault('started_at', time.time())
+        reason = 'order_not_found_inconclusive' if isinstance(error, OKXOrderNotFoundError) else 'order_proof_pending'
+        self.status.update(phase='bootstrapping_recovery', reason_code=reason,
+                           operator_required=time.time() - self.status['started_at'] >= 300,
+                           next_retry_at=time.time() + delay)
+        if order_id is not None:
+            self.status['order_id'] = order_id
+        self.owner._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.status)))
 
     async def restore(self, core):
         """Before native startup cancellation, restore only journaled live effects."""
@@ -351,6 +390,8 @@ class AutomaticOrderRecovery:
                     order.trading_pair, time.time(), OrderState.FAILED, order.client_order_id))
                 self.owner.sent_intents.discard(order.client_order_id)
                 continue
+            if await self._reject_saved_expiry(core, connector, attempt, order):
+                continue
             self.bootstrap_orders[order.client_order_id] = (attempt, order)
             failures = 0
             while True:
@@ -358,19 +399,18 @@ class AutomaticOrderRecovery:
                 try:
                     await self._merge(core, connector, attempt, order)
                     break
-                except (IOError, asyncio.TimeoutError):
+                except (IOError, asyncio.TimeoutError) as error:
                     # Includes explicit 51603. A long outage remains a visible
                     # initialization pause, not a repeated POST or timed reset.
                     failures = min(failures + 1, 5)
                     delay = min(15, 2 ** (failures - 1)) * random.uniform(.8, 1.2)
-                    self.status.update(phase='bootstrapping_recovery', reason_code='order_proof_pending',
-                                       next_retry_at=time.time() + delay)
-                    self.owner._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.status)))
+                    self.note_bootstrap_wait(error, delay, order_id=order.client_order_id)
                     await asyncio.sleep(delay)
 
     async def project(self, core):
         """Apply only terminal, fully proved orders missing their native hold transfer."""
         from hummingbot.model.runtime_journal import RuntimeJournal
+        from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
         from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
         from hummingbot.strategy_v2.models.base import RunnableStatus
         from hummingbot.strategy_v2.models.executors import CloseType
@@ -392,9 +432,22 @@ class AutomaticOrderRecovery:
             attempt = self._attempt(identity)
             if not attempt or not eligible(attempt['context']):
                 raise SubmissionBlocked('recovery_fill_context_missing')
-            config = PositionExecutorConfig.model_validate(attempt['context']['executor'])
+            raw = attempt['context']['executor']
+            model = OrderExecutorConfig if raw.get('type') == 'order_executor' else PositionExecutorConfig
+            config = model.model_validate(raw)
             orchestrator = core.strategy.executor_orchestrator
-            if (not orchestrator._mm_contains(config.controller_id, config.connector_name, config.trading_pair)
+            # Position durability is also required when optional drawdown
+            # limits are disabled. In that case require the actual controller's
+            # managed session/market, rather than treating an absent risk
+            # policy as a financial conflict or accepting arbitrary journals.
+            controller = orchestrator.strategy.controllers.get(config.controller_id)
+            current = getattr(controller, 'config', None)
+            covered = (orchestrator._mm_contains(config.controller_id, config.connector_name, config.trading_pair)
+                       if orchestrator._mm_scope() else current is not None
+                       and getattr(current, 'mm_session_id', None) == config.mm_session_id
+                       and (getattr(current, 'connector_name', None), getattr(current, 'trading_pair', None))
+                       == (config.connector_name, config.trading_pair))
+            if (not covered
                     or core.markets_recorder.applied_position_executors([config.id])):
                 raise SubmissionBlocked('recovery_position_application_conflict')
             connector = self.owner.connectors[config.connector_name]
@@ -438,7 +491,8 @@ class AutomaticOrderRecovery:
                 order = connector._order_tracker.fetch_order(attempt['order_id'])
                 if order is None:
                     order = self._restore_order(connector, attempt)
-                await self._merge(core, connector, attempt, order)
+                if not await self._reject_saved_expiry(core, connector, attempt, order):
+                    await self._merge(core, connector, attempt, order)
                 self.status['last_progress_at'] = time.time()
             row = self.owner.check_owner()
             recovery = row['recovery_state'] or {}
@@ -449,7 +503,7 @@ class AutomaticOrderRecovery:
                 self.owner._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.status)))
                 return
             if self.resume_scope is not None:
-                self.owner._check_mm_authority(row, self.resume_scope)
+                self.owner._check_mm_authority(row, self.resume_scope, submission=False)
             elif self.owner.mm_ready_check is not None and not self.owner.mm_ready_check():
                 raise SubmissionBlocked('recovery_readiness_pending')
             self.owner._check_intents(core.markets_recorder)

@@ -1,11 +1,30 @@
 # Demo and release closeout
 
+Follow-up 2026-11-12: revision111/`d8f90c13b` resolves the old50037 block
+through native audited recovery. The bot is running. Its completed30-minute
+quote window fails99% (Spot93.46%, perpetual87.89%). A confirmed repeated-price
+post-only CLOSE defect has a separate tested local fix awaiting deployment;
+see [connected acceptance](../../reports/demo/cloudrun-quote-replacement-acceptance.md).
+
 Scope approved 2026-11-10: complete controlled OKX Demo qualification and the
 latest packaged release. Real GCP KMS, the actual frontend and live funds remain
 separate. Use existing audited operator APIs; never manufacture fills, disable
 guards or rewrite financial state to obtain a pass.
 
-Latest operating update: revision79's untracked-order startup HALT persists on80.
+Current 2026-11-12 connected work: revision110 enables fee-covered close-first
+quotes on the explicit Demo perpetual policy. Both native CLOSE sides,83
+actual LONG close fills and cold owner handoffs479→480→481 are verified; Start84
+remains continuous. The completed regular Random thirty-minute window fails
+the99% quote target (conservative Spot95.32%,perpetual92.65%); this gate remains
+open. See the
+[connected acceptance record](../../reports/demo/cloudrun-close-first-baseline.md).
+
+Local 2026-11-11 qualification is tracked in the
+[automatic-recovery plan](MM_AUTOMATIC_RECOVERY_AVAILABILITY_TDD_PLAN.md) and
+[availability follow-up](../../reports/release/mm-availability-closeout.md).
+The operating/artifact results below retain their earlier revision/date scope.
+
+Historical operating update: revision79's untracked-order startup HALT persists on80.
 After full stopped verification of2,763 orders/453 fills, a rehearsed audited
 technical repair clears only that HALT/reason (audit172). Separate Start55
 succeeds on unchanged revision80 at07:50 UTC and places actual Spot SELL orders.
@@ -14,7 +33,7 @@ fails and is retained. Existing BUY sizing/perpetual caps still apply. Historica
 identity remains unproved; the ordinary Recovery API's legacy spot baseline
 limitation remains explicit. See the compact incident evidence in the report.
 
-Latest pinned source is `f53885fda`, regular image `4198f2fa…`, digest
+The earlier pinned source is `f53885fda`, regular image `4198f2fa…`, digest
 `sha256:1e7cf901cbe376268d167fde18db0a9f18fa6818ba51052bae9cceba188e2e1b`.
 All1,092 packaged hashes match (1,068 Python),61 compiled modules are unchanged
 and2,056 measured source/fixture hashes remain frozen. Canonical native3,085 +16,

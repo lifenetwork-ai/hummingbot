@@ -1,0 +1,361 @@
+{
+  "candidate": "127.0.0.1:55607/hummingbot@sha256:42f9108d030e318c70b21169b6b133a9d65723e4e17bcf3b3250aa828a40f123",
+  "source_proof": {
+    "staged_modules": 14,
+    "runtime_modules": 7,
+    "host_mismatches": [],
+    "image": "127.0.0.1:55607/hummingbot@sha256:42f9108d030e318c70b21169b6b133a9d65723e4e17bcf3b3250aa828a40f123",
+    "host_only_observer_sha256": {
+      "scripts/mm_submission_uncertainty_checks.py": "cf9ccdeea925e759a8aaa3042d096314fcff85ab1b4ccf58f91260e1a23991f6",
+      "scripts/mm_load_faults.py": "e3ba65e33f9f7164a2b132855baead9f75b419634c0ecfb2bc5ab0dae3794427"
+    }
+  },
+  "no_new_commit_push_or_deploy": true,
+  "native": {
+    "canonical_passed": 3363,
+    "subtests": 16,
+    "additional_focused_submission": 4,
+    "additional_focused_fault_observer": 19,
+    "new_cases_after_canonical": 22
+  },
+  "postgres": {
+    "passed": 724
+  },
+  "oom": {
+    "passed": 7,
+    "managed_mm_positive": 6,
+    "legacy_unresolved_negative": 1,
+    "evidence": "build/mm-oom/20261111-214231-df3b40/result.json"
+  },
+  "e2e": {
+    "single_all_green": false,
+    "original_all_passed": false,
+    "original_passed": 36,
+    "original_attempted": 37,
+    "corrected_target_passed": true,
+    "coverage_cases": 37,
+    "original": "build/e2e-offline/20261111-214149-cf3776/result.json",
+    "target": "build/e2e-offline/20261111-222928-cc4c39/result.json"
+  },
+  "load": {
+    "single_all_green": false,
+    "original_all_passed": false,
+    "original": "build/mm-load/20261111-225005-a13889/result.json",
+    "healthy_windows": {
+      "warmup": {
+        "duration_seconds": 300,
+        "read_p95_ms": 52.150898000945745,
+        "read_p99_ms": 427.7377870002965,
+        "unexpected_errors": 0,
+        "valid_fills": 300,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 300,
+          "unique_recorder_fills": 300,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3,
+          "perpetual_reduction": {
+            "closing_orders": 4,
+            "closing_fills": 4,
+            "closed_base": "0.004",
+            "both_hedge_legs_closed": true
+          }
+        }
+      },
+      "mixed": {
+        "duration_seconds": 900,
+        "read_p95_ms": 107.7101959990614,
+        "read_p99_ms": 785.6120329997793,
+        "unexpected_errors": 0,
+        "valid_fills": 900,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1200,
+          "unique_recorder_fills": 1200,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3,
+          "perpetual_reduction": {
+            "closing_orders": 22,
+            "closing_fills": 23,
+            "closed_base": "0.023",
+            "both_hedge_legs_closed": true
+          }
+        }
+      },
+      "bursts": {
+        "duration_seconds": 90,
+        "read_p95_ms": 383.72159600021405,
+        "read_p99_ms": 655.4736759999287,
+        "unexpected_errors": 0,
+        "valid_fills": 90,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 1290,
+          "unique_recorder_fills": 1290,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3,
+          "perpetual_reduction": {
+            "closing_orders": 26,
+            "closing_fills": 28,
+            "closed_base": "0.028",
+            "both_hedge_legs_closed": true
+          }
+        }
+      },
+      "soak": {
+        "duration_seconds": 3600,
+        "read_p95_ms": 71.8472059998021,
+        "read_p99_ms": 541.3820500007205,
+        "unexpected_errors": 0,
+        "valid_fills": 3594,
+        "violations": [],
+        "ledger": {
+          "unique_exchange_fills": 4884,
+          "unique_recorder_fills": 4884,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 6,
+          "perpetual_reduction": {
+            "closing_orders": 92,
+            "closing_fills": 96,
+            "closed_base": "0.096",
+            "both_hedge_legs_closed": true
+          }
+        }
+      }
+    },
+    "host_architecture": "arm64",
+    "image_architecture": "amd64",
+    "emulation": true,
+    "bot_limits": {
+      "cpus": 2,
+      "memory_bytes": 1073741824
+    },
+    "memory_retention": {
+      "basis": "cgroup_current_minus_file_plus_shmem",
+      "early_median_bytes": 735268864,
+      "late_median_bytes": 752898048,
+      "growth_bytes": 17629184,
+      "budget_bytes": 67108864,
+      "raw_cgroup_growth_bytes": 17629184
+    },
+    "soak_samples": 58,
+    "soak_role_pids_stable": true,
+    "maximum_sample_gap_seconds": 65.46847987174988,
+    "corrected_fault_target": "build/mm-load/20261112-003615-e37be4/result.json",
+    "faults_passed": [
+      "feed",
+      "volatility-defense",
+      "owner-restart",
+      "queued-expiry",
+      "database-delay",
+      "database-failure"
+    ],
+    "fault_classifications": {
+      "feed": "injected_fault_excluded_from_healthy_latency",
+      "volatility-defense": "injected_fault_excluded_from_healthy_latency",
+      "owner-restart": "injected_fault_excluded_from_healthy_latency",
+      "queued-expiry": "injected_fault_excluded_from_healthy_latency",
+      "database-delay": "injected_fault_excluded_from_healthy_latency",
+      "database-failure": "injected_fault_excluded_from_healthy_latency"
+    },
+    "volatility_scope": {
+      "stimulus_to_terminal_cancel_ms": {
+        "LIFE-USDT": 4228.89208984375,
+        "LIFE-USDT-SWAP": 6528.89208984375
+      },
+      "opening_input_to_terminal_cancel_ms": {
+        "LIFE-USDT": 4228.89208984375,
+        "LIFE-USDT-SWAP": 4482.89208984375
+      },
+      "closing_decision_to_terminal_cancel_ms": {
+        "LIFE-USDT-SWAP": 3061.0
+      },
+      "latency_scope": "OPEN keeps the original input-to-terminal 5s bound. CLOSE is already small and only becomes invalid on spread restriction: require independent first-reduced decision and terminal proof within 5s. Preserve all-order input bounds separately; pause still cancels every quote.",
+      "working_at_joint_pause": {
+        "LIFE-USDT": 6,
+        "LIFE-USDT-SWAP": 4
+      },
+      "joint_pause_to_terminal_cancel_ms": {
+        "LIFE-USDT": 29.0,
+        "LIFE-USDT-SWAP": 1428.0
+      },
+      "reduced_allocation_verified": true,
+      "pause_checkpoint_count": 2,
+      "no_submissions_during_stale_pause": true,
+      "positions_preserved": true,
+      "recovery_seconds": 12.419713417068124
+    },
+    "healthy_probe_summary": {
+      "warmup": {
+        "failed_records": 2,
+        "recovered_records": 2,
+        "roles": {
+          "engine": 2,
+          "api": 0
+        },
+        "longest_recovered_failure_seconds": 1.089,
+        "errors": 0,
+        "restart_records": 0
+      },
+      "mixed": {
+        "failed_records": 12,
+        "recovered_records": 12,
+        "roles": {
+          "engine": 10,
+          "api": 2
+        },
+        "longest_recovered_failure_seconds": 5.111,
+        "errors": 0,
+        "restart_records": 0
+      },
+      "bursts": {
+        "failed_records": 1,
+        "recovered_records": 1,
+        "roles": {
+          "engine": 1,
+          "api": 0
+        },
+        "longest_recovered_failure_seconds": 1.033,
+        "errors": 0,
+        "restart_records": 0
+      },
+      "soak": {
+        "failed_records": 26,
+        "recovered_records": 27,
+        "roles": {
+          "engine": 25,
+          "api": 1
+        },
+        "longest_recovered_failure_seconds": 1.28,
+        "errors": 0,
+        "restart_records": 0
+      }
+    }
+  },
+  "economics": {
+    "source": "build/mm-load/20261111-225005-a13889",
+    "actual_okx": false,
+    "independent_exact_rational_economics": true,
+    "both_legs_fee_covered": true,
+    "perpetual_fill_count": 193,
+    "native_quantity_volume_original_fees_gross_pnl_matched": true,
+    "legs": {
+      "long": {
+        "q": "0",
+        "principal": "0",
+        "fees": "0",
+        "volume": "1/100",
+        "lifetime_fees": "1/500000",
+        "gross": "1/10000",
+        "net_closed": "49/500000",
+        "closes": "50"
+      },
+      "short": {
+        "q": "1/1000",
+        "principal": "101/1000000",
+        "fees": "101/5000000000",
+        "volume": "9301/1000000",
+        "lifetime_fees": "9301/5000000000",
+        "gross": "23/250000",
+        "net_closed": "1127/12500000",
+        "closes": "46"
+      }
+    }
+  },
+  "image_cleanup": {
+    "removed": [
+      {
+        "image_id": "sha256:162c9659ece00b9ff655a55e57e676121799639163fbcd6a7389f5bf96e6591e",
+        "removed_in_previous_step": true
+      },
+      {
+        "image_id": "sha256:1c1e0e681e67b511d6d861189ef4acd2f9b0cc960376139398f750e67294d77a",
+        "references": [
+          "127.0.0.1:55043/hummingbot:offline",
+          "hummingbot-cloudrun:availability-closeout-20261111-r2",
+          "127.0.0.1:55043/hummingbot@sha256:8da3157fe522da0490bbb93cb64732b8203fe5de0b60e96fec88e3e5f8a085ba"
+        ]
+      },
+      {
+        "image_id": "sha256:b4636c9179e7da5c342a0377be5e82f684c3c966b5bd0fcfb42488d3403fc3f3",
+        "references": [
+          "127.0.0.1:55481/hummingbot:offline",
+          "hummingbot-cloudrun:availability-closeout-20261111-r3",
+          "127.0.0.1:55481/hummingbot@sha256:2e0cd82641478c23daa593801954252b94e9ce42c3866e7e4027ce0e32f23de6"
+        ]
+      },
+      {
+        "image_id": "sha256:90eca0ac6374d0d26981063eda8966de3abbf0dadfdfbe4a23de02b3e8f333ee",
+        "references": [
+          "127.0.0.1:56219/hummingbot:offline",
+          "hummingbot-cloudrun:availability-closeout-20261111-r4",
+          "127.0.0.1:56219/hummingbot@sha256:ee79d8fe4e20303a0d6430f6b245d3bb45dba3d5a104465cdf7e06a90047bc1f"
+        ]
+      },
+      {
+        "image_id": "sha256:86872b6b0d6ca62e4b909d9ce80f1a7980efb2462ca57587197836296d148262",
+        "references": [
+          "127.0.0.1:56715/hummingbot:offline",
+          "hummingbot-cloudrun:availability-closeout-20261111-r5",
+          "127.0.0.1:56715/hummingbot@sha256:a83d5c630343795b3449c1446e87d52a9a8c78cb5058f45136f53d929c40b7d5"
+        ]
+      },
+      {
+        "image_id": "sha256:1a9bb1dde9b5824c74a7c9f4a57cad9162bb4ae740474050bf132535fd2ca674",
+        "references": [
+          "127.0.0.1:56637/hummingbot:offline",
+          "hummingbot-cloudrun:availability-closeout-20261111-r6",
+          "127.0.0.1:56637/hummingbot@sha256:d33db9bee64c9ff34df144fa1e22ce40d84138b8fcae0e5a43fe12183cca124e"
+        ]
+      },
+      {
+        "image_id": "sha256:31e57d14a22ff3816defbd88497bb1dcdea7fb0a2acf5439c8d95e287f311743",
+        "references": [
+          "127.0.0.1:58499/hummingbot:offline",
+          "hummingbot-cloudrun:startup-wait-20261111",
+          "127.0.0.1:58499/hummingbot@sha256:79457fabdb535366a69be6ae0eec97dc71a98b22282fbaad5d11f1d8a3ae5f22"
+        ]
+      },
+      {
+        "image_id": "sha256:70b4a6852909542ddd74d7821072aa66f2365abe2f8addd2328cf80e44390962",
+        "references": [
+          "asia-southeast1-docker.pkg.dev/lifeai-438107/cloud-run-source-deploy/hummingbot/hummingbot-demo@sha256:9bbaebb6eaab902a9e892e074a106d4fd9f6eb850183ce7f65d61b5d5dcf9b69"
+        ]
+      }
+    ],
+    "kept": [
+      "sha256:a7d0d6d1eae31bf7a35da2d24a858d78a90a3fa47d4ffc5551b07aeec6f1611d",
+      "sha256:0bb089a4a946d7fb75f617edba59f059436f1944fb62417930133646cc22961a"
+    ],
+    "volumes_touched": false,
+    "global_prune": false
+  },
+  "actual_demo": {
+    "observed_at": "2026-11-11T17:41:50Z",
+    "revision": "hummingbot-demo-00108-fxf",
+    "control": 82,
+    "acknowledged": 82,
+    "running": true,
+    "halted": false,
+    "pending_mutations": false,
+    "close_first_enabled": false
+  },
+  "remaining": [
+    "Deploy and verify the resulting CI artifact separately",
+    "Fresh stopped Demo cost baseline and actual fee-covered CLOSE qualification",
+    "Regular-profile 30-minute two-sided objective",
+    "Broader connected fault matrix; real GCP KMS remains outside this local scope"
+  ],
+  "final_checks": {
+    "precommit_files": 46,
+    "precommit_passed": true,
+    "git_diff_check_passed": true,
+    "focused_observer_tests_passed": 23,
+    "packaged_source_hashes_matched": 14,
+    "host_observer_hashes_matched": 2
+  }
+}

@@ -248,7 +248,7 @@ export function AppShell() {
                     {auth.identity.email ? auth.identity.email[0] : 'U'}
                   </span>
                   <span
-                    className="max-w-[140px] truncate font-medium text-app-text hidden sm:inline-block"
+                    className="sr-only font-medium text-app-text sm:not-sr-only sm:inline-block sm:max-w-[140px] sm:truncate"
                     title={auth.identity.email ?? undefined}
                   >
                     {auth.identity.email ?? auth.identity.id}

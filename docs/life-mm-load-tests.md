@@ -113,6 +113,18 @@ It verifies durable latches/no submissions during the outage and retains filled
 exposure. This window is additional to the
 unchanged healthy mixed/burst/sixty-minute gates.
 
+With opt-in close-first, a complete cohort can contain fewer than twelve orders:
+it must retain every OPEN level and reserve exactly the remaining owned CLOSE
+quantity, without duplicate or excessive reservations. OPEN sizing reductions
+retain the original five-second input-to-first-terminal bound. A small CLOSE
+can remain valid after sizing shrinks; its spread-restriction cancellation is
+measured from the independently logged first `reduced` controller decision, also
+within five seconds. The all-order input upper bound remains recorded separately
+and must not be presented as satisfying that older uniform measurement. Extreme
+pause still cancels every working quote within its existing decision budget.
+Failed predecessor executions remain failed when the corrected host fixture is
+qualified separately on the same runtime image.
+
 `CLOUDRUN_IMAGE` selects the deployment artifact. Full profiles pin its registry
 manifest through a disposable loopback-only registry, then remove the registry.
 Probe uses its immutable image ID and cannot count as final acceptance. Reports

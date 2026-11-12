@@ -35,6 +35,7 @@ def operator_view(row, process):
     recovery_pending = bool(recovery.get("recovery_operation_pending"))
     automatic = recovery.get('automatic_recovery') or snapshot.get('automatic_recovery') or {}
     automatic_pending = automatic.get('phase') in ('reconciling', 'bootstrapping_recovery', 'waiting_for_readiness')
+    automatic_attention = automatic_pending and automatic.get('operator_required') is True
     shutdown_pending = (halted and recovery.get('shutdown_pending') is True and not pending
                         and not checkpoint_reason and automatic.get('cold_recovery_supported') is True
                         and not automatic.get('operator_required'))
@@ -85,6 +86,9 @@ def operator_view(row, process):
         state, label, detail, next_action = "needs_attention", "Technical review needed", "Trading cannot restart until the cause is resolved.", "contact_support"
     elif mismatch:
         state, label, detail, next_action = "needs_attention", "Deployment review needed", "The responding service and trading owner use different environments.", "contact_support"
+    elif automatic_attention:
+        state, label, detail, next_action = ('needs_attention', 'Order verification needs review',
+                                             'The exchange outcome is still unconfirmed. New orders remain paused; contact support. Do not resubmit or reset the pending order.', 'contact_support')
     elif not available or observation_old:
         state, label, detail, next_action = "unavailable", "Status unavailable", "The latest trading state cannot be confirmed.", "wait"
     elif row["desired_state"] == "stopped":
@@ -155,10 +159,10 @@ def operator_view(row, process):
                                  "observation_stale" if observation_old else None),
                 operator=dict(state=state, label=label, detail=detail, next_action=next_action), actions=actions,
                 recovery=dict(halted=halted, pending_mutations=pending, next_action="wait" if recovery_pending or shutdown_pending else
-                              "contact_support" if halted or pending or checkpoint_reason else "wait" if automatic_pending else "none",
+                              "contact_support" if halted or pending or checkpoint_reason or automatic_attention else "wait" if automatic_pending else "none",
                               detail="Saved risk information needs technical review." if checkpoint_reason else
                               'Shutdown is protected by a temporary fence. Wait for owner recovery; do not reset the fence.' if shutdown_pending else
-                              "Contact support before restarting trading." if halted or pending else
+                              "Contact support before restarting trading." if halted or pending or automatic_attention else
                               'Exchange order reconciliation is in progress. New submissions are paused.' if automatic_pending else 'No recovery block is recorded.'),
                 session_configuration_url=f"/api/v1/admin/sessions/{session['id']}/configuration" if session.get("id") else None,
                 markets=markets, drawdown=drawdown)

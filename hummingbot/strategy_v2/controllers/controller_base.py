@@ -191,6 +191,10 @@ class ControllerBase(RunnableBase):
     )
     """
 
+    # Controllers opting in must await account setup and gate their own actions
+    # until its acknowledgement; the script must not launch duplicate writes.
+    manages_account_settings = False
+
     def __init__(self, config: ControllerConfigBase, market_data_provider: MarketDataProvider,
                  actions_queue: asyncio.Queue, update_interval: float = 1.0):
         super().__init__(update_interval=update_interval)

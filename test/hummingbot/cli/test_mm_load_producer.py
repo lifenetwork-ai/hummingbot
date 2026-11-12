@@ -225,3 +225,37 @@ def test_absent_and_terminal_orders_cannot_generate_synthetic_fills():
     canceled['state'], filled['state'] = 'canceled', 'filled'
     assert load_client.fill_candidate([], 0) is None
     assert load_client.fill_candidate([canceled, filled], 0) is None
+
+
+def test_reduction_workload_rotates_opening_legs_without_blocking_closes():
+    quotes = [quote('open-long', market='LIFE-USDT-SWAP', posSide='long'),
+              quote('open-short', market='LIFE-USDT-SWAP', side='sell', posSide='short')]
+    order, _, _ = load_client.fill_candidate(quotes, 1, opening_leg='short')
+    assert order['clOrdId'] == 'open-short'
+    quotes += [quote('close-long', market='LIFE-USDT-SWAP', side='sell', posSide='long'),
+               quote('close-short', market='LIFE-USDT-SWAP', posSide='short')]
+    order, _, _ = load_client.fill_candidate(quotes, 1, opening_leg='long')
+    assert order['clOrdId'] == 'open-long'
+    order, _, _ = load_client.fill_candidate([quotes[-1]], 1, opening_leg='long')
+    assert order['clOrdId'] == 'close-short'
+    assert load_client.fill_candidate([quotes[0]], 1, opening_leg='short') is None
+    # Default original workload still fills any currently executable family.
+    assert load_client.fill_candidate([quotes[0]], 1)[0]['clOrdId'] == 'open-long'
+
+
+@pytest.mark.parametrize('side,leg', [('buy', 'short'), ('sell', 'long')])
+def test_reduction_producer_can_fill_a_real_close_smaller_than_its_regular_chunk(side, leg):
+    order = quote('small-close', market='LIFE-USDT-SWAP', side=side, posSide=leg)
+    order.update(sz='.0999', accFillSz='.09')
+    selected, amount, _ = load_client.fill_candidate([order], 1, opening_leg='long')
+    assert selected is order and amount == load_client.Decimal('.0099')
+    # Preserve the original load quantity outside the explicit reduction mode.
+    assert load_client.fill_candidate([order], 1) is None
+
+
+def test_reduction_producer_never_creates_a_zero_close_or_shrinks_an_opening_fill():
+    closed = quote('exhausted-close', market='LIFE-USDT-SWAP', side='sell', posSide='long')
+    closed['accFillSz'] = closed['sz']
+    opened = quote('open', market='LIFE-USDT-SWAP', posSide='long')
+    selected, amount, _ = load_client.fill_candidate([closed, opened], 1, opening_leg='long')
+    assert selected is opened and amount == load_client.Decimal('.1')

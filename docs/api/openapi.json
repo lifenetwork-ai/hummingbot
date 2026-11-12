@@ -3018,6 +3018,177 @@
         "title": "InitialPositionConfig",
         "type": "object"
       },
+      "InventoryReductionConfigOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "default": "disabled",
+            "enum": [
+              "disabled",
+              "close_first"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "price_mode": {
+            "anyOf": [
+              {
+                "const": "breakeven",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Price Mode"
+          }
+        },
+        "title": "InventoryReductionConfig",
+        "type": "object"
+      },
+      "InventoryReductionSideOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "available_base": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Available Base",
+            "type": "string"
+          },
+          "effect": {
+            "anyOf": [
+              {
+                "enum": [
+                  "OPEN",
+                  "CLOSE"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effect"
+          },
+          "owned_base": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owned Base"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "reserved_base": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Reserved Base",
+            "type": "string"
+          },
+          "target_leg": {
+            "enum": [
+              "LONG",
+              "SHORT"
+            ],
+            "title": "Target Leg",
+            "type": "string"
+          },
+          "venue_base": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Venue Base",
+            "type": "string"
+          }
+        },
+        "required": [
+          "effect",
+          "target_leg",
+          "owned_base",
+          "venue_base",
+          "reserved_base",
+          "available_base",
+          "reason_code"
+        ],
+        "title": "InventoryReductionSide",
+        "type": "object"
+      },
+      "InventoryReductionStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "fee_ready": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Ready"
+          },
+          "mode": {
+            "const": "close_first",
+            "title": "Mode",
+            "type": "string"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "price_mode": {
+            "const": "breakeven",
+            "title": "Price Mode",
+            "type": "string"
+          },
+          "sides": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/InventoryReductionSideOutput"
+            },
+            "propertyNames": {
+              "enum": [
+                "BUY",
+                "SELL"
+              ]
+            },
+            "title": "Sides",
+            "type": "object"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mode",
+          "price_mode",
+          "observed_at",
+          "stale",
+          "fee_ready",
+          "sides"
+        ],
+        "title": "InventoryReductionStatus",
+        "type": "object"
+      },
       "InventorySkewConfigOutput": {
         "additionalProperties": false,
         "properties": {
@@ -3264,6 +3435,9 @@
             "prompt_on_new": false,
             "title": "Initial Positions",
             "type": "array"
+          },
+          "inventory_reduction": {
+            "$ref": "#/components/schemas/InventoryReductionConfigOutput"
           },
           "inventory_skew": {
             "$ref": "#/components/schemas/InventorySkewConfigOutput"
@@ -4214,6 +4388,16 @@
             "title": "Allow Until Stopped",
             "type": "boolean"
           },
+          "default_duration_mode": {
+            "default": "timed",
+            "description": "Default for new Start/Switch commands omitting both duration mode and seconds. Until stopped also requires allow_until_stopped.",
+            "enum": [
+              "timed",
+              "until_stopped"
+            ],
+            "title": "Default Duration Mode",
+            "type": "string"
+          },
           "default_duration_seconds": {
             "default": 3600,
             "exclusiveMinimum": 0,
@@ -4428,6 +4612,18 @@
           "connector": {
             "title": "Connector",
             "type": "string"
+          },
+          "inventory_reduction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InventoryReductionStatusOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Last local reduction-capacity evaluation; null when disabled. Never order admission or current quote availability."
           },
           "inventory_skew": {
             "anyOf": [
@@ -6394,14 +6590,21 @@
             "type": "string"
           },
           "duration_mode": {
-            "default": "timed",
-            "description": "Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.",
-            "enum": [
-              "timed",
-              "until_stopped"
+            "anyOf": [
+              {
+                "enum": [
+                  "timed",
+                  "until_stopped"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Duration Mode",
-            "type": "string"
+            "default": null,
+            "description": "Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.",
+            "title": "Duration Mode"
           },
           "duration_seconds": {
             "anyOf": [
@@ -6528,14 +6731,21 @@
             "type": "string"
           },
           "duration_mode": {
-            "default": "timed",
-            "description": "Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.",
-            "enum": [
-              "timed",
-              "until_stopped"
+            "anyOf": [
+              {
+                "enum": [
+                  "timed",
+                  "until_stopped"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Duration Mode",
-            "type": "string"
+            "default": null,
+            "description": "Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.",
+            "title": "Duration Mode"
           },
           "duration_seconds": {
             "anyOf": [
@@ -8259,14 +8469,21 @@
             "type": "string"
           },
           "duration_mode": {
-            "default": "timed",
-            "description": "Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.",
-            "enum": [
-              "timed",
-              "until_stopped"
+            "anyOf": [
+              {
+                "enum": [
+                  "timed",
+                  "until_stopped"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Duration Mode",
-            "type": "string"
+            "default": null,
+            "description": "Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.",
+            "title": "Duration Mode"
           },
           "duration_seconds": {
             "anyOf": [
@@ -8682,14 +8899,21 @@
             "type": "string"
           },
           "duration_mode": {
-            "default": "timed",
-            "description": "Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.",
-            "enum": [
-              "timed",
-              "until_stopped"
+            "anyOf": [
+              {
+                "enum": [
+                  "timed",
+                  "until_stopped"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Duration Mode",
-            "type": "string"
+            "default": null,
+            "description": "Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.",
+            "title": "Duration Mode"
           },
           "duration_seconds": {
             "anyOf": [

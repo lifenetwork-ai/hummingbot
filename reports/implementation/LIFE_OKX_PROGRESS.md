@@ -1,6 +1,9 @@
 # LIFE / OKX delivery status
 
-Updated 2026-11-10. This concise status replaces the chronological journal; the
+Updated 2026-11-12 local. Current follow-up and open gates are tracked in the
+[availability closeout](../release/mm-availability-closeout.md) and
+[automatic-recovery plan](../../docs/plans/MM_AUTOMATIC_RECOVERY_AVAILABILITY_TDD_PLAN.md).
+This concise status replaces the chronological journal; the
 [full journal](../README.md#historical-records) (Git: `reports/implementation/LIFE_OKX_PROGRESS.md`) retains every original phase, attempt and result.
 Feature/configuration references are in [MM controls](../../docs/life-mm-controls.md),
 [FE integration](../../docs/fe-integration.md), [PostgreSQL](../../docs/postgres-runtime.md)

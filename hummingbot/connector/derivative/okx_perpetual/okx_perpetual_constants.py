@@ -112,6 +112,7 @@ REST_GET_WALLET_BALANCE = {METHOD: GET,
                            ENDPOINT: f"/api/{REST_API_VERSION}/account/balance"}
 REST_GET_ACCOUNT_CONFIG = {METHOD: GET,
                            ENDPOINT: f"/api/{REST_API_VERSION}/account/config"}
+REST_GET_TRADE_FEES = {METHOD: GET, ENDPOINT: f"/api/{REST_API_VERSION}/account/trade-fee"}
 REST_SET_POSITION_MODE = {METHOD: POST,
                           ENDPOINT: f"/api/{REST_API_VERSION}/account/set-position-mode"}
 
@@ -178,6 +179,7 @@ RATE_LIMIT_USER_TRADE_RECORDS = 120  # per 60 seconds
 RATE_LIMIT_GET_POSITIONS = 10  # per 2 seconds
 RATE_LIMIT_GET_WALLET_BALANCE = 10  # per 2 seconds
 RATE_LIMIT_GET_ACCOUNT_CONFIG = 5  # per 2 seconds
+RATE_LIMIT_GET_TRADE_FEES = 5  # per 2 seconds
 RATE_LIMIT_SET_POSITION_MODE = 5  # per 2 seconds
 RATE_LIMIT_BILLS_ARCHIVE = 5  # per 2 seconds
 RATE_LIMIT_BILLS_DETAILS = 5  # per 1 second

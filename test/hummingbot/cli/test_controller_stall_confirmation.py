@@ -114,3 +114,19 @@ async def test_shutdown_cancels_stall_confirmation_without_reopening_gate(monkey
     await asyncio.sleep(0)
     assert not item.runtime_healthy()
     item.owner.require_recovery.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_stall_diagnostic_names_startup_await_and_excludes_another_budgeted_wait(monkeypatch, caplog):
+    item, controller = running_host(monkeypatch)
+    controller._control_stage = "startup"
+    controller._startup_stage = "leverage_change"
+    waiting = SimpleNamespace(**vars(controller))
+    waiting._startup_stage = "position_mode_lock"
+    waiting._control_wait_until = time.monotonic() + 20
+    item.hb.trading_core.strategy.controllers["budgeted"] = waiting
+    assert await item.confirmed_runtime_problem() == "controller_task_stalled"
+    messages = [r.getMessage() for r in caplog.records if getattr(r, "event", None) == "controller_stall_confirmation"]
+    assert len(messages) == 1
+    assert "id=controller stage=startup startup_stage=leverage_change" in messages[0]
+    assert "budgeted" not in messages[0]

@@ -5,6 +5,17 @@ import pytest
 from hummingbot.core.mm_liquidity import LiquidityObserver, liquidity_view, own_quotes
 
 
+@pytest.mark.parametrize('reason', ['reduction_basis_unavailable', 'reduction_reserved', 'reduction_dust',
+                                    'reduction_fee_unavailable', 'reduction_price_not_profitable'])
+def test_reduction_wait_is_visible_without_counting_a_proposal_as_working(reason):
+    value = observation(empty=True, reasons={'BUY': [reason], 'SELL': [reason]})
+    result = sample(LiquidityObserver(), 1000, value)
+    assert result['state'] == 'no_quotes'
+    assert result['sides']['SELL']['state'] == 'blocked'
+    assert result['sides']['SELL']['reason_codes'] == [reason]
+    assert result['sides']['SELL']['diagnosis']['stage'] == 'trading_conditions'
+
+
 def observation(*, empty=False, valid=True, reasons=None, at=1000):
     market = connector()
     if empty:

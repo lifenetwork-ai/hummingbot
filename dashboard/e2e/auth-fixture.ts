@@ -26,6 +26,23 @@ export async function mockGoogle(page: Page) {
   }))
 }
 
+export async function openAccountMenu(page: Page) {
+  const trigger = page.getByRole('button', { name: /^Account / })
+  if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click()
+  return page.getByRole('menu', { name: 'Account options' })
+}
+
+export async function signOut(page: Page) {
+  const menu = await openAccountMenu(page)
+  await menu.getByRole('button', { name: 'Sign out' }).click()
+}
+
+export async function setAccountTheme(page: Page, theme: 'light' | 'dark') {
+  const menu = await openAccountMenu(page)
+  await menu.getByRole('button', { name: `Use ${theme} theme` }).click()
+  await page.keyboard.press('Escape')
+}
+
 export const test = base.extend<{ authenticated: void }>({
   authenticated: [async ({ page }, use) => {
     await mockGoogle(page)
@@ -34,15 +51,11 @@ export const test = base.extend<{ authenticated: void }>({
 })
 export { expect }
 
-export async function openAccountMenu(page: Page) {
-  const logout = page.getByRole('button', { name: 'Sign out', exact: true })
-  if (!(await logout.isVisible())) await page.getByRole('button', { name: /^Tài khoản / }).click()
-}
 export async function selectTheme(page: Page, theme: 'light' | 'dark') {
   const button = page.getByRole('button', { name: theme === 'dark' ? 'Use dark theme' : 'Use light theme', exact: true })
   if (!(await button.isVisible())) await openAccountMenu(page)
   await button.click()
-  const account = page.getByRole('button', { name: /^Tài khoản / })
+  const account = page.getByRole('button', { name: /^Account / })
   if (await account.count() && await account.getAttribute('aria-expanded') === 'true') await account.click()
 }
 export async function openContext(page: Page) {

@@ -1845,6 +1845,63 @@ export interface components {
             /** Trading Pair */
             trading_pair: string;
         };
+        /** InventoryReductionConfig */
+        InventoryReductionConfigOutput: {
+            /**
+             * Mode
+             * @default disabled
+             * @enum {string}
+             */
+            mode: "disabled" | "close_first";
+            /**
+             * Price Mode
+             * @default null
+             */
+            price_mode: "breakeven" | null;
+        };
+        /** InventoryReductionSide */
+        InventoryReductionSideOutput: {
+            /** Available Base */
+            available_base: string;
+            /** Effect */
+            effect: ("OPEN" | "CLOSE") | null;
+            /** Owned Base */
+            owned_base: string | null;
+            /** Reason Code */
+            reason_code: string | null;
+            /** Reserved Base */
+            reserved_base: string;
+            /**
+             * Target Leg
+             * @enum {string}
+             */
+            target_leg: "LONG" | "SHORT";
+            /** Venue Base */
+            venue_base: string;
+        };
+        /** InventoryReductionStatus */
+        InventoryReductionStatusOutput: {
+            /** Fee Ready */
+            fee_ready: boolean | null;
+            /**
+             * Mode
+             * @constant
+             */
+            mode: "close_first";
+            /** Observed At */
+            observed_at: string | null;
+            /**
+             * Price Mode
+             * @constant
+             */
+            price_mode: "breakeven";
+            /** Sides */
+            sides: {
+                [key: string]: components["schemas"]["InventoryReductionSideOutput"];
+            };
+            /** Stale */
+            stale: boolean;
+        };
         /** InventorySkewConfig */
         InventorySkewConfigOutput: {
             /**
@@ -1953,6 +2010,7 @@ export interface components {
              * @default []
              */
             initial_positions: components["schemas"]["InitialPositionConfigOutput"][];
+            inventory_reduction?: components["schemas"]["InventoryReductionConfigOutput"];
             inventory_skew?: components["schemas"]["InventorySkewConfigOutput"];
             /**
              * Leverage
@@ -2324,6 +2382,13 @@ export interface components {
              */
             allow_until_stopped: boolean;
             /**
+             * Default Duration Mode
+             * @description Default for new Start/Switch commands omitting both duration mode and seconds. Until stopped also requires allow_until_stopped.
+             * @default timed
+             * @enum {string}
+             */
+            default_duration_mode: "timed" | "until_stopped";
+            /**
              * Default Duration Seconds
              * @default 3600
              */
@@ -2419,6 +2484,11 @@ export interface components {
             admitted: boolean;
             /** Connector */
             connector: string;
+            /**
+             * @description Last local reduction-capacity evaluation; null when disabled. Never order admission or current quote availability.
+             * @default null
+             */
+            inventory_reduction: components["schemas"]["InventoryReductionStatusOutput"] | null;
             /** @default null */
             inventory_skew: components["schemas"]["InventorySkewStatusOutput"] | null;
             /**
@@ -3242,11 +3312,10 @@ export interface components {
             action: "start";
             /**
              * Duration Mode
-             * @description Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.
-             * @default timed
-             * @enum {string}
+             * @description Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.
+             * @default null
              */
-            duration_mode: "timed" | "until_stopped";
+            duration_mode: ("timed" | "until_stopped") | null;
             /**
              * Duration Seconds
              * @description Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.
@@ -3304,11 +3373,10 @@ export interface components {
             action: "switch";
             /**
              * Duration Mode
-             * @description Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.
-             * @default timed
-             * @enum {string}
+             * @description Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.
+             * @default null
              */
-            duration_mode: "timed" | "until_stopped";
+            duration_mode: ("timed" | "until_stopped") | null;
             /**
              * Duration Seconds
              * @description Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.
@@ -3989,11 +4057,10 @@ export interface components {
             action: "start";
             /**
              * Duration Mode
-             * @description Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.
-             * @default timed
-             * @enum {string}
+             * @description Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.
+             * @default null
              */
-            duration_mode: "timed" | "until_stopped";
+            duration_mode: ("timed" | "until_stopped") | null;
             /**
              * Duration Seconds
              * @description Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.
@@ -4136,11 +4203,10 @@ export interface components {
             action: "switch";
             /**
              * Duration Mode
-             * @description Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.
-             * @default timed
-             * @enum {string}
+             * @description Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.
+             * @default null
              */
-            duration_mode: "timed" | "until_stopped";
+            duration_mode: ("timed" | "until_stopped") | null;
             /**
              * Duration Seconds
              * @description Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.

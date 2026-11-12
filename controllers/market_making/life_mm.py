@@ -6,6 +6,7 @@ from copy import deepcopy
 from decimal import ROUND_DOWN, Decimal, localcontext
 from typing import Dict, List, Literal, Optional
 
+from async_timeout import timeout
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 from controllers.market_making import pmm_simple
@@ -20,6 +21,8 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.utils.inventory_skew import InventorySkewConfig, inventory_skew_ratios
 from hummingbot.strategy_v2.utils.listing_bootstrap import ListingBootstrap
 from hummingbot.strategy_v2.utils.mm_spread import SpreadPolicy, SpreadPolicyConfig
+from hummingbot.strategy_v2.utils.perpetual_reduction import InventoryReductionConfig
+from hummingbot.strategy_v2.utils.perpetual_reduction_runtime import PerpetualReductionMixin, quote_price
 from hummingbot.strategy_v2.utils.quote_guard import (
     MarketObservation,
     QuoteGuard,
@@ -27,6 +30,20 @@ from hummingbot.strategy_v2.utils.quote_guard import (
     SidewaysRange,
     observe_market,
 )
+
+
+class _ExecutorUpdateEvent(asyncio.Event):
+    """Keep report readiness distinct from a coalesced request to run sooner."""
+
+    def __init__(self, progress):
+        super().__init__()
+        self.progress = progress
+        self.revision = 0
+
+    def set(self):
+        super().set()
+        self.revision += 1
+        self.progress.set()
 
 
 class ReferencePair(BaseModel):
@@ -75,6 +92,7 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
     sideways_range: Optional[SidewaysRange] = None
     inventory_skew: InventorySkewConfig = Field(default_factory=InventorySkewConfig)
     spread_policy: SpreadPolicyConfig = Field(default_factory=SpreadPolicyConfig)
+    inventory_reduction: InventoryReductionConfig = Field(default_factory=InventoryReductionConfig)
     quote_refresh_max_delay_seconds: int = Field(
         default=0, ge=0, le=10, strict=True,
         description="Optional bounded delay for rolling ordinary refresh; zero preserves batch refresh. Safety withdrawals are immediate.")
@@ -86,10 +104,16 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
         # that predate this opt-in ordinary-refresh policy.
         if not self.quote_refresh_max_delay_seconds:
             values.pop('quote_refresh_max_delay_seconds', None)
+        if self.inventory_reduction.mode == 'disabled':
+            values.pop('inventory_reduction', None)
         return values
 
     @model_validator(mode="after")
     def validate_mm_policy(self):
+        if self.inventory_reduction.mode == 'close_first' and (
+                self.connector_name != 'okx_perpetual' or not self.quote_guards.enabled
+                or not self.spread_policy.enabled or self.initial_positions):
+            raise ValueError('Close-first requires guarded perpetual quotes and native recorded positions')
         if self.quote_refresh_max_delay_seconds > self.executor_refresh_time:
             raise ValueError('Refresh delay cannot exceed the ordinary refresh interval')
         vol = self.spread_policy.volatility
@@ -175,13 +199,21 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
         return super().triple_barrier_config.model_copy(update={"open_order_type": OrderType.LIMIT_MAKER})
 
 
-class LifeMMController(pmm_simple.PMMSimpleController):
+class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
+    STARTUP_OPERATION_TIMEOUT = 30
+    manages_account_settings = True
+
     def __init__(self, config: LifeMMConfig, *args, **kwargs):
+        if config.inventory_reduction.mode == 'close_first' and (not config.runtime_config_managed or not config.mm_session_id):
+            raise ValueError('Close-first requires a managed PostgreSQL MM session')
         if config.spread_policy.volatility.defense is not None and (not config.runtime_config_managed or not config.mm_session_id):
             raise ValueError('Volatility defense requires managed PostgreSQL MM session ownership')
         if config.quote_guards.mode == "bootstrap_then_market" and (not config.runtime_config_managed or not config.mm_session_id):
             raise ValueError("Listing bootstrap requires managed MM session ownership")
         super().__init__(config, *args, **kwargs)
+        self._executor_progress = asyncio.Event() if config.runtime_config_managed and config.mm_session_id else None
+        if self._executor_progress is not None:
+            self.executors_update_event = _ExecutorUpdateEvent(self._executor_progress)
         self._bootstrap = (ListingBootstrap(config.quote_guards, anchor=config.initial_anchor, sideways_range=config.sideways_range,
                                             max_gap_seconds=config.max_data_age_seconds)
                            if config.quote_guards.mode == "bootstrap_then_market" else None)
@@ -202,6 +234,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         self._last_defense_log = None
         self._effective_spreads = None
         self._quote_diagnostics = None
+        self.initialize_reduction()
 
     @property
     def quote_diagnostics(self):
@@ -209,6 +242,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         return deepcopy(self._quote_diagnostics)
 
     def _reset_quote_diagnostics(self):
+        self._reduction_status_cache = None
         self._quote_diagnostics = dict(observed_at=self.market_data_provider.time(),
                                        reasons={'BUY': [], 'SELL': []}, proposed={'BUY': 0, 'SELL': 0})
 
@@ -627,11 +661,14 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         self.update_reference(sample_guard=True)
 
     async def control_task(self):
+        if self._executor_progress is not None:
+            self._executor_progress.clear()
         # Run freshness/cancellation even when the generic provider becomes unready.
         await self.update_processed_data()
         report_ready = self.executors_update_event.is_set()
         if (self._control_error or not self._session_admitted or not self.market_data_provider.ready or not self.processed_data["ready"]
-                or (not report_ready and not self.exposure_within_caps())):
+                or (not report_ready and not self.exposure_within_caps()
+                    and not (self.reduction_enabled and self.reduction_ready()))):
             self._reset_quote_diagnostics()
             self._quote_reason(self._quote_readiness_reason() or 'inventory_limit')
             await self.send_actions(self.stop_quote_actions())
@@ -644,8 +681,31 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             if self.sync_volatility_checkpoint() and previous != self._volatility_saved_pause:
                 self.update_reference()
 
+    async def _wait_for_control_tick(self):
+        if self._executor_progress is None:
+            return await super()._wait_for_control_tick()
+        try:
+            await asyncio.wait_for(self._executor_progress.wait(), timeout=self.update_interval)
+        except asyncio.TimeoutError:
+            pass  # Periodic freshness and cancellation checks still run without publications.
+
+    async def send_actions(self, executor_actions):
+        event = self.executors_update_event
+        revision = event.revision if isinstance(event, _ExecutorUpdateEvent) else None
+        await super().send_actions(executor_actions)
+        # The generic sender consumes readiness after put(). A publication
+        # arriving during a blocked handoff belongs to the next iteration.
+        if revision is not None and event.revision != revision:
+            event.set()
+
     def stop_quote_actions(self):
         active = {executor.id for executor in self.executors_info if executor.is_active}
+        if self.reduction_enabled:
+            try:
+                active.update(row.config.id for row in self._reduction_runtime().executors
+                              if row.status in (RunnableStatus.NOT_STARTED, RunnableStatus.RUNNING))
+            except (ValueError, ArithmeticError, TypeError, AttributeError):
+                pass
         self._stops_requested.intersection_update(active)
         actions = [StopExecutorAction(controller_id=self.config.id, executor_id=executor_id, keep_position=True)
                    for executor_id in active - self._stops_requested]
@@ -653,6 +713,19 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         return actions
 
     def determine_executor_actions(self):
+        if self.reduction_enabled:
+            if self._control_error or not self._session_admitted or not self.processed_data.get('ready') or not self.market_data_provider.ready:
+                return self.stop_quote_actions()
+            try:
+                safety = self._reduction_refresh_actions()
+                if safety:
+                    return safety
+                refresh = self._completed_entry_actions() + self._defense_refresh_actions()
+                return refresh or (self._create_reduction_actions() + self.stop_actions_proposal())
+            except (ValueError, ArithmeticError, AttributeError, TypeError) as error:
+                self._reset_quote_diagnostics()
+                self._quote_reason(str(error) if str(error).startswith('reduction_') else 'reduction_basis_unavailable')
+                return self.stop_quote_actions()
         exposure, within_caps = None, False
         if self._session_admitted and self.processed_data.get("ready"):
             try:
@@ -686,6 +759,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 continue
             info = getattr(executor, 'custom_info', None)
             if not isinstance(info, dict) or info.get('entry_order_filled') is not True:
+                continue
+            if executor.config.type != 'position_executor':
                 continue
             barriers = executor.config.triple_barrier_config
             if any(getattr(barriers, field) is not None for field in ('stop_loss', 'take_profit', 'time_limit', 'trailing_stop')):
@@ -743,7 +818,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 order = matches[0]
                 amount, filled = order.amount, order.executed_amount_base
                 if (order.exchange_order_id and order.current_state in (OrderState.OPEN, OrderState.PARTIALLY_FILLED)
-                        and order.price == config.entry_price and amount.is_finite() and filled.is_finite()
+                        and order.price == quote_price(config) and amount.is_finite() and filled.is_finite()
                         and 0 < filled < amount <= config.amount):
                     return amount - filled
         except (AttributeError, ArithmeticError, TypeError, ValueError):
@@ -760,13 +835,15 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         actions = []
         for executor in self.executors_info:
             if executor.is_active and executor.id not in self._stops_requested and not self.spread_quote_valid(
-                    executor.config.side, executor.config.entry_price, self._resting_quote_amount(executor),
+                    executor.config.side, quote_price(executor.config), self._resting_quote_amount(executor),
                     level_id=executor.config.level_id):
                 self._stops_requested.add(executor.id)
                 actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=executor.id, keep_position=True))
         return actions
 
     def get_levels_to_execute(self):
+        if self.reduction_enabled:
+            return self._reduction_levels()
         levels = super().get_levels_to_execute()
         # An entry retiring for repricing (or awaiting cancel confirmation) still
         # owns its level until terminal bookkeeping completes, without defense.
@@ -783,6 +860,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         return [level for level in levels if level not in pending_levels]
 
     def _exposure(self):
+        if self.reduction_enabled:
+            return self._reduction_exposure()
         connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
         if self.config.connector_name == "okx":
             long = Decimal(str(connector.get_balance(self.config.trading_pair.split("-")[0])))
@@ -823,6 +902,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             return False
 
     def create_actions_proposal(self):
+        if self.reduction_enabled:
+            return self._create_reduction_actions()
         return self._create_actions_proposal()
 
     def _create_actions_proposal(self, exposure=None):
@@ -903,7 +984,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         for executor in active:
             order = self._acknowledged_refresh_entry(executor)
             if order is not None and self.spread_quote_valid(
-                    executor.config.side, executor.config.entry_price, order.amount - order.executed_amount_base,
+                    executor.config.side, quote_price(executor.config), order.amount - order.executed_amount_base,
                     level_id=executor.config.level_id):
                 valid.add(executor.id)
         mandatory = {executor.id for executor in expired
@@ -940,7 +1021,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             if len(matches) == 1:
                 order = matches[0]
                 if (order.exchange_order_id and order.current_state in (OrderState.OPEN, OrderState.PARTIALLY_FILLED)
-                        and order.price == config.entry_price and order.amount.is_finite()
+                        and order.price == quote_price(config) and order.amount.is_finite()
                         and order.executed_amount_base.is_finite()
                         and 0 <= order.executed_amount_base < order.amount <= config.amount):
                     return order
@@ -948,14 +1029,28 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             pass
         return None
 
+    async def _startup_once(self, operation):
+        """One bounded startup await; account mutations must never be retried.
+
+        Use the same task so cancellation cannot strand a successfully acquired
+        lock in an unobserved child task. Completion is actual progress before
+        the next startup stage; the ordinary control-loop deadline is unchanged.
+        """
+        self._control_progress_at = time.monotonic()
+        self._control_wait_until = self._control_progress_at + self.STARTUP_OPERATION_TIMEOUT + 1
+        try:
+            async with timeout(self.STARTUP_OPERATION_TIMEOUT):
+                return await operation()
+        finally:
+            self._control_progress_at = time.monotonic()
+            self._control_wait_until = None
+
     async def _startup_read(self, operation):
         """Retry only the supplied read; never replay an enclosing account mutation."""
         attempt, first = 0, time.time()
         while True:
-            self._control_progress_at = time.monotonic()
-            self._control_wait_until = time.monotonic() + 31
             try:
-                result = await asyncio.wait_for(operation(), timeout=30)
+                result = await self._startup_once(operation)
             except Exception as error:
                 if not transient_read(error):
                     self._startup_retry = None
@@ -973,12 +1068,15 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 self._startup_retry = None
                 return result
             finally:
+                self._control_progress_at = time.monotonic()
                 self._control_wait_until = None
 
     async def on_start(self):
         if self.config.connector_name == "okx_perpetual":
             connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
-            async with connector._set_position_mode_lock:
+            self._startup_stage = 'position_mode_lock'
+            await self._startup_once(connector._set_position_mode_lock.acquire)
+            try:
                 self._startup_stage = "position_mode_read"
                 current_mode = await self._startup_read(connector._fetch_account_position_mode)
                 if current_mode is None:
@@ -987,16 +1085,19 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                     if connector.account_positions or connector.in_flight_orders:
                         raise ValueError("Cannot change account mode with existing orders or positions")
                     self._startup_stage = "position_mode_change"
-                    success, reason = await connector._trading_pair_position_mode_set(
-                        PositionMode.HEDGE, self.config.trading_pair)
+                    success, reason = await self._startup_once(lambda: connector._trading_pair_position_mode_set(
+                        PositionMode.HEDGE, self.config.trading_pair))
                     if not success:
                         raise ValueError(f"Perpetual account mode rejected: {reason}")
                     self._startup_stage = "position_mode_confirmation"
-                    if await connector._fetch_account_position_mode() != PositionMode.HEDGE:
+                    if await self._startup_read(connector._fetch_account_position_mode) != PositionMode.HEDGE:
                         raise ValueError("Perpetual account mode was not confirmed")
                 connector._perpetual_trading.set_position_mode(PositionMode.HEDGE)
+            finally:
+                connector._set_position_mode_lock.release()
             self._startup_stage = "leverage_change"
-            success, reason = await connector._set_trading_pair_leverage(self.config.trading_pair, self.config.leverage)
+            success, reason = await self._startup_once(lambda: connector._set_trading_pair_leverage(
+                self.config.trading_pair, self.config.leverage))
             if not success:
                 raise ValueError(f"Perpetual leverage rejected: {reason}")
             connector._perpetual_trading.set_leverage(self.config.trading_pair, self.config.leverage)
@@ -1027,9 +1128,21 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             self.market_data_provider.acquire_book_recovery(
                 self.config.reference_connector, references, self, self.config.max_data_age_seconds)
         await super().on_start()
+        if self.reduction_enabled:
+            self._reduction_fee_task = asyncio.create_task(self.poll_reduction_fees(), name='mm-reduction-fees')
+            self._reduction_position_task = asyncio.create_task(self.poll_reduction_positions(), name='mm-reduction-positions')
         self._startup_stage = "ready"
 
     async def on_stop(self):
+        if self._reduction_position_task is not None:
+            self._reduction_position_task.cancel()
+            await asyncio.gather(self._reduction_position_task, return_exceptions=True)
+            self._reduction_position_task = None
+        if self._reduction_fee_task is not None:
+            self._reduction_fee_task.cancel()
+            await asyncio.gather(self._reduction_fee_task, return_exceptions=True)
+            self._reduction_fee_task = None
+            self._reduction_fee_observation = None
         self.market_data_provider.release_book_recovery(self)
         if self.config.spread_policy.volatility.enabled:
             self.market_data_provider.release_candle_feed(self._spread_candle_config(), self)
@@ -1073,6 +1186,11 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         return price, amount
 
     def get_executor_config(self, level_id, price, amount):
+        if self.reduction_enabled:
+            return self._make_reduction_config(level_id, price, amount)
+        return self._get_open_executor_config(level_id, price, amount)
+
+    def _get_open_executor_config(self, level_id, price, amount):
         if self.config.spread_policy.enabled:
             connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
             rounded = connector.quantize_order_price(self.config.trading_pair, price)
@@ -1115,6 +1233,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         Never increase its original base or quote budget. The normal owner and
         pre-transport guards still decide whether the resulting order may send.
         """
+        if self.reduction_enabled:
+            return self.prepare_reduction_quote(original)
         if ((original.mm_session_id, original.mm_generation) != (self.config.mm_session_id, self.config.mm_generation)
                 or original.controller_id != self.config.id or not self._session_admitted or self._control_error
                 or original.id in self._stops_requested

@@ -78,12 +78,14 @@ class StartCommand(APIModel):
     market_mode: MarketMode
     selection: Literal["fixed", "random"] = Field(default="fixed", description="Fixed runs one profile; random chooses timed steps from a profile pool.")
     profile_id: Optional[str] = Field(default=None, description="Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.")
-    duration_mode: DurationMode = Field(default='timed', description='Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.')
+    duration_mode: Optional[DurationMode] = Field(default=None, description='Omit/null to use the YAML default mode; explicit duration_seconds without a mode selects timed. Until stopped requires YAML permission and must omit duration_seconds.')
     duration_seconds: Optional[int] = Field(default=None, gt=0, strict=True, description="Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.")
 
     def session_request(self, catalogue):
         values = self.model_dump(exclude={"action", "expected_version", "expected_catalogue_hash", "session_id"}, exclude_none=True)
-        if self.duration_mode == 'until_stopped':
+        mode = self.duration_mode or ('timed' if self.duration_seconds is not None else catalogue.default_duration_mode)
+        values['duration_mode'] = mode
+        if mode == 'until_stopped':
             if self.duration_seconds is not None:
                 raise RequestError('Until stopped cannot include duration_seconds', code='duration_mode_conflict', field='duration_seconds')
             values['duration_seconds'] = None
@@ -349,6 +351,25 @@ class QuoteActivity(APIModel):
     sides: Dict[Literal['BUY', 'SELL'], QuoteSideActivity]
 
 
+class InventoryReductionSide(APIModel):
+    effect: Optional[Literal['OPEN', 'CLOSE']]
+    target_leg: Literal['LONG', 'SHORT']
+    owned_base: Optional[Decimal] = Field(ge=0)
+    venue_base: Decimal = Field(ge=0)
+    reserved_base: Decimal = Field(ge=0)
+    available_base: Decimal = Field(ge=0)
+    reason_code: Optional[str]
+
+
+class InventoryReductionStatus(APIModel):
+    mode: Literal['close_first']
+    price_mode: Literal['breakeven']
+    observed_at: Optional[UTCDateTime]
+    stale: bool
+    fee_ready: Optional[bool]
+    sides: Dict[Literal['BUY', 'SELL'], InventoryReductionSide]
+
+
 class MarketReadiness(APIModel):
     market: Literal["spot", "perpetual"]
     connector: str
@@ -360,6 +381,8 @@ class MarketReadiness(APIModel):
     quote_guard: Optional[QuoteGuardStatus] = None
     inventory_skew: Optional[InventorySkewStatus] = None
     spread_policy: Optional[SpreadPolicyStatus] = None
+    inventory_reduction: Optional[InventoryReductionStatus] = Field(default=None,
+                                                                    description='Last local reduction-capacity evaluation; null when disabled. Never order admission or current quote availability.')
 
 
 class FundingSyncStatus(APIModel):

@@ -37,7 +37,9 @@ for (const width of [390, 1280]) {
       await openAccountMenu(page)
       await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
       await expect(homeLink).toBeVisible()
-      await expect(page.getByRole('button', { name: theme === 'dark' ? 'Use light theme' : 'Use dark theme' })).toBeVisible()
+      await page.getByRole('button', { name: /^Account / }).click()
+      await expect(page.getByRole('menu').getByRole('button', { name: `Use ${theme} theme` })).toBeVisible()
+      await expect(page.locator('html')).toHaveCSS('color-scheme', theme)
     })
   }
 }

@@ -33,13 +33,6 @@ describe('persisted Google sign-in', () => {
     )
     const first = renderHook(useAuth, { wrapper })
     await act(async () => { await first.result.current.login(token) })
-    console.log('DEBUG FIRST RESULT:', {
-      status: first.result.current.status,
-      error: first.result.current.error,
-      identity: first.result.current.identity,
-      token,
-      stored: localStorage.getItem(key),
-    })
     expect(localStorage.getItem(key)).toBe(token)
     first.unmount()
     const next = renderHook(useAuth, { wrapper })
@@ -164,7 +157,7 @@ describe('persisted Google sign-in', () => {
   })
 
   it('keeps login usable when browser storage is blocked, without restoring an unverified token', async () => {
-    const storage = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
+    const storage = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
     server.use(
       http.post(`${base}/access/login`, () => HttpResponse.json(identity)),
       http.get(`${base}/access/me`, () => HttpResponse.json(identity)),

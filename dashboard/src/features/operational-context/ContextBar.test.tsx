@@ -24,7 +24,7 @@ function renderContext(
 
 describe('ContextBar', () => {
   it('renders backend bot, account, market, identity, and action availability from its model', () => {
-    renderContext({ status: ready({ ...contextStatus, markets: [{ admitted: false, connector: 'okx', inventory_skew: null,
+    renderContext({ status: ready({ ...contextStatus, markets: [{ admitted: false, connector: 'okx', inventory_skew: null, inventory_reduction: null,
       market: 'spot', pair: 'LIFE-USDT', quote_guard: null, ready: false, reason: 'not_started',
       reference_price: null, spread_policy: null }] }) })
     expect(screen.getByText('bot-a')).toBeInTheDocument()

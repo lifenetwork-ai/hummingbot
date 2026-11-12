@@ -2,6 +2,21 @@
 from decimal import Decimal
 
 
+def venue_position_exposure(positions):
+    """Normalize flat hedge legs; retain strict independent fixture evidence."""
+    expected, seen = {}, set()
+    for row in positions:
+        instrument, side, amount = row['instId'], row['posSide'], Decimal(row['pos'])
+        key = (instrument.removesuffix('-SWAP'), side.upper())
+        if (not instrument.endswith('-SWAP') or side not in ('long', 'short') or key in seen
+                or not amount.is_finite() or amount < 0):
+            raise ValueError('Invalid or duplicate venue hedge position')
+        seen.add(key)
+        if amount:
+            expected[key] = amount * Decimal('.01')
+    return expected
+
+
 def ledger_violations(ledger, rows):
     expected = {}
     for fill in ledger["fills"]:

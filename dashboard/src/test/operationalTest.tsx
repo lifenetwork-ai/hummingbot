@@ -14,7 +14,7 @@ export const pageApiUrl = 'https://pages.test/api/v1/admin'
 export const pageProfiles: ReadResponse<'listProfiles'> = {
   catalogue_hash: 'catalogue-reviewed', process_identity: null, reporting_timezone: 'Asia/Ho_Chi_Minh',
   market_modes: ['spot', 'perpetual', 'both'], duration_modes: ['timed', 'until_stopped'],
-  catalogue: { allow_until_stopped: true, default_duration_seconds: 3600, min_duration_seconds: 60, max_duration_seconds: 86400,
+  catalogue: { default_duration_mode: 'until_stopped', allow_until_stopped: true, default_duration_seconds: 3600, min_duration_seconds: 60, max_duration_seconds: 86400,
     markets: {}, max_controller_drawdown_quote: null, max_global_drawdown_quote: null, max_total_amount_quote: '1000', reference_connector: 'okx', spot_outflow: null, profiles: { follow_market: { anchor: 'session_start_mid', scenario: 'follow_market', sideways_range: null, references: [] } }, random: { profile_ids: ['follow_market'], step_duration_seconds: 120 },
   },
 }

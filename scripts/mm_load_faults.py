@@ -1,5 +1,6 @@
 """Fault windows on the same isolated image/PG/ledger harness as healthy load."""
 import json
+import math
 import threading
 import time
 import traceback
@@ -7,6 +8,53 @@ from datetime import datetime
 from decimal import Decimal
 
 from scripts.test_e2e_offline import docker, poll
+
+
+def complete_quote_cohort(rows, positions, *, reduction=False):
+    """Require every opening level or the fixture's entire owned close quantity.
+
+    The small native positions in this fixture fit within three closing levels.
+    A close can consume one whole leg, intentionally leaving its other levels
+    unavailable. Missing opening quotes or under/over-reserved closes still fail.
+    """
+    if not reduction:
+        return len(rows) == 12
+    try:
+        if len({row['clOrdId'] for row in rows}) != len(rows):
+            return False
+        held = {}
+        for row in positions:
+            leg, quantity = row['posSide'], Decimal(row['pos'])
+            if (row['instId'] != 'LIFE-USDT-SWAP' or leg not in ('long', 'short') or leg in held
+                    or not quantity.is_finite() or quantity < 0):
+                return False
+            held[leg] = quantity
+        buckets = {}
+        for row in rows:
+            size, filled = Decimal(row['sz']), Decimal(row.get('accFillSz') or '0')
+            key = row['instId'], row['side']
+            if (key[0] not in ('LIFE-USDT', 'LIFE-USDT-SWAP') or key[1] not in ('buy', 'sell')
+                    or row['ordType'] != 'post_only' or not size.is_finite() or not filled.is_finite()
+                    or not 0 <= filled < size):
+                return False
+            buckets.setdefault(key, []).append((row, size - filled))
+        for side in ('buy', 'sell'):
+            if len(buckets.get(('LIFE-USDT', side), [])) != 3:
+                return False
+            closing_leg = 'short' if side == 'buy' else 'long'
+            quantity = held.get(closing_leg, Decimal(0))
+            items = buckets.get(('LIFE-USDT-SWAP', side), [])
+            target = closing_leg if quantity else ('long' if side == 'buy' else 'short')
+            if any(row['posSide'] != target for row, _ in items):
+                return False
+            if quantity:
+                if not 1 <= len(items) <= 3 or sum((amount for _, amount in items), Decimal(0)) != quantity:
+                    return False
+            elif len(items) != 3:
+                return False
+        return True
+    except (KeyError, ValueError, TypeError, ArithmeticError):
+        return False
 
 
 def cancel_upper_bound(baseline, observed, stimulus_ms):
@@ -20,6 +68,25 @@ def cancel_upper_bound(baseline, observed, stimulus_ms):
         latency = max(0, int(row['cancel_terminal_ms']) - stimulus_ms)
         maximum[before['instId']] = max(maximum.get(before['instId'], 0), latency)
     return maximum
+
+
+def restriction_cancel_bounds(baseline, observed, stimulus_ms, decisions):
+    whole = cancel_upper_bound(baseline, observed, stimulus_ms)
+    opening, closing = [], []
+    for row in baseline:
+        (closing if row['instId'].endswith('-SWAP') and
+         (row.get('posSide'), row['side']) in (('long', 'sell'), ('short', 'buy')) else opening).append(row)
+    close_bounds = {}
+    for row in closing:
+        instrument = row['instId']
+        decision = decisions[instrument]
+        if not isinstance(decision, (int, float)) or isinstance(decision, bool) or not math.isfinite(decision) or decision < stimulus_ms:
+            raise ValueError('Closing restriction decision predates its input')
+        bound = cancel_upper_bound([row], observed, decision)[instrument]
+        close_bounds[instrument] = max(close_bounds.get(instrument, 0), bound)
+    return dict(all_input_upper_bound_ms=whole,
+                opening_input_upper_bound_ms=cancel_upper_bound(opening, observed, stimulus_ms) if opening else {},
+                closing_decision_upper_bound_ms=close_bounds)
 
 
 def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_result=None, volatility_defense=False):
@@ -92,6 +159,20 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
         def working():
             return [row for row in harness.ledger()['orders'] if row['state'] in ('live', 'partially_filled')]
 
+        def decisions_since(state, started):
+            decisions = {}
+            for line in docker('logs', bot).stdout.splitlines():
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if row.get('event') == 'mm_volatility_defense_changed' and f'state={state} ' in row.get('message', ''):
+                    stamp = datetime.fromisoformat(row['timestamp']).timestamp()
+                    if stamp >= started:
+                        decisions.setdefault(row['scope'], stamp * 1000)
+            assert set(decisions) == {'life_spot', 'life_perpetual'}, 'Both restriction decisions must be observable'
+            return decisions
+
         def defense():
             initial = {}
 
@@ -99,7 +180,8 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
                 ledger = harness.ledger()
                 rows = [row for row in ledger['orders'] if row['state'] in ('live', 'partially_filled')]
                 states = defense_states()
-                if len(rows) == 12 and len(states) == 2 and all(row.get('state') == 'normal' for row in states):
+                if (complete_quote_cohort(rows, ledger['positions'], reduction=getattr(harness, 'require_reduction', False))
+                        and len(states) == 2 and all(row.get('state') == 'normal' for row in states)):
                     initial.update(positions=ledger['positions'], baseline=rows)
                     return True
                 return False
@@ -117,27 +199,27 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
                 rows = working()
                 allocation = sum((Decimal(row['px']) * Decimal(row['sz']) *
                                   (Decimal('.01') if row['instId'].endswith('-SWAP') else 1) for row in rows), Decimal(0))
-                return len(rows) == 12 and allocation <= 100
+                return (complete_quote_cohort(rows, positions, reduction=getattr(harness, 'require_reduction', False))
+                        and allocation <= 100)
             poll(smaller, description='loaded reduced orders respect the effective allocation')
-            cancel_ms = cancel_upper_bound(baseline, harness.ledger()['orders'], started * 1000)
-            assert all(value <= 5000 for value in cancel_ms.values()), cancel_ms
+            reduced_decisions = decisions_since('reduced', started)
+            poll(lambda: all(row['state'] == 'canceled' for row in harness.ledger()['orders']
+                             if row['clOrdId'] in {order['clOrdId'] for order in baseline}), timeout=5,
+                 description='baseline quotes reach independent terminal cancellation proof')
+            bounds = restriction_cancel_bounds(
+                baseline, harness.ledger()['orders'], started * 1000,
+                {'LIFE-USDT': reduced_decisions['life_spot'],
+                 'LIFE-USDT-SWAP': reduced_decisions['life_perpetual']})
+            cancel_ms = bounds['all_input_upper_bound_ms']
+            for scope in ('opening_input_upper_bound_ms', 'closing_decision_upper_bound_ms'):
+                assert all(value <= 5000 for value in bounds[scope].values()), bounds
             harness.control(candle_width='.03')
             poll(lambda: len(defense_states()) == 2 and all(row.get('state') == 'paused' for row in defense_states()) and not working(),
                  description='loaded extreme volatility cancels both quote sets')
             poll(lambda: len((harness.state()['recovery_state'].get('volatility_defense') or {}).get('pauses', {})) == 2,
                  description='loaded pause checkpoints are durable')
             ledger = harness.ledger()
-            decisions = {}
-            for line in docker('logs', bot).stdout.splitlines():
-                try:
-                    row = json.loads(line)
-                except ValueError:
-                    continue
-                if row.get('event') == 'mm_volatility_defense_changed' and 'state=paused ' in row.get('message', ''):
-                    stamp = datetime.fromisoformat(row['timestamp']).timestamp()
-                    if stamp >= started:
-                        decisions.setdefault(row['scope'], stamp * 1000)
-            assert set(decisions) == {'life_spot', 'life_perpetual'}, 'Both sampled pause decisions must be observable'
+            decisions = decisions_since('paused', started)
             pause_cancel_ms, pause_working = {}, {}
             # Joint readiness closes both markets on the first pause. Earlier
             # spread widening may already have removed every working order.
@@ -160,7 +242,9 @@ def fault_windows(harness, bot, port, client, report, run_window, verify, *, on_
                  description='loaded fresh candles recover normal sizing')
             assert not harness.state()['recovery_state']['volatility_defense']['pauses']
             proof.update(stimulus_to_terminal_cancel_ms=cancel_ms,
-                         latency_scope='Conservative upper bound: input precedes controller restriction; first terminal proof, not duplicate acknowledgment time',
+                         opening_input_to_terminal_cancel_ms=bounds['opening_input_upper_bound_ms'],
+                         closing_decision_to_terminal_cancel_ms=bounds['closing_decision_upper_bound_ms'],
+                         latency_scope='OPEN keeps the original input-to-terminal 5s bound. CLOSE is already small and only becomes invalid on spread restriction: require independent first-reduced decision and terminal proof within 5s. Preserve all-order input bounds separately; pause still cancels every quote.',
                          working_at_joint_pause=pause_working, joint_pause_to_terminal_cancel_ms=pause_cancel_ms,
                          reduced_allocation_verified=True,
                          pause_checkpoint_count=2, no_submissions_during_stale_pause=True,

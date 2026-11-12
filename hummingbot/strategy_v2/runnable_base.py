@@ -84,7 +84,7 @@ class RunnableBase(ABC):
                 self._control_progress_at = time.monotonic()
                 self._control_stage = "sleep"
                 if not self.terminated.is_set():
-                    await asyncio.sleep(self.update_interval)
+                    await self._wait_for_control_tick()
         except Exception as error:
             self._control_error = type(error).__name__
             raise
@@ -93,6 +93,10 @@ class RunnableBase(ABC):
             cleanup = self.on_stop()
             if inspect.isawaitable(cleanup):
                 await cleanup
+
+    async def _wait_for_control_tick(self):
+        """Periodic default; opt-in components can wake on published progress."""
+        await asyncio.sleep(self.update_interval)
 
     def on_stop(self):
         """

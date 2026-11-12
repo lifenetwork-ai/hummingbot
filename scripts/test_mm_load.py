@@ -19,7 +19,7 @@ from test.e2e.offline.load_incidents import capture_limit  # noqa: E402
 
 from scripts.mm_load_budgets import memory_retention, soak_violations, violations  # noqa: E402
 from scripts.mm_load_faults import fault_windows  # noqa: E402
-from scripts.mm_load_ledger import funding_ledger_violations, ledger_violations  # noqa: E402
+from scripts.mm_load_ledger import funding_ledger_violations, ledger_violations, venue_position_exposure  # noqa: E402
 from scripts.mm_load_preparation import prepare_history  # noqa: E402
 from scripts.mm_load_processes import merge_metrics  # noqa: E402
 from scripts.test_e2e_offline import Harness, docker, pin_manifest, poll  # noqa: E402
@@ -108,7 +108,7 @@ def verify_ledger(harness, port, *, require_running=True):
     funding_rows = json.loads(harness.sql("SELECT COALESCE(json_agg(t),'[]') FROM (SELECT account_id,environment,bill_id,symbol,timestamp,amount::text AS amount,currency FROM funding_bills) t"))
     assert not funding_ledger_violations(ledger.get("funding_bills", []), funding_rows,
                                          account_id="offline-account-1", environment=harness.env["OKX_TRADING_ENV"]), "Funding bill ledger mismatch"
-    expected_positions = {(row["instId"].removesuffix("-SWAP"), row["posSide"].upper()): Decimal(row["pos"]) * Decimal("0.01") for row in ledger["positions"]}
+    expected_positions = venue_position_exposure(ledger['positions'])
 
     def positions_match():
         markets = harness.admin(port, "/positions")[1]["markets"]
@@ -119,7 +119,8 @@ def verify_ledger(harness, port, *, require_running=True):
     if require_running:
         def holds_match():
             metrics = read_metrics(harness, port)
-            if not metrics or not metrics.get("runtime_running") or metrics.get("positions_unsettled"):
+            if (not metrics or not metrics.get("runtime_running") or metrics.get("positions_unsettled")
+                    or metrics.get('positions_scope_supported') is not True):
                 return False
             actual = {(row["pair"], row["side"]): Decimal(row["amount"]) for row in metrics.get("expected_positions", [])}
             return actual == expected_positions
@@ -136,9 +137,13 @@ def verify_ledger(harness, port, *, require_running=True):
     cache_ttl = float(harness.env.get('ADMIN_STATISTICS_CACHE_TTL_SECONDS', '5'))
     poll(totals_match, timeout=max(15, cache_ttl + 5), description="large-history statistics retain all unique load fills")
     assert harness.sql("SELECT count(*) FROM daily_balance_snapshots") != "0"
+    reduction = {}
+    if getattr(harness, 'require_reduction', False):
+        from scripts.mm_load_reduction import closing_activity
+        reduction['perpetual_reduction'] = closing_activity(ledger)
     return dict(unique_exchange_fills=len(ledger["fills"]), unique_recorder_fills=len(rows), positions_matched=True,
                 identified_funding_bills=len(funding_rows),
-                daily_snapshots=int(harness.sql("SELECT count(*) FROM daily_balance_snapshots")))
+                daily_snapshots=int(harness.sql("SELECT count(*) FROM daily_balance_snapshots")), **reduction)
 
 
 def run_window(harness, bot, client, name, duration, report, *, options=(), burst=False):
@@ -196,6 +201,8 @@ def main():
     parser.add_argument("--probe-seconds", type=int, default=60)
     parser.add_argument("--history-rows", type=int, default=100000)
     parser.add_argument('--cpus', type=int, choices=(1, 2), default=2, help='Total application container CPUs')
+    parser.add_argument('--memory-mib', type=int, choices=(1024, 1536, 2048), default=2048,
+                        help='Application hard cgroup quota from startup, with no swap; latency/rate budgets are unchanged')
     parser.add_argument('--daily-cache-ttl-seconds', type=float, default=15, help='Explicit existing daily reporting policy')
     parser.add_argument('--quote-refresh-max-delay-seconds', type=int, choices=range(11), default=0,
                         help='Explicit fixture YAML policy for bounded rolling refresh; original load rates/budgets are unchanged')
@@ -218,6 +225,7 @@ def main():
     parser.add_argument("--operations", action="store_true", help="Add three operator-history/configuration reads/s to the existing read mix")
     parser.add_argument('--security', action='store_true', help='Use signed offline Google identities and managed local-encrypted keys; disable Basic before measurement')
     parser.add_argument('--enforce-post-only', action='store_true', help='Simulator cancels crossing post-only orders with a successful ACK and cancelSource31')
+    parser.add_argument('--perpetual-reduction', action='store_true', help='Explicit guarded close-first fixture; require real closing fills on both hedge legs')
     parser.add_argument('--external-book-levels', type=int, choices=(1, 2), default=1,
                         help='Explicit LIFE fixture depth; two independent levels retain liquidity when recent own L1 is conservatively filtered')
     args = parser.parse_args()
@@ -229,7 +237,7 @@ def main():
         parser.error('incident-max-captures requires incident-diagnostics')
     if not math.isfinite(args.daily_cache_ttl_seconds) or not 0 <= args.daily_cache_ttl_seconds <= 60:
         parser.error('daily-cache-ttl-seconds must be finite and within 0..60')
-    if args.volatility_defense:
+    if args.volatility_defense or args.perpetual_reduction:
         args.strict_guards = True
     if args.enhancements:
         args.inventory_skew = args.listing_bootstrap = args.drawdown = args.spot_outflow = args.strict_guards = True
@@ -245,7 +253,7 @@ def main():
     report.mkdir(parents=True)
     evidence = dict(profile=args.profile, diagnostic=diagnostic, image_id=metadata["Id"], manifest=image.split("@", 1)[1] if "@" in image else None,
                     host_architecture=platform.machine(), image_architecture="amd64", emulation=platform.machine() != "x86_64",
-                    bot_limits=dict(cpus=args.cpus, memory_bytes=2 * 1024**3), postgres_limits=dict(cpus=2, memory_bytes=512 * 1024**2),
+                    bot_limits=dict(cpus=args.cpus, memory_bytes=args.memory_mib * 1024**2), postgres_limits=dict(cpus=2, memory_bytes=512 * 1024**2),
                     simulator_limits=dict(cpus=1, memory_bytes=512 * 1024**2), client_limits=dict(cpus=1, memory_bytes=512 * 1024**2),
                     history_orders=args.history_rows, history_fills=args.history_rows, funding_sync_interval_seconds=5,
                     memory_retention_policy=dict(basis='cgroup_current_minus_file_plus_shmem',
@@ -253,6 +261,7 @@ def main():
                                                  absolute_peak_budget_bytes=int(1.5 * 1024**3)),
                     enhancements=args.enhancements, active_outflow_history=args.enhancements, history_read_mix="original eleven routes/rates/latency population unchanged; add 1 event + 1 liquidity read/s with the same separate latency/error gates",
                     volatility_defense=args.volatility_defense, enforce_post_only=args.enforce_post_only,
+                    perpetual_reduction=args.perpetual_reduction,
                     external_book_levels=args.external_book_levels,
                     operations_reads_per_second=3 if args.operations else 0,
                     tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap, inventory_skew=args.inventory_skew,
@@ -268,6 +277,7 @@ def main():
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
         ROOT / "scripts/test_mm_load.py", ROOT / "scripts/test_e2e_offline.py", ROOT / "scripts/analyze_mm_load_trace.py",
         ROOT / "scripts/mm_load_budgets.py", ROOT / "scripts/mm_load_faults.py", ROOT / "scripts/mm_load_ledger.py",
+        ROOT / "scripts/mm_load_reduction.py",
         ROOT / "scripts/mm_load_processes.py", ROOT / "scripts/mm_load_preparation.py", ROOT / "test/e2e/offline/load_entrypoint.py",
         ROOT / "test/e2e/offline/load_trace.py", ROOT / "test/e2e/offline/load_incidents.py",
         ROOT / "test/e2e/offline/load_service.py", ROOT / "test/e2e/offline/load_process_metrics.py")}
@@ -345,9 +355,18 @@ def main():
                 for market in profiles["markets"].values():
                     market["executor_refresh_time"] = args.refresh_seconds
                 config_path.write_text(yaml.safe_dump(profiles))
+            if args.perpetual_reduction:
+                import yaml
+
+                from scripts.mm_load_reduction import enable_reduction
+                config_path = assets / 'life_mm_profiles.yaml'
+                profiles = yaml.safe_load(config_path.read_text())
+                enable_reduction(profiles)
+                config_path.write_text(yaml.safe_dump(profiles))
             (report / "effective-life-mm-profiles.yaml").write_bytes((assets / "life_mm_profiles.yaml").read_bytes())
             evidence["fixture_sha256"] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in assets.iterdir()}
             harness = Harness(image, assets, report, "demo")
+            harness.require_reduction = args.perpetual_reduction
             harness.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin",
                                ADMIN_STATISTICS_CACHE_TTL_SECONDS=str(args.daily_cache_ttl_seconds))
             if args.security:
@@ -411,7 +430,7 @@ def main():
                                                     max_bytes_per_stream=128 * 1024**2, diagnostic_database_connections=1,
                                                     span_cpu_scope="inclusive thread CPU; async spans include interleaved work")
                 bot, port = harness.start("load-bot", instrumented=True, trace_directory=trace_directory,
-                                          incident_directory=incident_directory, cpus=args.cpus)
+                                          incident_directory=incident_directory, cpus=args.cpus, memory_mib=args.memory_mib)
                 if args.security:
                     from test.e2e.offline.security_fixture import bootstrap_accounts, configure_connections
                     evidence['security'] = bootstrap_accounts(harness, port)
@@ -419,9 +438,10 @@ def main():
                     harness.terminate(bot)
                     harness.env['ADMIN_BASIC_AUTH_ENABLED'] = 'false'
                     bot, port = harness.start('google-only-load-bot', instrumented=True, trace_directory=trace_directory,
-                                              incident_directory=incident_directory, cpus=args.cpus)
+                                              incident_directory=incident_directory, cpus=args.cpus, memory_mib=args.memory_mib)
                     assert harness.admin(port, '/access/bootstrap')[1]['basic_auth_enabled'] is False
-                docker("update", "--cpus", args.cpus, "--memory", "2g", "--memory-swap", "2g", bot)
+                docker("update", "--cpus", args.cpus, "--memory", str(args.memory_mib) + 'm',
+                       "--memory-swap", str(args.memory_mib) + 'm', bot)
                 initial_metrics = poll(lambda: read_metrics(harness, bot), timeout=30, description='complete fresh runtime role metrics')
                 assert memory_retention([initial_metrics])['basis'] == 'cgroup_current_minus_file_plus_shmem', \
                     'New load measurements require the complete observed memory breakdown'
@@ -495,6 +515,8 @@ def main():
                         options += ('--market-diagnostics',)
                     if args.mm_activity:
                         options += ('--mm-activity',)
+                    if args.perpetual_reduction:
+                        options += ('--perpetual-reduction',)
                     data = run_window(harness, bot, client, name, duration, report, burst=name == "bursts", options=options)
                     data["command_seconds"] = data["control_results"].get("command_seconds", controls)
                     data["ledger"] = verify_ledger(harness, port)
@@ -555,6 +577,15 @@ def main():
                 evidence['release_scope_complete'] = args.profile == 'all' and not diagnostic
             finally:
                 evidence['command_receipt_transport_retries'] = harness.metrics.get('command_receipt_transport_retries', 0)
+                # Capture the last admission reasons before teardown changes
+                # controller state, including failed qualification windows.
+                for filename, read in (('final-state.json', harness.state),
+                                       ('final-status.json', lambda: harness.admin(port, '/status')[1]),
+                                       ('final-account-positions.json', lambda: harness.admin(port, '/positions')[1])):
+                    try:
+                        (report / filename).write_text(json.dumps(read(), indent=2))
+                    except Exception as error:
+                        evidence.setdefault('final_capture_errors', {})[filename] = type(error).__name__
                 try:
                     (report / "final-positions.json").write_text(harness.sql("SELECT COALESCE(json_agg(t),'[]') FROM positions t"))
                     (report / "final-executors.json").write_text(harness.sql("SELECT COALESCE(json_agg(t),'[]') FROM (SELECT * FROM executors ORDER BY timestamp DESC LIMIT 200) t"))

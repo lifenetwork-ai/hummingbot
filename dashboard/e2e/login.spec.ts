@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockGoogle, openAccountMenu } from './auth-fixture'
+import { mockGoogle, openAccountMenu, signOut } from './auth-fixture'
 import { AUTH_TOKEN_STORAGE_PREFIX, authTokenStorageKey } from '../src/core/auth/auth-persistence'
 
 test.beforeEach(async ({ page }) => mockGoogle(page))
@@ -25,8 +25,7 @@ test('preserves deep links and restores sign-in after reload until explicit logo
   await expect(page.getByRole('heading', { name: 'A clean canvas for what comes next.' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Sign in with Google' }).click()
   await expect(page).toHaveURL(destination)
-  await openAccountMenu(page)
-  await page.getByRole('button', { name: 'Sign out' }).click()
+  await signOut(page)
   await expect(page.getByRole('heading', { name: 'Đăng nhập' })).toBeVisible()
   await page.getByRole('button', { name: 'Sign in with Google' }).click()
   await expect(page).toHaveURL(destination)
@@ -36,8 +35,7 @@ test('preserves deep links and restores sign-in after reload until explicit logo
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Sign in with Google' })).toHaveCount(0)
   expect(await page.evaluate((prefix) => Object.keys(localStorage).filter((key) => key.startsWith(prefix)).length, AUTH_TOKEN_STORAGE_PREFIX)).toBe(1)
-  await openAccountMenu(page)
-  await page.getByRole('button', { name: 'Sign out' }).click()
+  await signOut(page)
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Đăng nhập' })).toBeVisible()
   expect(await page.evaluate((prefix) => Object.keys(localStorage).filter((key) => key.startsWith(prefix)), AUTH_TOKEN_STORAGE_PREFIX)).toEqual([])
@@ -89,8 +87,7 @@ test('new tab and reopening a tab restore through GET /me, and logout reaches th
   await openAccountMenu(reopened)
   await expect(reopened.getByRole('button', { name: 'Sign out' })).toBeVisible()
   expect(loginPosts).toBe(1)
-  await openAccountMenu(page)
-  await page.getByRole('button', { name: 'Sign out' }).click()
+  await signOut(page)
   await expect(reopened.getByRole('heading', { name: 'Đăng nhập' })).toBeVisible()
   await reopened.reload()
   await expect(reopened.getByRole('heading', { name: 'Đăng nhập' })).toBeVisible()

@@ -5,8 +5,9 @@ from hummingbot.connector.okx_order_status import OKXExpiredOrderRejection, chec
 
 
 @pytest.mark.parametrize("code", ["0", "1"])
-def test_expired_rejection_requires_matching_client_id_and_no_exchange_id(code):
-    response = {"code": code, "data": [{"clOrdId": "a", "ordId": "", "sCode": "50036"}]}
+@pytest.mark.parametrize('rejection', ['50036', '50037'])
+def test_expired_rejection_requires_matching_client_id_and_no_exchange_id(code, rejection):
+    response = {"code": code, "data": [{"clOrdId": "a", "ordId": "", "sCode": rejection}]}
     with pytest.raises(OKXExpiredOrderRejection) as exc:
         check_order_submission(response, "a")
     assert exc.value.client_order_id == "a"
@@ -27,7 +28,8 @@ def test_ambiguous_or_different_failure_never_proves_rejection(response):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('market', ['spot', 'perpetual'])
-async def test_connectors_propagate_only_correlated_expiry(market):
+@pytest.mark.parametrize('rejection', ['50036', '50037'])
+async def test_connectors_propagate_only_correlated_expiry(market, rejection):
     from decimal import Decimal
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
@@ -36,7 +38,7 @@ async def test_connectors_propagate_only_correlated_expiry(market):
     from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
     from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, TradeType
 
-    response = {"code": "1", "data": [{"clOrdId": "a", "ordId": "", "sCode": "50036", "sMsg": "expired"}]}
+    response = {"code": "1", "data": [{"clOrdId": "a", "ordId": "", "sCode": rejection, "sMsg": "expired"}]}
     source = SimpleNamespace(exchange_symbol_associated_to_pair=AsyncMock(return_value='BTC-USDT'),
                              _api_request=AsyncMock(return_value=response), _api_post=AsyncMock(return_value=response),
                              position_mode=PositionMode.HEDGE, _format_amount_to_size=lambda pair, amount: amount)

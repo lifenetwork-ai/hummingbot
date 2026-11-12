@@ -21,6 +21,29 @@ recovery use [PostgreSQL operations](postgres-runtime.md). Verification commands
 below exercise individual policies; use the [load guide](life-mm-load-tests.md)
 for whole-release acceptance. Measured outcomes belong in [reports](../reports/README.md).
 
+## Session duration defaults
+
+The Demo preset uses:
+
+```yaml
+allow_until_stopped: true
+default_duration_mode: until_stopped
+default_duration_seconds: 1800  # Used only for an explicitly timed session.
+```
+
+New Start/Switch commands omitting both duration fields use that YAML mode.
+Explicit `duration_mode: timed` uses the bounded YAML duration when seconds are
+omitted. Supplying seconds without a mode selects Timed for compatibility.
+An explicit `until_stopped` must omit seconds and requires YAML permission.
+Catalogues omitting `default_duration_mode` retain the existing Timed default
+and serialized hashes. A continuous default without permission is invalid.
+
+Random still rotates at `random.step_duration_seconds`; only the overall expiry
+is removed. Stop, HALT, drawdown, ownership and market guards still apply. The
+resolved mode and catalogue are pinned when the command is accepted. Changing
+YAML applies to new sessions and does not renew an expired or stopped session,
+rewrite an existing deadline or start trading by loading the configuration.
+
 ## Quote guards
 
 Guards are opt-in: deployed defaults use `quote_guards.enabled: false`. Existing

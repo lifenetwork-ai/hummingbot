@@ -727,6 +727,9 @@ class StrategyV2Base(StrategyPyBase):
                 from hummingbot.strategy_v2.utils.common import generate_unique_id
                 config.id = generate_unique_id()
             controller = config.get_controller_class()(config, self.market_data_provider, self.actions_queue)
+            bind = getattr(type(controller), 'bind_reduction_runtime', None)
+            if bind is not None:
+                bind(controller, lambda identity=config.id: self.executor_orchestrator.reduction_runtime(identity))
             self.controllers[config.id] = controller
         except Exception as e:
             self.logger().error(f"Error adding controller: {e}", exc_info=True)
