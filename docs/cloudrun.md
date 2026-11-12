@@ -248,6 +248,46 @@ do not yet propagate HTTP trace context; Cloud Run request logs remain separate.
 The existing application access logger stays disabled, and no Authorization
 header or Basic Auth credential is added to these context fields.
 
+### Opt-in engine timing diagnostics
+
+Set `ENGINE_DIAGNOSTICS_ENABLED=true` on the next deployment to enable bounded
+engine observations. Default is false. The API child does not start this probe;
+engine health remains on its real event loop and keeps its existing timeout.
+This setting does not change trading/risk decisions or reset recovery state.
+
+The engine emits WARNING events `engine_loop_stall`, `engine_loop_recovered` and
+`engine_stage_slow`. WARNING allows evidence to survive a project sink that drops
+INFO. Payload JSON follows `Engine diagnostic ` inside the normal structured
+message. Stage times and heartbeat samples use `monotonic_ns`, with a wall-clock
+anchor for correlation with supervisor logs. `heartbeat_gap_ms` measures progress
+of the diagnostic heartbeat, not an exact strategy-tick or quote-gap duration.
+`heartbeat_advanced_during_capture=true` means the stack raced loop recovery;
+do not attribute the entire delay to that sampled frame.
+
+Captured stages include strategy ticks/reports, controller cycles, submission,
+cancellation, native terminal proof/callbacks, executor termination, financial
+checkpoint and fresh ownership reads. SQL cursor round trips exclude checkout
+and COMMIT; the enclosing checkpoint/owner stage retains that additional time.
+Network waits can emit a slow-stage record with a healthy heartbeat. There is
+one loop capture per30s plus its recovery, and one slow-stage capture per30s.
+Each packet is capped at24KB, with96 recent events,32 active spans,8 slow spans
+and at most4 thread stacks of12 frames. Active-span overflow is counted;
+the recent-event ring overwrites its oldest entries.
+
+Only source filenames, function names and line numbers are sampled. No locals,
+source lines, SQL text/parameters, exception messages or raw arguments are
+captured. Controller/executor/order identifiers are SHA-256 prefixes (16 hex
+characters); hash a known ID the same way to correlate its records. Counters and
+maxima are lifetime observations, not proof that a prior maximum caused this
+particular timeout. Diagnostic failure cannot grant authority or change a
+business return/exception. Clean teardown drains the engine before removing SQL
+hooks; incomplete shutdown leaves inert weak hooks until process exit.
+
+For a new candidate, first inspect the bounded packets around the same probe
+timestamp, then reproduce a confirmed blocker with TDD. Retain stale/unknown
+quote observations and the original quote target. Enabling this diagnostic alone
+does not establish production readiness or remove the need for connected tests.
+
 ## Image and offline verification
 
 ```sh

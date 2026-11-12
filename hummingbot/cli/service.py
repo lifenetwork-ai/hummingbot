@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 
 from aiohttp import web
 
+from hummingbot.core.engine_diagnostics import EngineDiagnostics, trace_runtime
 from hummingbot.core.mm_readiness import MM_READINESS_REASONS
 
 
@@ -98,6 +99,7 @@ class ServiceHost:
         self._daily_next_write_at = 0
         self._daily_retry_at = 0
         self._publication_task = None
+        self.runtime_diagnostics = None
         self._publication_context = None
         self._publication_lock = asyncio.Lock()
         self._publication_closing = False
@@ -643,6 +645,7 @@ class ServiceHost:
                 "reporting_timezone": self.admin_settings.reporting_timezone if hasattr(self, "admin_settings") else "Asia/Ho_Chi_Minh",
                 "format_status": None}
 
+    @trace_runtime('service.observe')
     async def observe_once(self):
         from hummingbot.core.order_submission_guard import install_guard
         from hummingbot.model.bot_state_store import ControlConflict
@@ -1154,6 +1157,21 @@ class ServiceHost:
 
     async def run(self):
         await self.bootstrap()
+        if getattr(self.settings, 'engine_diagnostics_enabled', False) is True:
+            try:
+                self.runtime_diagnostics = EngineDiagnostics()
+                if not await self.runtime_diagnostics.start():
+                    raise RuntimeError('diagnostic_start_unavailable')
+                self.runtime_diagnostics.attach_engine(self.engine)
+            except Exception:
+                diagnostic, self.runtime_diagnostics = self.runtime_diagnostics, None
+                if diagnostic is not None:
+                    try:
+                        await diagnostic.close()
+                    except Exception:
+                        pass
+                self.log.warning('Engine diagnostics could not start',
+                                 extra={'event': 'engine_diagnostics_unavailable', 'scope': 'runtime'})
         while not self.stop.is_set():
             self.observer_progress_at = time.monotonic()
             await self.observe_once()
@@ -1264,16 +1282,25 @@ async def run_service(*, settings=None, bind_host='0.0.0.0', admin_settings=None
         code = failure_exit_code(error)
     finally:
         deadline.request()
-        if host is not None:
-            clean = await host.close()
-        else:
-            clean = True
-        if runner is not None:
-            await runner.cleanup()
-        logging.getLogger(__name__).info("Service exit clean=%s elapsed_s=%.3f", clean, time.monotonic() - started,
-                                         extra={"event": "service_exit"})
-        if clean:
-            deadline.close()
+        try:
+            if host is not None:
+                clean = await host.close()
+            else:
+                clean = True
+            if runner is not None:
+                await runner.cleanup()
+            logging.getLogger(__name__).info("Service exit clean=%s elapsed_s=%.3f", clean, time.monotonic() - started,
+                                             extra={"event": "service_exit"})
+            if clean:
+                deadline.close()
+        finally:
+            diagnostic = getattr(host, 'runtime_diagnostics', None)
+            if diagnostic is not None:
+                try:
+                    await diagnostic.close(detach=clean)
+                except Exception:
+                    logging.getLogger(__name__).warning('Engine diagnostic teardown unavailable',
+                                                        extra={'event': 'engine_diagnostics_unavailable', 'scope': 'runtime'})
     if not clean:
         # asyncio.run would wait indefinitely for arbitrary cancellation-hostile
         # tasks. Preserve the advisory session until immediate OS teardown.
