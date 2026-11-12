@@ -1,5 +1,5 @@
 import hashlib
-import random
+import secrets
 import time
 from decimal import Decimal
 from typing import Literal, Optional
@@ -38,7 +38,11 @@ class ExecutorConfigBase(BaseModel):
     def set_id(self):
         if self.id is None:
             # Use timestamp from values if available, else current time
-            unique_component = random.randint(0, 99999)
+            # Many levels/controllers share one engine timestamp. A five-digit
+            # nonce collides at realistic burst sizes and can overwrite queued
+            # authority keyed by executor ID. Preserve the persisted ID format
+            # while using a 128-bit nonce for newly created configurations.
+            unique_component = secrets.token_hex(16)
             raw_id = f"{self.timestamp}-{unique_component}"
             hashed_id = hashlib.sha256(raw_id.encode()).digest()  # Get bytes
             self.id = base58.b58encode(hashed_id).decode()  # Base58 encode

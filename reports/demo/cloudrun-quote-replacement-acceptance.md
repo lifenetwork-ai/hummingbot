@@ -1,11 +1,88 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest: revision116 has deployed the terminal-publication/diagnostic patch and
-`ENGINE_DIAGNOSTICS_ENABLED=true`. Its initial check encountered a profile-switch
-shutdown timeout followed by a retained recovery fence; it is not an acceptance
-pass. See [revision116 investigation](#revision116-diagnostics-and-drained-shutdown-fence).
+Latest: revision117/`5c36bb7bd` has a completed901-sample baseline. Observation
+quality passes, but the unchanged99% target fails: Spot98.36%, perpetual97.58%.
+No manual reset, ERROR, engine restart or8s shutdown timeout occurs in this
+window; temporary shutdown fences remain failing unknown samples. Local proof
+sharing, executor-identity and freshness-fixture changes are separately qualified,
+not deployed. See [baseline results](#revision117-thirty-minute-baseline-during-local-follow-up).
 Revision112's completed verification and the revision111 record below remain
 historical, with their original failed99% quote gates and scope limits intact.
+
+## Revision117 thirty-minute baseline during local follow-up
+
+Measurement10:08:30.150467–10:38:31.159119UTC (17:08–17:38 local):901 samples,
+1,801.009s wall span, maximum sample gap2.294s, zero API read errors. The same
+revision117, session and control84 persist. Original classifier hash
+`ce60b823674db68a850cafd03fe7e90d77dc8cd0484716bee31b315e6a03e753` and its
+unknown-as-failure policy are unchanged. Quality passes; the target fails.
+
+| Market | Two-sided | Eligible gap | Unknown | Guard excluded | Conservative result |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Spot |838|5|9|49|838/852=98.36%, fail |
+| Perpetual |846|11|10|34|846/867=97.58%, fail |
+
+The three scheduled profile changes recover without intervention. Four raw
+HALT samples are transient shutdown fences and remain unknown. Eight unknown
+samples per market are unavailable observations around those changes; the
+remaining unknowns include reduction-position admission and one reserved
+reduction-side observation. No reason is newly excluded to improve the result.
+The last sample is running, error null, HALT false. This is quote observation;
+there is no new per-fill native financial replay or direct physical-owner DB proof.
+
+The exact-window Cloud Logging query returns103 WARNING records, below its1,000
+limit:30 supervisor probe-timeout transitions,30 diagnostic loop-stall/recovery
+pairs and8 slow-stage packets; other warnings retain their original messages.
+There are zero ERROR, child restart or shutdown-timeout events. Diagnostic
+samples use engine process17/owner generation491. Short probe deadlines remain
+censored observations, and sampled stages do not establish one unique cause.
+
+Evidence and unchanged analysis are under
+`build/engine-diagnostics-followup-baseline-20261112/`. This is deployed5c36bb7bd,
+not acceptance of the new local image. The local changes/evidence are in the
+[shutdown/freshness follow-up](../performance/mm-quote-replacement-latency.md#shutdown-proof-sharing-freshness-fixtures-and-executor-identity).
+
+## Revision117 verified fence recovery and next profile change
+
+The requested five-minute post-push check starts at09:44:44UTC (16:44 local).
+Revision `hummingbot-demo-00117-7gj` is Ready with100% traffic; its service image
+tag is commit `5c36bb7bd37e3e7ed01c951dc0b6c78f4c92c985`, resolved digest
+`sha256:b25d08252232f232fb77d7a08e59d1d5b1c2e58231083c410c1115b3011bfb87`.
+`ENGINE_DIAGNOSTICS_ENABLED=true` remains set. At09:44:47UTC the API reports
+running, no error, no HALT/pending mutation, automatic recovery idle with cold
+recovery supported, and fresh two-sided quotes for both markets. Session
+`5cb18a14-1a35-4388-b2e1-a49b6acc501d` and control84 are unchanged. No manual
+Start/reset, DB maintenance, credential/risk or Cloud configuration write was
+issued in this verification.
+
+A further200.302-second GET-only observation retains101 samples across the next
+scheduled `sideways`→`follow_token` change, generation57→58. At09:48:50.912910UTC
+one sample has the shutdown fence; it is absent at09:48:52.910127. Startup and
+readiness follow, running returns at09:49:02.922792 and the first new-profile
+sample with both markets two-sided is09:49:04.930354. These are observation
+timestamps, not exact venue cancellation/replacement intervals. Final sample
+09:50:13.000529UTC remains running, no error/HALT and both markets two-sided.
+
+The original conservative classifier is unchanged. Spot:46 two-sided,51 guard
+exclusions,3 unknown and1 eligible gap. Perpetual:94 two-sided,4 guard exclusions
+and3 unknown. The transient fence/unavailable samples remain unknown; guards do
+not become working quotes. This short observation does not satisfy or replace
+the original thirty-minute99% target, and does not claim new per-fill financial
+or native venue reconciliation evidence.
+
+Deduplicated revision117 logs from09:42:39.546148 to09:49:23.412219UTC contain
+25 entries:1INFO and24WARNING, zero ERROR. There are8 supervisor timeout
+transitions,6 diagnostic loop-stall/recovery pairs and4 slow-stage packets.
+All sampled diagnostic packets use engine process17; no child-restart or
+shutdown-deadline event appears in this log slice. Sampled frames include
+synchronous startup import, terminal-callback pool pre-ping and terminal SQL.
+These remain scoped samples, not a unique cause for every timeout. No recurrence
+of the8-second cleanup timeout was observed at this one profile change; its
+original cause, the broad-suite liquidity failure and the full quote gate stay open.
+
+Evidence: `build/engine-diagnostics-cloud-recheck-20261112/`, including the
+deployment/API snapshots, raw transition samples, unchanged classifier hash and
+deduplicated log summary. Runtime code is unchanged during this check.
 
 ## Revision116 diagnostics and drained shutdown fence
 
@@ -50,7 +127,8 @@ also admits a reasonless shutdown fence to the existing verification branch;
 it still requires the unchanged checkpoint, account, journal and risk checks.
 Manual/reason-bearing HALTs remain protected, and acquiring ownership does not
 open submissions: ordinary native startup reconciliation remains required.
-This correction is local, not deployed or applied as a Cloud DB reset.
+This correction was local at the revision116 inspection; its subsequent
+revision117 deployment is recorded above. No Cloud DB reset was applied.
 
 Final local checks: all8 new successor cases and the liquidity case pass together
 (9 tests);52 service/status/shutdown CLI tests also pass. The broader236-case

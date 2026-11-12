@@ -179,6 +179,22 @@ async def test_storage_receipts_and_audit_do_not_hardcode_okx(pg_engine, monkeyp
 @pytest.mark.asyncio
 async def test_connected_requires_fresh_matching_owner_evidence_not_only_saved_credentials(pg_engine, monkeypatch):
     import time
+    evidence = []
+    snapshot = CredentialStore.status_snapshot
+
+    def inspect_snapshot(store, exchange):
+        result = snapshot(store, exchange)
+        row = result[1]
+        stamp = row['status'].get('availability', {}).get('observed_at')
+        evidence.append(dict(heartbeat_age_s=float(row['heartbeat_age_s']) if row['heartbeat_age_s'] is not None else None,
+                             snapshot_age_s=float(row['database_now']) - stamp if stamp is not None else None,
+                             database_now=float(row['database_now']), observed_at=stamp,
+                             host_now=time.time(), versions=row['status'].get('credential_versions'),
+                             owner_matches=row['status'].get('credential_owner') == dict(
+                                 owner_uuid=row['owner_uuid'], generation=row['owner_generation'])))
+        return result
+
+    monkeypatch.setattr(CredentialStore, 'status_snapshot', inspect_snapshot)
     async with client_for(pg_engine, monkeypatch) as (client, state, adapter):
         response = await client.post(ADMIN_PREFIX + "/credentials/okx/okx", headers={**AUTH, "Idempotency-Key": "save"}, json=BODY)
         receipt = await response.json()
@@ -186,12 +202,24 @@ async def test_connected_requires_fresh_matching_owner_evidence_not_only_saved_c
             connection.execute(update(BotState).values(owner_uuid="owner", owner_generation=1, heartbeat=func.clock_timestamp()))
         assert CredentialStore(state).finish_set(receipt["id"], "owner", 1, versions={"okx": 1})
         for version, owner, age, expected in ((1, "old", 0, "unavailable"), (1, "owner", 30, "unavailable"),
+                                              (1, "owner", -30, "unavailable"),
                                               (2, "owner", 0, "unavailable"), (1, "owner", 0, "connected")):
             with pg_engine.begin() as connection:
+                now = float(connection.scalar(select(func.extract('epoch', func.clock_timestamp()))))
                 connection.execute(update(BotState).values(heartbeat=func.clock_timestamp(), status=dict(credential_versions={"okx": version},
-                                                                                                         credential_owner=dict(owner_uuid=owner, generation=1), availability=dict(observed_at=time.time() - age))))
+                                                                                                         credential_owner=dict(owner_uuid=owner, generation=1), availability=dict(observed_at=now - age))))
             status = await (await client.get(ADMIN_PREFIX + "/credentials/okx", headers=AUTH)).json()
             observed = state.read()
+            if status["slots"][0]["status"] != expected:
+                import json
+                stamp = observed['status']['availability']['observed_at']
+                print('CREDENTIAL_FRESHNESS_FAILURE', json.dumps(dict(
+                    expected=expected, actual=status['slots'][0]['status'],
+                    heartbeat_age_s=float(observed['heartbeat_age_s']),
+                    snapshot_age_s=float(observed['database_now']) - stamp,
+                    database_now=float(observed['database_now']), observed_at=stamp,
+                    host_now=time.time(), owner_matches=owner == observed['owner_uuid'], version=version,
+                    api_evidence=evidence)))
             assert status["slots"][0]["status"] == expected, {
                 "owner": observed["owner_uuid"], "generation": observed["owner_generation"],
                 "age": observed["heartbeat_age_s"], "database_now": observed["database_now"], "status": observed["status"]}

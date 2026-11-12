@@ -22,6 +22,7 @@ from hummingbot.connector.exchange_base import ExchangeBase
 from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.core.clock import Clock, ClockMode
 from hummingbot.core.connector_manager import ConnectorManager
+from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.core.gateway.gateway_http_client import GatewayHttpClient
 from hummingbot.core.rate_oracle.rate_oracle import RateOracle
 from hummingbot.core.utils.kill_switch import KillSwitch
@@ -610,6 +611,7 @@ class TradingCore:
             self.logger().error(f"Failed to stop strategy: {e}")
             return False
 
+    @trace_runtime('shutdown.cancel')
     async def cancel_outstanding_orders(self) -> bool:
         """Cancel all outstanding orders."""
         try:
@@ -792,6 +794,7 @@ class TradingCore:
         result.reverse()
         return result
 
+    @trace_runtime('shutdown.core')
     async def shutdown(self, skip_order_cancellation: bool = False, *, keep_positions: bool = False,
                        shutdown_timeout: Optional[float] = None) -> bool:
         """

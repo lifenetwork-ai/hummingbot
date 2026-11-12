@@ -1,6 +1,18 @@
 # Demo and release closeout
 
-Latest 2026-11-12: revision116 has diagnostics enabled but encountered a
+Latest 2026-11-12: revision117/5c36bb7bd clears the old shutdown fence and
+returns to quotes, then recovers quotes after its next scheduled profile change.
+This is scoped verification: unavailable/guard samples, original cleanup timing,
+the liquidity test failure and the30-minute quote gate remain open. See
+[revision117 results](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision117-verified-fence-recovery-and-next-profile-change).
+
+Its subsequent901-sample baseline fails the unchanged99% target
+(Spot98.36%, perpetual97.58%) while recovering all three scheduled profile
+changes. Local shutdown-proof/identity fixes and freshness-fixture qualification
+do not replace new-image connected acceptance; see the
+[follow-up](../../reports/performance/mm-quote-replacement-latency.md#shutdown-proof-sharing-freshness-fixtures-and-executor-identity).
+
+Earlier 2026-11-12: revision116 has diagnostics enabled but encountered a
 profile-switch shutdown timeout and a retained drained recovery fence. The
 initial two-sided samples do not close acceptance; the local successor-branch
 correction and its qualification are recorded in the

@@ -12,6 +12,7 @@ from sqlalchemy.engine import Row
 from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.core.data_type.common import PositionAction, PositionMode, PriceType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
+from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.logger import HummingbotLogger
 from hummingbot.model.executors import Executors
 from hummingbot.model.position import Position
@@ -596,6 +597,7 @@ class ExecutorOrchestrator:
                 ))
         return tuple(signature)
 
+    @trace_runtime('shutdown.hold')
     async def stop(self, max_executors_close_attempts: int = 3, *, shutdown_timeout: Optional[float] = None,
                    keep_position: bool = False, before_position_checkpoint=None):
         """

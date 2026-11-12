@@ -274,6 +274,16 @@ Each packet is capped at24KB, with96 recent events,32 active spans,8 slow spans
 and at most4 thread stacks of12 frames. Active-span overflow is counted;
 the recent-event ring overwrites its oldest entries.
 
+Shutdown additionally uses fixed stages `shutdown.total`, `shutdown.core`,
+`shutdown.strategy`, `shutdown.hold`, `shutdown.cancel`, `shutdown.proof_before`
+and `shutdown.proof_after`. An actual shutdown deadline ERROR includes up to8
+active stage names and elapsed milliseconds. It captures neither order IDs nor
+arguments; diagnostics unavailable/disabled produces an empty stage list.
+The8-second deadline, fresh before/after terminal proof and ownership fence are
+unchanged. The proof reader shares three slots across connectors and cancels
+and drains sibling readers on failure, rather than waiting for one connector's
+whole tail before allowing another connector to start.
+
 Only source filenames, function names and line numbers are sampled. No locals,
 source lines, SQL text/parameters, exception messages or raw arguments are
 captured. Controller/executor/order identifiers are SHA-256 prefixes (16 hex

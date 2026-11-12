@@ -11,6 +11,25 @@ from sqlalchemy import create_engine, event, text
 from hummingbot.core.engine_diagnostics import EngineDiagnostics, trace_runtime
 
 
+def test_shutdown_summary_is_bounded_redacted_and_cannot_fail_cleanup(monkeypatch):
+    import hummingbot.core.engine_diagnostics as diagnostic
+
+    assert diagnostic.active_shutdown_stages() == []
+    now = [1_000_000_000]
+    tracer = EngineDiagnostics(clock=lambda: now[0])
+    monkeypatch.setattr(diagnostic, '_ACTIVE', tracer)
+    for _ in range(12):
+        tracer.begin('shutdown.proof_before', order='never-export-shutdown-order')
+    tracer.begin('db.sql')
+    now[0] += 25_000_000
+    stages = diagnostic.active_shutdown_stages()
+    assert len(stages) == 8
+    assert all(row == dict(operation='shutdown.proof_before', elapsed_ms=25.0) for row in stages)
+    assert 'never-export' not in json.dumps(stages)
+    monkeypatch.setattr(tracer, 'snapshot', lambda: (_ for _ in ()).throw(MemoryError()))
+    assert diagnostic.active_shutdown_stages() == []
+
+
 def test_retention_and_error_metadata_are_bounded_without_raw_identifiers():
     emitted = []
     tracer = EngineDiagnostics(emit=emitted.append, capacity=8, max_active=2)

@@ -2,6 +2,8 @@ from decimal import Decimal
 from test.hummingbot.strategy_v2.controllers.test_quote_guard import order
 from types import SimpleNamespace
 
+import pytest
+
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.mm_liquidity import LiquidityObserver, own_quotes
@@ -96,6 +98,25 @@ def test_current_session_generation_cannot_show_old_step_quotes_as_fresh():
                status={'mm_liquidity': frame})
     result = liquidity_view(row)
     assert result['state'] == 'unavailable' and not result['markets']['spot']['eligible']
+
+
+@pytest.mark.parametrize('snapshot_age,heartbeat_age,fresh', [
+    (0, 0, True), (5, 0, True), (5.001, 0, False), (-.001, 0, False),
+    (0, 5, True), (0, 5.001, False), (0, -.001, False), (-30, -30, False),
+])
+def test_freshness_bounds_reject_old_or_future_observations(snapshot_age, heartbeat_age, fresh):
+    from hummingbot.core.mm_liquidity import liquidity_view
+
+    session = dict(session_id='session', generation=0, profile_id='sideways', started_at=900)
+    quotes = dict(own_quotes(connector(), 'LIFE-USDT', max_orders=20), valid=True, eligible=True)
+    frame = LiquidityObserver().observe(session, {'spot': quotes}, now=1000 - snapshot_age,
+                                        monotonic_now=0, owner_generation=1)
+    row = dict(database_now=1000, heartbeat_age_s=heartbeat_age, owner_uuid='owner',
+               mm_session=dict(id='session', generation=0), status={'mm_liquidity': frame})
+    result = liquidity_view(row)
+    assert result['state'] == ('observed' if fresh else 'unavailable')
+    assert result['markets']['spot']['valid'] is fresh
+    assert (result['markets']['spot']['bid_notional'] is not None) is fresh
 
 
 def test_valid_empty_book_quote_observation_is_zero_availability_not_unknown():

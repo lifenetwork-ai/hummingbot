@@ -425,7 +425,7 @@ def test_reconciliation_reads_back_cancellation_before_enabling_strategy(owned):
     owned.owner._open_orders = AsyncMock(return_value=[{"clOrdId": order.client_order_id}])
     observed = []
 
-    async def refresh(connector, orders):
+    async def refresh(connector, orders, **kwargs):
         observed.append(owned.owner.allow_new_orders)
         if connector.cancel_all.await_count:
             order.current_state = OrderState.CANCELED
@@ -677,6 +677,78 @@ def test_terminal_checkpoint_drains_many_maker_attempts_with_bounded_parallel_re
     assert not state.get("shutdown_incomplete")
 
 
+@pytest.mark.parametrize('remote_failure', [False, True])
+def test_shutdown_proof_drains_both_connectors_without_head_of_line_wait(owned, remote_failure):
+    core = reconciliation_core(owned)
+    core.strategy.executor_orchestrator = object()
+    orders = [intent(owned, f'mixed-proof-{i}') for i in range(8)]
+    perpetual = MagicMock()
+    perpetual.in_flight_orders = {order.client_order_id: order for order in orders[4:]}
+    for order in orders[4:]:
+        owned.market.in_flight_orders.pop(order.client_order_id)
+    owned.owner.connectors['okx_perpetual'] = perpetual
+    with owned.manager.get_new_session() as session, session.begin():
+        for order in orders:
+            session.get(Order, order.client_order_id).creation_pending = False
+    perpetual_seen = asyncio.Event()
+    active = peak = cancelled = 0
+
+    async def status(order, *, market):
+        nonlocal active, peak, cancelled
+        active += 1
+        peak = max(peak, active)
+        try:
+            if market == 'perpetual':
+                perpetual_seen.set()
+                if remote_failure:
+                    await asyncio.Event().wait()
+            if order is orders[0]:
+                await perpetual_seen.wait()
+                if remote_failure:
+                    raise OSError('readback unavailable')
+            await asyncio.sleep(0)
+            return SimpleNamespace(exchange_order_id=order.client_order_id, order=order)
+        except asyncio.CancelledError:
+            cancelled += 1
+            raise
+        finally:
+            active -= 1
+
+    async def apply(update):
+        update.order.current_state = OrderState.CANCELED
+
+    for connector, name in [(owned.market, 'spot'), (perpetual, 'perpetual')]:
+        async def read(order, market=name):
+            return await status(order, market=market)
+        connector._request_order_status = AsyncMock(side_effect=read)
+        connector._all_trade_updates_for_order = AsyncMock(return_value=[])
+        connector._order_tracker.process_order_update = AsyncMock(side_effect=apply)
+    core.cancel_outstanding_orders = AsyncMock(return_value=True)
+
+    async def shutdown(**kwargs):
+        try:
+            await core.before_position_checkpoint({order.client_order_id: (
+                'okx' if i < 4 else 'okx_perpetual', order) for i, order in enumerate(orders)})
+            await core.after_order_cancellation()
+            return True
+        except OSError:
+            return False
+
+    core.shutdown = AsyncMock(side_effect=shutdown)
+    result = owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
+    assert result is (not remote_failure)
+    assert perpetual_seen.is_set() and peak <= 3 and active == 0
+    if remote_failure:
+        assert cancelled and owned.store.read()['recovery_state']['halt']
+    else:
+        assert not owned.store.read()['recovery_state'].get('halt')
+        # Before and after checkpoint both obtain a fresh status/fill proof for
+        # every order, including already terminal orders; no proof is cached.
+        for connector in [owned.market, perpetual]:
+            assert connector._request_order_status.await_count == 8
+            assert connector._all_trade_updates_for_order.await_count == 8
+
+
 def test_incomplete_shutdown_preserves_owner_and_durable_halt(owned, caplog):
     core = reconciliation_core(owned)
 
@@ -698,6 +770,58 @@ def test_incomplete_shutdown_preserves_owner_and_durable_halt(owned, caplog):
     payload = json.loads(ServiceFormatter('json', {}).format(record))
     assert payload['severity'] == 'ERROR' and payload['reason_code'] == 'runtime_shutdown_timeout'
     assert 'timeout_s=0.020 tracked_orders=0' in payload['message']
+
+
+@pytest.mark.parametrize('waiting_stage,timeout', [
+    ('cancel', .1), ('proof_before', .1), ('proof_after', .1), ('proof_before', 8.0),
+])
+def test_shutdown_deadline_identifies_waiting_stage_and_preserves_fence(owned, caplog, waiting_stage, timeout):
+    from hummingbot.core.engine_diagnostics import EngineDiagnostics, trace_runtime
+
+    core = reconciliation_core(owned)
+    core.strategy.executor_orchestrator = object()
+    orders = [intent(owned, f'shutdown-proof-{i}') for i in range(8)]
+    with owned.manager.get_new_session() as session, session.begin():
+        for order in orders:
+            session.get(Order, order.client_order_id).creation_pending = False
+    calls = 0
+
+    async def refresh(connector, tracked, **kwargs):
+        nonlocal calls
+        calls += 1
+        if waiting_stage == ('proof_before' if calls == 1 else 'proof_after'):
+            await asyncio.Event().wait()
+        for order in tracked:
+            order.current_state = OrderState.CANCELED
+
+    @trace_runtime('shutdown.cancel')
+    async def cancel():
+        if waiting_stage == 'cancel':
+            await asyncio.Event().wait()
+        return True
+
+    async def shutdown(**kwargs):
+        await core.before_position_checkpoint({order.client_order_id: ('okx', order) for order in orders})
+        await core.after_order_cancellation()
+        return True
+
+    owned.owner._refresh_orders = AsyncMock(side_effect=refresh)
+    core.cancel_outstanding_orders = cancel
+    core.shutdown = AsyncMock(side_effect=shutdown)
+    tracer = EngineDiagnostics(emit=lambda _: None)
+    owned.loop.run_until_complete(tracer.start())
+    try:
+        assert not owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=timeout))
+        record = next(row for row in caplog.records if getattr(row, 'event', None) == 'runtime_shutdown_timeout')
+        assert {'shutdown.total', 'shutdown.' + waiting_stage} <= {row['operation'] for row in record.shutdown_stages}
+        assert all(row['elapsed_ms'] >= 0 for row in record.shutdown_stages)
+        assert record.timeout_seconds == timeout and record.tracked_order_count == 8
+        recovery = owned.store.read()['recovery_state']
+        assert recovery['halt'] and recovery['shutdown_incomplete'] and recovery['runtime_active']
+        assert not owned.owner.allow_new_orders
+        assert not BotOwnership(owned.engine, 'hummingbot').try_acquire()
+    finally:
+        owned.loop.run_until_complete(tracer.close())
 
 
 @pytest.mark.parametrize("transport_attempted", [False, True])
@@ -741,7 +865,7 @@ def test_fill_during_v2_shutdown_requires_position_reconciliation(owned):
     order = intent(owned)
     order.current_state = OrderState.OPEN
 
-    async def refresh(connector, orders):
+    async def refresh(connector, orders, **kwargs):
         order.executed_amount_base = Decimal("0.1")
         order.current_state = OrderState.FILLED
 
@@ -773,7 +897,7 @@ def test_terminal_checkpoint_only_accepts_fills_covered_by_the_new_snapshot(owne
         session.get(Order, order.client_order_id).creation_pending = False
     core.cancel_outstanding_orders = AsyncMock(return_value=True)
 
-    async def refresh(connector, orders):
+    async def refresh(connector, orders, **kwargs):
         order.executed_amount_base = Decimal("0.1")
         order.current_state = OrderState.CANCELED
         if race == "after_checkpoint" and owned.owner._refresh_orders.await_count > 1:
@@ -858,7 +982,7 @@ def test_late_cancel_fill_round_trips_through_real_position_checkpoint(owned, mo
         # retired it from active orders during controller cleanup.
         owned.market.in_flight_orders.pop(order.client_order_id)
 
-    async def refresh(connector, orders):
+    async def refresh(connector, orders, **kwargs):
         assert executor.terminated.is_set()
         fill("late", "0.001")  # Repeated readback of the same fill remains idempotent.
         order.current_state = OrderState.CANCELED

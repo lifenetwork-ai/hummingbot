@@ -1,6 +1,21 @@
 # MM automatic recovery and availability
 
-Latest follow-up 2026-11-12: revision116 runs terminal publication and bounded
+Latest 2026-11-12: revision117/5c36bb7bd automatically clears the old verified
+shutdown fence and returns to quotes on session/control84. Its next scheduled
+profile change also returns to two-sided quotes without an observed restart or
+deadline error. The short check retains unknown/guard samples; original cleanup
+timing, the broad-suite liquidity failure and the30-minute gate remain open. See
+[revision117 verification](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision117-verified-fence-recovery-and-next-profile-change).
+
+The subsequent901-sample30-minute baseline is quality-valid but fails the
+unchanged target: Spot98.36%, perpetual97.58%. No ERROR/restart/shutdown timeout
+occurs; temporary fences and unavailable observations remain failures. Local
+shared proof slots, stronger executor IDs, stage evidence and deterministic
+freshness fixtures are qualified separately; new-image connected acceptance
+remains open. See the
+[follow-up record](../../reports/performance/mm-quote-replacement-latency.md#shutdown-proof-sharing-freshness-fixtures-and-executor-identity).
+
+Earlier follow-up 2026-11-12: revision116 runs terminal publication and bounded
 engine diagnostics, but a Random profile switch exceeded the8-second shutdown
 deadline and its successor retained a drained `shutdown_pending` fence. Read-only
 inspection finds a verified checkpoint with no pending/unapplied work and no risk

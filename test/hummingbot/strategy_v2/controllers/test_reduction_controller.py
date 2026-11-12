@@ -336,7 +336,10 @@ async def test_position_refresh_worker_is_joined_on_stop_without_calling_rest_it
     assert controller._reduction_position_task is None
 
 
-def test_large_level_catalogue_cannot_enqueue_more_than_the_resident_authority_bound():
+def test_large_level_catalogue_cannot_enqueue_more_than_the_resident_authority_bound(monkeypatch):
+    import random
+
+    monkeypatch.setattr(random, 'randint', lambda *_: 7)
     controller, _, _ = maker('0', '0', levels=60)
     actions = controller.create_actions_proposal()
     assert len(actions) == len(controller._reduction_queued) == 100

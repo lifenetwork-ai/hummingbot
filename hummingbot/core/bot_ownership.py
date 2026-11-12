@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 from sqlalchemy import select, text, update
 
-from hummingbot.core.engine_diagnostics import trace_runtime
+from hummingbot.core.engine_diagnostics import active_shutdown_stages, trace_runtime
 from hummingbot.core.order_submission_guard import (
     SUPPORTED_CONNECTORS,
     MarketReadinessBlocked,
@@ -913,23 +913,25 @@ class BotOwnership:
                 self.spot_outflow.reason_code = "spot_outflow_fill_invalid"
 
     @staticmethod
-    async def _refresh_orders(connector, orders):
+    async def _refresh_orders(connector, orders, *, limiter=None):
         # Failed maker attempts remain part of terminal checkpoint proof. Read
         # every order, but do not serialize their network latency across the
         # unchanged shutdown deadline. A fixed worker bound avoids one task per
         # historical attempt; connector throttling still controls both endpoints.
         pending = iter(orders)
+        limiter = limiter if limiter is not None else asyncio.Semaphore(3)
 
         async def refresh():
             for order in pending:
-                status = await asyncio.wait_for(connector._request_order_status(order), timeout=5)
-                if status.exchange_order_id:
-                    order.update_exchange_order_id(status.exchange_order_id)
-                fills = await asyncio.wait_for(connector._all_trade_updates_for_order(order), timeout=5)
-                for fill in fills:
-                    connector._order_tracker.process_trade_update(fill)
-                # Apply fills before terminal state for each individual order.
-                await connector._order_tracker.process_order_update(status)
+                async with limiter:
+                    status = await asyncio.wait_for(connector._request_order_status(order), timeout=5)
+                    if status.exchange_order_id:
+                        order.update_exchange_order_id(status.exchange_order_id)
+                    fills = await asyncio.wait_for(connector._all_trade_updates_for_order(order), timeout=5)
+                    for fill in fills:
+                        connector._order_tracker.process_trade_update(fill)
+                    # Apply fills before terminal state for each individual order.
+                    await connector._order_tracker.process_order_update(status)
 
         workers = [asyncio.create_task(refresh()) for _ in range(min(3, len(orders)))]
         try:
@@ -1024,6 +1026,7 @@ class BotOwnership:
             finally:
                 connection.close()
 
+    @trace_runtime('shutdown.total')
     async def shutdown_core(self, core, timeout=8.0) -> bool:
         """Retain ownership until tasks stop; preserve uncertainty before cleanup.
 
@@ -1084,7 +1087,12 @@ class BotOwnership:
                                  for _, orders in tracked for order in orders}
 
         async def read_terminal_orders():
-            for connector, orders in tracked:
+            # Share the existing three read slots across connectors. A delayed
+            # Spot tail must not prevent all Perpetual proof from even starting.
+            # Both checkpoint phases still read every tracked order afresh.
+            limiter = asyncio.Semaphore(3)
+
+            async def refresh_connector(connector, orders):
                 remote_orders = []
                 for order in orders:
                     # A create can be rejected by our final send gate while
@@ -1098,11 +1106,21 @@ class BotOwnership:
                         continue
                     remote_orders.append(order)
                 if remote_orders:
-                    await self._refresh_orders(connector, remote_orders)
+                    await self._refresh_orders(connector, remote_orders, limiter=limiter)
                 while any(not order.is_done for order in orders):
                     self.check_owner()
                     await asyncio.sleep(0.1)
-                    await self._refresh_orders(connector, [order for order in orders if not order.is_done])
+                    await self._refresh_orders(connector, [order for order in orders if not order.is_done], limiter=limiter)
+
+            refreshes = [asyncio.create_task(refresh_connector(connector, orders)) for connector, orders in tracked]
+            try:
+                await asyncio.gather(*refreshes)
+            finally:
+                # No sibling may keep mutating the tracker after proof failure
+                # or cancellation; each reader also drains its bounded workers.
+                for task in refreshes:
+                    task.cancel()
+                await asyncio.gather(*refreshes, return_exceptions=True)
             core.trade_fill_db.assert_persistence_healthy()
             if self.spot_outflow is not None:
                 await self.spot_outflow.reconcile_terminal(all_orders=True)
@@ -1115,6 +1133,7 @@ class BotOwnership:
             self.require_recovery("A fill arrived during position checkpoint cleanup; operator reconciliation is required.")
             raise SubmissionBlocked("Position checkpoint changed during shutdown.")
 
+        @trace_runtime('shutdown.proof_before')
         async def before_position_checkpoint(checkpoint_orders):
             # The orchestrator has stopped its PositionExecutor control loops,
             # retaining live order objects but taking no held-position snapshot.
@@ -1140,6 +1159,7 @@ class BotOwnership:
                                           for _, orders in tracked for order in orders})
             return proof
 
+        @trace_runtime('shutdown.proof_after')
         async def confirm_cancellations():
             await read_terminal_orders()
             if held_snapshot and changed_orders():
@@ -1153,12 +1173,14 @@ class BotOwnership:
         shutdown = asyncio.create_task(core.shutdown(keep_positions=True, shutdown_timeout=timeout / 3))
         done, pending = await asyncio.wait({shutdown}, timeout=max(0, deadline - asyncio.get_running_loop().time()))
         if pending:
+            stages = active_shutdown_stages()
             shutdown.cancel()
             logging.getLogger(__name__).error(
-                "Runtime shutdown exceeded deadline timeout_s=%.3f tracked_orders=%d; ownership and recovery fence retained.",
-                timeout, sum(len(orders) for _, orders in tracked),
+                "Runtime shutdown exceeded deadline timeout_s=%.3f tracked_orders=%d stages=%s; ownership and recovery fence retained.",
+                timeout, sum(len(orders) for _, orders in tracked), stages,
                 extra={"event": "runtime_shutdown_timeout", "reason_code": "runtime_shutdown_timeout",
-                       "tracked_order_count": sum(len(orders) for _, orders in tracked), "timeout_seconds": timeout})
+                       "tracked_order_count": sum(len(orders) for _, orders in tracked), "timeout_seconds": timeout,
+                       "shutdown_stages": stages})
             return False
         if not shutdown.result():
             return False

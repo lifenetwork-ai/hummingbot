@@ -122,7 +122,10 @@ Its initial check encountered a profile-switch shutdown/recovery incident;
 see the [connected investigation](../demo/cloudrun-quote-replacement-acceptance.md#revision116-diagnostics-and-drained-shutdown-fence).
 This does not replace revision112's failed connected quote target or establish
 a unique production probe root cause. The additional drained-fence correction
-described there remains local and needs separate deployment verification.
+is now deployed as5c36bb7bd on revision117: the old fence clears without manual
+mutation and the next scheduled profile change returns to quotes. This short
+connected check retains its unavailable samples and does not close the30-minute
+gate; see the [revision117 record](../demo/cloudrun-quote-replacement-acceptance.md#revision117-verified-fence-recovery-and-next-profile-change).
 
 A managed executor's terminal notification now schedules the existing strategy
 report path after a50ms coalescing window, without waiting for another engine
@@ -184,6 +187,82 @@ The qualification index, runtime source identity and overhead measurements are
 under `build/mm-runtime-diagnostics-20261112/`. This uses an isolated exchange,
 signed offline Google identities and local key encryption. It does not close a
 full soak, actual Google/GCP KMS, or the original connected thirty-minute99%
-quote gate. Diagnostics are now enabled on revision116. Next: qualify/deploy
-the additional drained-fence correction, correlate the remaining supervisor
-timeouts and repeat that unchanged connected target.
+quote gate. Diagnostics and the additional drained-fence correction are deployed
+on revision117. Next: investigate the remaining shutdown/probe timing and the
+retained liquidity test failure, then repeat the unchanged connected target.
+
+## Shutdown proof sharing, freshness fixtures and executor identity
+
+This additional implementation is local; deployed revision117 still runs5c36bb7bd.
+Its unchanged30-minute baseline is recorded in
+[connected acceptance](../demo/cloudrun-quote-replacement-acceptance.md#revision117-thirty-minute-baseline-during-local-follow-up).
+It does not qualify this new local image or close the99% target.
+
+Three concrete findings drive this patch:
+
+- The HTTP liquidity fixture publishes once before server setup and mixes host
+  Python time with Docker PostgreSQL time. Controlled delayed setup reproduces
+  unavailable with heartbeat6.004778s and snapshot6.004782s old, matching the
+  API's correct5s rejection. Fixtures now publish after setup/before reads using
+  DB time. Old/future heartbeat/snapshot boundary cases and credential identity,
+  version and future-time rejection remain. The original failing run did not
+  capture the triggering predicate;40 in-process and16 cold-process replays pass
+  without reconstructing that exact failure. A100-sample clock probe also does
+  not demonstrate a persistent clock offset. Do not relabel that historical
+  failure as a proved production bug or assert its exact cause from injection.
+- Shutdown proof reads connectors serially. An eight-order two-connector test
+  blocks Spot's tail waiting for Perpetual progress: old code times out before
+  Perpetual can start. Both success and remote-failure cases are RED. New code
+  starts connector readers with one shared semaphore of3, retains the two fresh
+  status/fill-proof phases and applies fills before terminal status. It cancels
+  and awaits all sibling readers/workers on error/cancellation. The test verifies
+  cross-connector progress, at most3 active reads, fresh proof of every order in
+  both phases, and no surviving work on failure. This removes a demonstrated
+  avoidable wait; it does not establish the sole cause of the old Cloud timeout.
+- A full regression discovers101 actions but100 queued reservations. New executor
+  IDs previously hashed a shared timestamp plus only100,000 possible nonces, so
+  repeated IDs overwrite the ID-keyed queue. Forcing that nonce reproduces the
+  defect deterministically. New IDs hash timestamp plus a128-bit secure nonce;
+  Base58/SHA256 format and explicit/serialized existing IDs remain unchanged.
+  The same-tick256-config test and the unchanged100-reservation bound pass.
+
+Seven fixed shutdown diagnostic stages cover total/core/strategy/hold/cancel and
+proof before/after checkpoint. Timeout ERROR carries at most8 active names and
+elapsed times, without raw IDs/arguments. Telemetry failure is contained. Native
+PostgreSQL tests hold each stage and verify the existing ownership/recovery fence,
+including the real8s/eight-order case. No deadline, account/proof, risk, quantity
+or pricing policy is relaxed; no Cloud DB maintenance or trading mutation is used.
+
+Final native regression:3,536 tests plus16 subtests pass. The full chosen proof
+pool PostgreSQL regression passes243 tests; an80-case follow-up after the ID
+change also passes, including recovery, COMMIT ambiguity, shutdown and the two
+freshness routes. These selections overlap and are not added as unique tests.
+Earlier REDs and the initial full-regression ID failure are retained.
+
+Final amd64 image
+`sha256:8f9e9188e86c3bfa5df818dfa81e9b065b1f346c8abee13d3e79fbfb1b46c90b`
+matches all6 changed runtime sources and directly passes the256-ID fixed-legacy-RNG
+burst. Diagnostics are enabled. Both final-image packaged LONG/SHORT cases pass:
+partial application once, lost ACK without duplicate POST, cold restart, original
+fees/PnL, post-only cancel/reprice, fee outage/recovery and full close returning
+to OPEN. Evidence is `build/e2e-offline/20261112-174409-bed4b2/` (LONG) and
+`build/e2e-offline/20261112-174410-81dfe2/` (SHORT), registry manifest
+`sha256:e833bedca2cb23c43a5ae48c0a424eec8481be8d1f24cc08f9818704179d748f`.
+The two earlier intermediate image results are retained separately.
+This is simulator/local-encryption qualification, not actual Google/GCP KMS,
+a new full load/soak or new per-fill OKX Demo reconciliation.
+
+The final17:49 local API check still sees Cloud revision117 running, control84,
+no error/HALT/pending mutation. No local runtime change is pushed or deployed.
+After source deployment, verify stage timing and the unchanged connected target;
+the old8s incident still has no retrospectively proved unique cause.
+
+Evidence/source identities and intermediate artifacts are under
+`build/mm-shutdown-freshness-followup-20261112/`. Logs include
+`/tmp/hbot-liquidity-startup-age-red.log`,
+`/tmp/hbot-shutdown-cross-connector-red.log`,
+`/tmp/hbot-shutdown-eight-second-proof.log`,
+`/tmp/hbot-executor-identity-collision-red.log`,
+`/tmp/hbot-shutdown-proof-identity-native-final.log`,
+`/tmp/hbot-proof-pool-postgres-final.log` and
+`/tmp/hbot-shutdown-proof-identity-postgres-final.log`.

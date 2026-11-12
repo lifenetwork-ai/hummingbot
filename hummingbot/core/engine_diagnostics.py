@@ -23,15 +23,34 @@ OPERATIONS = frozenset({
     'strategy.tick', 'strategy.reports', 'controller.cycle', 'order.submit',
     'order.cancel', 'order.terminal', 'position.checkpoint', 'owner.read',
     'db.sql', 'service.observe', 'executor.terminal', 'order.proof',
+    'shutdown.total', 'shutdown.core', 'shutdown.strategy', 'shutdown.hold',
+    'shutdown.cancel', 'shutdown.proof_before', 'shutdown.proof_after',
 })
 SLOW_MS = {
     'strategy.tick': 250, 'strategy.reports': 250, 'controller.cycle': 1000,
     'order.submit': 1000, 'order.cancel': 1000, 'order.proof': 1000,
     'order.terminal': 250, 'executor.terminal': 250, 'position.checkpoint': 250,
     'owner.read': 100, 'db.sql': 100, 'service.observe': 1000,
+    'shutdown.total': 1000, 'shutdown.core': 1000, 'shutdown.strategy': 1000,
+    'shutdown.hold': 1000, 'shutdown.cancel': 1000,
+    'shutdown.proof_before': 1000, 'shutdown.proof_after': 1000,
 }
 _ACTIVE = None
 _PARENT = ContextVar('engine_diagnostic_parent', default=None)
+
+
+def active_shutdown_stages():
+    """Bounded timeout evidence only; never copy arguments or alter cleanup."""
+    tracer = _ACTIVE
+    if tracer is None:
+        return []
+    try:
+        now = tracer.clock()
+        active = tracer.snapshot()['active']
+        return [dict(operation=row['operation'], elapsed_ms=round(max(0, now - row['at_ns']) / 1e6, 3))
+                for row in active if row['operation'].startswith('shutdown.')][:8]
+    except Exception:
+        return []
 
 
 def _finish(tracer, token, error):

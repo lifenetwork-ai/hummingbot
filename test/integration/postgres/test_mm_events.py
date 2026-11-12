@@ -239,8 +239,9 @@ def test_large_page_has_constant_query_count(history):
     assert indexed(plan)
 
 
+@pytest.mark.parametrize('aged_during_startup', [False, True])
 @pytest.mark.asyncio
-async def test_live_liquidity_http_uses_published_snapshot_and_marks_owner_gap_unknown(history):
+async def test_live_liquidity_http_uses_published_snapshot_and_marks_owner_gap_unknown(history, monkeypatch, aged_during_startup):
     import json
     import time
     from test.hummingbot.strategy_v2.controllers.test_quote_guard import order
@@ -261,29 +262,73 @@ async def test_live_liquidity_http_uses_published_snapshot_and_marks_owner_gap_u
     session = store.update_mm_session(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=1,
                                       session_id=receipt['session_id'], generation=0,
                                       change=lambda session, now: session.ready(now=now, anchors={'life_spot': dict(life='.1', sources={})}))
-    now = time.time()
+    clock_start = time.monotonic()
     market = SimpleNamespace(in_flight_orders={
         'bid': order(identity='bid', price='.099', amount='10'),
         'ask': order(identity='ask', side=TradeType.SELL, price='.101', amount='10')})
     quotes = dict(own_quotes(market, 'LIFE-USDT', max_orders=20), valid=True, eligible=True, reason_code=None, connector='okx', pair='LIFE-USDT')
-    frame = LiquidityObserver().observe(dict(session_id=session.id, generation=0, profile_id='sideways', started_at=session.started_at),
-                                        {'spot': quotes}, now=now, monotonic_now=0, owner_generation=owner.generation)
-    status = json.loads(json.dumps(dict(mm_session=session.model_dump(mode='json'), mm_liquidity=frame), default=str))
-    assert store.publish(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=1, status=status, save_balances=False)
+    observer = LiquidityObserver()
+
+    def publish_live():
+        # The integration job runs Python on the host and PostgreSQL in Docker.
+        # Use one wall clock for fixture freshness; clock-skew rejection has its
+        # own boundary tests. Publish after server setup and before each read,
+        # just as a live owner keeps updating its observable state.
+        now = float(store.read()['database_now'])
+        frame = observer.observe(dict(session_id=session.id, generation=0, profile_id='sideways', started_at=session.started_at),
+                                 {'spot': quotes}, now=now, monotonic_now=time.monotonic() - clock_start,
+                                 owner_generation=owner.generation)
+        status = json.loads(json.dumps(dict(mm_session=session.model_dump(mode='json'), mm_liquidity=frame), default=str))
+        assert store.publish(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=1, status=status, save_balances=False)
+
+    publish_live()
     settings = AdminSettings(True, 'operator', 'offline-admin', basic_auth_enabled=True)
     app = web.Application(middlewares=[admin_middleware(settings)])
     AdminAPI(SimpleNamespace(store=store), settings, catalogue=catalogue).register(app)
-    try:
-        async with TestClient(TestServer(app), headers={'Authorization': BasicAuth('operator', 'offline-admin').encode()}) as client:
-            for _ in range(10):
-                response = await client.get(ADMIN_PREFIX + '/statistics/liquidity?market=spot')
-                body = await response.json()
-                assert response.status == 200 and body['state'] == 'observed' and body['markets']['spot']['bid_notional'] == '0.990', body
+    freshness = []
+    from hummingbot.core.mm_liquidity import _liquidity_view
+
+    def inspect_freshness(row, **kwargs):
+        snapshot = (row.get('status') or {}).get('mm_liquidity') or {}
+        current = row.get('mm_session') or {}
+        freshness.append(dict(database_now=float(row['database_now']), host_now=time.time(),
+                              heartbeat_age_s=float(row['heartbeat_age_s']) if row.get('heartbeat_age_s') is not None else None,
+                              snapshot_age_s=float(row['database_now']) - snapshot.get('observed_at', 0),
+                              owner_present=bool(row.get('owner_uuid')),
+                              snapshot_session=snapshot.get('session_id'), current_session=current.get('id'),
+                              snapshot_generation=snapshot.get('generation'), current_generation=current.get('generation')))
+        return _liquidity_view(row, **kwargs)
+
+    if aged_during_startup:
+        start_server = TestServer.start_server
+
+        async def delayed_start(server, *args, **kwargs):
+            await start_server(server, *args, **kwargs)
+            # Simulate six seconds of setup without sleeping or weakening the
+            # actual freshness check. The API should still receive a new owner
+            # publication before the test asks it to prove live quote visibility.
             with store.engine.begin() as connection:
-                connection.execute(text("UPDATE bot_state SET heartbeat=clock_timestamp()-interval '10 seconds'"))
-            response = await client.get(ADMIN_PREFIX + '/statistics/liquidity')
-            body = await response.json()
-            assert body['state'] == 'unavailable' and body['markets']['spot']['bid_notional'] is None
+                connection.execute(text("UPDATE bot_state SET heartbeat=clock_timestamp()-interval '6 seconds', "
+                                        "status=jsonb_set(status,'{mm_liquidity,observed_at}', "
+                                        "to_jsonb(EXTRACT(EPOCH FROM clock_timestamp())-6))"))
+
+        monkeypatch.setattr(TestServer, 'start_server', delayed_start)
+
+    try:
+        with patch('hummingbot.core.mm_liquidity._liquidity_view', side_effect=inspect_freshness):
+            async with TestClient(TestServer(app), headers={'Authorization': BasicAuth('operator', 'offline-admin').encode()}) as client:
+                for _ in range(10):
+                    publish_live()
+                    response = await client.get(ADMIN_PREFIX + '/statistics/liquidity?market=spot')
+                    body = await response.json()
+                    if body['state'] != 'observed':
+                        print('LIQUIDITY_FRESHNESS_FAILURE', json.dumps(freshness, default=str))
+                    assert response.status == 200 and body['state'] == 'observed' and body['markets']['spot']['bid_notional'] == '0.990', (body, freshness)
+                with store.engine.begin() as connection:
+                    connection.execute(text("UPDATE bot_state SET heartbeat=clock_timestamp()-interval '10 seconds'"))
+                response = await client.get(ADMIN_PREFIX + '/statistics/liquidity')
+                body = await response.json()
+                assert body['state'] == 'unavailable' and body['markets']['spot']['bid_notional'] is None, (body, freshness)
     finally:
         owner.release()
 

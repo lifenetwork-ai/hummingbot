@@ -130,11 +130,43 @@ is part of this implementation.
 - [x] Deploy the candidate with diagnostics explicitly enabled and retain actual
   bounded timing/stack packets. Revision116 confirms SQL hooks are attached;
   initial stacks include startup import and synchronous SQL receipt persistence.
-- [ ] Resolve revision116's profile-switch/drained-fence incident, then correlate
-  the remaining slow episodes and repeat the original connected quote target.
+- [x] Deploy the verified drained-fence successor correction. Revision117 clears
+  the old fence on control84 and returns to quotes again after its next scheduled
+  profile change; no manual DB/reset operation. Retain3 unknown samples per market
+  in the additional101-sample short observation, not a30-minute target pass.
+- [ ] Investigate the original8-second cleanup timeout, remaining probe episodes
+  and the broad-suite liquidity failure, then repeat the unchanged connected target.
 
 Local qualification:3,523 tests plus16 subtests,62 related PostgreSQL tests and
 both packaged hedge-leg scenarios pass. The final diagnostic image also passes
 the unchanged300-second load budgets at2CPU/1GiB:300 matching fills, both-leg
 closes and verified flat managed-key cleanup. This remains scoped offline
 acceptance; see the [qualification record](../../reports/performance/mm-quote-replacement-latency.md#terminal-publication-and-production-diagnostics-follow-up).
+
+## Shutdown/freshness follow-up
+
+- [x] Capture freshness evidence at the API's exact read. Retain the original
+  liquidity failure and the subsequent cold credential-status failure.
+- [x] RED a delayed HTTP-server setup: snapshot/heartbeat6.0048s old correctly
+  produces unavailable. Refresh fixture publications after setup using the DB
+  clock; keep stale heartbeat, future timestamps and exact5s boundary coverage.
+  This proves fixture fragility, not the unrecorded predicate in the first failure.
+- [x] RED cross-connector proof starvation with eight tracked orders. Share the
+  existing three read slots across connectors; retain fresh proof before/after
+  checkpoint and cancel/drain siblings on any failed/canceled proof.
+- [x] RED bounded shutdown-stage evidence and verify each waiting stage keeps
+  the fence, including an actual8s deadline with eight tracked orders. Preserve
+  deadline, financial, owner and risk checks; this is not a retroactive unique
+  explanation of revision116's timeout.
+- [x] Reproduce the regression-discovered executor ID collision by fixing the
+  old five-digit nonce. New IDs use128-bit entropy with the same wire format;
+  serialized/explicit historical IDs remain unchanged. Queue-bound assertions
+  remain100, not an adjusted expectation for collisions.
+- [x] Complete the unchanged30-minute baseline on deployed revision117:
+  901 samples, quality pass, target fail (Spot98.36%, perpetual97.58%). Keep
+  all unknowns/guards and the original classifier. No manual reset or Cloud write.
+- [x] Finish final-image LONG/SHORT qualification, then commit the reviewed local
+  changes and their exact evidence. The local image is not the Cloud117 artifact.
+- [ ] Deploy the qualified changes and repeat connected qualification. The
+  original8s incident still needs stage evidence if it recurs; the baseline
+  quote gate remains open. See the [follow-up evidence](../../reports/performance/mm-quote-replacement-latency.md#shutdown-proof-sharing-freshness-fixtures-and-executor-identity).

@@ -344,6 +344,7 @@ class StrategyV2Base(StrategyPyBase):
                 for action in executor_actions:
                     self.executor_orchestrator.execute_action(action)
 
+    @trace_runtime('shutdown.strategy')
     async def on_stop(self, *, shutdown_timeout: Optional[float] = None, keep_position: bool = False,
                       before_position_checkpoint: Optional[Callable] = None):
         """
