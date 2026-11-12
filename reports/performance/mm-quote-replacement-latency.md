@@ -1,6 +1,11 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
-Status: revision112 includes the post-only CLOSE correction and native readback
+Connected status: revision118/1e5d15bda completes897 samples with quality pass
+and the original99% gate failed (Spot94.50%, perpetual94.03%). No ERROR/restart/
+shutdown timeout is observed; probe and API latency tails remain. The native
+position-poll scheduling correction below is locally qualified, not deployed.
+
+Earlier: revision112 includes the post-only CLOSE correction and native readback
 confirms fresh-price replacement. Its completed901-sample window still fails99%
 (Spot86.84%, perpetual94.74%). Probe causality remains open. See the
 [connected acceptance and follow-up](../demo/cloudrun-quote-replacement-acceptance.md).
@@ -266,3 +271,49 @@ Evidence/source identities and intermediate artifacts are under
 `/tmp/hbot-shutdown-proof-identity-native-final.log`,
 `/tmp/hbot-proof-pool-postgres-final.log` and
 `/tmp/hbot-shutdown-proof-identity-postgres-final.log`.
+
+
+## Native position-poll scheduling follow-up
+
+The revision118 connected window remains a failed quote gate; its exact counts,
+probe correlations, API tail and three successful scheduled shutdowns are in the
+[connected record](../demo/cloudrun-quote-replacement-acceptance.md#revision118-connected-window-and-position-poll-follow-up).
+No failed or guard-constrained sample is removed to improve that result.
+
+A local RED test uses the native connector poll with history deliberately waiting.
+The first positions read completes, then the controller requests a fresh read as
+its snapshot expires. The existing general notifier is already set; because the
+poll waits for all four account branches, the second position read cannot run.
+This is a scheduling mismatch with close-first freshness requirements. It does
+not establish the sole cause of every unavailable position or Cloud probe.
+
+The correction adds one coalescing event serviced inside that same native poll.
+History, order status and balance run once; positions can be read again while
+those branches await IO. Position reads remain sequential, and requests arriving
+during a read remain pending for one follow-up. There is no second persistent
+poll worker or REST in controller/send gates. Failure and cancellation cancel
+and await every child task. Native response success, WS-version fencing, absence
+proof, age thresholds and all financial/owner/quantity/price rules are retained.
+
+Five new native tests cover blocked history, in-flight request bursts and both
+reader-failure and cancellation cleanup. The RED remains in
+`/tmp/hbot-position-poll-starvation-red.log`. Final unchanged canonical regression
+passes3,541 tests plus16 subtests;35 focused cases overlap this total. Logs:
+`/tmp/hbot-native-position-poll-final.log` and
+`/tmp/hbot-position-poll-starvation-green.log`. Hooks pass.
+
+Final amd64 image
+`sha256:9cf62faa837a1fce9bcbe2ef02c7a3b67bdf85f602388c6e7f569b759b6d7c36`
+matches8 relevant runtime sources. Packaged LONG/SHORT pass on this exact image,
+including lost ACK, partial application once, original fees, fee outage/recovery,
+maker replacement and cold restart. Receipts:
+`build/e2e-offline/20261112-183259-20b023/result.json` and
+`build/e2e-offline/20261112-183259-950bdc/result.json`; manifest
+`sha256:f1d605bbdd03e5f7a138d5e61e76d31838497ccea79c75a53e3adc5552771d97`.
+This is scoped simulator/local-encryption qualification, not a new full load/soak,
+real Google/GCP KMS or fresh per-fill OKX REST reconciliation.
+
+Evidence/source identities are under
+`build/revision118-quote-qualification-20261112/`. This correction is local;
+revision118 still runs1e5d15bda. No new env setting is required. Deploy the
+correction and repeat the original connected target before claiming improvement.

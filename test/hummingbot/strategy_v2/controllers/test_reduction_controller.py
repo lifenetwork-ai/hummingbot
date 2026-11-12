@@ -33,6 +33,10 @@ def maker(long='0', short='0', *, levels=1, **updates):
     controller, _ = make_controller(configuration(**values))
     connector = controller.market_data_provider.get_connector_with_fallback.return_value
     connector.name, connector.position_mode = 'okx_perpetual', PositionMode.HEDGE
+    from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
+    connector._poll_notifier = asyncio.Event()
+    connector._position_refresh_notifier = asyncio.Event()
+    connector.request_position_refresh.side_effect = lambda: OkxPerpetualDerivative.request_position_refresh(connector)
     connector.position_snapshot_times = {'BTC-USDT': 1000}
     connector.position_observations = {}
     connector.account_positions = {}

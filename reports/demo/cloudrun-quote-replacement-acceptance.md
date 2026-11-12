@@ -1,6 +1,13 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest: revision117/`5c36bb7bd` has a completed901-sample baseline. Observation
+Latest: revision118/`1e5d15bda` completes897 samples on one revision/session.
+Observation quality passes, but the unchanged99% target fails: Spot94.50%,
+perpetual94.03%. Three profile changes finish without ERROR, restart or shutdown
+timeout; transient fences and unavailable data remain failing unknown samples.
+A separately reproduced position-poll scheduling defect is fixed and qualified
+locally, not deployed. See [revision118 results](#revision118-connected-window-and-position-poll-follow-up).
+
+Earlier: revision117/`5c36bb7bd` has a completed901-sample baseline. Observation
 quality passes, but the unchanged99% target fails: Spot98.36%, perpetual97.58%.
 No manual reset, ERROR, engine restart or8s shutdown timeout occurs in this
 window; temporary shutdown fences remain failing unknown samples. Local proof
@@ -8,6 +15,82 @@ sharing, executor-identity and freshness-fixture changes are separately qualifie
 not deployed. See [baseline results](#revision117-thirty-minute-baseline-during-local-follow-up).
 Revision112's completed verification and the revision111 record below remain
 historical, with their original failed99% quote gates and scope limits intact.
+
+## Revision118 connected window and position-poll follow-up
+
+Revision `hummingbot-demo-00118-8f9` is Ready with100% traffic. Cloud Build
+`f9ec05e4-e048-4899-943d-c762dd160e30` succeeds for commit
+`1e5d15bda8bab72ce6169b49afb6b9df12206461`; the registry commit tag resolves to
+the deployed digest
+`sha256:93be0c5cac8d0e0a9af1a21c63ea4d9b775513a11f932e74bb9c27df9b7af43a`.
+Diagnostics remain enabled. This is the shutdown-proof/identity candidate,
+not the subsequent local position-poll correction.
+
+Measurement11:13:02.150893–11:43:03.385118UTC (18:13–18:43 local) retains897
+samples across generations66–69 on one session and control84. Wall span1,801.234s,
+maximum sample gap7.933s, zero API read errors. The original classifier hash
+`ce60b823674db68a850cafd03fe7e90d77dc8cd0484716bee31b315e6a03e753` and its
+guard/unknown rules are unchanged. Quality passes; quote qualification fails.
+
+| Market | Two-sided | Eligible gap | Unknown | Guard excluded | Conservative result |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Spot |515|20|10|352|515/545=94.50%, fail |
+| Perpetual |787|36|14|60|787/837=94.03%, fail |
+
+All three scheduled profile changes return to running. Three raw HALT samples
+around the changes remain unknown, rather than being removed as expected
+fencing. Forty-five samples are waiting for readiness. For example,
+11:17:24–11:17:42UTC shows `reduction_position_unavailable` withdrawing both
+markets; both have working quotes again in the11:17:48 sample. The API check at
+11:44:31UTC is again waiting on that reason, error null, HALT/pending false.
+The engine is available; this is not uninterrupted two-sided quoting.
+
+The exact-window query returns141 WARNING records, below its1,000 limit:
+37 supervisor timeout transitions,34 diagnostic stall/recovery pairs and25
+slow-stage packets, with zero ERROR, child restart or shutdown-deadline events.
+The three observed shutdown totals are1.926s,2.928s and2.508s; proof-before spans
+are1.175s,2.121s and1.854s. These are individual observed durations, not a p99
+or proof of the unique cause of revision116's historical8s incident.
+
+Of37 probes,11 have a sampled stall within2s;14 have nearby two-sided samples
+within4s. Neither proves continuous operation throughout a probe interval.
+In-window sampled maxima include controller7.71ms, tick265.28ms, reports356.99ms,
+SQL215.63ms and guarded order submission2.592s. Packet retention/rate limits do
+not produce a complete per-operation latency distribution. Startup cycle5.17s
+and tick307.73ms from earlier packets are outside this window and excluded.
+
+Client-observed API latency also has a tail: status p99/max0.966/6.921s,
+liquidity1.412/5.707s. The longest status read starts11:40:53.014UTC and returns
+11:40:59.935 with database `server_time`11:40:53.196. This does not localize the
+delay between DB observation, API completion, transport and client scheduling.
+The old observation remains unknown at receipt; it is not refreshed or excluded.
+
+The local RED test blocks native history while its first position read completes:
+a later controller refresh is not serviced until history finishes. The existing
+account poll waits for all four branches and its general notifier is already set.
+The correction adds a coalescing position request serviced by that same poll
+while other branches wait; position reads remain sequential, other branches run
+once, and errors/cancellation drain every child. Native response/WS-race proof,
+freshness, owner, financial, cap and pricing rules remain unchanged. This proves
+an avoidable scheduling dependency, not that every Cloud gap has this cause.
+
+Local qualification:3,541 native tests plus16 subtests, including five new native
+poll tests; the35 focused cases overlap that total. Final amd64 image
+`sha256:9cf62faa837a1fce9bcbe2ef02c7a3b67bdf85f602388c6e7f569b759b6d7c36`
+matches all8 relevant runtime sources. Packaged LONG and SHORT pass partial
+application, lost ACK, fee outage/recovery, maker replacement and cold restart;
+evidence is `build/e2e-offline/20261112-183259-20b023/` and
+`build/e2e-offline/20261112-183259-950bdc/`, manifest
+`sha256:f1d605bbdd03e5f7a138d5e61e76d31838497ccea79c75a53e3adc5552771d97`.
+This is scoped simulator/local-encryption qualification, not a new full soak,
+real Google/GCP KMS or per-fill OKX REST reconciliation. No Cloud configuration,
+trading command, DB repair, credential or risk mutation was issued in this run.
+
+Retained evidence: `build/revision118-quote-qualification-20261112/`, including
+raw samples, unchanged classifier, exact-window logs, timing correlations and
+the separate local source/qualification identities. Next: deploy the local poll
+correction and repeat connected qualification; investigate the API tail and
+remaining replacement gaps without changing the original target.
 
 ## Revision117 thirty-minute baseline during local follow-up
 

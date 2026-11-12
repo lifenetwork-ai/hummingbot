@@ -167,6 +167,25 @@ acceptance; see the [qualification record](../../reports/performance/mm-quote-re
   all unknowns/guards and the original classifier. No manual reset or Cloud write.
 - [x] Finish final-image LONG/SHORT qualification, then commit the reviewed local
   changes and their exact evidence. The local image is not the Cloud117 artifact.
-- [ ] Deploy the qualified changes and repeat connected qualification. The
-  original8s incident still needs stage evidence if it recurs; the baseline
-  quote gate remains open. See the [follow-up evidence](../../reports/performance/mm-quote-replacement-latency.md#shutdown-proof-sharing-freshness-fixtures-and-executor-identity).
+- [x] Deploy the qualified changes as revision118/1e5d15bda and repeat the
+  unchanged connected window:897 samples, quality pass, target fail
+  (Spot94.50%, perpetual94.03%). Retain all failed samples and the API latency tail.
+- [ ] Meet the unchanged99% target after follow-up deployment. The original8s
+  incident still has no retrospectively proved unique cause. See the
+  [connected evidence](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision118-connected-window-and-position-poll-follow-up).
+
+## Native position-poll scheduling follow-up
+
+- [x] RED a full account poll whose history remains pending after positions
+  completes. A later stale-position refresh must run before history completes.
+- [x] Service a coalescing position event inside the existing native poll.
+  Keep one sequential position reader; do not repeat history/status/balance
+  reads for each position request or create another persistent poll worker.
+- [x] Cover requests during an in-flight position read, burst coalescing,
+  history/position failure and parent cancellation with complete child drain.
+  Preserve native snapshot/WS-version proof and freshness/cap/financial rules.
+- [x] Qualify3,541 native tests plus16 subtests and final-image LONG/SHORT
+  packaged cases, including partial fills and cold restart. Scope and artifacts
+  are in the [local follow-up record](../../reports/performance/mm-quote-replacement-latency.md#native-position-poll-scheduling-follow-up).
+- [ ] Deploy the poll correction and repeat connected quote/latency qualification.
+  This local scheduling proof does not identify every live probe/API delay.

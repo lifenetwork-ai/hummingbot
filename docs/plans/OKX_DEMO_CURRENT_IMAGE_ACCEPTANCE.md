@@ -1,6 +1,14 @@
 # OKX Demo and current offline image acceptance
 
-Latest 2026-11-12: revision117/5c36bb7bd clears the old shutdown fence and
+Latest 2026-11-12: revision118/1e5d15bda completes897 samples on one
+revision/session. Quality passes; the unchanged99% quote gate fails
+(Spot94.50%, perpetual94.03%). Three profile changes complete without observed
+ERROR/restart/shutdown timeout. The separately reproduced native position-poll
+scheduling correction is locally qualified, not deployed; probe/API delay and
+connected acceptance stay open. See the
+[revision118 record](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision118-connected-window-and-position-poll-follow-up).
+
+Earlier 2026-11-12: revision117/5c36bb7bd clears the old shutdown fence and
 returns to quotes, then recovers quotes after its next scheduled profile change.
 This is scoped verification: unavailable/guard samples, original cleanup timing,
 the liquidity test failure and the30-minute quote gate remain open. See

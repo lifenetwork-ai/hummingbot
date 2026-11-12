@@ -71,6 +71,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         self.position_observations = {}
         self.position_snapshot_times = {}
         self._position_event_versions = {}
+        self._position_refresh_notifier = asyncio.Event()
 
         super().__init__(balance_asset_limit, rate_limits_share_pct)
 
@@ -596,13 +597,46 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                 self.logger().exception("Unexpected error in user stream listener loop.")
                 await self._sleep(5.0)
 
+    def request_position_refresh(self):
+        """Coalesce a position read on the existing native account poll."""
+        pending = self._position_refresh_notifier.is_set()
+        self._position_refresh_notifier.set()
+        self._poll_notifier.set()
+        return not pending
+
     async def _status_polling_loop_fetch_updates(self):
-        await safe_gather(
-            self._update_trade_history(),
-            self._update_order_status(),
-            self._update_balances(),
-            self._update_positions(),
-        )
+        # A slow history/status read must not hold position freshness hostage.
+        # Keep one native poll and one position reader; a request during that
+        # read remains set for the next iteration. Other account reads run once.
+        updates = [asyncio.create_task(operation()) for operation in (
+            self._update_trade_history, self._update_order_status, self._update_balances)]
+        account = asyncio.gather(*updates)
+        position = requested = None
+        try:
+            while True:
+                self._position_refresh_notifier.clear()
+                position = asyncio.create_task(self._update_positions())
+                await asyncio.wait((account, position), return_when=asyncio.FIRST_COMPLETED)
+                if account.done():
+                    await account  # Propagate failures without stranding a position read.
+                await position
+                if self._position_refresh_notifier.is_set():
+                    continue
+                if account.done():
+                    return
+                requested = asyncio.create_task(self._position_refresh_notifier.wait())
+                await asyncio.wait((account, requested), return_when=asyncio.FIRST_COMPLETED)
+                requested.cancel()
+                await asyncio.gather(requested, return_exceptions=True)
+                if account.done():
+                    await account
+                    if not self._position_refresh_notifier.is_set():
+                        return
+        finally:
+            children = updates + [account] + [task for task in (position, requested) if task is not None]
+            for task in children:
+                task.cancel()
+            await asyncio.gather(*children, return_exceptions=True)
 
     async def _update_trade_history(self):
         """

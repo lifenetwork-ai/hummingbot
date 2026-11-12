@@ -128,13 +128,10 @@ class PerpetualReductionMixin:
         if (isinstance(stamp, (int, float)) and not isinstance(stamp, bool) and math.isfinite(stamp)
                 and 0 <= now - stamp <= float(self.config.max_data_age_seconds) / 2):
             return False
-        notifier = connector._poll_notifier
-        if not isinstance(notifier, asyncio.Event):
+        request = connector.request_position_refresh
+        if not callable(request):
             raise ValueError('reduction_position_unavailable')
-        if notifier.is_set():
-            return False
-        notifier.set()
-        return True
+        return request()
 
     async def poll_reduction_positions(self):
         while True:
