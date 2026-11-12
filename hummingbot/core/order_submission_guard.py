@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 from hummingbot.client.config.runtime_config import postgres_requested
+from hummingbot.core.engine_diagnostics import trace_runtime
 
 _guard = None
 SUPPORTED_CONNECTORS = ("okx", "okx_perpetual")
@@ -130,6 +131,7 @@ def managed_terminal_order(order):
     return postgres_requested() and _guard is not None and getattr(order, '_managed_recovery_order', False) is True
 
 
+@trace_runtime('order.proof', order_parameter='order')
 async def verify_terminal_update(connector, order, update):
     return await _guard.automatic_recovery.terminal_update(connector, order, update)
 

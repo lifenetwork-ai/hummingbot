@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 from sqlalchemy import select, text, update
 
+from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.core.order_submission_guard import (
     SUPPORTED_CONNECTORS,
     MarketReadinessBlocked,
@@ -186,6 +187,7 @@ class BotOwnership:
         self.config_file_path = config_file_path
         self._mutate_recovery(lambda state: state.update(runtime_active=True))
 
+    @trace_runtime('owner.read')
     def _read_owner(self, *, identity_only=False):
         """Fresh proof on the physical owner session; writes need no state JSON."""
         connection = self.connection

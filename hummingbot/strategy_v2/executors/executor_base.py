@@ -7,6 +7,7 @@ from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.core.data_type.common import OrderType, PositionAction, PriceType, TradeType
 from hummingbot.core.data_type.order_candidate import OrderCandidate
+from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.core.event.event_forwarder import SourceInfoEventForwarder
 from hummingbot.core.event.events import (
     BuyOrderCompletedEvent,
@@ -167,13 +168,20 @@ class ExecutorBase(RunnableBase):
         super().start()
         self.register_events()
 
+    @trace_runtime('executor.terminal')
     def stop(self):
         """
         Stops the executor and unregisters the events.
         """
+        was_closed = self.is_closed
         self.close_timestamp = self._strategy.current_timestamp
         super().stop()
         self.unregister_events()
+        if (not was_closed and isinstance(getattr(self.config, 'mm_session_id', None), str)
+                and isinstance(getattr(self.config, 'mm_generation', None), int)):
+            notify = getattr(self._strategy, 'notify_executor_terminated', None)
+            if callable(notify):
+                notify(self)
 
     async def on_start(self):
         """

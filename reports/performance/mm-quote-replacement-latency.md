@@ -1,8 +1,8 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
-Status: revision111 resolves the50037 block and is trading continuously. Its
-completed30-minute quote window fails99%. A separate post-only CLOSE retry bug
-has a tested local correction, not yet deployed. See the
+Status: revision112 includes the post-only CLOSE correction and native readback
+confirms fresh-price replacement. Its completed901-sample window still fails99%
+(Spot86.84%, perpetual94.74%). Probe causality remains open. See the
 [connected acceptance and follow-up](../demo/cloudrun-quote-replacement-acceptance.md).
 The local and historical artifact results below retain their own scope.
 
@@ -113,3 +113,72 @@ Test logs are retained at `/tmp/hbot-quote-expiry-regression-final.log`,
 `/tmp/hbot-expiry-recovery-complete-r2.log`,
 `/tmp/hbot-quote-expiry-postgres-final.log` and
 `/tmp/hbot-profile-trace-field-green.log`. The pre-commit checks pass.
+
+## Terminal publication and production diagnostics follow-up
+
+This additional patch is locally qualified and has not been deployed. It does
+not replace revision112's failed connected quote target or establish a unique
+production probe root cause.
+
+A managed executor's terminal notification now schedules the existing strategy
+report path after a50ms coalescing window, without waiting for another engine
+tick. Native financial/checkpoint application still precedes controller
+publication. Failed application retains the reservation and uses the ordinary
+report retry. A queued callback rechecks session/generation, excludes inherited
+retired-order/cleanup authority and is consumed by an intervening report or
+canceled on shutdown. No independent writer or submission authority is added.
+
+`ENGINE_DIAGNOSTICS_ENABLED` defaults to false; explicitly set it true on a new
+Cloud Run revision to collect production evidence. The optimization works with
+the flag off. Bounded WARNING packets correlate heartbeat, controller/report,
+submission/cancel/proof/terminal, checkpoint, ownership and SQL cursor stages.
+They contain hashed identities and sanitized stack summaries, without SQL,
+parameters, credentials or locals. Network wait and loop-stall warnings have
+separate budgets. Capture races and lifetime maxima remain explicit limitations;
+SQL cursor timings exclude connection checkout and COMMIT. Telemetry failure
+cannot replace a business return/exception or prevent healthy engine startup.
+See [deployment settings](../../docs/cloudrun.md#opt-in-engine-timing-diagnostics).
+
+Qualification of the final source:
+
+- Native regression:3,523 tests plus16 subtests pass. Related PostgreSQL selection:
+  62 pass, including two real diagnostic/ownership/transaction tests; those two
+  also pass a final rerun and are not counted twice. The full PostgreSQL suite
+  was not repeated in this follow-up. RED evidence includes terminal publication,
+  retired context inheritance, healthy-heartbeat slow stages and constructor
+  failure; it is retained alongside the passing runs.
+- Final amd64 image
+  `sha256:1840a4093123fae8df103b7d5b1b561a1dd44aec6654ddabc9ac6f0986f56219`
+  matches all12 changed runtime source files. Packaged LONG and SHORT cases pass
+  with diagnostics enabled: passive repricing after native post-only cancellation,
+  partial application once, lost ACK without duplicate POST, cold restart, fee
+  outage/recovery and full close returning to OPEN. Evidence:
+  `build/e2e-offline/20261112-152719-28e65c/` and
+  `build/e2e-offline/20261112-152719-47adbf/`; registry manifest
+  `sha256:d9a2cd6ada9379819afdca07d0b22b98f80df751fab326deb2f33ed46236ed55`.
+- The same final image passes a300-second diagnostic load with2CPU/1GiB and
+  100,000 historical orders/fills. All6,000 primary and600 auxiliary reads
+  succeed,20 primary reads/s,100.00 market updates/s and1 fill/s. Primary read
+  p95=68.46ms/p99=564.64ms; peak reported working-set RSS=776,470,528 bytes.
+  All300 measured native fills match the recorder, positions match, two funding
+  bills are identified and four closing fills cover both hedge legs. Cleanup
+  adds its separate fill, deduplicates301 total fills/fees and verifies flat
+  exposure. Budget violations and unexpected HTTP errors are zero. Evidence:
+  `build/mm-load/20261112-152927-1c7d3a/`.
+- Diagnostic packets are emitted by the packaged engine, including SQL hooks.
+  Across the complete load container lifetime, including preparation/cleanup,
+  there are seven stall/recovery pairs and seven slow-stage packets. Both hedge
+  E2Es each record two pairs and two slow-stage packets. Largest decoded packet
+  is22,898 bytes, within24KB. These are local observations under amd64 emulation
+  on arm64, not Cloud probe counts, a production latency comparison or evidence
+  of continuous quoting during each gap.
+- A synthetic empty-call microbenchmark reports an approximately128ns disabled
+  wrapper increment and7.88microseconds total enabled call time. This establishes
+  only instrumentation cost in that microbenchmark, not MM latency or a p99 gate.
+
+The qualification index, runtime source identity and overhead measurements are
+under `build/mm-runtime-diagnostics-20261112/`. This uses an isolated exchange,
+signed offline Google identities and local key encryption. It does not close a
+full soak, actual Google/GCP KMS, or the original connected thirty-minute99%
+quote gate. Next: deploy the patch with the diagnostic flag enabled, correlate
+real supervisor timeouts and repeat that unchanged connected target.

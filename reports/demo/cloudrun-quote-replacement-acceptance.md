@@ -1,6 +1,11 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Revision111 (`hummingbot-demo-00111-s7c`) runs commit `d8f90c13b`, image
+Latest: revision112/`1c1fa280a` has deployed and its connected verification is
+complete. The post-only correction is observed natively; the99% quote gate still
+fails. See [revision112 results](#revision112-post-only-correction-deployed).
+The revision111 record below is historical and retains its original scope.
+
+Earlier revision111 (`hummingbot-demo-00111-s7c`) runs commit `d8f90c13b`, image
 `sha256:b1a94a1934773b8aef811b2bc905bba1ec384d962af969a3b5bfc065f1820870`,
 with100% traffic,2CPU/1GiB, CPU throttling disabled and min/max1 instance.
 The old50037 startup block is resolved. The bot is left running continuously
@@ -124,6 +129,128 @@ Candidate SHORT/LONG passes are
 Local logs: `/tmp/hbot-live-cancel-regression.log`,
 `/tmp/hbot-managed-live-cancel-postgres.log` and the corresponding E2E logs.
 
-Next: commit/push the local CLOSE-cancel correction, verify the next CI revision,
-then repeat the unchanged quote target. Keep the99% gate open. Broader connected
+At that earlier cutoff, the next step was committing/deploying the CLOSE-cancel
+correction and repeating the unchanged target; revision112 results follow below. Keep the99% gate open. Broader connected
 fault injection and real Google/GCP KMS acceptance retain their prior scope.
+
+## Revision112: post-only correction deployed
+
+`hummingbot-demo-00112-zjc` receives100% traffic. Registry image
+`sha256:563a8962b8df3eeb90367941150d15b93d8a5b780102fa18b411ae950f795fa3`
+has amd64 config label `commit=1c1fa280a1261ffb1282a6d9fa9a4984cd060344`.
+The physical owner485, session and control84 remain unchanged throughout the
+new window. No Cloud service/DB/risk/credential change, manual Start, reset or
+forced fill was performed. The bot is left running in Demo, `until_stopped`.
+
+### Native correction and money checks
+
+A fixed owner485 cohort contains104 CLOSE submissions from104 executors.
+Individual native GETs match all104 orders. Five native `cancelSource=31` cases
+are followed by a different executor and a changed price at the same level/session.
+Venue-to-venue replacement intervals are762–7,363ms. Three immediate replacements
+fill, one is later normally canceled, and one gets another post-only cancel
+before the following fresh-price attempt fills. These intervals are not a p99
+or a promise that every new attempt immediately rests on the book.
+The final owner485 readback has269 managed CLOSE submissions from269 executors;
+maximum orders per executor is one. The nineteen-attempt same-executor loop
+observed on revision111 is absent in this bounded readback.
+
+Two complete authenticated scans verify2,695 fills at the07:40UTC cutoff:
+1,358 Spot and1,337 perpetual. Original fee currencies/amounts, execution IDs,
+price/quantity and account bindings match. Stable held/native SHORT is0.0184BTC,
+LONG is zero, and there are no unapplied fills at that exposure check. Pending
+native post-only orders are Spot2/perpetual4 and match their local intents.
+
+Independent replay keeps all1,805 accepted baseline fills unchanged. The890
+subsequent fills and880 applied-order receipts reproduce settled financial rows
+and remaining principal/opening fees exactly; the final snapshot has zero
+unsettled fills. There are89 owner485 SHORT close fills, each covering allocated
+opening principal/fees and actual closing fees. The timestamp-only post-readiness
+count is91, including two prior-owner handoff fills; it is not mislabeled as89
+new-owner fills. Funding and account-wide mark-to-market remain separate.
+The earlier snapshot's one pending fill and the recorder timestamp limitation
+above are retained, not rewritten to obtain a pass.
+
+### Unchanged 30-minute quote gate
+
+Window07:10:26.580995–07:40:27.678542UTC:901 samples,1,801.098s,
+maximum sample gap2.493s, quality pass. The classifier is unchanged; unknown
+counts as failure and guards never count as working quotes.
+
+| Market | Both working | Eligible gap | Unknown | Guard excluded | Conservative result |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Spot |99|8|7|787|99/114 =86.84%, fail |
+| Perpetual |793|35|9|64|793/837 =94.74%, fail |
+
+Spot has only107 confirmed eligible samples; many exclusions are intentional
+inventory skew reducing BUY to zero (`order_size_rejected`). One captured account
+base share is50.1785%, with BUY multiplier0 and SELL multiplier2. The scope is
+account cash, not a claim that both sides are continuously tradable. No inventory
+policy was loosened. Perpetual improves from87.89% to94.74%, whereas Spot falls
+from93.46% to86.84%. This is not a controlled A/B experiment: inventory, market
+movement and observer traffic differ. The supplementary cached `/performance`
+GET, once per2s, begins at07:23:32 and does not change the quote classifier.
+
+There are844 running,54 waiting-for-readiness and3 starting observations, with no
+status.error or observation request failure. Two raw HALT samples are the
+explicit `shutdown_pending` fence during profile changes; each clears in the next
+sample. Both remain unknown/failing samples. No incident HALT reset or physical
+owner restart occurs. Eligible gap clusters span1–3 samples (brackets up to4.01s
+Spot/6.02s perpetual), mostly submission, executor publication and confirmation.
+These are sampled brackets, not exact continuous gap durations.
+
+### Probe investigation remains open
+
+The exact window contains45 WARNING entries and no ERROR:35 engine-probe timeout
+transitions,3 missing-quote warnings,2 non-operator Spot outflow incidents, and5
+locally blocked-order log entries for3 order IDs during readiness recovery.
+The earlier07:08:50 ERROR falls outside this window,78.7ms after the stored
+`step_changed` event; the blocked order has no DB row. It is retained separately
+as a local submission fence around profile shutdown, not presented as a clean
+revision-wide ERROR-free run.
+
+Timeout elapsed values are300.789–304.098ms against a300ms supervisor budget.
+They are **deadline-censored waits**, not measured engine stall lengths.
+The35 versus38 warnings on revision111 do not establish a latency improvement.
+Status HTTP p99 is379.80ms, liquidity385.44ms (max871.88/650.37ms); those are
+external API observation timings, not local probe or order-placement latency.
+
+The `/live` callback checks in-memory lifecycle/observer progress and contains no
+SQL or venue request. Synchronous ownership/recorder work shares its engine loop;
+loop scheduling, accumulated DB waits, CPU/GIL bursts and transport scheduling
+remain candidate causes. No single blocking frame was captured here, so none is
+promoted to the established root cause.
+
+Thirty available one-minute resource points (ending07:11–07:40) show CPU means
+5.11–9.74% of the configured allocation and memory means47.47–48.71%. These
+coarse points show no sustained saturation; they cannot exclude short bursts.
+Recovery/session/status JSON sizes are1,461/5,426/15,522 bytes at the readback;
+these payloads do not show an expanding tracker in this snapshot.
+
+The supplementary509 report reads have no HTTP errors. Around18 overlapping
+probe timeouts,15 before/after pairs show fresh reports from both controllers
+advancing within adjacent2s reads. One other pair is a profile shutdown; two
+have unchanged yet fresh cached report timestamps. Those three are inconclusive,
+not healthy-tick proofs. There are19 stale controller observations (maximum age
+10.13s), including profile changes and a separate perpetual `guard_recovering`
+interval. They remain visibly stale. These observations demonstrate scoped MM
+report progress, not uninterrupted engine ticks or continuous working quotes.
+
+Read-only sink inspection confirms `drop-cloudrun-below-warning` still excludes
+this bot's INFO, including `child_probe_recovered`. Exact recovery durations
+cannot be reconstructed from missing INFO events. Logging configuration was not
+changed. Keep engine health on its loop; do not move it to an always-responsive
+thread or widen the300ms budget solely to remove these warnings.
+
+Remaining work is bounded timing/stack capture on actual slow-probe episodes,
+with tick/controller progress and native submission/cancellation/DB stages on
+the same clock, followed by TDD for any confirmed blocking path. The quote99%
+gate and the previously documented manual-recovery timestamp limitation remain
+open. This deployment check does not close full soak or production acceptance.
+
+Evidence: `build/cloudrun-post-only-close-20261112/` contains image/deployment
+proof, unchanged-classifier `window/` observations, exact-window logs, resource
+points, native/financial proof, CLOSE-executor counts and cached-report/probe
+correlation. Failed auxiliary history-reader scope/system-Python attempts are
+separate from the successful observer. No recovery-reader permissions were
+expanded; native cancellation proof uses permitted individual order GETs.

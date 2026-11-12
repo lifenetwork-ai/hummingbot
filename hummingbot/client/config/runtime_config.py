@@ -46,6 +46,7 @@ class RuntimeSettings:
     bot_id: str = DEFAULT_ENV_CONFIG["BOT_ID"]
     port: int = int(DEFAULT_ENV_CONFIG["PORT"])
     database_pool_size: int = int(DEFAULT_ENV_CONFIG["DB_POOL_SIZE"])
+    engine_diagnostics_enabled: bool = False
 
     @classmethod
     def from_environment(cls, environ: Optional[Mapping[str, str]] = None) -> "RuntimeSettings":
@@ -77,7 +78,9 @@ class RuntimeSettings:
         if not bot_id.strip() or len(bot_id) > 128:
             raise RuntimeConfigurationError("BOT_ID must contain 1–128 characters.")
         return cls(url, parse_boolean(values.get("ENABLE_AUTO_MIGRATION", DEFAULT_ENV_CONFIG["ENABLE_AUTO_MIGRATION"])),
-                   bot_id, port, pool_size)
+                   bot_id, port, pool_size, parse_boolean(values.get(
+                       'ENGINE_DIAGNOSTICS_ENABLED', DEFAULT_ENV_CONFIG['ENGINE_DIAGNOSTICS_ENABLED']),
+                       'ENGINE_DIAGNOSTICS_ENABLED'))
 
 
 def storage_backend(environ: Optional[Mapping[str, str]] = None) -> str:

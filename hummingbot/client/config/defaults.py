@@ -12,6 +12,7 @@ DEFAULT_ENV_CONFIG = MappingProxyType({
     "PORT": "8080",
     "LOG_FORMAT": "json",
     "LOG_LEVEL": "INFO",
+    "ENGINE_DIAGNOSTICS_ENABLED": "false",
     "ADMIN_API_ENABLED": "false",
     "ADMIN_BASIC_AUTH_ENABLED": "false",
     "ADMIN_GOOGLE_AUTH_ENABLED": "false",

@@ -3,6 +3,7 @@ import importlib
 import inspect
 import logging
 import os
+from contextvars import Context
 from decimal import Decimal
 from typing import Any, Callable, Dict, List, Optional, Set
 
@@ -20,6 +21,7 @@ from hummingbot.connector.utils import split_hb_trading_pair
 from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import MarketDict, PositionMode
 from hummingbot.core.data_type.limit_order import LimitOrder
+from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.core.event.events import OrderType, PositionAction
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.data_feed.market_data_provider import MarketDataProvider
@@ -203,6 +205,7 @@ class StrategyV2Base(StrategyPyBase):
     closed_executors_buffer: int = 100
     max_executors_close_attempts: int = 10
     config_update_interval: int = 10
+    MANAGED_REPORT_COALESCE_SECONDS = .05
 
     @classmethod
     def logger(cls) -> HummingbotLogger:
@@ -284,6 +287,8 @@ class StrategyV2Base(StrategyPyBase):
         self.controllers: Dict[str, ControllerBase] = {}
         self.controller_reports: Dict[str, Dict] = {}
         self.controller_reports_error = None
+        self._managed_report_handle = None
+        self._managed_report_pending = {}
         self.market_data_provider = MarketDataProvider(connectors)
         self._is_stop_triggered = False
         self._stop_triggered_before_cleanup = None
@@ -308,6 +313,7 @@ class StrategyV2Base(StrategyPyBase):
     # Shared methods (simple + V2 modes)
     # -------------------------------------------------------------------------
 
+    @trace_runtime('strategy.tick')
     def tick(self, timestamp: float):
         """
         Clock tick entry point, is run every second (on normal tick setting).
@@ -346,6 +352,10 @@ class StrategyV2Base(StrategyPyBase):
         if self._stop_triggered_before_cleanup is None:
             self._stop_triggered_before_cleanup = self._is_stop_triggered
         self._is_stop_triggered = True
+        if self._managed_report_handle is not None:
+            self._managed_report_handle.cancel()
+            self._managed_report_handle = None
+        self._managed_report_pending.clear()
 
         # Stop controllers FIRST to prevent new executor actions
         for controller in self.controllers.values():
@@ -767,11 +777,54 @@ class StrategyV2Base(StrategyPyBase):
             except Exception as e:
                 self.logger().error(f"Error executing action: {e}", exc_info=True)
 
+    def notify_executor_terminated(self, executor):
+        """Coalesce native managed completion; never publish inside an event callback."""
+        config = executor.config
+        controller = self.controllers.get(config.controller_id)
+        scope = (getattr(config, 'mm_session_id', None), getattr(config, 'mm_generation', None))
+        if (self._is_stop_triggered or not executor.is_closed or not isinstance(scope[0], str)
+                or not scope[0] or not isinstance(scope[1], int) or controller is None
+                or scope != (getattr(controller.config, 'mm_session_id', None),
+                             getattr(controller.config, 'mm_generation', None))
+                or not any(row is executor for row in self.executor_orchestrator.active_executors.get(config.controller_id, []))):
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return  # Synchronous backtests retain their ordinary clock publication.
+        if config.controller_id not in self._managed_report_pending and len(self._managed_report_pending) >= 64:
+            return  # Bounded notifications; the regular clock remains the fallback.
+        self._managed_report_pending[config.controller_id] = scope
+        if self._managed_report_handle is None:
+            # A one-shot window also batches ACKs arriving on adjacent loop turns;
+            # it does not add another periodic reporter or accelerate the clock.
+            self._managed_report_handle = loop.call_later(
+                self.MANAGED_REPORT_COALESCE_SECONDS, self._publish_managed_terminal_reports,
+                context=Context())  # Never carry a retired order/cleanup authority into report work.
+
+    def _publish_managed_terminal_reports(self):
+        self._managed_report_handle = None
+        pending, self._managed_report_pending = self._managed_report_pending, {}
+        if self._is_stop_triggered:
+            return
+        current = {key: (getattr(c.config, 'mm_session_id', None), getattr(c.config, 'mm_generation', None))
+                   for key, c in self.controllers.items()}
+        if any(current.get(key) == scope for key, scope in pending.items()):
+            # get_all_reports performs the unchanged native financial commit
+            # before any controller receives its report/event. Failure leaves
+            # capacity reserved and retries on the ordinary clock, not a busy loop.
+            self.update_executors_info()
+
+    @trace_runtime('strategy.reports')
     def update_executors_info(self):
         """
         Update the unified controller reports and publish the updates to the active controllers.
         """
         from hummingbot.core.operational_warnings import DrawdownValuationUnavailable, OperationalWarnings
+        if self._managed_report_handle is not None:
+            self._managed_report_handle.cancel()
+            self._managed_report_handle = None
+        self._managed_report_pending.clear()
         try:
             # Get all reports in a single call and store them
             self.controller_reports = self.executor_orchestrator.get_all_reports()
