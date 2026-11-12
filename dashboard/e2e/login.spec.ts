@@ -26,7 +26,7 @@ test('preserves deep links and restores sign-in after reload until explicit logo
   await page.getByRole('button', { name: 'Sign in with Google' }).click()
   await expect(page).toHaveURL(destination)
   await signOut(page)
-  await expect(page.getByRole('heading', { name: 'Đăng nhập' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
   await page.getByRole('button', { name: 'Sign in with Google' }).click()
   await expect(page).toHaveURL(destination)
   await page.reload()
@@ -37,7 +37,7 @@ test('preserves deep links and restores sign-in after reload until explicit logo
   expect(await page.evaluate((prefix) => Object.keys(localStorage).filter((key) => key.startsWith(prefix)).length, AUTH_TOKEN_STORAGE_PREFIX)).toBe(1)
   await signOut(page)
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Đăng nhập' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
   expect(await page.evaluate((prefix) => Object.keys(localStorage).filter((key) => key.startsWith(prefix)), AUTH_TOKEN_STORAGE_PREFIX)).toEqual([])
 })
 
@@ -88,9 +88,9 @@ test('new tab and reopening a tab restore through GET /me, and logout reaches th
   await expect(reopened.getByRole('button', { name: 'Sign out' })).toBeVisible()
   expect(loginPosts).toBe(1)
   await signOut(page)
-  await expect(reopened.getByRole('heading', { name: 'Đăng nhập' })).toBeVisible()
+  await expect(reopened.getByRole('heading', { name: 'Sign in' })).toBeVisible()
   await reopened.reload()
-  await expect(reopened.getByRole('heading', { name: 'Đăng nhập' })).toBeVisible()
+  await expect(reopened.getByRole('heading', { name: 'Sign in' })).toBeVisible()
 })
 
 test('an expired stored token requires sign-in and is not sent to /me', async ({ page }) => {
@@ -101,7 +101,7 @@ test('an expired stored token requires sign-in and is not sent to /me', async ({
   let identityReads = 0
   page.on('request', (request) => { if (request.url().includes('/access/me')) identityReads++ })
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Đăng nhập' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
   expect(identityReads).toBe(0)
   expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBeNull()
 })
@@ -125,7 +125,7 @@ test('a stored token is verified before redirect, Google button or operational q
   })
   const destination = '/?market=spot#orders'
   await page.goto(destination)
-  await expect(page.getByRole('status')).toContainText('Đang khôi phục phiên đăng nhập…')
+  await expect(page.getByRole('status')).toContainText('Restoring session…')
   await expect(page).toHaveURL(destination)
   await expect(page.getByRole('button', { name: 'Sign in with Google' })).toHaveCount(0)
   expect(operationalReads).toBe(0)

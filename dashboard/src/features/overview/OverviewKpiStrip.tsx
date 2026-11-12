@@ -55,6 +55,7 @@ export function OverviewKpiStrip({ overview, isLoading, className, onOpenRiskGua
   const coverageByMarket = overview.markets.map((m) => ({
     market: m.market as string,
     fraction: m.twoSidedElapsedFraction,
+    targetFraction: m.coverageWindow.targetFraction,
     observation: m.observation,
   }))
 
@@ -135,9 +136,10 @@ export function OverviewKpiStrip({ overview, isLoading, className, onOpenRiskGua
             {coverageByMarket.map((c) => (
               <span key={c.market} className="flex items-baseline gap-1.5">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-app-muted">{c.market}</span>
-                <PrimaryValue tone={c.fraction !== null && c.fraction >= 0.99 ? 'positive' : 'default'}>
+                <PrimaryValue tone={c.fraction !== null && c.fraction >= c.targetFraction ? 'positive' : 'default'}>
                   {formatPercentage(c.observation === 'fresh' ? c.fraction : null)}
                 </PrimaryValue>
+                <span className="text-[10px] text-app-muted" title="Cumulative session coverage target">/ {Math.round(c.targetFraction * 100)}%</span>
               </span>
             ))}
             {coverageByMarket.some((c) => c.observation !== 'fresh') && (
@@ -160,11 +162,11 @@ export function OverviewKpiStrip({ overview, isLoading, className, onOpenRiskGua
               </PrimaryValue>
               <span className="text-xs text-app-muted">{riskAssessment.violationCount === 1 ? 'violation' : 'violations'}</span>
             </div>
-            {/* <p className="mt-1 text-xs text-app-muted">
+            <p className="mt-1 text-xs text-app-muted">
               {riskAssessment.checkedCount === 0
                 ? 'No rule observations yet'
                 : `${riskAssessment.checkedCount} of ${riskAssessment.totalCount} rules checked${riskAssessment.unverifiedCount > 0 ? ` · ${riskAssessment.unverifiedCount} unverified` : ''}`}
-            </p> */}
+            </p>
             <button
               type="button"
               onClick={onOpenRiskGuards}

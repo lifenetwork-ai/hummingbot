@@ -7,12 +7,25 @@ describe('OperatingTargetsCard coverage and thresholds', () => {
   it('labels session coverage as cumulative and shows NO DATA placeholder for rolling per-minute history', () => {
     render(<OperatingTargetsCard markets={completionOverview.markets} />)
 
-    expect(screen.getByText(/Cumulative session/i)).toBeInTheDocument()
+    expect(screen.getByText(/How elapsed session time splits/i)).toBeInTheDocument()
     // Barcode 30 minutes: placeholder NO DATA — does not simulate per-minute data
     expect(screen.getByText('Rolling 30-minute SLA and per-minute history are not provided by this API.')).toBeInTheDocument()
     expect(screen.queryByText('CALCULATING')).not.toBeInTheDocument()
     expect(screen.queryByText('SYNCING')).not.toBeInTheDocument()
     expect(screen.queryByText('Target ≥ 99%')).not.toBeInTheDocument()
+  })
+
+  it('breaks elapsed time into composition segments without repeating the headline percentage', () => {
+    render(<OperatingTargetsCard markets={completionOverview.markets} />)
+
+    // Fixture: elapsed 600s, observed 500s, eligible 400s, unknown 100s, two-sided 300s
+    expect(screen.getByText(/two-sided of 10:00/i)).toBeInTheDocument()
+    expect(screen.getByText(/^05:00$/)).toBeInTheDocument() // two-sided seconds duration
+    expect(screen.getByText(/^06:40$/)).toBeInTheDocument() // eligible 400s
+    expect(screen.getAllByText(/^01:40$/).length).toBe(3) // not eligible, unverified and unobserved each 100s
+    expect(screen.getByText(/^Not eligible/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/^Unverified/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText(/^Unobserved/i)).toBeInTheDocument() // unobserved 600s - 500s = 100s
   })
 
   it('shows disabled deployment warning separately from the 20s and 60s operating targets', () => {

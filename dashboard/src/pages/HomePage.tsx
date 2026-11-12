@@ -2,7 +2,9 @@ import { useCallback, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useOverviewController } from '../features/overview/useOverviewController'
 import { useOperationalContext } from '../features/operational-context/useOperationalContext'
+import { DataSourceErrorBanner } from '../features/overview/DataSourceErrorBanner'
 import { HeldPositionsCard } from '../features/overview/HeldPositionsCard'
+import { NoSessionNotice } from '../features/overview/NoSessionNotice'
 import { OperatingTargetsCard } from '../features/overview/OperatingTargetsCard'
 import { OperatorAttentionBanner } from '../features/overview/OperatorAttentionBanner'
 import { OverviewControlBar } from '../features/overview/OverviewControlBar'
@@ -11,7 +13,6 @@ import { RiskGuardsCard } from '../features/overview/RiskGuardsCard'
 import { SessionDiagnostics } from '../features/overview/SessionDiagnostics'
 import { SharedBalancesCard } from '../features/overview/SharedBalancesCard'
 import { WorkingOrdersSection } from '../features/overview/WorkingOrdersSection'
-import { Button } from '../shared/components/Button'
 import { Dialog } from '../shared/components/Dialog'
 import { MotionPage } from '../shared/motion/MotionPage'
 
@@ -41,20 +42,15 @@ export function HomePage() {
   return (
     <MotionPage>
       <div className="mx-auto w-full max-w-[1536px] space-y-4 px-4 pb-16 pt-4 sm:space-y-5 sm:px-6 sm:pt-6 md:px-8 lg:px-10">
-        {[
-          { name: 'Runtime status', source: status, retry: context.refreshStatus },
-          { name: 'Liquidity', source: liquidity, retry: model.refreshLiquidity },
-          { name: 'Balances', source: balances, retry: context.refreshBalances },
-          { name: 'Positions', source: positions, retry: model.refreshPositions },
-        ].filter(({ source }) => source.phase === 'error').map(({ name, source, retry }) => (
-          <div key={name} role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-app-border bg-app-surface p-3 text-sm">
-            <div>
-              <p className="font-semibold text-app-danger">{name}: API error</p>
-              <p className="text-app-muted">{source.error?.message ?? 'Request failed'}. {source.data ? 'Previous observations are retained; current state is unverified.' : 'No observation received.'}</p>
-            </div>
-            <Button variant="secondary" disabled={source.refreshing} onClick={() => { void retry() }}>Retry {name.toLowerCase()}</Button>
-          </div>
-        ))}
+        <DataSourceErrorBanner
+          className="space-y-4 sm:space-y-5"
+          sources={[
+            { name: 'Runtime status', phase: status.phase, error: status.error, data: status.data, refreshing: status.refreshing, retry: context.refreshStatus },
+            { name: 'Liquidity', phase: liquidity.phase, error: liquidity.error, data: liquidity.data, refreshing: liquidity.refreshing, retry: model.refreshLiquidity },
+            { name: 'Balances', phase: balances.phase, error: balances.error, data: balances.data, refreshing: balances.refreshing, retry: context.refreshBalances },
+            { name: 'Positions', phase: positions.phase, error: positions.error, data: positions.data, refreshing: positions.refreshing, retry: model.refreshPositions },
+          ]}
+        />
         {/* Operational warnings (only when there is an incident needing intervention) */}
         <OperatorAttentionBanner
           operator={model.task.operator}
@@ -62,6 +58,8 @@ export function HomePage() {
           observation={model.observation.status}
           onAction={handleBannerAction}
         />
+        {/* New-operator onboarding: explain NO DATA indicators before the first session */}
+        <NoSessionNotice status={statusData} />
 
         {/* LAYER 1 — Slim control bar + 4 survival KPIs (~15% of the top area) */}
         <OverviewControlBar

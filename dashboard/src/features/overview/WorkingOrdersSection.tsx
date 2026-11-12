@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowUpRight, ChevronDown, Info } from 'lucide-react'
 import type { OverviewModel } from './model'
+import { classifySpreadTone } from './spread-thresholds'
 import { InfoStatusBadge } from './visuals/InfoStatusBadge'
 import { Badge } from '../../shared/components/Badge'
 import { Surface } from '../../shared/components/Surface'
@@ -59,7 +60,7 @@ function MarketLiquidityCard({
   const bidWidthPct = (bidNotionalNum / maxNotional) * 50 // max half left
   const askWidthPct = (askNotionalNum / maxNotional) * 50 // max half right
   const spreadBpsNum = spreadBps ? parseFloat(spreadBps) : null
-  const spreadTone = spreadBpsNum === null ? 'neutral' : spreadBpsNum < 10 ? 'success' : spreadBpsNum < 30 ? 'warning' : 'danger'
+  const spreadTone = classifySpreadTone(spreadBpsNum)
   const bestBidNum = bestBid ? parseFloat(bestBid) : 0
   const bestAskNum = bestAsk ? parseFloat(bestAsk) : 0
   const midPrice = bestBidNum > 0 && bestAskNum > 0 ? (bestBidNum + bestAskNum) / 2 : null
@@ -254,8 +255,10 @@ function MarketLiquidityCard({
 }
 
 export function WorkingOrdersSection({ markets, isLoading, dimmed, className }: WorkingOrdersSectionProps) {
+  // With more than two markets, stacking tall cards wastes vertical space; pair them up on wide screens.
+  const layout = markets.length > 2 ? 'grid grid-cols-1 gap-3 xl:grid-cols-2' : 'flex h-full flex-col gap-3'
   return (
-    <div className={cn('flex h-full flex-col gap-3', className)} aria-label="Active working orders">
+    <div className={cn(layout, className)} aria-label="Active working orders">
       {markets.map((market) => (
         <MarketLiquidityCard
           key={market.market}

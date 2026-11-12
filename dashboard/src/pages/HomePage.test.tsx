@@ -140,8 +140,8 @@ describe('HomePage (Overview)', () => {
     // Layer 2: operational focus
     expect(screen.getByText('Derivative Positions & Skew')).toBeInTheDocument()
 
-    // Layer 3: diagnostics
-    expect(screen.getAllByText('Two-Sided Coverage').length).toBeGreaterThanOrEqual(1)
+    // Layer 3: diagnostics — composition card complements the KPI, no duplicate headline
+    expect(screen.getByText('Coverage Time Composition')).toBeInTheDocument()
     expect(screen.getByText(/Balances/)).toBeInTheDocument()
     expect(screen.queryByText('Rule 1 · Drawdown')).not.toBeInTheDocument()
 
