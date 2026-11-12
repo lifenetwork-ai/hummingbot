@@ -8,7 +8,7 @@ from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, select, update
+from sqlalchemy import exists, func, select, text, tuple_, update
 
 from hummingbot.core.admin_identity import Principal
 from hummingbot.core.recovery import MAX_FILLS, MAX_ORDERS, PROOF_TTL_SECONDS, decimal, fingerprint, recovery_blockers
@@ -42,6 +42,17 @@ class RecoveryStore:
         if connection is None:
             with self.engine.connect().execution_options(isolation_level='REPEATABLE READ') as connection, connection.begin():
                 return self.snapshot(connection)
+        state = self._state(connection)
+        from hummingbot.model.checkpoint_recovery import snapshot as checkpoint_snapshot
+        positions = [dict(row) for row in connection.execute(select(Position).order_by(Position.id).limit(101)).mappings()]
+        bindings = [dict(row) for row in connection.execute(select(
+            ExchangeCredential.exchange, ExchangeCredential.connector, ExchangeCredential.environment,
+            ExchangeCredential.account_id, ExchangeCredential.version, ExchangeCredential.state).where(
+                ExchangeCredential.bot_id == self.bot_id).order_by(ExchangeCredential.exchange, ExchangeCredential.connector, ExchangeCredential.environment)).mappings()]
+        if len(positions) <= 100:
+            current = checkpoint_snapshot(connection, state, positions, bindings)
+            if current is not None:
+                return current
         orders = [dict(row) for row in connection.execute(select(Order).order_by(Order.id).limit(MAX_ORDERS + 1)).mappings()]
         sides = defaultdict(set)
         for identity, status in connection.execute(select(OrderStatus.order_id, OrderStatus.status).where(
@@ -53,13 +64,37 @@ class RecoveryStore:
             row['side_ambiguous'] = len(sides[row['id']]) > 1
         fills = [dict(row) for row in connection.execute(select(TradeFill).order_by(
             TradeFill.timestamp, TradeFill.exchange_trade_id, TradeFill.order_id).limit(MAX_FILLS + 1)).mappings()]
-        positions = [dict(row) for row in connection.execute(select(Position).order_by(Position.id).limit(101)).mappings()]
-        bindings = [dict(row) for row in connection.execute(select(
-            ExchangeCredential.exchange, ExchangeCredential.connector, ExchangeCredential.environment,
-            ExchangeCredential.account_id, ExchangeCredential.version, ExchangeCredential.state).where(
-                ExchangeCredential.bot_id == self.bot_id).order_by(ExchangeCredential.exchange, ExchangeCredential.connector, ExchangeCredential.environment)).mappings()]
-        return dict(state=self._state(connection), orders=orders, fills=fills, positions=positions, bindings=bindings,
+        return dict(state=state, orders=orders, fills=fills, positions=positions, bindings=bindings,
+                    pending_intents=bool(connection.scalar(select(exists().where(Order.creation_pending.is_(True))))),
                     truncated=len(orders) > MAX_ORDERS or len(fills) > MAX_FILLS or len(positions) > 100)
+
+    def checkpoint_fill_rows(self, keys, watermark):
+        from hummingbot.model.checkpoint_recovery import fill_identity
+        from hummingbot.model.runtime_journal import RuntimeJournal
+        if not keys or len(keys) > 100 or type(watermark) is not int or watermark < 0:
+            raise ValueError('Invalid bounded fill proof')
+        columns = ([column.label('fill_' + column.name) for column in TradeFill.__table__.columns]
+                   + [column.label('order_' + column.name) for column in Order.__table__.columns]
+                   + [RuntimeJournal.payload.label('journal'), RuntimeJournal.id.label('journal_id')])
+        statement = select(*columns).select_from(TradeFill).join(Order, Order.id == TradeFill.order_id).join(
+            RuntimeJournal, fill_identity()).where(RuntimeJournal.applied.is_(True), RuntimeJournal.id > watermark,
+                                                   tuple_(TradeFill.market, Order.exchange_order_id, TradeFill.exchange_trade_id).in_(keys))
+        with self.engine.connect() as connection:
+            rows = connection.execute(statement).mappings().all()
+        return [dict(fill={c.name: row['fill_' + c.name] for c in TradeFill.__table__.columns},
+                     order={c.name: row['order_' + c.name] for c in Order.__table__.columns},
+                     journal=row['journal'], journal_id=row['journal_id']) for row in rows]
+
+    @staticmethod
+    def _lock_checkpoint_proof(connection, snapshot):
+        if snapshot.get('mode') == 'verified_checkpoint':
+            # Called on the recovery DB worker, while the old core is drained.
+            # Readers remain available; no financial write can race final proof.
+            from hummingbot.model.checkpoint_recovery import LEDGER_MODELS
+            from hummingbot.model.runtime_journal import RuntimeCheckpoint
+            tables = ', '.join(connection.dialect.identifier_preparer.format_table(model.__table__)
+                               for model in (*LEDGER_MODELS, Position, RuntimeCheckpoint, ExchangeCredential))
+            connection.execute(text('LOCK TABLE ' + tables + ' IN SHARE MODE'))
 
     def get(self, operation_id, connection=None):
         if connection is None:
@@ -189,8 +224,10 @@ class RecoveryStore:
     def finish_check(self, owner, row, snapshot, plan, verification, *, blockers):
         owner.check_owner()
         with self.engine.begin() as connection:
+            self._lock_checkpoint_proof(connection, snapshot)
             state, actor = self._operation(connection, owner, row, checking=True)
-            if not blockers and not verification.get('verified'):
+            if not blockers and (not verification.get('verified')
+                                 or snapshot.get('mode') == 'verified_checkpoint' and (plan or verification.get('scope') != 'verified_checkpoint')):
                 _conflict('recovery_check_unavailable')
             if fingerprint(self.snapshot(connection)) != fingerprint(snapshot):
                 _conflict('recovery_state_changed')
@@ -206,6 +243,7 @@ class RecoveryStore:
     def finish_reset(self, owner, row, snapshot, plan, verification):
         owner.check_owner()
         with self.engine.begin() as connection:
+            self._lock_checkpoint_proof(connection, snapshot)
             state, actor = self._operation(connection, owner, row)
             check = self._checked_preview(connection, row['payload'], state)
             if (not verification.get('verified') or fingerprint(self.snapshot(connection)) != fingerprint(snapshot)
@@ -228,7 +266,21 @@ class RecoveryStore:
             from sqlalchemy.orm import Session
             if state['config_type'] == 'mm-session' and state['config_file_path']:
                 with Session(bind=connection) as session:
-                    self._bind_runtime_baseline(session, state, row, snapshot)
+                    if snapshot.get('mode') == 'verified_checkpoint':
+                        if plan or verification.get('scope') != 'verified_checkpoint':
+                            _conflict('recovery_state_changed')
+                        from hummingbot.model.runtime_journal import RuntimeCheckpoint
+                        checkpoint = session.get(RuntimeCheckpoint, state['config_file_path'])
+                        checkpoint.payload = {**checkpoint.payload, 'recovery_anchor': dict(
+                            operation_id=row['id'], journal_watermark=checkpoint.watermark,
+                            prefix_unjournaled_fills=snapshot['checkpoint']['prefix_unjournaled_fills'],
+                            verified_at_ms=int(snapshot['state']['database_now'].timestamp() * 1000),
+                            venue_heads=verification['venue_heads'])}
+                        session.flush()
+                        anchor = checkpoint.payload['recovery_anchor']
+                    else:
+                        anchor = self._bind_runtime_baseline(session, state, row, snapshot, verification=verification)
+                    verification = {**verification, 'recovery_anchor': anchor}
             recovery = deepcopy(state['recovery_state'])
             for key in ('halt', 'halt_kind', 'reason', 'shutdown_incomplete', 'automatic_recovery'):
                 recovery.pop(key, None)
@@ -240,7 +292,7 @@ class RecoveryStore:
             owner.check_owner()  # Fresh physical authority before committing all writes together.
             return True
 
-    def _bind_runtime_baseline(self, session, state, row, snapshot):
+    def _bind_runtime_baseline(self, session, state, row, snapshot, *, verification=None):
         from hummingbot.model.runtime_journal import (
             RuntimeCheckpoint,
             RuntimeJournal,
@@ -251,12 +303,22 @@ class RecoveryStore:
             financial_hash,
         )
         checkpoint = session.get(RuntimeCheckpoint, state['config_file_path'])
+        from sqlalchemy import exists
+
+        from hummingbot.model.checkpoint_recovery import fill_identity
+        unjournaled = session.scalar(select(func.count()).select_from(TradeFill).where(
+            ~exists(select(RuntimeJournal.id).where(fill_identity()))))
+        watermark = session.query(func.max(RuntimeJournal.id)).scalar() or 0
         values = dict(financial_hash=financial_hash(session),
                       bindings_hash=binding_hash(session, self.bot_id),
-                      watermark=session.query(func.max(RuntimeJournal.id)).scalar() or 0,
+                      watermark=watermark,
                       payload={'baseline': 'reviewed_recovery', 'operation_id': row['id'], 'environment': environment_identity(),
                                'bindings': bindings(session, self.bot_id),
-                               'proof_fingerprint': fingerprint(snapshot)})
+                               'proof_fingerprint': fingerprint(snapshot),
+                               'recovery_anchor': dict(operation_id=row['id'], journal_watermark=watermark,
+                                                       prefix_unjournaled_fills=unjournaled,
+                                                       verified_at_ms=int(snapshot['state']['database_now'].timestamp() * 1000),
+                                                       venue_heads=(verification or {}).get('venue_heads'))})
         if checkpoint is None:
             session.add(RuntimeCheckpoint(config_file_path=state['config_file_path'], **values))
         else:
@@ -267,6 +329,7 @@ class RecoveryStore:
         session.query(SubmissionAttempt).update({SubmissionAttempt.state: 'terminal'}, synchronize_session=False)
         session.query(Order).update({Order.position_applied: True}, synchronize_session=False)
         session.flush()
+        return values['payload']['recovery_anchor']
 
     def _finish(self, connection, state, row, result, actor, *, control_version=None):
         recovery = deepcopy(state['recovery_state'])

@@ -13,7 +13,7 @@ from hummingbot.model.recovery_store import RecoveryStore
 
 class RecoveryReader:
     PATHS = frozenset({'/api/v5/account/config', '/api/v5/public/instruments', '/api/v5/trade/order',
-                      '/api/v5/trade/orders-pending', '/api/v5/trade/fills', '/api/v5/account/positions'})
+                      '/api/v5/trade/orders-pending', '/api/v5/trade/fills', '/api/v5/trade/fills-history', '/api/v5/account/positions'})
 
     def __init__(self, connector):
         self.connector = connector
@@ -48,6 +48,20 @@ class RecoveryCoordinator:
     async def call(self, function, *args, **kwargs):
         return await self.work.submit(functools.partial(function, *args, **kwargs), heavy=True)
 
+    async def finish(self, function, *args, **kwargs):
+        from hummingbot.cli.recovery_owner import RecoveryOwner
+        owner = RecoveryOwner(self.host.owner)
+        future = self.work.submit(functools.partial(function, owner, *args, **kwargs), heavy=True)
+        try:
+            return await asyncio.shield(future)
+        except asyncio.CancelledError:
+            owner.cancel()
+            try:
+                await asyncio.shield(future)
+            except BaseException:
+                pass
+            raise
+
     async def run(self, operation_id):
         try:
             await asyncio.wait_for(self._run(operation_id), RECOVERY_TIMEOUT_SECONDS)
@@ -69,8 +83,8 @@ class RecoveryCoordinator:
     async def _run(self, operation_id):
         host, owner = self.host, self.host.owner
         # Physical ownership connection belongs to this event-loop thread.
-        # Only bulk read snapshots/pure replay use the background worker.
-        # Claim/finalize use the existing short DB budgets while trading is stopped.
+        # Snapshot, replay and fenced finalization use the recovery worker;
+        # its ownership bridge schedules physical checks back on this loop.
         row = self.store.claim(owner)
         if row is None:
             return
@@ -87,15 +101,16 @@ class RecoveryCoordinator:
         blockers = recovery_blockers(snapshot['state'])
         if blockers:
             if row['action'] == 'recovery_check':
-                self.store.finish_check(owner, row, snapshot, [], dict(verified=False), blockers=blockers)
+                await self.finish(self.store.finish_check, row, snapshot, [], dict(verified=False), blockers=blockers)
                 return
             raise RecoveryBlocked(blockers[0])
-        if any(order['creation_pending'] for order in snapshot['orders']):
+        if snapshot.get('pending_intents') or any(order['creation_pending'] for order in snapshot['orders']):
             # An ambiguous send is the primary blocker. Do not bury it behind
             # position replay, KMS setup or a not-found GET, and never turn
             # negative order lookup into proof of no exchange effects.
             raise RecoveryBlocked('recovery_pending_intents')
-        plan = await self.call(replay_positions, snapshot)
+        checkpoint = snapshot.get('mode') == 'verified_checkpoint'
+        plan = [] if checkpoint else await self.call(replay_positions, snapshot)
         if host.managed_credentials is None:
             raise RecoveryBlocked('recovery_credentials_unavailable')
         await host.funding.credentials_changed()
@@ -105,12 +120,19 @@ class RecoveryCoordinator:
             if name not in ('okx', 'okx_perpetual'):
                 raise RecoveryBlocked('unsupported_connector')
             self.readers[name] = RecoveryReader(read_only_connector(name, config))
-        proof = await verify_exchange(snapshot, plan, self.readers)
+        if checkpoint:
+            from hummingbot.core.checkpoint_recovery import verify_checkpoint_exchange
+
+            async def lookup(keys, watermark):
+                return await self.call(self.store.checkpoint_fill_rows, keys, watermark)
+            proof = await verify_checkpoint_exchange(snapshot, self.readers, lookup)
+        else:
+            proof = await verify_exchange(snapshot, plan, self.readers)
         owner.check_owner()
         if row['action'] == 'recovery_check':
-            self.store.finish_check(owner, row, snapshot, plan, proof, blockers=[])
+            await self.finish(self.store.finish_check, row, snapshot, plan, proof, blockers=[])
         else:
-            self.store.finish_reset(owner, row, snapshot, plan, proof)
+            await self.finish(self.store.finish_reset, row, snapshot, plan, proof)
             # The reviewed transaction committed while all old work was drained.
             # Its in-memory resume scope must not survive into a new Start.
             owner.automatic_recovery = AutomaticOrderRecovery(owner)

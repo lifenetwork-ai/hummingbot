@@ -104,6 +104,9 @@ def recovery_blockers(state):
 def fingerprint(snapshot):
     data = {key: snapshot.get(key, []) for key in ('orders', 'fills', 'positions', 'bindings')}
     state = snapshot['state']
+    for key in ('mode', 'checkpoint', 'ledger_hash', 'pending_intents'):
+        if key in snapshot:
+            data[key] = snapshot[key]
     data['state'] = {key: state.get(key) for key in (
         'desired_state', 'control_version', 'acknowledged_version', 'owner_uuid', 'owner_generation',
         'config_file_path', 'config_type', 'mm_session')}

@@ -1489,32 +1489,55 @@ endpoints. Admins can review `recovery_check_requested/completed/failed`,
 `GET /access/audit`; `operation_id` links the atomic before/after receipt.
 Secrets and private proof fingerprints never appear in recovery responses.
 
-Initial supported scope is deliberately conservative: managed (`postgres_kms`)
-credentials bound to one dedicated OKX account; USDT spot and cross/hedge USDT
-perpetual; complete local history within the three-day per-order lookup window;
-at most 5,000 orders, 2,000 fills and 100 existing unambiguous position rows.
-Original flat USDT fees must be exactly verifiable. Spot fees paid in the pair's
-base asset are also supported only when their conversion at the verified fill
-price exactly matches the recorded quote fee; no current price is substituted.
-Other fee currencies and percentage-fee encodings remain blocked. Gross filled
-position quantity and fee-deducted wallet cash are distinct. A position can only be
-extended from a known prefix of its verified fills; unknown opening balances,
-ambiguous controller attribution, unsupported fee conversion, missing pages,
-external fills/orders and unmatched perpetual exposure block recovery. Bound
-risk policies/peaks/latches and all order/fill/funding history are preserved.
-The exchange is read twice around the proof; a changing account remains blocked.
-A missing local create event is tolerated only for a positively identified,
-confirmed canceled/expired zero-fill order, with exact price/size and no fill in
-either complete venue scan. The local BUY/SELL field stays unknown; conflicting
-local sides still block. `verification.unfilled_terminal_orders_without_local_side`
-reports the count. Missing exchange detail never uses this exception.
+Recovery supports two server-selected proof scopes, using the same admin
+Check → review → Reset → separate Start flow. Both require managed
+(`postgres_kms`) credentials bound to one dedicated OKX account, USDT spot or
+cross/hedge USDT perpetual, and at most 100 unambiguous existing position rows.
 
-Native whole-second event-clock timestamps may differ from REST execution time
-by less than 1,000 ms; all order/trade IDs, quantities, prices and original fees
-still match exactly. Non-quantized mismatches, future times, differences of at
-least 1,000 ms, and changes between the two REST scans block recovery. Recorded
-timestamps are preserved. The three-day cap is a local maximum, not a guarantee
-that the exchange retains every per-order record.
+- `verification.scope=bounded_complete_local_history_and_dedicated_account`:
+  the original repair route, limited to 5,000 orders and 2,000 fills, with complete
+  local history within the three-day per-order lookup window. A position can only
+  be extended from a known prefix of its verified fills. A positively identified
+  canceled/expired zero-fill order may lack a local create side; its exact price,
+  size and absence of fills must still be proved in both complete venue scans.
+  `verification.unfilled_terminal_orders_without_local_side` reports that count.
+- `verification.scope=verified_checkpoint`: a clean financial checkpoint with an
+  auditable reviewed anchor, unchanged account binding, complete applied journal
+  coverage and no unsettled submission/tracker work. Lifetime order/fill counts
+  do not impose those 5,000/2,000 limits. Recovery verifies every venue fill since
+  the anchor, matching native order/trade identities, quantities, execution prices
+  and original fees to the applied journal. It verifies full account open orders
+  and perpetual exposure twice. `proposed_changes=[]`: this route preserves
+  financial rows, remaining cost basis and risk checkpoints. `fills_checked`
+  counts the suffix; `orders_checked=0` means no historical per-order REST reads,
+  not an unverified exchange account. Successful Reset records an auditable new
+  anchor in the same transaction as the receipt and technical HALT removal.
+
+The checkpoint route permits at most 100 pages of 100 fills per connector and an
+anchor younger than 89 days. Older suffixes use the official
+[OKX historical fills endpoint](https://www.okx.com/docs-v5/en/#order-book-trading-trade-get-transaction-details-last-3-months);
+missing/repeated cursors, unavailable pages, unknown venue fills or page-budget
+exhaustion remain blocked. No pagination cap is silently treated as completion.
+It streams the local ledger fingerprint in batches on the recovery DB worker;
+local hash work still grows with ledger size. Physical ownership is checked on
+its owning event loop, including immediately before commit. Cancellation drains
+the worker before another operation may proceed.
+
+Original flat USDT fees must match exactly. Spot base-asset fees require exact
+conversion at the verified execution price; no current price is substituted.
+Unsupported fee currencies/encodings, ambiguous controller attribution, external
+orders/fills and unmatched exposure block recovery. Gross position quantity and
+fee-deducted wallet cash are distinct. All existing order/fill/funding history,
+risk policies, peaks and stop latches remain intact.
+
+The original repair route retains its strict event-clock timestamp checks:
+whole-second differences below 1,000 ms are supported, other differences are
+blocked. The checkpoint route preserves local timestamps and verifies them
+against the immutable journal; native IDs and exact execution economics prove
+venue identity because local event time is not necessarily venue execution time.
+Neither route rewrites timestamps. A dirty financial checkpoint or unknown
+baseline still requires the bounded full-history route or independent reviewed
+maintenance; the new route cannot certify missing evidence.
 
 `unrealized_pnl_quote=0` in a repaired position has
 `valuation_basis=reconstructed_average_entry_not_live_pnl`: it is reconstruction

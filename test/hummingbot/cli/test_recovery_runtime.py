@@ -29,9 +29,11 @@ def coordinator(monkeypatch, *, action='recovery_check'):
 
 
 @pytest.mark.asyncio
-async def test_pending_send_is_reported_before_position_replay_or_credential_loading(monkeypatch):
+@pytest.mark.parametrize('beyond_page', [False, True])
+async def test_pending_send_is_reported_before_position_replay_or_credential_loading(monkeypatch, beyond_page):
     instance, store = coordinator(monkeypatch)
-    store.snapshot.return_value['orders'] = [{'id': 'busy-order', 'creation_pending': True}]
+    store.snapshot.return_value['orders'] = [] if beyond_page else [{'id': 'busy-order', 'creation_pending': True}]
+    store.snapshot.return_value['pending_intents'] = beyond_page
     instance.host.managed_credentials = None
     replay = MagicMock(side_effect=AssertionError('Pending send cannot establish position proof'))
     monkeypatch.setattr(module, 'replay_positions', replay)
@@ -206,4 +208,70 @@ async def test_review_requires_all_proof_workers_to_be_drained(monkeypatch, kind
     finally:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
+        await instance.close()
+
+
+@pytest.mark.asyncio
+async def test_bulk_finalization_runs_off_loop_and_physical_owner_check_stays_on_loop(monkeypatch):
+    import threading
+    instance, store = coordinator(monkeypatch)
+    loop_thread = threading.get_ident()
+    entered, release = threading.Event(), threading.Event()
+    checked = []
+
+    def physical_check():
+        checked.append(threading.get_ident())
+        assert threading.get_ident() == loop_thread
+        return {}
+
+    def finish(owner, *args, **kwargs):
+        assert threading.get_ident() != loop_thread
+        entered.set()
+        assert release.wait(2)
+        owner.check_owner()
+
+    instance.host.owner.check_owner.side_effect = physical_check
+    store.finish_check.side_effect = finish
+    task = asyncio.create_task(instance.run('op'))
+    try:
+        while not entered.is_set():
+            await asyncio.sleep(.001)
+        # The owner loop can process other work while the DB proof is blocked.
+        await asyncio.sleep(.01)
+        assert not task.done()
+        release.set()
+        await task
+        assert checked and set(checked) == {loop_thread}
+        store.fail.assert_not_called()
+    finally:
+        release.set()
+        await instance.close()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_bulk_finalization_drains_without_clearing_halt(monkeypatch):
+    import threading
+    instance, store = coordinator(monkeypatch, action='recovery_reset')
+    entered, release = threading.Event(), threading.Event()
+    committed = []
+
+    def finish(owner, *args):
+        entered.set()
+        assert release.wait(2)
+        owner.check_owner()
+        committed.append(True)
+
+    store.finish_reset.side_effect = finish
+    task = asyncio.create_task(instance.run('op'))
+    try:
+        while not entered.is_set():
+            await asyncio.sleep(.001)
+        task.cancel()
+        await asyncio.sleep(0)
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert not committed and instance.host.halt_requested
+    finally:
+        release.set()
         await instance.close()

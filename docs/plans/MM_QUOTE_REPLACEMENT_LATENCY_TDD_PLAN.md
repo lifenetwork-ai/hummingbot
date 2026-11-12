@@ -232,7 +232,10 @@ acceptance; see the [qualification record](../../reports/performance/mm-quote-re
   limit; independent audited-prefix/native-journal verification permits delegated
   maintenance recovery with zero financial/risk changes, audit264. Normal Start
   succeeds at control86; retain the failed API receipt and short-check limits.
-- [ ] Support reviewed incremental recovery from a verified baseline so lifetime
-  history does not require this separate maintenance procedure.
+- [x] Implement and qualify locally reviewed checkpoint recovery above the lifetime
+  order/fill caps, preserving financial/risk state. See
+  [recovery follow-up](ADMIN_RECOVERY_API_TDD_PLAN.md#verified-checkpoint-history-follow-up--2026-11-13-local).
+- [ ] Deploy and exercise that recovery API follow-up against a qualifying Demo
+  incident; the previous separate maintenance recovery remains the actual evidence.
 - [ ] Repeat the unchanged30-minute quote gate on one revision/session. See the
   [incident record](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision120-connector-readiness-outage).
