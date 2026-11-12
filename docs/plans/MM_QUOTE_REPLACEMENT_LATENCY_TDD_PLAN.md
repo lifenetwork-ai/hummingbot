@@ -127,8 +127,11 @@ is part of this implementation.
   log budgets, disabled overhead and complete hook/task/thread teardown.
 - [x] Run native regression, PostgreSQL terminal/financial tests and packaged
   LONG/SHORT replacement cases. Preserve all failed evidence and scope limits.
-- [ ] Deploy the candidate with diagnostics explicitly enabled, correlate actual
-  slow episodes and repeat the original connected quote target.
+- [x] Deploy the candidate with diagnostics explicitly enabled and retain actual
+  bounded timing/stack packets. Revision116 confirms SQL hooks are attached;
+  initial stacks include startup import and synchronous SQL receipt persistence.
+- [ ] Resolve revision116's profile-switch/drained-fence incident, then correlate
+  the remaining slow episodes and repeat the original connected quote target.
 
 Local qualification:3,523 tests plus16 subtests,62 related PostgreSQL tests and
 both packaged hedge-leg scenarios pass. The final diagnostic image also passes

@@ -141,12 +141,17 @@ class BotOwnership:
             row = connection.execute(select(BotState).where(BotState.bot_id == self.store.bot_id).with_for_update()).mappings().one()
             recovery = dict(row["recovery_state"] or {})
             pending = connection.execute(select(Order.id).where(Order.creation_pending.is_(True)).limit(1)).first()
-            if pending or recovery.get("pending_mutations") or recovery.get("runtime_active"):
+            shutdown_fence = (recovery.get('halt') and recovery.get('halt_kind') == 'shutdown_pending'
+                              and not recovery.get('reason'))
+            # A second cleanup can drain runtime_active after an earlier timeout
+            # while retaining its fence. Recheck the same verified checkpoint on
+            # successor acquisition even when no live/pending work remains.
+            if pending or recovery.get("pending_mutations") or recovery.get("runtime_active") or shutdown_fence:
                 from sqlalchemy.orm import Session
 
                 from hummingbot.model.runtime_journal import can_bootstrap
                 with Session(bind=connection) as session:
-                    automatic = ((not recovery.get('halt') or recovery.get('halt_kind') == 'shutdown_pending')
+                    automatic = ((not recovery.get('halt') or shutdown_fence)
                                  and not recovery.get('pending_mutations')
                                  and can_bootstrap(session, row))
                 if automatic:

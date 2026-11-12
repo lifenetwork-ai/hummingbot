@@ -1,6 +1,16 @@
 # MM automatic recovery and availability
 
-Follow-up 2026-11-12: revision112/`1c1fa280a` runs the post-only CLOSE
+Latest follow-up 2026-11-12: revision116 runs terminal publication and bounded
+engine diagnostics, but a Random profile switch exceeded the8-second shutdown
+deadline and its successor retained a drained `shutdown_pending` fence. Read-only
+inspection finds a verified checkpoint with no pending/unapplied work and no risk
+stop; the successor branch omitted that state. A PostgreSQL RED test reproduces
+it; the local correction passes its focused checks, with a separate broad-suite
+liquidity observation failure retained for investigation. Do not close this incident or
+the connected quote gate from the earlier passing startup samples. See
+[revision116 investigation](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision116-diagnostics-and-drained-shutdown-fence).
+
+Earlier follow-up 2026-11-12: revision112/`1c1fa280a` runs the post-only CLOSE
 correction; native readback confirms fresh-price replacements without same-executor
 replay. Its completed901-sample window still fails99% (Spot86.84%, perpetual94.74%).
 The bot is running without an incident HALT reset/owner restart. Probe causality

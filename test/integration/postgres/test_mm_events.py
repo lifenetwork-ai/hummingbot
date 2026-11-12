@@ -278,7 +278,7 @@ async def test_live_liquidity_http_uses_published_snapshot_and_marks_owner_gap_u
             for _ in range(10):
                 response = await client.get(ADMIN_PREFIX + '/statistics/liquidity?market=spot')
                 body = await response.json()
-                assert response.status == 200 and body['state'] == 'observed' and body['markets']['spot']['bid_notional'] == '0.990'
+                assert response.status == 200 and body['state'] == 'observed' and body['markets']['spot']['bid_notional'] == '0.990', body
             with store.engine.begin() as connection:
                 connection.execute(text("UPDATE bot_state SET heartbeat=clock_timestamp()-interval '10 seconds'"))
             response = await client.get(ADMIN_PREFIX + '/statistics/liquidity')

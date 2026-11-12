@@ -116,9 +116,13 @@ Test logs are retained at `/tmp/hbot-quote-expiry-regression-final.log`,
 
 ## Terminal publication and production diagnostics follow-up
 
-This additional patch is locally qualified and has not been deployed. It does
-not replace revision112's failed connected quote target or establish a unique
-production probe root cause.
+This patch is locally qualified and is now deployed on revision116 through the
+squashed commit349026ff4 and merge2e06d191a. Diagnostics are explicitly enabled.
+Its initial check encountered a profile-switch shutdown/recovery incident;
+see the [connected investigation](../demo/cloudrun-quote-replacement-acceptance.md#revision116-diagnostics-and-drained-shutdown-fence).
+This does not replace revision112's failed connected quote target or establish
+a unique production probe root cause. The additional drained-fence correction
+described there remains local and needs separate deployment verification.
 
 A managed executor's terminal notification now schedules the existing strategy
 report path after a50ms coalescing window, without waiting for another engine
@@ -180,5 +184,6 @@ The qualification index, runtime source identity and overhead measurements are
 under `build/mm-runtime-diagnostics-20261112/`. This uses an isolated exchange,
 signed offline Google identities and local key encryption. It does not close a
 full soak, actual Google/GCP KMS, or the original connected thirty-minute99%
-quote gate. Next: deploy the patch with the diagnostic flag enabled, correlate
-real supervisor timeouts and repeat that unchanged connected target.
+quote gate. Diagnostics are now enabled on revision116. Next: qualify/deploy
+the additional drained-fence correction, correlate the remaining supervisor
+timeouts and repeat that unchanged connected target.

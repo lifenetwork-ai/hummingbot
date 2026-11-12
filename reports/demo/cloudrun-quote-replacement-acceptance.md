@@ -1,9 +1,87 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest: revision112/`1c1fa280a` has deployed and its connected verification is
-complete. The post-only correction is observed natively; the99% quote gate still
-fails. See [revision112 results](#revision112-post-only-correction-deployed).
-The revision111 record below is historical and retains its original scope.
+Latest: revision116 has deployed the terminal-publication/diagnostic patch and
+`ENGINE_DIAGNOSTICS_ENABLED=true`. Its initial check encountered a profile-switch
+shutdown timeout followed by a retained recovery fence; it is not an acceptance
+pass. See [revision116 investigation](#revision116-diagnostics-and-drained-shutdown-fence).
+Revision112's completed verification and the revision111 record below remain
+historical, with their original failed99% quote gates and scope limits intact.
+
+## Revision116 diagnostics and drained shutdown fence
+
+Revision `hummingbot-demo-00116-vvl` is Ready with100% traffic,2CPU/1GiB,
+continuous CPU and min/max1 instance. Its image is tagged with merge2e06d191a,
+digest `sha256:c63dc9a06aecb586abbb57d395d8d7bc19cd030baa7b8f1e3448084c7f5b1100`.
+All12 qualified runtime sources match that merge's source tree; the earlier
+local packaged-image digest is a different artifact and is not reassigned here.
+`ENGINE_DIAGNOSTICS_ENABLED=true` is confirmed from the deployed service.
+The FE origin `https://hummingbot-nightly.tech-efd.workers.dev` receives HTTP204
+for the Authorization preflight under the configured wildcard CORS policy.
+This checks CORS, not an actual Google sign-in at the new FE origin.
+
+The API initially observes the revision115→116 owner handoff with a temporary
+fence, then revision116 reports fresh two-sided Spot/perpetual quotes in three
+successive samples at09:16:54–09:17:14UTC. These successful startup samples do not
+constitute a thirty-minute acceptance window.
+
+At09:18:49.844500UTC, Random changes from `follow_market` to `follow_token`,
+generation55→56, retaining session/control84. At09:18:57.905631UTC shutdown exceeds
+its unchanged8-second deadline with8 tracked orders. The engine exits and the
+successor withholds bootstrap at09:19:04.446324UTC because the durable HALT remains.
+Subsequent API samples show `RecoveryRequired`/`shutdown_pending`, not working
+quotes. This is a real shutdown/recovery incident, independent of Google login.
+
+Read-only PostgreSQL inspection of successor generation490 finds:
+
+- `halt=true`, `halt_kind=shutdown_pending`, no reason, `runtime_active=false`,
+  no `shutdown_incomplete` or pending-mutation flag;
+- financial and binding hashes match the existing checkpoint;
+- zero active submission attempts, creation-pending orders or unapplied fill
+  journal entries; no drawdown stop flags;
+- the existing native `can_bootstrap` verifier returns true.
+
+Code allows host teardown to finish a second cleanup after the first timeout.
+That successful cleanup clears runtime_active but retains its already-existing
+HALT. Successor acquisition previously only entered checkpoint verification for
+runtime_active/pending work, so this otherwise verified fence was skipped. A
+real PostgreSQL RED case reproduces exactly the drained stored state: one
+positive recovery case fails while seven protected cases pass. The local patch
+also admits a reasonless shutdown fence to the existing verification branch;
+it still requires the unchanged checkpoint, account, journal and risk checks.
+Manual/reason-bearing HALTs remain protected, and acquiring ownership does not
+open submissions: ordinary native startup reconciliation remains required.
+This correction is local, not deployed or applied as a Cloud DB reset.
+
+Final local checks: all8 new successor cases and the liquidity case pass together
+(9 tests);52 service/status/shutdown CLI tests also pass. The broader236-case
+PostgreSQL selection records235 passes and one failed liquidity HTTP observation:
+the API correctly reports `unavailable` while the fixture expects `observed`.
+That unchanged assertion passes in isolation and again with the eight successor
+cases. Its exact timing/order cause is not established, so retain the broad
+failure rather than label that run green or widen any freshness guard. The
+assertion now retains the response body for a recurrence. Hooks pass. No new
+packaged-image, soak or connected acceptance pass is claimed for the fence fix.
+The final09:32:47UTC API check still shows revision116 halted at control84.
+
+Logs: `/tmp/hbot-drained-shutdown-fence-red.log`,
+`/tmp/hbot-drained-shutdown-fence-green.log` (broad failure retained),
+`/tmp/hbot-drained-shutdown-liquidity-rerun.log`,
+`/tmp/hbot-drained-shutdown-final-focused.log` and
+`/tmp/hbot-drained-shutdown-fence-cli.log`.
+
+Initial diagnostic packets are present in Cloud Logging with SQL hooks attached.
+Stacks separately show synchronous startup import and native submission-receipt
+SQL on the engine loop. Network/controller durations are not interpreted as
+continuous loop stalls, and historical slow-span IDs repeated in a packet are
+not new events. These samples do not establish one cause for all supervisor
+timeouts or prove which cleanup stage consumed the8-second deadline. That
+performance investigation and the unchanged thirty-minute99% gate remain open.
+
+Evidence is under `build/engine-diagnostics-cloud-check-20261112/`, including
+service/log snapshots, session transitions and the read-only recovery summary.
+No Cloud configuration, session/risk settings, credentials or DB rows were
+changed. The local SQL proxy only served read-only inspection and is closed
+afterward. The prior connected records below remain historical.
 
 Earlier revision111 (`hummingbot-demo-00111-s7c`) runs commit `d8f90c13b`, image
 `sha256:b1a94a1934773b8aef811b2bc905bba1ec384d962af969a3b5bfc065f1820870`,

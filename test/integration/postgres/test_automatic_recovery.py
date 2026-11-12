@@ -22,6 +22,63 @@ from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 owned = owned_fixture
 
 
+@pytest.mark.parametrize('blocker', [
+    None, 'manual_halt', 'reason', 'pending_mutation',
+    'drawdown', 'financial_mismatch', 'binding_mismatch', 'missing_checkpoint',
+])
+def test_successor_rechecks_shutdown_fence_after_runtime_was_drained(owned, blocker):
+    from hummingbot.core.bot_ownership import BotOwnership
+    from hummingbot.model.order import Order
+    from hummingbot.model.runtime_journal import RuntimeCheckpoint
+
+    # Profile-switch cleanup can finish during host teardown after its first
+    # deadline. It clears runtime_active while retaining the prior HALT fence.
+    with owned.engine.begin() as connection:
+        connection.execute(text("UPDATE bot_state SET config_type='mm-session'"))
+    assert owned.recorder.ensure_runtime_checkpoint()
+    recovery = dict(owned.store.read()['recovery_state'], runtime_active=False,
+                    halt=True, halt_kind='shutdown_pending')
+    if blocker == 'manual_halt':
+        recovery['halt_kind'] = 'manual'
+    if blocker == 'reason':
+        recovery['reason'] = 'operator_review_required'
+    if blocker == 'pending_mutation':
+        recovery['pending_mutations'] = True
+    if blocker == 'drawdown':
+        recovery['strategy_checkpoints'] = {'test.yml': {'_is_stop_triggered': True}}
+    with owned.engine.begin() as connection:
+        connection.execute(text("UPDATE bot_state SET recovery_state=CAST(:value AS jsonb)"),
+                           {'value': json.dumps(recovery)})
+    with owned.manager.get_new_session() as db, db.begin():
+        checkpoint = db.get(RuntimeCheckpoint, 'test.yml')
+        if blocker == 'missing_checkpoint':
+            db.delete(checkpoint)
+        elif blocker in ('financial_mismatch', 'binding_mismatch'):
+            setattr(checkpoint, 'financial_hash' if blocker == 'financial_mismatch' else 'bindings_hash', 'unverified')
+    previous_generation = owned.owner.generation
+    owned.owner.release()
+    successor = BotOwnership(owned.engine, owned.store.bot_id)
+    try:
+        assert successor.try_acquire()
+        state = owned.store.read()
+        assert state['owner_generation'] == previous_generation + 1
+        assert state['control_version'] == 1 and state['desired_state'] == 'running'
+        assert bool(state['recovery_state'].get('halt')) is (blocker is not None)
+        if blocker is None:
+            assert 'halt_kind' not in state['recovery_state']
+            assert state['recovery_state']['automatic_recovery']['phase'] == 'bootstrapping_recovery'
+        else:
+            assert state['recovery_state']['halt_kind'] == recovery['halt_kind']
+        # Acquisition only opens the normal reconciliation path, never the
+        # submission gate or an independent order/financial writer.
+        assert not successor.allow_new_orders
+        with owned.manager.get_new_session() as db:
+            assert db.query(Order).count() == 0
+            assert db.query(Position).count() == 0
+    finally:
+        successor.release()
+
+
 def test_attempt_is_durable_before_transport_and_contains_no_auth_headers(owned):
     from test.integration.postgres.test_ownership import assistant, intent, send
 

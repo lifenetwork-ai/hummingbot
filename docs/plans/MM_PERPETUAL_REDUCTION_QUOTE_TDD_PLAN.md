@@ -1,6 +1,12 @@
 # Perpetual close-first quotes
 
-Follow-up 2026-11-12: revision112/`1c1fa280a` runs the post-only CLOSE
+Latest 2026-11-12: revision116 has diagnostics enabled but encountered a
+profile-switch shutdown timeout and a retained drained recovery fence. The
+initial two-sided samples do not close acceptance; the local successor-branch
+correction and its qualification are recorded in the
+[revision116 investigation](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision116-diagnostics-and-drained-shutdown-fence).
+
+Earlier follow-up 2026-11-12: revision112/`1c1fa280a` runs the post-only CLOSE
 correction; native readback confirms fresh-price replacements without same-executor
 replay. Its completed901-sample window still fails99% (Spot86.84%, perpetual94.74%).
 The bot is running without an incident HALT reset/owner restart. Probe causality
