@@ -814,10 +814,9 @@ class BotOwnership:
                     try:
                         await perform()
                         break
-                    except (IOError, asyncio.TimeoutError):
+                    except (IOError, asyncio.TimeoutError) as error:
                         self.check_owner()
-                        self.automatic_recovery.status.update(phase='bootstrapping_recovery', reason_code='order_proof_pending')
-                        self._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.automatic_recovery.status)))
+                        self.automatic_recovery.note_bootstrap_wait(error, 1)
                         await asyncio.sleep(1)
             else:
                 await asyncio.wait_for(perform(), timeout=30)

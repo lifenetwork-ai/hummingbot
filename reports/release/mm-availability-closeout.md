@@ -1,5 +1,9 @@
 # Availability follow-up — 2026-11-11
 
+Later follow-up: revision110/owner483 is paused on an explicit50037 receipt,
+with no HALT. Local fixes and their separate qualification are in the
+[quote/recovery record](../performance/mm-quote-replacement-latency.md).
+
 Compact evidence: [qualification matrix](mm-availability-closeout-evidence.json).
 
 Status: r7 passes native3,363+16, all724 PostgreSQL tests and seven real OOM cases.
@@ -8,8 +12,14 @@ on the same image; the original full execution remains failed. All four healthy
 load windows pass, including the 60-minute soak. The full load execution failed
 at a host fault-fixture assumption; its corrected six-fault target passes
 on the same image. Neither original failed execution is promoted to passing.
-No new image deployed by this work.
-Cloud Run revision108 remains running at control82, with no recorded HALT in the
+That offline work did not deploy an image. Subsequent connected activation on
+2026-11-12 is tracked in the
+[Demo close-first record](../demo/cloudrun-close-first-baseline.md): revision110,
+Start84,83 verified LONG close fills and two exact cold owner handoffs. Its
+regular Random quote window is complete and fails99% (conservative Spot95.32%,
+perpetual92.65%). This does not invalidate the scoped CLOSE/cold-handoff evidence
+or convert incomplete/failed predecessors to passing.
+The earlier Cloud Run revision108 check was running at control82, with no recorded HALT in the
 read-only check at 17:41:50 UTC (00:41 local on November 12). The process/owner identity fields
 report the same revision; these fields alone do not establish unchanged physical
 PIDs. The production two-sided quote objective and
@@ -294,8 +304,11 @@ and do not close the regular-profile availability gate.
 The final 16:43:55–17:41:57 UTC Cloud review contains 62 warnings (59 no-quote,
 three failed probes), zero ERROR-or-higher records and no stop/restart records.
 
-- After the qualifying code is deployed, refresh and apply the reviewed Demo
-  cost baseline and qualify actual fee-covered CLOSE orders/fills/positions.
+- Completed on revision110: reviewed Demo remaining-cost baseline under
+  audit242, actual fee-covered native CLOSE orders on both hedge legs,83
+  LONG close fills and cold owner handoffs with exact costs/positions. No natural
+  SHORT close fill is claimed; details and original venue fee proof are linked
+  in the connected record.
 - Measure the regular 30-minute quote objective. Cap/inventory-blocked or unknown
   observations are not evidence of working two-sided quotes.
 - Broader connected fault injection remains separate. Trading under unresolved

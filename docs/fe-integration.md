@@ -1406,6 +1406,10 @@ operator flag requests investigation; it does not discard the reservation or
 prove absence. Start/Switch during an active running reconciliation return
 `automatic_recovery_in_progress`; follow the returned action availability.
 An explicit Start from stopped may initialize a pending cold proof, never bypass it.
+When active reconciliation has `operator_required=true`, the operator panel returns
+`needs_attention` / `contact_support`, including during bootstrap. Keep Stop
+available and follow action availability; `halted=false` still means no manual
+HALT reset is needed. Investigation must not discard the uncertain reservation.
 Use `phase` as the current state: an idle result may retain the last order/timing
 context; render a retry countdown only while automatic work is active.
 
@@ -1426,7 +1430,8 @@ fills must be durable before retiring a managed order.
 
 Audit actions `automatic_recovery_paused`, `automatic_recovery_order_verified`
 and `automatic_recovery_resumed` use a runtime owner actor, generation and order
-correlation. Financial proof/context stays private; no secret is returned.
+correlation. `automatic_recovery_order_rejected` records an exact durable venue
+expiry rejection atomically with retirement of its intent and saved tracker. Financial proof/context stays private; no secret is returned.
 
 ### Reviewed manual recovery
 

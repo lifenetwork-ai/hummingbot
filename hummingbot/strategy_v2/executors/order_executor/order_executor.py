@@ -59,6 +59,9 @@ class OrderExecutor(ExecutorBase):
         # failure Gateway attributed to slippage, never past max_slippage_pct.
         self._slippage_pct: Decimal = config.slippage_pct
         self._managed_quote_prepared = False
+        self._quote_wakeup = (asyncio.Event() if config.mm_session_id is not None
+                              and config.position_action == PositionAction.CLOSE
+                              and config.execution_strategy == ExecutionStrategy.LIMIT_MAKER else None)
 
     # Shutdown ticks (5s apart) tolerated for an order stuck in a state that is
     # neither open nor filled (e.g. the created event never arrived) before the
@@ -121,6 +124,8 @@ class OrderExecutor(ExecutorBase):
         """
         Control the order execution process based on the execution strategy.
         """
+        if self._quote_wakeup is not None:
+            self._quote_wakeup.clear()  # This iteration consumes all progress already observed.
         if self.status == RunnableStatus.RUNNING:
             self.control_order()
         elif self.status == RunnableStatus.SHUTTING_DOWN:
@@ -167,12 +172,32 @@ class OrderExecutor(ExecutorBase):
 
         :return: None
         """
+        if (self._quote_wakeup is not None and self.config.mm_session_id is not None
+                and self.status in (RunnableStatus.SHUTTING_DOWN, RunnableStatus.TERMINATED)):
+            return
         if not keep_position:
             self.logger().warning(
                 f"Executor {self.config.id}: keep_position=False is not supported by "
                 "OrderExecutor — filled quantity (if any) will be held, not unwound."
             )
         self._status = RunnableStatus.SHUTTING_DOWN
+        self._wake_quote_control()
+
+    def _wake_quote_control(self):
+        if self._quote_wakeup is not None and self.config.mm_session_id is not None:
+            self._quote_wakeup.set()
+
+    def stop(self):
+        super().stop()
+        self._wake_quote_control()
+
+    async def _wait_for_control_tick(self):
+        if self._quote_wakeup is None or self.config.mm_session_id is None:
+            return await super()._wait_for_control_tick()
+        try:
+            await self._sleep(self.update_interval)
+        finally:
+            self._quote_wakeup.clear()
 
     def _cancel_outstanding_orders(self):
         self.cancel_order()
@@ -407,6 +432,8 @@ class OrderExecutor(ExecutorBase):
             else:
                 self._canceled_orders.append(self._order)
             self._order = None
+            if self.status == RunnableStatus.SHUTTING_DOWN:
+                self._wake_quote_control()
 
     def process_order_failed_event(self, _, market, event: MarketOrderFailureEvent):
         """
@@ -586,7 +613,15 @@ class OrderExecutor(ExecutorBase):
 
         :param delay: The delay in seconds.
         """
-        await asyncio.sleep(delay)
+        if self._quote_wakeup is None or self.config.mm_session_id is None:
+            await asyncio.sleep(delay)
+        elif not self.terminated.is_set():
+            # Leave the event set until the outer loop consumes it. A cancel
+            # ACK during the shutdown backoff must not incur another tick wait.
+            try:
+                await asyncio.wait_for(self._quote_wakeup.wait(), timeout=delay)
+            except asyncio.TimeoutError:
+                pass
 
     def get_net_pnl_pct(self) -> Decimal:
         """

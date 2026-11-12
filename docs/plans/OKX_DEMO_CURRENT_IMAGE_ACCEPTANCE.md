@@ -1,6 +1,15 @@
 # OKX Demo and current offline image acceptance
 
-Updated 2026-11-10. Prior image-specific checklists, approvals, failures, natural
+Follow-up 2026-11-12 at04:30UTC: revision110/owner483 is paused in startup
+on an exact saved50037 rejection, without HALT. The classifier/replay and
+operator-attention fixes are local and awaiting deployment; see the
+[quote/recovery follow-up](../../reports/performance/mm-quote-replacement-latency.md).
+
+Updated 2026-11-12. Revision110's connected close-first results are in the
+[current acceptance record](../../reports/demo/cloudrun-close-first-baseline.md):
+83 actual maker LONG close fills, exact financial/cost replay and two cold owner
+handoffs on continuous Start84. The completed regular Random quote target fails
+99% and remains open. Earlier image-specific checklists, approvals, failures, natural
 fills and REST proofs remain in the [acceptance history](../../reports/README.md#historical-records)
 (Git: `docs/plans/OKX_DEMO_CURRENT_IMAGE_ACCEPTANCE.md`). A local pass never changes
 the image/account/date attached to connected evidence.
@@ -10,7 +19,7 @@ deployment of older commit `f7da0d1e6`; no new runtime defect is reproduced.
 Overlapping-owner E2E and91 native controls pass. Merged CI artifacts require
 separate verification; they do not inherit image4198 release gates. See [closeout investigation](../../reports/release/demo-release-closeout.md#later-revision-transition-under-investigation).
 
-## Latest Demo/release closeout —2026-11-10
+## Earlier Demo/release closeout —2026-11-10
 
 See [current checklist](DEMO_RELEASE_CLOSEOUT.md) and
 [acceptance matrix](../../reports/release/demo-release-closeout.md). Source

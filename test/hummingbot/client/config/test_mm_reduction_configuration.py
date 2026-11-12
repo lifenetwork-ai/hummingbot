@@ -22,9 +22,11 @@ GUARDS = dict(enabled=True, max_deviation_bps='200', resume_deviation_bps='100')
 ])
 async def test_disabled_policy_preserves_the_pre_reduction_catalogue_hash(path, expected):
     raw = (await MMProfilesConfig.load(path)).model_dump(mode='json')
-    # Demo now opts into a continuous default. Keep the historical timed
-    # catalogue as this regression's original compatibility reference.
+    # Demo now opts into continuous close-first operation. Reconstruct the
+    # explicitly disabled historical fixture, preserving its original hash.
     raw.pop('default_duration_mode', None)
+    for template in raw['markets'].values():
+        template.pop('inventory_reduction', None)
     catalogue = MMProfilesConfig.model_validate(raw)
     assert catalogue.catalogue_hash() == expected
     raw = catalogue.model_dump(mode='json')
@@ -37,10 +39,11 @@ async def test_disabled_policy_preserves_the_pre_reduction_catalogue_hash(path, 
 @pytest.mark.asyncio
 async def test_enabled_policy_is_pinned_in_the_session_and_old_strict_market_shape_rejects_it():
     raw = (await MMProfilesConfig.load(DEMO)).model_dump(mode='json')
+    assert raw['markets']['perpetual']['inventory_reduction'] == POLICY
     old_market = create_model('PreReductionMarket', __config__=ConfigDict(extra='forbid'),
                               **{name: (object, None) for name in LifeMMConfig.model_fields if name != 'inventory_reduction'})
-    old_market.model_validate(raw['markets']['perpetual'])
-    raw['markets']['perpetual']['inventory_reduction'] = POLICY
+    old_market.model_validate({key: value for key, value in raw['markets']['perpetual'].items()
+                              if key != 'inventory_reduction'})
     catalogue = MMProfilesConfig.model_validate(raw)
     session = MMSession.create(catalogue, MMSessionRequest(market_mode='both', profile_id='follow_market',
                                                            duration_mode='until_stopped'), rng=random.Random(1))

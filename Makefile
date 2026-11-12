@@ -88,6 +88,9 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/executors/test_reduction_runtime_projection.py \
 		test/hummingbot/strategy_v2/executors/test_reduction_valuation.py \
 		test/hummingbot/strategy_v2/executors/test_reduction_cost_basis.py \
+		test/hummingbot/strategy_v2/executors/test_managed_quote_wakeup.py \
+		test/hummingbot/strategy_v2/executors/order_executor \
+		test/hummingbot/strategy_v2/test_runnable_base.py \
 		test/hummingbot/strategy_v2/executors/position_executor
 	$(PYTHON) -m pytest -q test/hummingbot/connector/test_okx_environment.py \
 		test/hummingbot/connector/test_credential_adapter.py test/hummingbot/connector/test_cleanup_positions_reader.py \
@@ -114,6 +117,7 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/controllers/test_life_mm.py \
 		test/hummingbot/strategy_v2/controllers/test_perpetual_reduction.py \
 		test/hummingbot/strategy_v2/controllers/test_reduction_controller.py \
+		test/hummingbot/strategy_v2/controllers/test_mm_controller_wakeup.py \
 		test/hummingbot/strategy_v2/controllers/test_reduction_fee_observation.py \
 		test/hummingbot/strategy_v2/controllers/test_life_mm_exposure_decision.py \
 		test/hummingbot/strategy_v2/controllers/test_inventory_cap_lifecycle.py \

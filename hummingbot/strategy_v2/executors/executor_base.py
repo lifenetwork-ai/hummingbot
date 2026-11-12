@@ -1,4 +1,3 @@
-import asyncio
 from decimal import Decimal
 from functools import lru_cache
 from typing import Dict, List, Optional, Tuple, Union
@@ -210,7 +209,7 @@ class ExecutorBase(RunnableBase):
             except Exception as e:
                 self.logger().error(e, exc_info=True)
             finally:
-                await asyncio.sleep(self.update_interval)
+                await self._wait_for_control_tick()
         self.on_stop()
 
     def early_stop(self, keep_position: bool = False):

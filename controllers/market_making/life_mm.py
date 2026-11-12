@@ -32,6 +32,20 @@ from hummingbot.strategy_v2.utils.quote_guard import (
 )
 
 
+class _ExecutorUpdateEvent(asyncio.Event):
+    """Keep report readiness distinct from a coalesced request to run sooner."""
+
+    def __init__(self, progress):
+        super().__init__()
+        self.progress = progress
+        self.revision = 0
+
+    def set(self):
+        super().set()
+        self.revision += 1
+        self.progress.set()
+
+
 class ReferencePair(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     pair: str
@@ -197,6 +211,9 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         if config.quote_guards.mode == "bootstrap_then_market" and (not config.runtime_config_managed or not config.mm_session_id):
             raise ValueError("Listing bootstrap requires managed MM session ownership")
         super().__init__(config, *args, **kwargs)
+        self._executor_progress = asyncio.Event() if config.runtime_config_managed and config.mm_session_id else None
+        if self._executor_progress is not None:
+            self.executors_update_event = _ExecutorUpdateEvent(self._executor_progress)
         self._bootstrap = (ListingBootstrap(config.quote_guards, anchor=config.initial_anchor, sideways_range=config.sideways_range,
                                             max_gap_seconds=config.max_data_age_seconds)
                            if config.quote_guards.mode == "bootstrap_then_market" else None)
@@ -644,6 +661,8 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         self.update_reference(sample_guard=True)
 
     async def control_task(self):
+        if self._executor_progress is not None:
+            self._executor_progress.clear()
         # Run freshness/cancellation even when the generic provider becomes unready.
         await self.update_processed_data()
         report_ready = self.executors_update_event.is_set()
@@ -661,6 +680,23 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
             previous = self._volatility_saved_pause
             if self.sync_volatility_checkpoint() and previous != self._volatility_saved_pause:
                 self.update_reference()
+
+    async def _wait_for_control_tick(self):
+        if self._executor_progress is None:
+            return await super()._wait_for_control_tick()
+        try:
+            await asyncio.wait_for(self._executor_progress.wait(), timeout=self.update_interval)
+        except asyncio.TimeoutError:
+            pass  # Periodic freshness and cancellation checks still run without publications.
+
+    async def send_actions(self, executor_actions):
+        event = self.executors_update_event
+        revision = event.revision if isinstance(event, _ExecutorUpdateEvent) else None
+        await super().send_actions(executor_actions)
+        # The generic sender consumes readiness after put(). A publication
+        # arriving during a blocked handoff belongs to the next iteration.
+        if revision is not None and event.revision != revision:
+            event.set()
 
     def stop_quote_actions(self):
         active = {executor.id for executor in self.executors_info if executor.is_active}

@@ -7,7 +7,8 @@ import weakref
 from collections import deque
 
 OPERATIONS = ('strategy.tick', 'controller.cycle', 'order.submit', 'order.cancel',
-              'executor.shutdown', 'controller.stop_proposal')
+              'executor.shutdown', 'controller.stop_proposal', 'order.terminal',
+              'position.checkpoint', 'service.stop_core', 'service.prepare', 'service.start')
 
 
 class ActivityRecorder:
@@ -79,6 +80,9 @@ def instrument_cycle(owner, name, operation, recorder, *, asynchronous=False, de
             value = getter(actor) if getter else {}
             if not isinstance(value, dict):
                 raise TypeError('Activity metadata must be a mapping')
+            value = dict(value)
+            if 'phase' in value:
+                value['service_phase'] = value.pop('phase')
             return value
         except Exception as error:
             recorder.metadata_errors += 1
@@ -143,6 +147,60 @@ def instrument_order(owner, name, operation, recorder):
         result, error = None, None
         try:
             result = await original(actor, *args, **kwargs)
+            return result
+        except BaseException as exception:
+            error = type(exception).__name__
+            raise
+        finally:
+            recorder.finish(token, result=result, error=error)
+    setattr(owner, name, measured)
+
+
+def instrument_terminal(owner, name, recorder):
+    original = getattr(owner, name)
+
+    @functools.wraps(original)
+    def measured(actor, *args, **kwargs):
+        event = kwargs.get('event', args[-1] if args else None)
+        tracked = getattr(actor, '_order', None)
+        identity = getattr(event, 'order_id', None)
+        if tracked is None or identity != tracked.order_id:
+            return original(actor, *args, **kwargs)
+        try:
+            details = dict(executor_id=actor.config.id)
+        except Exception as error:
+            recorder.metadata_errors += 1
+            details = dict(measurement_error=type(error).__name__)
+        token = recorder.start(actor, 'order.terminal', order_id=identity, callback=name, **details)
+        result, error = None, None
+        try:
+            result = original(actor, *args, **kwargs)
+            return result
+        except BaseException as exception:
+            error = type(exception).__name__
+            raise
+        finally:
+            # A callback return is an observation, not terminal/financial authority.
+            recorder.finish(token, result=result, error=error)
+    setattr(owner, name, measured)
+
+
+def instrument_checkpoint(owner, name, recorder):
+    original = getattr(owner, name)
+
+    @functools.wraps(original)
+    def measured(actor, positions, infos, *args, **kwargs):
+        try:
+            if not isinstance(infos, (tuple, list)):
+                raise TypeError('Cannot consume an iterable for diagnostics')
+            fields = dict(executor_ids=[info.id for info in infos[:64]], executor_ids_truncated=len(infos) > 64)
+        except Exception as error:
+            recorder.metadata_errors += 1
+            fields = dict(measurement_error=type(error).__name__)
+        token = recorder.start(actor, 'position.checkpoint', **fields)
+        result, error = None, None
+        try:
+            result = original(actor, positions, infos, *args, **kwargs)
             return result
         except BaseException as exception:
             error = type(exception).__name__

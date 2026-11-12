@@ -44,7 +44,7 @@ def test_attempt_is_durable_before_transport_and_contains_no_auth_headers(owned)
 
 
 @pytest.fixture
-def managed_native(owned):
+def managed_native(owned, expiry_code=None):
     from test.integration.postgres.test_ownership import assistant
 
     from bidict import bidict
@@ -76,9 +76,11 @@ def managed_native(owned):
     rest, transport = assistant()
     response = transport.call.return_value
     rest._auth = exchange.authenticator
-    response.status = 429
-    response.text = AsyncMock(return_value='{"code":"50013","msg":"busy"}')
-    response.json = AsyncMock(return_value={'code': '50013', 'data': []})
+    response.status = 200 if expiry_code else 429
+    body = ({'code': '1', 'data': [dict(clOrdId='auto-order', ordId='', sCode=expiry_code, sMsg='expired')]}
+            if expiry_code else {'code': '50013', 'data': []})
+    response.text = AsyncMock(return_value=json.dumps(body))
+    response.json = AsyncMock(return_value=body)
 
     async def create():
         with session_order_scope('mm-auto', 0, executor=config.model_dump(mode='json')):

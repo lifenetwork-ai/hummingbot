@@ -90,6 +90,22 @@ data. Quote and transport checks do not perform that network read.
 See the [implementation and qualification checklist](plans/MM_PERPETUAL_REDUCTION_QUOTE_TDD_PLAN.md)
 before activation; local tests alone do not close Demo or release gates.
 
+## Explicit expired submission receipts
+
+OKX50036 and50037 can prove request expiry when the HTTP200 response contains
+exactly the requested `clOrdId`, an empty `ordId` and the explicit rejection code.
+The normal connector failure path retires that intent without resubmitting it.
+After a crash, managed recovery may consume the same persisted receipt only after
+checking current account/environment bindings and absence of conflicting fills or
+venue identity. Intent, saved tracker and runtime audit commit together; no
+position, cost basis or risk checkpoint is reset.
+
+A51603 read, timeout, elapsed time or retry count does not prove non-admission.
+Those cases remain fenced. After five minutes, both startup and warm recovery
+request operator investigation while reads continue; the operator panel directs
+support instead of offering a blind reset. This does not itself create a HALT.
+The official meanings are in the [OKX error-code reference](https://www.okx.com/docs-v5/en/#error-code).
+
 ## Environment and credentials
 
 `OKX_TRADING_ENV=live|demo` selects one environment for the entire process,

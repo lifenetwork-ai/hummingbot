@@ -1,11 +1,24 @@
 # Demo and release closeout
 
+Follow-up 2026-11-12 at04:30UTC: revision110/owner483 is paused in startup
+on an exact saved50037 rejection, without HALT. The classifier/replay and
+operator-attention fixes are local and awaiting deployment; see the
+[quote/recovery follow-up](../../reports/performance/mm-quote-replacement-latency.md).
+
 Scope approved 2026-11-10: complete controlled OKX Demo qualification and the
 latest packaged release. Real GCP KMS, the actual frontend and live funds remain
 separate. Use existing audited operator APIs; never manufacture fills, disable
 guards or rewrite financial state to obtain a pass.
 
-Current 2026-11-11 work is tracked in the
+Current 2026-11-12 connected work: revision110 enables fee-covered close-first
+quotes on the explicit Demo perpetual policy. Both native CLOSE sides,83
+actual LONG close fills and cold owner handoffs479→480→481 are verified; Start84
+remains continuous. The completed regular Random thirty-minute window fails
+the99% quote target (conservative Spot95.32%,perpetual92.65%); this gate remains
+open. See the
+[connected acceptance record](../../reports/demo/cloudrun-close-first-baseline.md).
+
+Local 2026-11-11 qualification is tracked in the
 [automatic-recovery plan](MM_AUTOMATIC_RECOVERY_AVAILABILITY_TDD_PLAN.md) and
 [availability follow-up](../../reports/release/mm-availability-closeout.md).
 The operating/artifact results below retain their earlier revision/date scope.

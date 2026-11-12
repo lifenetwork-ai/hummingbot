@@ -1,18 +1,22 @@
 # Perpetual close-first quotes
 
-Status: local controller/executor integration, authenticated fee cache, both send
-gates, remaining-cost accounting and native cold recovery are implemented and
-covered by unit/PostgreSQL tests. Packaged LONG/SHORT full-cycle fault cases and
-two default-path regression groups pass on the same local image. Closing quotes are not
-enabled on Demo. The operator selected fee-inclusive
-breakeven pricing. Revision106 contains commit `768ee611c`; its installed 18-file
-feature source matches the original local qualification. Closing quotes remain
-disabled. The operator subsequently requested continuous operation: Start80
-resumed Random Spot + Perpetual with no overall expiry, preserving existing
-caps/guards. Revision108 also contains the duration-default and bounded startup
-wait fixes; closing quotes remain disabled. The current remaining-cost proposal,
-nonflat upgrade/rollback and opt-in load qualification are tracked in the
-[availability follow-up](../../reports/release/mm-availability-closeout.md).
+Follow-up 2026-11-12 at04:30UTC: revision110/owner483 is paused in startup
+on an exact saved50037 rejection, without HALT. The classifier/replay and
+operator-attention fixes are local and awaiting deployment; see the
+[quote/recovery follow-up](../../reports/performance/mm-quote-replacement-latency.md).
+
+Status: implemented and locally qualified. Demo revision110 contains activation
+commit `3af2e3419`: the explicit Demo perpetual policy is now close-first with
+fee-inclusive breakeven pricing; Spot and the general catalogue default remain
+disabled. A verified remaining-cost baseline was applied under maintenance
+audit242 before Start84. Native OKX maker CLOSE orders on both hedge legs and
+83 natural LONG close fills are verified. Cold owner handoffs479→480→481 preserve
+the same continuous session, control84 and exact remaining-cost checkpoint,
+without manual HALT reset. The regular Random thirty-minute quote window is
+complete and fails the99% target: conservative Spot95.32%,perpetual92.65%.
+Ordinary replacement gaps and unknown observations are retained. See the
+[connected acceptance record](../../reports/demo/cloudrun-close-first-baseline.md)
+and [local release qualification](../../reports/release/mm-availability-closeout.md).
 
 ## Outcome and scope
 
@@ -253,8 +257,21 @@ pass after these changes, including full close followed by OPEN quotes.
   plus its corrected host target, four unchanged healthy load windows and the
   corrected six-fault target. Original failed `all` executions remain failed;
   CLOSE restriction-decision timing and older input bounds are reported separately.
-- [ ] Run actual Demo close-first qualification; reconcile REST orders/fills/fees/positions.
+- [x] Run actual Demo close-first qualification; reconcile REST orders/fills/fees/positions.
+  Revision110: both native maker CLOSE sides,83 LONG close fills totaling
+  0.0246BTC and0.3665058882USDT closing fees. Two final native scans match all
+  1,805 fills. All118 native applied-order receipts since initialization replay
+  exactly from the accepted baseline into financial rows and remaining costs.
+  Cold restarts preserve session/control and both remaining-cost bases. A natural SHORT
+  close fill has not yet been observed; its fee-covered BUY quote is verified
+  on the venue and is not forced to fill.
 - [ ] Run the regular-profile 30-minute quote target without weakening its classifier.
+  Revision110's completed898-sample regular Random window fails: Spot489/513
+  (95.32%) and perpetual819/884 (92.65%), including unknown in the failure
+  denominator. Guard exclusions are385/14 samples, not uptime. Seven unknown
+  samples occur around three profile transitions; one has a6.55s-old status
+  after sequential API reads. The temporary shutdown fence clears automatically;
+  no manual HALT reset or owner replacement occurs in the measured window.
 
 ### Required behavioral cases
 

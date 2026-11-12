@@ -1,5 +1,10 @@
 # MM automatic recovery and availability
 
+Follow-up 2026-11-12 at04:30UTC: revision110/owner483 is paused in startup
+on an exact saved50037 rejection, without HALT. The classifier/replay and
+operator-attention fixes are local and awaiting deployment; see the
+[quote/recovery follow-up](../../reports/performance/mm-quote-replacement-latency.md).
+
 Status: r7 offline qualification passed. Cloud Run migration 021 is installed
 and schema-validated. The approved drawdown policy remains 1,000/controller and
 2,000/global, with peaks preserved. The 650-fill historical baseline was verified
@@ -8,7 +13,12 @@ fills and two measured graceful rolling handoffs. The temporary-profile 30-minut
 conditional quote target passed; its stricter zero-unknown gate failed one sample.
 A subsequent regular-profile revision103 window has zero unknown samples but
 fails the two-sided target (perpetual97.219%; Spot has no eligible samples).
-The broader connected fault matrix remains open.
+The broader connected fault matrix remains open. The later revision110
+close-first qualification verifies83 native maker LONG close fills and two cold
+handoffs on continuous Start84. Its completed898-sample regular Random window
+still fails99%: conservative Spot95.32%,perpetual92.65%, with unknown counted as
+failure and guards excluded separately. See the
+[connected close-first record](../../reports/demo/cloudrun-close-first-baseline.md).
 See [policy application evidence](../../reports/demo/cloudrun-drawdown-1000-2000.md).
 See [baseline and handoff evidence](../../reports/demo/cloudrun-runtime-baseline-handoff.md).
 Scope: existing single Cloud Run service, PostgreSQL and native connector/recorder/V2
