@@ -260,8 +260,12 @@ acceptance; see the [qualification record](../../reports/performance/mm-quote-re
   fee/quantity/identity conflicts, stage diagnostics and redaction regressions.
 - [x] Log the per-order proof stage and error type on failure transitions; expose
   a fixed scoped incident reason rather than only terminal-unavailable.
-- [ ] Deploy this local follow-up and observe actual profile handoffs on one
-  revision/session. Do not call the incident solved solely from current health.
+- [x] Deploy this follow-up and observe actual profile handoffs on one
+  revision/session: revision124/`64e78147d`, generations68→69→70, two scheduled
+  handoffs including one full600s interval after Spot BUY fills. No observed
+  HALT, terminal-proof error or engine restart through04:53UTC. Seven probe
+  timeouts self-recover; the unchanged30-minute quote gate stays open. See the
+  [connected record](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision124-connected-spot-terminal-handoff-follow-up).
 
 No spending cap, drawdown policy, perpetual cap, shutdown timeout, credential or
 Cloud setting is changed. No schema/env/API route change is required. Ordinary
@@ -275,5 +279,40 @@ subtests**; PostgreSQL ownership/recorder/recovery/COMMIT-boundary regression:
 PostgreSQL rerun: **19 passed**. These scopes overlap and are not added together.
 All hooks pass. The Cloud incident's original per-order predicate remains unknown;
 this fixes the demonstrated complete-commit failure class and adds diagnosis for
-remaining failures, not a claim of connected resolution. Qualification evidence
-is retained locally under `build/spot-terminal-handoff-20261113/`.
+remaining failures. Revision124 adds bounded connected handoff evidence; it does
+not identify the original suppressed predicate or close the quote SLO.
+Qualification evidence is retained locally under
+`build/spot-terminal-handoff-20261113/` and
+`build/spot-terminal-postdeploy-20261113/`.
+
+## Revision124 probe SQL follow-up
+
+- [x] Inspect the retained04:38:35–04:53:06UTC diagnostic packets. Seven sampled
+  heartbeat stalls have gaps255.986–281.693ms: six stacks are in synchronous
+  PostgreSQL waits (send-attempt execute/COMMIT, terminal recording and flush
+  fencing), one in startup import. These are sampled locations, not proof that
+  each explains an entire probe timeout; two send-path samples overlap probes
+  directly. No probe threshold is changed.
+- [x] RED five terminal-status cases: Order, attempt and history unnecessarily
+  flush separately before the tracking checkpoint (four flushes). Suppress
+  autoflush only for the attempt/history reads that do not depend on those
+  pending changes. Checkpoint flush and final commit retain their owner fences.
+- [x] GREEN cancellation/completion/expiry/failure, duplicate history, uncertain
+  attempt retention, physical owner loss between writes, and final COMMIT error.
+  Verify transaction rollback covers order, attempt, status and tracking together.
+- [x] Add a bounded `db.commit` diagnostic span: cursor hooks exclude its reply
+  wait. RED two missing-span contracts; GREEN actual COMMIT success/deferred
+  constraint failure, telemetry failure and existing I/O/unknown-outcome tests.
+- [x] Complete related native/PostgreSQL regression:107 native recorder/tracker
+  tests +5 subtests,45 diagnostic/deadline/lifecycle tests,182 related PostgreSQL
+  tests and18 COMMIT/diagnostic/I/O PostgreSQL tests. Scopes overlap. Paired
+  cancellation uses15→13 SQL statements; local timing is component evidence,
+  not proof of a whole-engine/probe improvement. Final affected rerun:13 passed.
+  Alternating-pair medians22.879→18.805ms, or147.923→134.971ms with5ms injected
+  per statement. All source hooks pass.
+- [ ] Deploy and compare a new bounded window with the same300ms probe limit.
+  Keep import/send-path waits and quote-target failures separate. Removing these
+  avoidable SQL reads is not a guarantee that all future probes meet300ms.
+
+Evidence: `build/probe-sql-followup-20261113/`. This change remains local; Cloud
+bot state, risk settings, shutdown budget and probe policy are unchanged.

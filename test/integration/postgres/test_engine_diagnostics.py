@@ -13,6 +13,43 @@ owned = _owned
 
 
 @pytest.mark.parametrize('fail', [False, True])
+def test_diagnostics_commit_tracks_actual_dbapi_outcome_without_exporting_error(owned, fail, monkeypatch):
+    import hummingbot.core.engine_diagnostics as diagnostic
+
+    tracer = EngineDiagnostics(emit=lambda _: None)
+    with owned.engine.begin() as connection:
+        connection.execute(text('CREATE TABLE never_export_commit_table (value INT UNIQUE DEFERRABLE INITIALLY DEFERRED)'))
+    monkeypatch.setattr(diagnostic, '_ACTIVE', tracer)
+    with owned.engine.connect() as connection:
+        connection.execute(text('INSERT INTO never_export_commit_table VALUES (1)'))
+        if fail:
+            connection.execute(text('INSERT INTO never_export_commit_table VALUES (1)'))
+            with pytest.raises(Exception, match='never_export_commit_table'):
+                connection.commit()
+            connection.rollback()
+        else:
+            connection.commit()
+        assert connection.execute(text('SELECT COUNT(*) FROM never_export_commit_table')).scalar_one() == (0 if fail else 1)
+    state = tracer.snapshot()
+    assert state['operations']['db.commit']['completed'] == 1
+    assert state['operations']['db.commit']['errors'] == int(fail)
+    assert not state['active']
+    assert 'never_export' not in json.dumps(state)
+
+
+def test_diagnostics_commit_telemetry_failure_does_not_change_success(owned, monkeypatch):
+    import hummingbot.core.engine_diagnostics as diagnostic
+
+    tracer = EngineDiagnostics(emit=lambda _: None)
+    monkeypatch.setattr(diagnostic, '_ACTIVE', tracer)
+    monkeypatch.setattr(tracer, 'begin', lambda *a, **kw: (_ for _ in ()).throw(MemoryError()))
+    with owned.engine.begin() as connection:
+        connection.execute(text('CREATE TABLE commit_success_despite_telemetry_failure (value INT)'))
+    with owned.engine.connect() as connection:
+        assert connection.execute(text("SELECT to_regclass('commit_success_despite_telemetry_failure')")).scalar_one()
+
+
+@pytest.mark.parametrize('fail', [False, True])
 def test_diagnostics_keeps_native_owner_and_batch_commit_or_rollback(owned, fail):
     owned.recorder.update_or_store_position(snapshot('long', 'BUY', '.0084'))
     with owned.engine.begin() as connection:

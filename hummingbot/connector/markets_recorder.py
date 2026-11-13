@@ -1038,8 +1038,12 @@ class MarketsRecorder:
                             order_record.exchange_order_id = exchange_id
                             order_record.creation_pending = False
                     self._record_latest_status(order_record, event_type.name, timestamp)
-                    self._attempt_observation(session, order_id, 'terminal')
-                    self._add_order_status(session, order_record, timestamp, event_type.name)
+                    # Neither lookup needs the pending Order/attempt changes.
+                    # Flush their terminal state and history together at the
+                    # checkpoint read, retaining its fence and the commit fence.
+                    with session.no_autoflush:
+                        self._attempt_observation(session, order_id, 'terminal')
+                        self._add_order_status(session, order_record, timestamp, event_type.name)
                     self.save_market_states(config_file_path, market, session=session)
                 elif self._sql_manager.engine.dialect.name == "postgresql" and event_type != MarketEvent.OrderFailure:
                     raise RuntimeError("Order status arrived without a persisted order identity; reconciliation is required.")

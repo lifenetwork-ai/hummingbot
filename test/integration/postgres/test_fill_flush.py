@@ -3,7 +3,7 @@ from decimal import Decimal
 from test.integration.postgres.test_ownership import intent, owned as _owned
 from test.integration.postgres.test_performance import queries
 from test.integration.postgres.test_recorder import create, fill
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 import pytest
 from sqlalchemy import event, select
@@ -16,6 +16,156 @@ from hummingbot.model.order_status import OrderStatus
 from hummingbot.model.trade_fill import TradeFill
 
 owned = _owned
+
+
+@pytest.mark.parametrize('status', ['OrderCancelled', 'BuyOrderCompleted', 'SellOrderCompleted', 'OrderExpired', 'OrderFailure'])
+def test_terminal_status_coalesces_history_and_attempt_before_checkpoint(owned, status):
+    from types import SimpleNamespace
+
+    from hummingbot.model.runtime_journal import SubmissionAttempt
+    intent(owned)
+    flushed = []
+
+    def observe(session, *args):
+        flushed.append({type(row).__name__ for row in set(session.new) | set(session.dirty)})
+
+    event.listen(owned.manager._session_cls, 'before_flush', observe)
+    try:
+        with patch.object(owned.owner, '_read_owner', wraps=owned.owner._read_owner) as guard:
+            owned.recorder._update_order_status(MarketEvent[status].value, owned.market,
+                                                SimpleNamespace(order_id='order-1', exchange_order_id='venue-1'))
+    finally:
+        event.remove(owned.manager._session_cls, 'before_flush', observe)
+    assert len(flushed) == 2, flushed
+    assert {'Order', 'OrderStatus', 'SubmissionAttempt'} <= flushed[0], flushed
+    assert guard.call_count == 2
+    with owned.manager.get_new_session() as session:
+        order = session.get(Order, 'order-1')
+        assert order.last_status == status
+        assert order.amount == Decimal('.1') and order.price == Decimal('100')
+        assert session.get(SubmissionAttempt, 'order-1').state == 'terminal'
+        assert session.query(OrderStatus).filter_by(order_id='order-1', status=status).count() == 1
+        assert session.query(TradeFill).count() == 0
+        assert session.query(MarketState).one().saved_state == owned.market.tracking_states
+
+
+def test_terminal_status_duplicate_keeps_one_history_row_and_uncertain_attempt(owned):
+    from types import SimpleNamespace
+
+    from hummingbot.connector.markets_recorder import MarketsRecorder
+    from hummingbot.model.runtime_journal import SubmissionAttempt
+    intent(owned)
+    with owned.manager.get_new_session() as session, session.begin():
+        session.get(SubmissionAttempt, 'order-1').state = 'uncertain'
+    with patch.object(MarketsRecorder, 'db_timestamp', new_callable=PropertyMock, return_value=1700000001000):
+        for _ in range(2):
+            owned.recorder._update_order_status(MarketEvent.OrderCancelled.value, owned.market,
+                                                SimpleNamespace(order_id='order-1', exchange_order_id='venue-1'))
+    with owned.manager.get_new_session() as session:
+        assert session.query(OrderStatus).filter_by(status='OrderCancelled').count() == 1
+        assert session.get(SubmissionAttempt, 'order-1').state == 'uncertain'
+
+
+@pytest.mark.parametrize('failure', ['owner_after_flush', 'final_commit'])
+def test_terminal_status_failure_rolls_back_order_attempt_history_and_tracking(owned, failure):
+    from types import SimpleNamespace
+
+    from hummingbot.model.runtime_journal import SubmissionAttempt
+    intent(owned)
+    with owned.engine.connect() as connection:
+        original = connection.execute(select(MarketState.saved_state)).scalar_one()
+    owned.market.tracking_states = {}
+
+    def fail(session, *args):
+        if failure == 'owner_after_flush':
+            owned.owner.connection.invalidate()
+        else:
+            raise RuntimeError('synthetic terminal commit failure')
+
+    hook = 'after_flush' if failure == 'owner_after_flush' else 'before_commit'
+    event.listen(owned.manager._session_cls, hook, fail)
+    try:
+        with pytest.raises(OwnershipLost if failure == 'owner_after_flush' else RuntimeError):
+            owned.recorder._update_order_status(MarketEvent.OrderCancelled.value, owned.market,
+                                                SimpleNamespace(order_id='order-1', exchange_order_id='venue-1'))
+    finally:
+        event.remove(owned.manager._session_cls, hook, fail)
+    assert not owned.manager.persistence_healthy
+    with owned.engine.connect() as connection:
+        assert connection.execute(select(Order.last_status)).scalar_one() == 'PendingBuy'
+        assert connection.execute(select(SubmissionAttempt.state)).scalar_one() == 'prepared'
+        assert not connection.execute(select(OrderStatus.id).where(OrderStatus.status == 'OrderCancelled')).all()
+        assert connection.execute(select(MarketState.saved_state)).scalar_one() == original
+
+
+def test_terminal_status_paired_roundtrip_measurement(owned):
+    """Replay the old flush boundaries with identical fencing and durable writes."""
+    import time
+    from statistics import median
+    from test.integration.postgres.test_performance import report
+    from types import SimpleNamespace
+
+    from hummingbot.connector.markets_recorder import MarketsRecorder
+    from hummingbot.model.runtime_journal import SubmissionAttempt
+    attempt, history = MarketsRecorder._attempt_observation, MarketsRecorder._add_order_status
+    serial = 0
+
+    def old_attempt(recorder, session, *args):
+        session.flush()
+        return attempt(recorder, session, *args)
+
+    def old_history(session, *args):
+        session.flush()
+        return history(session, *args)
+
+    def run(legacy, delay):
+        nonlocal serial
+        serial += 1
+        identity = 'terminal-paired-' + str(serial)
+        intent(owned, identity)
+
+        def network_wait(*args):
+            time.sleep(delay)
+
+        if delay:
+            event.listen(owned.engine, 'after_cursor_execute', network_wait)
+        try:
+            with patch.object(MarketsRecorder, '_attempt_observation', old_attempt if legacy else attempt), \
+                    patch.object(MarketsRecorder, '_add_order_status', staticmethod(old_history if legacy else history)), \
+                    queries(owned.engine) as statements, \
+                    patch.object(owned.owner, '_read_owner', wraps=owned.owner._read_owner) as checks:
+                started = time.perf_counter()
+                owned.recorder._update_order_status(MarketEvent.OrderCancelled.value, owned.market,
+                                                    SimpleNamespace(order_id=identity, exchange_order_id='venue-' + identity))
+                elapsed = (time.perf_counter() - started) * 1000
+        finally:
+            if delay:
+                event.remove(owned.engine, 'after_cursor_execute', network_wait)
+        with owned.manager.get_new_session() as session:
+            assert session.get(Order, identity).last_status == 'OrderCancelled'
+            assert session.get(SubmissionAttempt, identity).state == 'terminal'
+            assert session.query(OrderStatus).filter_by(order_id=identity, status='OrderCancelled').count() == 1
+        return dict(sql=len(statements), owner_reads=checks.call_count, elapsed_ms=elapsed)
+
+    values = {}
+    for delay in (0, .005):
+        pairs = []
+        for index in range(5):
+            if index % 2:
+                new, old = run(False, delay), run(True, delay)
+            else:
+                old, new = run(True, delay), run(False, delay)
+            pairs.append((old, new))
+        # No wall-clock performance assertions: deterministic DB work is the contract.
+        for old, new in pairs:
+            assert old['owner_reads'] == 4 and new['owner_reads'] == 2
+            assert old['sql'] - new['sql'] == 2
+        values[str(delay)] = dict(
+            before_sql=pairs[0][0]['sql'], after_sql=pairs[0][1]['sql'],
+            before_p50_ms=median(old['elapsed_ms'] for old, _ in pairs),
+            after_p50_ms=median(new['elapsed_ms'] for _, new in pairs),
+            injected_delay_per_statement_seconds=delay)
+    report('terminal_status_coalescing', values)
 
 
 def seed(context, known):

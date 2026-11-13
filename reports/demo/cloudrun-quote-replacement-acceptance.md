@@ -1,6 +1,108 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest 2026-11-13: revision122/`5d540d4e2` is verified at100% traffic. Its
+Latest 2026-11-13: revision124/`64e78147d` is verified at100% traffic. Two
+scheduled profile handoffs complete on the new image without observed HALT,
+terminal-proof error or engine restart. Seven short probe timeouts recover;
+quote constraints remain. This is bounded deploy/handoff verification, not a
+passed30-minute quote acceptance. See [revision124 evidence](#revision124-connected-spot-terminal-handoff-follow-up).
+
+## Revision124 connected Spot terminal handoff follow-up
+
+Global build `b42af073-2436-463d-8b65-269c1db7b9cd` succeeds for exact commit
+`64e78147d5e1bdfc5e8a9851d0f8be92b0bdf1af`. Its Artifact Registry commit tag
+and Ready revision `hummingbot-demo-00124-2cl` both resolve to
+`sha256:6c4b65f97a655f81bc1df4d247f82fe067410868080a4b7c7da1041139ddeded`.
+Ready occurs04:39:55UTC; service traffic is100% to this revision. The preceding
+revision123 is excluded from this qualification despite becoming Ready before
+the new build finishes.
+
+GET-only observation04:39:57–04:53:52UTC (11:39:57–11:53:52 local) captures164
+new-revision samples, all328 HTTP reads successful, no sampled HALT or service
+error. One observation is stale or session-mismatched during transition and is
+retained. Six phase samples are stopping/starting/readiness waits, not normal
+running. Control/ack86 and session `da0f6de4-face-4fdd-8dab-70181ffb6715` remain
+unchanged across generations68→69→70 at04:41:46 and04:51:46UTC. The first
+handoff is near startup; the second follows a full600-second profile interval.
+Twelve recorded Spot BUY fills are observed after Ready; six fetched BUY order
+details are completed with exact filled quantity and zero remaining quantity.
+These establish activity before handoff, not direct instrumentation of which
+proof branch executes.
+
+At the second handoff, generation70 is preparing at04:51:49, readiness-waiting
+at04:51:54, running at04:51:59 and has2 Spot BUY/2 SELL plus2 perpetual SELL
+quotes at04:52:05. Pending terminal orders return to0. The final04:53:52 sample
+is running with fresh matching observation, no active incident, pending0,
+2 Spot BUY/1 SELL and2 perpetual SELL. Perpetual BUY is inventory-limited; Spot
+BUY temporarily reports size/allocation rejection around04:53:16 before quotes
+return. Those constrained/unknown periods are not promoted into successful
+two-sided samples.
+
+Complete bounded Cloud Logging query04:38:35–04:53:06UTC returns29 selected
+records:7 loop-stall/recovery pairs,7 slow-stage warnings,7 child-probe timeouts
+of300.607–300.907ms, and1 `spread_policy_quote_rejected` submission warning.
+There are no ERROR records, child restart schedules, shutdown timeouts,
+`spot_terminal_proof_wait` or service incidents. Diagnostic records retain
+engine PID14. The first handoff's recorded shutdown total is1.881s; the second
+has a1.651s successful `shutdown.proof_before` span. Async stage wall durations
+include awaits and do not establish an equally long event-loop block.
+
+The demonstrated complete-commit failure class now has connected handoff
+evidence. Revision122's original suppressed predicate remains unknown; future
+partial/canceled/uncertain failures still require their own proof and diagnosis.
+No Cloud setting, DB value, HALT, credential, trading command or risk limit is
+changed during this review. The local observer is stopped; the Demo bot remains
+running. Evidence: `build/spot-terminal-postdeploy-20261113/assessment.json` and
+its bounded raw observations/logs. The unchanged30-minute99% quote gate remains
+open, and this healthy interval does not exercise the recovery API.
+
+### Local probe SQL investigation after revision124
+
+The retained packets have seven sampled loop stalls, with heartbeat gaps at
+capture of255.986–281.693ms. Six stacks are inside synchronous PostgreSQL waits:
+send-attempt execution/COMMIT, terminal recording/COMMIT and write fencing during
+profile cleanup. The remaining stack is compiling an import during startup.
+Two send-attempt samples directly overlap child-probe timeouts. Other probe
+episodes are not uniquely attributable from the rate-limited samples. The300ms
+probe timeout censors its reported duration; it is not the complete stall time.
+The `/live` handler itself performs no SQL, but runs on the same engine loop.
+
+PostgreSQL TDD reproduces an avoidable terminal-recording burst: independent
+attempt/history lookups autoflush pending changes, producing four guarded
+flushes. Coalescing those two reads under `no_autoflush` reduces this to two
+flushes and removes two synchronous SQL round trips (15→13 statements in the
+paired cancellation fixture). The checkpoint flush and final commit retain
+their existing fresh physical-owner checks. Uncertain attempts stay uncertain;
+duplicates do not add history; losing the physical owner after the first flush
+or failing final COMMIT rolls back order/attempt/status/tracking together.
+
+Cursor SQL instrumentation does not include the COMMIT reply wait. A separate
+bounded `db.commit` span now wraps the native `DeadlineConnection.commit`,
+preserving its return/exception and all I/O deadlines. It records no SQL,
+parameters, credentials or exception text. Actual deferred-constraint COMMIT
+success/failure and telemetry failure are tested independently.
+
+Local qualification: five terminal-status RED cases and two missing-COMMIT-span
+RED cases fail before their respective corrections. Related regression passes
+107 native recorder/tracker tests +5 subtests,45 diagnostic/deadline/lifecycle
+tests,182 PostgreSQL recorder/owner/fill/unknown-COMMIT tests and18 PostgreSQL
+diagnostic/COMMIT/I/O tests. Scopes overlap. The final affected rerun passes13
+tests. Source hooks and whitespace checks pass.
+
+Five final alternating pairs per condition retain15→13 statements. Without an
+injected wait, component median22.879ms becomes18.805ms; with5ms added after
+every statement,147.923ms becomes134.971ms. Injected latency and local component
+timings are scoped measurements, not a Cloud Run speedup or a probe guarantee.
+There are no wall-clock performance assertions. The confirmed SQL saving is two
+statements per callback in this fixture.
+
+This correction and instrumentation remain local. They reduce a demonstrated
+blocking path; they do not remove synchronous PostgreSQL from the engine or
+prove that all future probes will fit300ms. The import/send-path waits and the
+unchanged30-minute quote gate remain distinct follow-ups. No probe threshold,
+Cloud state, spending/risk policy or transaction authority is changed.
+Local RED/GREEN and paired evidence: `build/probe-sql-followup-20261113/`.
+
+Earlier 2026-11-13: revision122/`5d540d4e2` is verified at100% traffic. Its
 10:31:48 local profile handoff fails Spot terminal proof and restarts the engine
 once. At10:38:47 the same session/control86 is running again without HALT; this
 healthy snapshot does not erase the restart. The incident and local follow-up

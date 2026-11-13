@@ -14,6 +14,7 @@ from psycopg2.extensions import POLL_OK, POLL_READ, POLL_WRITE, connection, get_
 from psycopg2.extras import wait_select
 
 from hummingbot.client.config.runtime_config import RuntimeConfigurationError
+from hummingbot.core.engine_diagnostics import trace_runtime
 
 RUNTIME_IO_SECONDS = 3.0
 CONNECT_IO_SECONDS = 5.0
@@ -35,6 +36,12 @@ class DeadlineConnection(connection):
         self.io_deadline = None
         super().__init__(*args, **kwargs)
         self.io_timeout = RUNTIME_IO_SECONDS
+
+    @trace_runtime('db.commit')
+    def commit(self):
+        # Cursor hooks exclude the COMMIT reply wait. Preserve its exact native
+        # outcome (including ambiguous transport failure); observe no SQL/args.
+        return super().commit()
 
 
 def bounded_wait(conn):

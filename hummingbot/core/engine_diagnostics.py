@@ -22,7 +22,7 @@ from contextvars import ContextVar
 OPERATIONS = frozenset({
     'strategy.tick', 'strategy.reports', 'controller.cycle', 'order.submit',
     'order.cancel', 'order.terminal', 'position.checkpoint', 'owner.read',
-    'db.sql', 'service.observe', 'executor.terminal', 'order.proof',
+    'db.sql', 'db.commit', 'service.observe', 'executor.terminal', 'order.proof',
     'shutdown.total', 'shutdown.core', 'shutdown.strategy', 'shutdown.hold',
     'shutdown.cancel', 'shutdown.proof_before', 'shutdown.proof_after',
 })
@@ -30,7 +30,7 @@ SLOW_MS = {
     'strategy.tick': 250, 'strategy.reports': 250, 'controller.cycle': 1000,
     'order.submit': 1000, 'order.cancel': 1000, 'order.proof': 1000,
     'order.terminal': 250, 'executor.terminal': 250, 'position.checkpoint': 250,
-    'owner.read': 100, 'db.sql': 100, 'service.observe': 1000,
+    'owner.read': 100, 'db.sql': 100, 'db.commit': 100, 'service.observe': 1000,
     'shutdown.total': 1000, 'shutdown.core': 1000, 'shutdown.strategy': 1000,
     'shutdown.hold': 1000, 'shutdown.cancel': 1000,
     'shutdown.proof_before': 1000, 'shutdown.proof_after': 1000,
