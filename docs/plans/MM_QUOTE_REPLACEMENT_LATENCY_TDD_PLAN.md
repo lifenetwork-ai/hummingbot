@@ -310,12 +310,17 @@ Qualification evidence is retained locally under
   not proof of a whole-engine/probe improvement. Final affected rerun:13 passed.
   Alternating-pair medians22.879→18.805ms, or147.923→134.971ms with5ms injected
   per statement. All source hooks pass.
-- [ ] Deploy and compare a new bounded window with the same300ms probe limit.
-  Keep import/send-path waits and quote-target failures separate. Removing these
-  avoidable SQL reads is not a guarantee that all future probes meet300ms.
+- [x] Verify revision126 deploys both corrections and the `db.commit` span at
+  unchanged300ms probe limit. The bounded05:36–05:45UTC window retains8 probe
+  timeouts,13 completed checkpoint spans /0 errors, one transient session fence
+  and no engine restart. See the [connected record](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision126-terminal-write-and-checkpoint-batch-deployment).
+- [ ] Establish comparable connected latency/quote improvement. Keep import,
+  send/terminal waits and quote-target failures separate; the bounded window
+  does not prove that all future probes meet300ms.
 
-Evidence: `build/probe-sql-followup-20261113/`. This change remains local; Cloud
-bot state, risk settings, shutdown budget and probe policy are unchanged.
+Evidence: `build/probe-sql-followup-20261113/` and
+`build/checkpoint-batch-postdeploy-20261113-1239/`. Risk settings, shutdown budget
+and probe policy are unchanged; no recovery/trading mutation is used for review.
 
 ## Held checkpoint metadata batching
 
@@ -351,9 +356,59 @@ metadata reads and applied-fill journal updates repeat for each held executor.
   plus the separate single-executor/two-order case;101 native tests +5 subtests.
   The earlier related pass has176 PostgreSQL tests. Scopes overlap. Three group
   measurements and the final25-pair single-path check pass; all hooks pass.
-- [ ] Qualify the deployed artifact separately; local batching does not close
-  the300ms probe or unchanged30-minute quote target.
+- [x] Verify deployed revision126's exact image, native checkpoint progress and
+  generation74→75 handoff. Retain its transient stale/fenced sample; no restart
+  or persistent stop. Live spans lack batch-size metadata, so they do not prove
+  a particular multi-executor SQL reduction on Cloud.
+- [ ] Close the remaining probe and unchanged30-minute quote target using
+  comparable connected evidence; local batch timings do not close either gate.
 
 No timer, queue or delayed financial acknowledgment is introduced. Native held
 application order and publish-after-COMMIT remain unchanged. Evidence is retained
 under `build/checkpoint-metadata-batch-20261113/`.
+
+## Terminal read and startup loop fairness
+
+- [x] Retain revision126's eight initial timeouts and sampled stacks. The348ms
+  terminal span's detailed children have already left the bounded ring; do not
+  invent a unique breakdown. Separate observed durable-fill SQL waits, startup
+  report assignments, owner/write waits and other Python activity.
+- [x] RED terminal SQL prevents loop progress, owner/native changes are missed
+  during a slow read, and cancellation can return before the connection closes.
+  Keep native receipt/fee/quantity/identity checks and fresh owner authority.
+- [x] Use one concurrent read-only receipt job on its own pooled connection;
+  keep the original three-slot REST proof limit. The physical owner and native
+  financial writes remain on the loop. Deep-copy proof inputs; recheck current
+  owner, recorder, native fills and private state after every awaited proof.
+- [x] RED loop-wide cancellation of an internal child Task can detach its
+  thread. Use a shielded executor Future; drain it on repeated cancellation
+  before releasing the DB slot, terminal slot or lifecycle tracking.
+- [x] Real PostgreSQL400ms SELECT / native `/live` HTTP300ms test: synchronous
+  control times out; the candidate serves200 and heartbeat progress. No native
+  position/intent is changed; the physical owner backend stays on its loop.
+- [x] RED startup assigns report models per historical row and publishes a
+  prefix before a malformed row fails. Accumulate in plain per-controller state
+  in original Decimal order, then publish totals after full stream validation.
+  Retain finite-value, close-type, hold exclusion and cursor-close behavior.
+- [x] Seven alternating warmed CPU-only pairs:20,000 projected rows64.087→
+  48.892ms median; one row0.008→0.011ms. Exact report equality, not a Cloud speedup.
+- [x] Final shipping native regression:3,638 passed +16 subtests. Related
+  PostgreSQL regression196 passed; final selected terminal/projection rerun16
+  passed; focused fairness/startup14 passed. Scopes overlap. Retain an earlier
+  admission failure before the changed terminal path, its successful isolated
+  rerun and successful final selected rerun; no tolerance/guard is relaxed and
+  no retrospectively unique fixture predicate is claimed. Hooks pass.
+- [x] Complete an operational30-minute control window on deployed revision126:
+  351 five-second samples /702 HTTP200s, three profile transitions,3 transient
+  stale/fenced samples,19 probe timeout transitions, no ERROR/restart. Native
+  diagnostic counters advance between05:54:12 and06:23:31UTC:1,751 ticks,
+  234 submissions,135 cancellations and63 checkpoints. This is not proof of
+  uninterrupted ticks or a canonical quote-target qualification.
+- [ ] Deploy the candidate and repeat connected measurement on that exact
+  artifact. GitHub's current SSH identity has no push permission; the candidate
+  must reach the user's CI before its Cloud behavior can be measured. Retain
+  the existing risk settings,300ms probe threshold and quote classifier.
+
+Evidence: `build/probe-terminal-investigation-20261113-1253/`. The baseline is
+revision126, not this local candidate. Remaining synchronous owner/write/COMMIT
+waits are not removed by read isolation; no zero-timeout guarantee is made.

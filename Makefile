@@ -74,6 +74,7 @@ test-cloudrun-regression:
 		test/hummingbot/connector/exchange/okx test/hummingbot/connector/derivative/okx_perpetual \
 		test/hummingbot/core/test_trading_core.py test/hummingbot/core/test_engine_diagnostics.py test/hummingbot/core/web_assistant \
 		test/hummingbot/core/test_ownership_order_refresh.py \
+		test/hummingbot/core/test_terminal_read_fairness.py \
 		test/hummingbot/core/test_recovery.py test/hummingbot/core/test_recovery_exchange.py \
 		test/hummingbot/core/test_checkpoint_recovery.py \
 		test/hummingbot/core/test_reduction_auto_recovery.py \
@@ -83,6 +84,7 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/executors/test_flat_hedge_checkpoint.py \
 		test/hummingbot/strategy_v2/executors/test_report_snapshots.py \
 		test/hummingbot/strategy_v2/executors/test_report_cost_boundaries.py \
+		test/hummingbot/strategy_v2/executors/test_startup_performance_batch.py \
 		test/hummingbot/strategy_v2/executors/test_mm_drawdown_reports.py \
 		test/hummingbot/strategy_v2/executors/test_executor_retention.py \
 		test/hummingbot/strategy_v2/executors/test_terminal_position_checkpoint.py \

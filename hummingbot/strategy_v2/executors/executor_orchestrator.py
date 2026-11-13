@@ -428,12 +428,28 @@ class ExecutorOrchestrator:
                 self.cached_performance[controller_id] = PerformanceReport()
                 self.active_executors[controller_id] = []
                 self.positions_held[controller_id] = []
+        selected, totals = set(controller_ids), {}
         with closing(MarketsRecorder.get_instance().iter_executor_performance(controller_ids)) as db_executors:
             for executor in db_executors:
                 controller_id = executor.controller_id
-                if controller_id not in controller_ids:
+                if controller_id not in selected:
                     continue
-                self._update_cached_performance(controller_id, executor)
+                close_type, pnl, volume = self._executor_performance_values(executor)
+                if controller_id not in totals:
+                    report = self.cached_performance[controller_id]
+                    totals[controller_id] = [report.realized_pnl_quote, report.volume_traded, dict(report.close_type_counts)]
+                values = totals[controller_id]
+                # Retain native row order and Decimal arithmetic, while avoiding
+                # a report-model assignment for each historical executor.
+                if close_type != CloseType.POSITION_HOLD:
+                    values[0] += pnl
+                    values[1] += volume
+                if close_type:
+                    values[2][close_type] = values[2].get(close_type, 0) + 1
+        # A malformed row cannot publish a valid-looking prefix of the history.
+        for controller_id, (pnl, volume, counts) in totals.items():
+            report = self.cached_performance[controller_id]
+            report.realized_pnl_quote, report.volume_traded, report.close_type_counts = pnl, volume, counts
 
         # Load positions from database only for controllers without initial position overrides
         db_positions = MarketsRecorder.get_instance().get_all_positions(
@@ -468,13 +484,8 @@ class ExecutorOrchestrator:
                             and basis.leg == hold.side):
                         hold._reduction_basis = basis
 
-    def _update_cached_performance(self, controller_id: str, executor_info: Union[ExecutorInfo, Executors, Row]):
-        """
-        Update the cached performance for a specific controller with an executor's information.
-        """
-        if controller_id not in self.cached_performance:
-            self.cached_performance[controller_id] = PerformanceReport()
-        report = self.cached_performance[controller_id]
+    @staticmethod
+    def _executor_performance_values(executor_info):
         # Match Executors.to_executor_info() for the projected historical rows.
         close_type = CloseType(executor_info.close_type) if executor_info.close_type else None
         pnl, volume = Decimal(executor_info.net_pnl_quote), Decimal(executor_info.filled_amount_quote)
@@ -482,6 +493,14 @@ class ExecutorOrchestrator:
         # Retain that fail-closed behavior without hydrating unrelated JSON fields.
         if not pnl.is_finite() or not volume.is_finite():
             raise ValueError("Executor performance must contain finite PnL and volume.")
+        return close_type, pnl, volume
+
+    def _update_cached_performance(self, controller_id: str, executor_info: Union[ExecutorInfo, Executors, Row]):
+        """Update live cached performance using the same validation as startup."""
+        if controller_id not in self.cached_performance:
+            self.cached_performance[controller_id] = PerformanceReport()
+        report = self.cached_performance[controller_id]
+        close_type, pnl, volume = self._executor_performance_values(executor_info)
         # Only add to realized PnL if not a position hold (consistent with generate_performance_report)
         if close_type != CloseType.POSITION_HOLD:
             report.realized_pnl_quote += pnl

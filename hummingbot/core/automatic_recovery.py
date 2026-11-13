@@ -6,6 +6,8 @@ count never prove absence. This worker has no order-submission authority.
 import asyncio
 import random
 import time
+from contextvars import copy_context
+from copy import deepcopy
 from decimal import Decimal
 
 from sqlalchemy import func, select, update
@@ -175,6 +177,7 @@ class AutomaticOrderRecovery:
         self.resume_scope = None
         self.bootstrap_orders = {}
         self.terminal_slots = asyncio.Semaphore(3)
+        self.durable_read_slot = asyncio.Semaphore(1)
 
     @property
     def active(self):
@@ -319,35 +322,79 @@ class AutomaticOrderRecovery:
         self._record_verified(core, attempt, status, trades)
         return status, trades
 
+    def _terminal_fence(self, recorder):
+        from hummingbot.connector.markets_recorder import MarketsRecorder
+        self.owner.check_owner()
+        if (recorder is None or MarketsRecorder._shared_instance is not recorder
+                or recorder.sql_manager.engine is not self.owner.engine):
+            raise SubmissionBlocked('Terminal proof has no matching recorder')
+        recorder.sql_manager.assert_persistence_healthy()
+
+    async def _read_durable_fills(self, identity, trades, *, missing_ok=False):
+        """One bounded read on a worker-owned connection; no writer/owner access.
+
+        The caller holds terminal_slots until this read and its connection close
+        finish, including repeated cancellation. Only immutable input snapshots
+        cross threads; native state and physical ownership stay on the loop.
+        """
+        async with self.durable_read_slot:
+            engine, snapshot = self.owner.engine, deepcopy(trades)
+
+            def read():
+                with engine.connect() as connection:
+                    return durable_fills(connection, identity, snapshot, missing_ok=missing_ok)
+
+            # A bare Future is not canceled by loop-wide Task cancellation.
+            # Shield/drain it before returning either slot or the connection.
+            job = asyncio.get_running_loop().run_in_executor(None, copy_context().run, read)
+            try:
+                return await asyncio.shield(job), snapshot
+            except asyncio.CancelledError:
+                while not job.done():
+                    try:
+                        await asyncio.shield(job)
+                    except asyncio.CancelledError:
+                        continue
+                    except BaseException:
+                        break
+                if job.done() and not job.cancelled():
+                    job.exception()  # Retrieve a late read failure without publishing proof.
+                raise
+
     async def terminal_update(self, connector, order, update):
         """A cancel ACK is not terminal; complete private evidence stays fast."""
         from hummingbot.connector.markets_recorder import MarketsRecorder
-        self.owner.check_owner()
         recorder = MarketsRecorder._shared_instance
-        if recorder is None or recorder.sql_manager.engine is not self.owner.engine:
-            raise SubmissionBlocked('Terminal proof has no matching recorder')
         task = asyncio.current_task()
         self.owner.terminal_tasks.add(task)
         try:
-            raw = (update.misc_updates or {}).get('venue_order')
-            if isinstance(raw, dict):
-                try:
-                    state, filled = decode_order_evidence(connector, order, raw)
-                except (KeyError, ValueError, ArithmeticError):
-                    state, filled = None, None
-                if state == update.new_state and filled == order.executed_amount_base:
-                    with self.owner.engine.connect() as connection:
-                        if durable_fills(connection, order.client_order_id, list(order.order_fills.values()), missing_ok=True):
+            async with self.terminal_slots:
+                self._terminal_fence(recorder)
+                raw = deepcopy((update.misc_updates or {}).get('venue_order'))
+                if isinstance(raw, dict):
+                    try:
+                        state, filled = decode_order_evidence(connector, order, raw)
+                    except (KeyError, ValueError, ArithmeticError):
+                        state, filled = None, None
+                    if state == update.new_state and filled == order.executed_amount_base:
+                        durable, snapshot = await self._read_durable_fills(
+                            order.client_order_id, list(order.order_fills.values()), missing_ok=True)
+                        if durable:
+                            self._terminal_fence(recorder)
+                            proof_covers_local(order, update, snapshot)
+                            state, filled = decode_order_evidence(connector, order, raw)
+                            if state != update.new_state or filled != order.executed_amount_base:
+                                raise IOError('Native terminal evidence changed during durable read')
                             order._managed_terminal_proved = True
                             return update
-            async with self.terminal_slots:
                 self.owner.check_owner()
                 proof, trades = await asyncio.wait_for(read_order_proof(connector, order), timeout=10)
                 self.owner.check_owner()
                 proof_covers_local(order, proof, trades)
                 persist_proved_trades(recorder, connector, order, trades)
-                with self.owner.engine.connect() as connection:
-                    durable_fills(connection, order.client_order_id, trades)
+                _, snapshot = await self._read_durable_fills(order.client_order_id, trades)
+                self._terminal_fence(recorder)
+                proof_covers_local(order, proof, snapshot)
                 order._managed_terminal_proved = True
                 return proof
         finally:

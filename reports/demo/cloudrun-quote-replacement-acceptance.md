@@ -1,6 +1,128 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest 2026-11-13: revision124/`64e78147d` is verified at100% traffic. Two
+Latest 2026-11-13: revision126/`492649baf` is verified at100% traffic, including
+the terminal-write and checkpoint-batch changes. A connected profile handoff
+completes;13 checkpoint spans finish without errors. Eight probe timeouts remain;
+there is no observed engine restart or persistent recovery stop. This bounded
+review does not close the300ms probe or30-minute quote gates. See
+[revision126 evidence](#revision126-terminal-write-and-checkpoint-batch-deployment).
+
+Subsequent operational control observation05:54–06:24UTC retains19 probe
+timeouts across three successful profile changes. The local read/startup TDD
+follow-up is qualified separately and awaits deployment; see
+[the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
+
+## Revision126 thirty-minute control and local loop-fairness follow-up
+
+The unchanged image/session/control86 runs for the observer's30-minute lifetime:
+351 samples05:54:06.199–06:24:02.382UTC, sampled span1,796.183s, maximum gap5.421s,
+all702 status/liquidity reads200. Generations76→77→78→79 advance normally.
+Three samples retain `halted=true` with stale/mismatched `session_transition`
+observations;8 samples wait for readiness. No persistent stop or sampled error.
+Spot is observed two-sided214 times; perpetual remains inventory-constrained.
+These are five-second operational summaries, not the canonical quote-window
+classifier's full inputs or a99% quote pass; guards/unknowns are not discarded.
+
+The exact bounded log query completes with84 records:24 loop-stall/recovery
+pairs,19 child-probe timeout transitions,14 slow-stage warnings and3 submission
+guard warnings. No ERROR or child restart; engine PID14 throughout. Between
+diagnostic packets05:54:12 and06:23:31UTC, completion counters advance by1,751
+strategy ticks,4,554 controller cycles,234 order submissions,135 cancellations,
+234 terminal callbacks and63 checkpoints. This establishes continuing progress,
+not uninterrupted per-probe ticks. Packet maxima are process-lifetime values,
+not necessarily maxima of this30-minute window.
+
+Sampled stack locations include9 other SQL waits,8 owner-fence reads,3 send
+attempt writes, one terminal recorder,2 startup-performance accumulations and
+one other Python location. A previously retained packet samples `durable_fills`
+on the loop. The348.483ms terminal span's detailed children have left the ring;
+no unique retrospective decomposition is asserted.
+
+Local TDD separately reproduces two concrete mechanisms. Terminal receipt reads
+can keep the loop from serving its probe; read isolation uses one bounded worker
+with a worker-owned pooled connection. Owner access and native financial writes
+stay on the loop. Immutable proof snapshots cross threads; owner, recorder,
+private state and current native fill/fee coverage are revalidated after awaits.
+The three-slot REST proof bound remains. Caller cancellation, repeated shutdown
+and loop-wide child-Task cancellation drain the shielded executor Future before
+releasing slots or lifecycle tracking. The reader has no mutation path.
+
+A real PostgreSQL400ms SELECT blocks a synchronous control's unchanged300ms
+HTTP probe. The candidate returns200 while heartbeat callbacks progress, retaining
+the same physical owner backend and unchanged position/intent state. This is a
+scoped fault-injection result, not proof that all main-loop SQL is eliminated.
+
+Startup now aggregates projected rows in plain per-controller state before
+publishing report fields. It retains row order, Decimal arithmetic, finite-value
+validation, close-type counts and POSITION_HOLD exclusion; malformed history
+does not publish a partial prefix and the iterator still closes. Seven warmed
+alternating CPU-component pairs against the exact committed control give
+20,000 rows64.087→48.892ms median, one row0.008→0.011ms; outputs match exactly.
+
+Shipping native regression passes3,638 +16 subtests, related PostgreSQL196,
+final selected terminal/projection16 and focused fairness/startup14. These scopes
+overlap. An earlier selected run fails an admission fixture before reaching the
+changed terminal path; isolated and final selected reruns pass. Its original
+failure remains in evidence without a uniquely proven retrospective predicate,
+guard relaxation or hidden test exclusion. Hooks pass. Evidence:
+`build/probe-terminal-investigation-20261113-1253/`.
+
+The local candidate has not been measured on Cloud Run: GitHub denies push for
+the current SSH identity. No Cloud setting, trading command, recovery/reset or
+financial DB mutation is issued in this review. Existing synchronous owner and
+write waits remain possible; compare the deployed candidate before claiming
+probe improvement or closing the unchanged quote target.
+
+## Revision126 terminal-write and checkpoint-batch deployment
+
+Ready revision `hummingbot-demo-00126-lh2` and the exact Artifact Registry tag
+for commit `492649baf2cc6679c5acd62d79a282b1a43c08c6` both resolve to
+`sha256:1c6c88e05673ee5bba258eb68e6ec005f75e6acb0047249abd36e0ae4112b232`.
+It contains `fb58c2711` and the batching follow-up. Creation is05:36:04UTC,
+Ready05:37:34UTC, traffic100%. This review uses GET/API and Cloud metadata/log
+reads only; no trading command, recovery/reset, Cloud setting or DB write.
+
+The complete bounded log query is05:36:04–05:45:05UTC (12:36–12:45 local).
+API observation05:39:56–05:45:03 retains61 samples /122 successful HTTP reads,
+same control/ack86 and session `da0f6de4-face-4fdd-8dab-70181ffb6715`.
+Generation74→75 at05:41:46 changes `follow_market` to `follow_token`. One
+05:41:48 sample has `halted=true`, stale/mismatched `session_transition`
+observation and unavailable quote evidence during cleanup. It is retained as
+unknown, not deleted or counted as a quote pass. The next sample waits for
+readiness; running returns05:41:59 and2 Spot BUY/2 SELL plus2 perpetual SELL
+are observed05:42:04. No manual reset or new Start is used.
+
+Spot BUY and SELL fills are recorded after Ready and after the handoff. The
+05:45:03 sample is running, fresh/matching, no active incident/error, pending
+terminal0, with2 Spot BUY and2 perpetual SELL. Spot SELL currently reports
+`order_size_rejected`; perpetual BUY remains `inventory_limit`. These constrained
+periods do not qualify as uninterrupted two-sided quotes.
+
+Logs contain no ERROR, child restart schedule, shutdown timeout or terminal-proof
+incident; diagnostic engine PID remains14. There are8 loop-stall/recovery pairs,
+9 slow-stage warnings and8 child-probe timeout transitions (300.949–302.780ms,
+deadline-censored). Recovery INFO records are absent from this query; distinct
+first-failure transitions and continued healthy operation support recovery
+between episodes. One early valuation warning has `book_not_fresh` age10.834s;
+one submission warning is `spread_policy_quote_rejected`.
+
+New diagnostics show13 completed `position.checkpoint` spans /0 errors through
+05:44:54, maximum220.422ms, and native `db.commit` maximum152.117ms /0 observed
+errors. Other recorded spans include owner read214.440ms, terminal348.483ms and
+successful shutdown total2.380s. Async wall spans include awaits; these values
+do not independently attribute the complete probe delay. Checkpoint span data
+does not include executor count, so this review cannot prove how many live calls
+used the multi-executor branch or establish a normalized Cloud SQL/probe speedup.
+
+At05:43:56 four administrative GETs return401 with fixed `token_expired`
+diagnoses. These are expired Google credentials, separate from engine health;
+the authenticated observation process continues receiving200. No credential is
+changed. The observer is stopped locally; Demo trading continues. Evidence:
+`build/checkpoint-batch-postdeploy-20261113-1239/assessment.json`, diagnostic
+counters and bounded raw logs/observations. The unchanged30-minute99% quote gate
+and remaining probe investigation stay open.
+
+Earlier 2026-11-13: revision124/`64e78147d` is verified at100% traffic. Two
 scheduled profile handoffs complete on the new image without observed HALT,
 terminal-proof error or engine restart. Seven short probe timeouts recover;
 quote constraints remain. This is bounded deploy/handoff verification, not a
