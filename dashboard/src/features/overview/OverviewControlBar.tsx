@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, OctagonAlert, SlidersHorizontal } from 'lucide-react'
+import { ArrowRight, LineChart, OctagonAlert, SlidersHorizontal } from 'lucide-react'
 import type { OperationalContextModel } from '../operational-context/context'
 import { useSessionControl } from '../session-control/useSessionControl'
 import { StopConfirmationDialog } from '../session/StopConfirmationDialog'
+import { ProfileExplorerDialog } from './ProfileExplorerDialog'
 import type { ObservationState, OverviewModel } from './model'
 import { CountdownRing } from './visuals/CountdownRing'
 import { Badge } from '../../shared/components/Badge'
@@ -25,6 +26,7 @@ export function OverviewControlBar({ overview, context, observation, isLoading, 
   const status = overview.status.data
   const [stopOpen, setStopOpen] = useState(false)
   const [stopError, setStopError] = useState<string | null>(null)
+  const [explorerOpen, setExplorerOpen] = useState(false)
   const control = useSessionControl({ includeProfiles: false })
 
   const request = status?.session?.request
@@ -79,6 +81,15 @@ export function OverviewControlBar({ overview, context, observation, isLoading, 
       {/* Strategy + trading pair */}
       <div className="flex min-w-0 items-center gap-3">
         <ProfileSignatureChip profileId={profileId ?? 'Not configured'} selection={selection} size="sm" />
+        <button
+          type="button"
+          onClick={() => setExplorerOpen(true)}
+          className="inline-flex min-h-[30px] items-center gap-1 rounded-button bg-app-surface-muted px-2 py-1 text-xs font-semibold text-app-action hover:bg-app-accent/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-app-action"
+          title="See how this profile prices LIFE"
+          aria-label="Open profile pricing explorer"
+        >
+          <LineChart size={12} />
+        </button>
         <div className="hidden items-center gap-2 border-l border-app-border/60 pl-3 sm:flex">
           <span className="font-mono text-sm font-bold text-app-text">{pairs[0] ?? '—'}</span>
           <span className="text-[10px] font-medium uppercase tracking-wider text-app-muted">{marketSummary}</span>
@@ -150,6 +161,17 @@ export function OverviewControlBar({ overview, context, observation, isLoading, 
         onConfirm={handleStopConfirm}
         isSubmitting={control.stopping}
         error={stopError}
+      />
+      <ProfileExplorerDialog
+        open={explorerOpen}
+        onClose={() => setExplorerOpen(false)}
+        activeProfileId={profileId}
+        anchorLife={(() => {
+          const anchors = status?.observed_session?.anchors ?? status?.session?.anchors ?? null
+          const first = anchors ? Object.values(anchors)[0] : undefined
+          const life = first ? Number(first.life) : null
+          return life !== null && Number.isFinite(life) && life > 0 ? life : null
+        })()}
       />
     </Surface>
   )
