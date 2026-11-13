@@ -118,6 +118,13 @@ class Exchange:
         self.cancel_pending_visibility_served = 0
         self.cancel_pending_visibility_reads = 0
         self.fill_on_cancel = {}
+        self.suppress_terminal_ws_for = set()
+        self.suppressed_terminal_events = deque(maxlen=64)
+        self.withhold_fills_for = set()
+        self.withheld_fill_reads = {}
+        self.private_keepalive = False
+        self.private_keepalive_messages = 0
+        self._last_private_keepalive = 0
         self.release = asyncio.Event()
         self.release.set()
         self.socket_args = {}
@@ -173,6 +180,16 @@ class Exchange:
         return message
 
     async def broadcast(self, message):
+        if self.suppress_terminal_ws_for and message['arg']['channel'] == 'orders':
+            allowed = []
+            for row in message.get('data', []):
+                if row.get('clOrdId') in self.suppress_terminal_ws_for and row.get('state') in ('filled', 'canceled'):
+                    self.suppressed_terminal_events.append(dict(clOrdId=row['clOrdId'], state=row['state'], at_ms=millis()))
+                else:
+                    allowed.append(row)
+            if not allowed:
+                return
+            message = {**message, 'data': allowed}
         for socket, channels in list(self.sockets.items()):
             if not socket.closed and message["arg"]["channel"] in channels:
                 await socket.send_json(message)
@@ -275,6 +292,16 @@ class Exchange:
                 continue
             except asyncio.TimeoutError:
                 pass
+            if self.private_keepalive and time.monotonic() - self._last_private_keepalive >= 1:
+                self._last_private_keepalive = time.monotonic()
+                balances = copy.deepcopy(self.fixtures['balances']['data'])
+                for account in balances:
+                    account['uTime'] = millis()
+                    for balance in account.get('details', []):
+                        balance['uTime'] = millis()
+                self.private_keepalive_messages += sum(not socket.closed and 'account' in channels
+                                                       for socket, channels in self.sockets.items())
+                await self.broadcast({'arg': {'channel': 'account'}, 'data': balances})
             diagnostics = self.market_diagnostics
             if diagnostics is not None:
                 diagnostics.cycle(next_update, time.monotonic(), subscriptions)
@@ -347,6 +374,9 @@ class Exchange:
                                       "cleanup_partial_event": self.cleanup_partial_event,
                                       "cancel_pending_visibility": self.cancel_pending_visibility,
                                       "cancel_pending_visibility_served": self.cancel_pending_visibility_served,
+                                      "suppressed_terminal_events": list(self.suppressed_terminal_events),
+                                      "withheld_fill_reads": self.withheld_fill_reads,
+                                      "private_keepalive_messages": self.private_keepalive_messages,
                                       "connections": self.connections, "subscriptions": self.subscriptions})
         if path == "/control":
             return await self.control(await request.json())
@@ -450,7 +480,12 @@ class Exchange:
                     self.cancel_pending_visibility_served += 1
             return self.ok(rows)
         if path == "/api/v5/trade/fills":
-            return self.ok([fill for fill in self.fills if not request.query.get("ordId") or fill["ordId"] == request.query["ordId"]])
+            for identity in self.withhold_fills_for:
+                if not request.query.get('ordId') or self.orders[identity]['ordId'] == request.query['ordId']:
+                    self.withheld_fill_reads[identity] = self.withheld_fill_reads.get(identity, 0) + 1
+                    observed['injected_fill_hold'] = True
+            return self.ok([fill for fill in self.fills if fill['clOrdId'] not in self.withhold_fills_for
+                            and (not request.query.get("ordId") or fill["ordId"] == request.query["ordId"])])
         if path == "/api/v5/trade/order" and method == "GET":
             order = self.orders.get(request.query.get("clOrdId"))
             if order is None:
@@ -581,6 +616,19 @@ class Exchange:
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
 
     async def control(self, data):
+        for name in ('suppress_terminal_ws_for', 'withhold_fills_for'):
+            if name in data:
+                values = data[name]
+                if (not isinstance(values, list) or len(values) > 8
+                        or any(not isinstance(identity, str) or identity not in self.orders for identity in values)):
+                    return web.json_response({'error': 'invalid_terminal_fault_scope'}, status=400)
+        if 'private_keepalive' in data and not isinstance(data['private_keepalive'], bool):
+            return web.json_response({'error': 'invalid_private_keepalive'}, status=400)
+        for name in ('suppress_terminal_ws_for', 'withhold_fills_for'):
+            if name in data:
+                setattr(self, name, set(data[name]))
+        if 'private_keepalive' in data:
+            self.private_keepalive = data['private_keepalive']
         if 'submission_busy' in data:
             if type(data['submission_busy']) is not bool:
                 return web.json_response({'error': 'invalid_submission_busy'}, status=400)

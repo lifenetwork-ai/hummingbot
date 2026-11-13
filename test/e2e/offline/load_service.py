@@ -92,10 +92,45 @@ def retention_counts(core, orchestrator):
 request_queries = contextvars.ContextVar("load_request_queries", default=None)
 samples = defaultdict(lambda: deque(maxlen=12000))
 totals = defaultdict(int)
+process_role = sys.argv[sys.argv.index('--role') + 1] if '--role' in sys.argv else 'combined'
+if os.environ.get('HBOT_PENDING_POLL_DIAGNOSTICS') == '1' and process_role == 'engine':
+    from hummingbot.connector.exchange_py_base import ExchangePyBase
+
+    original_poll_interval = ExchangePyBase._get_poll_interval
+
+    def pending_with_fresh_stream(connector, timestamp):
+        stream = connector._user_stream_tracker
+        return (stream is not None and 0 <= timestamp - stream.last_recv_time <= connector.TICK_INTERVAL_LIMIT
+                and any(getattr(order, '_managed_recovery_order', False) is True and not order.is_done
+                        and (order.is_pending_cancel_confirmation or getattr(order, '_terminal_proof_pending', False) is True)
+                        for order in connector.in_flight_orders.values()))
+
+    def measured_poll_interval(self, timestamp):
+        interval = original_poll_interval(self, timestamp)
+        if pending_with_fresh_stream(self, timestamp):
+            totals['pending_fresh_ws_ticks.' + self.name] += 1
+            if interval == self.SHORT_POLL_INTERVAL:
+                totals['pending_fresh_ws_short_ticks.' + self.name] += 1
+        return interval
+
+    ExchangePyBase._get_poll_interval = measured_poll_interval
+    # Concrete connectors override account reads; observe their actual worker
+    # entry without replacing requests, outcomes, clocks or trading authority.
+    from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
+    from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
+
+    def account_counter(original):
+        async def measured(self):
+            if pending_with_fresh_stream(self, self.current_timestamp):
+                totals['pending_fresh_ws_account_reads.' + self.name] += 1
+            return await original(self)
+        return measured
+
+    for pending_connector in (OkxExchange, OkxPerpetualDerivative):
+        pending_connector._status_polling_loop_fetch_updates = account_counter(pending_connector._status_polling_loop_fetch_updates)
 route_queries = defaultdict(lambda: {"calls": 0, "queries": 0, "min": None, "max": 0})
 trace_directory = os.environ.get("HBOT_LOAD_TRACE_DIRECTORY")
 incident_directory = os.environ.get('HBOT_LOAD_INCIDENT_DIRECTORY')
-process_role = sys.argv[sys.argv.index('--role') + 1] if '--role' in sys.argv else 'combined'
 trace_sink = runtime_trace_sink(trace_directory, process_role)
 incident_sink = TraceSink(Path(incident_directory) / (process_role + '-incidents.jsonl'),
                           max_bytes=32 * 1024**2, queue_limit=256, append=True,

@@ -413,8 +413,9 @@ under `build/checkpoint-metadata-batch-20261113/`.
   20 loop-stall/recovery pairs and no ERROR/restart. This descriptive comparison
   is not a controlled A/B speedup or proof of uninterrupted engine ticks.
 - [ ] Resolve the remaining probe paths and repeat the unchanged99% quote gate.
-  Spot remains602/668 =90.12%; perpetual has no confirmed eligible samples
-  under current inventory guards. Synchronous owner/write/COMMIT waits remain.
+  Revision127 Spot is602/668 =90.12%; revision128's fresh window is676/697
+  =96.99%, still fail. Perpetual has no confirmed eligible samples under the
+  current inventory guards. Synchronous owner/write/COMMIT waits remain.
 - [x] Reproduce the missing-terminal-evidence scheduling defects with TDD:
   healthy WS traffic leaves a managed pending cancel/proof on120s, and an event
   arriving during the native account read is discarded at poll completion.
@@ -430,7 +431,18 @@ under `build/checkpoint-metadata-batch-20261113/`.
 - [x] Ship the new connector tests in the native regression target:3,654 passed
   +16 subtests; related PostgreSQL50 passed and final financial rerun5 passed
   (overlapping scopes). Focused connector/tracker checks56 passed; hooks pass.
-- [ ] Qualify the local polling follow-up on Cloud before closing availability.
+- [x] Verify user-deployed `d82cd5c28` against revision128's exact digest at100%
+  traffic and unchanged env/resources/probes. The09:24:55–09:54:56UTC window
+  retains901 samples /1,802 successful reads, one revision/session/control86
+  and three profile handoffs. Two transient fences remain unknown; no sampled
+  status.error or persistent HALT. Logs have9 probe timeout transitions,
+  14 loop-stall/recovery pairs and no ERROR/restart. This descriptive result
+  does not uniquely establish a performance improvement over127's13 timeouts.
+  Spot's sampled no-quote timer peaks at5.442s in a guard interval; the98s
+  outage does not recur. One SELL pending-cancel sample clears between its
+  neighboring observations (3.983s bracket), but has no wait-age/branch trace.
+- [ ] Close connected missing-terminal-WS qualification and the99% quote target;
+  do not infer exercise of the new5s fallback from ordinary cancellation.
   The defect is reproduced, but the unique cause of the four historical waits
   is not proven: direct venue verification lacked local Demo keys and the
   read-only managed-credential DB connection was unavailable. Retain the98s
@@ -442,6 +454,48 @@ under `build/checkpoint-metadata-batch-20261113/`.
   shared fallback on120s; this is a hypothesis for these four orders, not a
   proven unique cause. Bound reconciliation without bypassing venue/fill/fee
   evidence, current native state or physical ownership. Retain the failed gap.
+
+## Revision128 gap analysis and managed entry wakeup
+
+- [x] Inspect all14 Spot eligible gaps and7 unknown observations against exact
+  probe timestamps. Twelve gaps report `executor_activity` with no pending
+  create/cancel; two report `submission_pending`. Most executor gaps are minutes
+  from a probe transition. Four unknowns are stale profile-transition views and
+  three are startup. Keep all21 failures; this is not a unique per-order trace.
+- [x] RED five real PositionExecutor loop cases before the runtime correction:
+  managed stop and terminal delivery can leave the outer loop asleep even after
+  its inner shutdown waiter wakes. Reuse the existing native order-change event
+  for managed configured LIMIT_MAKER entries, retaining the normal periodic
+  timeout, financial shutdown, held-fill and fresh-account gates.
+- [x] Cover BUY/SELL, zero/partial fills, native terminal delivery during cancel,
+  duplicate stops/foreign callbacks and legacy/unconfigured/taker cadence.
+  Ship the nine entry cases in the canonical native regression target.
+- [x] Full-service offline missing-terminal-WS qualification on the exact
+  deployed128 artifact: eight native quotes, two fills hidden from REST, six
+  zero-fill cancels and12 dropped terminal frames while account WS stays live.
+  Both connectors actually select short polls and enter their native account
+  worker twice. Missing fills keep the native orders/levels reserved; release
+  restores quotes with two exact original fill/fee receipts and the same owner,
+  session and engine PID. This closes local full-service branch coverage, not
+  the connected quote target or the historical four-order root cause.
+- [x] Native3,674 tests +16 subtests and38 related disposable PostgreSQL tests
+  pass. The valid fixture RED retains11 failures against the old simulator.
+  Keep the earlier E2E failure caused by test-wrapper initialization separately;
+  the corrected deployed-image run passes without altering runtime budgets.
+- [x] The packaged entry-wakeup candidate passes the same full-service fault
+  scenario at2CPU/1GiB:12 dropped terminal frames, repeated actual5s native
+  polling on both connectors, exact fill/fee receipts, reserved pending levels
+  and unchanged owner/session/PID. The full-service check is not a latency A/B.
+- [ ] Deploy the entry-wakeup change and repeat the unchanged connected30-minute
+  target. Revision128's96.99% and
+  the earlier98s outage remain failed evidence. Probe/COMMIT/owner-read delays
+  remain separate follow-ups; waking an executor is no new trading authority.
+
+Evidence: `build/quote-gap-followup-20261113/` and
+`build/e2e-offline/20261113-171748-f20bf3/`,
+`build/e2e-offline/20261113-172030-ad7782/`; use the existing
+[acceptance record](../../reports/demo/cloudrun-quote-replacement-acceptance.md)
+for artifact identities and qualification scope.
 
 Evidence: `build/probe-terminal-investigation-20261113-1253/`. The baseline is
 revision126. Connected revision127 evidence is in

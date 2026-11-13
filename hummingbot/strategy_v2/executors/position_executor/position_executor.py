@@ -326,6 +326,23 @@ class PositionExecutor(ExecutorBase):
         elif self.status == RunnableStatus.SHUTTING_DOWN:
             await self.control_shutdown_process()
 
+    @property
+    def _is_managed_maker_entry(self):
+        return (self.config.mm_session_id is not None and self.config.use_configured_entry_price
+                and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
+
+    async def _wait_for_control_tick(self):
+        if not self._is_managed_maker_entry:
+            return await super()._wait_for_control_tick()
+        if self.terminated.is_set():
+            return
+        try:
+            await asyncio.wait_for(self._shutdown_orders_changed.wait(), timeout=self.update_interval)
+        except asyncio.TimeoutError:
+            pass
+        finally:
+            self._shutdown_orders_changed.clear()
+
     def all_orders_completed(self):
         """
         This method is responsible for checking if the open orders are completed.
@@ -671,6 +688,8 @@ class PositionExecutor(ExecutorBase):
         """
         self.close_type = CloseType.POSITION_HOLD if keep_position else CloseType.EARLY_STOP
         self._status = RunnableStatus.SHUTTING_DOWN
+        if self._is_managed_maker_entry:
+            self._shutdown_orders_changed.set()
 
     def _collect_held_position_orders(self) -> List[Dict]:
         """Snapshot residual exposure for a forced stop at the shutdown deadline.
@@ -748,8 +767,7 @@ class PositionExecutor(ExecutorBase):
             self._failed_orders.append(self._close_order)
             self._close_order = None
         if self._open_order and event.order_id == self._open_order.order_id:
-            managed_maker = (self.config.mm_session_id is not None and self.config.use_configured_entry_price
-                             and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
+            managed_maker = self._is_managed_maker_entry
             if managed_maker and self._open_order.order is None:
                 # A native cancel can arrive before the created event/REST ACK.
                 # Its terminal order is still available in the connector cache.

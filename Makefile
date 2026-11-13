@@ -93,6 +93,7 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/executors/test_reduction_valuation.py \
 		test/hummingbot/strategy_v2/executors/test_reduction_cost_basis.py \
 		test/hummingbot/strategy_v2/executors/test_managed_quote_wakeup.py \
+		test/hummingbot/strategy_v2/executors/test_managed_entry_wakeup.py \
 		test/hummingbot/strategy_v2/executors/test_managed_terminal_publication.py \
 		test/hummingbot/strategy_v2/executors/test_executor_identity.py \
 		test/hummingbot/strategy_v2/executors/order_executor \

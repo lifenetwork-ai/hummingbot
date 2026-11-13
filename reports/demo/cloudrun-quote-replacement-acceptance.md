@@ -1,6 +1,14 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest 2026-11-13: revision127/`ae553598a` is verified at100% traffic. The
+Latest 2026-11-13: revision128/`d82cd5c28` is verified at100% traffic. The
+unchanged30-minute window has9 probe timeout transitions, no ERROR/restart and
+no recurrence of the sampled98s cancel-confirmation outage. Spot's conservative
+quote result is96.99%, still below99%; missing-WS fault-path qualification is
+now verified separately in full-service offline fault injection, with the
+original connected gaps retained. See
+[revision128 evidence](#revision128-pending-cancel-polling-deployment).
+
+Previously, revision127/`ae553598a` is verified at100% traffic. The
 unchanged30-minute observation completes with13 probe timeout transitions
 versus19 in the preceding control, no ERROR or engine restart, and continuing
 native activity. Spot's98.189s no-quote/cancel-confirmation episode remains a
@@ -21,6 +29,149 @@ Subsequent operational control observation05:54–06:24UTC retains19 probe
 timeouts across three successful profile changes. The local read/startup TDD
 follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
+
+## Revision128 gap analysis and entry scheduling follow-up
+
+All21 failing Spot observations are retained:12 `executor_activity` gaps without
+pending create/cancel, two `submission_pending` gaps, four stale transition
+views and three startup unknowns. Most executor gaps are minutes away from the
+nearest probe transition; probe slowdown is not demonstrated as their common
+cause. The stored snapshots lack a per-executor terminal/publication trace, so
+this classification does not uniquely attribute each historical sample.
+
+Code inspection finds a separate reproducible scheduling defect in managed
+maker PositionExecutor entries: stop can arrive during the normal periodic
+sleep, and a native terminal callback can finish the inner shutdown wait only
+to encounter the outer periodic wait. Five valid RED cases fail before the
+correction. The patch wakes that outer wait with the existing shutdown order-
+change event and wakes it on managed early stop. It retains the configured
+periodic timeout and existing shutdown/financial path. Nine final cases cover
+BUY/SELL, exact partial/zero holds, pending proof, duplicate/foreign events and
+legacy/unconfigured/taker cadence. No fresh-account, commit, cap, breakeven or
+terminal-proof gate is relaxed; this is not a claim to explain all12 samples.
+
+The new `pending-terminal-ws` offline scenario uses the exact deployed128 image
+(`8ac9faa9…`, image config `a716ffb3…`) on an internal Docker network with dummy
+keys, real service supervisor/connectors/API and isolated PostgreSQL. Two CPU /
+1GiB are enforced. Ordinary20s fixture refresh terminates eight original native
+quotes; two full fills are withheld from REST while six zero-fill cancels remain
+visible. Twelve terminal WS frames are dropped, with unrelated current account
+frames keeping both private streams alive. Bounded measurement wrappers call
+unchanged native methods and observe10 actual short-cadence selections plus two
+native account-worker entries per connector. Each hidden fill is requested at
+least twice. Native orders and matching controller levels remain reserved until
+fill evidence is released; no terminal state is invented from a cancel ACK.
+
+After release, all eight original terminal records are committed, both quote
+sides return, and the independent venue ledger matches exactly two recorder
+fills, original fees and contract/base units. The observed release-to-quotes
+interval is4.919s, including test polling/SQL/export work; it is not a venue
+latency benchmark or a5s completion guarantee. Owner UUID/generation, session and
+engine PID stay unchanged; there is no duplicate submission. Stop drains working
+orders through the normal API. This is full-service offline branch proof for
+the deployed polling fix, not a connected missing-WS injection or a99% pass.
+
+The first E2E attempt fails startup because the new test wrapper referenced its
+role before initialization; its evidence remains failed. The corrected run
+passes without widening startup, probe or terminal deadlines. The simulator's
+11 valid RED cases fail against its prior implementation and pass after adding
+bounded targeted faults, immutable venue truth and exact fill-view restoration.
+Shipping native regression3,674 +16 subtests and38 related disposable
+PostgreSQL tests pass; all changed-file hooks and whitespace checks pass.
+
+The packaged entry-wakeup candidate, config digest
+`sha256:f11a28613e16f4ce00abd80ff0601e98ba5ea2f50aa2e9a44ae431f806dce512`
+and temporary loopback-registry manifest
+`sha256:ede135540b9f823994e62eb9fcf520dc0a198ece824a038e6e17a7df30e291d2`,
+passes the same full-service scenario at2CPU/1GiB. Both connectors again select
+10 short cadences and enter the native account worker twice under fresh WS;
+12 terminal frames are dropped, hidden fills keep levels reserved, and exact
+original receipts precede restored quotes. Owner/session/PID stay unchanged.
+Its measured release-to-quotes interval is6.119s. The two full-service runs are
+branch/financial regression checks with export/SQL/observer overhead, not a
+controlled latency comparison; five RED scheduler tests establish the removed
+wait. The candidate is not deployed on Cloud128. A fresh connected window is
+required before claiming any improvement to ordinary quote gaps or probes.
+
+GET-only readback10:22:12UTC remains revision128/control86, fresh/running,
+no HALT or status.error; all seven reads return200. At that instant both markets
+have two SELLs, with Spot BUY rejected by sizing/allocation checks and perpetual
+BUY inventory-limited. This is guarded one-sided activity, not a two-sided pass.
+
+Evidence: `build/quote-gap-followup-20261113/` contains21 sample contexts,
+RED/green/native/PostgreSQL checks and candidate build logs.
+`build/e2e-offline/20261113-171357-418a48/` retains the wrapper failure;
+`build/e2e-offline/20261113-171748-f20bf3/` is the successful deployed-image fault
+qualification and `build/e2e-offline/20261113-172030-ad7782/` the successful
+candidate. Test containers/networks are removed. No Cloud configuration, policy,
+trading command or DB maintenance is changed in this follow-up.
+
+## Revision128 pending-cancel polling deployment
+
+Ready revision `hummingbot-demo-00128-jdt` and the Artifact Registry tag for
+`d82cd5c28ae533e9bac195566b9cca5fe9c4c823` both resolve to
+`sha256:8ac9faa971346a55fec5c28748ee9f340a978522c78d36ef2615d0d8eb62b51c`.
+Creation is09:21:43UTC and Ready09:23:08UTC; traffic remains100% at the final
+readback. Compared with127, env values, resources, Cloud probes, command/args
+and volume mounts are unchanged. Observation is GET-only; no trading command,
+HALT reset, DB maintenance or Cloud setting is changed.
+
+Window09:24:55.257–09:54:56.178UTC (16:24–16:54 local) retains901 samples /
+1,802 successful status/liquidity reads. Sampled span1,800.922s and maximum
+gap2.555s pass the unchanged v3 observation-quality checks. The same artifact
+and session/control86 persist across generations97→98→99→100; the observed
+owner revision matches throughout.
+There are888 running,3 starting and10 readiness-wait samples, no status.error.
+Two sampled `halted=true` values are stale/mismatched `session_transition`
+shutdown fences; each clears in the next observation. They remain unknown,
+not healthy quote samples. The third profile handoff has unknown observations
+without a sampled HALT; no absence between samples is asserted.
+
+The complete exact-window log query contains54 WARNING records:14 loop-stall/
+recovery pairs,17 slow-stage warnings and9 child-probe timeout transitions.
+There is no ERROR, child restart or missing-quote warning; diagnostic PID14
+persists. The separate deployment/startup query09:21:43–09:24:47UTC retains3
+earlier probe timeouts, one loop-stall/recovery pair and one slow-stage warning,
+with no ERROR/restart; they are not added to the exact30-minute count. Nine
+versus127's13 is a descriptive comparison, not a controlled causal speedup.
+The300ms deadline and missing supervisor-recovery INFO limitation remain.
+
+Packets09:29:53–09:53:01UTC show completed counters advancing by1,380 strategy
+ticks,3,526 controller cycles,175 submissions,114 cancellations and174 terminal
+callbacks, with zero counted errors in these scopes. These are native callback
+completions, not venue ACK counts. The narrower diagnostic range proves
+progress across retained packets, not uninterrupted ticks or comparable
+throughput. Sampled loop stacks include4 commits,3 owner reads,3 startup-
+performance locations, one other SQL and3 other Python locations; they do not
+uniquely attribute every timeout.
+
+| Market | Both working | Eligible gap | Unknown | Guard excluded | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Spot |676|14|7|204|676/697 =96.99%, fail |
+| Perpetual |0|0|7|894|No confirmed eligible sample; not qualified |
+
+Unknown counts as failure and guards never count as uptime. Perpetual BUY is
+inventory-limited in880 samples. Spot's14 eligible-gap samples form12 clusters;
+the largest neighboring-observation bracket is6.005s. Its sampled no-quote
+timer peaks at5.442s during `guard_recovering`; perpetual's timer peaks at6.041s
+in the same guard interval. These sampled timers/brackets are not hard bounds
+on unobserved or unknown periods. Failed gaps and unknown samples remain in
+the gate.
+
+At09:37:59.530UTC one sample shows one Spot SELL pending cancel while both sides
+still work; its neighboring observations span3.983s and show no pending cancel.
+There is no per-order wait-age diagnosis in this sample. This establishes
+native cancel activity without a repeated sampled98s outage, not that the new
+5s fallback was exercised or that every cancel completed within5s. The original
+four orders' unique cause remains unproved; missing-terminal-WS behavior is
+covered by the local fault tests, not injected into this running Demo.
+
+Final readback09:55:21UTC is fresh/running, no HALT/pending mutation/error,
+with2 Spot BUY/1 SELL and2 perpetual SELL; all seven reads return200. The
+observer has finished and Demo continues. Evidence:
+`build/pending-poll-postdeploy-20261113/`. Deployment/normal operation are
+verified; residual probe delays, ordinary quote gaps and the99% target remain
+open. No full production or missing-WS connected acceptance is claimed.
 
 ## Pending-cancel polling follow-up — local TDD
 
@@ -60,13 +211,13 @@ the unique cause of the four historical waits. Direct venue GETs were not
 completed: local Demo credentials are absent and the read-only DB path to
 managed credentials returns OperationalError. No DB/Cloud/venue mutation or
 tracker reset is used to obtain evidence. The98.189s observed gap below remains
-failed, as does the unchanged quote target. This patch is local and awaits a
-new image and connected measurement. Evidence:
+failed, as does the unchanged quote target. At this stage the patch was local;
+revision128's subsequent connected observation is recorded above. Evidence:
 `build/pending-cancel-investigation-20261113/`.
 
 GET-only readback09:10:42UTC remains revision127/control86, fresh/running,
 no HALT/pending mutation/error; all seven administrative/health reads return200.
-It still runs the prior image, not this local fix.
+At that readback it still ran the prior image, not this fix.
 
 ## Revision127 terminal-read and startup deployment
 
