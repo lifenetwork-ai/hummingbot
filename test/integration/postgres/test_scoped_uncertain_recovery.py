@@ -113,7 +113,7 @@ def test_cold_restore_returns_with_unknown_reservation_instead_of_waiting_foreve
         install_guard(context.owner)
 
 
-@pytest.mark.parametrize('changed_after_auth', [False, True, 'payload'])
+@pytest.mark.parametrize('changed_after_auth', [False, True, 'payload', 'stale_balance', 'fee', 'bound', 'stop', 'risk', 'key'])
 def test_native_sell_rechecks_reservations_after_auth_before_transport(managed_native, changed_after_auth):
     import asyncio
     import json
@@ -141,6 +141,20 @@ def test_native_sell_rechecks_reservations_after_auth_before_transport(managed_n
             body = json.loads(request.data)
             body['side'] = 'buy'
             request.data = json.dumps(body)
+        elif changed_after_auth == 'stale_balance':
+            exchange.account_balance_observations['BTC']['observed_at'] = time.time() - 10
+        elif changed_after_auth == 'fee':
+            from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
+            exchange.get_fee = lambda *args, **kwargs: AddedToCostTradeFee(flat_fees=[TokenAmount('BTC', Decimal('1'))])
+        elif changed_after_auth == 'bound':
+            context.owner._mutate_recovery(lambda state: state['spot_outflow']['policy'].update(max_net_outflow_quote='1'))
+        elif changed_after_auth == 'stop':
+            with context.engine.begin() as db:
+                db.execute(text("UPDATE bot_state SET desired_state='stopped',control_version=control_version+1"))
+        elif changed_after_auth == 'risk':
+            context.owner.require_recovery('drawdown_controller_limit')
+        elif changed_after_auth == 'key':
+            exchange.okx_api_key = 'changed-account-key'
         return request
 
     config = executor_info('sale').config.model_copy(update={
@@ -161,7 +175,10 @@ def test_native_sell_rechecks_reservations_after_auth_before_transport(managed_n
         sale = db.get(Order, 'safe-sell')
         assert sale is not None
         assert sale.exchange_order_id == (None if changed_after_auth else 'venue-sell')
-    assert not context.store.read()['recovery_state'].get('halt')
+    state = context.store.read()['recovery_state']
+    assert bool(state.get('halt')) is (changed_after_auth == 'risk')
+    if changed_after_auth == 'risk':
+        assert state['reason'] == 'drawdown_controller_limit'
 
 
 def attached_core(context, exchange, recorder):

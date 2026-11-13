@@ -194,3 +194,26 @@ def test_proven_unsent_rejection_is_not_a_possible_cash_debit():
             authorize_cash_sell(exchange, native('.1'), {'BTC': D('.1')}, now=102, max_age=5,
                                 proven_unsent={'rejected': rejected})
         setattr(rejected, field, previous)
+
+
+def test_exact_cohort_limit_keeps_every_reservation_and_rejects_the_next_order():
+    items = [attempt(str(i)) for i in range(64)]
+    args = dict(bindings=[{'account_id': 'same'}], environment={'mode': 'demo'},
+                config_file_path='mm.yml', max_quote='640')
+    assert cohort(items, **args) == ({'BTC': D('6.4')}, D('640'))
+    with pytest.raises(MarketReadinessBlocked, match='uncertain_reservation_limit'):
+        cohort([*items, attempt('overflow')], **args)
+    args['max_quote'] = '639.9999999999999999999999999'
+    with pytest.raises(MarketReadinessBlocked, match='uncertain_reservation_limit'):
+        cohort(items, **args)
+
+
+def test_resident_limit_counts_all_orders_even_other_pairs_and_rejected_cache():
+    exchange = connector('10')
+    exchange.in_flight_orders = {str(i): native('.001', str(i)) for i in range(64)}
+    authorize_cash_sell(exchange, native('.1'), {'BTC': D('.1')}, now=101, max_age=5)
+    overflow = native('.001', 'overflow')
+    overflow.trading_pair = 'ETH-USDT'
+    exchange.in_flight_orders['overflow'] = overflow
+    with pytest.raises(MarketReadinessBlocked, match='uncertain_reservation_limit'):
+        authorize_cash_sell(exchange, native('.1'), {'BTC': D('.1')}, now=101, max_age=5)

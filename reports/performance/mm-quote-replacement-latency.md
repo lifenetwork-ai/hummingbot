@@ -490,3 +490,49 @@ remain open. No cloud service, account policy or financial row was changed.
 One unused intermediate image from this follow-up is removed; the final image,
 its baseline and other projects' images remain. IDs: `image-cleanup.txt` in the
 same private evidence directory.
+
+### Bounded scoped fault matrix — 2026-11-14
+
+This follow-up adds tests only; the production runtime, transport, financial
+application and reservation rules are unchanged from `e43fde2ab`. The supported
+scope remains funded Spot cash SELLs while managed Spot BUYs are uncertain.
+The Cloud Run flag remains false. No Cloud configuration, credentials, risk
+policy or financial rows are changed by this offline qualification.
+
+| Boundary | Evidence and required invariant |
+| --- | --- |
+| Concurrent sends | Two actual native SELL create coroutines overlap while the first HTTP reply is held. Only the first crosses transport; the second cannot spend the same unreserved cash. The uncertain BUY remains durable. |
+| Final send fence | Balance loss/staleness, unsupported base fee, reduced reservation bound, Stop, risk HALT, payload mutation and changed credential identity after authentication all prevent POST. The existing risk HALT is preserved. |
+| Late ACK | Duplicate private ACKs update the native order but do not clear its uncertain attempt/reservation. Only complete positive REST proof releases that order; a different51603 intent stays reserved. |
+| Late/duplicate fills | A private partial fill arrives during an older REST snapshot. Keep the whole uncertainty until complete proof; duplicate REST/WS trades converge to one fill, one journal event and one native hold with the original `.01` USDT fee. |
+| Verification receipt | Interrupt before or after recording the proof receipt, then retry with another unknown order still present. Financial work is not applied twice, and the remaining unknown is never released by association. |
+| Physical DB response loss | A loopback TCP proxy drops either the actual verification COMMIT or only its reply. Independent PostgreSQL reads distinguish uncertain versus terminal receipts, with one already-durable unapplied fill in both cases and the other order still uncertain. The failed physical owner cannot submit after network restoration. |
+| Delayed proof | Stop, risk HALT, physical owner termination/takeover and the persistence-failure latch win over a delayed successful proof. Loss of owner/persistence prevents the fill writer too. |
+| Crash reconstruction | SIGKILL at send/fill/hold is exercised with the flag false and true. The successor reconstructs one position and one original fee, consumes its journal once and never re-POSTs. |
+| Reservation bounds | Exactly64 unknown BUYs retain their full native/base/quote amounts. The65th order and a notional cap below the exact sum reject; resident capacity also counts other pairs and cached obligations. Existing stale/fee/legacy/context negatives remain. |
+
+The broader automatic/scoped/ownership/unknown-COMMIT PostgreSQL selection
+passes156 cases. The final matrix-specific PostgreSQL run passes11 cases. Its physical COMMIT
+tests use a subprocess and the actual DB wire, not a mocked COMMIT return.
+The separate native reservation/proof/terminal-read/status selection passes93
+tests. These selections overlap the broader PostgreSQL regression; do not add
+their totals as unique coverage. Hooks pass for the changed Python files.
+Evidence: `build/scoped-matrix-20261114/` retains focused/broad logs, hook receipts
+and source/image matching. Early fixture-wiring/decimal-format assertions and
+an incorrect ACK-only release expectation are test corrections, not new runtime
+bug claims; the successful final receipts are retained separately.
+
+The independently repeated full-service `scoped-uncertainty` case passes on the
+same previously qualified image (all14 runtime source hashes match). At2CPU /
+1GiB, two unknown BUYs remain intact through explicit Stop/cold Start and a
+running SIGTERM/owner replacement, with funded SELL, health200, readiness503
+while proof is incomplete and no duplicate POST/HALT. Three startup timings
+are11.913/11.070/11.595s; shutdown timings are1.115/1.228/1.429s. These fixture
+timings are not a connected quote-latency result. Receipt:
+`build/e2e-offline/20261114-021100-84a019/result.json`, whose
+`release_scope_complete` remains false.
+
+Connected equivalents, one stable30-minute observation and the original99%
+quote/probe gates remain open. This finite matrix does not qualify every crash
+interleaving, OOM during Disconnect, general concurrent openings or Perpetual
+CLOSE admission under uncertainty. No extra image was built for test-only edits.

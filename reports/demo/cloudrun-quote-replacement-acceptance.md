@@ -1,6 +1,14 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest operational update: revision130/`5bfd54cc0` is deployed. An older50013
+Latest operational update (2026-11-14 ICT): revision134/`e43fde2ab` is verified
+at100% traffic. Control/ack88/88 is running without HALT. The read-only DB
+snapshot has no pending creations or unapplied fills, and both financial and
+account-binding checkpoint hashes match. Scoped recovery remains disabled;
+two short probe timeout transitions remain in the bounded deployment query.
+This check does not close connected fault qualification or the30-minute99% gate.
+See [revision134 verification](#revision134-scoped-lifecycle-fix-deployment).
+
+Previously, revision130/`5bfd54cc0` was deployed. An older50013
 uncertain Spot intent blocked startup; the operator-approved scoped maintenance
 committed audit278 and Start succeeded at control/ack88. Eighteen samples over
 90 seconds are running/ready200/no HALT, and ten new Spot fills match native
@@ -45,6 +53,48 @@ Subsequent operational control observation05:54–06:24UTC retains19 probe
 timeouts across three successful profile changes. The local read/startup TDD
 follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
+
+## Revision134 scoped lifecycle fix deployment
+
+Revision `hummingbot-demo-00134-dkx` is Ready and serves100% of traffic.
+Artifact Registry maps the exact commit
+`e43fde2ab2b11a65cccb00d5fdd3e498c35b544a` to its running digest
+`sha256:668ded4b008f7a81e4fdcb696ec58be0d6247b4c58421b0bb90ce91411a6b444`.
+Resources remain2CPU/1GiB, OKX is Demo, credentials use `postgres_kms`, and
+`MM_SCOPED_RECOVERY_ENABLED=false`. No Cloud configuration, trading-control or
+DB mutation was made for this verification. Authenticated observations use the
+existing Basic admin identity, not a Google identity impersonation.
+
+At18:50:59UTC on November13 (01:50:59ICT on November14), control/ack88/88 is
+running with a fresh service observer, no current recovery block, no availability
+incidents and no drawdown breach. The same until-stopped Random session remains
+active and advances from generation21 to22. Spot observations include working
+BUY/SELL quotes and a short submission-pending transition after the profile
+change. Perpetual has working SELL orders; new BUYs are blocked by
+`inventory_limit`. This guard exclusion is not evidence of a two-sided quote pass.
+The historical failed recovery-check receipt is retained; it is not a current
+HALT and was not reset.
+
+A repeatable-read, read-only transaction through a temporary loopback Cloud SQL
+Auth Proxy confirms zero pending creations, zero unapplied journal fills,
+three position rows, four acknowledged submission attempts and no
+prepared/possibly-sent/uncertain attempts. The current checkpoint's financial and
+binding hashes match, its watermark is37924, and no risk-stop flag is set.
+The proxy was stopped after the read. `/startup`, `/live` and `/ready` return200.
+
+The bounded revision134 log query starting18:38:30UTC contains no ERROR or
+scheduled engine restart, but retains two supervisor probe timeouts at300.737ms
+and300.856ms against the existing300ms budget. Both report one failed probe and
+zero accumulated failure seconds. Separate loop diagnostics record recovery;
+they do not establish an exact causal duration for each probe. No latency
+threshold was widened. This short deployment check is not a stable30-minute
+acceptance measurement and does not enable the experimental feature or close
+the remaining fault matrix.
+
+Private evidence (ignored): `build/cloudrun-scoped-20261114/` contains revision
+and image-tag proof, health/status observations, the sanitized DB preflight,
+short follow-up samples and revision-filtered logs. Secret-bearing revision
+metadata is not copied into this report.
 
 ## Revision129 managed entry wakeup deployment
 

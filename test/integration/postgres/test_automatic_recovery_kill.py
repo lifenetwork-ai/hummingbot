@@ -24,9 +24,11 @@ from hummingbot.model.trade_fill import TradeFill
 
 
 @pytest.mark.parametrize('stage', ['send', 'fill', 'hold'])
-def test_sigkill_recovers_financial_boundary_once_without_a_new_post(pg_engine, monkeypatch, stage):
+@pytest.mark.parametrize('scoped', [False, True], ids=['global-pause', 'scoped'])
+def test_sigkill_recovers_financial_boundary_once_without_a_new_post(pg_engine, monkeypatch, stage, scoped):
     async def kill():
-        process = subprocess.Popen([sys.executable, '-m', 'test.integration.postgres.automatic_recovery_worker', stage],
+        process = subprocess.Popen([sys.executable, '-m', 'test.integration.postgres.automatic_recovery_worker', stage,
+                                    *(['--scoped'] if scoped else [])],
                                    cwd=Path(__file__).resolve().parents[3], stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                    env={**os.environ, 'HBOT_IO_TEST_URL': pg_engine.url.render_as_string(hide_password=False)})
@@ -57,7 +59,7 @@ def test_sigkill_recovers_financial_boundary_once_without_a_new_post(pg_engine, 
     recorder = MarketsRecorder(manager, [exchange], 'test.yml', 'pure_market_making',
                                MarketDataCollectionConfigMap(market_data_collection_enabled=False))
     recorder.start()
-    owner = BotOwnership(pg_engine, 'hummingbot')
+    owner = BotOwnership(pg_engine, 'hummingbot', scoped_recovery=scoped)
     assert owner.try_acquire() and not owner.check_owner()['recovery_state'].get('halt')
     try:
         install_guard(owner)
@@ -74,6 +76,8 @@ def test_sigkill_recovers_financial_boundary_once_without_a_new_post(pg_engine, 
                 patch.object(exchange, '_request_order_fills', AsyncMock(return_value={'code': '0', 'data': [trade]})), \
                 patch.object(exchange, '_place_order', AsyncMock(side_effect=AssertionError('Recovery must not POST'))):
             loop.run_until_complete(owner.automatic_recovery.restore(core))
+            if owner.automatic_recovery.isolated:
+                loop.run_until_complete(owner.automatic_recovery.step(core, force=True))
             loop.run_until_complete(owner.automatic_recovery.project(core))
             loop.run_until_complete(owner.automatic_recovery.project(core))
         positions = recorder.get_all_positions()

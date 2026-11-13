@@ -406,8 +406,13 @@ policy is changed as part of local implementation.
   partial SELL fill exactly once. Existing ordinary ownership/risk gates remain.
 - [ ] Repeat these lifecycle cases on the intended connected revision. The local
   subset does not cover every crash boundary or OOM during Disconnect itself.
-- [ ] Test lost ACK, late/duplicate fills, false51603, multiple concurrent sends,
-  stale balances, fees, bounds, persistence failure, takeover and risk stops.
+- [x] Test the bounded supported cash-SELL matrix: lost/late ACK, late/duplicate
+  fills, false51603, simultaneous native sends, stale balances, original fees,
+  exact count/notional bounds, persistence failure, takeover and risk stops.
+  Physical PostgreSQL verification-COMMIT loss covers both server outcomes;
+  SIGKILL covers send/fill/hold with the flag both off and on. This closes the
+  listed finite cases, not every interleaving or OOM during Disconnect. See the
+  [matrix evidence](../../reports/performance/mm-quote-replacement-latency.md#bounded-scoped-fault-matrix--2026-11-14).
 - [x] Qualify the initial native/PostgreSQL/full-service offline subset. Preserve
   the initial whole-service failure and the proposal/native quantization fix.
 - [ ] Deploy explicitly and observe one stable revision for30minutes.
