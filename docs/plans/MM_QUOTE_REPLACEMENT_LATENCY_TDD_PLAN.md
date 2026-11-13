@@ -486,8 +486,15 @@ under `build/checkpoint-metadata-batch-20261113/`.
   scenario at2CPU/1GiB:12 dropped terminal frames, repeated actual5s native
   polling on both connectors, exact fill/fee receipts, reserved pending levels
   and unchanged owner/session/PID. The full-service check is not a latency A/B.
-- [ ] Deploy the entry-wakeup change and repeat the unchanged connected30-minute
-  target. Revision128's96.99% and
+- [x] Deploy the entry-wakeup change: revision129/e1b9876ee is verified at 100%
+  traffic with unchanged environment/resources. The 18:10 ICT check is running,
+  no HALT, Spot 2 BUY/2 SELL.
+- [ ] Complete the unchanged connected30-minute target. The interrupted
+  revision129 observation retains 880 samples over 29m19s: Spot 97.54%, five
+  probe timeout transitions, no observed ERROR/restart; Perpetual is unqualified
+  because no confirmed eligible samples exist. A separate post-window query
+  adds one probe timeout and a spot-outflow terminal-unavailable incident.
+  Keep the incomplete quality gate and quote failure open. Revision128's96.99% and
   the earlier98s outage remain failed evidence. Probe/COMMIT/owner-read delays
   remain separate follow-ups; waking an executor is no new trading authority.
 
@@ -496,6 +503,31 @@ Evidence: `build/quote-gap-followup-20261113/` and
 `build/e2e-offline/20261113-172030-ad7782/`; use the existing
 [acceptance record](../../reports/demo/cloudrun-quote-replacement-acceptance.md)
 for artifact identities and qualification scope.
+
+### Revision129 fill-gap and terminal-backlog follow-up
+
+- [x] Correlate all eight missing-quote samples with bounded recorder history:
+  84 Spot orders and 33 timelines show full-entry completion/replenishment;
+  every next two-second sample is two-sided. Keep the original failed samples.
+- [x] Reproduce three missing full-entry publication cases before changing code.
+  Reuse the existing coalesced report publisher for current managed full entries;
+  preserve fresh-account handoff, financial commit, capacity and shutdown gates.
+- [x] Reproduce two false terminal-failure/backoff cases: bounded backlog and
+  arrivals during successful proof. Keep unattempted work on normal polling;
+  actual failed proofs retain stage incidents/backoff and all reservations.
+- [x] Compare all eight gap times with retained probe/loop diagnostics. One is
+  within one second of a probe timeout; synchronous DB waits remain visible and
+  are not established as the sole cause of all quote gaps.
+- [x] Validate the local correction: 3,691 native tests +16 subtests, 29
+  disposable PostgreSQL tests and hooks pass. Fresh 18:22 ICT Cloud status has
+  no HALT, no active incident and no pending terminal Spot orders; that check
+  still observes the unpatched revision129, not a candidate acceptance run.
+- [ ] Deploy the qualified follow-up and repeat the full unchanged 30-minute
+  observation on one image; do not close the 99% quote or residual probe gates
+  from unit tests or the incomplete revision129 observation.
+
+Evidence: `build/quote-gap-review-20261113/`; details and limits are in the
+[existing acceptance report](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision129-fill-gap-correlation-and-local-correction).
 
 Evidence: `build/probe-terminal-investigation-20261113-1253/`. The baseline is
 revision126. Connected revision127 evidence is in

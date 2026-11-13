@@ -277,11 +277,12 @@ class SpotOutflowGuard:
         self.terminal_failures[client_id] = failure
 
     def terminal_reason_code(self):
+        """Return an actual proof failure, not merely unattempted bounded work."""
         for client_id in self.terminal_pending:
             failure = self.terminal_failures.get(client_id)
             if failure:
                 return 'spot_outflow_terminal_' + failure[0]
-        return 'spot_outflow_terminal_unavailable'
+        return None
 
     async def _confirm(self, client_id):
         from hummingbot.connector.markets_recorder import MarketsRecorder

@@ -780,10 +780,20 @@ class StrategyV2Base(StrategyPyBase):
 
     def notify_executor_terminated(self, executor):
         """Coalesce native managed completion; never publish inside an event callback."""
+        if executor.is_closed:
+            self._queue_managed_executor_report(executor)
+
+    def notify_executor_entry_filled(self, executor):
+        """Expose a proven full entry promptly; the controller still owns handoff."""
+        if (executor.is_active and getattr(executor, '_is_managed_maker_entry', False)
+                and executor._completed_entry_fill_timestamp() is not None):
+            self._queue_managed_executor_report(executor)
+
+    def _queue_managed_executor_report(self, executor):
         config = executor.config
         controller = self.controllers.get(config.controller_id)
         scope = (getattr(config, 'mm_session_id', None), getattr(config, 'mm_generation', None))
-        if (self._is_stop_triggered or not executor.is_closed or not isinstance(scope[0], str)
+        if (self._is_stop_triggered or not isinstance(scope[0], str)
                 or not scope[0] or not isinstance(scope[1], int) or controller is None
                 or scope != (getattr(controller.config, 'mm_session_id', None),
                              getattr(controller.config, 'mm_generation', None))

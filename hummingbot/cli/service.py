@@ -922,10 +922,14 @@ class ServiceHost:
                 await guard.reconcile_terminal()
                 if guard.reason_code == "spot_outflow_observation_unavailable":
                     guard.reason_code = None
-                if guard.terminal_pending:
+                terminal_failure = guard.terminal_reason_code()
+                if terminal_failure:
                     self.next_outflow_poll = time.monotonic() + self.availability.fail(
-                        "spot_outflow", guard.terminal_reason_code(), retry=True)
+                        "spot_outflow", terminal_failure, retry=True)
                 else:
+                    # The bounded batch can leave unattempted orders, including
+                    # arrivals during an awaited proof. Keep their reservations
+                    # and ordinary polling cadence; backlog is not a read failure.
                     self.availability.clear("spot_outflow")
             except Exception as error:
                 self.owner.check_owner()

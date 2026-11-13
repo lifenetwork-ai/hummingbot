@@ -781,7 +781,11 @@ terminal-proof semantics. Owner-unavailable observations are marked stale.
 is exhausted. Scoped service incidents distinguish `spot_outflow_terminal_` stages
 `order_read`, `order_terminal`, `order_identity`, `fills_read`, `fill_identity`,
 `fill_coverage`, `order_recheck` and `recording`; retain the ordinary BUY-only wait
-and show the stage. Unknown stages retain the generic terminal-unavailable reason.
+and show the stage. Actual proof failures with unknown stages retain the generic
+terminal-unavailable reason. A bounded poll may leave orders not yet attempted,
+including arrivals during verification. Those orders remain a BUY-only verification
+wait and retain reservations, but do not create a failure incident or exponential
+retry delay. Use `pending_terminal_orders` to show the wait even without an incident.
 A complete native fill matching committed quantities/prices/original fees can
 settle its reservation without a redundant REST read. Spent USDT remains charged;
 this does not reset policy or grant Start/Reset authority.

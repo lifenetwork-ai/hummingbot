@@ -753,6 +753,12 @@ class PositionExecutor(ExecutorBase):
         self._total_executed_amount_backup += event.base_asset_amount
         self.update_tracked_orders_with_order_id(event.order_id)
 
+        if (self._is_managed_maker_entry and self._open_order
+                and self._open_order.order_id == event.order_id):
+            notify = getattr(self._strategy, 'notify_executor_entry_filled', None)
+            if callable(notify):
+                notify(self)
+
         if self._take_profit_limit_order and self._take_profit_limit_order.order_id == event.order_id:
             self.close_type = CloseType.TAKE_PROFIT
             self._close_order = self._take_profit_limit_order

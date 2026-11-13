@@ -2,7 +2,7 @@
 import asyncio
 from decimal import Decimal
 from test.hummingbot.strategy_v2.executors.test_terminal_order_checkpoint import closing_quote
-from test.hummingbot.strategy_v2.executors.test_terminal_position_checkpoint import fill
+from test.hummingbot.strategy_v2.executors.test_terminal_position_checkpoint import fill, setup_checkpoint
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -22,8 +22,14 @@ from hummingbot.strategy_v2.utils.perpetual_reduction import HedgeCostBasis
 async def native_publication(monkeypatch):
     made = []
 
-    def create(side=TradeType.BUY):
-        orchestrator, executor, order, recorder = closing_quote(monkeypatch, side)
+    def create(side=TradeType.BUY, *, entry=False):
+        if entry:
+            orchestrator, executor, order, recorder = setup_checkpoint(monkeypatch)
+            executor.config = executor.config.model_copy(update={
+                'mm_session_id': 'entry-session', 'mm_generation': 1, 'side': side})
+            order.trade_type = side
+        else:
+            orchestrator, executor, order, recorder = closing_quote(monkeypatch, side)
         with patch('hummingbot.strategy.strategy_v2_base._get_executor_orchestrator_class', return_value=MagicMock()):
             strategy = StrategyV2Base({'okx_perpetual': MockPaperExchange()})
         strategy.market_data_provider = executor._strategy.market_data_provider
@@ -38,8 +44,9 @@ async def native_publication(monkeypatch):
         strategy.controllers = {'maker': controller}
         recorder.durable_position_checkpoints = True
         recorder.applied_position_executors.return_value = set()
-        held = orchestrator.positions_held['maker'][0]
-        held._reduction_basis = HedgeCostBasis(held.side, Decimal('1'), Decimal('.1'), Decimal('.001'))
+        if not entry:
+            held = orchestrator.positions_held['maker'][0]
+            held._reduction_basis = HedgeCostBasis(held.side, Decimal('1'), Decimal('.1'), Decimal('.001'))
         monkeypatch.setattr(MarketsRecorder, '_shared_instance', recorder)
         made.append(strategy)
         return strategy, orchestrator, executor, order, recorder, controller
@@ -169,3 +176,102 @@ async def test_deferred_publication_cannot_inherit_a_retired_order_authority(nat
         executor.stop()
     await asyncio.sleep(.07)
     assert seen == [(None, None)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('side', [TradeType.BUY, TradeType.SELL])
+async def test_completed_entry_publishes_fill_without_clock_or_releasing_its_level(native_publication, side):
+    strategy, orchestrator, executor, order, recorder, controller = native_publication(side, entry=True)
+    fill(order, 'full', '1')
+    order.current_state = OrderState.FILLED
+    executor.process_order_completed_event(None, None, SimpleNamespace(
+        order_id=order.client_order_id, base_asset_amount=order.amount))
+    assert strategy._managed_report_handle is not None
+    assert not controller.executors_update_event.is_set()
+    await asyncio.wait_for(controller.executors_update_event.wait(), .25)
+    assert controller.executors_info[0].custom_info['entry_order_filled'] is True
+    # Reporting is not a handoff: fresh-account and financial gates still own it.
+    assert executor.is_active and not executor.is_closed
+    assert not orchestrator.positions_held['maker']
+    recorder.checkpoint_held_positions.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('case', ['partial', 'flag_without_fills', 'foreign', 'unmanaged', 'removed', 'superseded', 'stopping'])
+async def test_entry_notification_cannot_publish_unproven_or_retired_scope(native_publication, case):
+    strategy, orchestrator, executor, order, _, controller = native_publication(entry=True)
+    if case != 'flag_without_fills':
+        fill(order, 'fill', '.2' if case == 'partial' else '1')
+    order.current_state = OrderState.FILLED
+    if case == 'unmanaged':
+        executor.config = executor.config.model_copy(update={'mm_session_id': None})
+    elif case == 'removed':
+        orchestrator.active_executors['maker'] = []
+    elif case == 'superseded':
+        controller.config = controller.config.model_copy(update={'mm_generation': 2})
+    elif case == 'stopping':
+        strategy._is_stop_triggered = True
+    executor.process_order_completed_event(None, None, SimpleNamespace(
+        order_id='foreign' if case == 'foreign' else order.client_order_id, base_asset_amount=order.amount))
+    assert strategy._managed_report_handle is None
+    assert not controller.executors_update_event.is_set()
+    assert executor.is_active
+
+
+@pytest.mark.asyncio
+async def test_entry_notifications_coalesce_and_do_not_inherit_order_authority(native_publication):
+    strategy, _, executor, order, _, _ = native_publication(entry=True)
+    fill(order, 'full', '1')
+    order.current_state = OrderState.FILLED
+    seen = []
+    strategy.update_executors_info = lambda: seen.append((current_session_scope(), current_executor_scope()))
+    with session_order_scope('entry-session', 1, executor=executor):
+        for _ in range(20):
+            executor.process_order_completed_event(None, None, SimpleNamespace(
+                order_id=order.client_order_id, base_asset_amount=order.amount))
+    assert strategy._managed_report_handle is not None
+    await asyncio.sleep(.07)
+    assert seen == [(None, None)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('intervention', ['periodic', 'stopping', 'superseded'])
+async def test_queued_entry_publication_respects_periodic_report_and_scope_change(native_publication, intervention):
+    strategy, orchestrator, executor, order, _, controller = native_publication(entry=True)
+    original = orchestrator.get_all_reports
+    orchestrator.get_all_reports = MagicMock(wraps=original)
+    fill(order, 'full', '1')
+    order.current_state = OrderState.FILLED
+    executor.process_order_completed_event(None, None, SimpleNamespace(
+        order_id=order.client_order_id, base_asset_amount=order.amount))
+    assert strategy._managed_report_handle is not None
+    if intervention == 'periodic':
+        strategy.update_executors_info()
+    elif intervention == 'stopping':
+        strategy._is_stop_triggered = True
+    else:
+        controller.config = controller.config.model_copy(update={'mm_generation': 2})
+    await asyncio.sleep(.07)
+    assert orchestrator.get_all_reports.call_count == (1 if intervention == 'periodic' else 0)
+    assert controller.executors_update_event.is_set() == (intervention == 'periodic')
+    assert executor.is_active and not orchestrator.positions_held['maker']
+
+
+@pytest.mark.asyncio
+async def test_entry_report_failure_reserves_level_and_recovers_on_regular_clock(native_publication):
+    strategy, orchestrator, executor, order, _, controller = native_publication(entry=True)
+    original = orchestrator.get_all_reports
+    orchestrator.get_all_reports = MagicMock(side_effect=RuntimeError('report unavailable'))
+    fill(order, 'full', '1')
+    order.current_state = OrderState.FILLED
+    executor.process_order_completed_event(None, None, SimpleNamespace(
+        order_id=order.client_order_id, base_asset_amount=order.amount))
+    await asyncio.sleep(.07)
+    orchestrator.get_all_reports.assert_called_once()
+    assert strategy.controller_reports_error == 'RuntimeError'
+    assert not controller.executors_update_event.is_set()
+    assert executor.is_active and not orchestrator.positions_held['maker']
+    orchestrator.get_all_reports = original
+    strategy.update_executors_info()
+    assert strategy.controller_reports_error is None
+    assert controller.executors_update_event.is_set() and executor.is_active

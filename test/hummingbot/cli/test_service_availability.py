@@ -331,3 +331,72 @@ async def test_outflow_poll_does_not_duplicate_an_owner_rebuild():
     guard.initialize.assert_not_awaited()
     guard.reconcile_terminal.assert_not_awaited()
     assert item.outflow_task is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('arrival_during_proof', [False, True])
+async def test_unattempted_terminal_work_keeps_buy_blocked_without_failure_backoff(arrival_during_proof):
+    from test.hummingbot.core.test_spot_outflow_fairness import guard_with_pending
+
+    item = host()
+    guard = guard_with_pending(1 if arrival_during_proof else 9)
+    guard.projection = SimpleNamespace(reason=lambda: None)
+    guard.reason_code = None
+    guard._identity_matches = lambda: True
+    guard._confirm_committed_fill = lambda identity: False
+    attempts = []
+
+    async def confirm(identity):
+        attempts.append(identity)
+        if arrival_during_proof and len(attempts) == 1:
+            guard.orders['arriving'] = (None, SimpleNamespace(is_done=True))
+            guard.mark_terminal_pending('arriving')
+        return True
+
+    guard._confirm = confirm
+    item.owner = SimpleNamespace(spot_outflow=guard)
+    # A prior failed proof has recovered. New, unattempted work must not inherit
+    # its exponential backoff, nor be described as an unavailable observation.
+    for _ in range(6):
+        item.availability.fail('spot_outflow', 'spot_outflow_terminal_order_read', retry=True)
+    before = time.monotonic()
+    item.poll_outflow()
+    await item.outflow_task
+    assert len(attempts) == (1 if arrival_during_proof else 4)
+    assert guard.terminal_pending and guard.orders  # No unproven reservation released.
+    assert not guard.preview(None, 1, 1)  # BUY still waits for terminal proof.
+    assert not item.availability.snapshot()['incidents']
+    assert item.next_outflow_poll <= before + 1.1
+    for _ in range(2):
+        item.next_outflow_poll = 0
+        item.poll_outflow()
+        await item.outflow_task
+    assert not guard.terminal_pending and not guard.orders
+
+
+@pytest.mark.asyncio
+async def test_actual_terminal_proof_failure_keeps_incident_and_retry_backoff():
+    from test.hummingbot.core.test_spot_outflow_fairness import guard_with_pending
+
+    item = host()
+    guard = guard_with_pending(9)
+    guard.projection = SimpleNamespace(reason=lambda: None)
+    guard.reason_code = None
+    guard._identity_matches = lambda: True
+    guard._confirm_committed_fill = lambda identity: False
+
+    async def confirm(identity):
+        guard.terminal_stages[identity] = 'order_read'
+        raise OSError('private remote payload')
+
+    guard._confirm = confirm
+    item.owner = SimpleNamespace(spot_outflow=guard)
+    for _ in range(5):
+        item.availability.fail('spot_outflow', 'spot_outflow_terminal_order_read', retry=True)
+    before = time.monotonic()
+    item.poll_outflow()
+    await item.outflow_task
+    incident, = item.availability.snapshot()['incidents']
+    assert incident['reason_code'] == 'spot_outflow_terminal_order_read'
+    assert item.next_outflow_poll > before + 20
+    assert len(guard.terminal_pending) == 9 and len(guard.terminal_failures) == 4

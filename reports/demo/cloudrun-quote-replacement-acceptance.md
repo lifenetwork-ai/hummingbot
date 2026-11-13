@@ -1,6 +1,14 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest 2026-11-13: revision128/`d82cd5c28` is verified at100% traffic. The
+Latest 2026-11-13: revision129/`e1b9876ee` is verified at 100% traffic. At
+11:22 UTC (18:22 ICT), the bot is running without HALT and Spot has two BUY
+and one SELL order. The retained 29m19s observation is incomplete and Spot's
+conservative quote result is 97.54%, below 99%. Five probe timeout transitions
+remain in that window; another occurs afterward. No ERROR or engine restart
+is observed in the bounded log queries. See
+[revision129 evidence](#revision129-managed-entry-wakeup-deployment).
+
+Previously, revision128/`d82cd5c28` is verified at100% traffic. The
 unchanged30-minute window has9 probe timeout transitions, no ERROR/restart and
 no recurrence of the sampled98s cancel-confirmation outage. Spot's conservative
 quote result is96.99%, still below99%; missing-WS fault-path qualification is
@@ -29,6 +37,130 @@ Subsequent operational control observation05:54–06:24UTC retains19 probe
 timeouts across three successful profile changes. The local read/startup TDD
 follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
+
+## Revision129 managed entry wakeup deployment
+
+Revision `hummingbot-demo-00129-skx` serves 100% of traffic with commit
+`e1b9876ee9692701c59013d1ee2444d3e51f1a69` and image digest
+`sha256:3b967e83eb6dc6d5c79a7282c7b5c093c1a3d9a1ccb708ea44668ec1382cdb25`.
+Environment, resources, probes, command, arguments and mounts match revision128.
+This verification makes no Cloud configuration, DB or trading-control changes.
+
+The observer retained 880 samples from 10:33:58.595657 through
+11:03:17.839217 UTC: 1,759.24 seconds (29m19s), with maximum sample gap 2.302s
+and no collection failures. The local observer was interrupted before completion;
+`completed_at` is null and the canonical quality and target gates remain false.
+Later status checks do not fill that missing measurement interval.
+
+Using the unchanged conservative classifier:
+
+- Spot: 675 two-sided, 8 eligible gaps, 188 guard exclusions and 9 unknowns;
+  675/692 = 97.54%, below the unchanged 99% target. Gap stages comprise five
+  executor-activity, two pending-submission and one proposal-confirmation sample.
+- Perpetual: 871 guard exclusions and 9 unknowns, with no confirmed eligible
+  samples. Its two-sided target remains unqualified, rather than a zero-percent
+  availability result.
+- Three raw HALT flags occur only in stale, mismatched session-transition views.
+  These observations remain unknown; subsequent fresh views clear without a
+  reset. Control/ack remain 86 across three scheduled profile transitions.
+
+The exact retained-window log query has five probe timeout transitions,
+18 loop-stall/recovered pairs and 16 slow-stage warnings, with no observed
+ERROR or restart. Diagnostic counter deltas include 1,716 strategy ticks,
+4,232 controller cycles, 172 completed submissions and 142 completed cancels,
+with no counted errors. These cumulative deltas demonstrate continued activity,
+not uninterrupted ticks. Stack samples include owner reads, other SQL and
+commits; they do not establish one shared cause for every delay. Compared with
+revision128's nine probe transitions and 96.99% quote result, duration and market
+conditions differ, so this is not a controlled performance improvement claim.
+
+The separate 11:03:17–11:07:54 UTC log query retains one additional probe
+timeout, one `spot_outflow_terminal_unavailable` incident (`operator=False`)
+and an admin-access-denied warning, with no ERROR/restart. The incident therefore
+remains visible rather than being omitted from the result. At 11:10:12 UTC,
+all seven health/admin reads return HTTP200; fresh status is running, no HALT,
+no pending recovery mutations, Spot 2 BUY/2 SELL and Perpetual 0 BUY/2 SELL.
+This later status does not prove the incident's precise recovery duration.
+
+Evidence: `build/entry-wakeup-postdeploy-20261113/`, including the unchanged
+classifier output, exact-window and post-window log summaries, final diagnostic
+counter summary and `final-check/summary.json`. Private deployment metadata and
+raw responses remain ignored. Deployment is verified; the full uninterrupted
+30-minute qualification, 99% quote target and residual probe investigation stay
+open.
+
+## Revision129 fill-gap correlation and local correction
+
+Read-only history queries cover all 84 Spot orders created between 10:32 and
+10:52 UTC and 33 selected order timelines around the eight failing samples.
+All eight samples overlap native fill-completion/replenishment activity. Each
+next two-second sample is two-sided again. This is a sampled recovery bracket,
+not a measurement that every outage lasts exactly two seconds.
+
+| Gap sample UTC | Missing side / observed stage | Nearby recorder evidence |
+| --- | --- | --- |
+| 10:34:58.529 | SELL / submission pending | Filled entry completes at 10:34:57.678; a concurrent zero-fill cancel and replacement entries appear at 10:34:57–58. |
+| 10:35:04.529 | SELL / executor activity | Two entries complete at 10:35:04.494–.613; replacements are recorded at 10:35:05. |
+| 10:35:46.547 | SELL / submission pending | Two entries complete at 10:35:45.694–.745; replacements are recorded at 10:35:46. |
+| 10:39:34.706 | BUY / proposal confirmation | Two entries complete at 10:39:33.407–.463; replacements are recorded at 10:39:34. |
+| 10:41:22.778 | BUY / executor activity | Two entries complete at 10:41:22.673–.722; replacements are recorded at 10:41:23. |
+| 10:51:15.262 | SELL / executor activity | Two entries complete at 10:51:15.251–.301; replacements are recorded at 10:51:15. |
+| 10:51:19.290 | SELL / executor activity | Two entries complete at 10:51:19.047–.106; replacements are recorded at 10:51:20. |
+| 10:51:43.290 | SELL / executor activity | Two entries complete at 10:51:43.158–.208; replacements are recorded at 10:51:44. |
+
+Recorder creation/created-event timestamps can use the engine clock and have
+one-second resolution. They are not precise transport ACK timestamps, and the
+separate API reads are not an atomic snapshot. The bounded all-severity log read
+around the first three gaps retains diagnostic warnings but no per-order INFO
+timeline. We therefore do not derive subsecond replacement latency or claim
+one proven cause for every historical sample.
+
+Code exposes a reproducible missing wakeup: a completed managed maker entry
+wakes its own loop, but remains active until the controller authorizes its
+position handoff. The existing immediate publication path accepts only a closed
+executor. Thus the full-fill report can wait for the next ordinary strategy tick.
+Three valid RED cases reproduce absent publication for BUY, SELL and a coalesced
+burst. The correction requests the existing bounded 50ms report publication
+after a matching native full-entry callback. Exact full-fill checks, resident
+executor/current session-generation checks and shutdown rejection remain in place.
+Reports run outside the event callback with an empty authority context. The
+controller still requires a fresh account observation; the executor stays active
+and reserves its level until the normal financial handoff. A failed report does
+not release capacity, and the regular clock remains its retry path.
+
+A separate two-case RED reproduces the generic Spot terminal-unavailable warning:
+`reconcile_terminal` processes at most four candidates. A remaining backlog or a
+new arrival during an awaited successful proof has not necessarily failed any
+proof. Previously the service treated every nonempty queue as a failure and
+could inherit a 24–30s retry delay from earlier failures. It now applies failure
+backoff only when a remaining candidate has an actual recorded proof failure.
+Unattempted work retains reservations and the BUY-only wait on the ordinary
+one-second poll cadence. Actual failed proofs retain their stage and backoff.
+This reproduces a mechanism consistent with the generic warning, not a complete
+reconstruction of the historical queue, which was not captured.
+
+Probe correlation remains separate: only one of eight quote-gap sample times is
+within one second of a probe timeout (10:35:46). Six retained loop stacks show
+owner reads; other stacks show SQL, COMMIT, pool ping/rollback or startup report
+loading. These synchronous waits can delay trading work on the same loop. The
+patch does not remove them, cache ownership authority, change probe thresholds
+or bypass durable write fencing. A zero-timeout claim and the 99% quote gate
+remain open.
+
+Evidence: `build/quote-gap-review-20261113/` contains bounded history reads,
+`gap-history.json`, `gap-correlation.json`, valid RED outputs and regression
+outputs. The local changes are not yet deployed; revision129 remains the measured
+baseline and its failed/incomplete gates are retained.
+
+Validation: the complete `test-cloudrun-regression` lane passes 3,691 tests plus
+16 subtests. The scoped disposable PostgreSQL run passes 29 tests; the focused
+Spot/refresh/wakeup run passes 127 tests. Hooks pass. At 11:22:21 UTC, a fresh
+read on revision129 still shows running/no HALT, Spot 2 BUY/1 SELL, Perpetual
+0 BUY/2 SELL, zero pending terminal Spot orders, BUY allowed and no active
+service incidents. This confirms the earlier Spot incident is no longer active;
+the precise clearance time is not retained. See `status-1822-summary.json` and
+the private status snapshot. No connected acceptance result for the local patch
+is claimed; deploy it before repeating the full 30-minute window.
 
 ## Revision128 gap analysis and entry scheduling follow-up
 
