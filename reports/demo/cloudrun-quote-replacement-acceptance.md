@@ -1,6 +1,16 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest 2026-11-13: revision126/`492649baf` is verified at100% traffic, including
+Latest 2026-11-13: revision127/`ae553598a` is verified at100% traffic. The
+unchanged30-minute observation completes with13 probe timeout transitions
+versus19 in the preceding control, no ERROR or engine restart, and continuing
+native activity. Spot's98.189s no-quote/cancel-confirmation episode remains a
+failure; the99% quote target is not closed. See
+[revision127 evidence](#revision127-terminal-read-and-startup-deployment).
+
+The local pending-cancel follow-up reproduces two polling defects and retains
+the failed connected gap; see [local TDD](#pending-cancel-polling-follow-up--local-tdd).
+
+Previously, revision126/`492649baf` is verified at100% traffic, including
 the terminal-write and checkpoint-batch changes. A connected profile handoff
 completes;13 checkpoint spans finish without errors. Eight probe timeouts remain;
 there is no observed engine restart or persistent recovery stop. This bounded
@@ -9,8 +19,137 @@ review does not close the300ms probe or30-minute quote gates. See
 
 Subsequent operational control observation05:54–06:24UTC retains19 probe
 timeouts across three successful profile changes. The local read/startup TDD
-follow-up is qualified separately and awaits deployment; see
+follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
+
+## Pending-cancel polling follow-up — local TDD
+
+Code inspection and valid RED tests reproduce two scheduling defects in the
+shared native connector. A successful managed cancel ACK sets `PENDING_CANCEL`,
+but healthy unrelated WS traffic leaves status polling at120s; failed terminal
+proof can likewise stay pending until another event or poll. Separately, the
+account loop replaces its wake event after awaiting I/O, losing requests that
+arrive during that read. Eight RED cases cover the two OKX connectors. An
+additional intermediate RED catches loss of the existing failed-poll retry
+when moving event consumption; that retry/backoff is explicitly retained.
+
+The local patch selects the existing5s interval only for live managed orders
+awaiting cancel confirmation or terminal proof. Ordinary open/unmanaged/done
+orders retain the prior healthy-stream cadence. The same native account worker
+consumes its wake before I/O, coalesces in-flight requests into one serial
+follow-up, and retries read failures using the original0.5s backoff. There is
+no independent financial writer, new worker, env setting or API contract.
+This is a scheduling interval, not a5s end-to-end completion guarantee during
+slow venue/account reads. Native balances/fill/status polling can be more
+frequent while pending, using existing request throttling and serialization.
+
+Shipping native regression passes3,654 +16 subtests, including the new shared
+polling cases in the canonical target. Focused connector/tracker/position-poll
+checks pass56. PostgreSQL related
+recovery/terminal regression passes50; the final five-scenario financial check
+passes separately after stronger final assertions. Scopes overlap. The real
+recorder/tracker proof covers zero-fill cancel, partial cancel, filled order,
+missing fill and explicit51603: ACK alone stays pending, incomplete evidence
+cannot terminate the native order, actual amounts/original fees are committed
+before successful termination, and the same physical owner survives. There
+is only the original submission POST; no replacement is sent. Completed
+orders leave the accelerated cadence. Hooks pass for the runtime/test changes.
+
+These tests establish the code defects and protect the fix; they do not prove
+the unique cause of the four historical waits. Direct venue GETs were not
+completed: local Demo credentials are absent and the read-only DB path to
+managed credentials returns OperationalError. No DB/Cloud/venue mutation or
+tracker reset is used to obtain evidence. The98.189s observed gap below remains
+failed, as does the unchanged quote target. This patch is local and awaits a
+new image and connected measurement. Evidence:
+`build/pending-cancel-investigation-20261113/`.
+
+GET-only readback09:10:42UTC remains revision127/control86, fresh/running,
+no HALT/pending mutation/error; all seven administrative/health reads return200.
+It still runs the prior image, not this local fix.
+
+## Revision127 terminal-read and startup deployment
+
+Ready revision `hummingbot-demo-00127-7mv` and the Artifact Registry tag for
+`ae553598a95b3cc36741f3808d8b354eb6c153c1` both resolve to
+`sha256:7e6078e2f46d2bc8cebf637504e1a6f11286b19df8bbeca13f0613a01e72d1d1`.
+Creation is06:45:44UTC and Ready06:47:19UTC. Traffic remains100% at the final
+readback. Revision126/127 env values, resource limits, startup/liveness probes,
+command/args and volume mounts compare equal. This review uses GET and Cloud
+metadata/log reads only; no trading command, reset, Cloud config or financial
+DB mutation is issued.
+
+The full observation08:24:36.268–08:54:37.319UTC (15:24–15:54 local) retains901
+samples /1,802 successful status/liquidity reads. Sampled span1,801.051s and
+maximum gap2.269s pass the unchanged v3 observation-quality checks. The same
+revision/session/control86 persists across generations91→92→93→94. There are
+880 running,3 starting and18 readiness-wait samples, no status.error. Three raw
+`halted=true` samples are stale/mismatched `session_transition` fences during
+profile shutdown; each clears in the next sample. They remain unknown/failing
+observations, not quote uptime. There is no persistent recovery stop or manual
+HALT reset.
+
+The exact-window log query completes with67 records:20 loop-stall/recovery
+pairs,13 child-probe timeout transitions,12 slow-stage warnings and2 missing-quote
+warnings. No ERROR or child restart; diagnostic engine PID14 throughout. Probe
+timeouts remain deadline-censored300ms waits. Thirteen versus19 is31.6% fewer
+observed transitions in equal-length windows, not a controlled causal speedup:
+market/inventory, work counts, observer cadence and diagnostic coverage differ.
+Recovery INFO is still absent from the retained sink, so individual supervisor
+recovery durations are not reconstructed from missing records.
+
+Diagnostic packets08:26:42–08:53:01UTC show completed counters advancing by1,568
+strategy ticks,3,920 controller cycles,171 submissions,141 cancellations,172
+terminal callbacks and33 checkpoints, with zero counted errors in these scopes.
+Submission spans are native callback completions, not a count of exchange ACKs.
+The packet range is narrower than the observation; counter deltas establish
+progress across it, not uninterrupted ticks or normalized throughput. Sampled
+loop-stack locations include8 other SQL waits,3 owner reads,3 commits, one
+startup-performance accumulation and5 other Python locations. They do not
+uniquely attribute every probe episode; synchronous owner/write waits remain.
+
+The quote classifier is copied byte-for-byte from the existing v3 gate. Guards
+are excluded, unknowns count as failures, and no risk setting is loosened:
+
+| Market | Both working | Eligible gap | Unknown | Guard excluded | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Spot |602|58|8|233|602/668 =90.12%, fail |
+| Perpetual |0|0|8|893|No confirmed eligible sample; not qualified |
+
+Perpetual BUY is inventory-limited in870 samples. Spot includes one46-sample
+eligible-gap cluster08:50:15.190–08:51:45.206UTC (94.056s between neighboring
+observations). At08:51:45 the observed no-quote timer reaches98.189s; both sides
+show2 pending cancellations and `cancel_confirmation` age91.293s. This is a
+real availability failure despite fresh running status, not a guard exclusion.
+Four bounded recorded-order timelines then show2 BUY completions and2 SELL
+cancellations08:51:47–08:51:48 around the next profile transition. Fresh quotes
+return afterward; the final readback08:55:29 is fresh/running, no HALT or pending
+mutation, with2 Spot BUY/2 SELL and2 perpetual SELL. Recorded timestamps do not
+prove the exchange's original execution/cancellation times.
+
+The shared connector's `_get_poll_interval` can select120s while the user stream
+still appears fresh. This is a plausible missed-event fallback to reproduce,
+not a uniquely established cause of these four waits; no venue-level trace or
+receipt-worker queue timing was captured. Next work is targeted TDD for missing
+terminal WS evidence with an otherwise live stream and bounded pending-cancel
+reconciliation, retaining full venue/fill/fee/owner proof before releasing an
+order or reservation. Do not force-clear the tracker or widen the probe budget.
+
+The separate deployment-to-observer query06:45:44–08:24:22UTC retains6 ERROR
+entries: private-WS handshake HTTP502 at08:05:10–08:05:12,08:11:50 and08:21:50–
+08:21:52UTC, each logged with a5s retry. The endpoint/intermediary returns502;
+these are not key-rejection or DB errors. Current operation is healthy, but no
+missing INFO receipt is invented to establish each exact reconnect duration.
+This earlier interval also contains41 probe timeout transitions and must not
+be mislabeled an ERROR-free deployment merely because the exact30-minute
+window has no ERROR.
+
+Evidence: `build/terminal-read-postdeploy-20261113/` contains deployment/config
+comparison, private full samples, unchanged classifier/hash, exact-window and
+pre-window logs, diagnostic counter/stack summaries, quote-gap contexts and
+the four recorded timelines. The local observer has finished; Demo continues
+running. Probe elimination, pending-cancel availability and the99% quote target
+remain open; this is not full production acceptance.
 
 ## Revision126 thirty-minute control and local loop-fairness follow-up
 
@@ -67,8 +206,10 @@ failure remains in evidence without a uniquely proven retrospective predicate,
 guard relaxation or hidden test exclusion. Hooks pass. Evidence:
 `build/probe-terminal-investigation-20261113-1253/`.
 
-The local candidate has not been measured on Cloud Run: GitHub denies push for
-the current SSH identity. No Cloud setting, trading command, recovery/reset or
+At this local-qualification stage the candidate had not been measured on Cloud
+Run: GitHub denied push for the current SSH identity. The user subsequently
+pushed/deployed it; revision127's connected result is recorded above.
+No Cloud setting, trading command, recovery/reset or
 financial DB mutation is issued in this review. Existing synchronous owner and
 write waits remain possible; compare the deployed candidate before claiming
 probe improvement or closing the unchanged quote target.

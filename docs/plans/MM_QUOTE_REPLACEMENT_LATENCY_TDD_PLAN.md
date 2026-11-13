@@ -404,11 +404,48 @@ under `build/checkpoint-metadata-batch-20261113/`.
   diagnostic counters advance between05:54:12 and06:23:31UTC:1,751 ticks,
   234 submissions,135 cancellations and63 checkpoints. This is not proof of
   uninterrupted ticks or a canonical quote-target qualification.
-- [ ] Deploy the candidate and repeat connected measurement on that exact
-  artifact. GitHub's current SSH identity has no push permission; the candidate
-  must reach the user's CI before its Cloud behavior can be measured. Retain
-  the existing risk settings,300ms probe threshold and quote classifier.
+- [x] User-deployed `ae553598a` resolves to revision127's exact
+  `sha256:7e6078e2f46d2bc8cebf637504e1a6f11286b19df8bbeca13f0613a01e72d1d1`
+  at100% traffic. Env, resources and Cloud probes compare unchanged to126.
+  Full v3 observation08:24:36–08:54:37UTC:901 samples,1,802 successful reads,
+  one revision/session/control86, three profile changes and3 transient fences
+  retained as unknown. Logs contain13 probe timeouts versus19 in the control,
+  20 loop-stall/recovery pairs and no ERROR/restart. This descriptive comparison
+  is not a controlled A/B speedup or proof of uninterrupted engine ticks.
+- [ ] Resolve the remaining probe paths and repeat the unchanged99% quote gate.
+  Spot remains602/668 =90.12%; perpetual has no confirmed eligible samples
+  under current inventory guards. Synchronous owner/write/COMMIT waits remain.
+- [x] Reproduce the missing-terminal-evidence scheduling defects with TDD:
+  healthy WS traffic leaves a managed pending cancel/proof on120s, and an event
+  arriving during the native account read is discarded at poll completion.
+  Eight valid RED cases cover both OKX connectors. Use the existing5s cadence
+  only while managed cancel/proof is pending. Consume the wake before awaiting
+  I/O; coalesce requests into a serial follow-up and retain the original failed
+  poll retry/backoff. No extra worker, terminal shortcut or new env is added.
+- [x] PostgreSQL native cancel/fill proof covers zero-fill cancel, partial cancel,
+  full fill, missing fill and explicit51603. ACK alone remains pending;
+  incomplete evidence keeps the native order active. Complete original fee/amount
+  receipts are durable before termination, the physical owner stays unchanged,
+  and no replacement POST is sent. Completed orders restore ordinary cadence.
+- [x] Ship the new connector tests in the native regression target:3,654 passed
+  +16 subtests; related PostgreSQL50 passed and final financial rerun5 passed
+  (overlapping scopes). Focused connector/tracker checks56 passed; hooks pass.
+- [ ] Qualify the local polling follow-up on Cloud before closing availability.
+  The defect is reproduced, but the unique cause of the four historical waits
+  is not proven: direct venue verification lacked local Demo keys and the
+  read-only managed-credential DB connection was unavailable. Retain the98s
+  failure and the absence of a venue/worker-queue trace.
+  Investigate the revision127 Spot cancel-confirmation gap before
+  claiming availability: observed no-quote98.189s / cancel wait91.293s,2 pending
+  cancels per side, then2 recorded BUY completions/2 SELL cancels at profile
+  transition. A still-live WS with missing terminal evidence can leave the
+  shared fallback on120s; this is a hypothesis for these four orders, not a
+  proven unique cause. Bound reconciliation without bypassing venue/fill/fee
+  evidence, current native state or physical ownership. Retain the failed gap.
 
 Evidence: `build/probe-terminal-investigation-20261113-1253/`. The baseline is
-revision126, not this local candidate. Remaining synchronous owner/write/COMMIT
+revision126. Connected revision127 evidence is in
+`build/terminal-read-postdeploy-20261113/` and the existing acceptance report.
+The separate pre-window query retains6 private-WS handshake HTTP502 ERRORs;
+the exact observation window has none. Remaining synchronous owner/write/COMMIT
 waits are not removed by read isolation; no zero-timeout guarantee is made.

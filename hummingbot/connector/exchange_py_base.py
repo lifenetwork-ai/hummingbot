@@ -872,13 +872,15 @@ class ExchangePyBase(ExchangeBase, ABC):
         while True:
             try:
                 await self._poll_notifier.wait()
+                # Consume before awaiting I/O: requests during this poll must
+                # remain set for one serial follow-up, not be overwritten.
+                self._poll_notifier.clear()
                 await self._update_time_synchronizer()
 
                 # the following method is implementation-specific
                 await self._status_polling_loop_fetch_updates()
 
                 self._last_poll_timestamp = self.current_timestamp
-                self._poll_notifier = asyncio.Event()
             except asyncio.CancelledError:
                 raise
             except NotImplementedError:
@@ -889,6 +891,7 @@ class ExchangePyBase(ExchangeBase, ABC):
                     exc_info=True,
                     app_warning_msg=f"Could not fetch account updates from {self.name_cap}. "
                                     "Check API key and network connection.")
+                self._poll_notifier.set()  # Preserve the existing retry after a failed poll.
                 await self._sleep(0.5)
 
     async def _update_time_synchronizer(self, pass_on_non_cancelled_error: bool = False):
@@ -1185,6 +1188,13 @@ class ExchangePyBase(ExchangeBase, ABC):
         return exchange_info
 
     def _get_poll_interval(self, timestamp: float) -> float:
+        # Stream traffic proves connection liveness, not delivery of this
+        # order's terminal event. Reuse the native bounded polling worker while
+        # managed cancel/terminal evidence is pending; ACK alone retires none.
+        if any(getattr(order, '_managed_recovery_order', False) is True and not order.is_done
+               and (order.is_pending_cancel_confirmation or getattr(order, '_terminal_proof_pending', False) is True)
+               for order in self.in_flight_orders.values()):
+            return self.SHORT_POLL_INTERVAL
         last_user_stream_message_time = (
             0 if self._user_stream_tracker is None else self._user_stream_tracker.last_recv_time
         )
