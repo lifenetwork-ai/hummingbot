@@ -74,7 +74,7 @@ class OwnershipLost(SubmissionBlocked):
 
 
 class BotOwnership:
-    def __init__(self, engine, bot_id, *, stopping=None):
+    def __init__(self, engine, bot_id, *, stopping=None, scoped_recovery=False):
         self.engine = engine
         self.store = BotStateStore(engine, bot_id)
         self.owner_uuid = str(uuid.uuid4())
@@ -83,6 +83,7 @@ class BotOwnership:
         self.backend_pid = None
         self.lost = False
         self.allow_new_orders = False
+        self.scoped_recovery_enabled = scoped_recovery
         self.shutdown_requested = False
         self.stopping = stopping or (lambda: False)
         self.reconciling = False
@@ -300,6 +301,9 @@ class BotOwnership:
         for order_id, market in pending:
             connector = next((value for value in self.connectors.values() if value.display_name == market), None)
             tracked = connector.in_flight_orders.get(order_id) if connector is not None else None
+            if (self.automatic_recovery.isolated and order_id in self.automatic_recovery.quarantined
+                    and tracked is not None and getattr(tracked, '_managed_recovery_order', False)):
+                continue  # Durable quarantine still owns this unresolved identity.
             if order_id not in self.active_intents or tracked is None or tracked.is_done:
                 self.require_recovery("An order submission has an unresolved outcome; no automatic resubmission is allowed.")
                 raise SubmissionBlocked("Unresolved order submission requires reconciliation.")
@@ -324,6 +328,8 @@ class BotOwnership:
                 or recorder.config_file_path != self.config_file_path or connector not in recorder._markets):
             raise SubmissionBlocked("The active recorder/configuration does not match the service owner.")
         self._check_intents(recorder, admitting=True)
+        if cleanup is None and self.scoped_recovery_enabled and self.automatic_recovery.active:
+            self.automatic_recovery.authorize_isolated_order(connector, order)
         try:
             if cleanup is None and self.listing_bootstrap is not None:
                 self.listing_bootstrap.before_order(connector, order, row)
@@ -585,6 +591,13 @@ class BotOwnership:
             self._check_intents(recorder)
             if client_id not in self.active_intents or client_id in self.sent_intents:
                 raise SubmissionBlocked("Order identity is absent or was already sent; reconcile instead of retrying.")
+            if self.scoped_recovery_enabled and self.automatic_recovery.active:
+                connector, order = next(((connector, connector.in_flight_orders[client_id])
+                                         for connector in self.connectors.values() if client_id in connector.in_flight_orders), (None, None))
+                if order is None:
+                    raise MarketReadinessBlocked('uncertain_order_tracking_unavailable')
+                # This gate is after throttling/authentication, before transport.
+                self.automatic_recovery.authorize_isolated_order(connector, order, payload=data)
             bootstrap_deadline = self.listing_bootstrap.authorize(data, row) if self.listing_bootstrap is not None else None
             if self.spot_outflow is not None:
                 self.spot_outflow.authorize(data, row)
@@ -773,7 +786,8 @@ class BotOwnership:
             self.bind_mm_drawdown(core.strategy)
 
         may_have_exchange_effects = False
-        automatic_bootstrap = self.automatic_recovery.status['phase'] == 'bootstrapping_recovery'
+        automatic_bootstrap = (self.automatic_recovery.status['phase'] == 'bootstrapping_recovery'
+                               or self.automatic_recovery.isolated)
 
         async def perform():
             nonlocal may_have_exchange_effects
@@ -784,13 +798,20 @@ class BotOwnership:
                 open_orders = await self._open_orders(connector)
                 await reconcile_open_order_visibility(self, core.trade_fill_db, connector, open_orders, known)
             for connector in self.connectors.values():
-                restored = list(connector.in_flight_orders.values())
+                restored = [order for order in connector.in_flight_orders.values()
+                            if not (self.automatic_recovery.isolated
+                                    and order.client_order_id in self.automatic_recovery.quarantined)]
                 await self._refresh_orders(connector, restored)
                 if any(not order.is_done for order in restored):
                     # Once a cancellation may have reached the exchange, an
                     # interrupted reconciliation still requires recovery.
                     may_have_exchange_effects = True
-                    await connector.cancel_all(5)
+                    if self.automatic_recovery.isolated:
+                        for order in restored:
+                            if not order.is_done:
+                                connector.cancel(order.trading_pair, order.client_order_id)
+                    else:
+                        await connector.cancel_all(5)
                     while any(not order.is_done for order in restored):
                         self.check_owner()
                         await self._refresh_orders(connector, [order for order in restored if not order.is_done])
@@ -817,6 +838,8 @@ class BotOwnership:
                 # outlast startup's ordinary drain deadline without inventing a
                 # terminal order or requiring a process restart.
                 await self.automatic_recovery.restore(core)
+                if self.automatic_recovery.isolated:
+                    self.automatic_recovery.attach_quarantined_entries(core)
             if automatic_bootstrap:
                 while True:
                     try:
@@ -883,7 +906,7 @@ class BotOwnership:
             self.volatility_checkpoints.attach()
         else:
             self.volatility_checkpoints = None
-        if self.automatic_recovery.status['phase'] == 'settled_stopped':
+        if self.automatic_recovery.status['phase'] == 'settled_stopped' and not self.automatic_recovery.isolated:
             # A separate explicit Start has just refreshed/cancelled restored
             # orders and verified durable intents and current risk. Retire the
             # previous session's resume scope only after its proof task drains.
@@ -893,7 +916,9 @@ class BotOwnership:
         if row.get('config_type') == 'mm-session':
             self.automatic_recovery.status['cold_recovery_supported'] = bool(core.markets_recorder.ensure_runtime_checkpoint())
         if automatic_bootstrap:
-            self.automatic_recovery.status.update(phase='idle', reason_code=None, operator_required=False)
+            self.automatic_recovery.status.update(phase='reconciling' if self.automatic_recovery.isolated else 'idle',
+                                                  reason_code='order_outcome_unknown' if self.automatic_recovery.isolated else None,
+                                                  operator_required=False)
             self.automatic_recovery.bootstrap_orders.clear()
 
             def recovered(state):
@@ -1063,6 +1088,7 @@ class BotOwnership:
             recoverable_shutdown = (not was_halted and not checkpoint.get('_is_stop_triggered')
                                     and not (row['recovery_state'] or {}).get('pending_mutations')
                                     and can_bootstrap(session, row))
+        deferred = self.automatic_recovery.defer_shutdown(core) if recoverable_shutdown else set()
 
         def begin_shutdown(state):
             state.update(halt=True, shutdown_incomplete=True)
@@ -1096,6 +1122,8 @@ class BotOwnership:
             async def refresh_connector(connector, orders):
                 remote_orders = []
                 for order in orders:
+                    if order.client_order_id in deferred:
+                        continue  # Durable quarantined intent survives shutdown; no terminal claim.
                     # A create can be rejected by our final send gate while
                     # shutdown is already awaiting earlier cancels. Such a
                     # failed, never-transported order cannot exist remotely;
@@ -1108,10 +1136,11 @@ class BotOwnership:
                     remote_orders.append(order)
                 if remote_orders:
                     await self._refresh_orders(connector, remote_orders, limiter=limiter)
-                while any(not order.is_done for order in orders):
+                while any(not order.is_done and order.client_order_id not in deferred for order in orders):
                     self.check_owner()
                     await asyncio.sleep(0.1)
-                    await self._refresh_orders(connector, [order for order in orders if not order.is_done], limiter=limiter)
+                    await self._refresh_orders(connector, [order for order in orders
+                                                           if not order.is_done and order.client_order_id not in deferred], limiter=limiter)
 
             refreshes = [asyncio.create_task(refresh_connector(connector, orders)) for connector, orders in tracked]
             try:
@@ -1124,11 +1153,15 @@ class BotOwnership:
                 await asyncio.gather(*refreshes, return_exceptions=True)
             core.trade_fill_db.assert_persistence_healthy()
             if self.spot_outflow is not None:
-                await self.spot_outflow.reconcile_terminal(all_orders=True)
+                if deferred:
+                    await self.spot_outflow.reconcile_terminal(all_orders=True, deferred=deferred)
+                else:
+                    await self.spot_outflow.reconcile_terminal(all_orders=True)
 
         def changed_orders():
             return {order.client_order_id for _, orders in tracked for order in orders
-                    if order.executed_amount_base != execution_before_stop[order.client_order_id]}
+                    if order.client_order_id not in deferred
+                    and order.executed_amount_base != execution_before_stop[order.client_order_id]}
 
         def reject_checkpoint_change():
             self.require_recovery("A fill arrived during position checkpoint cleanup; operator reconciliation is required.")
@@ -1195,7 +1228,8 @@ class BotOwnership:
             if pending:
                 return False
         with self.engine.connect() as connection:
-            unresolved = connection.execute(select(Order.id).where(Order.creation_pending.is_(True)).limit(1)).first()
+            unresolved = connection.execute(select(Order.id).where(
+                Order.creation_pending.is_(True), Order.id.not_in(deferred)).limit(1)).first()
         recovery = self.check_owner()["recovery_state"] or {}
         if unresolved or recovery.get("pending_mutations"):
             return False
@@ -1207,7 +1241,10 @@ class BotOwnership:
                 state.pop("halt", None)
                 if state.get('halt_kind') == 'shutdown_pending':
                     state.pop('halt_kind', None)
-                if self.automatic_recovery.active or state.get('automatic_recovery'):
+                if deferred:
+                    self.automatic_recovery.status.update(phase='settled_stopped', reason_code='uncertain_effects_retained')
+                    state['automatic_recovery'] = dict(self.automatic_recovery.status)
+                elif self.automatic_recovery.active or state.get('automatic_recovery'):
                     self.automatic_recovery.status.update(phase='idle', reason_code=None, operator_required=False)
                     state['automatic_recovery'] = dict(self.automatic_recovery.status)
         self._mutate_recovery(finish)

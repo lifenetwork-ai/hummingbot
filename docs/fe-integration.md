@@ -1441,6 +1441,20 @@ context; render a retry countdown only while automatic work is active.
 available for supported journaled effects. False does not mean a current warm
 reconciliation failed; legacy ledgers need a reviewed baseline for cold recovery.
 The flag does not bypass current account, ownership, risk or control checks.
+The experimental `MM_SCOPED_RECOVERY_ENABLED` flag defaults to false. With a
+verified checkpoint and supported managed Spot BUY uncertainty, status may
+report `isolated=true`, `admission_mode=funded_spot_sell`, `quarantined_orders`,
+`reserved_base` and `reserved_quote_worst_case` (decimal strings, including the
+original supported fee envelope). Only funded Spot cash SELLs may continue;
+new BUYs and every Perpetual mutation remain paused. Unsupported or legacy
+attempts without the original fee envelope retain the shared-account pause.
+Render this as degraded trading with reserved uncertainty. Do not interpret
+`isolated=true` as two-sided quoting or completed reconciliation. Startup/live
+remain available; `/ready` remains503 while proof is incomplete. Existing Stop,
+ownership, persistence and risk gates still apply. On Stop, a supported unresolved
+intent can remain durably reserved with `phase=settled_stopped`; it has not been
+rejected, canceled or erased. A cold successor restores that obligation before
+admission. Deploying the flag does not manufacture support for old attempts.
 During a verified owner shutdown, `recovery.halted` can briefly remain true as
 the admission fence. When `recovery.next_action=wait`, render the returned
 `operator` guidance instead of a manual-HALT banner: Start/Switch remain disabled,

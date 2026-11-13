@@ -1901,7 +1901,7 @@ def main():
     from scripts.mm_cleanup_faults import SCENARIOS as cleanup_fault_scenarios
     from scripts.mm_managed_lifecycle import SCENARIOS as managed_scenarios
     from scripts.mm_reduction_checks import SCENARIOS as reduction_scenarios
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, *reduction_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "pending-terminal-ws"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, *reduction_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "scoped-uncertainty", "scoped-positive", "pending-terminal-ws"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument('--keep-going', action='store_true', help='Collect all independent scenario failures; the final gate still fails.')
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
@@ -1947,7 +1947,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "pending-terminal-ws") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "scoped-uncertainty", "scoped-positive", "pending-terminal-ws") if args.scenario == "all" else (args.scenario,)
             if args.scenario == 'all':
                 scenarios += managed_scenarios + cleanup_fault_scenarios + reduction_scenarios
             elif args.scenario == 'managed-lifecycle':
@@ -2015,6 +2015,12 @@ def main():
                     elif scenario == "startup-latency":
                         from scripts.mm_startup_checks import scenario as startup_latency
                         startup_latency(harness)
+                    elif scenario == "scoped-positive":
+                        from scripts.mm_submission_uncertainty_checks import scoped_positive_scenario
+                        scoped_positive_scenario(harness)
+                    elif scenario == "scoped-uncertainty":
+                        from scripts.mm_submission_uncertainty_checks import scoped_scenario
+                        scoped_scenario(harness)
                     elif scenario == "automatic-recovery":
                         from scripts.mm_submission_uncertainty_checks import positive_scenario
                         positive_scenario(harness)

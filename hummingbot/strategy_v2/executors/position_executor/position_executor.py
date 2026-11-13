@@ -63,6 +63,19 @@ class PositionExecutor(ExecutorBase):
 
         self._total_executed_amount_backup: Decimal = Decimal("0")
         self._shutdown_orders_changed = asyncio.Event()
+        self._restored_pending_entry = None
+
+    def bind_pending_entry(self, order):
+        """Attach an existing durable intent; this executor may never place it again."""
+        if (self._open_order is not None or self.config.connector_name != 'okx'
+                or self.config.mm_session_id is None or self.config.side != TradeType.BUY
+                or order.trade_type != self.config.side or order.trading_pair != self.config.trading_pair
+                or order.amount != self.config.amount or order.price != self.config.entry_price):
+            raise ValueError('Restored entry identity mismatch')
+        self._restored_pending_entry = order
+        self._open_order = TrackedOrder(order_id=order.client_order_id)
+        self._open_order.order = order
+        self._entry_quote_prepared = True
 
     @property
     def is_perpetual(self) -> bool:
@@ -360,6 +373,13 @@ class PositionExecutor(ExecutorBase):
 
         :return: None
         """
+        restored = self._restored_pending_entry
+        if restored is not None and restored.executed_amount_base:
+            controller = getattr(self._strategy, 'controllers', {}).get(self.config.controller_id)
+            check = getattr(type(controller), '_entry_account_covers_fill', None)
+            stamps = [trade.fill_timestamp for trade in restored.order_fills.values()]
+            if not stamps or check is None or not check(controller, self.executor_info, max(stamps)):
+                return  # No capacity release before the account covers the known debit/credit.
         self.close_timestamp = self._strategy.current_timestamp
         if self.all_orders_completed():
             if self.close_type == CloseType.POSITION_HOLD:
@@ -496,6 +516,9 @@ class PositionExecutor(ExecutorBase):
 
         :return: None
         """
+        if self._restored_pending_entry is not None:
+            self.early_stop(keep_position=True)
+            return  # A terminal callback must never reopen a restored uncertain ID.
         if (not self._entry_quote_prepared and self._open_order is None and not self._failed_orders
                 and self.config.mm_session_id is not None and self.config.use_configured_entry_price):
             controllers = getattr(self._strategy, 'controllers', {})
@@ -787,6 +810,8 @@ class PositionExecutor(ExecutorBase):
                 self.early_stop(keep_position=True)
                 self.logger().debug('Confirmed zero-filled maker entry canceled; retiring executor_id=%s order_id=%s',
                                     self.config.id, event.order_id)
+            elif self._restored_pending_entry is not None:
+                self.early_stop(keep_position=True)
         if self._take_profit_limit_order and event.order_id == self._take_profit_limit_order.order_id:
             self._failed_orders.append(self._take_profit_limit_order)
             self._take_profit_limit_order = None
@@ -937,6 +962,8 @@ class PositionExecutor(ExecutorBase):
                     self._trailing_stop_trigger_pct = net_pnl_pct - self.config.triple_barrier_config.trailing_stop.trailing_delta
 
     async def validate_sufficient_balance(self):
+        if self._restored_pending_entry is not None:
+            return  # It is an existing reserved effect, not a new budget request.
         if self.is_perpetual:
             order_candidate = PerpetualOrderCandidate(
                 trading_pair=self.config.trading_pair,

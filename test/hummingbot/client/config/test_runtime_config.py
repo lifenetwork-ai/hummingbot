@@ -33,8 +33,21 @@ def test_url_escaping_defaults_and_redaction():
     assert settings.database_url.drivername == "postgresql+psycopg2"
     assert settings.enable_auto_migration is False
     assert settings.port == 8080
+    assert settings.scoped_recovery_enabled is False
     assert "p@ss" not in repr(settings)
     assert "DATABASE_URL" not in repr(settings)
+
+
+@pytest.mark.parametrize('value,expected', [('true', True), ('false', False)])
+def test_scoped_recovery_requires_explicit_boolean_opt_in(value, expected):
+    settings = RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://host/db',
+                                                 'MM_SCOPED_RECOVERY_ENABLED': value})
+    assert settings.scoped_recovery_enabled is expected
+
+
+def test_scoped_recovery_invalid_flag_is_a_configuration_error():
+    with pytest.raises(RuntimeConfigurationError, match='MM_SCOPED_RECOVERY_ENABLED'):
+        RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://host/db', 'MM_SCOPED_RECOVERY_ENABLED': 'yes'})
 
 
 @pytest.mark.parametrize("url", ["", "sqlite:///secret", "postgresql+asyncpg://a:secret@localhost/db", "postgresql://secret", "postgresql://a:secret@host:bad/db"])

@@ -381,6 +381,19 @@ rechecks the exchange and local ledger, atomically repairs only proven position
 aggregates, records actor/audit/receipt and clears the technical HALT. Success
 leaves trading stopped; Start is separate. See [FE recovery contract](fe-integration.md#admin-recovery).
 
+Experimental scoped recovery (`MM_SCOPED_RECOVERY_ENABLED=false` by default)
+can keep funded Spot cash SELLs available during bounded, supported managed Spot
+BUY uncertainty. It requires a verified cold checkpoint, unchanged account and
+credentials, and the immutable original fee reservation recorded before send.
+All new BUY and Perpetual mutations remain paused. Unknown client IDs survive
+Stop and owner handoff; neither50013 nor51603 releases their reservations.
+Legacy/unsupported effects retain the ordinary shared-account pause. This mode
+keeps startup/live available while readiness stays degraded503 and exact native
+proof runs in background. It does not change risk stops or allow unchecked
+financial repair. See the [qualification plan](plans/MM_AUTOMATIC_RECOVERY_AVAILABILITY_TDD_PLAN.md#scoped-uncertain-outcome-follow-up--2026-11-13)
+and [status contract](fe-integration.md#automatic-order-reconciliation) before
+considering a rollout. No deployment env is enabled by this local change.
+
 For a clean financial checkpoint with a reviewed audit/receipt anchor, recovery
 verifies the complete venue/journal suffix rather than loading lifetime history
 into the 5,000-order/2,000-fill repair window. It preserves financial rows and

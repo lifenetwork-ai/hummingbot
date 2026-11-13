@@ -79,6 +79,7 @@ test-cloudrun-regression:
 		test/hummingbot/core/test_recovery.py test/hummingbot/core/test_recovery_exchange.py \
 		test/hummingbot/core/test_checkpoint_recovery.py \
 		test/hummingbot/core/test_reduction_auto_recovery.py \
+		test/hummingbot/core/test_uncertain_order_reservations.py \
 		test/hummingbot/strategy/test_strategy_v2_base.py \
 		test/hummingbot/strategy/test_mm_initial_position_bootstrap.py \
 		test/hummingbot/strategy_v2/executors/test_executor_orchestrator.py \

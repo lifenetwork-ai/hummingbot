@@ -207,6 +207,20 @@ def prepare_attempt(session, order, owner, connector):
                    reservation=dict(base=str(order.amount),
                                     quote=str(order.amount * order.price) if order.price is not None and order.price.is_finite() else None,
                                     side=order.trade_type.name))
+    if getattr(owner, 'scoped_recovery_enabled', False) is True:
+        from hummingbot.core.order_submission_guard import MarketReadinessBlocked
+        from hummingbot.core.uncertain_order_reservations import buy_fee_envelope, sell_cost
+        envelope = buy_fee_envelope(connector, order)
+        if envelope is not None:
+            context['reservation']['cash_buy_fee'] = envelope
+        if connector.name == 'okx' and order.trade_type.name == 'SELL':
+            try:
+                cost = sell_cost(connector, order)
+            except MarketReadinessBlocked:
+                pass  # Unsupported original fees cannot later qualify a resident reservation.
+            else:
+                context['reservation']['cash_sell_base_cost'] = str(cost)
+                order._cash_sell_reserved_base = cost
     # Financial history contains no keys, passphrases or authenticated HTTP headers.
     if len(json.dumps(context, allow_nan=False).encode()) > 65536:
         raise ValueError('Submission context exceeds the bounded record size')

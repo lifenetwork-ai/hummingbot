@@ -1,5 +1,11 @@
 # MM automatic recovery and availability
 
+Local follow-up2026-11-14: experimental funded Spot SELL admission during supported
+uncertain Spot BUYs is implemented behind a default-false flag. Its native,
+PostgreSQL and full-service qualification is recorded in the
+[scoped recovery evidence](../../reports/performance/mm-quote-replacement-latency.md#scoped-uncertain-outcomes-local-qualification-2026-11-14).
+This is not a connected rollout or completion of the broader fault matrix below.
+
 Latest 2026-11-13: revision121/e635f3da7 deploys the readiness-wait correction.
 The old technical HALT is recovered after independent verification, audit264,
 with zero financial/risk changes. Start succeeds at control86, both/Random/
@@ -345,3 +351,62 @@ The subsequent open-item audit and qualification are tracked in the
 It includes duplicate initial account writes and the independent cold-fill
 projection defect when drawdown is disabled. Historical r7 passes above are not
 transferred to the new five-file candidate; its OOM and release gates are rerun.
+
+## Scoped uncertain-outcome follow-up — 2026-11-13
+
+The reviewed50013 incident confirms that positive-evidence recovery still pauses
+all trading indefinitely when the venue cannot establish an outcome. The desired
+change is durable quarantine with background reconciliation and explicit degraded
+operation. Never treat50013/51603, elapsed time, a missing ACK or an expired
+send deadline as evidence of rejection. Existing risk, financial and ownership
+fences retain authority.
+
+### Admission contract
+
+An unresolved order reserves its full possible effect, never an assumed zero
+fill. Every current and restored uncertainty participates; bounds are count,
+notional, account binding, instrument and immutable terms. The old client ID and
+its quote level cannot be reused. Both pre-intent and final pre-transport checks
+must agree. A worker must not independently grant trading authority.
+
+Initial conservative qualification permits only funded Spot cash SELLs when all
+uncertainties are managed Spot BUYs. Such a BUY cannot consume previously owned
+base inventory; acquired base/proceeds are never credited before proof. Reserve
+all resident SELLs against fresh base cash, include supported fees, and retain
+the ordinary policy/price/inventory/ownership/Stop gates. All risk-increasing
+orders and all Perpetual mutations remain blocked during that account uncertainty.
+Unsupported fees/bindings/instruments, missing fresh observations or exceeding a
+bound retain the account pause. This narrower supported set is deliberate;
+general concurrent openings and Perpetual CLOSE require additional reservation
+and financial-basis proofs before admission. They are not silently enabled.
+
+The feature must ship disabled until its full offline fault matrix is green.
+Default deployments retain the qualified global pause. No cloud env or risk
+policy is changed as part of local implementation.
+
+### Implementation and qualification checklist
+
+- [x] RED:50013 retains one durable intent/reservation while a funded SELL can
+  proceed and BUY/Perpetual remain blocked; no duplicate POST or same-level reuse.
+- [x] Model bounded quarantine and per-order admission using exact native units,
+  fresh account observations, all resident orders and supported original fees.
+- [x] Keep native REST/WS verification and financial application before release.
+  One inconclusive intent must not starve positive proofs for later intents.
+- [x] Restore quarantine before admission on cold restart. Unknown GET outcomes
+  run in background; strategy/API startup must not wait forever for that ID.
+- [x] Persist/decode degraded status, affected scope, reservations, next retry and
+  operator escalation. Liveness/startup describe service health; trading readiness
+  continues to identify incomplete exchange proof.
+- [x] Stop and graceful running-owner replacement retain unknown obligations and
+  prevent stale authority from sending. A clean persisted uncertainty must not be
+  relabeled as financial corruption or erased to make shutdown succeed.
+- [ ] Extend the connected matrix to Disconnect, timed profile rollover and OOM
+  while quarantine is populated. Existing ordinary ownership/risk gates remain.
+- [ ] Test lost ACK, late/duplicate fills, false51603, multiple concurrent sends,
+  stale balances, fees, bounds, persistence failure, takeover and risk stops.
+- [x] Qualify the initial native/PostgreSQL/full-service offline subset. Preserve
+  the initial whole-service failure and the proposal/native quantization fix.
+- [ ] Deploy explicitly and observe one stable revision for30minutes.
+  Existing99%/probe failures remain. The rollout flag remains false.
+- [ ] General concurrent openings/Perpetual CLOSE: extend only after independent
+  worst-case shared-collateral, hedge-quantity and cost-basis proofs are tested.

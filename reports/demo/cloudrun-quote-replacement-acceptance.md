@@ -1,5 +1,13 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
+Latest operational update: revision130/`5bfd54cc0` is deployed. An older50013
+uncertain Spot intent blocked startup; the operator-approved scoped maintenance
+committed audit278 and Start succeeded at control/ack88. Eighteen samples over
+90 seconds are running/ready200/no HALT, and ten new Spot fills match native
+quantity/price/original fees. Three probe timeouts remain; no application ERROR
+or scheduled restart occurs in the bounded post-Start query. The30-minute99%
+gate is not closed. See [the recovery receipt](cloudrun-50013-intent-recovery-20261113.md#applied-and-verified).
+
 Latest 2026-11-13: revision129/`e1b9876ee` is verified at 100% traffic. At
 11:22 UTC (18:22 ICT), the bot is running without HALT and Spot has two BUY
 and one SELL order. The retained 29m19s observation is incomplete and Spot's

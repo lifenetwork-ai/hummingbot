@@ -131,6 +131,16 @@ def managed_terminal_order(order):
     return postgres_requested() and _guard is not None and getattr(order, '_managed_recovery_order', False) is True
 
 
+def recovery_side_permitted(connector_name, side):
+    """Proposal filtering only; both durable send gates remain authoritative."""
+    if not postgres_requested() or _guard is None or getattr(_guard, 'scoped_recovery_enabled', False) is not True:
+        return True
+    recovery = _guard.automatic_recovery
+    if not recovery.active:
+        return True
+    return recovery.isolated and connector_name == 'okx' and side.name == 'SELL'
+
+
 @trace_runtime('order.proof', order_parameter='order')
 async def verify_terminal_update(connector, order, update):
     return await _guard.automatic_recovery.terminal_update(connector, order, update)

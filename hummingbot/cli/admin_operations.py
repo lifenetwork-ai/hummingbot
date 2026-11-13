@@ -104,6 +104,10 @@ def operator_view(row, process):
     elif phase == 'reconciling_orders' or automatic_pending:
         state, label, detail, next_action = ('waiting', 'Reconciling exchange orders',
                                              'New orders are paused while the service verifies an uncertain exchange response. Do not resubmit the order.', 'wait')
+        if (snapshot.get('automatic_recovery') or {}).get('isolated') is True:
+            label, detail, next_action = ('Trading with reserved uncertainty',
+                                          'Only funded Spot sells may continue. Other new risk is paused; an uncertain order remains reserved and must not be resubmitted.',
+                                          'monitor')
     else:
         state, label, detail, next_action = "preparing", "Preparing session", "Connecting and checking the selected markets.", "wait"
     markets = deepcopy(snapshot.get("mm_markets") or [])

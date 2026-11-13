@@ -373,3 +373,67 @@ identities are under `build/revision119-quote-qualification-20261112/`.
 The absence-proof correction is not deployed and requires no new env setting.
 Repeat connected qualification after deployment. Ordinary replacement gaps,
 profile-handoff unknowns and proof deadline margin remain separate open items.
+
+## Scoped uncertain outcomes: local qualification, 2026-11-14
+
+Implemented an experimental, default-false `MM_SCOPED_RECOVERY_ENABLED` path.
+Supported managed Spot BUY uncertainty retains its exact native ID and full
+possible base/quote effect, with original fee assumptions. Funded Spot cash
+SELLs may continue under both submission gates. Other BUYs and every Perpetual
+mutation remain paused. Unsupported/legacy fees, foreign bot/account scope,
+missing fresh cash, or bounded count/notional failures retain the account pause.
+No cloud env, risk limit or financial history is changed by this implementation.
+
+The reconciler never repeats POST or interprets50013/51603 as rejection. Unknown
+IDs run in background after cold restore; native executors retain original terms
+and cannot reopen a canceled/restored entry. Partial-cancel transfer waits for
+fresh account coverage, preserves original fees, and applies once. Stop and
+running-owner SIGTERM handoff retain the unresolved journal obligation without
+inventing a terminal outcome or erasing its tracker. Persistence, physical
+ownership, current Stop and actual risk HALT remain authoritative.
+
+Reservations include other possibly-sent requests without racing their running
+transport, resident SELLs and terminal debits newer than the account sample.
+Original SELL base fees cannot shrink when a current estimate changes. Bounds
+are64 uncertain effects,64 resident tracker entries and the existing Spot
+outflow policy notional; unsupported activity pauses rather than expanding caps.
+Per-intent backoff is bounded, pruned and honored before another worker cycle.
+
+Evidence under `build/scoped-recovery-20261113/`:
+
+- Preserve `owner-red.txt`, `cold-red.txt`, and the initial whole-service RED at
+  `build/e2e-offline/20261114-004249-d43a1b/result.json`. The latter exposed an
+  exact-proposal-amount comparison that rejected real venue quantization;
+  reservation/restore now use immutable native amounts and prices.
+- Final native regression:3,726 passed plus16 subtests. Broader PostgreSQL
+  ownership/outflow/commit-outcome selection:145 passed; final automatic/scoped
+  selection:58 passed (overlapping runs, not an additive test total).
+- Final scoped50013/51603 service case at2 CPU/1GiB passes with two unresolved
+  BUYs, funded working SELLs, no duplicate POST, clean Stop/cold Start and a
+  running owner handoff preserving the session. Original startup(200s),
+  uncertainty observation(60s) and PID1 shutdown(9.5s) budgets are unchanged.
+  Explicit shutdown takes1.138/1.502/1.117s in this run.
+  Receipt: `build/e2e-offline/20261114-005756-0d1d2c/result.json`.
+- Final feature-on lost-ACK/positive-proof case also passes on that same image:
+  `build/e2e-offline/20261114-005928-12750d/result.json`.
+- The preceding candidate also passes feature-on lost ACK/positive proof and
+  both feature-off transport cases (busy/51603 and lost ACK). Their receipts are
+  `build/e2e-offline/20261114-005330-7195b8/result.json`,
+  `build/e2e-offline/20261114-005428-0aab39/result.json` and
+  `build/e2e-offline/20261114-005336-4689f9/result.json`.
+- Final image config digest:`c5b6db1dee4029209bc3ac5544fb75ec8e6ed5b3eec53bd4ae6fad2980d87cf5`;
+  registry manifest:`94ee2394d7feb33fde7e86749b94d366782ca114d68afb3dcbcb5beca5d5db88`.
+  All13 runtime source hashes match the packaged image. OpenAPI and generated
+  TypeScript refresh/check pass. Dashboard typecheck remains blocked by existing
+  missing `SessionCountdownRing` and `mock/overviewPreviewData` imports plus their
+  consequent implicit-any error in `MandateBar.tsx`; no dashboard UI is changed.
+- Pre-commit checks pass. Four unused intermediate images created by this task
+  are removed; retain the final test image, deployed base and other projects'
+  images. Exact IDs are in `build/scoped-recovery-20261113/image-cleanup.txt`.
+
+Injected transport errors and retained-proof warnings are expected in these
+scenarios; this is not a zero-warning/log claim or a latency benchmark. Connected
+30-minute acceptance, populated-quarantine OOM/Disconnect/profile-switch cases,
+general concurrent openings and Perpetual CLOSE remain open. Keep the flag false
+until the intended rollout subset is separately approved and qualified. Existing
+99% quote/probe gates are not closed by these local tests.

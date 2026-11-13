@@ -108,6 +108,7 @@ class Exchange:
         self.subscriptions = []
         self.hold_ack = False
         self.submission_busy = False
+        self.submission_busy_side = None
         self.accepted_response_lost = 0
         self.cancel_before_ack = False
         self.cancel_before_ack_remaining = None
@@ -501,7 +502,7 @@ class Exchange:
                 return web.json_response({"code": "51603", "msg": "status not visible yet", "data": []})
             return self.ok([order])
         if path == "/api/v5/trade/order" and method == "POST":
-            if self.submission_busy:
+            if self.submission_busy or self.submission_busy_side == data.get('side'):
                 observed['injected_submission_busy'] = True
                 return web.json_response({'code': '50013', 'msg': 'System is busy, please try again later.'}, status=429)
             # A bounded terminal-before-ACK fault admits only its selected
@@ -633,6 +634,10 @@ class Exchange:
             if type(data['submission_busy']) is not bool:
                 return web.json_response({'error': 'invalid_submission_busy'}, status=400)
             self.submission_busy = data['submission_busy']
+        if 'submission_busy_side' in data:
+            if data['submission_busy_side'] not in (None, 'buy', 'sell'):
+                return web.json_response({'error': 'invalid_submission_busy_side'}, status=400)
+            self.submission_busy_side = data['submission_busy_side']
         if 'accepted_response_lost' in data:
             count = data['accepted_response_lost']
             if type(count) is not int or not 0 <= count <= 10:

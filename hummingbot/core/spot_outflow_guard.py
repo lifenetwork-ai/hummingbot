@@ -221,11 +221,12 @@ class SpotOutflowGuard:
             if order.is_done:
                 self.mark_terminal_pending(client_id)
 
-    async def reconcile_terminal(self, *, all_orders=False):
+    async def reconcile_terminal(self, *, all_orders=False, deferred=()):
         for client_id, (_, order) in self.orders.items():
             if order.is_done or all_orders:
                 self.mark_terminal_pending(client_id)
-        candidates = tuple(islice(self.terminal_pending, MAX_FILLS if all_orders else 4))
+        candidates = tuple(islice((identity for identity in self.terminal_pending if identity not in deferred),
+                                  MAX_FILLS if all_orders else 4))
         for client_id in candidates:
             if client_id not in self.terminal_pending:
                 continue  # An earlier awaited proof may have removed an unsent order.
@@ -244,7 +245,7 @@ class SpotOutflowGuard:
             self.orders.pop(client_id, None)
             self.terminal_stages.pop(client_id, None)
             self.terminal_failures.pop(client_id, None)
-        if all_orders and self.terminal_pending:
+        if all_orders and set(self.terminal_pending) - set(deferred):
             raise SubmissionBlocked("spot_outflow terminal fill reconciliation is incomplete")
 
     def _confirm_committed_fill(self, client_id):

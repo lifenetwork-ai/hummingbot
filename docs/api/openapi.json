@@ -373,9 +373,23 @@
       "AutomaticRecoveryStatusOutput": {
         "additionalProperties": false,
         "properties": {
+          "admission_mode": {
+            "default": "paused",
+            "enum": [
+              "paused",
+              "funded_spot_sell"
+            ],
+            "title": "Admission Mode",
+            "type": "string"
+          },
           "cold_recovery_supported": {
             "default": false,
             "title": "Cold Recovery Supported",
+            "type": "boolean"
+          },
+          "isolated": {
+            "default": false,
+            "title": "Isolated",
             "type": "boolean"
           },
           "last_progress_at": {
@@ -431,6 +445,13 @@
             "title": "Phase",
             "type": "string"
           },
+          "quarantined_orders": {
+            "default": 0,
+            "maximum": 64,
+            "minimum": 0,
+            "title": "Quarantined Orders",
+            "type": "integer"
+          },
           "reason_code": {
             "anyOf": [
               {
@@ -442,6 +463,20 @@
             ],
             "default": null,
             "title": "Reason Code"
+          },
+          "reserved_base": {
+            "additionalProperties": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Reserved Base",
+            "type": "object"
+          },
+          "reserved_quote_worst_case": {
+            "default": "0",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Reserved Quote Worst Case",
+            "type": "string"
           },
           "stale": {
             "default": false,
@@ -3765,56 +3800,6 @@
         "title": "LifeMMConfig",
         "type": "object"
       },
-      "LiquidityWorkingOrderOutput": {
-        "additionalProperties": false,
-        "properties": {
-          "order_type": {
-            "title": "Order Type",
-            "type": "string"
-          },
-          "price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Price",
-            "type": "string"
-          },
-          "remaining_notional": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Remaining Notional",
-            "type": "string"
-          },
-          "remaining_quantity": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Remaining Quantity",
-            "type": "string"
-          },
-          "side": {
-            "enum": [
-              "BUY",
-              "SELL"
-            ],
-            "title": "Side",
-            "type": "string"
-          },
-          "state": {
-            "enum": [
-              "OPEN",
-              "PARTIALLY_FILLED"
-            ],
-            "title": "State",
-            "type": "string"
-          }
-        },
-        "required": [
-          "side",
-          "price",
-          "remaining_quantity",
-          "remaining_notional",
-          "order_type",
-          "state"
-        ],
-        "title": "LiquidityWorkingOrder",
-        "type": "object"
-      },
       "LiquidityMarketOutput": {
         "additionalProperties": false,
         "properties": {
@@ -3991,19 +3976,6 @@
             "title": "Valid",
             "type": "boolean"
           },
-          "working_orders_with_fills": {
-            "anyOf": [
-              {
-                "minimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Working Orders With Fills"
-          },
           "working_orders": {
             "anyOf": [
               {
@@ -4017,8 +3989,20 @@
               }
             ],
             "default": null,
-            "description": "Current acknowledged own limit orders. Null means unavailable or legacy; an empty array means freshly observed with no acknowledged orders.",
             "title": "Working Orders"
+          },
+          "working_orders_with_fills": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Working Orders With Fills"
           }
         },
         "required": [
@@ -4167,6 +4151,56 @@
           "markets"
         ],
         "title": "LiquidityResponse",
+        "type": "object"
+      },
+      "LiquidityWorkingOrderOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "order_type": {
+            "title": "Order Type",
+            "type": "string"
+          },
+          "price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Price",
+            "type": "string"
+          },
+          "remaining_notional": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Remaining Notional",
+            "type": "string"
+          },
+          "remaining_quantity": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Remaining Quantity",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "OPEN",
+              "PARTIALLY_FILLED"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "side",
+          "price",
+          "remaining_quantity",
+          "remaining_notional",
+          "order_type",
+          "state"
+        ],
+        "title": "LiquidityWorkingOrder",
         "type": "object"
       },
       "MMDrawdownMarketOutput": {
@@ -5960,6 +5994,34 @@
             ],
             "title": "Order Count"
           },
+          "pending_cancel_count": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Current order-tracker cancellations awaiting exchange confirmation; null when unavailable or legacy.",
+            "title": "Pending Cancel Count"
+          },
+          "pending_create_count": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Current order-tracker submissions awaiting exchange acknowledgement; null when unavailable or legacy.",
+            "title": "Pending Create Count"
+          },
           "proposed_count": {
             "anyOf": [
               {
@@ -5990,34 +6052,6 @@
             ],
             "title": "State",
             "type": "string"
-          },
-          "pending_create_count": {
-            "anyOf": [
-              {
-                "minimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "Current order-tracker submissions awaiting exchange acknowledgement; null when unavailable or legacy.",
-            "title": "Pending Create Count"
-          },
-          "pending_cancel_count": {
-            "anyOf": [
-              {
-                "minimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "Current order-tracker cancellations awaiting exchange confirmation; null when unavailable or legacy.",
-            "title": "Pending Cancel Count"
           }
         },
         "required": [

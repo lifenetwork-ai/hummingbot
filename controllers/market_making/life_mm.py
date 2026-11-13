@@ -905,6 +905,11 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
 
     def create_actions_proposal(self):
         if self.reduction_enabled:
+            from hummingbot.core.order_submission_guard import recovery_side_permitted
+            if not recovery_side_permitted(self.config.connector_name, TradeType.SELL):
+                self._reset_quote_diagnostics()
+                self._quote_reason('uncertain_order_risk_paused')
+                return []
             return self._create_reduction_actions()
         return self._create_actions_proposal()
 
@@ -935,6 +940,10 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 return []
             for action in super().create_actions_proposal():
                 config = action.executor_config
+                from hummingbot.core.order_submission_guard import recovery_side_permitted
+                if not recovery_side_permitted(self.config.connector_name, config.side):
+                    self._quote_reason('uncertain_order_risk_paused', config.side)
+                    continue
                 if (self.config.inventory_skew.enabled or self._spread_policy.defense is not None) and pending_allocation + config.amount * config.entry_price > self._quote_budget():
                     self._quote_reason('allocation_limit', config.side)
                     continue

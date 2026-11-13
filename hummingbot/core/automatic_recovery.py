@@ -178,6 +178,87 @@ class AutomaticOrderRecovery:
         self.bootstrap_orders = {}
         self.terminal_slots = asyncio.Semaphore(3)
         self.durable_read_slot = asyncio.Semaphore(1)
+        self.quarantined = {}
+        self.attempt_retry = {}
+
+    @property
+    def isolated(self):
+        return bool(getattr(self.owner, 'scoped_recovery_enabled', False) is True and self.active and self.quarantined
+                    and self.status.get('cold_recovery_supported') is True)
+
+    def _isolate(self, pending):
+        """Opt-in eligibility is never proof of an order's terminal outcome."""
+        self.quarantined = {}
+        self.status.update(isolated=False, quarantined_orders=0, admission_mode='paused',
+                           reserved_base={}, reserved_quote_worst_case='0')
+        if getattr(self.owner, 'scoped_recovery_enabled', False) is not True or self.status.get('cold_recovery_supported') is not True:
+            return False
+        from hummingbot.core.uncertain_order_reservations import cohort
+        row = self.owner.check_owner()
+        maximum = (((row.get('recovery_state') or {}).get('spot_outflow') or {}).get('policy') or {}).get('max_net_outflow_quote')
+        current = sorted(self._bindings(), key=digest)
+        try:
+            for attempt in pending:
+                if (attempt['context'].get('bot_id') != self.owner.store.bot_id or not eligible(attempt['context'])
+                        or attempt['context']['credential_fingerprint'] != credential_fingerprint(
+                            self.owner.connectors[attempt['context']['executor']['connector_name']])):
+                    return False
+            normalized = deepcopy(pending)
+            for attempt in normalized:
+                attempt['context']['bindings'] = sorted(attempt['context']['bindings'], key=digest)
+            holds, quote = cohort(normalized, bindings=current, environment=environment_identity(),
+                                  config_file_path=self.owner.config_file_path, max_quote=maximum)
+        except (KeyError, ValueError, ArithmeticError, TypeError, MarketReadinessBlocked):
+            return False
+        self.quarantined = {attempt['order_id']: attempt for attempt in pending}
+        self.attempt_retry = {identity: retry for identity, retry in self.attempt_retry.items() if identity in self.quarantined}
+        self.status.update(isolated=True, quarantined_orders=len(self.quarantined), admission_mode='funded_spot_sell',
+                           reserved_base={key: str(value) for key, value in holds.items()}, reserved_quote_worst_case=str(quote))
+        return True
+
+    def authorize_isolated_order(self, connector, order, *, payload=None):
+        from hummingbot.connector.markets_recorder import MarketsRecorder
+        from hummingbot.core.uncertain_order_reservations import authorize_cash_sell, cohort
+        self.owner.check_owner(new_risk=True)
+        recorder = MarketsRecorder._shared_instance
+        self._terminal_fence(recorder)
+        pending = self._pending()  # Fresh durable scope immediately before each send.
+        if not self._isolate(pending):
+            self.owner.allow_new_orders = False
+            raise MarketReadinessBlocked('uncertain_reservation_unavailable')
+        # Other live POSTs may have crossed transport before their callback
+        # marks them uncertain. Reserve those effects too, without letting the
+        # proof worker race the still-running submission coroutine.
+        sends = [attempt for attempt in self._pending(all_sends=True) if attempt['order_id'] != order.client_order_id]
+        normalized = deepcopy(sends)
+        for attempt in normalized:
+            current_connector = self.owner.connectors.get(attempt['context']['executor'].get('connector_name'))
+            if (current_connector is None or attempt['context'].get('bot_id') != self.owner.store.bot_id
+                    or not eligible(attempt['context'])
+                    or attempt['context'].get('credential_fingerprint') != credential_fingerprint(current_connector)):
+                raise MarketReadinessBlocked('uncertain_reservation_scope')
+            attempt['context']['bindings'] = sorted(attempt['context']['bindings'], key=digest)
+        row = self.owner.check_owner(new_risk=True)
+        maximum = row['recovery_state']['spot_outflow']['policy']['max_net_outflow_quote']
+        holds, _ = cohort(normalized, bindings=sorted(self._bindings(), key=digest), environment=environment_identity(),
+                          config_file_path=self.owner.config_file_path, max_quote=maximum)
+        if order.client_order_id in self.quarantined:
+            raise MarketReadinessBlocked('uncertain_identity_reserved')
+        if payload is not None:
+            expected = dict(clOrdId=order.client_order_id, tdMode='cash', ordType='post_only', side='sell',
+                            instId=order.trading_pair)
+            try:
+                attempt = self.owner.connection.execute(select(SubmissionAttempt.context).where(
+                    SubmissionAttempt.order_id == order.client_order_id)).scalar_one()
+                original = attempt['order']
+                if (set(payload) != {*expected, 'px', 'sz'} or any(payload.get(k) != v for k, v in expected.items())
+                        or original['trade_type'] != 'SELL' or original['trading_pair'] != order.trading_pair
+                        or Decimal(original['amount']) != order.amount or Decimal(original['price']) != order.price
+                        or Decimal(str(payload['sz'])) != order.amount or Decimal(str(payload['px'])) != order.price):
+                    raise ValueError
+            except (KeyError, ValueError, ArithmeticError, TypeError):
+                raise MarketReadinessBlocked('uncertain_transport_identity_mismatch') from None
+        authorize_cash_sell(connector, order, holds, now=float(row['database_now']), max_age=5)
 
     @property
     def active(self):
@@ -228,13 +309,21 @@ class AutomaticOrderRecovery:
         self.status = status
         self.owner.sent_intents.add(identity)
         self.resume_scope = tuple(attempt['context']['session'])
+        if self._isolate(self._pending()):
+            row = self.owner.check_owner()
+            state = row['recovery_state'] or {}
+            self.owner.allow_new_orders = bool(not state.get('halt') and not state.get('pending_mutations')
+                                               and not self.owner.shutdown_requested and not self.owner.stopping()
+                                               and row['desired_state'] == 'running'
+                                               and row['control_version'] == self.owner.version)
         self.next_poll = 0
         return True
 
-    def _pending(self):
+    def _pending(self, *, all_sends=False):
         with self.owner.engine.connect() as connection:
             return [dict(row) for row in connection.execute(select(SubmissionAttempt).where(
-                SubmissionAttempt.state == 'uncertain').order_by(SubmissionAttempt.order_id).limit(MAX_ATTEMPTS + 1)).mappings()]
+                SubmissionAttempt.state.in_(('uncertain', 'possibly_sent') if all_sends else ('uncertain',)))
+                .order_by(SubmissionAttempt.order_id).limit(MAX_ATTEMPTS + 1)).mappings()]
 
     def _bindings(self):
         from hummingbot.model.exchange_credential import ExchangeCredential
@@ -269,6 +358,9 @@ class AutomaticOrderRecovery:
         self.owner.sent_intents.add(order.client_order_id)
         self.owner.intent_scopes[order.client_order_id] = tuple(attempt['context']['session'])
         order._managed_recovery_order = eligible(attempt['context'])
+        cost = (attempt['context'].get('reservation') or {}).get('cash_sell_base_cost')
+        if cost is not None:
+            order._cash_sell_reserved_base = Decimal(cost)
         return order
 
     async def _reject_saved_expiry(self, core, connector, attempt, order):
@@ -420,7 +512,21 @@ class AutomaticOrderRecovery:
             if name in anchors and anchors[name] != credential_fingerprint(connector):
                 raise SubmissionBlocked('recovery_account_binding_changed')
         self.bootstrap_orders = {}
-        for attempt in self._bootstrap_pending(core):
+        pending = self._bootstrap_pending(core)
+        candidates = deepcopy([attempt for attempt in pending if attempt['state'] in ('possibly_sent', 'uncertain')])
+        for attempt in candidates:
+            attempt['state'] = 'uncertain'
+        if self._isolate(candidates):
+            # A successor owns the physical fence. A prior possibly-sent POST is
+            # uncertain, never a new request to replay. Ordinary live sends in
+            # this process are not added to the recovery worker's queue.
+            identities = list(self.quarantined)
+            self.owner._mutate_recovery(lambda state: self.owner.connection.execute(update(SubmissionAttempt).where(
+                SubmissionAttempt.order_id.in_(identities), SubmissionAttempt.state == 'possibly_sent').values(state='uncertain')))
+            pending = self._bootstrap_pending(core)
+            self._isolate(self._pending())
+            self.resume_scope = None  # Quarantine is not the prior session's trading authority.
+        for attempt in pending:
             context = attempt['context']
             if (context.get('environment') != environment_identity() or context['config_file_path'] != self.owner.config_file_path
                     or sorted(context['bindings'], key=digest) != sorted(self._bindings(), key=digest)):
@@ -439,6 +545,8 @@ class AutomaticOrderRecovery:
                 continue
             if await self._reject_saved_expiry(core, connector, attempt, order):
                 continue
+            if self.isolated and attempt['order_id'] in self.quarantined:
+                continue  # Restore its reservation now; the existing GET worker resolves it in background.
             self.bootstrap_orders[order.client_order_id] = (attempt, order)
             failures = 0
             while True:
@@ -453,6 +561,8 @@ class AutomaticOrderRecovery:
                     delay = min(15, 2 ** (failures - 1)) * random.uniform(.8, 1.2)
                     self.note_bootstrap_wait(error, delay, order_id=order.client_order_id)
                     await asyncio.sleep(delay)
+        if self.isolated:
+            self._isolate(self._pending())
 
     async def project(self, core):
         """Apply only terminal, fully proved orders missing their native hold transfer."""
@@ -476,6 +586,8 @@ class AutomaticOrderRecovery:
             raise SubmissionBlocked('automatic_recovery_scope_limit')
         groups = {}
         for identity in ids:
+            if self.isolated and identity in self.quarantined:
+                continue  # The original journal work remains unapplied until exact terminal proof.
             attempt = self._attempt(identity)
             if not attempt or not eligible(attempt['context']):
                 raise SubmissionBlocked('recovery_fill_context_missing')
@@ -518,12 +630,83 @@ class AutomaticOrderRecovery:
             core.strategy.executor_orchestrator._update_positions_from_done_executors({config.controller_id: [info]})
             core.strategy.executor_orchestrator._update_cached_performance(config.controller_id, info)
 
+    def attach_quarantined_entries(self, core):
+        """Restore native lifecycle ownership without constructing another POST."""
+        from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
+        from hummingbot.strategy_v2.executors.position_executor.position_executor import PositionExecutor
+        orchestrator = core.strategy.executor_orchestrator
+        existing = {executor.config.id: executor for rows in orchestrator.active_executors.values() for executor in rows}
+        prepared = []
+        for identity, attempt in self.quarantined.items():
+            config = PositionExecutorConfig.model_validate(attempt['context']['executor'])
+            controller = core.strategy.controllers.get(config.controller_id)
+            current = getattr(controller, 'config', None)
+            if ((getattr(current, 'connector_name', None), getattr(current, 'trading_pair', None))
+                    != (config.connector_name, config.trading_pair)):
+                raise SubmissionBlocked('recovery_position_application_conflict')
+            order = self.owner.connectors[config.connector_name]._order_tracker.fetch_order(identity)
+            if order is None:
+                raise SubmissionBlocked('recovery_order_identity_mismatch')
+            if config.id in existing:
+                executor = existing[config.id]
+                if not executor._open_order or executor._open_order.order is not order:
+                    raise SubmissionBlocked('recovery_position_application_conflict')
+                continue
+            if any(item.config.id == config.id for item in prepared):
+                raise SubmissionBlocked('recovery_position_application_conflict')
+            # Native amount/price were quantized before the immutable intent;
+            # the proposal may have finer precision than the venue permits.
+            config = config.model_copy(update={'amount': order.amount, 'entry_price': order.price})
+            executor = PositionExecutor(core.strategy, config)
+            executor.bind_pending_entry(order)
+            prepared.append(executor)
+        for executor in prepared:
+            orchestrator.active_executors.setdefault(executor.config.controller_id, []).append(executor)
+            executor.start()
+
+    def defer_shutdown(self, core):
+        """Detach only journal-owned uncertain entries, never fabricate an order terminal."""
+        if not self.isolated or not self._isolate(self._pending()):
+            return set()
+        records = self.quarantined
+        configs = {row['context']['executor']['id'] for row in records.values()}
+        if core.markets_recorder.applied_position_executors(configs):
+            return set()
+        orchestrator = getattr(getattr(core, 'strategy', None), 'executor_orchestrator', None)
+        remove = []
+        if orchestrator is not None:
+            for controller_id, executors in orchestrator.active_executors.items():
+                for executor in executors:
+                    if executor.config.id not in configs:
+                        continue
+                    if executor.config.type != 'position_executor':
+                        return set()
+                    tracked = [*executor._failed_orders, executor._open_order, executor._close_order, executor._take_profit_limit_order]
+                    identities = {item.order_id for item in tracked if item}
+                    expected = {identity for identity, row in records.items()
+                                if row['context']['executor']['id'] == executor.config.id}
+                    if (not expected <= identities or any(item and item.order and item.executed_amount_base
+                                                          and item.order_id not in expected for item in tracked)):
+                        return set()  # Mixed financial effects still require full native proof.
+                    remove.append((controller_id, executor))
+            for controller_id, executor in remove:
+                orchestrator.active_executors[controller_id].remove(executor)
+                executor.stop()  # Stop its loop/callbacks; the native order and durable work stay unresolved.
+        self.status.update(phase='settled_stopped', reason_code='uncertain_effects_retained')
+        return set(records)
+
     async def step(self, core, *, force=False):
         if not self.active or not force and time.monotonic() < self.next_poll:
             return
         self.owner.check_owner()
         core.trade_fill_db.assert_persistence_healthy()
         pending = self._pending()
+        if not self.isolated and self._isolate(pending):
+            row = self.owner.check_owner()
+            recovery = row['recovery_state'] or {}
+            self.owner.allow_new_orders = bool(not recovery.get('halt') and not recovery.get('pending_mutations')
+                                               and not self.owner.shutdown_requested and row['desired_state'] == 'running'
+                                               and row['control_version'] == self.owner.version)
         if len(pending) > MAX_ATTEMPTS:
             self.owner.require_recovery('automatic_recovery_scope_limit')
             self.status.update(phase='manual_required', operator_required=True, reason_code='automatic_recovery_scope_limit')
@@ -538,9 +721,45 @@ class AutomaticOrderRecovery:
                 order = connector._order_tracker.fetch_order(attempt['order_id'])
                 if order is None:
                     order = self._restore_order(connector, attempt)
-                if not await self._reject_saved_expiry(core, connector, attempt, order):
-                    await self._merge(core, connector, attempt, order)
+                if self.isolated and not force and time.monotonic() < self.attempt_retry.get(attempt['order_id'], (0, 0))[0]:
+                    continue
+                try:
+                    if not await self._reject_saved_expiry(core, connector, attempt, order):
+                        await asyncio.wait_for(self._merge(core, connector, attempt, order), timeout=10)
+                except (IOError, asyncio.TimeoutError) as error:
+                    if not self.isolated:
+                        raise
+                    previous = self.attempt_retry.get(attempt['order_id'], (0, 0))[1]
+                    failures = min(previous + 1, 5)
+                    delay = min(15, 2 ** (failures - 1)) * random.uniform(.8, 1.2)
+                    self.attempt_retry[attempt['order_id']] = (time.monotonic() + delay, failures)
+                    self.status.update(reason_code='order_not_found_inconclusive' if isinstance(error, OKXOrderNotFoundError)
+                                       else 'order_proof_pending', next_retry_at=time.time() + delay)
+                    continue  # Another positively provable intent still gets a turn.
+                self.attempt_retry.pop(attempt['order_id'], None)
                 self.status['last_progress_at'] = time.time()
+            remaining = self._pending()
+            if self.isolated and remaining:
+                if not self._isolate(remaining):
+                    self.owner.allow_new_orders = False
+                    raise MarketReadinessBlocked('uncertain_reservation_unavailable')
+                row = self.owner.check_owner()
+                recovery = row['recovery_state'] or {}
+                self.owner.allow_new_orders = bool(not recovery.get('halt') and not recovery.get('pending_mutations')
+                                                   and not self.owner.shutdown_requested and row['desired_state'] == 'running'
+                                                   and row['control_version'] == self.owner.version)
+                self.status.update(phase='reconciling' if self.owner.allow_new_orders else 'settled_stopped',
+                                   operator_required=time.time() - self.status.get('started_at', time.time()) >= 300)
+                now = time.monotonic()
+                self.next_poll = min(self.attempt_retry.get(attempt['order_id'], (now + 1, 0))[0] for attempt in remaining)
+                self.status['next_retry_at'] = time.time() + max(0, self.next_poll - now)
+                self.owner._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.status)))
+                return
+            if not remaining:
+                self.quarantined.clear()
+                self.attempt_retry.clear()
+                self.status.update(isolated=False, quarantined_orders=0, admission_mode='paused',
+                                   reserved_base={}, reserved_quote_worst_case='0')
             row = self.owner.check_owner()
             recovery = row['recovery_state'] or {}
             if (recovery.get('halt') or recovery.get('pending_mutations') or self.owner.shutdown_requested

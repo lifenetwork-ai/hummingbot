@@ -47,6 +47,7 @@ class RuntimeSettings:
     port: int = int(DEFAULT_ENV_CONFIG["PORT"])
     database_pool_size: int = int(DEFAULT_ENV_CONFIG["DB_POOL_SIZE"])
     engine_diagnostics_enabled: bool = False
+    scoped_recovery_enabled: bool = False
 
     @classmethod
     def from_environment(cls, environ: Optional[Mapping[str, str]] = None) -> "RuntimeSettings":
@@ -80,7 +81,9 @@ class RuntimeSettings:
         return cls(url, parse_boolean(values.get("ENABLE_AUTO_MIGRATION", DEFAULT_ENV_CONFIG["ENABLE_AUTO_MIGRATION"])),
                    bot_id, port, pool_size, parse_boolean(values.get(
                        'ENGINE_DIAGNOSTICS_ENABLED', DEFAULT_ENV_CONFIG['ENGINE_DIAGNOSTICS_ENABLED']),
-                       'ENGINE_DIAGNOSTICS_ENABLED'))
+                       'ENGINE_DIAGNOSTICS_ENABLED'), parse_boolean(values.get(
+                           'MM_SCOPED_RECOVERY_ENABLED', DEFAULT_ENV_CONFIG['MM_SCOPED_RECOVERY_ENABLED']),
+                           'MM_SCOPED_RECOVERY_ENABLED'))
 
 
 def storage_backend(environ: Optional[Mapping[str, str]] = None) -> str:
