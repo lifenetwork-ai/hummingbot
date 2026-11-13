@@ -400,8 +400,12 @@ policy is changed as part of local implementation.
 - [x] Stop and graceful running-owner replacement retain unknown obligations and
   prevent stale authority from sending. A clean persisted uncertainty must not be
   relabeled as financial corruption or erased to make shutdown succeed.
-- [ ] Extend the connected matrix to Disconnect, timed profile rollover and OOM
-  while quarantine is populated. Existing ordinary ownership/risk gates remain.
+- [x] Local finite subset: managed-key Disconnect stays pending and retains its
+  encrypted key across retries; timed profile rollover preserves quarantine;
+  physical1GiB cgroup engine OOM restores two unknown BUYs and one original-fee
+  partial SELL fill exactly once. Existing ordinary ownership/risk gates remain.
+- [ ] Repeat these lifecycle cases on the intended connected revision. The local
+  subset does not cover every crash boundary or OOM during Disconnect itself.
 - [ ] Test lost ACK, late/duplicate fills, false51603, multiple concurrent sends,
   stale balances, fees, bounds, persistence failure, takeover and risk stops.
 - [x] Qualify the initial native/PostgreSQL/full-service offline subset. Preserve

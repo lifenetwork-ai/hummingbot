@@ -186,7 +186,7 @@ class AutomaticOrderRecovery:
         return bool(getattr(self.owner, 'scoped_recovery_enabled', False) is True and self.active and self.quarantined
                     and self.status.get('cold_recovery_supported') is True)
 
-    def _isolate(self, pending):
+    def _isolate(self, pending, *, retiring=False):
         """Opt-in eligibility is never proof of an order's terminal outcome."""
         self.quarantined = {}
         self.status.update(isolated=False, quarantined_orders=0, admission_mode='paused',
@@ -196,7 +196,10 @@ class AutomaticOrderRecovery:
         from hummingbot.core.uncertain_order_reservations import cohort
         row = self.owner.check_owner()
         maximum = (((row.get('recovery_state') or {}).get('spot_outflow') or {}).get('policy') or {}).get('max_net_outflow_quote')
-        current = sorted(self._bindings(), key=digest)
+        bindings = self._bindings(retiring=retiring)
+        if bindings is None:
+            return False
+        current = sorted(bindings, key=digest)
         try:
             for attempt in pending:
                 if (attempt['context'].get('bot_id') != self.owner.store.bot_id or not eligible(attempt['context'])
@@ -207,7 +210,7 @@ class AutomaticOrderRecovery:
             for attempt in normalized:
                 attempt['context']['bindings'] = sorted(attempt['context']['bindings'], key=digest)
             holds, quote = cohort(normalized, bindings=current, environment=environment_identity(),
-                                  config_file_path=self.owner.config_file_path, max_quote=maximum)
+                                  config_file_path=row['config_file_path'] if retiring else self.owner.config_file_path, max_quote=maximum)
         except (KeyError, ValueError, ArithmeticError, TypeError, MarketReadinessBlocked):
             return False
         self.quarantined = {attempt['order_id']: attempt for attempt in pending}
@@ -258,7 +261,9 @@ class AutomaticOrderRecovery:
                     raise ValueError
             except (KeyError, ValueError, ArithmeticError, TypeError):
                 raise MarketReadinessBlocked('uncertain_transport_identity_mismatch') from None
-        authorize_cash_sell(connector, order, holds, now=float(row['database_now']), max_age=5)
+        unsent = {identity: native for identity, native in self.owner.unsent_rejections.items()
+                  if identity not in self.owner.sent_intents}
+        authorize_cash_sell(connector, order, holds, now=float(row['database_now']), max_age=5, proven_unsent=unsent)
 
     @property
     def active(self):
@@ -325,9 +330,12 @@ class AutomaticOrderRecovery:
                 SubmissionAttempt.state.in_(('uncertain', 'possibly_sent') if all_sends else ('uncertain',)))
                 .order_by(SubmissionAttempt.order_id).limit(MAX_ATTEMPTS + 1)).mappings()]
 
-    def _bindings(self):
+    def _bindings(self, *, retiring=False):
         from hummingbot.model.exchange_credential import ExchangeCredential
         with self.owner.engine.connect() as connection:
+            if retiring:
+                from hummingbot.model.runtime_journal import retiring_bindings
+                return retiring_bindings(connection, self.owner.check_owner())
             return [dict(row) for row in connection.execute(select(
                 ExchangeCredential.connector, ExchangeCredential.environment, ExchangeCredential.account_id,
                 ExchangeCredential.version).where(ExchangeCredential.bot_id == self.owner.store.bot_id,
@@ -664,9 +672,9 @@ class AutomaticOrderRecovery:
             orchestrator.active_executors.setdefault(executor.config.controller_id, []).append(executor)
             executor.start()
 
-    def defer_shutdown(self, core):
+    def defer_shutdown(self, core, *, retiring=False):
         """Detach only journal-owned uncertain entries, never fabricate an order terminal."""
-        if not self.isolated or not self._isolate(self._pending()):
+        if not self.active or not self._isolate(self._pending(), retiring=retiring):
             return set()
         records = self.quarantined
         configs = {row['context']['executor']['id'] for row in records.values()}

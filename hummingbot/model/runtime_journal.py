@@ -74,6 +74,39 @@ def bindings(session, bot_id):
                                           ExchangeCredential.state == 'active')).mappings()]
 
 
+def retiring_bindings(session, state):
+    """Original bindings for a verified Disconnect handoff, never send authority.
+
+    A selected key transitions to revoking before its trading runtime drains.
+    Only that exact current receipt may retain its original checkpoint identity.
+    """
+    from hummingbot.model.admin_command import AdminCommand
+    from hummingbot.model.exchange_credential import ExchangeCredential
+    operation = (state.get('recovery_state') or {}).get('credential_operation') or {}
+    if (state.get('desired_state') != 'stopped' or operation.get('action') != 'credentials_disconnect'
+            or operation.get('environment') != environment_identity()['mode']):
+        return None
+    receipt = session.execute(select(AdminCommand.id).where(
+        AdminCommand.bot_id == state['bot_id'], AdminCommand.id == operation.get('id'),
+        AdminCommand.action == 'credentials_disconnect', AdminCommand.effective_version == state['control_version'],
+        AdminCommand.status.in_(('accepted', 'applying')))).first()
+    if receipt is None:
+        return None
+    rows = session.execute(select(ExchangeCredential.connector, ExchangeCredential.environment, ExchangeCredential.account_id,
+                                  ExchangeCredential.version, ExchangeCredential.state, ExchangeCredential.exchange,
+                                  ExchangeCredential.operation_id, ExchangeCredential.envelope.is_not(None).label('configured')).where(
+        ExchangeCredential.bot_id == state['bot_id'], ExchangeCredential.state.in_(('active', 'revoking')))).mappings().all()
+    selected = [row for row in rows if row['connector'] == operation.get('connector')]
+    if (len(selected) != 1 or selected[0]['state'] != 'revoking' or selected[0]['operation_id'] != operation.get('id')
+            or selected[0]['version'] != operation.get('version')
+            or {row['connector']: row['version'] for row in rows} != operation.get('affected_versions')
+            or any(not row['configured'] or row['exchange'] != operation.get('exchange')
+                   or row['environment'] != operation.get('environment') or row['account_id'] != selected[0]['account_id']
+                   or row['connector'] != operation['connector'] and row['state'] != 'active' for row in rows)):
+        return None
+    return [{key: row[key] for key in ('connector', 'environment', 'account_id', 'version')} for row in rows]
+
+
 def advance_checkpoints(session, checkpoints):
     """Advance verified financial work on the caller's existing transaction."""
     if not checkpoints:
@@ -104,7 +137,7 @@ def credential_fingerprint(connector):
     return digest(['credential_identity', environment_identity(), connector.name, key]) if isinstance(key, str) and key else None
 
 
-def can_bootstrap(session, state):
+def can_bootstrap(session, state, *, retiring=False):
     """Check outstanding work and its verified checkpoint, never lifetime history."""
     from hummingbot.core.automatic_recovery import MAX_ATTEMPTS, eligible
     from hummingbot.model.order import Order
@@ -121,11 +154,18 @@ def can_bootstrap(session, state):
         current_financial_hash = financial_hash(session) if checkpoint else None
     except ValueError:
         return False
+    if retiring:
+        original = retiring_bindings(session, state)
+        if original is None:
+            return False
+        current_binding_hash = digest({'environment': environment_identity(), 'bindings': sorted(original, key=digest)})
+    else:
+        current_binding_hash = binding_hash(session, state['bot_id'])
     if (any(value.get('_is_stop_triggered') or value.get('drawdown_exited_controllers') or value.get('mm_drawdown_breach')
             for value in risk.values() if isinstance(value, dict))
             or state['config_type'] != 'mm-session' or not checkpoint
             or checkpoint.financial_hash != current_financial_hash
-            or checkpoint.bindings_hash != binding_hash(session, state['bot_id'])):
+            or checkpoint.bindings_hash != current_binding_hash):
         return False
     attempts = session.execute(select(SubmissionAttempt).where(SubmissionAttempt.state.in_(
         ('prepared', 'possibly_sent', 'uncertain', 'acknowledged'))).limit(MAX_ATTEMPTS + 1)).scalars().all()

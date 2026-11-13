@@ -132,7 +132,12 @@ class CleanupExchangeRuntime:
             # entries. Only unfinished orders need repeated intermediate polls;
             # keep all identities for remote-order checks.
             for connector, order in pending:
-                await self._refresh_order(connector, order, deadline)
+                try:
+                    await self._refresh_order(connector, order, deadline)
+                except OKXOrderNotFoundError:
+                    # A prior ambiguous create is not proven absent. Keep the
+                    # key/intent and retry the same cleanup operation, never POST.
+                    raise CredentialAdapterError('cleanup_orders_pending', status=503) from None
             unfinished = [(connector, order) for connector, order in pending if not order.is_done]
             if not unfinished:
                 break

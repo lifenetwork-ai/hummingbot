@@ -437,3 +437,56 @@ scenarios; this is not a zero-warning/log claim or a latency benchmark. Connecte
 general concurrent openings and Perpetual CLOSE remain open. Keep the flag false
 until the intended rollout subset is separately approved and qualified. Existing
 99% quote/probe gates are not closed by these local tests.
+
+### Populated-quarantine lifecycle follow-up — 2026-11-14
+
+The new Disconnect service RED reproduces an engine restart: changing the selected
+key to `revoking` removes it from the ordinary active binding hash, preventing
+the supported unknown BUYs from draining into cleanup. Separately, a recovered
+order's typed51603 escaped cancellation as a generic cleanup failure. The fix
+retains the original binding only for an exact current accepted/applying
+Disconnect receipt, stopped control, matching versions/account and present
+ciphertext, under the existing physical/financial checkpoint fences. Ordinary
+admission still excludes revoking keys. Cleanup reports
+`waiting_for_dependency/cleanup_orders_pending`, retains intent/key and retries
+the same operation; no fabricated cancellation or successful credential removal.
+
+A second reservation defect counted a positively proven unsent cached SELL as a
+possible debit, potentially blocking subsequent funded sells. Skip it only for
+the current owner's exact native object with no sent-intent marker, exchange ID,
+fills or executed amount. FAILED status alone, a copied identity, late ACK or a
+positive fill does not qualify. Other unknown/resident reservations remain.
+
+On the final candidate, native regression passes3,728 plus16 subtests;
+PostgreSQL automatic/scoped/credential/cleanup selection passes173. The final
+direct handoff assertion also verifies ordinary bootstrap remains blocked for a
+revoking key, the stopped handoff succeeds, and a risk stop cannot use that path.
+These are overlapping selections, not an additive unique-test total. Pre-commit
+and unchanged OpenAPI checks pass. Evidence: `build/scoped-faults-20261114/`.
+
+| Service case | Independent result | Receipt under `build/e2e-offline/` |
+| --- | --- | --- |
+| Kernel OOM,2 CPU/1GiB | `oom_kill`0→1; engine PID33→260; API PID34 unchanged; two unknown BUYs retained, one partial SELL fill/original fee applied once; resumes same session without HALT or repeated POST. | `20261114-012303-452ad7/result.json` |
+| Managed Disconnect,2 CPU/1GiB | Same owner and operation survive repeated dependency waits; encrypted key stays revoking; zero false succeeded audit/erasure. | `20261114-012505-3aba0f/result.json` |
+| Timed Random profile rollover,2 CPU/1GiB | Session/control/owner unchanged, generation advances, funded SELL returns with both unknown BUYs reserved. | `20261114-012618-189f25/result.json` |
+| Scoped positive lost ACK | Native GET proof restores both sides, no POST duplication or owner restart. | `20261114-012731-2330df/result.json` |
+| Ordinary cleanup visibility regression,flag false | Native close readback, exact original fees, flat positions and successful credential removal still pass. | `20261114-012825-157574/result.json` |
+
+Retain initial failure receipts: Disconnect `20261114-010908-3de539`, invalid
+read-only rollover request `20261114-010929-658cdc`, OOM observer exit
+`20261114-011156-4a5996`, and stale pre-restart observation
+`20261114-011559-cc3868`. The last two are harness failures, not evidence of a
+trading failure. The corrected observer requires kernel OOM proof and a running
+successor generation; PID exit137 alone or a prior status snapshot cannot pass.
+The finite allocator stays in the fixture's hard cgroup, never the host.
+
+Final image config:`034be2223bee3aa868f07aad199fd015f94c1fb7066914055d17c5c2de37aa3d`;
+manifest:`1bbd10485f71863582df5621013ac1d0fcc86dd96542411c4b6e018c4a6f6350`.
+All14 runtime source hashes match. No new migration or schema/API shape change.
+This closes the three local lifecycle cases, not their connected counterparts,
+every crash boundary or an OOM during Disconnect itself. The cloud flag stays
+false; connected stable-revision acceptance and the original quote/probe gates
+remain open. No cloud service, account policy or financial row was changed.
+One unused intermediate image from this follow-up is removed; the final image,
+its baseline and other projects' images remain. IDs: `image-cleanup.txt` in the
+same private evidence directory.

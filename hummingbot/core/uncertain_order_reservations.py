@@ -117,7 +117,7 @@ def sell_cost(connector, order):
     return max(cost, number(original, positive=True)) if original is not None else cost
 
 
-def authorize_cash_sell(connector, order, base_holds, *, now, max_age):
+def authorize_cash_sell(connector, order, base_holds, *, now, max_age, proven_unsent=None):
     if (connector.name != 'okx' or order.trade_type != TradeType.SELL
             or order.order_type != OrderType.LIMIT_MAKER or not order.trading_pair.endswith('-USDT')
             or order.trading_pair.split('-')[0] in ('', 'USDT')):
@@ -137,6 +137,9 @@ def authorize_cash_sell(connector, order, base_holds, *, now, max_age):
     if len(orders) > MAX_RESIDENT:
         raise MarketReadinessBlocked('uncertain_reservation_limit')
     for identity, resident in orders.items():
+        if ((proven_unsent or {}).get(identity) is resident and resident.is_done and not resident.exchange_order_id
+                and resident.executed_amount_base == ZERO and not resident.order_fills):
+            continue  # Same-owner positive no-transport proof, not an inference from FAILED.
         if (identity != order.client_order_id and resident.trading_pair == order.trading_pair
                 and resident.trade_type == TradeType.SELL
                 and (not resident.is_done or resident.last_update_timestamp > stamp)):

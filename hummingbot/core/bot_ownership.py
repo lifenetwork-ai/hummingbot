@@ -1084,11 +1084,13 @@ class BotOwnership:
         from sqlalchemy.orm import Session
 
         from hummingbot.model.runtime_journal import can_bootstrap
+        retiring = bool(self.scoped_recovery_enabled and row['desired_state'] == 'stopped'
+                        and ((row['recovery_state'] or {}).get('credential_operation') or {}).get('action') == 'credentials_disconnect')
         with Session(self.engine) as session:
             recoverable_shutdown = (not was_halted and not checkpoint.get('_is_stop_triggered')
                                     and not (row['recovery_state'] or {}).get('pending_mutations')
-                                    and can_bootstrap(session, row))
-        deferred = self.automatic_recovery.defer_shutdown(core) if recoverable_shutdown else set()
+                                    and can_bootstrap(session, row, retiring=retiring))
+        deferred = self.automatic_recovery.defer_shutdown(core, retiring=retiring) if recoverable_shutdown else set()
 
         def begin_shutdown(state):
             state.update(halt=True, shutdown_incomplete=True)

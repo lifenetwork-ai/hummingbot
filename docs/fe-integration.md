@@ -1455,6 +1455,15 @@ ownership, persistence and risk gates still apply. On Stop, a supported unresolv
 intent can remain durably reserved with `phase=settled_stopped`; it has not been
 rejected, canceled or erased. A cold successor restores that obligation before
 admission. Deploying the flag does not manufacture support for old attempts.
+Disconnect does not erase an uncertain order. With this feature enabled, the
+runtime may retain its original verified binding while handing the obligation
+to cleanup; the selected key remains `revoking` and trading stays stopped. If
+order readback returns51603, the same credential operation reports
+`stage=waiting_for_dependency`, `reason_code=cleanup_orders_pending` and
+`next_retry_at`. Show “Waiting for order verification”, not “Disconnected”.
+The encrypted key and intent remain until actual terminal proof permits cleanup;
+neither retry count nor an empty open-order list authorizes credential removal.
+The handoff's binding projection grants no new-order or Start permission.
 During a verified owner shutdown, `recovery.halted` can briefly remain true as
 the admission fence. When `recovery.next_action=wait`, render the returned
 `operator` guidance instead of a manual-HALT banner: Start/Switch remain disabled,

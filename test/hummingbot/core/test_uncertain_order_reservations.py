@@ -174,3 +174,23 @@ def test_original_resident_sell_base_fee_does_not_shrink_when_current_fee_change
     del resident._cash_sell_reserved_base
     with pytest.raises(MarketReadinessBlocked, match='uncertain_fee_unavailable'):
         authorize_cash_sell(exchange, native('.1'), {'BTC': D('.1')}, now=101, max_age=5)
+
+
+def test_proven_unsent_rejection_is_not_a_possible_cash_debit():
+    exchange, rejected = connector('.35'), native('.2', 'rejected')
+    rejected.is_done, rejected.last_update_timestamp = True, 101
+    rejected.exchange_order_id, rejected.executed_amount_base, rejected.order_fills = None, D(0), {}
+    del rejected._cash_sell_reserved_base
+    exchange._order_tracker = SimpleNamespace(all_fillable_orders={'rejected': rejected})
+    authorize_cash_sell(exchange, native('.1'), {'BTC': D('.1')}, now=102, max_age=5,
+                        proven_unsent={'rejected': rejected})
+    for unproved in ({}, {'rejected': native('.2', 'rejected')}):
+        with pytest.raises(MarketReadinessBlocked):
+            authorize_cash_sell(exchange, native('.1'), {'BTC': D('.1')}, now=102, max_age=5, proven_unsent=unproved)
+    for field, value in (('exchange_order_id', 'late-ack'), ('executed_amount_base', D('.01'))):
+        previous = getattr(rejected, field)
+        setattr(rejected, field, value)
+        with pytest.raises(MarketReadinessBlocked):
+            authorize_cash_sell(exchange, native('.1'), {'BTC': D('.1')}, now=102, max_age=5,
+                                proven_unsent={'rejected': rejected})
+        setattr(rejected, field, previous)

@@ -374,3 +374,89 @@ def test_foreign_or_legacy_intent_cannot_grant_scoped_authority(managed_native, 
         context.owner.automatic_recovery.authorize_isolated_order(exchange, order)
     assert not context.owner.allow_new_orders and not context.owner.automatic_recovery.isolated
     assert not context.store.read()['recovery_state'].get('halt') and transport.call.await_count == 1
+
+
+def test_disconnect_handoff_keeps_original_reservation_and_never_restores_send_authority(managed_native):
+    from copy import deepcopy
+    from datetime import datetime, timezone
+
+    from hummingbot.core.admin_identity import Principal
+    from hummingbot.core.order_submission_guard import SubmissionBlocked
+    from hummingbot.model.credential_store import CredentialStore
+    from hummingbot.model.exchange_credential import ExchangeCredential
+    from hummingbot.model.runtime_journal import (
+        RuntimeCheckpoint,
+        SubmissionAttempt,
+        binding_hash,
+        bindings,
+        can_bootstrap,
+    )
+
+    context, exchange, recorder, transport = managed_native
+    with context.manager.get_new_session() as db, db.begin():
+        db.add(ExchangeCredential(bot_id=context.store.bot_id, exchange='okx', connector='okx', environment='live',
+                                  version=1, account_id='www:offline', state='active', envelope={'fixture': 'ciphertext'},
+                                  changed_by='fixture', changed_at=datetime.now(timezone.utc)))
+        db.flush()
+        row = db.get(SubmissionAttempt, 'auto-order')
+        saved = deepcopy(row.context)
+        saved['bindings'] = bindings(db, context.store.bot_id)
+        row.context = saved
+        db.get(RuntimeCheckpoint, 'test.yml').bindings_hash = binding_hash(db, context.store.bot_id)
+    isolate(context, exchange, recorder)
+    core = attached_core(context, exchange, recorder)
+    store = CredentialStore(context.store)
+    # The native-order fixture has only the small final-gate session projection.
+    # Use a full persisted session for the actual credential command decoder.
+    import json
+    from random import Random
+    from test.hummingbot.client.config.test_mm_profiles import CATALOGUE
+
+    from hummingbot.client.config.mm_profiles import MMProfilesConfig
+    from hummingbot.core.mm_session import MMSession, MMSessionRequest
+    catalogue = context.loop.run_until_complete(MMProfilesConfig.load(CATALOGUE))
+    current_session = MMSession.create(catalogue, MMSessionRequest(market_mode='spot', profile_id='follow_market',
+                                                                   duration_seconds=600), rng=Random(1), session_id='mm-auto')
+    with context.engine.begin() as db:
+        db.execute(text('UPDATE bot_state SET mm_session=CAST(:value AS jsonb)'),
+                   {'value': json.dumps(current_session.model_dump(mode='json'))})
+    receipt = store.accept_disconnect(Principal('basic:operator', 'basic', 'admin'), exchange='okx', connector='okx',
+                                      environment='live', expected_version=1, expected_control_version=1,
+                                      idempotency_key='disconnect-test', request_id='disconnect-test')
+    with context.manager.get_new_session() as db:
+        state = context.store.read()
+        assert not can_bootstrap(db, state)  # Revoking is still blocked for ordinary trading.
+        assert can_bootstrap(db, state, retiring=True)
+        risk_stopped = deepcopy(state)
+        risk_stopped['recovery_state']['strategy_checkpoints'] = {'test.yml': {'_is_stop_triggered': True}}
+        assert not can_bootstrap(db, risk_stopped, retiring=True)
+
+    async def shutdown(**kwargs):
+        if core.before_position_checkpoint:
+            await core.before_position_checkpoint({})
+        await core.after_order_cancellation()
+        return True
+
+    core.shutdown = shutdown
+
+    async def observe():
+        context.owner.automatic_recovery.attach_quarantined_entries(core)
+        with patch.object(exchange, '_request_order_update', AsyncMock(side_effect=OKXOrderNotFoundError('51603'))) as read:
+            assert await context.owner.shutdown_core(core, timeout=2)
+            # Cleanup retains the same obligation after adopting its own recorder
+            # attribution, with no strategy/executor and no trading permission.
+            core.strategy = None
+            context.owner.config_file_path = 'credentials_cleanup'
+            assert await context.owner.shutdown_core(core, timeout=2)
+            read.assert_not_awaited()
+    context.loop.run_until_complete(observe())
+    order = InFlightOrder('sale', 'BTC-USDT', OrderType.LIMIT_MAKER, TradeType.SELL,
+                          Decimal('.1'), time.time(), Decimal('100'))
+    with pytest.raises(SubmissionBlocked):
+        context.owner.automatic_recovery.authorize_isolated_order(exchange, order)
+    state = context.store.read()
+    assert not state['recovery_state'].get('halt') and not state['recovery_state']['runtime_active']
+    assert state['recovery_state']['credential_operation']['id'] == receipt['id']
+    assert not context.owner.allow_new_orders and transport.call.await_count == 1
+    assert store.load('okx', 'okx', 'live')['state'] == 'revoking'
+    assert store.load('okx', 'okx', 'live')['envelope'] is not None

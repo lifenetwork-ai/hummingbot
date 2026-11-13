@@ -94,6 +94,22 @@ def test_native_engine_status_still_rejects_an_unknown_strategy():
 
 
 @pytest.mark.asyncio
+async def test_unknown_recovered_order_keeps_disconnect_waiting_for_proof():
+    from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
+
+    instance, connector = runtime()
+    order = SimpleNamespace(client_order_id='uncertain-original', is_done=False)
+    instance.orders = {order.client_order_id: (connector, order)}
+    instance.owner._open_orders = AsyncMock(return_value=[])
+    connector.cancel_all = AsyncMock()
+    instance.owner._refresh_orders.side_effect = OKXOrderNotFoundError('51603')
+    with pytest.raises(CredentialAdapterError, match='cleanup_orders_pending') as error:
+        await instance.cancel_orders()
+    assert error.value.status == 503
+    assert instance.orders[order.client_order_id][1] is order
+
+
+@pytest.mark.asyncio
 async def test_unknown_orders_block_completion_without_canceling_their_ids():
     instance, connector = runtime()
     order = SimpleNamespace(client_order_id="HB-known", is_done=True)
