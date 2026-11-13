@@ -1,14 +1,10 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, LineChart, OctagonAlert, SlidersHorizontal } from 'lucide-react'
-import type { OperationalContextModel } from '../operational-context/context'
-import { useSessionControl } from '../session-control/useSessionControl'
-import { StopConfirmationDialog } from '../session/StopConfirmationDialog'
+import { ArrowRight, LineChart, SlidersHorizontal } from 'lucide-react'
 import { ProfileExplorerDialog } from './ProfileExplorerDialog'
 import type { ObservationState, OverviewModel } from './model'
 import { CountdownRing } from './visuals/CountdownRing'
 import { Badge } from '../../shared/components/Badge'
-import { Button } from '../../shared/components/Button'
 import { ProfileSignatureChip } from '../../shared/components/ProfileSignatureChip'
 import { Surface } from '../../shared/components/Surface'
 import { cn } from '../../shared/utils/cn'
@@ -16,18 +12,14 @@ import { formatDuration, localizePhase } from '../../shared/utils/formatters'
 
 export interface OverviewControlBarProps {
   overview: OverviewModel
-  context: OperationalContextModel
   observation: ObservationState
   isLoading?: boolean
   className?: string
 }
 
-export function OverviewControlBar({ overview, context, observation, isLoading, className }: OverviewControlBarProps) {
+export function OverviewControlBar({ overview, observation, isLoading, className }: OverviewControlBarProps) {
   const status = overview.status.data
-  const [stopOpen, setStopOpen] = useState(false)
-  const [stopError, setStopError] = useState<string | null>(null)
   const [explorerOpen, setExplorerOpen] = useState(false)
-  const control = useSessionControl({ includeProfiles: false })
 
   const request = status?.session?.request
   const selection = request?.selection
@@ -65,16 +57,6 @@ export function OverviewControlBar({ overview, context, observation, isLoading, 
   const randomCycle = overview.task.randomCycle
   const reconcileAttention = observation !== 'fresh' || Boolean(status?.recovery?.halted)
   const timeRemaining = overview.task.timeRemainingSeconds
-
-  const handleStopConfirm = async () => {
-    setStopError(null)
-    try {
-      await control.stop()
-    } catch (error) {
-      setStopError(error instanceof Error ? error.message : 'Failed to send stop command')
-      throw error
-    }
-  }
 
   return (
     <Surface className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5', className)}>
@@ -142,26 +124,8 @@ export function OverviewControlBar({ overview, context, observation, isLoading, 
           <span className="hidden sm:inline">Change configuration</span>
           <ArrowRight size={12} />
         </Link>
-        <Button
-          variant="danger"
-          className="h-9 px-3 text-xs"
-          onClick={() => setStopOpen(true)}
-          disabled={!context.actions.stop.allowed || control.stopping || control.stopBlocksNew}
-          title={context.actions.stop.detail}
-        >
-          <OctagonAlert size={13} />
-          <span>Emergency stop</span>
-        </Button>
       </div>
 
-      <StopConfirmationDialog
-        open={stopOpen}
-        onOpenChange={setStopOpen}
-        context={context}
-        onConfirm={handleStopConfirm}
-        isSubmitting={control.stopping}
-        error={stopError}
-      />
       <ProfileExplorerDialog
         open={explorerOpen}
         onClose={() => setExplorerOpen(false)}

@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation } from '@tanstack/react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { BarChart3, ChevronDown, FileText, LogOut, Menu, Moon, OctagonAlert, Shield, Sun, X } from 'lucide-react'
+import { BarChart3, ChevronDown, FileText, LogOut, Menu, Moon, Shield, Sun, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../core/auth/auth-context'
 import { Badge } from '../shared/components/Badge'
@@ -219,19 +219,7 @@ export function AppShell() {
           </nav>
 
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-            {auth.status === 'authenticated' && (
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent('open-stop-dialog'))}
-                aria-label="Stop orders"
-                disabled={auth.identity?.permissions.operate !== true}
-                className="inline-flex h-9 items-center gap-1.5 rounded-button bg-app-danger px-2 py-1.5 text-xs font-bold sm:px-3 text-white shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-danger focus-visible:ring-offset-2"
-              >
-                <OctagonAlert size={14} className="shrink-0" />
-                <span className="hidden sm:inline">Stop orders</span>
-                <span className="sm:hidden">Stop</span>
-              </button>
-            )}
+            {/* Emergency stop lives as a single floating action in OperationalShell */}
 
             {auth.status === 'authenticated' && auth.identity && (
               <div ref={userMenuRef} className="relative">

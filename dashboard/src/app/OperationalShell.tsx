@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Outlet } from '@tanstack/react-router'
+import { Power } from 'lucide-react'
 import { getAppConfig } from '../core/config/env'
 import { notify } from '../core/feedback/notify'
 import { AssetRibbon } from '../features/operational-context/AssetRibbon'
@@ -61,6 +62,19 @@ export function OperationalShell() {
       {stopControl.stopPendingRetry && <div className="mx-auto w-full max-w-[1536px] px-4 py-2 text-xs text-app-warning" role="status">Stop outcome unknown. <button type="button" disabled={stopControl.stopping} onClick={() => { void stopControl.retryStop().catch((error: unknown) => setStopError(error instanceof Error ? error.message : 'Retry Stop failed.')) }}>Retry Stop with same body/key</button>{stopError}</div>}
       {stopControl.stopReceipt && <p role="status" className="mx-auto w-full max-w-[1536px] px-4 text-xs text-app-muted">Stop {stopControl.stopReceipt.reference.id}: {stopControl.stopReceipt.status ?? 'Unknown'} · Positions intact.</p>}
       <Outlet />
+
+      {/* Single global emergency stop — floating above the ContextBar, visible from any page.
+          Solid red circle with a power-off icon, like the stop/shutdown button on everyday devices. */}
+      <button
+        type="button"
+        onClick={() => setStopDialogOpen(true)}
+        aria-label="Emergency stop"
+        disabled={!context.actions.stop.allowed || stopControl.stopping}
+        title={context.actions.stop.detail}
+        className="fixed bottom-14 right-4 z-40 grid h-14 w-14 place-items-center rounded-full bg-app-danger text-white shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-danger focus-visible:ring-offset-2 active:scale-95 disabled:pointer-events-none disabled:opacity-40 sm:right-6"
+      >
+        <Power size={26} strokeWidth={2.5} className="shrink-0" />
+      </button>
 
       {/* Operational Context persistent footer bar */}
       <ContextBar

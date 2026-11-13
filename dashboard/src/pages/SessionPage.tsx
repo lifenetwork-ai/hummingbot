@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, Layers, OctagonAlert, SlidersHorizontal } from 'lucide-react'
+import { ArrowRight, Layers, SlidersHorizontal } from 'lucide-react'
 import { notify } from '../core/feedback/notify'
 import { buildConfigurationReview } from '../features/session-control/configuration-review'
 import { ConfigurationReadOnlyView } from '../features/session/ConfigurationReadOnlyView'
@@ -12,7 +12,6 @@ import { useOperationalContext } from '../features/operational-context/useOperat
 import { CommandReceiptTracker } from '../features/session/CommandReceiptTracker'
 import { SessionConfigForm, type SessionDraftConfig } from '../features/session/SessionConfigForm'
 import { SessionDiffReview } from '../features/session/SessionDiffReview'
-import { StopConfirmationDialog } from '../features/session/StopConfirmationDialog'
 import { Button } from '../shared/components/Button'
 import { SectionLabel } from '../shared/components/SectionLabel'
 import { MotionPage } from '../shared/motion/MotionPage'
@@ -27,9 +26,7 @@ export function SessionPage() {
   const [draftConfig, setDraftConfig] = useState<SessionDraftConfig | null>(null)
   const [reviewed, setReviewed] = useState<SessionReview | null>(null)
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
-  const [stopModalOpen, setStopModalOpen] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [stopError, setStopError] = useState<string | null>(null)
   const receipt = useCommandReceipt(control.commandReceipt?.reference.id)
   const currentControlVersion = context.controlVersion
   const reportError = (error: unknown) => error instanceof Error ? error.message : 'Could not verify the outcome of the operation.'
@@ -62,19 +59,6 @@ export function SessionPage() {
       notify.dismiss('session-submit')
     }
   }
-  const handleStopConfirm = async () => {
-    setStopError(null)
-    try {
-      await control.stop()
-
-    }
-    catch (error) {
-      const msg = reportError(error)
-      setStopError(msg)
-
-      throw error
-    }
-  }
   const retry = async (stop = false) => {
     notify.info('Retrying the command with the same Idempotency Key...', { id: 'session-retry' })
     try {
@@ -84,8 +68,7 @@ export function SessionPage() {
     }
     catch (error) {
       const msg = reportError(error)
-      if (stop) setStopError(msg)
-      else setSubmitError(msg)
+      setSubmitError(msg)
       notify.dismiss('session-retry')
     }
   }
@@ -108,19 +91,6 @@ export function SessionPage() {
             <p className="mt-2 text-sm text-app-muted">
               Manage the market-making strategy, switch Profiles, and adjust the MM session duration.
             </p>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="danger"
-              onClick={() => setStopModalOpen(true)}
-              disabled={!context.actions.stop.allowed || control.stopping || control.stopBlocksNew}
-              title={context.actions.stop.detail}
-              className="h-9 px-3.5 text-xs gap-1.5 font-bold shadow-xs"
-            >
-              <OctagonAlert size={14} />
-              <span>Emergency stop MM session</span>
-            </Button>
           </div>
         </div>
 
@@ -256,15 +226,6 @@ export function SessionPage() {
             <ConfigurationReadOnlyView model={configurationReview} />
           </div>
         )}
-        {/* Emergency Stop Confirmation Dialog */}
-        <StopConfirmationDialog
-          open={stopModalOpen}
-          onOpenChange={setStopModalOpen}
-          context={context}
-          onConfirm={handleStopConfirm}
-          isSubmitting={control.stopping}
-          error={stopError}
-        />
       </div>
     </MotionPage>
   )

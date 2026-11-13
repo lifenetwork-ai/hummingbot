@@ -130,8 +130,7 @@ describe('HomePage (Overview)', () => {
 
     render(<HomePage />)
 
-    // Layer 1: control bar + 4 KPIs
-    expect(screen.getByText('Emergency stop')).toBeInTheDocument()
+    // Layer 1: control bar + 4 KPIs (emergency stop is a global floating action, not per-page)
     expect(screen.getByText('Account USDT equity')).toBeInTheDocument()
     expect(screen.getByText(/Net Position/)).toBeInTheDocument()
     expect(screen.getByText('Two-Sided Coverage (session)')).toBeInTheDocument()

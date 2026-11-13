@@ -64,7 +64,6 @@ export function HomePage() {
         {/* LAYER 1 — Slim control bar + 4 survival KPIs (~15% of the top area) */}
         <OverviewControlBar
           overview={model}
-          context={context}
           observation={model.observation.status}
           isLoading={status.phase === 'loading'}
         />

@@ -61,7 +61,6 @@ describe('SessionPage integrated controller', () => {
     render(<SessionPage />, { wrapper: pageWrapper({ read: true }) })
     const reviewButton = await screen.findByRole('button', { name: /Continue: Review Configuration Diff/ })
     expect(reviewButton).toBeDisabled()
-    expect(screen.getByRole('button', { name: /Emergency stop MM session/ })).toBeDisabled()
   })
   it('binds backend field validation and request ID to the editable form while preserving the draft for a new review', async () => {
     stopped()
