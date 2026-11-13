@@ -381,6 +381,16 @@ rechecks the exchange and local ledger, atomically repairs only proven position
 aggregates, records actor/audit/receipt and clears the technical HALT. Success
 leaves trading stopped; Start is separate. See [FE recovery contract](fe-integration.md#admin-recovery).
 
+For a clean financial checkpoint with a reviewed audit/receipt anchor, recovery
+verifies the complete venue/journal suffix rather than loading lifetime history
+into the 5,000-order/2,000-fill repair window. It preserves financial rows and
+remaining cost basis. Reset advances the anchor atomically with its audit/receipt;
+no schema migration or deployment env change is required. Snapshot and final
+ledger hashing run on the recovery worker in batches; physical owner checks stay
+on their owning loop. Finalization locks the proof tables while the core is
+stopped and rejects intervening changes. The suffix remains bounded by exchange
+retention, page budget and the existing 120-second operation timeout.
+
 This is bounded recovery for a dedicated managed OKX account, not a generic
 force reset. Risk stops, unknown baselines, missing evidence and unsupported
 history remain blocked. Those cases still require an explicit operator-reviewed

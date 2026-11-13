@@ -73,9 +73,10 @@ operator-authorized Cloud acceptance is recorded below. Start remains separate.
   SIGKILL/stale position rejection, successful matching checkpoint, migration
   handoff and the new supervised recovery flow. These use disposable PostgreSQL;
   external network access is disabled by the process fixture.
-- Bulk snapshot/replay run on bounded workers. Physical owner checks and final
-  short transactions remain on the ownership event-loop thread to avoid sharing
-  its SQLAlchemy connection concurrently. Recovery only runs with trading stopped.
+- Initially bulk snapshot/replay ran on bounded workers and finalization stayed
+  on the ownership loop. The checkpoint-history follow-up below moves bulk
+  finalization to a worker with physical checks scheduled on the ownership loop;
+  it continues to avoid sharing its SQLAlchemy connection concurrently. Recovery only runs with trading stopped.
 - Final focused contracts: **61 passed**; final recovery PostgreSQL/real-process
   rerun: **14 passed**; typed API/Swagger contracts: **24 passed**. These overlap
   the broader runs and are not summed as distinct test totals. Pre-commit passes.
@@ -166,3 +167,57 @@ exact server/recovery latency is not proven. Logs after the session starts show
 no ERROR/restart;32 warning records in the captured interval are perpetual
 `mm_no_quotes_warning` under the existing inventory cap. Local helper teardown
 leaves the Cloud session running; no final Stop/Revoke is requested.
+
+
+## Verified checkpoint history follow-up — 2026-11-13 local
+
+Problem: a clean reviewed ledger still hit the lifetime 5,000-order/2,000-fill
+repair caps, requiring separate maintenance to clear a technical HALT.
+
+- [x] RED at 5,001 orders / 2,001 fills; select a verified checkpoint snapshot
+  without materializing the old history or raising the original repair caps.
+- [x] Require an audit-backed legacy anchor or a matching successful Reset receipt,
+  exact current financial/account hashes, applied journal coverage and no pending
+  intent or nonterminal tracker. A count or matching position quantity alone is
+  insufficient. Detect pending intents outside the legacy order page as well.
+- [x] GET-only complete account suffix proof; positive bill cursors, native fee
+  parsers, spot base-fee conversion and perpetual contract/hedge-leg conversion.
+  Check the venue twice and reject changes, gaps, foreign fills or exposure.
+- [x] Stream the local ledger hash in batches of 500. Final proof/revalidation runs
+  on the recovery worker with fixed table locks while stopped. Physical owner
+  checks stay on their owning loop; cancellation drains the actual worker.
+- [x] Atomic Reset preserves ledger, financial aggregates, reduction cost basis
+  and risk state; bind the next anchor to the same successful receipt. Success
+  stays stopped. No env/schema/API-route change.
+- [x] PostgreSQL and real-process offline Check/Confirm/idempotent retry/restart
+  above the lifetime order cap; legacy route retained. Final counts recorded below.
+- [ ] Deploy this follow-up and verify the existing Cloud Demo through the normal
+  Check/Reset API if a technical HALT occurs. Current Cloud session is untouched
+  by this local implementation; no new connected recovery claim is made.
+
+Limits remain explicit: 100 pages × 100 fills per connector since the anchor,
+89-day anchor age, 120-second operation budget, and a clean proven checkpoint.
+A dirty aggregate, unproven old baseline or journal gap is not repaired by this
+route. It falls back to bounded full-history repair and otherwise remains blocked.
+This qualification does not close the separate 30-minute quote-availability gate.
+
+
+Follow-up TDD evidence: initial **1 RED** at the lifetime limits; final focused
+native contracts **46 passed**. PostgreSQL qualification covers **75 distinct
+cases** (74 extended contracts plus the additional complete paged-proof case);
+the final critical store/service subset rerun is **32 passed**, including that
+paged-proof case. These runs overlap and are not added together. Both legacy and
+checkpoint shipping-HTTP review/confirm/retry/restart flows pass. The large fixture
+has **5,001 orders / 2,001 fills**, including one reviewed legacy fill and **2,000
+native journal/venue fills verified through 42 page reads per revalidation**
+across two scans. Check and fresh Reset repeat the native proof before committing.
+Reset advances its receipt-bound anchor and preserves the ledger/positions
+and reduction-basis sentinel. Edited old history, changed binding/risk/checkpoint,
+an altered anchor, missing audit, unapplied work and hidden pending intents remain
+blocked. Native proof tests reject mixed accounts/environments, null identities,
+page gaps, changed second scans and incorrect original fees/contract quantities.
+Both readers use an existing conservative registered rate bucket for archive
+pagination. Local ignored evidence: `build/checkpoint-recovery-api-20261113/`.
+Final shipping regression on the completed source: **3,598 passed plus 16
+subtests**, using `make test-cloudrun-regression`. All source hooks pass.
+No Cloud/HALT/credential/risk or deployment change was made for this follow-up.

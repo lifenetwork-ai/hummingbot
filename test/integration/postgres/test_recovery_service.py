@@ -3,12 +3,14 @@ import base64
 from test.integration.postgres.test_managed_service import call
 from test.integration.postgres.test_service import eventually, health, start_service, terminate
 
+import pytest
 from sqlalchemy import text
 
 from hummingbot.model.bot_state_store import BotStateStore
 
 
-def test_supervised_review_confirm_retry_and_restart_stay_stopped(pg_engine, tmp_path, monkeypatch):
+@pytest.mark.parametrize('checkpoint_history', [False, True])
+def test_supervised_review_confirm_retry_and_restart_stay_stopped(pg_engine, tmp_path, monkeypatch, checkpoint_history):
     monkeypatch.setenv('EXCHANGE_CREDENTIALS_SOURCE', 'postgres_kms')
     monkeypatch.setenv('KMS_PROVIDER', 'local')
     monkeypatch.setenv('KMS_LOCAL_SECRET_KEY', base64.b64encode(b'K' * 32).decode())
@@ -34,11 +36,19 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(pg_engine, tmp
         with pg_engine.begin() as db:
             db.execute(text("UPDATE bot_state SET recovery_state=recovery_state || CAST(:incident AS jsonb)"),
                        {'incident': '{"halt":true,"reason":"Strategy initialization/reconciliation failed; inspect sanitized logs."}'})
+        if checkpoint_history:
+            from test.integration.postgres.test_checkpoint_recovery import seed_checkpoint
+
+            from hummingbot.model.recovery_store import RecoveryStore
+            seed_checkpoint(RecoveryStore(state), fills=0, existing_binding=True)
         eventually(lambda: call(port, '/status')[1].get('recovery', {}).get('halted'))
         code, check = call(port, '/recovery/check', key='check', body={'expected_version': 1})
         assert code == 202, check
         check = eventually(lambda: (item if (item := call(port, '/recovery/operations/' + check['id'])[1]).get('status') in ('succeeded', 'failed') else None))
         assert check['can_recover'], check
+        if checkpoint_history:
+            assert check['verification']['scope'] == 'verified_checkpoint'
+            assert check['proposed_changes'] == []
         assert state.read()['recovery_state']['halt']  # Preview cannot clear HALT.
         payload = dict(expected_version=1, check_id=check['id'], confirmation_token='0' * 32)
         code, rejected = call(port, '/recovery/reset', key='tampered', body=payload)
