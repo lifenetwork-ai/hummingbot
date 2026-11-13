@@ -1,5 +1,6 @@
 """Owner adapter for spot cashflow; recorder rows remain the only fill ledger."""
 import asyncio
+import logging
 from decimal import Decimal
 from itertools import islice
 from types import SimpleNamespace
@@ -28,6 +29,8 @@ class SpotOutflowGuard:
         # Insertion order is retry order. Failed proofs rotate behind orders
         # that have not had a turn; repeated observations do not reset it.
         self.terminal_pending = {}
+        self.terminal_stages = {}
+        self.terminal_failures = {}
         self.initializing = False
         self.reason_code = "spot_outflow_initializing"
         self.last_buy_denial = None
@@ -207,6 +210,8 @@ class SpotOutflowGuard:
             self.projection.release_unsent(client_id)
         self.orders.pop(client_id, None)
         self.terminal_pending.pop(client_id, None)
+        self.terminal_stages.pop(client_id, None)
+        self.terminal_failures.pop(client_id, None)
 
     def mark_terminal_pending(self, client_id):
         self.terminal_pending.setdefault(client_id, None)
@@ -229,24 +234,67 @@ class SpotOutflowGuard:
             self.terminal_pending.pop(client_id)
             self.terminal_pending[client_id] = None
             try:
-                if not await asyncio.wait_for(self._confirm(client_id), timeout=10):
+                if not self._confirm_committed_fill(client_id) and not await asyncio.wait_for(self._confirm(client_id), timeout=10):
+                    self._terminal_failure(client_id, 'not_terminal')
                     continue
-            except (ValueError, OSError, asyncio.TimeoutError, KeyError, ArithmeticError):
+            except (ValueError, OSError, asyncio.TimeoutError, KeyError, ArithmeticError) as error:
+                self._terminal_failure(client_id, type(error).__name__)
                 continue  # Retain the reservation and explicit BUY-only wait.
             self.terminal_pending.pop(client_id, None)
             self.orders.pop(client_id, None)
+            self.terminal_stages.pop(client_id, None)
+            self.terminal_failures.pop(client_id, None)
         if all_orders and self.terminal_pending:
             raise SubmissionBlocked("spot_outflow terminal fill reconciliation is incomplete")
+
+    def _confirm_committed_fill(self, client_id):
+        from hummingbot.connector.markets_recorder import MarketsRecorder
+        from hummingbot.core.spot_terminal_proof import committed_full_fill
+        connector, order = self.orders[client_id]
+        if not committed_full_fill(self.projection, connector, order):
+            return False
+        recorder = MarketsRecorder._shared_instance
+        if (self.reason_code is not None or recorder is None or recorder.sql_manager.engine is not self.owner.engine
+                or not self._identity_matches()):
+            return False
+        self.owner.check_owner()
+        recorder.sql_manager.assert_persistence_healthy()
+        self.projection.confirm_terminal(client_id, order.amount)
+        return True
+
+    def _terminal_failure(self, client_id, error_type):
+        if client_id not in self.terminal_pending:
+            self.terminal_stages.pop(client_id, None)
+            self.terminal_failures.pop(client_id, None)
+            return
+        stage = self.terminal_stages.get(client_id, 'unavailable')
+        failure = stage, error_type
+        if self.terminal_failures.get(client_id) != failure:
+            logging.getLogger(__name__).warning(
+                'Spot terminal proof waiting order_id=%s stage=%s type=%s', client_id, stage, error_type,
+                extra={'event': 'spot_terminal_proof_wait', 'reason_code': 'spot_outflow_terminal_' + stage,
+                       'error_type': error_type, 'scope': 'spot_outflow'})
+        self.terminal_failures[client_id] = failure
+
+    def terminal_reason_code(self):
+        for client_id in self.terminal_pending:
+            failure = self.terminal_failures.get(client_id)
+            if failure:
+                return 'spot_outflow_terminal_' + failure[0]
+        return 'spot_outflow_terminal_unavailable'
 
     async def _confirm(self, client_id):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         connector, order = self.orders[client_id]
+        self.terminal_stages[client_id] = 'order_read'
         response = await connector._request_order_update(order)
         if str(response.get("code")) != "0" or len(response.get("data", [])) != 1:
             raise ValueError("Incomplete terminal order")
         first = response["data"][0]
+        self.terminal_stages[client_id] = 'order_terminal'
         if first.get("state") not in ("filled", "canceled"):
             return False
+        self.terminal_stages[client_id] = 'order_identity'
         if (first.get("clOrdId") != client_id or str(first.get("ordId")) != order.exchange_order_id
                 or first.get("instId") != order.trading_pair or first.get("side") != "buy"
                 or Decimal(first["sz"]) != order.amount or Decimal(first["px"]) != order.price):
@@ -254,10 +302,12 @@ class SpotOutflowGuard:
         fills, after, cursors = {}, None, set()
         seen_amount = ZERO
         for page_index in range(100):
+            self.terminal_stages[client_id] = 'fills_read'
             response = await connector._request_order_fills(order, after=after, limit=100)
             if str(response.get("code")) != "0" or not isinstance(response.get("data"), list):
                 raise ValueError("Incomplete terminal fills")
             page = response["data"]
+            self.terminal_stages[client_id] = 'fill_identity'
             for fill in page:
                 identity = str(fill["tradeId"])
                 if identity in fills or str(fill["ordId"]) != order.exchange_order_id:
@@ -273,14 +323,17 @@ class SpotOutflowGuard:
             if not after or after in cursors or page_index == 99:
                 raise ValueError("Incomplete fill pagination")
             cursors.add(after)
+        self.terminal_stages[client_id] = 'fill_coverage'
         total = sum((Decimal(fill["fillSz"]) for fill in fills.values()), ZERO)
         if total != Decimal(first["accFillSz"]) or (first["state"] == "filled" and total != order.amount):
             raise ValueError("Terminal cumulative fills are incomplete")
+        self.terminal_stages[client_id] = 'order_recheck'
         final = await connector._request_order_update(order)
         keys = ("ordId", "clOrdId", "instId", "side", "sz", "px", "state", "accFillSz", "uTime")
         if (str(final.get("code")) != "0" or len(final.get("data", [])) != 1
                 or any(final["data"][0].get(key) != first.get(key) for key in keys)):
             raise ValueError("Order changed during terminal proof")
+        self.terminal_stages[client_id] = 'recording'
         recorder = MarketsRecorder._shared_instance
         recorder._did_create_order(MarketEvent.BuyOrderCreated.value, connector, BuyOrderCreatedEvent(
             timestamp=int(first["uTime"]) / 1000, type=order.order_type, trading_pair=order.trading_pair,

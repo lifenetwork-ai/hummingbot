@@ -924,7 +924,7 @@ class ServiceHost:
                     guard.reason_code = None
                 if guard.terminal_pending:
                     self.next_outflow_poll = time.monotonic() + self.availability.fail(
-                        "spot_outflow", "spot_outflow_terminal_unavailable", retry=True)
+                        "spot_outflow", guard.terminal_reason_code(), retry=True)
                 else:
                     self.availability.clear("spot_outflow")
             except Exception as error:

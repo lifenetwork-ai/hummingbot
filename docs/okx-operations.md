@@ -250,6 +250,20 @@ and their freshness/reason fields. A command receipt alone does not imply admiss
 | Only one spot quote side | Inspect observed cash inventory and skew target; zero allocation may be an intentional policy result |
 | Drawdown or unresolved-effect HALT | Stop/review exposure, orders, fills and fees against exchange truth; follow the existing operator-reviewed recovery procedure |
 
+A complete native Spot BUY execution may finish its spending reservation without
+another REST lookup only when its exact order/trade identities, quantities,
+execution prices and original fees match the recorder's committed projection.
+Filled flags or approximate totals alone do not qualify. Ownership, account
+binding and recorder health are rechecked. This removes a redundant dependency
+when switching profiles; it does not refund already-spent USDT. Canceled,
+partially filled, uncommitted or conflicting orders still require full terminal
+readback and retain the existing shutdown deadline/fence if proof is unavailable.
+
+`spot_terminal_proof_wait` logs the affected order, fixed proof stage and exception
+type without raw provider errors. `service.incidents` uses the corresponding
+`spot_outflow_terminal_*` reason so an unresolved proof can be distinguished from
+a spending cap. Do not clear protective state to make this wait disappear.
+
 Funding a wallet does not erase recorded trading outflow. A local cancel request
 alone does not release uncertain reservations. Restart does not reset HALT or
 bound policy/peak state. The admin [reviewed recovery API](fe-integration.md#admin-recovery)

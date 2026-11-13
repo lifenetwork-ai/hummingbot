@@ -1,12 +1,70 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest 2026-11-13: revision121/`e635f3da7` is verified and the previous technical
-HALT is recovered under maintenance audit264. Start succeeds on control86 in a
-new both/Random/until-stopped session. The00:13 local check is running, no HALT,
-with two Spot BUY and two perpetual SELL orders; the opposite sides retain their
-size/inventory guards. The short post-Start window has no ERROR/restart/shutdown
-timeout and one probe timeout. This is not a new30-minute99% quote acceptance.
-See [revision121 recovery](#revision121-verified-maintenance-recovery-and-restart).
+Latest 2026-11-13: revision122/`5d540d4e2` is verified at100% traffic. Its
+10:31:48 local profile handoff fails Spot terminal proof and restarts the engine
+once. At10:38:47 the same session/control86 is running again without HALT; this
+healthy snapshot does not erase the restart. The incident and local follow-up
+are [recorded below](#revision122-spot-terminal-proof-during-profile-handoff).
+This is not a passed30-minute quote/restart acceptance. Revision121's maintenance
+recovery remains historical evidence, not a newly exercised recovery API.
+
+## Revision122 Spot terminal proof during profile handoff
+
+Revision `hummingbot-demo-00122-qzw` is created03:23:00UTC and becomes Ready at
+03:24:43UTC on13 November (local10:23/10:24). Exact commit
+`5d540d4e2d5cd76722d4eb386b9a66ac3460926c` resolves in Artifact Registry to the
+same deployed digest `sha256:14e94680d7cc0a2a6328693ea651181ba0573a8169285e74bfaebcae0b398f5f`.
+Global build `780e6994-4e7b-490c-b1aa-921e07a44ad5` succeeds. Service receives100%
+traffic with2CPU/1GiB. No Cloud setting, command, DB financial/risk value or HALT
+is mutated during the review. The new recovery API is deployed but not invoked
+against a healthy running session.
+
+At03:31:48.109UTC, terminal proof raises
+`spot_outflow terminal fill reconciliation is incomplete`. Shutdown logs two
+errors, the service records `service_internal_failure`, and the supervisor
+schedules engine exit-code1 recovery at03:31:48.997UTC. Diagnostics confirm the
+engine process changes from14 to34 within the same Cloud instance/revision. The
+same control86/session is retained. The failure coincides with the scheduled
+600s Random profile advance at03:31:46; the profile changes from`follow_token`
+to`follow_market`. Source flow advances the session then calls native shutdown;
+its terminal hook requires all pending Spot proofs before checkpoint completion.
+
+The bounded log window03:23:00–03:37:17UTC has45 selected records, no pagination:
+8 loop-stall/recovery pairs,6 slow-stage warnings,4 child-probe failures (three
+300.49–300.89ms timeouts and one503 during shutdown),11 terminal-proof incident
+warnings,3 shutdown/service ERROR records, one child restart and4 submission
+ERROR records for two later BUY denials with `spot_outflow_limit`. The latter
+are risk-guard refusals, not evidence of an exchange create. Native diagnostic
+wall durations include `service.observe`1.486s and `controller.cycle`4.190s; async
+wall duration is not proof of a4.190s event-loop block.
+
+At03:33:24UTC the rebuilt runtime reports pending terminal orders0 and resumes
+Spot BUY/SELL. At03:38:47UTC all health/API reads return200, observations are
+fresh and no HALT/error is active. Both markets have2 working SELLs. Spot BUY
+proposal capacity is constrained by1.9086USDT remaining under its500USDT/hour
+policy; perpetual BUY retains `inventory_limit`. The earlier failed history-limit
+recovery receipt remains old history. Neither current health nor existing fills
+qualifies the unchanged30-minute quote target.
+
+Read-only follow-up queries the dedicated Demo DB and native exchange without
+mutating either. Four incident-period BUYs have matching identity/size/price and
+stable terminal detail: two canceled/zero-fill, two fully filled with one trade
+each. Later native replies are complete. The original per-order failure was
+suppressed, so its exact cause cannot be reconstructed from these later reads.
+Local TDD reproduces a related concrete availability defect: a fully committed
+native execution still fails handoff when a redundant REST lookup is unavailable.
+The local fix uses exact native-fill/committed-receipt proof for that case,
+keeping all financial charges, account/owner/recorder fences and REST verification
+for uncertain/partial/canceled cases. New fixed stage diagnostics make subsequent
+failures attributable. Local RED/GREEN covers complete committed fills with unavailable REST through
+fenced native shutdown, missing/failed commit, lost owner, exact native/fee
+identity, partial/conflicting quantities and bounded sanitized stage diagnostics.
+Broader native shipping regression passes3,623 tests +16 subtests; PostgreSQL
+regression passes110 tests. Final affected reruns pass78 native/service and19
+Spot PostgreSQL contracts. These runs overlap. This local fix is not deployed or
+connected-qualified by this review. The temporary read-only proxy is closed; no secret is printed or
+committed. Evidence: `build/cloudrun-check-20261113-1027/` and
+`build/spot-terminal-handoff-20261113/`.
 
 Earlier: revision117/`5c36bb7bd` has a completed901-sample baseline. Observation
 quality passes, but the unchanged99% target fails: Spot98.36%, perpetual97.58%.

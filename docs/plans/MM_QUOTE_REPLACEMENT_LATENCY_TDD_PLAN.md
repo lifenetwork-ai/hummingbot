@@ -235,7 +235,45 @@ acceptance; see the [qualification record](../../reports/performance/mm-quote-re
 - [x] Implement and qualify locally reviewed checkpoint recovery above the lifetime
   order/fill caps, preserving financial/risk state. See
   [recovery follow-up](ADMIN_RECOVERY_API_TDD_PLAN.md#verified-checkpoint-history-follow-up--2026-11-13-local).
-- [ ] Deploy and exercise that recovery API follow-up against a qualifying Demo
-  incident; the previous separate maintenance recovery remains the actual evidence.
+- [x] Verify revision122 deploys the recovery API follow-up, exact commit/digest
+  and100% traffic. No new recovery request was issued to the running bot.
+- [ ] Exercise that API against a qualifying stopped technical incident; the
+  previous separate maintenance recovery remains the actual recovery evidence.
 - [ ] Repeat the unchanged30-minute quote gate on one revision/session. See the
   [incident record](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision120-connector-readiness-outage).
+
+
+## Revision122 Spot terminal proof during profile handoff
+
+- [x] Capture the10:31:48 local shutdown failure and one engine child restart,
+  on the same revision/session/control86, as Random advances its600s profile step.
+- [x] Read-only native/DB comparison: four BUYs before the incident have matching
+  identity/terms; two are canceled without fills and two are fully filled. Their
+  later native order/fill reads are complete. The original failing predicate was
+  suppressed by the old guard, so these later reads do not establish its cause.
+- [x] RED: full native execution plus committed recorder receipt still fails the
+  terminal gate if a redundant REST read is unavailable.
+- [x] Reuse exact committed native-fill proof for a fully filled BUY, preserving
+  charges and checking account binding, owner and recorder health. Unknown,
+  partial, uncommitted, expired or conflicting proof retains REST and all fences.
+- [x] PostgreSQL handoff boundary, rollback and lost-owner tests; native exactness,
+  fee/quantity/identity conflicts, stage diagnostics and redaction regressions.
+- [x] Log the per-order proof stage and error type on failure transitions; expose
+  a fixed scoped incident reason rather than only terminal-unavailable.
+- [ ] Deploy this local follow-up and observe actual profile handoffs on one
+  revision/session. Do not call the incident solved solely from current health.
+
+No spending cap, drawdown policy, perpetual cap, shutdown timeout, credential or
+Cloud setting is changed. No schema/env/API route change is required. Ordinary
+terminal proof remains authoritative for canceled/partial or uncertain orders.
+
+
+Local qualification: **1 RED** reproduces redundant-read dependence despite a
+complete committed fill. Broader shipping regression: **3,623 passed +16
+subtests**; PostgreSQL ownership/recorder/recovery/COMMIT-boundary regression:
+**110 passed**. Final affected native/service rerun: **78 passed**; final Spot
+PostgreSQL rerun: **19 passed**. These scopes overlap and are not added together.
+All hooks pass. The Cloud incident's original per-order predicate remains unknown;
+this fixes the demonstrated complete-commit failure class and adds diagnosis for
+remaining failures, not a claim of connected resolution. Qualification evidence
+is retained locally under `build/spot-terminal-handoff-20261113/`.

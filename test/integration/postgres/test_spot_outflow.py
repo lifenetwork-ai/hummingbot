@@ -5,7 +5,7 @@ import time
 from decimal import Decimal
 from test.hummingbot.client.config.test_mm_profiles import CATALOGUE
 from test.integration.postgres.test_ownership import owned as _owned
-from types import MethodType
+from types import MethodType, SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -14,9 +14,9 @@ from sqlalchemy import event, text
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.core.data_type.in_flight_order import InFlightOrder
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount, TradeFeeSchema
-from hummingbot.core.event.events import MarketEvent, OrderFilledEvent
+from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketEvent, OrderFilledEvent
 from hummingbot.core.mm_session import MMSession, MMSessionRequest
 from hummingbot.core.order_submission_guard import SubmissionBlocked, session_order_scope
 from hummingbot.core.spot_outflow import SpotOutflowPolicy
@@ -48,9 +48,9 @@ def setup(context, **changes):
     return session, catalogue
 
 
-def buy(context, session, identity="a", side=TradeType.BUY, amount="5"):
+def buy(context, session, identity="a", side=TradeType.BUY, amount="5", price="10"):
     item = InFlightOrder(client_order_id=identity, trading_pair="LIFE-USDT", order_type=OrderType.LIMIT_MAKER,
-                         trade_type=side, amount=Decimal(amount), price=Decimal("10"), creation_timestamp=time.time())
+                         trade_type=side, amount=Decimal(amount), price=Decimal(price), creation_timestamp=time.time())
     context.market.in_flight_orders[identity] = item
     context.market.tracking_states[identity] = item.to_json()
     with session_order_scope(session.id, session.generation):
@@ -282,3 +282,121 @@ def test_large_window_rebuild_has_bounded_queries_and_no_sql_on_projection_or_re
                    additional_hot_path_queries=len(statements)))
     finally:
         event.remove(owned.engine, "before_cursor_execute", observe)
+
+
+@pytest.mark.parametrize("recorded", [False, True])
+def test_terminal_replay_of_filled_base_fee_buy_keeps_committed_cash_and_clears_pending(owned, recorded):
+    session, _ = setup(owned, window_seconds=3600)
+    item = buy(owned, session, amount=".00071681", price="69266")
+    item.update_exchange_order_id("42")
+    item.current_state = OrderState.FILLED
+    item.executed_amount_base = item.amount
+    stamp = int(time.time() * 1000)
+    detail = dict(ordId=item.exchange_order_id, clOrdId="a", instId="LIFE-USDT", side="buy", sz=str(item.amount),
+                  px=str(item.price), state="filled", accFillSz=str(item.amount), uTime=str(stamp))
+    fill = dict(tradeId="1", billId="123", ordId=item.exchange_order_id, fillSz=str(item.amount),
+                fillPx=str(item.price), fee="-.000000573448", feeCcy="LIFE", ts=str(stamp - 500))
+    owned.market._request_order_update = AsyncMock(return_value=dict(code="0", data=[detail]))
+    owned.market._request_order_fills = AsyncMock(return_value=dict(code="0", data=[fill]))
+    owned.market._trade_update_from_fill = MethodType(OkxExchange._trade_update_from_fill, owned.market)
+    owned.market.trade_fee_schema.return_value = TradeFeeSchema()
+    if recorded:
+        evt = OrderFilledEvent(timestamp=(stamp - 1000) // 1000, order_id="a", trading_pair="LIFE-USDT",
+                               trade_type=TradeType.BUY, order_type=OrderType.LIMIT_MAKER, price=item.price,
+                               amount=item.amount, trade_fee=owned.market._trade_update_from_fill(item, fill).fee,
+                               exchange_trade_id=fill["tradeId"])
+        owned.recorder._did_fill_order(MarketEvent.OrderFilled.value, owned.market, evt)
+    asyncio.run(owned.owner.spot_outflow.reconcile_terminal(all_orders=True))
+    assert not owned.owner.spot_outflow.terminal_pending
+    assert owned.owner.spot_outflow.status()["reserved_quote"] == 0
+    assert owned.owner.spot_outflow.status()["recorded_net_outflow_quote"] == item.amount * item.price
+    with owned.manager.get_new_session() as db:
+        assert db.query(TradeFill).count() == 1
+
+
+def fully_executed_buy(owned, *, commit=True):
+    session, _ = setup(owned, window_seconds=3600)
+    item = buy(owned, session, amount=".00071681", price="69266")
+    item.update_exchange_order_id("42")
+    owned.recorder._did_create_order(MarketEvent.BuyOrderCreated.value, owned.market, BuyOrderCreatedEvent(
+        timestamp=item.creation_timestamp, type=item.order_type, trading_pair=item.trading_pair,
+        amount=item.amount, price=item.price, order_id=item.client_order_id,
+        creation_timestamp=item.creation_timestamp, exchange_order_id=item.exchange_order_id))
+    stamp = int(time.time() * 1000) - 1000
+    raw = dict(tradeId="1", ordId=item.exchange_order_id, fillSz=str(item.amount), fillPx=str(item.price),
+               fee="-.000000573448", feeCcy="LIFE", ts=str(stamp))
+    owned.market._trade_update_from_fill = MethodType(OkxExchange._trade_update_from_fill, owned.market)
+    owned.market.trade_fee_schema.return_value = TradeFeeSchema()
+    update = owned.market._trade_update_from_fill(item, raw)
+    assert item.update_with_trade_update(update)
+    item.current_state = OrderState.FILLED
+    evt = OrderFilledEvent(
+        timestamp=update.fill_timestamp, order_id="a", trading_pair=item.trading_pair,
+        trade_type=item.trade_type, order_type=item.order_type, price=update.fill_price,
+        amount=update.fill_base_amount, trade_fee=update.fee, exchange_trade_id=update.trade_id)
+    if commit:
+        owned.recorder._did_fill_order(MarketEvent.OrderFilled.value, owned.market, evt)
+    owned.owner.spot_outflow.projection.advance(stamp + 2000)
+    return item, evt
+
+
+@pytest.mark.parametrize('handoff', [False, True])
+def test_fully_committed_native_fill_can_finish_profile_handoff_when_redundant_rest_is_unavailable(owned, handoff):
+    """A complete native execution plus its committed recorder receipt is positive proof."""
+    item, _ = fully_executed_buy(owned)
+    owned.market._request_order_update = AsyncMock(side_effect=OSError("Read-only exchange lookup temporarily unavailable"))
+    if handoff:
+        # A completed native order has left the live tracker. Its guard still
+        # retains the execution and committed receipt across profile cleanup.
+        owned.market.in_flight_orders.pop(item.client_order_id)
+        core = SimpleNamespace(strategy=None, trade_fill_db=owned.manager, KILL_TIMEOUT=1)
+
+        async def shutdown(**kwargs):
+            await core.after_order_cancellation()
+            return True
+
+        core.shutdown = shutdown
+        generation = owned.owner.generation
+        assert owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
+        assert owned.owner.generation == generation
+        assert not owned.store.read()['recovery_state'].get('shutdown_incomplete')
+    else:
+        asyncio.run(owned.owner.spot_outflow.reconcile_terminal(all_orders=True))
+    assert not owned.owner.spot_outflow.terminal_pending and not owned.owner.spot_outflow.orders
+    assert owned.owner.spot_outflow.status()["reserved_quote"] == 0
+    assert owned.owner.spot_outflow.status()["recorded_net_outflow_quote"] == item.amount * item.price
+    owned.market._request_order_update.assert_not_awaited()
+    with owned.manager.get_new_session() as db:
+        assert db.query(TradeFill).count() == 1
+    assert not owned.store.read()["recovery_state"].get("halt")
+
+
+def test_native_execution_without_commit_receipt_keeps_terminal_and_buy_fence(owned):
+    item, evt = fully_executed_buy(owned, commit=False)
+
+    def fail_commit(connection):
+        if connection is not owned.owner.connection:
+            raise OSError("Injected COMMIT failure")
+    event.listen(owned.engine, 'commit', fail_commit)
+    try:
+        with pytest.raises(OSError, match='COMMIT failure'):
+            owned.recorder._did_fill_order(MarketEvent.OrderFilled.value, owned.market, evt)
+    finally:
+        event.remove(owned.engine, 'commit', fail_commit)
+    owned.market._request_order_update = AsyncMock(side_effect=OSError('SECRET-CANARY'))
+    with pytest.raises(SubmissionBlocked, match='terminal fill reconciliation is incomplete'):
+        asyncio.run(owned.owner.spot_outflow.reconcile_terminal(all_orders=True))
+    assert set(owned.owner.spot_outflow.terminal_pending) == {'a'}
+    assert owned.owner.spot_outflow.projection.reservations['a'].committed == 0
+    with owned.engine.connect() as db:
+        assert db.scalar(text('SELECT count(*) FROM trade_fills')) == 0
+
+
+def test_lost_owner_cannot_accept_a_committed_full_fill_proof(owned):
+    from hummingbot.core.bot_ownership import OwnershipLost
+    item, _ = fully_executed_buy(owned)
+    owned.owner.release()
+    with pytest.raises(OwnershipLost):
+        asyncio.run(owned.owner.spot_outflow.reconcile_terminal(all_orders=True))
+    assert set(owned.owner.spot_outflow.terminal_pending) == {'a'}
+    assert 'a' in owned.owner.spot_outflow.projection.reservations
