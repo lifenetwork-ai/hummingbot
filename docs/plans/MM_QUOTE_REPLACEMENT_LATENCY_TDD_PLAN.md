@@ -316,3 +316,44 @@ Qualification evidence is retained locally under
 
 Evidence: `build/probe-sql-followup-20261113/`. This change remains local; Cloud
 bot state, risk settings, shutdown budget and probe policy are unchanged.
+
+## Held checkpoint metadata batching
+
+Existing position snapshots and shutdown executor groups already commit in
+batches. The remaining N+1 path is `checkpoint_held_positions`: executor/order
+metadata reads and applied-fill journal updates repeat for each held executor.
+
+- [x] RED a six-executor transfer: six metadata reads where one batch suffices.
+- [x] Prefetch Executor/Order rows and update fill-journal application in groups
+  of at most100 IDs, on the caller's original transaction. Shared ORM objects
+  retain the duplicate-order fence; no proof is cached across callbacks.
+- [x] Retain the original path for one executor/one order. A preliminary25-pair
+  batch experiment reduces SQL there but makes the component slower. Batch only
+  multiple executors or multiple orders; separately cover one executor with two
+  orders. The final single case retains23 statements and comparable timing.
+- [x] Coalesce pending writes while validating committed fills. Keep the1001-row
+  sentinel and exact native fee/quantity/identity checks separately per order.
+- [x] Cover1/6/101 members, mixed existing/new executors, duplicate application,
+  corrupt final members, missing orders, duplicate-order use, owner loss and
+  failed COMMIT. Chunks do not introduce independent commits. Keep hold-journal
+  order identical to native application order. Test the corrupt final member
+  across the100-ID chunk boundary.
+- [x] Require a final fresh physical-owner check after the last flush, including
+  a legacy baseline without a RuntimeCheckpoint. RED catches a lost owner after
+  coalesced writes in that branch; GREEN rolls back all members.
+- [x] Measure against the exact committed pre-batch method. Final alternating
+  warmed component pairs: one member23→23 statements /31.206→30.926ms (25 pairs),
+  six members78→26 /105.919→44.712ms (five pairs),32 members364→52
+  /408.996→95.624ms (five pairs). Six-member fill reads remain six;
+  executor/order lookups6→1 each and fill journal updates6→1. Retain earlier
+  noisy/preliminary measurements; infer no Cloud/probe speedup from local timing.
+- [x] Complete final regression:41 PostgreSQL batch/commit/reduction tests,
+  plus the separate single-executor/two-order case;101 native tests +5 subtests.
+  The earlier related pass has176 PostgreSQL tests. Scopes overlap. Three group
+  measurements and the final25-pair single-path check pass; all hooks pass.
+- [ ] Qualify the deployed artifact separately; local batching does not close
+  the300ms probe or unchanged30-minute quote target.
+
+No timer, queue or delayed financial acknowledgment is introduced. Native held
+application order and publish-after-COMMIT remain unchanged. Evidence is retained
+under `build/checkpoint-metadata-batch-20261113/`.
