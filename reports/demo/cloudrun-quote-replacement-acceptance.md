@@ -146,6 +146,99 @@ timeouts across three successful profile changes. The local read/startup TDD
 follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
 
+## Probe callback fairness — local follow-up, 2026-11-15
+
+The final intent/ACK candidate's local probe episode is retained in
+`build/e2e-offline/20261114-235833-b267f9/result.json` and its first-container log.
+It is not a new Cloud incident. The relevant UTC timeline is:
+
+| Observation | Time / duration | Meaning |
+| --- | --- | --- |
+| Watchdog samples main loop in `prepare_attempt` binding SELECT |16:59:33.368|Several order-submit tasks are active; this frame alone is not the whole delay.|
+| Watchdog sees heartbeat progress |16:59:33.475|Consecutive retained heartbeat values are386.608ms apart.|
+| Supervisor logs one HTTP timeout |16:59:33.666 /303.954ms|The300ms client budget is exceeded; not a measured1s freeze.|
+| Next probe is healthy |16:59:34.700 /failure_seconds1.043|Time since first failure observation, including polling cadence.|
+
+`HealthWatchdog.diagnostics` reports elapsed time from `failed_since` to the
+next observation. It does not measure one continuous engine stall. The in-loop
+health handler has no DB/venue call. Completed intent maximum32.051ms and SQL
+maximum51.468ms coexist with a longer heartbeat gap: repeated synchronous work
+between loop turns is a concrete hypothesis, not a proven single slow SQL.
+
+Native OKX/real PostgreSQL RED reproduces a fairness defect: queue eight creates,
+then schedule a callback after the first durable intent. The callback waits
+until all eight admissions finish. The async pre-intent wrapper calls its
+synchronous owner gate without yielding, so several ready create tasks can
+consume one event-loop batch. A paired predecessor/candidate replay with the
+same2ms injected SQL round-trip cost records940.939→51.605ms callback wait and
+eight→one admissions before progress. Wall timing is evidence, not a hard
+latency assertion; this is neither HTTP nor Cloud venue-ACK latency.
+
+The sequential replay grows the ledger before the candidate case. A separate
+control therefore recreates an empty ledger for each variant with the same
+eight orders and2ms SQL injection. Callback wait is978.023→38.474ms, with
+eight→one admissions before progress and272 SQL statements in both variants.
+All eight native acknowledgements complete in1569.400→1593.840ms. The latter
+single observation is1.6% higher, not an order-throughput speedup. Earlier
+growing-ledger repeats also retain their longer aggregate completion times.
+Wall timings are not pass/fail thresholds, and the connected quote window must
+still check that responsiveness has not harmed MM progress. Receipts:
+`admission-performance.json`, `admission-performance-final.json`,
+`admission-work-final.json` and `fresh-workload-performance.json` in the evidence
+directory below. The two fresh-ledger cases pass separately from the broad
+222-test PostgreSQL selection.
+
+The local correction gives each owner one shared async admission lock across
+connectors and yields one loop turn before synchronous admission. The lock is
+released before any venue transport; no worker-thread financial writes, fixed
+delay, new cap or changed health deadline is introduced. Every order still runs
+fresh owner/control/risk/credential checks, persists its original intent and
+passes the independent final transport gate. Tasks are registered before waiting
+so shutdown drains queued work too. Cancellation releases the slot, and a
+replaced guard cannot use the old writer. Session/level context stays with its
+task. After the new wait, a retired/untracked native order is rejected before
+intent persistence. A development negative test caught that missing recheck;
+it is fixed before qualification, not claimed as another deployed incident.
+
+The final native regression passes958 tests +9 subtests. The disposable
+PostgreSQL regression passes222 tests, including five new admission cases and
+the existing ownership, unknown-COMMIT, cleanup, recorder and fill/checkpoint
+selection. Seven focused native tests cover scheduling, scope, cancellation,
+replacement and transport concurrency. Focused receipts overlap the broad
+totals. Initial fixture-patching/style corrections are retained separately from
+the valid eight-admission RED and the retirement negative.
+
+Three packaged scenarios pass on one amd64 image, config
+`sha256:051f35a22ba68e86e454390b543a51b31539b7b382bd5d7e3327581b71b60598`,
+manifest`sha256:802685fb8370ae5844e912220ed8dfc04e422dd58a96dd42d15bd1b281bc0e81`.
+Both changed runtime hashes match the candidate and its predecessor hashes
+match HEAD`0cce6e7a7`. All receipts match the current harness hash:
+
+- `build/e2e-offline/20261115-002345-8d3f48/result.json`: ten1.25s native
+  terminal reads with the8s shutdown budget unchanged; same owner through
+  rollover, four exact fills/original fees, overlapping-owner handoff and Stop.
+  The separate clean-signal shutdown takes2.028s; it is not a speedup comparison.
+- `build/e2e-offline/20261115-002501-d94a47/result.json`: one queued cap denial
+  without local retry, funded SELLs, original fee/rebate and duplicate receipts,
+  terminal proof, restart and account binding.
+- `build/e2e-offline/20261115-002620-be0c02/result.json`: managed Disconnect
+  closes two perpetual positions with exactly two physical attempts, five
+  unique native/recorder fills and matching fees. Four status reads are hidden;
+  completion still requires positive proof, flat positions and the audit chain.
+
+Retained scenario logs have no ERROR or probe-timeout entries. Their finite
+length and `release_scope_complete=false` do not close full soak, the original
+probe warning, connected fault qualification or the99% quote target. No env,
+migration, risk limit, production health response or Cloud resource is changed.
+
+Evidence (ignored/private): `build/probe-admission-followup-20261115/`, including
+the original probe/heartbeat timeline, valid native RED, cancellation/retirement
+negatives and paired component measurement. The original local timeout, failed
+connected95.32% quote result and unqualified perpetual/fault gates remain.
+One reproduced scheduling defect does not establish the unique cause of every
+probe warning. Deploy and remeasure the unchanged window before claiming a
+connected latency improvement.
+
 ## Revision142 intent/ACK DB follow-up — local
 
 Retained native history resolves several different BUY pairs during the three

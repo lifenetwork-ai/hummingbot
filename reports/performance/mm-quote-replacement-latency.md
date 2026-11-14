@@ -1,5 +1,53 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Probe callback fairness — local, 2026-11-15
+
+The retained303.954ms local HTTP timeout has two heartbeat values386.608ms
+apart. Supervisor `failure_seconds=1.043` includes the next poll; it is not a
+continuous1s engine stall. A binding-read stack overlaps the episode, but the
+completed intent/SQL maxima32.051/51.468ms do not identify one300ms SQL query.
+
+Native OKX and real PostgreSQL reproduce eight ready create tasks performing
+their synchronous admissions before one queued health callback can run.
+One shared owner admission slot plus a loop yield preserves serial financial
+writes and gives callbacks a turn between orders. Fresh safety/transport gates
+remain; queued tasks are drained on shutdown and retired native identities
+cannot become new intents. The slot does not serialize network responses.
+
+| Same-DB paired replay | Before | After |
+| --- | ---: | ---: |
+| Admissions before queued callback runs |8|1|
+| Callback wait, with2ms injected per SQL |940.939ms|51.605ms|
+
+These are single local component observations with equal injected DB cost,
+not an HTTP/Cloud ACK benchmark. Tests assert callback ordering, exact native
+orders/amounts and unchanged authority, not wall-time speedup. Retain the earlier
+timeout and the connected99% failure. Details and qualification scope are in
+[the acceptance record](../demo/cloudrun-quote-replacement-acceptance.md#probe-callback-fairness--local-follow-up-2026-11-15).
+
+The sequential replay above grows the ledger. A separate empty-ledger control
+for each variant gives this single-sample result with the same eight orders and
+2ms injected per SQL:
+
+| Fresh-ledger control | Before | After |
+| --- | ---: | ---: |
+| Callback wait |978.023ms|38.474ms|
+| All eight acknowledgements complete |1569.400ms|1593.840ms|
+| SQL statements |272|272|
+
+Aggregate completion is1.6% higher in this sample; no throughput speedup is
+claimed. Earlier growing-ledger repeats retain their higher completion values
+too. The invariant improvement is eight→one admissions before callback progress,
+with all original orders still completing. Receipt:
+`build/probe-admission-followup-20261115/fresh-workload-performance.json`.
+
+Validation:958 native +9 subtests,222 PostgreSQL regression tests plus the two
+fresh-ledger controls pass. Three same-image packaged shutdown-proof, Spot
+outflow and managed Disconnect visibility scenarios pass, with no ERROR or
+probe timeout in their retained logs. All original fills/fees, stop/ownership
+and terminal-proof gates stay authoritative. This is local qualification; full
+soak and the unchanged connected quote/probe gates remain open.
+
 ## Revision142 intent/ACK DB work — local follow-up
 
 Real PostgreSQL reproduces four flushes each for ordinary intent persistence

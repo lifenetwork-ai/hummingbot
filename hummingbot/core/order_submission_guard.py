@@ -92,7 +92,7 @@ def active_guard():
 async def before_order(connector, order) -> None:
     guard = active_guard()
     if guard is not None:
-        guard.before_order(connector, order)
+        await guard.admit_order(connector, order)
 
 
 async def before_rest(request):

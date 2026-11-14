@@ -97,6 +97,7 @@ class BotOwnership:
         self.unsent_rejections = weakref.WeakValueDictionary()
         self.expired_rejections = weakref.WeakValueDictionary()
         self.submission_tasks = set()
+        self.submission_admission = asyncio.Lock()
         self.terminal_tasks = set()
         self.transport_tasks = {}
         self.account_lock = asyncio.Lock()
@@ -316,11 +317,38 @@ class BotOwnership:
                 self.require_recovery("An order submission has an unresolved outcome; no automatic resubmission is allowed.")
                 raise SubmissionBlocked("Unresolved order submission requires reconciliation.")
 
+    def _track_submission_task(self):
+        try:
+            task = asyncio.current_task()
+        except RuntimeError:
+            task = None
+        if task is not None and task not in self.submission_tasks:
+            self.submission_tasks.add(task)
+            task.add_done_callback(self.submission_tasks.discard)
+
+    async def admit_order(self, connector, order):
+        """Yield between synchronous admissions without moving the writer off-loop."""
+        from hummingbot.core.order_submission_guard import active_guard
+
+        # Shutdown must also drain tasks waiting before any durable intent exists.
+        self._track_submission_task()
+        async with self.submission_admission:
+            # An uncontended Lock acquire does not yield. Hold it through one
+            # loop turn so a burst across connectors cannot run all DB gates in
+            # a single ready batch. No transaction or network call is held here.
+            await asyncio.sleep(0)
+            if active_guard() is not self:
+                raise SubmissionBlocked("Trading owner changed before order admission.")
+            self.before_order(connector, order)
+
     def before_order(self, connector, order):
         from hummingbot.core.cleanup_authority import current_cleanup_scope, validate_close
         from hummingbot.core.order_submission_guard import current_session_scope
         cleanup = current_cleanup_scope()
         row = self.check_owner(new_risk=cleanup is None)
+        if (connector.in_flight_orders.get(order.client_order_id) is not order
+                or not order.is_pending_create):
+            raise SessionSubmissionBlocked("The native order was retired before submission admission.")
         if cleanup is not None:
             validate_close(self, row, connector, order, cleanup)
         if cleanup is None and self.runtime_ready_check is not None and not self.runtime_ready_check():
@@ -359,13 +387,7 @@ class BotOwnership:
         if cleanup is not None:
             self.cleanup_intents[order.client_order_id] = cleanup
         recorder.record_order_intent(connector, order)
-        try:
-            task = asyncio.current_task()
-        except RuntimeError:
-            task = None
-        if task is not None:
-            self.submission_tasks.add(task)
-            task.add_done_callback(self.submission_tasks.discard)
+        self._track_submission_task()
 
     def order_failed(self, connector, order, exception=None):
         from hummingbot.connector.okx_order_status import OKXExpiredOrderRejection

@@ -35,6 +35,35 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
 - [x] Deploy the earlier correction and repeat connected quote qualification.
   Revision111/112 windows retain their failures; deployment is not a99% pass.
 
+## Local probe callback fairness — 2026-11-15
+
+- [x] Reconstruct the retained local303.954ms timeout. Two heartbeat values are
+  386.608ms apart; supervisor1.043s includes the next poll, not a continuous
+  engine freeze. Keep the original warning and its limited causal evidence.
+- [x] RED on native OKX/real PostgreSQL: eight ready create tasks delay a queued
+  callback until eight synchronous admissions finish. No single300ms SQL is
+  established. The paired same-DB replay records callback wait941→52ms with
+  the same2ms SQL injection; timing is not a Cloud latency assertion.
+- [x] Share an owner admission slot across connectors and yield one loop turn
+  before synchronous admission. Preserve task scope, fresh owner/risk checks,
+  intent/financial COMMIT and the separate final send gate. Release before HTTP.
+- [x] Register queued tasks for shutdown; cover canceled waiters, guard changes,
+  admission errors, transport concurrency and Stop between native admissions.
+  Reject retired/untracked native identities before writing an intent.
+- [x] Qualify the final candidate:958 native +9 subtests,222 PostgreSQL tests
+  and three same-image packaged shutdown-proof, Spot outflow and managed
+  Disconnect visibility flows pass. No ERROR/probe timeout is logged in these
+  finite flows; the historical warning stays retained.
+- [x] Check total MM burst progress too: two fresh-ledger controls pass with
+  272 SQL each, callback wait978→38ms and all-eight completion1569→1594ms.
+  The single total is1.6% higher; do not call it a throughput improvement or
+  replace the connected quote acceptance window with callback timing.
+- [ ] Deploy and repeat the unchanged connected30-minute window; retain unknown
+  as failure and distinguish callback, DB, HTTP probe and venue ACK timings.
+
+Evidence: `build/probe-admission-followup-20261115/`; see
+[the exact local timeline and scope](../../reports/demo/cloudrun-quote-replacement-acceptance.md#probe-callback-fairness--local-follow-up-2026-11-15).
+
 ## Revision142 intent/ACK persistence follow-up
 
 - [x] Correlate the15 missing Spot samples, including three consecutive pending
