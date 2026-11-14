@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 
 from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketEvent, OrderFilledEvent
 from hummingbot.core.order_submission_guard import SpotOutflowBlocked, SubmissionBlocked
@@ -251,10 +252,7 @@ class SpotOutflowGuard:
             except (ValueError, OSError, asyncio.TimeoutError, KeyError, ArithmeticError) as error:
                 self._terminal_failure(client_id, type(error).__name__)
                 continue  # Retain the reservation and explicit BUY-only wait.
-            self.terminal_pending.pop(client_id, None)
-            self.orders.pop(client_id, None)
-            self.terminal_stages.pop(client_id, None)
-            self.terminal_failures.pop(client_id, None)
+            self._forget_terminal_order(client_id)
         if all_orders and set(self.terminal_pending) - set(deferred):
             raise SubmissionBlocked("spot_outflow terminal fill reconciliation is incomplete")
 
@@ -272,6 +270,40 @@ class SpotOutflowGuard:
         recorder.sql_manager.assert_persistence_healthy()
         self.projection.confirm_terminal(client_id, order.amount)
         return True
+
+    async def refresh_canceled_order(self, connector, order):
+        """One fresh strong proof can serve shutdown and this cash reservation.
+
+        Only an exact retained Spot BUY with a venue ID is supported. A cancel
+        ACK may still be queued locally; the fresh venue proof, not that local
+        state, establishes termination. No proof crosses checkpoint phases.
+        """
+        retained = self.orders.get(order.client_order_id)
+        if (connector.name != 'okx' or order.trade_type != TradeType.BUY or not order.exchange_order_id
+                or order.current_state not in (OrderState.CANCELED, OrderState.PENDING_CANCEL,
+                                               OrderState.OPEN, OrderState.PARTIALLY_FILLED)
+                or retained is None or retained[0] is not connector or retained[1] is not order):
+            return False
+        self._check_terminal_identity(connector, order)
+        self.mark_terminal_pending(order.client_order_id)
+        if not await self._confirm(order.client_order_id, apply_terminal=True):
+            return False  # Stale/nonterminal venue data retains the native polling path.
+        self._forget_terminal_order(order.client_order_id)
+        return True
+
+    def _check_terminal_identity(self, connector, order):
+        self.owner.check_owner()
+        retained = self.orders.get(order.client_order_id, (None, None))
+        if not self._identity_matches() or retained[0] is not connector or retained[1] is not order:
+            raise SubmissionBlocked('spot_outflow terminal order/account identity changed')
+
+    def _forget_terminal_order(self, client_id):
+        # Projection reservations are retired only by confirm_terminal/advance,
+        # including committed fills whose exchange timestamp is still future.
+        self.terminal_pending.pop(client_id, None)
+        self.orders.pop(client_id, None)
+        self.terminal_stages.pop(client_id, None)
+        self.terminal_failures.pop(client_id, None)
 
     def _terminal_failure(self, client_id, error_type):
         if client_id not in self.terminal_pending:
@@ -295,7 +327,7 @@ class SpotOutflowGuard:
                 return 'spot_outflow_terminal_' + failure[0]
         return None
 
-    async def _confirm(self, client_id):
+    async def _confirm(self, client_id, *, apply_terminal=False):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         connector, order = self.orders[client_id]
         self.terminal_stages[client_id] = 'order_read'
@@ -345,6 +377,8 @@ class SpotOutflowGuard:
         if (str(final.get("code")) != "0" or len(final.get("data", [])) != 1
                 or any(final["data"][0].get(key) != first.get(key) for key in keys)):
             raise ValueError("Order changed during terminal proof")
+        if apply_terminal:
+            self._check_terminal_identity(connector, order)
         self.terminal_stages[client_id] = 'recording'
         recorder = MarketsRecorder._shared_instance
         recorder._did_create_order(MarketEvent.BuyOrderCreated.value, connector, BuyOrderCreatedEvent(
@@ -360,6 +394,14 @@ class SpotOutflowGuard:
                 amount=fill.fill_base_amount, trade_fee=fill.fee, exchange_trade_id=fill.trade_id,
                 leverage=order.leverage, position=order.position.value))
         recorder.sql_manager.assert_persistence_healthy()
+        if apply_terminal:
+            # Keep native fill-before-terminal ordering. The converter is the
+            # connector's normal polling converter; it performs no second GET.
+            await connector._order_tracker.process_order_update(
+                connector._order_update_from_data(order, final['data'][0]))
+            self._check_terminal_identity(connector, order)
+            if order.executed_amount_base != total:
+                raise ValueError('Native terminal fill quantity does not match the proof')
         self.projection.confirm_terminal(client_id, total)
         return True
 

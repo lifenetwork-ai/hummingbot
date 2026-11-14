@@ -390,8 +390,11 @@ class OkxExchange(ExchangePyBase):
 
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
         updated_order_data = await self._request_order_update(order=tracked_order)
-
         order_data = order_status_data(updated_order_data)
+        return self._order_update_from_data(tracked_order, order_data)
+
+    def _order_update_from_data(self, tracked_order: InFlightOrder, order_data) -> OrderUpdate:
+        """Convert the same validated native status for polling or terminal proof."""
         new_state = CONSTANTS.ORDER_STATE[order_data["state"]]
 
         order_update = OrderUpdate(

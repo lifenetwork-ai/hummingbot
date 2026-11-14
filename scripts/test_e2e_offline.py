@@ -752,13 +752,35 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             raise AssertionError(f"{error}; command={json.dumps(latest)}; runtime={json.dumps(runtime)}") from error
         return receipt
 
-    def until_stopped_scenario(self):
+    def shutdown_proof_scenario(self):
+        # The ordinary continuous scenario does not arm Spot outflow. This
+        # fault specifically exercises its independent terminal fee proof.
+        import yaml
+        path = self.assets / 'life_mm_profiles.yaml'
+        original = path.read_bytes()
+        config = yaml.safe_load(original)
+        config['spot_outflow'] = dict(window_seconds=3600, max_net_outflow_quote='500', fee_allowance_rate='.01')
+        try:
+            path.write_text(yaml.safe_dump(config))
+            self.metrics['shutdown_proof_policy_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+            self.until_stopped_scenario(slow_terminal_proof=True)
+        finally:
+            path.write_bytes(original)
+            for bot in self.containers:
+                if bot not in (self.pg, self.simulator):
+                    logs = docker('logs', bot, check=False)
+                    target = self.report / (bot + '.log')
+                    target.write_text(logs.stdout + logs.stderr)
+                    target.chmod(0o600)
+
+    def until_stopped_scenario(self, *, slow_terminal_proof=False):
         """Use a fresh ledger so this case does not overflow bounded history checks."""
         print("Offline E2E: continuous random rollover, overlapping revision handoff and Stop", flush=True)
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
         for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
             self.env["HBOT_OKX_PERPETUAL_" + field] = value
-        first, port = self.start("mm-until-first")
+        resources = dict(cpus=2, memory_mib=1024) if slow_terminal_proof else {}
+        first, port = self.start("mm-until-first", **resources)
         # Until-stopped random sessions retain finite step authority and survive
         # an actual clean process replacement without inventing a new session.
         self.mm_command(port, 'start', market_mode='both', selection='random', duration_mode='until_stopped')
@@ -766,15 +788,27 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert continuous['expires_at'] is None and continuous['step_expires_at'] is not None
         poll(lambda: sum(order['state'] == 'live' for order in self.ledger()['orders']) == 8,
              description='continuous quotes before terminal-fill checkpoint race')
+        original_owner = self.state()['owner_generation']
         targeted = [next(order for order in self.ledger()['orders'] if order['state'] == 'live'
                          and order['side'] == 'buy' and order['instId'].endswith('-SWAP') == perpetual)
                     for perpetual in (False, True)]
         for order in targeted:
             self.control(fill=dict(clOrdId=order['clOrdId'], amount='.1', fee='.000001'))
         self.control(fill_on_cancel=[dict(clOrdId=order['clOrdId'], amount='.1', fee='.000001') for order in targeted])
+        if slow_terminal_proof:
+            self.control(terminal_read_delay_seconds=1.25)
         poll(lambda: self.state()['mm_session']['generation'] > continuous['generation'], timeout=35,
              description='until-stopped random rollover')
         self.wait_running(port)
+        if slow_terminal_proof:
+            assert self.state()['owner_generation'] == original_owner, 'Delayed proof restarted the engine.'
+            delayed = [row for row in self.ledger()['requests'] if row.get('injected_terminal_read_delay_s')]
+            assert len(delayed) >= 10 and len({row['terminal_read_client_id'] for row in delayed}) >= 2
+            self.metrics['shutdown_proof_latency_fault'] = dict(delay_per_request_s=1.25,
+                                                                delayed_reads=len(delayed),
+                                                                unchanged_owner_generation=True,
+                                                                native_shutdown_budget_s=8)
+            self.control(terminal_read_delay_seconds=0)
         poll(lambda: sum(order['state'] == 'live' for order in self.ledger()['orders']) == 8
              and self.sql('SELECT count(*) FROM orders WHERE creation_pending') == '0',
              description='continuous random step is established before clean restart')
@@ -799,7 +833,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                         pending_mutations=bool(state.get('pending_mutations')),
                         stopped_checkpoint=checkpoint.get('_is_stop_triggered'))
         before_handoff = self.state()
-        successor, successor_port = self.start('mm-until-restart', auto_migrate=False)
+        successor, successor_port = self.start('mm-until-restart', auto_migrate=False, **resources)
         # A Cloud Run rollout starts the new revision before terminating the old
         # one. Startup may be healthy, but standby must not claim trading authority.
         standby = self.state()
@@ -1916,7 +1950,7 @@ def main():
     from scripts.mm_managed_lifecycle import SCENARIOS as managed_scenarios
     from scripts.mm_reduction_checks import SCENARIOS as reduction_scenarios
     from scripts.mm_scoped_fault_checks import SCENARIOS as scoped_fault_scenarios
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, *reduction_scenarios, *scoped_fault_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "scoped-uncertainty", "scoped-positive", "pending-terminal-ws"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, *reduction_scenarios, *scoped_fault_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "shutdown-proof", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "scoped-uncertainty", "scoped-positive", "pending-terminal-ws"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument('--keep-going', action='store_true', help='Collect all independent scenario failures; the final gate still fails.')
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
@@ -1962,7 +1996,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "scoped-uncertainty", "scoped-positive", "pending-terminal-ws") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "shutdown-proof", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "scoped-uncertainty", "scoped-positive", "pending-terminal-ws") if args.scenario == "all" else (args.scenario,)
             if args.scenario == 'all':
                 scenarios += managed_scenarios + cleanup_fault_scenarios + reduction_scenarios + scoped_fault_scenarios
             elif args.scenario == 'managed-lifecycle':
@@ -2019,6 +2053,8 @@ def main():
                         harness.initial_position_restart_scenario()
                     elif scenario == "until-stopped":
                         harness.until_stopped_scenario()
+                    elif scenario == "shutdown-proof":
+                        harness.shutdown_proof_scenario()
                     elif scenario == "funding":
                         harness.funding_scenario()
                     elif scenario == "availability":

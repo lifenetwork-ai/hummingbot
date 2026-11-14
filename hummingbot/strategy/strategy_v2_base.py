@@ -831,7 +831,8 @@ class StrategyV2Base(StrategyPyBase):
                 queued = False
                 for executor in self.executor_orchestrator.active_executors.get(identity, []):
                     if (not executor.is_active or getattr(executor, '_is_managed_maker_entry', False) is not True
-                            or (executor.config.mm_session_id, executor.config.mm_generation) != scope):
+                            or (executor.config.mm_session_id, executor.config.mm_generation) != scope
+                            or executor.config.id in getattr(controller, '_stops_requested', ())):
                         continue
                     stamp = executor._completed_entry_fill_timestamp()
                     try:

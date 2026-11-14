@@ -441,6 +441,24 @@ policy is changed as part of local implementation.
   admission fences; steady account updates cannot repeatedly republish a fill.
   This does not close the connected99% gate or perpetual post-fill qualification.
   See [the follow-up plan](MM_QUOTE_REPLACEMENT_LATENCY_TDD_PLAN.md#revision139-cash-observation-progress-follow-up).
+- [x] Verify the cash-progress correction on revision140/`53f21fa38` and finish
+  a fresh unchanged901-sample window. Final control88/88 is running/no HALT,
+  checkpoints match, and204 recorded orders/65 Spot fills are retained.
+- [ ] Close revision140's residual availability gates: Spot97.68% fails99%,
+  perpetual remains unqualified and8 probe timeouts occur in the window. Before
+  the window, a profile-switch shutdown reaches8s during proof, causes one
+  engine restart and resumes quotes without operator intervention. This is not
+  an ERROR-free deployment or evidence to skip proof/widen the deadline. See
+  [revision140](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision140-cash-progress-deployment-and-observation).
+- [x] TDD the duplicated Spot cleanup proof and delayed native cancel state.
+  The final candidate retains both fresh checkpoint phases and all financial
+  gates, passes3,760 native +16 subtests,98 PostgreSQL and2 packaged E2Es. The
+  armed1.25s/request fault restarts the predecessor but preserves owner/session/
+  exact fills/fees on the final candidate, with the8s budget unchanged. Richer
+  bounded timing evidence is qualified separately from probe-cause claims.
+- [ ] Deploy this local cleanup correction and remeasure. The revision140 incident,
+  quote target, remaining slow probes and connected fault gates remain open.
+  See [local proof-sharing evidence](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision140-shutdown-proof-sharing-and-local-correction).
 - [x] Local TDD for the Spot-outflow guard retry burst: native connector/PG
   reproduces12 client IDs before the fix; typed cap denial now retires one unsent
   managed BUY without consuming the exchange retry budget. Controller admission

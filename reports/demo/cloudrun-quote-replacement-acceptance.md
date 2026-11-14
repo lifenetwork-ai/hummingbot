@@ -1,5 +1,21 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
+Local follow-up after revision140: native/PG/full-service TDD reproduces redundant
+Spot terminal reads reaching the unchanged8s shutdown deadline. The final local
+candidate shares a stronger proof within each phase and covers delayed native
+cancel state; it passes3,760 native tests +16 subtests,98 PostgreSQL tests and two
+scoped packaged E2Es. It is not deployed and does not close the quote/probe gates.
+See [the local correction](#revision140-shutdown-proof-sharing-and-local-correction).
+
+Latest completed observation (2026-11-14,17:05ICT): revision140/`53f21fa38` is
+verified at100% traffic with unchanged non-image configuration. The new901-sample
+window has204 recorded orders/65 Spot fills, zero ERROR/restart and8 short probe
+timeouts. Final control/ack88/88 is running without HALT; financial/binding
+checkpoint hashes match. Spot97.68% still fails99%; perpetual remains unqualified.
+The pre-window shutdown-deadline failure/restart remains a separate open incident;
+do not describe the whole deployment as ERROR-free.
+See [revision140](#revision140-cash-progress-deployment-and-observation).
+
 Latest full observation (2026-11-14,15:11ICT): revision139/`6cb7e7f56` completes
 901 samples on one image/session with quality pass. The exact30-minute window
 has161 recorded orders/39 Spot fills, zero ERROR/restart/probe timeout and no
@@ -100,6 +116,189 @@ Subsequent operational control observation05:54–06:24UTC retains19 probe
 timeouts across three successful profile changes. The local read/startup TDD
 follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
+
+## Revision140 shutdown-proof sharing and local correction
+
+Code inspection identifies a concrete extra wait: owner cleanup performs native
+status/fills for a retained Spot BUY, then its cashflow guard independently does
+status/all-fill-pages/status before the held-position snapshot. A fresh
+status/fills read remains required after that snapshot. For one canceled BUY,
+this is7 REST calls across both phases rather than5. A native PostgreSQL RED
+with a controlled1.25s/request clock reaches the unchanged8s deadline. This is a
+reproducible path, not proof that it alone caused the historical09:08 incident.
+
+The correction lets the existing cashflow proof serve both consumers within the
+first phase. Exact connector/order references, venue ID, current owner/account,
+terminal identity/terms, full paginated cumulative quantity, original fees and
+unchanged final status are still validated. Native fills are committed/applied
+before terminal state using the same connector status converter. Authority and
+native quantity are rechecked after its callback await. Future-timestamp fill
+reservations remain in the projection until its normal advance. The later
+checkpoint phase still fetches fresh evidence; unsupported/missing-ID/live-venue
+cases retain native readback. The outer8s deadline and shared3-request bound stay.
+
+The first candidate optimized only local `CANCELED`. It passed unit/PG checks
+but failed the full-service latency fault: a cancel ACK was still queued locally,
+so another BUY used the old duplicate path and the engine restarted. Additional
+RED covers `PENDING_CANCEL`, `OPEN` and `PARTIALLY_FILLED`; the final selector
+allows these exact retained native orders while requiring the same positive
+venue proof. No local state flag authorizes release.
+
+The new packaged `shutdown-proof` case arms Spot outflow explicitly, injects
+1.25s into each canceled-Spot-BUY status/fill GET, and keeps2CPU/1GiB. The
+predecessor artifact matches commit`53f21fa38` for all five changed runtime files;
+the corrected fixture reproduces8s deadline failures and an involuntary owner
+generation change. The final artifact passes with10 actual delayed reads across
+two BUYs and unchanged owner at profile rollover. It retains4 exact fills,
+Spot0.2/perpetual0.002 and original fees0.000002 each, then passes cold restart,
+overlapping-owner transfer with the same session/control,16 stale pending-list
+rows for8 canceled orders, and Stop. The intentional later owner transfer still
+increments generation exactly once. No end-to-end6.25s readiness claim is made
+from the virtual-clock test.
+The final slow-proof service logs contain no ERROR. Test containers are removed;
+the failed intermediate image is removed after archiving/verifying its five
+runtime sources. The final candidate and qualified predecessor remain cached.
+
+A separate RED/GREEN removes one redundant cash-update report after the native
+controller has already queued its full-entry handoff. This changes no financial
+commit/capacity boundary and does not establish that all5 connected gaps are
+fixed. Probe investigation finds441 retained completed main-thread SQL/COMMIT/
+owner spans, none intersecting the reconstructed8 exact probe waits. Recovery
+logs previously dropped the completed span and periodic slow logs are throttled.
+The opt-in diagnostic now retains bounded completed shutdown stages for the
+current root, and includes recent/completed slow spans in its existing recovery
+event. SQL text, arguments and raw identities remain excluded; the24KB event
+budget and warning cadence remain. Probe causality remains unproved.
+
+Final native3,760 +16 subtests,98 disposable PostgreSQL tests and hooks pass.
+Both `shutdown-proof` and `spot-outflow` pass on the same final manifest; the
+outflow case retains cap denial without local retry, funded SELLs, original
+fee/rebate and restart binding. Candidate config digest:
+`sha256:159c01227711378094607b3dc9a7395a99719ac5cb9c2d44db1148061c857543`;
+manifest:`sha256:146d9d400f40704838b43b29d9d1f4f353f6bad99d85017dafa99404673da3c9`.
+All five runtime source hashes match the workspace and candidate. This is a
+Python-source overlay on the qualified local predecessor, not a fresh Cloud
+release-image acceptance or full load soak.
+
+Retain fixture/setup failures separately: an initial mock used the wrong keyword
+signature; the initial full-service fixture did not arm outflow; a10s rolling
+window assertion failed under broad test load. The corrected proof fixture uses3600s and
+a frozen loop-clock origin for deterministic RPC-budget accounting. A local
+driver canonicalizes only dependency-image inspect names (`docker.io/library/`
+for registry/PostgreSQL) because abbreviated names failed inspection; no check
+is bypassed. The original RED, first candidate failure and corrected GREEN are
+all retained. Do not count those earlier failures as successful qualification.
+
+At10:50:01UTC (17:50:01ICT), the read-only Cloud check still sees unpatched
+revision140 running, control/ack88/88, no HALT/pending mutation. No Cloud, DB
+maintenance, control, credential, risk, fee or probe/shutdown threshold change
+is made. Deployment and a new unchanged30-minute window remain required;
+remaining quote/probe causes, connected cap-denial/quarantine and perpetual
+post-fill qualification stay open.
+
+Evidence (ignored/private): `build/shutdown-proof-followup-20261114/`;
+valid predecessor RED:`build/e2e-offline/20261114-173603-f48e1a/`;
+first candidate failure:`build/e2e-offline/20261114-173829-aab9ff/`;
+final GREEN:`build/e2e-offline/20261114-174511-b93807/` and
+`build/e2e-offline/20261114-174645-65d57e/`.
+
+## Revision140 cash-progress deployment and observation
+
+Cloud Run reports `hummingbot-demo-00140-p88` Ready since08:58:46.446UTC
+(15:58:46ICT) at100% traffic. Artifact Registry maps full commit
+`53f21fa3843ef41d41ae564034ebe9d488d9f502` to the running digest
+`sha256:49409db0c1ebdd6964816cd44bafe74d0287a3af2872ef87b53762d4fac43866`.
+All non-image container configuration matches revision139:2CPU/1GiB, existing
+probes/always-allocated CPU, Demo/postgres_kms routing and scoped recovery true.
+The observer changes no deployment, control, credential or risk configuration.
+
+Initial09:34:48UTC status is running, same until-stopped session, control/ack88/88,
+no HALT/pending mutation or active incident. A read-only repeatable-read DB check
+has owner528, watermark48097, matching financial/binding checkpoint hashes,
+zero pending creations/unapplied fills, no prepared/possibly-sent/uncertain
+attempt, six acknowledged attempts, three positions and risk-stop false. The
+temporary read-only SQL proxy is closed after the reads.
+
+### Pre-window shutdown failure remains open
+
+The bounded pre-window revision query returns66 entries:64 WARNING and2 ERROR.
+There are five approximately301ms timeout transitions, one separate HTTP503
+probe transition during engine exit, and one scheduled engine restart. At
+09:08:16.629660UTC, `shutdown.core` reaches the8s outer deadline; the logged total
+is8103.691ms with3 tracked orders and `shutdown.proof_after` active for1587.730ms.
+The shutdown/recovery fence is retained and the engine exits1/restarts at
+09:08:18.114299UTC. No operator reset/Start is performed by this observer.
+
+Four bounded recorder timelines show old zero-fill cancellations at
+09:08:08.173–09:08:09.022UTC; new Spot and perpetual creation records appear at
+09:08:33UTC. This proves resumed creation after the failure, not exact continuous
+quote downtime or exchange ACK RTT. The retained diagnostic before shutdown
+does not cover its whole critical interval; the later JSON-decode stack belongs
+to the successor process. No single network/DB cause or causal link to the new
+cash listener is established. Do not widen the deadline or skip terminal/fill
+proof to manufacture success. Availability/shutdown investigation stays open.
+
+### Unchanged30-minute observation
+
+The same v3 classifier (SHA256
+`ce60b823674db68a850cafd03fe7e90d77dc8cd0484716bee31b315e6a03e753`)
+measures09:35:13.111–10:05:14.315UTC (16:35:13–17:05:14ICT):901 paired samples,
+wall span1801.203s, maximum gap2.752s, zero request/identity failures and quality
+pass. One revision and the same session cover generations110–113/three Random
+handoffs. All six unknown samples/market remain failures. Two raw HALT samples
+are temporary shutdown fences, cleared on the next sample; none requires an
+operator reset. Running/starting/readiness counts are889/3/9.
+
+| Market | Two-sided | Eligible gaps | Guard excluded | Unknown | Conservative result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Spot |463|5|427|6|463/474 =97.68%, below99% |
+| Perpetual |0|0|895|6|No confirmed eligible two-sided samples |
+
+Spot's conditional result is463/468 =98.93%, also below99%. Reasons include size,
+allocation and outflow; perpetual BUY remains inventory-limited. Revision139's
+96.51% and this97.68% have different eligibility/market/fill mixes and do not
+establish a causal performance improvement from the wakeup change.
+
+The five Spot gaps are isolated samples. Four following samples are two-sided;
+the09:41:35 gap is followed by a size guard after two replacement SELL fills.
+Retained stage diagnoses are submission pending (including initial creation
+after the second handoff), proposal confirmation and executor activity. Twenty-
+nine bounded individual timelines are complete. Native Created/fill timestamps
+use strategy-clock seconds; no exact submission/ACK RTT is established. A small
+bounded history/individual-detail read occurs during this window, so this is
+also not a controlled observer-load A/B. Original failed samples remain.
+
+The exact-window bounded log query has40 WARNING entries, zero ERROR/restart/
+ownership-loss/50004 entries and8 probe timeout transitions (300.805–301.824ms).
+These are deadline-censored waits, not complete stall durations. No retained
+stack sample falls inside any exact probe wait. Ten watchdog samples include
+eight financial SQL/COMMIT wait stacks, one JSON/weakref stack and one selector
+wait during handoff. The selector sample is not proof that the event loop was
+blocked. No sole cause is established and the residual probe gate remains open.
+
+Final startup/live/ready are200 and status is running without HALT/pending
+mutation. Complete one-page history has204 recorded orders (144 Spot/60
+perpetual),65 Spot fills and zero provisional creations. There is no new
+perpetual fill to qualify its post-fill handoff. Final repeatable-read DB proof
+keeps owner528/control88/88, watermark48494, three positions and risk-stop false;
+financial/binding hashes match with zero pending creations/unapplied fills or
+prepared/possibly-sent/uncertain attempts. Six attempts remain acknowledged.
+The proxy is closed after the read. Service still routes100% to revision140.
+
+Separate post-window readback at10:08:49UTC (17:08:49ICT) remains running,
+control/ack88/88, generation114 and no HALT/pending mutation. Its bounded later
+query has11 WARNING entries, no ERROR/restart, and one additional301.061ms probe
+timeout at10:08:23UTC. Keep that timeout outside the completed window's count8;
+do not present the later interval as free of probe warnings.
+
+This verifies deployment and continued operation, not full quote/probe/release
+acceptance. The shutdown deadline incident, remaining gap/probe causes,
+perpetual post-fill qualification and connected native-cap-denial/uncertain-BUY
+quarantine gates remain open. No threshold, cap, fee policy, classifier, native
+runtime code, financial/control/credential state or Cloud configuration changes
+are made during this deployment check.
+
+Evidence (ignored/private): `build/account-progress-postdeploy-20261114-163446/`.
 
 ## Revision139 cash-progress correlation and local correction
 

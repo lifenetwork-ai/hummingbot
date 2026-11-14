@@ -939,7 +939,7 @@ class BotOwnership:
                 self.spot_outflow.reason_code = "spot_outflow_fill_invalid"
 
     @staticmethod
-    async def _refresh_orders(connector, orders, *, limiter=None):
+    async def _refresh_orders(connector, orders, *, limiter=None, terminal_guard=None):
         # Failed maker attempts remain part of terminal checkpoint proof. Read
         # every order, but do not serialize their network latency across the
         # unchanged shutdown deadline. A fixed worker bound avoids one task per
@@ -950,6 +950,9 @@ class BotOwnership:
         async def refresh():
             for order in pending:
                 async with limiter:
+                    if terminal_guard is not None and await asyncio.wait_for(
+                            terminal_guard.refresh_canceled_order(connector, order), timeout=10):
+                        continue  # Strong status/fills/status proof already applied native fills and terminal state.
                     status = await asyncio.wait_for(connector._request_order_status(order), timeout=5)
                     if status.exchange_order_id:
                         order.update_exchange_order_id(status.exchange_order_id)
@@ -1137,7 +1140,8 @@ class BotOwnership:
                         continue
                     remote_orders.append(order)
                 if remote_orders:
-                    await self._refresh_orders(connector, remote_orders, limiter=limiter)
+                    await self._refresh_orders(connector, remote_orders, limiter=limiter,
+                                               terminal_guard=self.spot_outflow)
                 while any(not order.is_done and order.client_order_id not in deferred for order in orders):
                     self.check_owner()
                     await asyncio.sleep(0.1)

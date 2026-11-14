@@ -94,14 +94,48 @@ records the correction and its limits.
   attempts and receipts. LONG0.0498 has two working SELL CLOSE quotes; there is
   no opening-SHORT fallback. Fee-inclusive closing math and native fee-readiness
   are recorded separately from an independent current exchange fee read.
-- [ ] Deploy this follow-up, then repeat the unchanged30-minute quote window.
-  The local correction does not qualify revision139's96.51% result or prove
-  exact ACK latency. Perpetual post-fill handoff remains unqualified: the
-  observed market is below the configured breakeven CLOSE price, with no new
-  perpetual fill. Keep caps, fee policy and unknown-as-failure unchanged.
+- [x] Deploy this follow-up and repeat the unchanged30-minute quote window.
+  Revision140/`53f21fa38`:901 samples/quality pass,204 recorded orders/65 Spot
+  fills, no in-window ERROR/restart and matching final checkpoints. This does
+  not establish exact ACK latency or a controlled latency improvement.
+- [ ] Close the remaining quote/probe/shutdown gates. Spot97.68% still fails99%,
+  with5 gaps/6 unknown and8 probe timeouts. A separate pre-window8s shutdown
+  deadline causes one engine restart before automatic resumed quotes; retain
+  that incident. Perpetual has no new fill or confirmed eligible two-sided
+  sample. Keep caps, fee policy and unknown-as-failure unchanged. See
+  [revision140](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision140-cash-progress-deployment-and-observation).
 
 Evidence: `build/quote-gap139-review-20261114-1515/`; see the
 [correlation and limits](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision139-cash-progress-correlation-and-local-correction).
+
+## Revision140 shutdown/probe follow-up
+
+- [x] Reproduce duplicate status/fill reads across owner cleanup and Spot cashflow
+  proof with real PostgreSQL/native connector parsing. A controlled1.25s/request
+  clock exhausts the unchanged8s budget before the fix.
+- [x] Share the stronger existing status/full-paginated-fills/status proof within
+  a phase; retain fresh post-checkpoint readback, current owner/account/order,
+  original fees, future-fill reservations and the3-request concurrency bound.
+- [x] Use full-service fault RED to catch cancel ACK/local tracker lag. Add native
+  `OPEN`, `PARTIALLY_FILLED`, `PENDING_CANCEL`, `CANCELED` cases; venue proof is
+  mandatory regardless of local state. Reject late fills/changed terms/binding
+  or owner loss, including changes during the native terminal callback.
+- [x] Remove the extra cash-update report after the controller already queued
+  handoff. Preserve regular-clock retry and all financial/capacity boundaries.
+- [x] Retain completed shutdown stage timings for the current root and completed
+  slow spans in existing recovery diagnostics. Test bounded/redacted payloads,
+  SQL churn and throttled periodic logs. No causal claim for all8 probe waits.
+- [x] Qualify final source:3,760 native +16 subtests,98 PostgreSQL and two packaged
+  E2Es pass. The predecessor restarts under the slow-proof fault; the final image
+  handles10 delayed requests at1.25s each with the same owner and exact fills/fees,
+  then passes cold/overlapping handoff and Stop at2CPU/1GiB. Keep the first failed
+  candidate and fixture failures as separate evidence.
+- [ ] Commit/deploy the qualified follow-up and repeat the unchanged connected
+  30-minute quote/probe window. Do not close97.68%, perpetual post-fill or the
+  wider availability gates from local fault tests alone.
+
+Evidence: `build/shutdown-proof-followup-20261114/`; see
+[the full local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision140-shutdown-proof-sharing-and-local-correction).
 
 ## Additional incident found during connected observation
 

@@ -46,7 +46,17 @@ def active_shutdown_stages():
         return []
     try:
         now = tracer.clock()
-        active = tracer.snapshot()['active']
+        snapshot = tracer.snapshot()
+        active = snapshot['active']
+        current = next((row for row in active if row['id'] == _PARENT.get()), {})
+        root = current.get('shutdown_id')
+        if root is not None:
+            stages = [dict(operation=row['operation'], phase='active',
+                           elapsed_ms=round(max(0, now - row['at_ns']) / 1e6, 3))
+                      for row in active if row.get('shutdown_id') == root and row['operation'].startswith('shutdown.')]
+            completed = [dict(operation=row['operation'], phase='completed', elapsed_ms=round(row['duration_ms'], 3))
+                         for row in snapshot.get('shutdown_recent', ()) if row.get('shutdown_id') == root]
+            return (stages + completed[-max(0, 8 - len(stages)):])[:8]
         return [dict(operation=row['operation'], elapsed_ms=round(max(0, now - row['at_ns']) / 1e6, 3))
                 for row in active if row['operation'].startswith('shutdown.')][:8]
     except Exception:
@@ -136,6 +146,7 @@ class EngineDiagnostics:
         self.emit = emit or self._log
         self.clock, self.max_active = clock, max_active
         self.recent, self.active, self.operations = deque(maxlen=capacity), {}, {}
+        self._shutdown_recent = deque(maxlen=32)
         self.sequence = self.dropped_spans = self.sink_errors = 0
         self.lock, self.stopping = threading.Lock(), threading.Event()
         self.loop_thread_id = self.worker = self.heartbeat_task = None
@@ -164,6 +175,9 @@ class EngineDiagnostics:
                 self.sequence += 1
                 row = dict(id=self.sequence, operation=operation, at_ns=now, thread=threading.get_ident(),
                            parent=_PARENT.get(), entity=_identity(entity), order=_identity(order))
+                root = row['id'] if operation == 'shutdown.total' else self.active.get(row['parent'], {}).get('shutdown_id')
+                if root is not None:
+                    row['shutdown_id'] = root
                 self.active[row['id']] = row
                 self.recent.append(dict(row, phase='start'))
                 stats = self.operations.setdefault(operation, {
@@ -189,6 +203,8 @@ class EngineDiagnostics:
                     return
                 duration = (now - row['at_ns']) / 1e6
                 self.recent.append(dict(row, phase='end', end_ns=now, duration_ms=duration, error=bool(error)))
+                if row['operation'].startswith('shutdown.'):
+                    self._shutdown_recent.append(dict(row, end_ns=now, duration_ms=duration))
                 stats = self.operations[row['operation']]
                 stats['completed'] += 1
                 stats['errors'] += bool(error)
@@ -220,6 +236,7 @@ class EngineDiagnostics:
     def snapshot(self):
         with self.lock:
             return dict(recent=[dict(row) for row in self.recent], active=[dict(row) for row in self.active.values()],
+                        shutdown_recent=[dict(row) for row in self._shutdown_recent],
                         operations={name: dict(stats) for name, stats in self.operations.items()},
                         dropped_spans=self.dropped_spans, sink_errors=self.sink_errors,
                         sql_hooks_attached=bool(self.hooks))
@@ -269,8 +286,11 @@ class EngineDiagnostics:
         gap_ms = (now - beat) / 1e6
         if gap_ms < 250:
             if self._episode is not None:
+                with self.lock:
+                    slow = list(self._slow)
                 self._deliver(dict(event='engine_loop_recovered', at_ns=now, heartbeat_ns=beat,
-                                   wall_time_ns=time.time_ns(), detected_at_ns=self._episode, process_id=os.getpid()))
+                                   wall_time_ns=time.time_ns(), detected_at_ns=self._episode, process_id=os.getpid(),
+                                   slow=slow, **self.snapshot()))
                 self._episode = None
             if now - self._last_slow_emitted_ns >= 30_000_000_000:
                 with self.lock:

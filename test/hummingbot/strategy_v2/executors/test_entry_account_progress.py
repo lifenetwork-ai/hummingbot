@@ -128,6 +128,25 @@ async def test_repeated_cash_updates_do_not_republish_an_already_covered_fill(en
 
 
 @pytest.mark.asyncio
+async def test_later_account_update_does_not_report_again_after_native_handoff_is_queued(entry_account):
+    state = entry_account
+    state.controller.config.id = 'maker'
+    state.controller._stops_requested = set()
+    state.controller.logger = MagicMock()
+    state.observe('LIFE')
+    state.observe('USDT')
+    await asyncio.sleep(.07)
+    await completed_report(state)
+    actions = LifeMMController._completed_entry_actions(state.controller)
+    assert len(actions) == 1 and actions[0].keep_position
+    state.strategy.update_executors_info.reset_mock()
+    state.observe('LIFE')
+    state.observe('USDT')
+    await asyncio.sleep(.07)
+    state.strategy.update_executors_info.assert_not_called()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('invalid', ['-1', 'NaN', '', 'old'])
 async def test_bad_cash_cannot_release_handoff_from_an_observation_signal(entry_account, monkeypatch, invalid):
     state = entry_account

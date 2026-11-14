@@ -1,5 +1,40 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Revision140 shutdown-proof TDD follow-up — 2026-11-14
+
+An armed cashflow guard duplicates native status/fill reads during cleanup. The
+local correction shares the existing strong status/full-fills/status proof
+within a phase, reducing7 to5 REST calls per canceled Spot BUY needing fee proof across both
+checkpoint phases; no evidence crosses the checkpoint. TDD also covers native
+cancel state lagging the venue ACK. The unchanged8s full-service latency fault
+restarts the predecessor but passes on the final candidate at2CPU/1GiB, with10
+actual1.25s delayed reads, stable owner/session and exact fills/fees.
+
+Native3,760 +16 subtests,98 PostgreSQL tests and two packaged E2Es pass. A separate
+test removes a redundant report after handoff is already queued. Bounded richer
+shutdown/recovery diagnostics address missing timing evidence; they do not prove
+or remove every slow probe. The candidate is not deployed; revision140's97.68%
+quote failure and8 in-window probe timeouts remain unchanged. See
+[the complete local evidence and failures](../demo/cloudrun-quote-replacement-acceptance.md#revision140-shutdown-proof-sharing-and-local-correction).
+
+## Revision140 deployed cash-progress observation — 2026-11-14
+
+Commit`53f21fa38` is verified on revision140 at100% traffic, unchanged2CPU/1GiB
+and all other non-image settings. The unchanged30-minute window completes901
+samples/quality pass:204 recorded orders,65 Spot fills, no in-window ERROR or
+restart, and matching final financial/binding checkpoints at control88/88.
+Spot97.68% still fails99% (463 two-sided/5 gaps/6 unknown); perpetual has no
+confirmed eligible two-sided samples and no new fill. Different eligibility,
+market and fill mixes prevent attributing the change from revision139 to this
+patch. No latency A/B is claimed.
+
+Eight short probe timeouts remain, with no retained stack inside their exact
+waits. Separately, the pre-window09:08UTC profile switch reaches the8s shutdown
+deadline while terminal proof is active, restarts the engine once and resumes
+quotes automatically. The whole deployment is not ERROR-free, and availability
+investigation stays open. See the
+[full revision140 record](../demo/cloudrun-quote-replacement-acceptance.md#revision140-cash-progress-deployment-and-observation).
+
 ## Revision139 later-account progress — 2026-11-14
 
 All six Spot gaps are isolated2s samples. Two follow full fills whose first

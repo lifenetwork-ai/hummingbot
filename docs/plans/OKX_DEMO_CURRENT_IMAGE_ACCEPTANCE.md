@@ -1,6 +1,19 @@
 # OKX Demo and current offline image acceptance
 
-Latest 2026-11-13: revision121/e635f3da7 deploys the readiness-wait correction.
+Local follow-up2026-11-14: duplicated cleanup proof and cancel-state lag are
+reproduced and corrected with3,760 native +16 subtests,98 PostgreSQL and2 packaged
+E2E passes. This candidate is not deployed; connected acceptance below remains
+unchanged. See [the local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision140-shutdown-proof-sharing-and-local-correction).
+
+Latest2026-11-14: revision140/`53f21fa38` is independently verified at100% traffic.
+Its unchanged901-sample30-minute window has204 recorded orders/65 Spot fills,
+no in-window ERROR/restart,8 probe timeouts and matching final checkpoints.
+Bot remains running/no HALT/control88/88. Quote acceptance is still open:
+Spot97.68% fails99%; perpetual has no confirmed eligible two-sided samples/new
+fill. A pre-window8s shutdown timeout/restart remains a separate open incident.
+See the [revision140 evidence](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision140-cash-progress-deployment-and-observation).
+
+Earlier2026-11-13: revision121/e635f3da7 deploys the readiness-wait correction.
 The old technical HALT is recovered after independent verification, audit264,
 with zero financial/risk changes. Start succeeds at control86, both/Random/
 until-stopped. The00:13 local short check is running with active orders, no HALT,
