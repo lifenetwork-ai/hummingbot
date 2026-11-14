@@ -1,5 +1,13 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
+Local follow-up after revision144 groups the ordinary single held transfer's
+financial writes after fill validation: four flushes become two, 23 SQL become
+20, with all write fences and one final COMMIT retained. Native/PostgreSQL
+regression, paired component timings and two same-image packaged shutdown/
+Spot-outflow flows pass locally; their bounded scope is recorded in
+[the local scope](../performance/mm-quote-replacement-latency.md#revision144-single-held-transfer-follow-up--local-2026-11-15).
+This candidate is not deployed; the connected failures below remain unchanged.
+
 Latest completed observation (2026-11-15,02:09ICT): revision144/4fa9ef95c is
 verified at100% traffic with unchanged2CPU/1GiB/env. The repeated uninterrupted
 30-minute window has901 samples/quality pass,230 recorded orders/102 Spot fills,

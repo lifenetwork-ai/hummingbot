@@ -1,5 +1,57 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Revision144 single held-transfer follow-up — local, 2026-11-15
+
+The nine retained Spot gaps comprise five executor-activity and four submission
+waits. Seven occur near a 48-second burst with 28 recorded BUY orders and 26 BUY
+fills on 26 distinct orders. The native history demonstrates progress, but its
+second-resolution timestamps cannot identify each pending order or a unique
+ACK bottleneck. Keep the original 93.70% failure. Even replacing all nine gaps
+with working quotes would give 232/238 = 97.48% because six profile-transition
+unknowns remain failures. Perpetual BUY remains inventory-limited while SELL
+quotes work; no cap, fee-inclusive breakeven policy or classifier is changed.
+
+Five PostgreSQL RED cases reproduce unnecessary work in the ordinary single
+held-executor transfer: metadata reads autoflush pending position/executor/journal
+writes before fill validation finishes. Invalid transfers already roll back;
+this is a synchronous cost correction, not proof of a historical accounting loss.
+The single-transfer path now uses the grouped path's transaction-local
+`no_autoflush`, without adding its metadata prefetch. Fill/fee/identity bounds,
+fresh physical-owner checks on writes, final COMMIT and post-commit publication
+remain in place. No proof is cached or moved to a background task.
+
+Seven alternating warmed real-PostgreSQL pairs replay the former single-transfer
+flush schedule as control: SQL statements fall from 23 to 20, flushes from four
+to two, and owner reads from five to three because fewer flushes need fencing.
+The existing bulk-update fence and both grouped-write fences still execute.
+Component medians are 28.91 → 25.37 ms; no timing threshold or whole-MM/Cloud
+speedup is claimed. Every measured transfer checks exact quantity/fees, applied
+receipts, zero unapplied fills, matching financial hash and one COMMIT.
+
+Native regression passes 860 tests plus five subtests. The broad PostgreSQL run
+passes 149 cases and retains one benchmark setup failure: its patch targeted a
+session factory instead of its Session class. After correcting only that test,
+all 24 held-checkpoint cases pass, including the paired measurement (150 distinct
+selected PostgreSQL cases covered across the runs). Existing failure cases cover
+rollback, owner loss, crash/replay and perpetual remaining-cost preservation.
+
+The same source-verified amd64 candidate, config digest `9af647729fb0` and
+manifest digest `a8023f912c41`, passes packaged `shutdown-proof` and `spot-outflow`
+flows. The former observes ten delayed terminal reads at 1.25 s/request,
+unchanged owner during rollover, four exact Spot/perpetual fills, duplicate
+receipts, cold restart and overlapping revision handoff. The latter preserves
+the BUY-only cap, funded SELLs, original fee/rebate, duplicate-fill accounting,
+terminal release and durable account binding across restart/mode switch.
+Eight retained application logs contain seven WARNING entries and no ERROR or
+probe transition. These finite flows are not a full release/soak acceptance.
+
+Evidence: `build/quote-gap144-followup-20261115/`; native and PostgreSQL logs,
+original RED/setup failures and `performance-final.json` remain retained.
+Packaged evidence: `build/e2e-offline/20261115-022532-bbd66b/` and
+`build/e2e-offline/20261115-022721-44fe0c/`.
+Connected quote/probe/unknown and perpetual gates remain open pending deployment
+and another unchanged observation; this local result does not close them.
+
 ## Revision144 connected guarded-admission observation — 2026-11-15
 
 Commit4fa9ef95c is verified on revision144 at100% traffic with unchanged

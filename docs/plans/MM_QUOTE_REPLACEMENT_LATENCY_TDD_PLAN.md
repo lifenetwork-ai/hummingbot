@@ -35,6 +35,38 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
 - [x] Deploy the earlier correction and repeat connected quote qualification.
   Revision111/112 windows retain their failures; deployment is not a99% pass.
 
+## Revision144 fill-to-replacement follow-up
+
+- [x] Inspect the nine Spot gaps: five executor-activity and four submission
+  waits, with seven clustered within one minute. Nearby creations/fills do not
+  identify a unique per-order ACK delay; preserve the failed 93.70% result.
+  Perpetual BUY is inventory-limited while SELL quotes work; retain its caps,
+  fee-inclusive breakeven policy and unqualified two-sided result.
+- [x] RED on disposable PostgreSQL: the ordinary single-executor held transfer
+  autoflushes pending financial writes during metadata/fill validation. Five
+  new cases fail before changing runtime, including existing/new executor rows
+  and invalid fee/fill identity/missing-order proofs. Rollback already protects
+  correctness; the unnecessary guarded flushes consume synchronous loop time.
+- [x] Group the single transfer's writes after validation, preserving exact
+  fill/fee coverage, per-order bounds, physical-owner fences and final COMMIT.
+- [x] Run native handoff/controller/publication regression and PostgreSQL
+  rollback, ownership-loss, replay and cost-basis tests; measure SQL/flush cost
+  with the previous schedule as control. Native 860 tests +5 subtests pass;
+  149 PostgreSQL cases pass, then a corrected 24-case held suite closes one
+  benchmark setup failure (150 distinct selected cases). Seven measured pairs
+  show SQL 23→20/flushes 4→2 and component median 28.91→25.37 ms; this is not
+  whole-MM latency evidence. Keep the initial setup failure and RED artifacts.
+- [x] Complete same-candidate packaged shutdown and Spot-outflow qualification
+  on `9af647729fb0`: delayed terminal proof, exact fills/fees, duplicate receipts,
+  clean restart and revision handoff pass. Finite-flow logs retain seven WARNING
+  entries with no ERROR/probe timeout. This is not full release qualification.
+- [ ] Deploy a qualified candidate and repeat the unchanged connected window;
+  the nine gaps, unknowns, residual probe and perpetual gates remain open.
+  Even fixing all nine gaps leaves 232/238 = 97.48% due to six unknowns.
+
+Evidence: `build/quote-gap144-followup-20261115/`; see
+[the local scope](../../reports/performance/mm-quote-replacement-latency.md#revision144-single-held-transfer-follow-up--local-2026-11-15).
+
 ## Local probe callback fairness — 2026-11-15
 
 - [x] Reconstruct the retained local303.954ms timeout. Two heartbeat values are

@@ -4,7 +4,6 @@ import logging
 import os.path
 import threading
 import time
-from contextlib import nullcontext
 from decimal import Decimal
 from itertools import islice
 from shutil import move
@@ -425,9 +424,10 @@ class MarketsRecorder:
             # executor or position writes. Validate every member before their
             # first guarded flush; retain shared ORM identity for duplicate-order
             # rejection within the group.
-            # Keep the original single-executor/single-order path: batching
-            # adds no useful lookup reduction in that common case.
-            with session.no_autoflush if batch else nullcontext():
+            # Single transfers need no prefetch, but their metadata/fill reads
+            # must not flush the pending financial writes either. All proof
+            # remains on this transaction before the first guarded write.
+            with session.no_autoflush:
                 for info in infos:
                     data = json.loads(info.model_dump_json())
                     existing = existing_executors.get(info.id) if batch else session.get(Executors, info.id)

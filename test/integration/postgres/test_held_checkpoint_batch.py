@@ -1,10 +1,12 @@
 """Batch existing checkpoint metadata without deferring any financial commit."""
+from contextlib import nullcontext
 from decimal import Decimal
 from test.integration.postgres.test_automatic_recovery import executor_info
 from test.integration.postgres.test_ownership import owned as _owned
 from test.integration.postgres.test_performance import queries
 from test.integration.postgres.test_recorder import fill
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import delete, event, select
@@ -21,9 +23,9 @@ from hummingbot.model.trade_fill import TradeFill
 owned = _owned
 
 
-def group(context, count=6):
+def group(context, count=6, *, prefix='batch-held-'):
     assert context.recorder.ensure_runtime_checkpoint()
-    infos = [executor_info('batch-held-' + str(i)) for i in range(count)]
+    infos = [executor_info(prefix + str(i)) for i in range(count)]
     for info in infos:
         info.config.mm_session_id, info.config.mm_generation = 'batch-session', 0
         identity = info.custom_info['held_position_orders'][0]['client_order_id']
@@ -131,6 +133,121 @@ def test_held_checkpoint_single_executor_with_multiple_orders_still_batches(owne
         assert session.query(Executors).count() == 1
         assert session.query(Order).filter_by(position_applied=True).count() == 2
         assert session.query(Position).one().amount == Decimal('.2')
+
+
+@pytest.mark.parametrize('existing', [False, True])
+def test_single_held_checkpoint_groups_writes_after_fill_validation(owned, existing):
+    infos, positions = group(owned, 1)
+    if existing:
+        owned.recorder.store_or_update_executor(SimpleNamespace(config=infos[0].config, executor_info=infos[0]))
+    flushes, commits = [], []
+
+    def flushed(session, *args):
+        flushes.append(True)
+
+    def committed(session):
+        commits.append(True)
+
+    event.listen(owned.manager._session_cls, 'before_flush', flushed)
+    event.listen(owned.manager._session_cls, 'after_commit', committed)
+    try:
+        with queries(owned.engine) as statements:
+            owned.recorder.checkpoint_held_positions(positions, infos)
+    finally:
+        event.remove(owned.manager._session_cls, 'before_flush', flushed)
+        event.remove(owned.manager._session_cls, 'after_commit', committed)
+    assert len(flushes) == 2  # Financial application, then its checkpoint; no metadata-read flush.
+    assert len(commits) == 1
+    assert sum('FROM executors' in sql for sql in statements) == 1
+    assert sum('FROM orders' in sql for sql in statements) == 1
+    with owned.manager.get_new_session() as session:
+        assert session.query(Position).one().amount == Decimal('.1')
+        assert session.query(Executors).count() == 1
+        assert session.query(Order).one().position_applied is True
+        assert session.query(RuntimeJournal).filter_by(kind='fill', applied=False).count() == 0
+        assert session.get(RuntimeCheckpoint, 'test.yml').financial_hash == financial_hash(session)
+
+
+@pytest.mark.parametrize('corruption', ['fees', 'fill_identity', 'missing_order'])
+def test_single_held_checkpoint_rejects_unproven_transfer_before_first_write(owned, corruption):
+    infos, positions = group(owned, 1)
+    order = infos[0].custom_info['held_position_orders'][0]
+    if corruption == 'fees':
+        order['cumulative_fee_paid_quote'] = '.02'
+    elif corruption == 'fill_identity':
+        order['order_fills'] = {'another-fill': {}}
+    else:
+        order['client_order_id'] = 'no-durable-order'
+    with queries(owned.engine) as statements:
+        with pytest.raises(ValueError, match='[Ff]ill|[Dd]urable order'):
+            owned.recorder.checkpoint_held_positions(positions, infos)
+    assert not any(sql.lstrip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')) for sql in statements)
+    unchanged(owned, 1)
+
+
+def test_paired_single_held_transfer_removes_redundant_fenced_flushes(owned):
+    import time
+    from statistics import median
+    from test.integration.postgres.test_performance import report
+
+    serial = 0
+
+    def run(legacy):
+        nonlocal serial
+        serial += 1
+        infos, positions = group(owned, 1, prefix=f'paired-held-{serial}-')
+        for field in ('amount', 'volume_traded_quote', 'cum_fees_quote'):
+            setattr(positions[0], field, getattr(positions[0], field) * serial)
+        flushes, commits = [], []
+
+        def flushed(session, *args):
+            flushes.append(True)
+
+        def committed(session):
+            commits.append(True)
+
+        # For the one-executor/one-order case this replays exactly the former
+        # metadata-read autoflush schedule, retaining all native SQL/fences.
+        control = patch.object(owned.manager._session_cls.class_, 'no_autoflush',
+                               property(lambda session: nullcontext())) if legacy else nullcontext()
+        event.listen(owned.manager._session_cls, 'before_flush', flushed)
+        event.listen(owned.manager._session_cls, 'after_commit', committed)
+        try:
+            with control, queries(owned.engine) as statements, \
+                    patch.object(owned.owner, '_read_owner', wraps=owned.owner._read_owner) as checks:
+                started = time.perf_counter()
+                owned.recorder.checkpoint_held_positions(positions, infos)
+                elapsed = (time.perf_counter() - started) * 1000
+        finally:
+            event.remove(owned.manager._session_cls, 'before_flush', flushed)
+            event.remove(owned.manager._session_cls, 'after_commit', committed)
+        assert len(commits) == 1
+        with owned.manager.get_new_session() as session:
+            assert session.query(Position).one().amount == Decimal('.1') * serial
+            assert session.query(Position).one().cum_fees_quote == Decimal('.01') * serial
+            assert session.query(Order).filter_by(position_applied=True).count() == serial
+            assert session.query(RuntimeJournal).filter_by(kind='fill', applied=False).count() == 0
+            assert session.get(RuntimeCheckpoint, 'test.yml').financial_hash == financial_hash(session)
+        return dict(duration_ms=elapsed, flushes=len(flushes), ownership_checks=checks.call_count,
+                    sql_statements=len(statements))
+
+    run(True)
+    run(False)
+    pairs = []
+    for index in range(7):
+        pair = {}
+        for legacy in ((True, False) if index % 2 == 0 else (False, True)):
+            pair['before' if legacy else 'after'] = run(legacy)
+        assert pair['before']['flushes'] == 4 and pair['after']['flushes'] == 2
+        # The native bulk journal UPDATE has its own physical-owner fence too.
+        assert pair['before']['ownership_checks'] == 5 and pair['after']['ownership_checks'] == 3
+        assert pair['after']['sql_statements'] < pair['before']['sql_statements']
+        pairs.append(pair)
+    report('single_held_checkpoint_coalescing', dict(
+        pairs=pairs, before_p50_ms=median(p['before']['duration_ms'] for p in pairs),
+        after_p50_ms=median(p['after']['duration_ms'] for p in pairs),
+        qualification='Real PostgreSQL/recorder/owner fences; synthetic native fills. '
+                      'Alternating warmed single-transfer control, no timing threshold or whole-MM attribution.'))
 
 
 @pytest.mark.parametrize('failure', ['owner_after_flush', 'commit'])
