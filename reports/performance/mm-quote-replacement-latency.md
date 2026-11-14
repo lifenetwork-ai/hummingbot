@@ -536,3 +536,71 @@ Connected equivalents, one stable30-minute observation and the original99%
 quote/probe gates remain open. This finite matrix does not qualify every crash
 interleaving, OOM during Disconnect, general concurrent openings or Perpetual
 CLOSE admission under uncertainty. No extra image was built for test-only edits.
+
+### Spot outflow denial retry TDD — 2026-11-14
+
+The revision137 review retains23 ERROR entries across12 local BUY identities
+in about0.40s, all reporting `spot_outflow_limit`. The controller preview is not
+a reservation: queued proposals can both pass before one native order reserves
+cash. The mandatory later owner gate correctly rejects the excess BUY, but its
+generic `SubmissionBlocked` event wakes the PositionExecutor and consumes its
+exchange retry budget immediately. The controller cannot remove this loop by
+merely previewing the same cap again.
+
+RED is reproduced through the actual OkxExchange failure callback, PostgreSQL
+owner/recorder and executor:12 client IDs, zero POSTs. The stronger full-service
+gate also fails on the previously qualified baseline image, retaining12 denied
+IDs in `build/e2e-offline/20261114-131239-47cfba/result.json`. These are local
+attempts denied by the guard, not12 venue-accepted orders or financial fills.
+Initial missing connector/session fixture values are corrected separately; they
+are not promoted to production bug evidence.
+
+The owner now emits typed `SpotOutflowBlocked` only for a valid BUY that cannot
+fit its outflow reservation bound. Invalid/changed original terms, fee failure,
+projection/binding errors and other safety failures remain generic errors. The
+managed Spot maker BUY retires through ordinary shutdown/position-hold handling,
+without increasing the exchange retry budget or replaying a client ID. The
+controller's existing outflow preview must permit its next proposal. No new
+timer, cap reset, bypass, YAML field, migration or API shape is introduced.
+The connector owns its WARNING; the executor retains a per-order DEBUG reason.
+Classification follows the typed producer event, never matching arbitrary error
+message text. Legacy/unmanaged, perpetual, SELL and non-maker behavior stays
+outside this retirement instruction.
+
+Tests cover configured and unconfigured managed maker entries, repeated blocked
+controller cycles, funded SELL admission and recovery on actual projection-window
+expiry. Prior partial fills/fees remain held exactly once, outstanding orders
+still require cancellation, and an already-requested Stop is not overridden or
+forced past its retry limit by the late denial. Pre-intent and final-send gates,
+persistence/ownership, original fees and scoped quarantine remain authoritative.
+
+Validation: the Cloud Run regression target passes four selections of214,11,
+2,466 and1,041 tests (3,732, plus16 subtests). The focused guard/lifecycle/logging
+selection passes128; the PostgreSQL outflow/automatic/scoped/ownership selection
+passes170. These overlapping selections are not an additive unique-test total.
+The native PG denial case passes with the scoped flag false and true, each with
+one local identity, no transport, no Order/SubmissionAttempt left pending and no
+HALT. Test evidence and hook receipts are retained under
+`build/spot-outflow-retry-20261114/`.
+
+The candidate's full-service Spot-outflow case passes with exactly one observed
+queued denial and no local retry. It preserves funded SELLs, independent
+perpetual admission, original partial-fill fees/rebates, duplicate delivery,
+terminal proof, restart and mode-switch behavior. Receipt:
+`build/e2e-offline/20261114-130804-68100e/result.json`. Its single scenario is not
+a complete release/soak qualification. Image config
+`32ff88b17e769195601bae69a38824cf53d30dd31d22fbac1d7c91ad8888125b`, manifest
+`565fb3ce84c562b962a0f49cab7de22e122283bffea0f2a16974ee89ae9b6556`;
+all14 checked runtime source hashes match the workspace.
+
+The same candidate also passes `scoped-uncertainty` in
+`build/e2e-offline/20261114-131240-bcc680/result.json`: two unresolved BUYs remain
+reserved across Stop/cold Start and running-owner replacement, funded SELLs
+continue, and no duplicate POST or false HALT occurs. This is an offline
+regression of the existing supported quarantine contract, not a new connected
+qualification.
+
+Cloud Run remains on the earlier revision137 during this local work. The real
+guard burst, existing quote99% failure, probe warnings and remaining connected
+quarantine cases are preserved. This fix needs deployment and connected
+verification; it is not claimed to remove all causes of slow probes.

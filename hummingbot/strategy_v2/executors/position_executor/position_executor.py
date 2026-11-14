@@ -830,10 +830,17 @@ class PositionExecutor(ExecutorBase):
             # only the controller may build a replacement from current policy.
             reprice = (event.error_type == "QuoteRefreshRequired" and self.config.use_configured_entry_price
                        and self.status == RunnableStatus.RUNNING)
-            if reprice:
+            outflow_wait = (event.error_type == "SpotOutflowBlocked" and self.config.mm_session_id is not None
+                            and self.config.connector_name == 'okx' and self.config.side == TradeType.BUY
+                            and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
+            if reprice or outflow_wait and self.status == RunnableStatus.RUNNING:
+                # A local, unsent BUY cannot repair its cashflow cap with a new
+                # identity. Drain/hold native effects normally; the controller's
+                # outflow preview must admit any later replacement.
                 self.early_stop(keep_position=True)
-            self._log_order_failure("Open", event, reprice=reprice)
-            self._current_retries += 1
+            self._log_order_failure("Open", event, reprice=reprice, outflow_wait=outflow_wait)
+            if not outflow_wait:
+                self._current_retries += 1
         elif self._close_order and event.order_id == self._close_order.order_id:
             self._failed_orders.append(self._close_order)
             self._close_order = None
@@ -850,18 +857,22 @@ class PositionExecutor(ExecutorBase):
                (self._open_order, self._close_order, self._take_profit_limit_order)):
             self._shutdown_orders_changed.set()
 
-    def _log_order_failure(self, role: str, event: MarketOrderFailureEvent, *, reprice: bool = False):
+    def _log_order_failure(self, role: str, event: MarketOrderFailureEvent, *, reprice: bool = False,
+                           outflow_wait: bool = False):
         from hummingbot.core.order_submission_guard import submission_block_log_context
         context = submission_block_log_context(event.error_type)
         if context is None:
             self.logger().error(f"{role} order failed {event.order_id}. Retrying {self._current_retries}/{self._max_retries}")
             return
         level, reason = context
-        if event.error_type == 'QuoteRefreshRequired':
+        if event.error_type in ('QuoteRefreshRequired', 'SpotOutflowBlocked'):
             # The connector owns the bounded operational warning; executor
             # retirement and its per-order diagnostic remain intact.
             level = logging.DEBUG
-        action = "Retiring entry executor for a fresh quote." if reprice else f"Retry count {self._current_retries}/{self._max_retries}."
+        if outflow_wait:
+            action = "Waiting for outflow capacity through the controller; no local retry."
+        else:
+            action = "Retiring entry executor for a fresh quote." if reprice else f"Retry count {self._current_retries}/{self._max_retries}."
         self.logger().log(
             level, "%s order blocked by service checks: order_id=%s reason=%s. %s",
             role, event.order_id, event.error_message or reason, action,

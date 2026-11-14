@@ -606,6 +606,15 @@ active executors and cooldown. `spot_outflow_blocked` is a guard denial, not pro
 that the spending ceiling was reached: inspect `/status.spot_outflow`, including
 coverage, pending terminal orders and the last BUY denial, for its specific cause.
 
+A fresh pre-intent/pre-transport outflow-cap denial is typed `SpotOutflowBlocked`:
+the connector logs WARNING and the executor keeps its per-order DEBUG reason.
+An unsent managed Spot maker BUY retires through normal hold/shutdown bookkeeping
+instead of immediately spending its retry budget on new client IDs. The
+controller waits for its ordinary outflow preview to permit a fresh proposal;
+SELL and perpetual admission retain their existing gates. This neither resets
+the cap nor proves that an accepted/uncertain order was cancelled. Binding,
+fee/projection failures and changed original terms remain safety errors.
+
 Proposal diagnostics expire after five seconds. Their original UTC
 `proposal_observed_at` stays visible; an outdated or absent diagnosis becomes
 `quote_reason_unavailable` instead of repeating an old balance denial as current.

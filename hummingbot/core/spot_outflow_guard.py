@@ -11,7 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketEvent, OrderFilledEvent
-from hummingbot.core.order_submission_guard import SubmissionBlocked
+from hummingbot.core.order_submission_guard import SpotOutflowBlocked, SubmissionBlocked
 from hummingbot.core.spot_outflow import MAX_FILLS, ZERO, SpotOutflowConfig, SpotOutflowPolicy, SpotOutflowProjection
 from hummingbot.model.order import Order
 from hummingbot.model.trade_fill import TradeFill
@@ -167,8 +167,18 @@ class SpotOutflowGuard:
             if self.terminal_pending:
                 raise ValueError("spot_outflow_reconciling")
             flat = self._flat_fee(connector, order)
+            amount, price = Decimal(order.amount), Decimal(order.price)
+            if any(not value.is_finite() or value <= ZERO for value in (amount, price)):
+                raise ValueError("spot_outflow_order_terms_unavailable")
+            existing = self.projection.reservations.get(order.client_order_id)
+            if existing is not None and (existing.amount, existing.price, existing.flat_fee) != (amount, price, flat):
+                raise ValueError("spot_outflow_order_terms_changed")
             if not self.projection.reserve(order, flat):
-                raise ValueError(self.projection.reason() or "spot_outflow_limit")
+                reason = self.projection.reason()
+                if reason:
+                    raise ValueError(reason)
+                self.last_buy_denial = "spot_outflow_limit"
+                raise SpotOutflowBlocked(self.last_buy_denial)
         except (ValueError, TypeError, ArithmeticError) as error:
             self.last_buy_denial = str(error)
             raise SubmissionBlocked(self.last_buy_denial) from None

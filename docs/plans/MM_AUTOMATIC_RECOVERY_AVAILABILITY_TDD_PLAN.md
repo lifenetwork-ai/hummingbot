@@ -415,7 +415,29 @@ policy is changed as part of local implementation.
   [matrix evidence](../../reports/performance/mm-quote-replacement-latency.md#bounded-scoped-fault-matrix--2026-11-14).
 - [x] Qualify the initial native/PostgreSQL/full-service offline subset. Preserve
   the initial whole-service failure and the proposal/native quantization fix.
-- [ ] Deploy explicitly and observe one stable revision for30minutes.
-  Existing99%/probe failures remain. The rollout flag remains false.
+- [x] Verify the explicit Demo rollout and one stable30-minute observation.
+  Revision137/`8b46a1cee` is independently verified at100% traffic with the flag
+  true, correct startup/live probes and a complete901-sample window. Financial/
+  binding checkpoint hashes match. No sample exercises quarantine, so the
+  connected recovery/lifecycle checklist above remains open.
+- [x] Retain a connected positive-cancel recovery receipt: on revision137, an
+  OKX503/status-read failure leads to uncertain Spot SELL cancellation and
+  automatic positive proof/resume in2.43s from pause (about7.42s from the first
+  logged read failure), audit306/309/310, with no operator reset/Start. This is
+  not an uncertain-BUY quarantine qualification.
+- [ ] Close the unchanged quote/probe acceptance targets. Spot98.93% is below99%,
+  perpetual has no confirmed eligible two-sided samples, and five short engine
+  probe timeouts remain in the window. The later private-WS1006 retry is recorded
+  separately; the earlier clean window does not make the whole revision ERROR-free.
+  See [the connected observation](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision137-operator-enabled-scoped-recovery-observation).
+- [x] Local TDD for the Spot-outflow guard retry burst: native connector/PG
+  reproduces12 client IDs before the fix; typed cap denial now retires one unsent
+  managed BUY without consuming the exchange retry budget. Controller admission
+  waits for capacity; prior fills, pending orders and Stop semantics remain.
+  Cap, binding, fee, persistence and ownership fences stay authoritative.
+- [ ] Deploy the outflow retry fix and verify connected denial/recovery. The
+  revision137 burst remains historical evidence; local qualification does not
+  turn that connected failure into a pass or close the other quote/probe gates.
+  See [the later health check](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision137-later-health-check--2026-11-14).
 - [ ] General concurrent openings/Perpetual CLOSE: extend only after independent
   worst-case shared-collateral, hedge-quantity and cost-basis proofs are tested.

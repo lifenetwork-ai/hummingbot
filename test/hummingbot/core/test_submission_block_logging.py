@@ -52,6 +52,7 @@ def test_shutdown_remains_a_block_but_is_expected_control():
 @pytest.mark.parametrize('error_type,level', [
     ('SessionSubmissionBlocked', logging.INFO),
     ('MarketReadinessBlocked', logging.WARNING),
+    ('SpotOutflowBlocked', logging.WARNING),
     ('QuoteRefreshRequired', logging.WARNING),
     ('SubmissionBlocked', logging.ERROR),
     ('OwnershipLost', logging.ERROR),
@@ -136,7 +137,7 @@ def test_mm_authority_distinguishes_waiting_from_missing_wiring(scope, permits, 
 
 
 @pytest.mark.parametrize('cls', [guard.SessionSubmissionBlocked, guard.MarketReadinessBlocked, guard.QuoteRefreshRequired,
-                                 guard.SubmissionBlocked, OwnershipLost])
+                                 guard.SpotOutflowBlocked, guard.SubmissionBlocked, OwnershipLost])
 def test_failure_event_preserves_block_type_reason_and_failed_state(cls):
     from hummingbot.connector.client_order_tracker import ClientOrderTracker
     from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState

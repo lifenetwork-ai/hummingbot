@@ -1,6 +1,26 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest operational update (2026-11-14 ICT): revision134/`e43fde2ab` is verified
+Latest check (2026-11-14,12:44ICT): revision137 remains Ready at100% traffic,
+flag true, control/ack88/88 running without HALT or quarantine. Fresh API history
+since11:44ICT contains137 Spot fills and at least300 order records (the bounded
+order scan is intentionally incomplete). An actual OKX503/cancel-uncertainty
+case has automatic proof/resume receipts2.43s apart, without operator recovery.
+Financial/binding checkpoint hashes still match. Residual probe warnings and a
+rapid Spot-outflow guard retry burst remain; see
+[the later health check](#revision137-later-health-check--2026-11-14).
+
+Latest operational update (2026-11-14 ICT): revision137/`8b46a1cee` is verified at
+100% traffic with scoped recovery enabled. A complete30-minute API window has901 samples,
+no request/status errors and161 recorded orders/12 Spot fills in the interval.
+The final bot is running without HALT at control/ack88/88. Spot's conservative
+quote result is98.93%, below99%; perpetual has no confirmed eligible two-sided
+samples. No uncertainty occurs, so connected scoped recovery remains unproved.
+After reauthentication, its exact window has no ERROR/restart and five short
+probe timeouts. A later private-WS1006 retry is recorded separately; current
+readback is running/no HALT and the financial/binding checkpoint hashes match. See
+[revision137 observation](#revision137-operator-enabled-scoped-recovery-observation).
+
+Previously (2026-11-14 ICT), revision134/`e43fde2ab` was verified
 at100% traffic. Control/ack88/88 is running without HALT. The read-only DB
 snapshot has no pending creations or unapplied fills, and both financial and
 account-binding checkpoint hashes match. Scoped recovery remains disabled;
@@ -53,6 +73,168 @@ Subsequent operational control observation05:54–06:24UTC retains19 probe
 timeouts across three successful profile changes. The local read/startup TDD
 follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
+
+## Revision137 operator-enabled scoped recovery observation
+
+The initial API observation was collected while gcloud reauthentication was
+pending. After the operator reauthenticated, Cloud Run independently confirms
+`hummingbot-demo-00137-c8z` Ready at100% traffic, with
+`MM_SCOPED_RECOVERY_ENABLED=true`, Demo routing and `postgres_kms` credentials.
+Artifact Registry maps commit `8b46a1cee51be1c2f91ab5b6f903c2980643f077` to its
+running digest
+`sha256:bf9bfd8236d6be1a428091747f6ab3b4f71e35508719679536f39fabb295d574`.
+Resources are2CPU/1GiB; startup/liveness use `/startup` and `/live`, not trading
+readiness. Container configuration matches revision134 except image and the
+scoped flag; no other env variable differs. The immutable revision metadata
+verifies the flag for the earlier observation, not merely the current idle status.
+
+The unchanged conservative classifier observes19:37:44.686–20:07:46.125UTC on
+November13 (02:37:44.686–03:07:46.125ICT on November14):901 samples over1801.439s,
+maximum sample gap2.446s, no collection/identity failures. Window quality passes.
+The same until-stopped Random session and control/ack88/88 remain; its profile
+generation advances26→29. No control, exchange, Cloud configuration or DB writes
+are made by this observer.
+
+- Spot:554 two-sided,341 guard exclusions,6 unknown and no confirmed eligible
+  gaps. Conditional quoting is554/554, but the unchanged conservative result is
+  554/560 =98.93%, below99%. Guard exclusions remain separate from successful
+  quoting; reasons include order-size/allocation, readiness and Spot outflow.
+- Perpetual:895 guard exclusions and6 unknown, with zero confirmed eligible
+  samples. Its two-sided target remains unqualified. Inventory limits dominate;
+  this is not presented as zero-percent trading availability.
+
+There are889 running,3 starting and9 waiting-for-readiness observations, with
+no `status.error`, stale-service sample or pending-mutation observation. Three
+samples expose the explicitly temporary shutdown fence during profile handoff;
+each clears in the next2s sample. They and the corresponding three starting
+samples remain unknown/failing observations. Each handoff reaches running again
+about10s after its first fenced sample. No manual reset or Start is issued.
+The subsequent exact-window Cloud Logging query confirms no ERROR, scheduled
+child restart, service-stop or ownership-loss entry in that bounded interval.
+
+Bounded, complete API history pages for the exact interval contain161 order
+records (101 Spot/60 perpetual), all with exchange IDs and none creation-pending
+at readback. Recorded statuses are148 cancelled,10 completed and3 created.
+There are12 recorded fills, all Spot; none are perpetual. These are recorder
+observations, not a new exchange-wide reconciliation or independent venue-fill
+comparison. `/startup`, `/live` and `/ready` return200 at both bookends. Final
+status is running/no HALT/no pending mutation, with automatic recovery idle,
+zero quarantined orders and zero reported reservations.
+
+No sample enters isolated recovery. Ordinary quoting and handoff observations
+cannot close lost-ACK/late-fill/Disconnect/OOM-under-quarantine connected gates
+or prove no duplicate POST under uncertainty. Those gates and the original
+quote/probe targets remain open. External API p99/max is269.08/544.36ms for
+status and257.53/546.13ms for liquidity; these are HTTP observation timings,
+not engine-probe or order-placement timings. No probe threshold is changed.
+
+### Log and checkpoint verification after reauthentication
+
+The exact observation window has39 WARNING entries: five supervisor probe
+timeouts,16 slow-stage diagnostic reports, nine loop-stall and nine loop-recovered
+reports. Probe waits are300.659–300.799ms against the unchanged300ms budget;
+each reports a single failure and zero accumulated failure seconds. Four occur
+near profile handoffs and one occurs mid-profile. This temporal association does
+not establish one blocking frame or root cause. Retained slow-span lists can
+repeat earlier spans; they are not summed as fresh stalls. The probe gate remains
+open, and external API timings are not substituted for engine-loop latency.
+
+The separate subsequent log query (records20:08:09–22:45:26UTC) has19 further
+probe timeout transitions and one ERROR at20:37:34.619UTC: the perpetual private
+WebSocket closes unexpectedly with code1006. The native listener catches it
+and enters its existing5s retry path. No scheduled engine restart, service-stop,
+ownership-loss or technical-HALT entry appears in this bounded query. Exact
+reconnection time is not available in retained logs; current readiness is not
+claimed as a timestamped reconnect receipt. Do not describe the whole revision
+as ERROR-free based on the earlier clean window.
+
+At22:45:32UTC (05:45:32ICT), fresh status is still running on revision137,
+control/ack88/88, no HALT/pending mutation/availability incident and automatic
+recovery idle with no quarantine. Spot has working BUYs, with SELL size/inventory
+skew blocked; perpetual has working SELLs with BUY inventory-limited. Drawdown
+is fresh and below its unchanged limits.
+
+A repeatable-read, read-only DB transaction confirms both financial and
+account-binding checkpoint hashes match, watermark40196, three positions,
+four acknowledged attempts, zero pending creations, zero unapplied fills and
+no risk-stop flag. No prepared/possibly-sent/uncertain attempt is present.
+The temporary loopback Cloud SQL Auth Proxy is stopped after the read. No
+financial/credential/control maintenance or Cloud change is performed.
+
+Evidence (ignored/private): `build/cloudrun-scoped-enabled-20261114/` retains the
+901 raw paired observations, unchanged classifier/hash, quality/quote analysis,
+transitions, bounded history pages, final status/health, the original gcloud error
+receipt, successful immutable revision/tag/traffic verification, bounded log
+queries and the sanitized DB preflight. The earlier revision134 credential
+reference was used only for initial read-only API authentication; it was never
+treated as evidence of revision137 configuration.
+
+## Revision137 later health check — 2026-11-14
+
+At05:44:40UTC (12:44:40ICT), Cloud Run still reports revision137 Ready at100%
+traffic, with the same pinned digest,2CPU/1GiB and scoped flag true. Status and
+engine observation agree: running, owner available, control/ack88/88, fresh
+observer, no current HALT/pending mutation/availability incident/quarantine.
+Startup/live/ready each return200. The same until-stopped session is at
+generation87. Spot has working SELLs with BUY size/skew blocked; perpetual has
+working SELLs with BUY inventory-limited. Funding and drawdown are fresh; no risk
+limit is breached. No control or configuration changes are made by this check.
+
+A bounded history read since04:44:14UTC returns137 Spot fill records, timestamped
+04:50:29–05:41:35UTC. There are at least300 order records (217 Spot/83 perpetual)
+before the six-page order budget is reached. Do not present300 as the complete
+hour total. None of these300 rows is creation-pending. A separate repeatable-read,
+read-only DB snapshot confirms the global pending-creation and unapplied-fill
+counts are both zero, with four acknowledged attempts, three position rows,
+matching financial/binding hashes and checkpoint watermark45768. There is no
+prepared/possibly-sent/uncertain attempt or risk-stop flag. The temporary SQL
+Auth Proxy is closed afterward.
+
+A final GET at05:49:58.881UTC (12:49:58.881ICT) reconfirms revision137 running,
+control/ack88/88, fresh observation, no HALT/pending mutation/quarantine and
+automatic recovery idle.
+
+### Actual transient cancellation recovery
+
+At05:14:12.356UTC, OKX order-status GET returns HTTP503/code50001, service
+temporarily unavailable. At05:14:17.433UTC, the native connector logs cancellation
+outcome awaiting reconciliation for one Spot SELL. Its runtime audit receipts
+are306 (pause05:14:17.345775),309 (positive order proof05:14:19.729106) and310
+(authority reverified/resume05:14:19.777427). Pause-to-resume is2.431652s;
+first logged GET failure to resume is about7.42s. These are distinct intervals.
+
+The order detail has its original exchange ID, status `OrderCancelled`, no
+pending creation and zero recorded filled amount. Current automatic recovery is
+idle and owner generation remains524. This is evidence of automatic positive
+cancel proof/resume without a manual HALT reset or Start. It is an uncertain
+SELL cancellation, not the supported uncertain-BUY/funded-SELL quarantine case;
+do not close the latter connected gate from these receipts. Recorder/audit state
+alone is also not a complete exchange POST-attempt trace.
+
+### Residual warnings and a retry burst
+
+The most recent one-hour query contains111 WARNING entries and no ERROR:
+14 supervisor probe timeouts at300.759–301.411ms,26 slow-stage diagnostics,
+30 loop-stall/30 loop-recovered reports and11 other warnings. No restart-scheduled,
+service-stop, ownership-loss or incident entry appears in that bounded query.
+Probe deadlines and coarse diagnostic maxima still do not establish one root
+cause. The latency gate remains open.
+
+The eight-hour ERROR query is not clean: one perpetual private-WS1006 closure
+at04:38:23.854UTC enters its existing retry handler. Another23 ERROR entries
+at02:28:32.164–02:28:32.563UTC report the protective `spot_outflow_limit` denial
+across12 local order IDs, including executor retry counts0–10. Those are service
+guard denials, not proof of12 rejected venue POSTs or an exchange outage.
+The approximately0.40s retry burst is an operational follow-up: reproduce it with
+TDD and verify guard-aware retry pacing/diagnostic severity without loosening the
+outflow cap. This health check identifies that issue; it does not implement or
+qualify its fix. No financial HALT is currently present, but do not label the
+revision completely free of errors or operational inefficiency.
+
+Evidence: `build/cloudrun-check-20261114-1244/` retains authenticated status,
+health, immutable metadata, recent/ERROR log queries, target-order log/audit/
+detail receipts, bounded history pages and the read-only DB preflight. No runtime
+source, account policy, credentials, risk limit or financial row is modified.
 
 ## Revision134 scoped lifecycle fix deployment
 

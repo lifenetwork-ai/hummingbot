@@ -1294,6 +1294,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         original = path.read_bytes()
         profiles = yaml.safe_load(path.read_text())
         profiles["spot_outflow"] = dict(window_seconds=300, max_net_outflow_quote="30", fee_allowance_rate=".01")
+        for market in profiles['markets'].values():
+            market['spread_policy'] = dict(fee_floor=True)
         path.write_text(yaml.safe_dump(profiles))
         self.report.joinpath("effective-outflow-profiles.yaml").write_bytes(path.read_bytes())
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
@@ -1313,6 +1315,17 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
              description="only one spot BUY fits the outflow cap; both funded sells remain")
         poll(lambda: len(live("LIFE-USDT-SWAP", "buy")) == 2, description="spot cap leaves perpetual admission intact")
         assert flow()["ready"] and Decimal(flow()["reserved_quote"]) <= 30
+        # Both proposals can be queued before the first native BUY reserves
+        # cash. Any final-gate denial must retire locally instead of spinning.
+        time.sleep(2)
+        logs = docker('logs', first, check=False)
+        lines = (logs.stdout + logs.stderr).splitlines()
+        denied = [line for line in lines if 'Order submission blocked by service checks' in line
+                  and 'reason=spot_outflow_limit' in line]
+        denied_ids = {re.search(r'order_id=([A-Za-z0-9]+)', line).group(1) for line in denied}
+        assert len(denied_ids) <= len(profiles['markets']['spot']['buy_spreads']), 'Outflow denial spun through local IDs'
+        assert not any('Open order blocked by service checks' in line and 'reason=spot_outflow_limit' in line
+                       and 'Retry count' in line for line in lines), 'Executor retried an unchanged outflow cap'
         buy = live("LIFE-USDT", "buy")[0]
         amount = Decimal(buy["sz"]) / 2
         self.control(fill={"clOrdId": buy["clOrdId"], "amount": str(amount), "fee": ".001"}, duplicate=True)
@@ -1345,6 +1358,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert Decimal(flow()["reserved_quote"]) == 0
         assert self.sql("SELECT count(*) FROM trade_fills") == "2" and not self.ledger()["unknown"]
         self.metrics["spot_outflow"] = dict(buy_only_cap=True, perpetual_unaffected=True, funded_sells_continue=True,
+                                            queued_denials=len(denied_ids), no_local_outflow_retry=True,
                                             partial_commit=True, original_usdt_fee_and_rebate=True, duplicates=2,
                                             terminal_proof_releases=True, restart_and_mode_switch=True, bound_identity=True,
                                             used_quote=str(after_sell), effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
