@@ -1,11 +1,20 @@
 # OKX Demo and current offline image acceptance
 
+Latest2026-11-15,02:09ICT: revision144/4fa9ef95c is verified at100% traffic,
+unchanged2CPU/1GiB/env. The valid repeated30-minute window has901 samples,
+230 recorded orders/102 Spot fills, matching checkpoints and final running/
+control88/88/health200. Three profile shutdowns complete without ERROR/restart/
+ownership loss. One300.798ms probe timeout remains; Spot93.70% fails99% and
+perpetual has no confirmed eligible two-sided samples/new fills. The first
+Mac-sleep-interrupted attempt remains invalid. This is not full release
+acceptance. See [revision144](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision144-guarded-admission-deployment-and-observation).
+
 Local follow-up after revision142 reduces ordinary intent/Created persistence
 from four guarded flushes to two and adds bounded timing for these DB stages.
 Native929 tests +9 subtests,217 disposable PostgreSQL tests and two same-image
 packaged scenarios pass. The final local shutdown run still has one303.954ms
-probe timeout, recovered after1.043s without restart/HALT. This is not deployed
-evidence and does not close Spot95.32%, perpetual eligibility or
+probe timeout, recovered after1.043s without restart/HALT. The fix is now deployed
+and included in revision144; its local evidence does not close quote/perpetual or
 the residual probe gates. No config/migration is needed. See
 [the local follow-up](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision142-intentack-db-follow-up--local).
 

@@ -1,5 +1,27 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Revision144 connected guarded-admission observation — 2026-11-15
+
+Commit4fa9ef95c is verified on revision144 at100% traffic with unchanged
+2CPU/1GiB/config; it includes the preceding intent/ACK coalescing fix.
+The valid repeated01:38:49–02:08:50ICT window has901 samples/quality pass,
+230 recorded orders/102 Spot fills and matching financial/binding checkpoints.
+Final health is200, control88/88 is running without a recovery block; all three
+profile shutdowns complete1.135/1.128/1.185s without engine restart/ownership loss.
+
+The exact window has37 WARNING/no ERROR, including one300.798ms probe timeout
+and one status51603 warning whose order later has an exchange ID and terminal
+zero-fill cancellation. The remaining35 are diagnostics. No retained
+synchronous span/stack sample intersects the probe wait; an async submit overlap
+cannot establish blocking. Residual probe attribution stays open.
+
+Spot223two-sided/9gaps/663guards/6unknown gives93.70%, below99%; conditional
+96.12% also fails. Perpetual remains unqualified with no confirmed eligible
+two-sided samples/new fills. This is not a controlled A/B or throughput claim.
+The first Mac-sleep-interrupted attempt remains invalid; its three probe
+timeouts and402 recorded orders/187 Spot fills are separate evidence.
+See [the full scope](../demo/cloudrun-quote-replacement-acceptance.md#revision144-guarded-admission-deployment-and-observation).
+
 ## Probe callback fairness — local, 2026-11-15
 
 The retained303.954ms local HTTP timeout has two heartbeat values386.608ms

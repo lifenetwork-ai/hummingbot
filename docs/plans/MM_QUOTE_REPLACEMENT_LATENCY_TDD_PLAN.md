@@ -58,8 +58,15 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
   272 SQL each, callback wait978→38ms and all-eight completion1569→1594ms.
   The single total is1.6% higher; do not call it a throughput improvement or
   replace the connected quote acceptance window with callback timing.
-- [ ] Deploy and repeat the unchanged connected30-minute window; retain unknown
-  as failure and distinguish callback, DB, HTTP probe and venue ACK timings.
+- [x] Deploy and repeat unchanged connected30-minute observation on144/4fa9ef95c:
+  901 samples/quality pass,230 recorded orders/102 Spot fills, matching final
+  checkpoints and three successful profile shutdowns. No in-window ERROR/
+  restart/ownership loss; final running/control88/88/health200.
+- [ ] Close remaining gates: Spot93.70% fails99%(9gaps/6unknown), perpetual
+  has no confirmed eligible two-sided samples/new fills, and one300.798ms probe
+  timeout remains without a unique blocking cause. Retain the invalid first
+  Mac-sleep attempt and all historical failures. See
+  [revision144](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision144-guarded-admission-deployment-and-observation).
 
 Evidence: `build/probe-admission-followup-20261115/`; see
 [the exact local timeline and scope](../../reports/demo/cloudrun-quote-replacement-acceptance.md#probe-callback-fairness--local-follow-up-2026-11-15).
@@ -86,9 +93,10 @@ Evidence: `build/probe-admission-followup-20261115/`; see
   immutable local candidate. Both pass with existing deadlines and economic
   assertions; completed stages are positively observed. Keep the final local
   probe timeout303.954ms/recovered1.043s, without restart/HALT, as open evidence.
-- [ ] Deploy the qualified candidate and repeat unchanged30-minute observation
-  on one image. Separate DB stage timings from transport ACK and probe waits;
-  retain unknown-as-failure and all financial/risk/ownership gates.
+- [x] Deploy the coalescing fix on143 and observe it together with admission
+  fairness on144. The repeated901-sample window passes quality, not the quote
+  target; DB stage versus transport/probe attribution remains separate.
+  Unknown-as-failure and financial/risk/ownership gates are unchanged.
 
 Evidence: `build/quote-gap142-followup-20261114/`; see
 [the local acceptance scope](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision142-intentack-db-follow-up--local).

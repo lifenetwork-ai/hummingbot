@@ -482,7 +482,8 @@ policy is changed as part of local implementation.
   timing distinguishes the DB stages. Native929 +9 subtests and217 PostgreSQL
   checks and two same-image packaged scenarios pass locally. One final local
   probe timeout recovers after1.043s without restart/HALT; preserve it.
-  Connected qualification is still required. See
+  The change is now included in the completed revision144 observation below;
+  quote/probe acceptance remains open. See
   [the local scope](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision142-intentack-db-follow-up--local).
 - [ ] Close remaining availability gates: Spot95.32% fails99% with15 gaps and6
   unknown; three short probe timeouts remain. No submission-block event occurs,
@@ -501,5 +502,15 @@ policy is changed as part of local implementation.
   unqualified. The startup-history follow-up is now deployed on revision139; the
   revision137 burst remains historical evidence; do not close the other gates.
   See [the later health check](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision137-later-health-check--2026-11-14).
+- [x] Deploy intent/ACK coalescing and fair admission on144/4fa9ef95c. The
+  repeated901-sample30-minute window passes data quality with230 recorded
+  orders/102 Spot fills, matching checkpoints and three completed profile
+  shutdowns; no ERROR/restart/ownership loss. Final control88/88 is running,
+  health200, no recovery block. The Mac-sleep attempt is retained as invalid.
+- [ ] Close revision144's remaining gates: Spot93.70% still fails99% with9
+  gaps/6unknown; perpetual has no confirmed eligible two-sided samples/new
+  fills. One300.798ms probe timeout remains without a unique blocking cause.
+  Positive connected fault and production gates remain open. See
+  [revision144](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision144-guarded-admission-deployment-and-observation).
 - [ ] General concurrent openings/Perpetual CLOSE: extend only after independent
   worst-case shared-collateral, hedge-quantity and cost-basis proofs are tested.

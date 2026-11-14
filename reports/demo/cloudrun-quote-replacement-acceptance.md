@@ -1,5 +1,13 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
+Latest completed observation (2026-11-15,02:09ICT): revision144/4fa9ef95c is
+verified at100% traffic with unchanged2CPU/1GiB/env. The repeated uninterrupted
+30-minute window has901 samples/quality pass,230 recorded orders/102 Spot fills,
+matching financial/binding checkpoints and final running/control88/88/health200.
+No in-window ERROR/restart/ownership loss occurs. One300.798ms probe timeout
+remains; Spot93.70% fails99%, perpetual has no confirmed eligible two-sided
+samples. See [revision144](#revision144-guarded-admission-deployment-and-observation).
+
 Latest completed observation (2026-11-14, 23:13 ICT): revision142/`f61e6516c`
 is verified at100% traffic with unchanged non-image configuration. Its complete
 30-minute window has901 samples/quality pass,270 recorded orders and141 Spot
@@ -145,6 +153,81 @@ Subsequent operational control observation05:54–06:24UTC retains19 probe
 timeouts across three successful profile changes. The local read/startup TDD
 follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
+
+## Revision144 guarded-admission deployment and observation
+
+Cloud Build a4cc3f8e-5acc-43d9-a783-29702c21183d successfully deploys full commit
+4fa9ef95c564c35028db3d2682dbd0065b64d7fb. Revision hummingbot-demo-00144-l5f
+is Ready from00:41:14ICT Nov15 and receives100% traffic. The immutable commit
+tag and revision both resolve to image
+sha256:f3684467c91317fe71fbd583f688a92026c6934110e671c84789287a88163c2b.
+All non-image container/spec settings match143, including2CPU/1GiB, Demo,
+postgres_kms and enabled diagnostics/migration/scoped recovery. Revision143
+already contains the preceding0cce6e7a7 intent/ACK coalescing change.
+
+During handoff, a GET/ready503 request at00:41:47ICT is logged as an HTTP ERROR
+while the new router still observes owner143. By00:42:41 both identities are144
+and all health endpoints are200. Keep that startup request separate from the
+stable window; no application error or manual recovery is inferred from it.
+
+The first local sampler is invalidated by confirmed Mac Idle/Maintenance Sleep
+00:48–01:33ICT and stops with only214 samples. It is not a completed quote gate.
+Its independent Cloud log query still covers00:43:22–01:36:40:66 WARNING,
+zero ERROR/restart/ownership loss and three300ms probe timeouts. Server history
+to01:36:04 has402 recorded orders/187 Spot fills and five completed profile
+shutdowns. These belong to the interrupted attempt, not the repeated window.
+
+The repeat uses a process-bound sleep assertion and wall-clock deadline; the
+classifier and2s cadence are unchanged. Window01:38:49.253–02:08:50.641ICT
+(18:38:49.253–19:08:50.641UTC Nov14) completes901 samples over1801.111s,
+maximum gap2.419s, no request/identity failures, one revision/session and quality
+pass. It contains three successful profile handoffs.
+
+| Market | Two-sided | Eligible gap | Guard excluded | Unknown | Conservative result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Spot |223|9|663|6|223/238 =93.70%; fails99%|
+| Perpetual |0|0|895|6|No confirmed eligible samples; unqualified|
+
+Spot's conditional223/232 =96.12% also fails. All nine gaps report pending
+state: five executor_activity and four submission_pending. All have nearby
+recorded creations/fills, but second-resolution history and aggregate pending
+counts do not identify exact per-order ACK latency. The six unknowns occur
+around profile changes; two explicitly expose the temporary shutdown fence,
+clearing in the next sample. Retain all as failures. A separate~6s
+guard_recovering interval returns to running automatically. Guards are never
+counted as working quotes. Different inventory/eligibility/fill mixes prevent
+attributing93.70% versus142's95.32% to this patch alone; both remain failures.
+
+The complete native history scan returns230 recorded orders(168 Spot/62
+perpetual), no provisional orders, and102 Spot fills/no perpetual fills.
+Initial/final REPEATABLE READ READ ONLY snapshots retain physical owner532,
+three positions and matching financial/binding hashes. Watermark56707→57206;
+final pending creations, unapplied fills and prepared/possibly-sent/uncertain
+attempts are zero. Four attempts are acknowledged; risk stop is false.
+Final status is running/no recovery block/control88/88, all health endpoints200.
+
+The exact window has37 WARNING and zero ERROR/restart/ownership-loss entries.
+Three shutdown totals are1.135/1.128/1.185s; first proof550/569/631ms and fresh
+post-checkpoint proof381/384/390ms. These nested stages are not additive.
+One probe times out at300.798ms. None of131 retained synchronous main-thread
+spans or seven watchdog stack samples intersects its exact client wait.
+One asynchronous submit span overlaps; its awaited wall time is not blocking
+proof. Retained absence cannot exclude unobserved blocking. The unique cause
+and connected probe gate remain open; the300ms budget is unchanged.
+
+One other WARNING is status51603 for a fresh SELL. Later retained history has
+its exchange ID and terminal cancellation with zero fills/no pending creation;
+the single not-found response is not treated as proof of absence. The other35
+warnings are bounded diagnostic events. Keep all warnings and the original
+local timeout. Finite deployment verification is not full release/production
+acceptance or positive connected fault qualification.
+
+Evidence (ignored/private): build/admission-postdeploy-20261115-003526/
+retains build/tag/config/handoff and interrupted-attempt proof;
+build/admission-awake-postdeploy-20261115-013828/ retains the valid repeat,
+native history, exact-window logs/timing correlation and final API/DB readbacks.
+This verification makes GET/read-only DB queries only; no Cloud, credentials,
+risk policy, HALT or trading-control mutation is made.
 
 ## Probe callback fairness — local follow-up, 2026-11-15
 
