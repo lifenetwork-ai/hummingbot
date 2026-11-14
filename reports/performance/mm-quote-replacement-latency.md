@@ -1,5 +1,38 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Revision139 later-account progress — 2026-11-14
+
+All six Spot gaps are isolated2s samples. Two follow full fills whose first
+native report still has cash observations older than the fills. The controller
+correctly retains capacity, but the later valid cash update has no dedicated
+report wakeup. Native TDD reproduces that missing progress signal. The local
+candidate coalesces balance updates and reuses the existing report/commit path
+once for a newly covered full fill; repeated account updates do not add reports.
+Invalid/stale cash, foreign scope, failed reports and Stop retain their fences.
+
+This is not the cause of every sample: pending-create/ACK states, guard
+transitions and synchronous financial DB waits also occur. The five unknown
+handoff samples still fail; original quote acceptance remains96.51%, below99%.
+Perpetual has acknowledged closing-long payloads and fresh fee-readiness, but no
+new fill to qualify handoff at the current breakeven price. The
+[acceptance follow-up](../demo/cloudrun-quote-replacement-acceptance.md#revision139-cash-progress-correlation-and-local-correction)
+retains exact evidence, validation and remaining gates.
+
+## Revision139 deployed comparison — 2026-11-14
+
+The verified deployment of`6cb7e7f56` to revision139 completes an unchanged
+30-minute observation with901 samples/quality pass,161 recorded orders and39
+Spot fills. Exact-window logs contain no ERROR/restart/probe timeout and no
+sampled recurrence of main-thread executor-history loading. Final health200,
+control88/88 and matching financial/binding checkpoints are retained.
+
+This is scoped rollout evidence. Eight sampled financial DB/primary-key wait
+stacks remain; a300.795ms startup probe timeout before the window has no matching
+stack in its exact wait. Spot's conservative quote result is96.51%, below99%,
+and perpetual has no confirmed eligible two-sided samples. Different guard and
+market mixes prevent attributing the percentage change from revision138 to this
+patch. See the [full revision139 acceptance](../demo/cloudrun-quote-replacement-acceptance.md#revision139-startup-history-deployment-and-observation).
+
 ## Revision138 startup-history isolation — 2026-11-14
 
 The initial revision138 log slice contains five approximately301ms supervisor
@@ -57,8 +90,10 @@ All packaged engine/controller/script-strategy Python sources match the working
 tree. Of1,100 checked Python files, nine test/deployment utilities differ from
 the underlying image; the E2E host runner uses current source. These utilities
 are not claimed as candidate runtime changes.
-The current Cloud observation still measures the unpatched revision138; its
-30-minute quote/probe results cannot qualify the local correction.
+The preceding revision138 observation measures the unpatched code; its
+30-minute quote/probe results cannot qualify the correction. Revision139 is now
+verified deployed with commit`6cb7e7f56`; its separate connected observation is
+recorded in the existing acceptance report.
 
 Evidence (ignored/private): `build/probe-correlation-20261114-1338/`, including
 the retained original diagnostic JSON, deduplicated initial probe correlation,

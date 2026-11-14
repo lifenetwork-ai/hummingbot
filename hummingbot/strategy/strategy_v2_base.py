@@ -289,6 +289,7 @@ class StrategyV2Base(StrategyPyBase):
         self.controller_reports_error = None
         self._managed_report_handle = None
         self._managed_report_pending = {}
+        self._spot_account_progress_task = None
         self.market_data_provider = MarketDataProvider(connectors)
         self._is_stop_triggered = False
         self._stop_triggered_before_cleanup = None
@@ -309,6 +310,16 @@ class StrategyV2Base(StrategyPyBase):
             strategy=self,
             initial_positions_by_controller=self._collect_initial_positions(), **history
         )
+        connector = self.connectors.get('okx')
+        event = getattr(connector, 'account_balance_update_event', None)
+        if isinstance(event, asyncio.Event) and any(
+                getattr(controller.config, 'connector_name', None) == 'okx'
+                and isinstance(getattr(controller.config, 'mm_session_id', None), str)
+                and controller.config.mm_session_id
+                and type(getattr(controller.config, 'mm_generation', None)) is int
+                for controller in self.controllers.values()):
+            self._spot_account_progress_task = asyncio.create_task(
+                self._watch_spot_account_progress(connector, event), context=Context())
 
     # -------------------------------------------------------------------------
     # Shared methods (simple + V2 modes)
@@ -362,9 +373,13 @@ class StrategyV2Base(StrategyPyBase):
         # Stop controllers FIRST to prevent new executor actions
         for controller in self.controllers.values():
             controller.stop()
-        if self.listen_to_executor_actions_task:
-            self.listen_to_executor_actions_task.cancel()
-            await asyncio.gather(self.listen_to_executor_actions_task, return_exceptions=True)
+        tasks = [task for task in (self.listen_to_executor_actions_task,
+                                   getattr(self, '_spot_account_progress_task', None)) if task is not None]
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._spot_account_progress_task = None
         await asyncio.gather(*(controller.wait_closed() for controller in self.controllers.values()))
 
         # Executors may still need to place position-closing orders during shutdown.
@@ -789,6 +804,48 @@ class StrategyV2Base(StrategyPyBase):
         if (executor.is_active and getattr(executor, '_is_managed_maker_entry', False)
                 and executor._completed_entry_fill_timestamp() is not None):
             self._queue_managed_executor_report(executor)
+
+    async def _watch_spot_account_progress(self, connector, event):
+        """A later cash update may cover a full fill after its first report.
+
+        Reuse coalesced native reports/commits; a balance event neither releases
+        an executor level nor supplies any new order/financial authority.
+        """
+        reported = {}
+        while True:
+            await event.wait()
+            event.clear()
+            if self._is_stop_triggered or self.connectors.get('okx') is not connector:
+                return
+            if self.controller_reports_error is not None:
+                continue  # A failed report retains its ordinary clock retry.
+            covered_entries = {}
+            for identity, controller in self.controllers.items():
+                config = controller.config
+                covers = getattr(controller, '_entry_account_covers_fill', None)
+                if (getattr(config, 'connector_name', None) != 'okx' or not callable(covers)
+                        or getattr(controller, '_session_admitted', False) is not True
+                        or getattr(controller, '_control_error', None) is not None):
+                    continue
+                scope = (getattr(config, 'mm_session_id', None), getattr(config, 'mm_generation', None))
+                queued = False
+                for executor in self.executor_orchestrator.active_executors.get(identity, []):
+                    if (not executor.is_active or getattr(executor, '_is_managed_maker_entry', False) is not True
+                            or (executor.config.mm_session_id, executor.config.mm_generation) != scope):
+                        continue
+                    stamp = executor._completed_entry_fill_timestamp()
+                    try:
+                        covered = stamp is not None and covers(executor, stamp)
+                    except (ValueError, ArithmeticError, AttributeError, TypeError):
+                        covered = False
+                    if covered:
+                        covered_entries[executor] = stamp
+                        if not queued and reported.get(executor) != stamp:
+                            self.notify_executor_entry_filled(executor)
+                            queued = True  # One report publishes the whole current controller.
+            # Retain only current covered entries: bounded by native residents,
+            # without adding a report on every subsequent account update.
+            reported = covered_entries
 
     def _queue_managed_executor_report(self, executor):
         config = executor.config

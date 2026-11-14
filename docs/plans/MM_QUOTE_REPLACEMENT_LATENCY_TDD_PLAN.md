@@ -57,13 +57,51 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
   one probe timeout with direct history-fetch stack overlap, zero ERROR/restart.
   Keep quote gate failed (Spot95.24%, perpetual no confirmed eligible samples),
   all8 unknown samples/market and three transient shutdown fences.
-- [ ] Deploy the startup-history correction and compare a fresh window on one
-  immutable image. Cold imports and physical writer/ownership waits remain open;
-  do not raise the probe timeout or treat asynchronous span duration as a stall.
+- [x] Deploy the startup-history correction and compare a fresh window on one
+  immutable image. Revision139/`6cb7e7f56`:901 samples/quality pass,161 recorded
+  orders/39 Spot fills, zero ERROR/restart/probe timeout in the exact window and
+  no sampled main-thread history-fetch recurrence. Final checkpoints match.
+- [ ] Close the remaining quote/probe causes: Spot96.51% still fails99%; perpetual
+  has no confirmed eligible two-sided samples. A separate startup probe timeout
+  and sampled physical writer/ownership/flush/point-read waits remain. Do not
+  raise thresholds or treat sampled absence as proof of zero loop delay.
 
 Evidence: `build/probe-correlation-20261114-1338/`; the existing
 [latency report](../../reports/performance/mm-quote-replacement-latency.md)
 records the correction and its limits.
+
+## Revision139 cash-observation progress follow-up
+
+- [x] Correlate all six Spot missing-quote samples and five unknown samples with
+  bounded native order details and retained diagnostics. Two full-entry reports
+  precede the required fresh cash observations; other samples include pending
+  submissions/ACKs, guard transitions and financial DB waits. No single cause
+  is established for all six. Keep every original failed/unknown sample.
+- [x] RED/GREEN the later-account path using the native Spot connector,
+  PositionExecutor, StrategyV2Base report publisher and existing controller cash
+  coverage predicate. A coalescing balance event requests one report when both
+  assets cover a current full fill; unchanged native commit/controller handoff
+  still owns capacity. No polling or direct quote submission is added.
+- [x] RED/GREEN repeated account updates after the same covered fill; do not
+  turn a balance stream into a periodic reporter. Reject invalid/stale cash,
+  retired scope, revoked admission, report failures and late updates after Stop.
+- [x] Qualify the deduplicated candidate:3,757 native tests +16 subtests, hooks
+  and two packaged E2Es on one immutable manifest pass. Spot outflow preserves
+  committed fills/original fees and no local retry; continuous Random rollover,
+  overlapping-owner handoff, cold restart and Stop retain session/control and
+  four exact fills. These are scoped regression checks, not a latency A/B.
+- [x] Verify current perpetual CLOSE payload hashes against saved submission
+  attempts and receipts. LONG0.0498 has two working SELL CLOSE quotes; there is
+  no opening-SHORT fallback. Fee-inclusive closing math and native fee-readiness
+  are recorded separately from an independent current exchange fee read.
+- [ ] Deploy this follow-up, then repeat the unchanged30-minute quote window.
+  The local correction does not qualify revision139's96.51% result or prove
+  exact ACK latency. Perpetual post-fill handoff remains unqualified: the
+  observed market is below the configured breakeven CLOSE price, with no new
+  perpetual fill. Keep caps, fee policy and unknown-as-failure unchanged.
+
+Evidence: `build/quote-gap139-review-20261114-1515/`; see the
+[correlation and limits](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision139-cash-progress-correlation-and-local-correction).
 
 ## Additional incident found during connected observation
 

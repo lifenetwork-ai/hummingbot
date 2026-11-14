@@ -430,6 +430,17 @@ policy is changed as part of local implementation.
   probe timeouts remain in the window. The later private-WS1006 retry is recorded
   separately; the earlier clean window does not make the whole revision ERROR-free.
   See [the connected observation](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision137-operator-enabled-scoped-recovery-observation).
+  Latest revision139/`6cb7e7f56` completes a separate901-sample window with zero
+  in-window probe timeouts/ERROR/restart and matching checkpoints. Spot96.51%
+  still fails99%; perpetual remains unqualified. The pre-window startup probe
+  and sampled financial DB waits remain separate open evidence. See
+  [revision139](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision139-startup-history-deployment-and-observation).
+- [x] Correlate revision139's six Spot gaps/five unknowns and reproduce missing
+  report progress when cash becomes fresh after a full-entry report. The local
+  event-driven correction preserves native commit, cash coverage and all
+  admission fences; steady account updates cannot repeatedly republish a fill.
+  This does not close the connected99% gate or perpetual post-fill qualification.
+  See [the follow-up plan](MM_QUOTE_REPLACEMENT_LATENCY_TDD_PLAN.md#revision139-cash-observation-progress-follow-up).
 - [x] Local TDD for the Spot-outflow guard retry burst: native connector/PG
   reproduces12 client IDs before the fix; typed cap denial now retires one unsent
   managed BUY without consuming the exchange retry budget. Controller admission
@@ -439,7 +450,7 @@ policy is changed as part of local implementation.
   revision138 image/commit `912822888` is verified at100% traffic with unchanged
   cap/config and matching checkpoints. Its later complete901-sample window has
   one probe timeout and no native cap denial; connected rejection/recovery stays
-  unqualified. The startup-history follow-up is local, not deployed. The
+  unqualified. The startup-history follow-up is now deployed on revision139; the
   revision137 burst remains historical evidence; do not close the other gates.
   See [the later health check](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision137-later-health-check--2026-11-14).
 - [ ] General concurrent openings/Perpetual CLOSE: extend only after independent

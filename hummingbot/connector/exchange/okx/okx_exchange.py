@@ -50,6 +50,7 @@ class OkxExchange(ExchangePyBase):
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
         self.account_balance_observations = {}
+        self.account_balance_update_event = asyncio.Event()
         super().__init__(balance_asset_limit, rate_limits_share_pct)
 
     @property

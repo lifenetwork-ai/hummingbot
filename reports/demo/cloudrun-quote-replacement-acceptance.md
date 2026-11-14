@@ -1,5 +1,14 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
+Latest full observation (2026-11-14,15:11ICT): revision139/`6cb7e7f56` completes
+901 samples on one image/session with quality pass. The exact30-minute window
+has161 recorded orders/39 Spot fills, zero ERROR/restart/probe timeout and no
+sampled main-thread executor-history fetch. Final health is200 and financial/
+binding checkpoint hashes match; bot remains running at control/ack88/88.
+A separate startup probe timeout and synchronous financial DB waits remain.
+Quote acceptance is still failed: Spot96.51%, perpetual no confirmed eligible
+two-sided samples. See [revision139](#revision139-startup-history-deployment-and-observation).
+
 Latest full observation (2026-11-14,14:09ICT): revision138 completes901 samples
 on one image/session with quality pass. The bot ends running/control88/88;
 startup/live/ready are200, financial/binding checkpoint hashes match and there
@@ -92,6 +101,170 @@ timeouts across three successful profile changes. The local read/startup TDD
 follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
 
+## Revision139 cash-progress correlation and local correction
+
+The six Spot missing-quote samples from the unchanged07:40–08:10UTC observation
+are correlated with25 bounded native order details, with zero truncated timelines.
+All six lack SELL liquidity at the sampled instant. They are isolated2s samples,
+not six proven multi-second outages. Five next samples are two-sided; the sixth
+is guard-excluded after another fill. The original901-sample classifier and all
+failed/unknown samples remain unchanged.
+
+| Sample time UTC | Retained observations |
+| --- | --- |
+|07:42:01.779|Full SELL fills; fresh cash already present; executor-report wait and an overlapping COMMIT diagnostic. Replacement Created events use the same strategy-clock second. |
+|07:42:23.771|Full SELL fills at23s, completion at23.398/.430; latest cash at20.051 is still older. Replacement Created events are recorded at24s. |
+|07:50:08.112|Prior SELL guard/size rejection, then a BUY fill; two SELL pending creations. |
+|07:52:40.246|Full SELL fills and fresh cash at39.490; two pending creations and a financial-flush diagnostic. |
+|07:52:58.263|Prior SELL guard; fresh cash covers earlier fills; two pending creations. |
+|07:55:22.394|Full SELL fills at21s, completion at22.068; cash at19.335 is still older. Replacement creation is recorded at23s. |
+
+Native Created/fill timestamps are strategy-clock seconds. Completion events
+have finer timestamps, but no transport ACK timestamp is available in this
+recorder read. Therefore same-second creation is not a measured submission/ACK
+RTT, and these rows establish neither one cause for every gap nor exact downtime.
+Five unknown samples surround three Random handoffs and retain their original
+failure classification, including temporary shutdown fences.
+
+The controller correctly requires fresh cash for both assets before handing off
+a full Spot entry. Code inspection and native RED tests show that, when the first
+full-entry report precedes those observations, the later cash update does not
+wake the report path. The local correction adds one connector asyncio.Event and
+one managed-Spot listener. It reuses the existing25ms coalesced native report
+publisher only after the unchanged cash predicate covers the full fill. Native
+financial commit/controller handoff still owns capacity; no event submits an
+order or grants trading authority. A second RED catches repeated publications
+from a steady account stream; the listener deduplicates covered full entries and
+retains only current resident entries. No new periodic reporter is introduced.
+
+Tests cover split base/quote observations, stale/invalid cash, pre-fill/burst
+updates, current session/generation, removed entries, revoked admission/control
+errors, failed reports retaining ordinary clock retry and Stop draining the
+listener. Initial RED is2 failures for missing progress; the steady-stream RED
+is1 failure for three unwanted reports. Final native regression passes3,757 tests
++16 subtests, including16 account-progress cases; hooks and diff checks pass.
+
+The final amd64 candidate has config digest
+`sha256:fd9e1cde0fb936790e92a57d8c01b9d829716d09275bf53b7e884ff9096c21bd`
+and registry manifest
+`sha256:2d069850358e63f1b38fbe7f1082c1d72b312c4b0e737e22b29756b250a61441`.
+All three changed runtime source hashes match the workspace and packaged image.
+Two scoped full-service E2Es on this manifest pass at2CPU/1GiB: Spot outflow
+retains original fee/rebate, committed partial fills, funded SELL progress and
+no local cap-denial retry; until-stopped Random rollover/overlapping-owner
+handoff/cold restart/Stop retain the same session/control and four exact fills.
+The successor increments owner generation once and proves eight canceled orders
+despite16 stale pending-list rows. Test containers are removed. These are scoped
+regressions, not a latency A/B, full load soak or connected acceptance.
+
+The15:43:30ICT readback still observes revision139 at100% traffic: running,
+control/ack88/88, no HALT/pending mutation or active incident; Spot has2 BUY/1SELL,
+perpetual2 SELL. This code is not deployed. An auxiliary GET to the unsupported
+`/liquidity` path returned403; the correct `/statistics/liquidity` GET succeeds.
+That observer mistake is separate from the original complete acceptance window.
+The correction does not establish a deployed quote-latency improvement or a99%
+pass. Commit/deployment and a new unchanged30-minute window remain required.
+
+### Perpetual policy readback
+
+A separate read-only DB snapshot keeps financial/account-binding hashes matched,
+owner526/control88 and no HALT. Remaining LONG basis is0.0498BTC with principal
+3630.892648288816USDT and unallocated opening fees0.726178529658USDT. Two
+acknowledged SELL CLOSE intents each cover0.0002BTC at72938.67, with HTTP200/
+code0/sCode0 receipts. Canonical payload hashes independently match the saved
+attempts: post-only SELL, `posSide=long`, contract size0.02 at0.01BTC/contract.
+They are closing LONG, not opening SHORT. The read-only SQL proxy is closed.
+
+The08:35:36UTC API observation has venue/owned LONG0.0498, two working SELLs,
+closing reservations0.0004, fresh fee-readiness and market mid67074.95. BUY remains
+inventory-limited. Illustrative closing math at a0.0002 fee rate (0.02%,2bps) and
+Demo tick0.01 reproduces72938.67. That rate is a math input, **not** an independent
+authenticated current fee read; native fee validation remains authoritative.
+Live instrument metadata is not substituted for Demo tick rules.
+
+No new perpetual fill occurs in the revision139 observation. Real post-fill
+handoff therefore remains unqualified; lowering the quote below fee-inclusive
+breakeven, forcing a trade or changing caps would violate the current policy.
+No deployment, Start/Stop/Recover, credential, DB maintenance or risk-policy
+mutation is performed in this investigation.
+
+Evidence (ignored/private): `build/quote-gap139-review-20261114-1515/`,
+`build/e2e-offline/20261114-154221-103724/` and
+`build/e2e-offline/20261114-154348-4356fa/`. Preliminary E2Es on the earlier
+non-deduplicated local candidate are retained separately and do not qualify the
+final source. The final results above use the same final manifest.
+
+## Revision139 startup-history deployment and observation
+
+Cloud Run independently reports `hummingbot-demo-00139-98h` Ready at100% traffic
+since07:38:28.484UTC (14:38:28ICT). Artifact Registry maps full commit
+`6cb7e7f560644a1b8995d610ecc3a0e48242e5d7` to the running digest
+`sha256:66844ca05f39fb3d383ceec1b5b08c6950f6a9946619f215b36a30223b0e60f1`.
+All non-image container configuration matches revision138:2CPU/1GiB, scoped
+recovery true, Demo/postgres_kms routing, existing probes and CPU always allocated.
+No deployment, control, financial or risk configuration is changed by this observer.
+
+Initial readback is running, owner available, same until-stopped session,
+control/ack88/88 and no HALT/pending mutation. Startup/live/ready are200. Spot
+has working BUY/SELL; perpetual SELLs work while BUY is inventory-limited. A
+read-only repeatable-read DB check has owner526, watermark46997, matching
+financial/binding checkpoint hashes, zero pending creations/unapplied fills,
+no prepared/possibly-sent/uncertain attempts, three positions and risk-stop false.
+The temporary SQL proxy is closed after the reads.
+
+The pre-window revision log slice has one300.795ms supervisor timeout at
+07:39:44.379UTC. Its earlier sampled main-thread stall at07:39:35.879UTC is in
+`restore_market_states`/SQLAlchemy instance loading/weakref cleanup, not the
+history `fetchmany` path. It is outside the exact probe wait and is not proof of
+that timeout's cause. Later samples still show physical ownership/pre-send
+recording/flush/COMMIT waits. Read isolation does not remove financial writer I/O.
+The initial tracker-size read is small (two perpetual entries/1068bytes and
+three Spot entries/1610bytes); there is no evidence here of a large tracker blob.
+Selected executor history has28,921 rows across the two managed controllers.
+
+The unchanged v3 classifier/2s paired reader measures07:40:57.614–08:10:59.142UTC
+(14:40:57–15:10:59ICT):901 samples, wall span1801.315s, maximum gap2.427s and no
+request/identity failures. One revision139 and the same until-stopped session
+cover three Random handoffs (generations99–102). Two transient shutdown-fence
+samples clear on the next sample; no technical HALT requires recovery. All five
+unknown samples/market remain failures; guards are never credited as uptime.
+
+| Market | Two-sided | Eligible gaps | Guard exclusions | Unknown | Conservative result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Spot |304|6|586|5|96.51%, below99% |
+| Perpetual |0|0|896|5|No confirmed eligible two-sided samples |
+
+Spot's conditional result is98.06%, also below99%. Reasons include size/allocation,
+outflow and an18-sample reference-deviation pause; perpetual remains inventory-
+limited. The quote/release gate stays open. Revision138's95.24% and this96.51%
+have different eligibility/market mixes and do not prove a throughput improvement.
+
+The exact bounded log query returns27 WARNING entries, zero ERROR entries,
+zero scheduled restarts/ownership-loss entries, zero50004 entries and zero
+supervisor probe timeouts. Eight sampled loop stalls (heartbeat gaps254–290ms
+at detection) remain in COMMIT, owner checks, intent/transport-receipt recording,
+flush and primary-key lookup. No sampled main-thread stack contains the old
+executor-history initialization/fetch. These frames are sampled evidence, not
+complete blocking-duration measurements or a guarantee of zero event-loop delay.
+The separately retained pre-window300.795ms timeout is not silently discarded.
+
+Final API readback is running, no HALT/pending mutation, startup/live/ready200.
+Complete one-page history contains161 recorded orders (103 Spot,58 perpetual),
+39 Spot fills and no provisional creation. These are bounded recorder records,
+not an exchange-wide live snapshot. Final repeatable-read DB verification keeps
+owner526/control88/88, watermark47230, three positions and risk-stop false;
+financial/binding checkpoint hashes match, with zero pending creation,
+unapplied fill or prepared/possibly-sent/uncertain attempt. Four attempts remain
+acknowledged. The read-only proxy is closed after the check.
+
+This verifies rollout/continued operation and completes the planned comparison
+window. It does not close the99% quote, residual DB-wait, connected native-cap-
+denial or uncertain-BUY quarantine lifecycle gates. No operator Recover/Start,
+secret, migration, Cloud resource or risk-policy change is made during observation.
+
+Evidence (ignored/private): `build/startup-history-postdeploy-20261114-1440/`.
+Existing failed observations below retain their own revision and scope.
+
 ## Revision138 thirty-minute probe correlation and local correction
 
 The unchanged classifier measures06:38:53.587–07:08:54.943UTC
@@ -138,8 +311,9 @@ native tests +16 subtests,14 focused tests, eight disposable PostgreSQL selectio
 two packaged E2Es and hooks. Candidate config`e00b5b350b890655fef552d6d9c8488bff1eff0fda9771c629e47fe6a9318a6a`,
 manifest`b7dc6730854fa50ffc538a599aa14270ca35ecbe1692c68ef570ce5099dc2c5e`.
 The packaged until-stopped/Random/cold/overlapping-owner-handoff/Stop and delayed
-account-startup scenarios both pass. This candidate is qualified locally and not deployed;
-the window above measures the deployed commit`912822888`, not this correction.
+account-startup scenarios both pass. At this observation the candidate was
+qualified locally and not yet deployed; the window above measures commit
+`912822888`, not this correction. Revision139 qualification is recorded above.
 Cold import/physical writer waits, connected native outflow denial and the
 uncertain-BUY quarantine lifecycle remain open. No threshold or policy is relaxed.
 
