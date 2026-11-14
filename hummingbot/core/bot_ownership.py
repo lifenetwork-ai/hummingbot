@@ -239,6 +239,14 @@ class BotOwnership:
                          or (row["recovery_state"] or {}).get("halt")
                          or (row["recovery_state"] or {}).get("pending_mutations")):
             recovery = row["recovery_state"] or {}
+            if (not self.allow_new_orders and row["config_file_path"] == self.config_file_path
+                    and recovery.get('halt') is True and recovery.get('halt_kind') == 'shutdown_pending'
+                    and recovery.get('shutdown_incomplete') is True
+                    and not recovery.get('reason') and not recovery.get('pending_mutations')):
+                # A recoverable profile shutdown persists this fence before its
+                # first async drain. Queued entries must retire, not spend their
+                # exchange retry budget. The fence itself remains authoritative.
+                raise SessionSubmissionBlocked("Strategy shutdown is in progress; new order submissions are closed.")
             if (not recovery.get("halt") and not recovery.get("pending_mutations")
                     and row["config_file_path"] == self.config_file_path):
                 if row["desired_state"] != "running":

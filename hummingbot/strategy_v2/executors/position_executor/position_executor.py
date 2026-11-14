@@ -823,6 +823,13 @@ class PositionExecutor(ExecutorBase):
         """
         self._notify_shutdown_order_change(event.order_id)
         if self._open_order and event.order_id == self._open_order.order_id:
+            session_closed = (event.error_type == 'SessionSubmissionBlocked'
+                              and getattr(self.config, 'mm_session_id', None) is not None
+                              and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
+            if session_closed and self._open_order.order is None:
+                # Native failure may precede the created callback. Retain its
+                # cached order/fills for the existing terminal-first checkpoint.
+                self.update_tracked_orders_with_order_id(event.order_id)
             self._failed_orders.append(self._open_order)
             self._open_order = None
             # A configured entry cannot fix a fresh spread rejection by retrying
@@ -833,13 +840,14 @@ class PositionExecutor(ExecutorBase):
             outflow_wait = (event.error_type == "SpotOutflowBlocked" and self.config.mm_session_id is not None
                             and self.config.connector_name == 'okx' and self.config.side == TradeType.BUY
                             and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
-            if reprice or outflow_wait and self.status == RunnableStatus.RUNNING:
-                # A local, unsent BUY cannot repair its cashflow cap with a new
-                # identity. Drain/hold native effects normally; the controller's
-                # outflow preview must admit any later replacement.
+            if reprice or (outflow_wait or session_closed) and self.status == RunnableStatus.RUNNING:
+                # An unchanged cap or retired session cannot be repaired with a
+                # new local identity. Drain/hold native effects normally; only
+                # fresh controller/session admission can authorize a replacement.
                 self.early_stop(keep_position=True)
-            self._log_order_failure("Open", event, reprice=reprice, outflow_wait=outflow_wait)
-            if not outflow_wait:
+            self._log_order_failure("Open", event, reprice=reprice, outflow_wait=outflow_wait,
+                                    session_closed=session_closed)
+            if not (outflow_wait or session_closed):
                 self._current_retries += 1
         elif self._close_order and event.order_id == self._close_order.order_id:
             self._failed_orders.append(self._close_order)
@@ -858,7 +866,7 @@ class PositionExecutor(ExecutorBase):
             self._shutdown_orders_changed.set()
 
     def _log_order_failure(self, role: str, event: MarketOrderFailureEvent, *, reprice: bool = False,
-                           outflow_wait: bool = False):
+                           outflow_wait: bool = False, session_closed: bool = False):
         from hummingbot.core.order_submission_guard import submission_block_log_context
         context = submission_block_log_context(event.error_type)
         if context is None:
@@ -869,7 +877,9 @@ class PositionExecutor(ExecutorBase):
             # The connector owns the bounded operational warning; executor
             # retirement and its per-order diagnostic remain intact.
             level = logging.DEBUG
-        if outflow_wait:
+        if session_closed:
+            action = "Retiring entry executor for a closed session; no local retry."
+        elif outflow_wait:
             action = "Waiting for outflow capacity through the controller; no local retry."
         else:
             action = "Retiring entry executor for a fresh quote." if reprice else f"Retry count {self._current_retries}/{self._max_retries}."

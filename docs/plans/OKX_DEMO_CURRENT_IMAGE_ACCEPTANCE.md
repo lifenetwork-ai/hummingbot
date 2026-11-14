@@ -1,11 +1,27 @@
 # OKX Demo and current offline image acceptance
 
-Local follow-up2026-11-14: duplicated cleanup proof and cancel-state lag are
-reproduced and corrected with3,760 native +16 subtests,98 PostgreSQL and2 packaged
-E2E passes. This candidate is not deployed; connected acceptance below remains
-unchanged. See [the local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision140-shutdown-proof-sharing-and-local-correction).
+Local follow-up after revision141: the shutdown-fenced maker retry is reproduced
+with native connector/PostgreSQL (12 local IDs, no transport). The correction
+retires one managed entry without retry, retaining fills/fees and genuine safety
+errors. Native/PG and both packaged regressions pass; it is not deployed and
+requires no new env/migration. See
+[the local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision141-session-fence-retry-correction--local).
 
-Latest2026-11-14: revision140/`53f21fa38` is independently verified at100% traffic.
+Latest2026-11-14,20:09ICT: revision141/`d56186f29` is verified at100% traffic,
+unchanged non-image settings. The complete30-minute window retains898 samples
+with quality pass,186 recorded orders/47 Spot fills and matching checkpoints.
+Final health is200; control88/88 is running/no HALT. Three profile shutdowns
+finish in1.588/1.404/1.521s without restart/ownership loss. Spot98.06% still
+fails99%; perpetual remains unqualified. Five probe timeouts, one delayed
+observation and7 guard-block ERROR entries/paired retry logs remain. This is
+not an ERROR-free result or full release acceptance. See
+[revision141](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision141-shutdown-proof-deployment-and-observation).
+
+The deployed cleanup correction has3,760 native +16 subtests,98 PostgreSQL and
+2 packaged E2E passes. Historical local failures and connected limitations stay
+retained. See [the local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision140-shutdown-proof-sharing-and-local-correction).
+
+Previously2026-11-14: revision140/`53f21fa38` is independently verified at100% traffic.
 Its unchanged901-sample30-minute window has204 recorded orders/65 Spot fills,
 no in-window ERROR/restart,8 probe timeouts and matching final checkpoints.
 Bot remains running/no HALT/control88/88. Quote acceptance is still open:

@@ -130,12 +130,45 @@ Evidence: `build/quote-gap139-review-20261114-1515/`; see the
   handles10 delayed requests at1.25s each with the same owner and exact fills/fees,
   then passes cold/overlapping handoff and Stop at2CPU/1GiB. Keep the first failed
   candidate and fixture failures as separate evidence.
-- [ ] Commit/deploy the qualified follow-up and repeat the unchanged connected
-  30-minute quote/probe window. Do not close97.68%, perpetual post-fill or the
-  wider availability gates from local fault tests alone.
+- [x] Commit/deploy the qualified follow-up and repeat the unchanged connected
+  30-minute quote/probe window. Revision141/`d56186f29` retains898 samples/quality
+  pass,186 recorded orders/47 Spot fills, matching checkpoints and three
+  completed profile shutdowns at1.588/1.404/1.521s without restart/ownership loss.
+- [ ] Close remaining connected gates: Spot98.06% fails99% with6 gaps/8 unknown;
+  perpetual remains unqualified. Retain5 probe timeouts, one delayed observation
+  and7 ERROR entries for four shutdown-fenced BUY attempts/paired retry logs.
+  TDD queued-versus-fresh retry and transport identity before changing generic
+  safety-block behavior. Do not suppress ownership/unknown-effect protection.
+  See [revision141](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision141-shutdown-proof-deployment-and-observation).
 
 Evidence: `build/shutdown-proof-followup-20261114/`; see
 [the full local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision140-shutdown-proof-sharing-and-local-correction).
+
+## Revision141 session-fence retry follow-up
+
+- [x] Reproduce the shutdown-fenced entry burst with the native OKX connector,
+  executor callbacks and disposable PostgreSQL. Both before-intent and
+  after-throttle cuts produce12 local client IDs without a transport call.
+- [x] Classify only an explicitly closed, same-config `shutdown_pending` fence
+  with no reason/pending mutation as expected session closure. Different config,
+  manual HALT, pending effects and lost ownership retain their safety errors.
+- [x] Retire managed maker entries on typed session closure without spending an
+  exchange retry. Preserve cached native partials/original fees, duplicate-event
+  idempotence, both markets/sides, configured/legacy distinction and terminal
+  proof. The real after-throttle unsent intent must become non-pending/terminal.
+- [x] Run native and PostgreSQL regression, including ownership, ambiguous COMMIT,
+  shutdown and driver deadlines. Audit the sampled SQL flush/pool pre-ping paths;
+  retain required ping/financial commits and avoid an unproved probe-fix claim.
+- [x] Complete packaged shutdown-proof/outflow regression on the same final
+  candidate. Delayed proof retains owner/session and exact fills/fees; native
+  outflow cap denial, funded SELLs, duplicate events and restart binding pass.
+  The exact fenced-entry fault is reproduced in native connector/PG tests.
+- [ ] Deploy the correction and repeat the unchanged30-minute connected window.
+  Revision141's98.06%, five probes, seven ERROR logs, delayed observation and
+  perpetual limits remain evidence, not passes for this local correction.
+
+Evidence: `build/session-shutdown-retry-20261114/`; see
+[the local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision141-session-fence-retry-correction--local).
 
 ## Additional incident found during connected observation
 

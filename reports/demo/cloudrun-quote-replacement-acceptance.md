@@ -1,10 +1,28 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
+Local follow-up after revision141: native connector/PostgreSQL TDD reproduces12
+client IDs from one shutdown-fenced maker entry with zero transport calls.
+The correction classifies the explicit recoverable shutdown fence and retires
+that managed entry without local retry, retaining original fills/fees and real
+safety errors. Native/PG regression and both packaged regressions pass.
+It is not deployed and does not close the failed quote/probe gates below.
+
+Latest completed observation (2026-11-14, 20:09 ICT): revision141/`d56186f29`
+is verified at 100% traffic with unchanged non-image configuration. Its complete
+30-minute window has 898 samples, 186 recorded orders and 47 Spot fills. All
+three profile switches return to running without engine restart or ownership
+loss; their shutdown totals are 1.588/1.404/1.521 seconds. Final health is 200
+and financial/binding checkpoint hashes match at control/ack88/88, no HALT.
+Acceptance remains open: Spot98.06% fails99%, perpetual is unqualified, five
+probe timeouts and seven guard-block ERROR entries remain. See
+[revision141](#revision141-shutdown-proof-deployment-and-observation).
+
 Local follow-up after revision140: native/PG/full-service TDD reproduces redundant
 Spot terminal reads reaching the unchanged8s shutdown deadline. The final local
 candidate shares a stronger proof within each phase and covers delayed native
 cancel state; it passes3,760 native tests +16 subtests,98 PostgreSQL tests and two
-scoped packaged E2Es. It is not deployed and does not close the quote/probe gates.
+scoped packaged E2Es. It is now deployed on revision141; neither local tests nor
+the connected observation close the quote/probe gates.
 See [the local correction](#revision140-shutdown-proof-sharing-and-local-correction).
 
 Latest completed observation (2026-11-14,17:05ICT): revision140/`53f21fa38` is
@@ -116,6 +134,164 @@ Subsequent operational control observation05:54–06:24UTC retains19 probe
 timeouts across three successful profile changes. The local read/startup TDD
 follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
+
+## Revision141 shutdown-proof deployment and observation
+
+Cloud Run `hummingbot-demo-00141-kfm` became Ready at12:31:42.636834UTC and
+remains at100% traffic. Artifact Registry maps the full source commit
+`d56186f29109116c34c3258a52d57470d0cb6044` to the running image:
+`sha256:5557b796a8e80865e4172855942f94c0e05b395957575e3be75a5b647db56c49`.
+All non-image container settings match revision140, including2CPU/1GiB,
+Demo/postgres_kms, diagnostics, scoped recovery and existing probe budgets.
+This check makes only GET/read-only database queries; no Start/Stop, HALT reset,
+policy, credential, deployment or database maintenance change is made.
+
+The unchanged classifier completes12:39:30.548–13:09:32.616UTC on one revision
+and session. It retains898 paired samples over1801.805s, maximum sample gap
+9.742s, no request/identity failures and quality pass. The lower sample count
+than the preceding901-sample windows is retained, not filled in synthetically.
+
+| Market | Two-sided | Eligible gap | Guard excluded | Unknown | Conservative result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Spot | 707 | 6 | 177 | 8 | 707/721 = 98.06%; fails99% |
+| Perpetual | 0 | 0 | 890 | 8 | No confirmed eligible samples; unqualified |
+
+Spot's conditional707/713 =99.16% does not override the conservative result.
+All six gaps are isolated samples: pending submission at12:52:31, executor
+report at12:52:55, proposal confirmation at13:04:18, executor activity at13:04:24,
+executor report at13:04:46, and both submissions pending at13:08:20. These are
+sampled states, not exact venue ACK latency measurements. Seven unknown samples
+are around profile handoffs, including two temporary shutdown-fence observations;
+the other is a delayed read at13:06:24 carrying data nearly8s old at collection.
+The following read is fresh. All eight remain failures, including the sample
+whose response itself marks the older snapshot non-stale. Guard samples never
+count as quote uptime. Perpetual BUY remains inventory-limited while SELL CLOSE
+quotes work; there is no new perpetual fill or reason to bypass its fee policy.
+
+The complete bounded API history returns186 recorded orders (126 Spot/60
+perpetual), no provisional orders and47 Spot fills. Final startup/live/ready
+are200, control/ack88/88 is running and no recovery mutation is pending. A
+REPEATABLE READ / READ ONLY DB snapshot retains owner529, watermark50193, three
+positions, matching financial/binding checkpoint hashes, no pending creation,
+no prepared/possibly-sent/uncertain attempt, no unapplied fill and no risk stop.
+Four attempts are acknowledged. The initial snapshot had owner529 and
+watermark49823. The temporary SQL proxy is closed after readback.
+
+All three in-window profile shutdowns finish at1.588/1.404/1.521s; their first
+proof phases are978/682/888ms and fresh post-checkpoint phases414/407/403ms.
+These nested timings must not be added together. There is no8s deadline,
+engine restart or ownership-loss entry. A separate pre-window shutdown finishes
+in1.170s. This verifies the deployed healthy-venue path; the injected1.25s/read
+fault remains local qualification, not a controlled Cloud latency A/B or proof
+that every historical shutdown failure is fixed.
+
+The exact window log query is complete below its3000-entry bound:62 WARNING and
+7 ERROR entries. Five isolated probe timeouts take300.770–301.038ms; no restart
+follows. Of376 retained completed main-thread SQL/commit/owner spans, three probe
+waits intersect short segments whose unions are13.335/36.307/20.414ms. These
+segments do not account for entire waits. Two watchdog stack samples fall inside
+exact probe waits: one is flushing an INSERT through `bounded_wait`, the other
+is pool-checkout pre-ping through `bounded_wait`. This identifies synchronous DB
+paths at those instants, not one proven cause of all five probes. No executor
+history-fetch stack is sampled in this window. Three earlier probe timeouts
+remain separate pre-window evidence.
+
+The seven ERROR entries at12:58:08 are four Spot BUY service-gate denials and
+three paired executor logs with retry counts8/10,9/10,10/10 within66ms. They
+coincide with the temporary profile shutdown fence; service recovers without
+operator action. Source inspection shows generic `SubmissionBlocked` still
+clears an entry and increments its retry counter. This is a retained lifecycle
+retry/classification follow-up, not an ERROR-free result. Determine queued versus
+fresh retry/transport identity with TDD before changing behavior; never broadly
+swallow safety/ownership errors or release unknown exchange effects. No source
+fix for this follow-up is claimed by this deployment check.
+
+Different fill/guard mixes prevent attributing the5 versus8 probe counts or
+98.06% versus97.68% quote result to the patch alone. Remaining gates include
+conservative99%, the blocked retry burst, residual synchronous DB/probe waits,
+the delayed observation, perpetual post-fill/two-sided evidence and connected
+cap-denial/quarantine faults. Evidence (ignored/private):
+`build/shutdown-proof-postdeploy-20261114-193855/`, including immutable classifier,
+raw samples/logs, final API/DB readbacks, stage analysis and correlation results.
+
+Separate post-window check at13:12:33UTC still sees revision141 running,
+generation132/profile`follow_token`, no HALT/pending mutation and a fresh owner
+observation. The bounded log query through13:12:53UTC has no additional
+WARNING/ERROR, probe failure or restart entry. This short tail is not added to
+the qualification denominator. Documentation hooks and `git diff --check` pass;
+this deployment verification changes documentation only.
+
+## Revision141 session-fence retry correction — local
+
+Two PostgreSQL RED cases run the real native OKX create/failure-event pipeline:
+the owner closes its recoverable shutdown fence before intent persistence, or
+inside the real REST throttler before its final transport gate. Each previously
+produces12 different client IDs for one immutable maker entry and no transport
+call. Ten native RED cases also catch the fence's generic safety classification,
+failure to retire across both markets/sides, and lost cached partial bookkeeping.
+This establishes a reproducible retry bug; it does not prove every connected
+denial came from a fresh retry rather than an already queued task.
+
+The owner now emits typed `SessionSubmissionBlocked` only when its admission is
+closed, config matches and the persisted fence has exactly `halt=true`,
+`halt_kind=shutdown_pending`, `shutdown_incomplete=true`, no reason and no pending
+mutation. The owner/physical-lock check still precedes classification. No HALT
+is removed. Manual/unknown-effect/config and ownership failures retain their
+original error paths. Cancel and terminal-proof authority is unchanged.
+
+A managed maker PositionExecutor receiving that typed closure enters its
+existing position-hold shutdown, captures the native cached order even if its
+created callback has not arrived, and makes no local retry. Cached partial0.25
+and original USDT fee0.000001 are retained; duplicate failure events cannot
+reopen it. Legacy entries and generic safety/transport error handling keep their
+policy. Closure logs explicitly say no local retry rather than incrementing the
+exchange-failure budget. Both configured modes, markets and sides are covered.
+
+GREEN PostgreSQL has exactly one local client ID and no transport call in either
+cut. Before intent there is no order/attempt; after throttle there is one
+non-pending terminal attempt with no payload hash, deadline or receipt. The
+temporary fence remains set, without a new reason/pending mutation or cashflow
+reservation. A first GREEN assertion incorrectly expected only `rejected`;
+the native OrderFailure correctly advances it to `terminal`. That test-expectation
+failure is retained separately; no product change is made to force its state.
+
+Native regression passes912 tests +4 subtests; the final13 focused safety cases
+also pass. PostgreSQL regression passes118 tests, including ownership,
+shutdown, COMMIT ambiguity, submission uncertainty and I/O deadlines. The packaged
+candidate is a two-runtime-file Python overlay on the qualified predecessor;
+both candidate hashes match the workspace and both predecessor hashes match
+commit`d56186f29`. Both packaged shutdown-proof and spot-outflow regressions
+pass on the same final manifest:
+`sha256:348cb3181a0c61760129f21b66162f83df91389ba721c375746048df11484390`
+(config:`sha256:77a8c06efba9e8d1226d759e585a648e11542f48e9bedd1cfbad1c7cde449db7`).
+The former keeps owner/session through10 delayed1.25s terminal reads, then cold
+and overlapping-owner restart, four exact fills, Spot0.2/perpetual0.002 and
+original fees0.000002 each. Its retained service logs have no ERROR; two startup
+warnings describe and resolve the injected stale canceled-order visibility.
+The latter retains native cap denial without retry, funded SELL/perpetual
+activity, original USDT fees/rebate, duplicates and restart binding. These
+packaged regressions do not themselves force the exact fenced-entry cut; the
+native connector/PostgreSQL tests provide that fault reproduction.
+
+Packaged evidence: `build/e2e-offline/20261114-203842-445282/` and
+`build/e2e-offline/20261114-203958-436b40/`. All test containers are removed; the
+qualified candidate and predecessor remain cached. Keep the initial local-base
+metadata lookup failures separately: canonical local tagging and explicit
+`linux/amd64` select the cached predecessor correctly. No runtime gate is relaxed
+to fix that build setup.
+
+Probe code audit confirms `pool_pre_ping` detects pooled sessions discarded by
+the server's30s idle limit, and INSERT/COMMIT waits retain native financial
+ordering and ambiguous-outcome handling. Neither operation is safely removable
+from the two sampled stack instants alone. Removing redundant local retries
+avoids repeated owner/SQL work on this specific path; it is not proof of a fix
+for revision141's five probe timeouts. Required ping, commit, I/O/probe/shutdown
+budgets and quote classification remain unchanged. Deployment and connected
+remeasurement, conservative99% and perpetual post-fill evidence stay open.
+
+Evidence (ignored/private): `build/session-shutdown-retry-20261114/`, including
+native/PG RED/GREEN, the test-expectation failure, source hashes and candidate
+image metadata. No Cloud control, deployment or DB maintenance change is made.
 
 ## Revision140 shutdown-proof sharing and local correction
 

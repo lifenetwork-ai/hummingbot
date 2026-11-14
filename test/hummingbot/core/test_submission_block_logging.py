@@ -49,6 +49,36 @@ def test_shutdown_remains_a_block_but_is_expected_control():
     assert type(error.value).__name__ == 'SessionSubmissionBlocked'
 
 
+@pytest.mark.parametrize('changes,admitted,expected', [
+    ({}, False, 'SessionSubmissionBlocked'),
+    ({}, True, 'SubmissionBlocked'),
+    ({'halt_kind': 'manual'}, False, 'SubmissionBlocked'),
+    ({'shutdown_incomplete': False}, False, 'SubmissionBlocked'),
+    ({'reason': 'financial effects require review'}, False, 'SubmissionBlocked'),
+    ({'pending_mutations': [{'id': 'unknown-order'}]}, False, 'SubmissionBlocked'),
+])
+def test_only_closed_recoverable_shutdown_fence_is_expected_control(changes, admitted, expected):
+    recovery = dict(halt=True, halt_kind='shutdown_pending', shutdown_incomplete=True)
+    recovery.update(changes)
+    owner = owner_with_row(recovery_state=recovery)
+    owner.allow_new_orders = admitted
+    with pytest.raises(guard.SubmissionBlocked) as error:
+        owner.check_owner(new_risk=True)
+    assert type(error.value).__name__ == expected
+
+
+def test_shutdown_fence_does_not_hide_different_config_or_lost_owner():
+    recovery = dict(halt=True, halt_kind='shutdown_pending', shutdown_incomplete=True)
+    owner = owner_with_row(recovery_state=recovery, config_file_path='different.yml')
+    owner.allow_new_orders = False
+    with pytest.raises(guard.SubmissionBlocked) as error:
+        owner.check_owner(new_risk=True)
+    assert type(error.value) is guard.SubmissionBlocked
+    owner.connection.execute.return_value.mappings.return_value.first.return_value = None
+    with pytest.raises(OwnershipLost):
+        owner.check_owner(new_risk=True)
+
+
 @pytest.mark.parametrize('error_type,level', [
     ('SessionSubmissionBlocked', logging.INFO),
     ('MarketReadinessBlocked', logging.WARNING),

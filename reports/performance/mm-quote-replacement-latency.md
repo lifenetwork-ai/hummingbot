@@ -1,5 +1,49 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Revision141 session-fence retry correction — local
+
+Real native connector/PostgreSQL RED reproduces12 local client IDs for one
+maker entry blocked before intent or after throttle, without a transport call.
+The owner now types only the explicit closed/same-config recoverable shutdown
+fence as session closure. A managed maker retires through existing hold/proof
+handling without retry; cached partials/original fees and real safety errors
+remain. GREEN uses one identity, no transport and no unresolved intent.
+
+Native912 +4 subtests, final13 focused cases,118 PostgreSQL and two packaged
+shutdown-proof/outflow regressions pass. The exact fence cut is exercised by
+native connector/PG tests; packaged cases cover the surrounding lifecycle and
+financial invariants. Both run on the same final manifest. This local two-file
+Python correction is not deployed and needs no new env/migration.
+
+The sampled INSERT flush and pool pre-ping remain necessary native DB paths;
+removing repeated retry work is not proof that all five connected probe waits
+are fixed. Keep ping, financial commit, health/shutdown budgets and conservative
+quote classification. See [the complete local evidence and open gates](../demo/cloudrun-quote-replacement-acceptance.md#revision141-session-fence-retry-correction--local).
+
+## Revision141 deployed cleanup proof — 2026-11-14
+
+Commit`d56186f29` is verified on revision141 at100% traffic, unchanged2CPU/1GiB
+and non-image settings. The unchanged30-minute classifier retains898 samples,
+quality pass,186 recorded orders and47 Spot fills. Final health is200;
+financial/binding checkpoint hashes match at control/ack88/88 and owner529,
+with no pending creation, unapplied fill or risk stop. Three scheduled profile
+shutdowns finish in1.588/1.404/1.521s without engine restart or ownership loss.
+Nested first/fresh post-checkpoint proof timings are retained separately.
+
+The gate still fails: Spot707 two-sided/6 gaps/8 unknown/177 guard samples gives
+98.06%. Conditional99.16% cannot replace the conservative result. Perpetual is
+inventory-guarded and has no new fill or confirmed eligible two-sided sample.
+One unknown response contains data nearly8s old; maximum sample gap is9.742s.
+Seven ERROR entries record four gate-blocked BUYs during a shutdown fence and
+paired retry-count logs, not an ERROR-free deployment. A focused lifecycle TDD
+follow-up must establish queued versus fresh retry/transport identity.
+
+Five probe timeouts remain at300.770–301.038ms. Two watchdog captures inside
+exact waits show synchronous INSERT flush and pool-checkout pre-ping. Completed
+DB/owner spans overlap only short parts of three waits; causality for all probes
+is not proved. Different fill/guard mixes prevent a controlled A/B claim against
+revision140. See [the complete connected evidence and open gates](../demo/cloudrun-quote-replacement-acceptance.md#revision141-shutdown-proof-deployment-and-observation).
+
 ## Revision140 shutdown-proof TDD follow-up — 2026-11-14
 
 An armed cashflow guard duplicates native status/fill reads during cleanup. The
@@ -13,8 +57,9 @@ actual1.25s delayed reads, stable owner/session and exact fills/fees.
 Native3,760 +16 subtests,98 PostgreSQL tests and two packaged E2Es pass. A separate
 test removes a redundant report after handoff is already queued. Bounded richer
 shutdown/recovery diagnostics address missing timing evidence; they do not prove
-or remove every slow probe. The candidate is not deployed; revision140's97.68%
-quote failure and8 in-window probe timeouts remain unchanged. See
+or remove every slow probe. The follow-up is now deployed on revision141;
+revision140's97.68% quote failure and8 in-window probe timeouts remain historical
+evidence. See
 [the complete local evidence and failures](../demo/cloudrun-quote-replacement-acceptance.md#revision140-shutdown-proof-sharing-and-local-correction).
 
 ## Revision140 deployed cash-progress observation — 2026-11-14
