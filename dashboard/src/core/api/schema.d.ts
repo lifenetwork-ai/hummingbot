@@ -2659,6 +2659,619 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** OverviewAccountScope */
+        OverviewAccountScopeOutput: {
+            /** Account Ids */
+            account_ids: string[];
+            /** Environment */
+            environment: ("live" | "demo") | null;
+            /**
+             * Identity Verified
+             * @default false
+             */
+            identity_verified: boolean;
+        };
+        /** OverviewCapitalAllocated */
+        OverviewCapitalAllocatedOutput: {
+            /** Life */
+            life: string;
+            /**
+             * Source
+             * @constant
+             */
+            source: "session_configuration";
+            /** Usdt */
+            usdt: string;
+        };
+        /** OverviewCoverageMinute */
+        OverviewCoverageMinuteOutput: {
+            /**
+             * Minute Ts
+             * Format: date-time
+             */
+            minute_ts: string;
+            /** Observed Seconds */
+            observed_seconds: number;
+            /** Two Sided Seconds */
+            two_sided_seconds: number;
+            /** Unknown Seconds */
+            unknown_seconds: number;
+        };
+        /** OverviewDepthLevel */
+        OverviewDepthLevelOutput: {
+            /** Ask Usdt */
+            ask_usdt: string;
+            /** Bid Usdt */
+            bid_usdt: string;
+            /** Offset Bps */
+            offset_bps: number;
+        };
+        /** OverviewDepth */
+        OverviewDepthOutput: {
+            /**
+             * Basis
+             * @constant
+             */
+            basis: "own_working_orders";
+            /**
+             * Levels
+             * @description Cumulative remaining own order notional within offset_bps of mid.
+             */
+            levels: components["schemas"]["OverviewDepthLevelOutput"][];
+            /** Reference Mid */
+            reference_mid: string;
+        };
+        /** OverviewHoldBenchmark */
+        OverviewHoldBenchmarkOutput: {
+            /**
+             * Baseline At
+             * Format: date-time
+             */
+            baseline_at: string;
+            /**
+             * Basis
+             * @constant
+             */
+            basis: "initial_spot_assets";
+            /** Hold Pnl Usdt */
+            hold_pnl_usdt: string;
+            /** Initial Life */
+            initial_life: string;
+            /** Initial Usdt */
+            initial_usdt: string;
+            /**
+             * Outperform Usdt
+             * @description session_pnl_usdt minus hold_pnl_usdt.
+             */
+            outperform_usdt: string;
+            /** Session Pnl Usdt */
+            session_pnl_usdt: string;
+            /**
+             * Transfer Treatment
+             * @constant
+             */
+            transfer_treatment: "excluded_from_both";
+            valuation: components["schemas"]["OverviewValuationOutput"];
+        };
+        /** OverviewInventoryLimit */
+        OverviewInventoryLimitOutput: {
+            /**
+             * Asset
+             * @constant
+             */
+            asset: "LIFE";
+            /** Controller Id */
+            controller_id: string;
+            /**
+             * Gross Limit
+             * @default null
+             */
+            gross_limit: string | null;
+            /**
+             * Inventory Limit
+             * @description Null if policy defines no absolute quantity limit.
+             */
+            inventory_limit: string | null;
+            /**
+             * Long Limit
+             * @default null
+             */
+            long_limit: string | null;
+            /**
+             * Market
+             * @enum {string}
+             */
+            market: "spot" | "perpetual";
+            /** Pair */
+            pair: string;
+            /**
+             * Short Limit
+             * @default null
+             */
+            short_limit: string | null;
+        };
+        /** OverviewMarketData */
+        OverviewMarketDataOutput: {
+            /** Connector */
+            connector: string;
+            coverage: components["schemas"]["OverviewObservation_OverviewRollingCoverage_Output"];
+            depth: components["schemas"]["OverviewObservation_OverviewDepth_Output"];
+            /**
+             * Market
+             * @enum {string}
+             */
+            market: "spot" | "perpetual";
+            /** Pair */
+            pair: string;
+            post_fill_recovery: components["schemas"]["OverviewObservation_OverviewPostFillRecovery_Output"];
+            slippage_estimate: components["schemas"]["OverviewObservation_OverviewSlippage_Output"];
+        };
+        /** OverviewMarketFees */
+        OverviewMarketFeesOutput: {
+            /**
+             * Market
+             * @enum {string}
+             */
+            market: "spot" | "perpetual";
+            /** Total Usdt */
+            total_usdt: string;
+        };
+        /** OverviewObservation[OverviewCapitalAllocated] */
+        OverviewObservation_OverviewCapitalAllocated_Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            value: components["schemas"]["OverviewCapitalAllocatedOutput"] | null;
+        };
+        /** OverviewObservation[OverviewDepth] */
+        OverviewObservation_OverviewDepth_Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            value: components["schemas"]["OverviewDepthOutput"] | null;
+        };
+        /** OverviewObservation[OverviewHoldBenchmark] */
+        OverviewObservation_OverviewHoldBenchmark_Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            value: components["schemas"]["OverviewHoldBenchmarkOutput"] | null;
+        };
+        /** OverviewObservation[OverviewPortfolio] */
+        OverviewObservation_OverviewPortfolio_Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            value: components["schemas"]["OverviewPortfolioOutput"] | null;
+        };
+        /** OverviewObservation[OverviewPostFillRecovery] */
+        OverviewObservation_OverviewPostFillRecovery_Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            value: components["schemas"]["OverviewPostFillRecoveryOutput"] | null;
+        };
+        /** OverviewObservation[OverviewRollingCoverage] */
+        OverviewObservation_OverviewRollingCoverage_Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            value: components["schemas"]["OverviewRollingCoverageOutput"] | null;
+        };
+        /** OverviewObservation[OverviewSessionDelta] */
+        OverviewObservation_OverviewSessionDelta_Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            value: components["schemas"]["OverviewSessionDeltaOutput"] | null;
+        };
+        /** OverviewObservation[OverviewSessionFees] */
+        OverviewObservation_OverviewSessionFees_Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            value: components["schemas"]["OverviewSessionFeesOutput"] | null;
+        };
+        /** OverviewObservation[OverviewSlippage] */
+        OverviewObservation_OverviewSlippage_Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            value: components["schemas"]["OverviewSlippageOutput"] | null;
+        };
+        /** OverviewObservation[list[OverviewInventoryLimit]] */
+        OverviewObservation_list_OverviewInventoryLimit__Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            /** Value */
+            value: components["schemas"]["OverviewInventoryLimitOutput"][] | null;
+        };
+        /** OverviewObservation[list[OverviewReferencePrice]] */
+        OverviewObservation_list_OverviewReferencePrice__Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            /** Value */
+            value: components["schemas"]["OverviewReferencePriceOutput"][] | null;
+        };
+        /** OverviewObservation[list[OverviewReservedBalance]] */
+        OverviewObservation_list_OverviewReservedBalance__Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            /** Value */
+            value: components["schemas"]["OverviewReservedBalanceOutput"][] | null;
+        };
+        /** OverviewObservation[list[OverviewRiskRule]] */
+        OverviewObservation_list_OverviewRiskRule__Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            /** Value */
+            value: components["schemas"]["OverviewRiskRuleOutput"][] | null;
+        };
+        /** OverviewPortfolio */
+        OverviewPortfolioOutput: {
+            /** Life Usdt */
+            life_usdt: string;
+            /** Other Assets Usdt */
+            other_assets_usdt: string;
+            /**
+             * Total Usdt
+             * @description Account equity; include perp unrealized PnL once, do not double count margin.
+             */
+            total_usdt: string;
+            /**
+             * Usdt
+             * @description USDT equity component, not available cash.
+             */
+            usdt: string;
+            valuation: components["schemas"]["OverviewValuationOutput"];
+        };
+        /** OverviewPostFillRecovery */
+        OverviewPostFillRecoveryOutput: {
+            /**
+             * Basis
+             * @constant
+             */
+            basis: "fill_to_acknowledged_two_sided_quotes";
+            /** History Complete */
+            history_complete: boolean;
+            /**
+             * Measurement
+             * @default sampled_upper_bound
+             * @constant
+             */
+            measurement: "sampled_upper_bound";
+            /** P50 Seconds */
+            p50_seconds: number | null;
+            /** P95 Seconds */
+            p95_seconds: number | null;
+            /** Pending Count */
+            pending_count: number;
+            /** Recovered Count */
+            recovered_count: number;
+            /**
+             * Window End
+             * Format: date-time
+             */
+            window_end: string;
+            /**
+             * Window Start
+             * Format: date-time
+             */
+            window_start: string;
+        };
+        /** OverviewReferencePrice */
+        OverviewReferencePriceOutput: {
+            /**
+             * Anchor At
+             * Format: date-time
+             */
+            anchor_at: string;
+            /** Anchor Price */
+            anchor_price: string;
+            /** Connector */
+            connector: string;
+            /** Controller Id */
+            controller_id: string;
+            /**
+             * Last Price
+             * @description Current fresh reference midpoint, not last traded price.
+             */
+            last_price: string;
+            /** Pair */
+            pair: string;
+            /**
+             * Price Basis
+             * @default mid
+             * @constant
+             */
+            price_basis: "mid";
+            /**
+             * Price Observed At
+             * Format: date-time
+             */
+            price_observed_at: string;
+        };
+        /** OverviewReservedBalance */
+        OverviewReservedBalanceOutput: {
+            /** Asset */
+            asset: string;
+            /** Free */
+            free: string | null;
+            /**
+             * Reserved For Open Orders
+             * @description Exchange-confirmed reservation, not equity minus free.
+             */
+            reserved_for_open_orders: string | null;
+        };
+        /** OverviewRiskRule */
+        OverviewRiskRuleOutput: {
+            /** Controller Id */
+            controller_id: string | null;
+            /** Current */
+            current: string | null;
+            /** Lower Limit */
+            lower_limit: string | null;
+            /** Market */
+            market: ("spot" | "perpetual") | null;
+            /** Rule Id */
+            rule_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "violated" | "disabled" | "unknown";
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "USDT" | "LIFE" | "fraction" | "seconds" | "bps";
+            /** Upper Limit */
+            upper_limit: string | null;
+        };
+        /** OverviewRollingCoverage */
+        OverviewRollingCoverageOutput: {
+            /** Elapsed Seconds */
+            elapsed_seconds: number;
+            /** Full Window */
+            full_window: boolean;
+            /** Observed Seconds */
+            observed_seconds: number;
+            /** Per Minute */
+            per_minute: components["schemas"]["OverviewCoverageMinuteOutput"][] | null;
+            /**
+             * Rolling 30M Fraction
+             * @description two_sided_seconds / elapsed_seconds; unknown remains in denominator.
+             */
+            rolling_30m_fraction: number | null;
+            /** Target Fraction */
+            target_fraction: number | null;
+            /** Two Sided Seconds */
+            two_sided_seconds: number;
+            /** Unknown Seconds */
+            unknown_seconds: number;
+            /**
+             * Window End
+             * Format: date-time
+             */
+            window_end: string;
+            /**
+             * Window Seconds
+             * @constant
+             */
+            window_seconds: 1800;
+            /**
+             * Window Start
+             * Format: date-time
+             */
+            window_start: string;
+        };
+        /** OverviewSessionDelta */
+        OverviewSessionDeltaOutput: {
+            /** Adjusted For Transfers */
+            adjusted_for_transfers: boolean;
+            /**
+             * Baseline At
+             * Format: date-time
+             */
+            baseline_at: string;
+            /** Baseline Total Usdt */
+            baseline_total_usdt: string;
+            /**
+             * Net Transfers Usdt
+             * @description Net external inflows valued at transfer time; null when incomplete.
+             */
+            net_transfers_usdt: string | null;
+            /**
+             * Pct
+             * @description Percentage points: 0.82 means 0.82%; delta / baseline * 100; null if baseline <= 0.
+             */
+            pct: string | null;
+            /**
+             * Through At
+             * Format: date-time
+             */
+            through_at: string;
+            /**
+             * Usdt
+             * @description End equity minus baseline minus net inflows; null if transfers unknown.
+             */
+            usdt: string | null;
+        };
+        /** OverviewSessionFees */
+        OverviewSessionFeesOutput: {
+            /** By Market */
+            by_market: components["schemas"]["OverviewMarketFeesOutput"][] | null;
+            /**
+             * Conversion Basis
+             * @constant
+             */
+            conversion_basis: "at_fill";
+            /** History Complete */
+            history_complete: boolean;
+            /**
+             * Through At
+             * Format: date-time
+             */
+            through_at: string;
+            /**
+             * Total Usdt
+             * @description Signed cost: positive paid, negative rebate; converted at fill time.
+             */
+            total_usdt: string;
+        };
+        /** OverviewSession */
+        OverviewSessionOutput: {
+            benchmark_hold: components["schemas"]["OverviewObservation_OverviewHoldBenchmark_Output"];
+            capital_allocated: components["schemas"]["OverviewObservation_OverviewCapitalAllocated_Output"];
+            delta: components["schemas"]["OverviewObservation_OverviewSessionDelta_Output"];
+            fees: components["schemas"]["OverviewObservation_OverviewSessionFees_Output"];
+        };
+        /** OverviewSlippageEstimate */
+        OverviewSlippageEstimateOutput: {
+            /** Expected Slippage Bps */
+            expected_slippage_bps: string | null;
+            /** Notional Usdt */
+            notional_usdt: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "BUY" | "SELL";
+            /** Sufficient Depth */
+            sufficient_depth: boolean;
+        };
+        /** OverviewSlippage */
+        OverviewSlippageOutput: {
+            /**
+             * Basis
+             * @constant
+             */
+            basis: "exchange_order_book";
+            /** Estimates */
+            estimates: components["schemas"]["OverviewSlippageEstimateOutput"][];
+            /**
+             * Notional Basis
+             * @default reference_mid
+             * @constant
+             */
+            notional_basis: "reference_mid";
+            /**
+             * Own Orders Excluded
+             * @default true
+             * @constant
+             */
+            own_orders_excluded: true;
+            /** Reference Mid */
+            reference_mid: string;
+        };
+        /**
+         * OverviewSupplement
+         * @description Account/session observations only; never changes quote, sizing or risk enforcement.
+         */
+        OverviewSupplementOutput: {
+            account_scope: components["schemas"]["OverviewAccountScopeOutput"];
+            balances: components["schemas"]["OverviewObservation_list_OverviewReservedBalance__Output"];
+            /**
+             * Contract Version
+             * @constant
+             */
+            contract_version: 1;
+            inventory_limits: components["schemas"]["OverviewObservation_list_OverviewInventoryLimit__Output"];
+            /** Markets */
+            markets: components["schemas"]["OverviewMarketDataOutput"][];
+            portfolio: components["schemas"]["OverviewObservation_OverviewPortfolio_Output"];
+            references: components["schemas"]["OverviewObservation_list_OverviewReferencePrice__Output"];
+            risk_rules: components["schemas"]["OverviewObservation_list_OverviewRiskRule__Output"];
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+            session: components["schemas"]["OverviewSessionOutput"];
+            /** Session Id */
+            session_id: string | null;
+            /** Session Started At */
+            session_started_at: string | null;
+        };
+        /** OverviewValuation */
+        OverviewValuationOutput: {
+            /**
+             * Currency
+             * @constant
+             */
+            currency: "USDT";
+            /** Prices */
+            prices: components["schemas"]["OverviewValuationPriceOutput"][];
+            /**
+             * Valuation Mark
+             * @enum {string}
+             */
+            valuation_mark: "mid" | "mark";
+            /**
+             * Valued At
+             * Format: date-time
+             */
+            valued_at: string;
+        };
+        /** OverviewValuationPrice */
+        OverviewValuationPriceOutput: {
+            /** Asset */
+            asset: string;
+            /** Connector */
+            connector: string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /** Pair */
+            pair: string;
+            /** Price Usdt */
+            price_usdt: string;
+        };
         /** PerformanceMarket */
         PerformanceMarketOutput: {
             /**
@@ -4156,6 +4769,11 @@ export interface components {
             observed_session: components["schemas"]["SessionStateOutput"] | null;
             /** @default null */
             operator: components["schemas"]["OperatorStatusOutput"] | null;
+            /**
+             * @description Optional account/session reporting observations. Null if projection is unavailable; individual missing metrics remain null. Never controls trading.
+             * @default null
+             */
+            overview: components["schemas"]["OverviewSupplementOutput"] | null;
             /** Owner Available */
             owner_available: boolean;
             /** @default null */

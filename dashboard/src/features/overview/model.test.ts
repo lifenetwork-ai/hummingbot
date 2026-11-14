@@ -23,7 +23,7 @@ const positions: Positions = {
 
 const status: Status = {
   acknowledged_version: 4, automatic_recovery: null, bot_id: 'bot-1', control_version: 5, desired_state: 'running',
-  drawdown: null, error: null, funding_sync: null, heartbeat_age_seconds: 1, owner_available: true,
+  drawdown: null, error: null, funding_sync: null, heartbeat_age_seconds: 1, overview: null, owner_available: true,
   owner_identity: null, process_identity: null, phase: 'running', running: true, server_time: '2026-11-11T00:00:00Z',
   observation: { observed_at: '2026-11-11T00:00:00Z', reason_code: null, session_matches: true, stale: false },
   observed_session: null, operator: { detail: 'Waiting for quotes', label: 'Waiting', next_action: 'monitor', state: 'waiting' },
