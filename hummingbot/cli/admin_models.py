@@ -7,6 +7,7 @@ from typing import Annotated, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, TypeAdapter, field_validator
 
 from controllers.market_making.life_mm import ReferencePair
+from hummingbot.cli.admin_overview_models import OverviewSupplement
 from hummingbot.client.config.mm_profiles import DurationMode, MarketMode, MMProfilesConfig
 from hummingbot.core.admin_reconciliation import ReconciliationRequest
 from hummingbot.core.control_errors import RequestError
@@ -502,6 +503,7 @@ class AutomaticRecoveryStatus(APIModel):
 
 
 class StatusResponse(APIModel):
+    overview: Optional[OverviewSupplement] = Field(default=None, description="Optional account/session reporting observations. Null if projection is unavailable; individual missing metrics remain null. Never controls trading.")
     automatic_recovery: Optional[AutomaticRecoveryStatus] = None
     quote_activity: Dict[Literal['spot', 'perpetual'], QuoteActivity] = Field(default_factory=dict)
     process_identity: Optional[RuntimeIdentity] = None

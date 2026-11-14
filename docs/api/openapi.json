@@ -466,7 +466,6 @@
           },
           "reserved_base": {
             "additionalProperties": {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
               "type": "string"
             },
             "title": "Reserved Base",
@@ -474,7 +473,6 @@
           },
           "reserved_quote_worst_case": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Reserved Quote Worst Case",
             "type": "string"
           },
@@ -508,7 +506,6 @@
           "available_cash": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -520,7 +517,6 @@
           "available_equity": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -532,7 +528,6 @@
           "cash_balance": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -552,7 +547,6 @@
           "equity": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -639,27 +633,22 @@
             "type": "integer"
           },
           "max_anchor_move_bps": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Anchor Move Bps",
             "type": "string"
           },
           "max_market_spread_bps": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Market Spread Bps",
             "type": "string"
           },
           "max_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Quote",
             "type": "string"
           },
           "min_external_depth_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Min External Depth Quote",
             "type": "string"
           },
           "qualification_seconds": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Qualification Seconds",
             "type": "string"
           }
@@ -679,7 +668,6 @@
         "additionalProperties": false,
         "properties": {
           "anchor": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Anchor",
             "type": "string"
           },
@@ -696,17 +684,14 @@
             "title": "Expires At"
           },
           "external_ask_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "External Ask Quote",
             "type": "string"
           },
           "external_bid_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "External Bid Quote",
             "type": "string"
           },
           "lower_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Lower Price",
             "type": "string"
           },
@@ -721,7 +706,6 @@
           "market_spread_bps": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -731,7 +715,6 @@
             "title": "Market Spread Bps"
           },
           "max_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Quote",
             "type": "string"
           },
@@ -798,7 +781,6 @@
             "type": "string"
           },
           "upper_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Upper Price",
             "type": "string"
           }
@@ -1831,7 +1813,6 @@
           "available_cash": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1843,7 +1824,6 @@
           "available_equity": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1855,7 +1835,6 @@
           "cash_balance": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1884,7 +1863,6 @@
           "equity": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1934,12 +1912,10 @@
         "additionalProperties": false,
         "properties": {
           "buy_volume_base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Buy Volume Base",
             "type": "string"
           },
           "buy_volume_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Buy Volume Quote",
             "type": "string"
           },
@@ -1955,7 +1931,6 @@
           "fee_in_usdt": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1978,7 +1953,6 @@
           "funding_paid": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1991,7 +1965,6 @@
           "funding_received": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2023,12 +1996,10 @@
             "type": "integer"
           },
           "sell_volume_base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Sell Volume Base",
             "type": "string"
           },
           "sell_volume_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Sell Volume Quote",
             "type": "string"
           },
@@ -2071,17 +2042,14 @@
             "type": "string"
           },
           "net": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Net",
             "type": "string"
           },
           "paid": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Paid",
             "type": "string"
           },
           "rebates": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Rebates",
             "type": "string"
           }
@@ -2283,7 +2251,6 @@
           "drawdown_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2295,7 +2262,6 @@
           "peak_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2307,7 +2273,6 @@
           "pnl_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2364,7 +2329,6 @@
           "global_drawdown_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2377,7 +2341,6 @@
           "global_peak_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2390,7 +2353,6 @@
           "global_pnl_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2403,7 +2365,6 @@
           "max_controller_drawdown_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2415,7 +2376,6 @@
           "max_global_drawdown_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2688,7 +2648,6 @@
         "additionalProperties": false,
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Amount",
             "type": "string"
           },
@@ -2727,7 +2686,6 @@
         "additionalProperties": false,
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Amount",
             "type": "string"
           },
@@ -2750,7 +2708,6 @@
           "fee_in_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2795,7 +2752,6 @@
             "title": "Position"
           },
           "price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Price",
             "type": "string"
           },
@@ -3028,7 +2984,6 @@
         "description": "Configuration for an initial position that the controller should consider.\nThis is used when the user already has assets in their account and wants\nthe controller to manage them.",
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Amount",
             "type": "string"
           },
@@ -3086,7 +3041,6 @@
         "additionalProperties": false,
         "properties": {
           "available_base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Available Base",
             "type": "string"
           },
@@ -3108,7 +3062,6 @@
           "owned_base": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3129,7 +3082,6 @@
             "title": "Reason Code"
           },
           "reserved_base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Reserved Base",
             "type": "string"
           },
@@ -3142,7 +3094,6 @@
             "type": "string"
           },
           "venue_base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Venue Base",
             "type": "string"
           }
@@ -3234,13 +3185,11 @@
           },
           "inventory_range_multiplier": {
             "default": "1",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Inventory Range Multiplier",
             "type": "string"
           },
           "target_base_pct": {
             "default": "0.5",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Target Base Pct",
             "type": "string"
           }
@@ -3266,7 +3215,6 @@
           "base_cash": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3278,7 +3226,6 @@
           "base_pct": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3288,19 +3235,16 @@
             "title": "Base Pct"
           },
           "budget_scale": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Budget Scale",
             "type": "string"
           },
           "buy_multiplier": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Buy Multiplier",
             "type": "string"
           },
           "cash_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3332,7 +3276,6 @@
             "type": "string"
           },
           "sell_multiplier": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Sell Multiplier",
             "type": "string"
           },
@@ -3347,7 +3290,6 @@
           "valuation_price": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3381,7 +3323,6 @@
             "anyOf": [
               {
                 "items": {
-                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                   "type": "string"
                 },
                 "type": "array"
@@ -3450,7 +3391,6 @@
           "initial_anchor": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3499,7 +3439,6 @@
           "max_base_inventory": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3511,14 +3450,12 @@
           },
           "max_data_age_seconds": {
             "default": "10",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Data Age Seconds",
             "type": "string"
           },
           "max_gross_base": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3531,7 +3468,6 @@
           "max_long_base": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3542,7 +3478,6 @@
             "title": "Max Long Base"
           },
           "max_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Price",
             "type": "string"
           },
@@ -3556,7 +3491,6 @@
           "max_short_base": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3567,7 +3501,6 @@
             "title": "Max Short Base"
           },
           "min_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Min Price",
             "type": "string"
           },
@@ -3603,7 +3536,6 @@
           "position_rebalance_threshold_pct": {
             "default": "0.05",
             "is_updatable": true,
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "prompt": "Enter the position rebalance threshold percentage (e.g., 0.05 for 5%): ",
             "prompt_on_new": true,
             "title": "Position Rebalance Threshold Pct",
@@ -3641,7 +3573,6 @@
           "saved_life_anchor": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3653,7 +3584,6 @@
           },
           "saved_source_anchors": {
             "additionalProperties": {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
               "type": "string"
             },
             "title": "Saved Source Anchors",
@@ -3673,7 +3603,6 @@
             "anyOf": [
               {
                 "items": {
-                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                   "type": "string"
                 },
                 "type": "array"
@@ -3721,7 +3650,6 @@
           "stop_loss": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3734,7 +3662,6 @@
           "take_profit": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3766,7 +3693,6 @@
           "total_amount_quote": {
             "default": "100",
             "is_updatable": true,
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "prompt": "Enter the total amount in quote asset to use for trading (e.g., 1000): ",
             "prompt_on_new": true,
             "title": "Total Amount Quote",
@@ -3806,7 +3732,6 @@
           "ask_notional": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3818,7 +3743,6 @@
           "best_ask": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3830,7 +3754,6 @@
           "best_bid": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3842,7 +3765,6 @@
           "bid_notional": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3940,7 +3862,6 @@
           "spread_bps": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4161,17 +4082,14 @@
             "type": "string"
           },
           "price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Price",
             "type": "string"
           },
           "remaining_notional": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Remaining Notional",
             "type": "string"
           },
           "remaining_quantity": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Remaining Quantity",
             "type": "string"
           },
@@ -4454,7 +4372,6 @@
           "max_controller_drawdown_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4473,7 +4390,6 @@
           "max_global_drawdown_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4484,7 +4400,6 @@
             "title": "Max Global Drawdown Quote"
           },
           "max_total_amount_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Total Amount Quote",
             "type": "string"
           },
@@ -4711,7 +4626,6 @@
           "reference_price": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4906,7 +4820,6 @@
         "additionalProperties": false,
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Amount",
             "type": "string"
           },
@@ -4970,7 +4883,6 @@
             "title": "Position"
           },
           "price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Price",
             "type": "string"
           },
@@ -4994,7 +4906,6 @@
           "recorded_filled_amount": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -5007,7 +4918,6 @@
           "recorded_remaining_amount": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -5090,6 +5000,1811 @@
           "next_cursor"
         ],
         "title": "OrdersPage",
+        "type": "object"
+      },
+      "OverviewAccountScopeOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "account_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Account Ids",
+            "type": "array"
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "enum": [
+                  "live",
+                  "demo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment"
+          },
+          "identity_verified": {
+            "default": false,
+            "title": "Identity Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "account_ids",
+          "environment"
+        ],
+        "title": "OverviewAccountScope",
+        "type": "object"
+      },
+      "OverviewCapitalAllocatedOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "life": {
+            "title": "Life",
+            "type": "string"
+          },
+          "source": {
+            "const": "session_configuration",
+            "title": "Source",
+            "type": "string"
+          },
+          "usdt": {
+            "title": "Usdt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "usdt",
+          "life",
+          "source"
+        ],
+        "title": "OverviewCapitalAllocated",
+        "type": "object"
+      },
+      "OverviewCoverageMinuteOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "minute_ts": {
+            "format": "date-time",
+            "title": "Minute Ts",
+            "type": "string"
+          },
+          "observed_seconds": {
+            "minimum": 0,
+            "title": "Observed Seconds",
+            "type": "number"
+          },
+          "two_sided_seconds": {
+            "minimum": 0,
+            "title": "Two Sided Seconds",
+            "type": "number"
+          },
+          "unknown_seconds": {
+            "minimum": 0,
+            "title": "Unknown Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "minute_ts",
+          "observed_seconds",
+          "unknown_seconds",
+          "two_sided_seconds"
+        ],
+        "title": "OverviewCoverageMinute",
+        "type": "object"
+      },
+      "OverviewDepthLevelOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "ask_usdt": {
+            "title": "Ask Usdt",
+            "type": "string"
+          },
+          "bid_usdt": {
+            "title": "Bid Usdt",
+            "type": "string"
+          },
+          "offset_bps": {
+            "exclusiveMinimum": 0,
+            "title": "Offset Bps",
+            "type": "number"
+          }
+        },
+        "required": [
+          "offset_bps",
+          "bid_usdt",
+          "ask_usdt"
+        ],
+        "title": "OverviewDepthLevel",
+        "type": "object"
+      },
+      "OverviewDepthOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "const": "own_working_orders",
+            "title": "Basis",
+            "type": "string"
+          },
+          "levels": {
+            "description": "Cumulative remaining own order notional within offset_bps of mid.",
+            "items": {
+              "$ref": "#/components/schemas/OverviewDepthLevelOutput"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "reference_mid": {
+            "title": "Reference Mid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "basis",
+          "reference_mid",
+          "levels"
+        ],
+        "title": "OverviewDepth",
+        "type": "object"
+      },
+      "OverviewHoldBenchmarkOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "baseline_at": {
+            "format": "date-time",
+            "title": "Baseline At",
+            "type": "string"
+          },
+          "basis": {
+            "const": "initial_spot_assets",
+            "title": "Basis",
+            "type": "string"
+          },
+          "hold_pnl_usdt": {
+            "title": "Hold Pnl Usdt",
+            "type": "string"
+          },
+          "initial_life": {
+            "title": "Initial Life",
+            "type": "string"
+          },
+          "initial_usdt": {
+            "title": "Initial Usdt",
+            "type": "string"
+          },
+          "outperform_usdt": {
+            "description": "session_pnl_usdt minus hold_pnl_usdt.",
+            "title": "Outperform Usdt",
+            "type": "string"
+          },
+          "session_pnl_usdt": {
+            "title": "Session Pnl Usdt",
+            "type": "string"
+          },
+          "transfer_treatment": {
+            "const": "excluded_from_both",
+            "title": "Transfer Treatment",
+            "type": "string"
+          },
+          "valuation": {
+            "$ref": "#/components/schemas/OverviewValuationOutput"
+          }
+        },
+        "required": [
+          "basis",
+          "baseline_at",
+          "initial_life",
+          "initial_usdt",
+          "session_pnl_usdt",
+          "hold_pnl_usdt",
+          "outperform_usdt",
+          "valuation",
+          "transfer_treatment"
+        ],
+        "title": "OverviewHoldBenchmark",
+        "type": "object"
+      },
+      "OverviewInventoryLimitOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "const": "LIFE",
+            "title": "Asset",
+            "type": "string"
+          },
+          "controller_id": {
+            "title": "Controller Id",
+            "type": "string"
+          },
+          "gross_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Gross Limit"
+          },
+          "inventory_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null if policy defines no absolute quantity limit.",
+            "title": "Inventory Limit"
+          },
+          "long_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Long Limit"
+          },
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "short_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Short Limit"
+          }
+        },
+        "required": [
+          "controller_id",
+          "market",
+          "pair",
+          "asset",
+          "inventory_limit"
+        ],
+        "title": "OverviewInventoryLimit",
+        "type": "object"
+      },
+      "OverviewMarketDataOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewRollingCoverage_Output"
+          },
+          "depth": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewDepth_Output"
+          },
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "post_fill_recovery": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewPostFillRecovery_Output"
+          },
+          "slippage_estimate": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewSlippage_Output"
+          }
+        },
+        "required": [
+          "market",
+          "connector",
+          "pair",
+          "depth",
+          "coverage",
+          "slippage_estimate",
+          "post_fill_recovery"
+        ],
+        "title": "OverviewMarketData",
+        "type": "object"
+      },
+      "OverviewMarketFeesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "total_usdt": {
+            "title": "Total Usdt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "market",
+          "total_usdt"
+        ],
+        "title": "OverviewMarketFees",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewCapitalAllocated_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewCapitalAllocatedOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewCapitalAllocated]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewDepth_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewDepthOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewDepth]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewHoldBenchmark_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewHoldBenchmarkOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewHoldBenchmark]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewPortfolio_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewPortfolioOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewPortfolio]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewPostFillRecovery_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewPostFillRecoveryOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewPostFillRecovery]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewRollingCoverage_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewRollingCoverageOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewRollingCoverage]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewSessionDelta_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewSessionDeltaOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewSessionDelta]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewSessionFees_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewSessionFeesOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewSessionFees]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewSlippage_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewSlippageOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewSlippage]",
+        "type": "object"
+      },
+      "OverviewObservation_list_OverviewInventoryLimit__Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OverviewInventoryLimitOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[list[OverviewInventoryLimit]]",
+        "type": "object"
+      },
+      "OverviewObservation_list_OverviewReferencePrice__Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OverviewReferencePriceOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[list[OverviewReferencePrice]]",
+        "type": "object"
+      },
+      "OverviewObservation_list_OverviewReservedBalance__Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OverviewReservedBalanceOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[list[OverviewReservedBalance]]",
+        "type": "object"
+      },
+      "OverviewObservation_list_OverviewRiskRule__Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OverviewRiskRuleOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[list[OverviewRiskRule]]",
+        "type": "object"
+      },
+      "OverviewPortfolioOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "life_usdt": {
+            "title": "Life Usdt",
+            "type": "string"
+          },
+          "other_assets_usdt": {
+            "title": "Other Assets Usdt",
+            "type": "string"
+          },
+          "total_usdt": {
+            "description": "Account equity; include perp unrealized PnL once, do not double count margin.",
+            "title": "Total Usdt",
+            "type": "string"
+          },
+          "usdt": {
+            "description": "USDT equity component, not available cash.",
+            "title": "Usdt",
+            "type": "string"
+          },
+          "valuation": {
+            "$ref": "#/components/schemas/OverviewValuationOutput"
+          }
+        },
+        "required": [
+          "total_usdt",
+          "life_usdt",
+          "usdt",
+          "other_assets_usdt",
+          "valuation"
+        ],
+        "title": "OverviewPortfolio",
+        "type": "object"
+      },
+      "OverviewPostFillRecoveryOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "const": "fill_to_acknowledged_two_sided_quotes",
+            "title": "Basis",
+            "type": "string"
+          },
+          "history_complete": {
+            "title": "History Complete",
+            "type": "boolean"
+          },
+          "measurement": {
+            "const": "sampled_upper_bound",
+            "default": "sampled_upper_bound",
+            "title": "Measurement",
+            "type": "string"
+          },
+          "p50_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50 Seconds"
+          },
+          "p95_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95 Seconds"
+          },
+          "pending_count": {
+            "minimum": 0,
+            "title": "Pending Count",
+            "type": "integer"
+          },
+          "recovered_count": {
+            "minimum": 0,
+            "title": "Recovered Count",
+            "type": "integer"
+          },
+          "window_end": {
+            "format": "date-time",
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_start": {
+            "format": "date-time",
+            "title": "Window Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "basis",
+          "window_start",
+          "window_end",
+          "recovered_count",
+          "pending_count",
+          "history_complete",
+          "p50_seconds",
+          "p95_seconds"
+        ],
+        "title": "OverviewPostFillRecovery",
+        "type": "object"
+      },
+      "OverviewReferencePriceOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor_at": {
+            "format": "date-time",
+            "title": "Anchor At",
+            "type": "string"
+          },
+          "anchor_price": {
+            "title": "Anchor Price",
+            "type": "string"
+          },
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "controller_id": {
+            "title": "Controller Id",
+            "type": "string"
+          },
+          "last_price": {
+            "description": "Current fresh reference midpoint, not last traded price.",
+            "title": "Last Price",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "price_basis": {
+            "const": "mid",
+            "default": "mid",
+            "title": "Price Basis",
+            "type": "string"
+          },
+          "price_observed_at": {
+            "format": "date-time",
+            "title": "Price Observed At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "controller_id",
+          "connector",
+          "pair",
+          "anchor_price",
+          "last_price",
+          "price_observed_at",
+          "anchor_at"
+        ],
+        "title": "OverviewReferencePrice",
+        "type": "object"
+      },
+      "OverviewReservedBalanceOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "title": "Asset",
+            "type": "string"
+          },
+          "free": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free"
+          },
+          "reserved_for_open_orders": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exchange-confirmed reservation, not equity minus free.",
+            "title": "Reserved For Open Orders"
+          }
+        },
+        "required": [
+          "asset",
+          "free",
+          "reserved_for_open_orders"
+        ],
+        "title": "OverviewReservedBalance",
+        "type": "object"
+      },
+      "OverviewRiskRuleOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "controller_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Controller Id"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "lower_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lower Limit"
+          },
+          "market": {
+            "anyOf": [
+              {
+                "enum": [
+                  "spot",
+                  "perpetual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "violated",
+              "disabled",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "unit": {
+            "enum": [
+              "USDT",
+              "LIFE",
+              "fraction",
+              "seconds",
+              "bps"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "upper_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upper Limit"
+          }
+        },
+        "required": [
+          "rule_id",
+          "controller_id",
+          "market",
+          "unit",
+          "lower_limit",
+          "upper_limit",
+          "current",
+          "status"
+        ],
+        "title": "OverviewRiskRule",
+        "type": "object"
+      },
+      "OverviewRollingCoverageOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "elapsed_seconds": {
+            "minimum": 0,
+            "title": "Elapsed Seconds",
+            "type": "number"
+          },
+          "full_window": {
+            "title": "Full Window",
+            "type": "boolean"
+          },
+          "observed_seconds": {
+            "minimum": 0,
+            "title": "Observed Seconds",
+            "type": "number"
+          },
+          "per_minute": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OverviewCoverageMinuteOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Minute"
+          },
+          "rolling_30m_fraction": {
+            "anyOf": [
+              {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "two_sided_seconds / elapsed_seconds; unknown remains in denominator.",
+            "title": "Rolling 30M Fraction"
+          },
+          "target_fraction": {
+            "anyOf": [
+              {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Fraction"
+          },
+          "two_sided_seconds": {
+            "minimum": 0,
+            "title": "Two Sided Seconds",
+            "type": "number"
+          },
+          "unknown_seconds": {
+            "minimum": 0,
+            "title": "Unknown Seconds",
+            "type": "number"
+          },
+          "window_end": {
+            "format": "date-time",
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_seconds": {
+            "const": 1800,
+            "title": "Window Seconds",
+            "type": "integer"
+          },
+          "window_start": {
+            "format": "date-time",
+            "title": "Window Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "window_seconds",
+          "window_start",
+          "window_end",
+          "elapsed_seconds",
+          "observed_seconds",
+          "unknown_seconds",
+          "two_sided_seconds",
+          "rolling_30m_fraction",
+          "target_fraction",
+          "full_window",
+          "per_minute"
+        ],
+        "title": "OverviewRollingCoverage",
+        "type": "object"
+      },
+      "OverviewSessionDeltaOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "adjusted_for_transfers": {
+            "title": "Adjusted For Transfers",
+            "type": "boolean"
+          },
+          "baseline_at": {
+            "format": "date-time",
+            "title": "Baseline At",
+            "type": "string"
+          },
+          "baseline_total_usdt": {
+            "title": "Baseline Total Usdt",
+            "type": "string"
+          },
+          "net_transfers_usdt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Net external inflows valued at transfer time; null when incomplete.",
+            "title": "Net Transfers Usdt"
+          },
+          "pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Percentage points: 0.82 means 0.82%; delta / baseline * 100; null if baseline <= 0.",
+            "title": "Pct"
+          },
+          "through_at": {
+            "format": "date-time",
+            "title": "Through At",
+            "type": "string"
+          },
+          "usdt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "End equity minus baseline minus net inflows; null if transfers unknown.",
+            "title": "Usdt"
+          }
+        },
+        "required": [
+          "baseline_at",
+          "baseline_total_usdt",
+          "net_transfers_usdt",
+          "adjusted_for_transfers",
+          "usdt",
+          "pct",
+          "through_at"
+        ],
+        "title": "OverviewSessionDelta",
+        "type": "object"
+      },
+      "OverviewSessionFeesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "by_market": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OverviewMarketFeesOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By Market"
+          },
+          "conversion_basis": {
+            "const": "at_fill",
+            "title": "Conversion Basis",
+            "type": "string"
+          },
+          "history_complete": {
+            "title": "History Complete",
+            "type": "boolean"
+          },
+          "through_at": {
+            "format": "date-time",
+            "title": "Through At",
+            "type": "string"
+          },
+          "total_usdt": {
+            "description": "Signed cost: positive paid, negative rebate; converted at fill time.",
+            "title": "Total Usdt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "total_usdt",
+          "by_market",
+          "conversion_basis",
+          "history_complete",
+          "through_at"
+        ],
+        "title": "OverviewSessionFees",
+        "type": "object"
+      },
+      "OverviewSessionOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "benchmark_hold": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewHoldBenchmark_Output"
+          },
+          "capital_allocated": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewCapitalAllocated_Output"
+          },
+          "delta": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewSessionDelta_Output"
+          },
+          "fees": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewSessionFees_Output"
+          }
+        },
+        "required": [
+          "capital_allocated",
+          "fees",
+          "delta",
+          "benchmark_hold"
+        ],
+        "title": "OverviewSession",
+        "type": "object"
+      },
+      "OverviewSlippageEstimateOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_slippage_bps": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Slippage Bps"
+          },
+          "notional_usdt": {
+            "title": "Notional Usdt",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "sufficient_depth": {
+            "title": "Sufficient Depth",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "side",
+          "notional_usdt",
+          "expected_slippage_bps",
+          "sufficient_depth"
+        ],
+        "title": "OverviewSlippageEstimate",
+        "type": "object"
+      },
+      "OverviewSlippageOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "const": "exchange_order_book",
+            "title": "Basis",
+            "type": "string"
+          },
+          "estimates": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewSlippageEstimateOutput"
+            },
+            "title": "Estimates",
+            "type": "array"
+          },
+          "notional_basis": {
+            "const": "reference_mid",
+            "default": "reference_mid",
+            "title": "Notional Basis",
+            "type": "string"
+          },
+          "own_orders_excluded": {
+            "const": true,
+            "default": true,
+            "title": "Own Orders Excluded",
+            "type": "boolean"
+          },
+          "reference_mid": {
+            "title": "Reference Mid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "basis",
+          "reference_mid",
+          "estimates"
+        ],
+        "title": "OverviewSlippage",
+        "type": "object"
+      },
+      "OverviewSupplementOutput": {
+        "additionalProperties": false,
+        "description": "Account/session observations only; never changes quote, sizing or risk enforcement.",
+        "properties": {
+          "account_scope": {
+            "$ref": "#/components/schemas/OverviewAccountScopeOutput"
+          },
+          "balances": {
+            "$ref": "#/components/schemas/OverviewObservation_list_OverviewReservedBalance__Output"
+          },
+          "contract_version": {
+            "const": 1,
+            "title": "Contract Version",
+            "type": "integer"
+          },
+          "inventory_limits": {
+            "$ref": "#/components/schemas/OverviewObservation_list_OverviewInventoryLimit__Output"
+          },
+          "markets": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMarketDataOutput"
+            },
+            "title": "Markets",
+            "type": "array"
+          },
+          "portfolio": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewPortfolio_Output"
+          },
+          "references": {
+            "$ref": "#/components/schemas/OverviewObservation_list_OverviewReferencePrice__Output"
+          },
+          "risk_rules": {
+            "$ref": "#/components/schemas/OverviewObservation_list_OverviewRiskRule__Output"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "session": {
+            "$ref": "#/components/schemas/OverviewSessionOutput"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "session_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Started At"
+          }
+        },
+        "required": [
+          "contract_version",
+          "server_time",
+          "account_scope",
+          "session_id",
+          "session_started_at",
+          "session",
+          "portfolio",
+          "risk_rules",
+          "markets",
+          "balances",
+          "inventory_limits",
+          "references"
+        ],
+        "title": "OverviewSupplement",
+        "type": "object"
+      },
+      "OverviewValuationOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "const": "USDT",
+            "title": "Currency",
+            "type": "string"
+          },
+          "prices": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewValuationPriceOutput"
+            },
+            "title": "Prices",
+            "type": "array"
+          },
+          "valuation_mark": {
+            "enum": [
+              "mid",
+              "mark"
+            ],
+            "title": "Valuation Mark",
+            "type": "string"
+          },
+          "valued_at": {
+            "format": "date-time",
+            "title": "Valued At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "valuation_mark",
+          "valued_at",
+          "prices"
+        ],
+        "title": "OverviewValuation",
+        "type": "object"
+      },
+      "OverviewValuationPriceOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "title": "Asset",
+            "type": "string"
+          },
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "price_usdt": {
+            "title": "Price Usdt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "observed_at",
+          "asset",
+          "pair",
+          "connector",
+          "price_usdt"
+        ],
+        "title": "OverviewValuationPrice",
         "type": "object"
       },
       "PerformanceMarketOutput": {
@@ -5216,13 +6931,11 @@
           },
           "global_pnl_pct": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Global Pnl Pct",
             "type": "string"
           },
           "global_pnl_quote": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Global Pnl Quote",
             "type": "string"
           },
@@ -5234,31 +6947,26 @@
           },
           "realized_pnl_pct": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Realized Pnl Pct",
             "type": "string"
           },
           "realized_pnl_quote": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Realized Pnl Quote",
             "type": "string"
           },
           "unrealized_pnl_pct": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Unrealized Pnl Pct",
             "type": "string"
           },
           "unrealized_pnl_quote": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Unrealized Pnl Quote",
             "type": "string"
           },
           "volume_traded": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Volume Traded",
             "type": "string"
           }
@@ -5384,24 +7092,20 @@
         "additionalProperties": false,
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Amount",
             "type": "string"
           },
           "entry_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Entry Price",
             "type": "string"
           },
           "leverage": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Leverage",
             "type": "string"
           },
           "liquidation_price": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -5414,7 +7118,6 @@
           "margin": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -5466,7 +7169,6 @@
             "type": "boolean"
           },
           "unrealized_pnl": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Unrealized Pnl",
             "type": "string"
           }
@@ -5768,7 +7470,6 @@
           "max_deviation_bps": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -5796,14 +7497,12 @@
           },
           "recovery_delay_seconds": {
             "default": "5",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Recovery Delay Seconds",
             "type": "string"
           },
           "resume_deviation_bps": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -5871,7 +7570,6 @@
           "deviation_bps": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -5892,7 +7590,6 @@
           "market_mid": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -6594,7 +8291,6 @@
           },
           "percent": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Percent",
             "type": "string"
           },
@@ -7289,13 +8985,11 @@
         "additionalProperties": false,
         "properties": {
           "life": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Life",
             "type": "string"
           },
           "sources": {
             "additionalProperties": {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
               "type": "string"
             },
             "title": "Sources",
@@ -7317,7 +9011,6 @@
             "type": "string"
           },
           "weight": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Weight",
             "type": "string"
           }
@@ -8072,22 +9765,18 @@
         "additionalProperties": false,
         "properties": {
           "lower_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Lower Price",
             "type": "string"
           },
           "resume_lower_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Resume Lower Price",
             "type": "string"
           },
           "resume_upper_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Resume Upper Price",
             "type": "string"
           },
           "upper_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Upper Price",
             "type": "string"
           }
@@ -8133,12 +9822,10 @@
         "additionalProperties": false,
         "properties": {
           "fee_allowance_rate": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Fee Allowance Rate",
             "type": "string"
           },
           "max_net_outflow_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Net Outflow Quote",
             "type": "string"
           },
@@ -8161,12 +9848,10 @@
         "additionalProperties": false,
         "properties": {
           "fee_allowance_rate": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Fee Allowance Rate",
             "type": "string"
           },
           "max_net_outflow_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Net Outflow Quote",
             "type": "string"
           },
@@ -8237,7 +9922,6 @@
           },
           "non_usdt_fees": {
             "additionalProperties": {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
               "type": "string"
             },
             "title": "Non Usdt Fees",
@@ -8281,7 +9965,6 @@
           "recorded_net_outflow_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -8293,7 +9976,6 @@
           "remaining_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -8305,7 +9987,6 @@
           "reserved_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -8381,7 +10062,6 @@
         "properties": {
           "buy_spreads": {
             "items": {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
               "type": "string"
             },
             "title": "Buy Spreads",
@@ -8421,7 +10101,6 @@
           "multiplier": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -8433,7 +10112,6 @@
           "raw_natr": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -8446,7 +10124,6 @@
           },
           "sell_spreads": {
             "items": {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
               "type": "string"
             },
             "title": "Sell Spreads",
@@ -8725,6 +10402,18 @@
               }
             ],
             "default": null
+          },
+          "overview": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewSupplementOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional account/session reporting observations. Null if projection is unavailable; individual missing metrics remain null. Never controls trading."
           },
           "owner_available": {
             "title": "Owner Available",
@@ -9042,12 +10731,10 @@
       "TrailingStopOutput": {
         "properties": {
           "activation_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Activation Price",
             "type": "string"
           },
           "trailing_delta": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Trailing Delta",
             "type": "string"
           }
@@ -9069,22 +10756,18 @@
             "type": "integer"
           },
           "reduce_at_natr": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Reduce At Natr",
             "type": "string"
           },
           "reduced_size_factor": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Reduced Size Factor",
             "type": "string"
           },
           "resume_below_natr": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Resume Below Natr",
             "type": "string"
           },
           "stop_at_natr": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Stop At Natr",
             "type": "string"
           }
@@ -9120,7 +10803,6 @@
             "title": "Cancellation Pending"
           },
           "effective_allocation_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Effective Allocation Quote",
             "type": "string"
           },
@@ -9170,7 +10852,6 @@
             "type": "integer"
           },
           "size_factor": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Size Factor",
             "type": "string"
           },
@@ -9228,7 +10909,6 @@
             "anyOf": [
               {
                 "items": {
-                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                   "type": "string"
                 },
                 "type": "array"
@@ -9244,7 +10924,6 @@
             "anyOf": [
               {
                 "items": {
-                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                   "type": "string"
                 },
                 "type": "array"
@@ -9286,13 +10965,11 @@
           },
           "max_multiplier": {
             "default": "3",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Multiplier",
             "type": "string"
           },
           "min_multiplier": {
             "default": "0.5",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Min Multiplier",
             "type": "string"
           },
@@ -9307,7 +10984,6 @@
           },
           "target_natr": {
             "default": "0.01",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Target Natr",
             "type": "string"
           }
