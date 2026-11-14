@@ -4,6 +4,7 @@ import math
 import uuid
 from contextlib import closing
 from copy import deepcopy
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
@@ -42,6 +43,13 @@ from hummingbot.strategy_v2.models.executor_actions import (
 from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo, PerformanceReport
 from hummingbot.strategy_v2.utils.perpetual_reduction import HedgeCostBasis
+
+
+@dataclass(frozen=True)
+class StartupPerformance:
+    controller_ids: tuple
+    # Immutable, bounded by controller count; no ORM rows or open session escape.
+    totals: tuple
 
 
 class PositionHold:
@@ -279,7 +287,8 @@ class ExecutorOrchestrator:
                  strategy: "StrategyV2Base",
                  executors_update_interval: float = 1.0,
                  executors_max_retries: int = 10,
-                 initial_positions_by_controller: Optional[dict] = None):
+                 initial_positions_by_controller: Optional[dict] = None,
+                 startup_performance: Optional[StartupPerformance] = None):
         self.strategy = strategy
         self.executors_update_interval = executors_update_interval
         self.executors_max_retries = executors_max_retries
@@ -292,7 +301,7 @@ class ExecutorOrchestrator:
         self.initial_positions_by_controller = initial_positions_by_controller or {}
         self._initial_positions_initialized = False
         self._checkpoint_candidates = []
-        self._initialize_cached_performance()
+        self._initialize_cached_performance(startup_performance)
 
     def reduction_runtime(self, controller_id):
         """Project resident ownership/receipts only; never fetch history here."""
@@ -415,41 +424,54 @@ class ExecutorOrchestrator:
             return False
         return True
 
-    def _initialize_cached_performance(self):
+    @classmethod
+    def read_startup_performance(cls, recorder, controller_ids, initial=None, cancelled=None):
+        """Worker-safe streaming reduction; never access strategy/native ownership."""
+        selected, totals = set(controller_ids), {}
+        if cancelled is not None and cancelled.is_set():
+            raise asyncio.CancelledError()
+        with closing(recorder.iter_executor_performance(list(controller_ids))) as db_executors:
+            for executor in db_executors:
+                if cancelled is not None and cancelled.is_set():
+                    raise asyncio.CancelledError()
+                controller_id = executor.controller_id
+                if controller_id not in selected:
+                    continue
+                close_type, pnl, volume = cls._executor_performance_values(executor)
+                if controller_id not in totals:
+                    report = (initial or {}).get(controller_id)
+                    totals[controller_id] = ([report.realized_pnl_quote, report.volume_traded, dict(report.close_type_counts)]
+                                             if report is not None else [Decimal(0), Decimal(0), {}])
+                values = totals[controller_id]
+                if close_type != CloseType.POSITION_HOLD:
+                    values[0] += pnl
+                    values[1] += volume
+                if close_type:
+                    values[2][close_type] = values[2].get(close_type, 0) + 1
+        return StartupPerformance(tuple(controller_ids), tuple(
+            (identity, pnl, volume, tuple(counts.items())) for identity, (pnl, volume, counts) in totals.items()))
+
+    def _initialize_cached_performance(self, startup_performance=None):
         """
         Initialize cached performance by querying the database for stored executors and positions.
         If initial positions are provided for a controller, skip loading database positions for that controller.
         """
         scope = self._mm_scope()
         controller_ids = list(scope or self.strategy.controllers)
+        if startup_performance is not None and startup_performance.controller_ids != tuple(controller_ids):
+            raise ValueError('Startup performance controller scope changed')
         self.mm_scope_incomplete = bool(scope and MarketsRecorder.get_instance().has_uncovered_positions(controller_ids))
         for controller_id in controller_ids:
             if controller_id not in self.cached_performance:
                 self.cached_performance[controller_id] = PerformanceReport()
                 self.active_executors[controller_id] = []
                 self.positions_held[controller_id] = []
-        selected, totals = set(controller_ids), {}
-        with closing(MarketsRecorder.get_instance().iter_executor_performance(controller_ids)) as db_executors:
-            for executor in db_executors:
-                controller_id = executor.controller_id
-                if controller_id not in selected:
-                    continue
-                close_type, pnl, volume = self._executor_performance_values(executor)
-                if controller_id not in totals:
-                    report = self.cached_performance[controller_id]
-                    totals[controller_id] = [report.realized_pnl_quote, report.volume_traded, dict(report.close_type_counts)]
-                values = totals[controller_id]
-                # Retain native row order and Decimal arithmetic, while avoiding
-                # a report-model assignment for each historical executor.
-                if close_type != CloseType.POSITION_HOLD:
-                    values[0] += pnl
-                    values[1] += volume
-                if close_type:
-                    values[2][close_type] = values[2].get(close_type, 0) + 1
+        snapshot = startup_performance if startup_performance is not None else self.read_startup_performance(
+            MarketsRecorder.get_instance(), controller_ids, self.cached_performance)
         # A malformed row cannot publish a valid-looking prefix of the history.
-        for controller_id, (pnl, volume, counts) in totals.items():
+        for controller_id, pnl, volume, counts in snapshot.totals:
             report = self.cached_performance[controller_id]
-            report.realized_pnl_quote, report.volume_traded, report.close_type_counts = pnl, volume, counts
+            report.realized_pnl_quote, report.volume_traded, report.close_type_counts = pnl, volume, dict(counts)
 
         # Load positions from database only for controllers without initial position overrides
         db_positions = MarketsRecorder.get_instance().get_all_positions(

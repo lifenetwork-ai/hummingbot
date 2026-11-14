@@ -270,7 +270,7 @@ class StrategyV2Base(StrategyPyBase):
             interval=interval
         )
 
-    def __init__(self, connectors: Dict[str, ConnectorBase], config: Optional[BaseModel] = None):
+    def __init__(self, connectors: Dict[str, ConnectorBase], config: Optional[BaseModel] = None, *, startup_performance=None):
         """
         Initialize the strategy.
 
@@ -304,9 +304,10 @@ class StrategyV2Base(StrategyPyBase):
             # Initialize candles after controllers are set up
             self.initialize_candles()
 
+        history = {} if startup_performance is None else {'startup_performance': startup_performance}
         self.executor_orchestrator = _get_executor_orchestrator_class()(
             strategy=self,
-            initial_positions_by_controller=self._collect_initial_positions()
+            initial_positions_by_controller=self._collect_initial_positions(), **history
         )
 
     # -------------------------------------------------------------------------

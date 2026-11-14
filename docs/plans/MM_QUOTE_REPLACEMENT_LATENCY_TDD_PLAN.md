@@ -35,6 +35,36 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
 - [x] Deploy the earlier correction and repeat connected quote qualification.
   Revision111/112 windows retain their failures; deployment is not a99% pass.
 
+## Revision138 probe correlation and startup history
+
+- [x] Inspect the deployed revision138 diagnostics. One initial probe wait
+  contains a cold import stack; three sampled profile startups stop inside
+  projected executor-history `fetchmany`. Separate physical-owner/COMMIT waits
+  remain visible. These are multiple blocking paths, not one established cause
+  of every client timeout.
+- [x] Replay the prepatch TradingCore initializer with the corrected blocked-read
+  fixture: loop progress, cancellation draining, malformed-history publication
+  and recorder replacement fail. Move only the streamed history reduction to a
+  worker; construct strategy/native objects on their loop after the read.
+- [x] Retain projected batches, native Decimal row order and exact close counts.
+  Close the reader on invalid rows/transport failure and drain it on repeated
+  cancellation. Recheck recorder, persistence and controller scope before use;
+  the existing owner/control/credential fence still precedes clock admission.
+- [x] Run the Cloud Run regression and disposable PostgreSQL history tests.
+  The packaged continuous Random/cold restart/overlapping-owner-handoff/Stop
+  scenario passes. This is local qualification, not a deployed probe result.
+- [x] Finish the unchanged 30-minute revision138 window:901 samples/quality pass,
+  one probe timeout with direct history-fetch stack overlap, zero ERROR/restart.
+  Keep quote gate failed (Spot95.24%, perpetual no confirmed eligible samples),
+  all8 unknown samples/market and three transient shutdown fences.
+- [ ] Deploy the startup-history correction and compare a fresh window on one
+  immutable image. Cold imports and physical writer/ownership waits remain open;
+  do not raise the probe timeout or treat asynchronous span duration as a stall.
+
+Evidence: `build/probe-correlation-20261114-1338/`; the existing
+[latency report](../../reports/performance/mm-quote-replacement-latency.md)
+records the correction and its limits.
+
 ## Additional incident found during connected observation
 
 At04:28–04:30UTC on2026-11-12, revision110/owner483 is not trading:

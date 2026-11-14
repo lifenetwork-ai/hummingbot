@@ -1,5 +1,70 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Revision138 startup-history isolation — 2026-11-14
+
+The initial revision138 log slice contains five approximately301ms supervisor
+timeouts. Those are censored client waits, not complete engine-stall durations.
+Only the first has a sampled stack inside its exact client wait: a synchronous
+cold import through `executor_orchestrator.py`. The second overlaps a3.85s
+asynchronous controller cycle, which alone does not prove blocking. The other
+three lack a stack in their exact wait. No single cause is established for all
+five, and the earlier four-timeout deployment slice remains unchanged. A bounded
+55-order history read and eight timeline reads place Created events in the same
+recorded second as three probes. Pending/Created use strategy-clock timestamps;
+this is activity evidence, not millisecond RPC latency or absence of MM impact.
+The later cancellations are ordinary order lifetimes, not cancel-request RTTs.
+
+Separately, repeated watchdog stacks at06:28:09.985,06:38:09.549 and06:48:10.280UTC
+show the main engine thread inside SQLAlchemy/psycopg `fetchmany`, reached from
+`TradingCore._initialize_v2_strategy` through the strategy/orchestrator
+constructors. Heartbeat has not advanced during stack capture. Existing
+`before_cursor_execute`/`after_cursor_execute` timings do not include this
+streamed-fetch wait. The later06:58:10.468UTC probe has a300.875ms client wait containing another
+matching `fetchmany` stack at06:58:10.219UTC, with heartbeat not advanced during
+capture. This supplies direct overlap for that particular timeout. Other samples
+show the physical-owner SELECT, durable pre-send recording and COMMIT waiting
+synchronously; they remain separate.
+
+The local correction preloads only the managed controllers' performance
+reduction on a worker-owned recorder session. Projected `yield_per(1000)` and
+existing Float-to-Decimal row-order arithmetic remain; immutable totals scale
+with controller count. No ORM history list crosses threads. Native strategy,
+controllers, retained-position restoration and physical ownership stay on the
+engine loop. Invalid rows/read failures cannot publish a valid prefix. A cooperative Stop
+signal prevents scanning the rest of history after the current read returns;
+repeated cancellation drains and closes that reader before returning; recorder replacement,
+persistence failure and scope changes reject the result. The existing
+`before_strategy_start` fence still runs before clock admission.
+
+The corrected fixture replaying the prepatch TradingCore initializer fails all
+four original cases. The new focused suite, disposable PostgreSQL test with20k
+historical rows/2k selected rows, broad regression and packaged lifecycle tests
+record local correctness below. This isolates one evidenced blocking read path; startup still waits for the
+complete reduction before constructing/admitting a strategy. It does not
+reduce the total history scan, remove cold imports or change the
+physical pre-send writer/owner checks. No probe deadline, financial policy,
+submission authority, environment variable or API schema is changed.
+
+Validation: Cloud Run target3,741 tests +16 subtests;14 focused tests; eight
+disposable PostgreSQL selections, including active physical ownership; hooks. Candidate image config
+`e00b5b350b890655fef552d6d9c8488bff1eff0fda9771c629e47fe6a9318a6a`,
+manifest`b7dc6730854fa50ffc538a599aa14270ca35ecbe1692c68ef570ce5099dc2c5e`.
+The continuous Random/cold restart/overlapping revision handoff/Stop E2E passes
+with four native fixture fills, original fees retained and one physical owner.
+The slow-account startup/Random-rollover E2E also passes:6.5s reads and4s write
+ACK, one initial account mutation, quotes after acknowledgement and clean Stop.
+All packaged engine/controller/script-strategy Python sources match the working
+tree. Of1,100 checked Python files, nine test/deployment utilities differ from
+the underlying image; the E2E host runner uses current source. These utilities
+are not claimed as candidate runtime changes.
+The current Cloud observation still measures the unpatched revision138; its
+30-minute quote/probe results cannot qualify the local correction.
+
+Evidence (ignored/private): `build/probe-correlation-20261114-1338/`, including
+the retained original diagnostic JSON, deduplicated initial probe correlation,
+baseline replay, native/PG results and candidate source snapshot. Existing
+connected and historical failures below retain their original scope.
+
 Connected status: revision119/709700c70 completes901 samples with quality pass
 and the original99% gate failed (Spot89.61%, perpetual87.59%). No ERROR/restart/
 shutdown timeout is observed, but position evidence and deadline margin remain

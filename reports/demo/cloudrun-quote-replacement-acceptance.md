@@ -1,5 +1,23 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
+Latest full observation (2026-11-14,14:09ICT): revision138 completes901 samples
+on one image/session with quality pass. The bot ends running/control88/88;
+startup/live/ready are200, financial/binding checkpoint hashes match and there
+are154 recorded orders/33 Spot fills. The exact window has34 WARNING entries,
+no ERROR/restart/ownership loss, and one300.875ms probe timeout with a matching
+main-loop history-fetch stack. The local startup-history isolation correction
+passes TDD/native/PG/packaged checks but is not deployed. Quote acceptance remains
+failed: Spot95.24%; perpetual has no confirmed eligible two-sided samples.
+See [the revision138 window](#revision138-thirty-minute-probe-correlation-and-local-correction).
+
+Latest deployment check (2026-11-14,13:30ICT): revision138 is independently
+verified at100% traffic with commit `912822888`, the outflow retry fix and the
+scoped flag still true. Bot is running at control/ack88/88; financial/binding
+checkpoints match and health is200. No ERROR/restart/outflow-retry entry appears
+in the bounded new-revision log query; four short probe timeouts remain. No new
+native cap denial occurs, so connected qualification of that fix stays open.
+See [revision138 verification](#revision138-outflow-retry-fix-deployment).
+
 Latest check (2026-11-14,12:44ICT): revision137 remains Ready at100% traffic,
 flag true, control/ack88/88 running without HALT or quarantine. Fresh API history
 since11:44ICT contains137 Spot fills and at least300 order records (the bounded
@@ -73,6 +91,111 @@ Subsequent operational control observation05:54–06:24UTC retains19 probe
 timeouts across three successful profile changes. The local read/startup TDD
 follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
+
+## Revision138 thirty-minute probe correlation and local correction
+
+The unchanged classifier measures06:38:53.587–07:08:54.943UTC
+(13:38:53–14:08:54ICT),901 paired samples, sampled wall span1800.818s and maximum
+sample gap2.382s. There are no request or identity failures: one revision138,
+one until-stopped session and control/ack88/88. Three temporary shutdown fences
+are sampled at Random handoffs; all clear on the next two-second sample. These
+are not technical HALTs, and their unknown samples remain failed observations.
+
+| Market | Two-sided | Eligible gaps | Guard exclusions | Unknown | Conservative result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Spot |220|3|670|8|95.24%, below99% |
+| Perpetual |0|0|893|8|No confirmed eligible two-sided samples |
+
+Spot's conditional result excluding unknowns is98.65%, also below99%. Guards
+are reported separately and never credited as quote uptime. Spot reasons include
+size/allocation and outflow; perpetual is inventory-limited. This run is not a
+release/SLO pass, and its changing eligibility mix does not prove a regression
+or improvement from the previous revision's percentage.
+
+The exact bounded log query returns34 WARNING entries, zero ERROR entries,
+zero scheduled restarts and no ownership-loss entry. Eight warning entries
+contain OKX50004 status-read timeouts; they are log entries, not a count of unique
+requests. One supervisor probe fails at06:58:10.468UTC, client wait300.875ms,
+one failed probe and zero accumulated failure seconds. A sampled main-thread
+`fetchmany` stack at06:58:10.219UTC lies inside that wait; heartbeat does not
+advance during capture. Earlier pre-window import, ownership and commit stack
+samples remain separate causes/evidence, not a universal explanation.
+
+Final health is200 for startup/live/ready. Bounded API history is complete in one
+page each:154 recorded orders (94 Spot,60 perpetual),33 Spot fills and zero
+provisional creations. Recorder history is not an exchange-wide live snapshot.
+The read-only repeatable-read DB check finds physical generation525, checkpoint
+watermark46491, matching financial/binding hashes, no pending creation,
+prepared/possibly-sent/uncertain attempt or unapplied fill; four attempts remain
+acknowledged, three positions retained and risk-stop false. The SQL proxy closes
+after the read. No control, Cloud config, financial row or risk policy is changed.
+
+TDD isolates the managed startup history reduction on a worker-owned session;
+strategy construction and the existing physical owner/control/credential gate
+remain on the engine loop. Stop closes the current read without scanning the
+remaining history, including repeated cancellation. Final validation is3,741
+native tests +16 subtests,14 focused tests, eight disposable PostgreSQL selections,
+two packaged E2Es and hooks. Candidate config`e00b5b350b890655fef552d6d9c8488bff1eff0fda9771c629e47fe6a9318a6a`,
+manifest`b7dc6730854fa50ffc538a599aa14270ca35ecbe1692c68ef570ce5099dc2c5e`.
+The packaged until-stopped/Random/cold/overlapping-owner-handoff/Stop and delayed
+account-startup scenarios both pass. This candidate is qualified locally and not deployed;
+the window above measures the deployed commit`912822888`, not this correction.
+Cold import/physical writer waits, connected native outflow denial and the
+uncertain-BUY quarantine lifecycle remain open. No threshold or policy is relaxed.
+
+Evidence (ignored/private): `build/probe-correlation-20261114-1338/` includes the
+unaltered classifier/raw samples, exact bounded logs, timing correlation,
+read-only financial check, TDD replay, final source hashes and test receipts.
+See [the implementation and limits](../performance/mm-quote-replacement-latency.md#revision138-startup-history-isolation--2026-11-14).
+
+## Revision138 outflow retry fix deployment
+
+Cloud Run reports `hummingbot-demo-00138-862` Ready at100% traffic since
+06:25:19UTC (13:25:19ICT). Artifact Registry maps exact commit
+`91282288824df60370e0353481dfb5bb7fed0046` to the running image digest
+`sha256:033126063c3627aa00e16e3961d2c271e4d796f9eea226edc24b122b3fd701a7`.
+Apart from image, container env/resources/probes/command/mounts match revision137:
+scoped flag true, Demo routing,2CPU/1GiB. No Cloud setting, trading-control or
+financial change is made by this observer.
+
+Initial and final checks report running, control/ack88/88, no current HALT,
+pending mutation or quarantine. The unchanged until-stopped session survives
+deployment. Spot has working BUYs while SELL size/skew is blocked; perpetual has
+working SELLs while BUY is inventory-limited. Startup/live/ready return200 at the
+health checks. The old05:14 automatic-recovery receipt remains historical idle
+state; its retained order ID is not a new revision138 incident.
+
+A complete120s API observation has61 samples, no request failures and no
+revision/control change, from06:28:08.649 to06:30:09.069UTC. It begins at the
+generation92 profile transition: one temporary shutdown fence clears in the next
+sample, followed by one starting/four readiness-wait samples and56 running
+samples. Final status is running/no HALT. These transitional observations are
+not relabeled as successful quoting. This short check does not replace the
+existing30-minute99% classifier or prove uninterrupted engine ticks.
+
+A read-only repeatable-read DB transaction confirms owner generation525,
+matching financial/binding checkpoint hashes, watermark46213, three positions,
+four acknowledged attempts, zero pending creations and zero unapplied fills.
+There is no prepared/possibly-sent/uncertain attempt or risk-stop flag. The
+temporary loopback SQL proxy is stopped afterward. Bounded complete API history
+since Ready contains20 order records (10 Spot/10 perpetual),16 cancelled and4
+created at the initial history read, none provisional. The repeated bounded
+history read through06:30:09 has those20 records cancelled as quote refresh
+continues; it is not a current open-order snapshot. No fill is recorded in the
+bounded interval.
+
+The bounded revision138 logs contain no ERROR, restart-scheduled, service-stop,
+ownership-loss or native `spot_outflow_limit` denial. Four supervisor probe
+timeouts at300.794–300.910ms remain against the unchanged300ms budget. Loop
+stall/recovery diagnostics are retained separately; this does not establish a
+probe root cause or a latency improvement. Without a new native cap denial,
+absence of retry spam does not qualify the connected rejection path. The old
+revision137 burst and existing quote/probe failures remain preserved.
+
+Evidence (ignored/private): `build/cloudrun-outflow-postdeploy-20261114-1326/`
+contains immutable revision/tag proof, revision-filtered logs, paired health
+checks, the short observation, bounded history and sanitized DB preflight. The
+observer only performs reads; no cap reset, HALT reset, Stop or Start is issued.
 
 ## Revision137 operator-enabled scoped recovery observation
 

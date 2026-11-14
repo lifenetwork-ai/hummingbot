@@ -436,8 +436,11 @@ policy is changed as part of local implementation.
   waits for capacity; prior fills, pending orders and Stop semantics remain.
   Cap, binding, fee, persistence and ownership fences stay authoritative.
 - [ ] Deploy the outflow retry fix and verify connected denial/recovery. The
-  revision137 burst remains historical evidence; local qualification does not
-  turn that connected failure into a pass or close the other quote/probe gates.
+  revision138 image/commit `912822888` is verified at100% traffic with unchanged
+  cap/config and matching checkpoints. Its later complete901-sample window has
+  one probe timeout and no native cap denial; connected rejection/recovery stays
+  unqualified. The startup-history follow-up is local, not deployed. The
+  revision137 burst remains historical evidence; do not close the other gates.
   See [the later health check](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision137-later-health-check--2026-11-14).
 - [ ] General concurrent openings/Perpetual CLOSE: extend only after independent
   worst-case shared-collateral, hedge-quantity and cost-basis proofs are tested.
