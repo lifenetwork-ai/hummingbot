@@ -35,6 +35,35 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
 - [x] Deploy the earlier correction and repeat connected quote qualification.
   Revision111/112 windows retain their failures; deployment is not a99% pass.
 
+## Revision142 intent/ACK persistence follow-up
+
+- [x] Correlate the15 missing Spot samples, including three consecutive pending
+  BUY observations, with retained native history/spans. Multiple order pairs
+  progress during that episode; aggregate samples cannot identify one4s ACK.
+  Retain the original gaps, unknowns and failed95.32% result.
+- [x] RED ordinary intent/Created paths on real PostgreSQL: both perform four
+  flushes instead of two. Group independent metadata/history lookups only;
+  preserve cleanup audit fencing, fresh admission reads and final COMMIT.
+- [x] Cover owner loss after flush, commit failure, terminal/uncertain duplicate
+  ACKs and an unadmitted sibling tracker. Economic history and snapshot roll
+  back together; a stale/uncertain outcome never gains send authority.
+- [x] Alternate predecessor/candidate flush schedules on the same DB and assert
+  two fewer owner reads/SQL statements per stage. Record wall timing separately.
+- [x] Add bounded hashed-ID intent/Created timing and verify the real recorder's
+  successful/error stages, without exporting raw IDs, SQL or exception text.
+- [x] Native929 +9 subtests and217 disposable PostgreSQL regressions pass,
+  including creation rollback/precedence, cleanup and unknown-COMMIT cases.
+- [x] Qualify shutdown-proof with diagnostics on and Spot outflow on the same
+  immutable local candidate. Both pass with existing deadlines and economic
+  assertions; completed stages are positively observed. Keep the final local
+  probe timeout303.954ms/recovered1.043s, without restart/HALT, as open evidence.
+- [ ] Deploy the qualified candidate and repeat unchanged30-minute observation
+  on one image. Separate DB stage timings from transport ACK and probe waits;
+  retain unknown-as-failure and all financial/risk/ownership gates.
+
+Evidence: `build/quote-gap142-followup-20261114/`; see
+[the local acceptance scope](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision142-intentack-db-follow-up--local).
+
 ## Revision138 probe correlation and startup history
 
 - [x] Inspect the deployed revision138 diagnostics. One initial probe wait
@@ -163,9 +192,16 @@ Evidence: `build/shutdown-proof-followup-20261114/`; see
   candidate. Delayed proof retains owner/session and exact fills/fees; native
   outflow cap denial, funded SELLs, duplicate events and restart binding pass.
   The exact fenced-entry fault is reproduced in native connector/PG tests.
-- [ ] Deploy the correction and repeat the unchanged30-minute connected window.
-  Revision141's98.06%, five probes, seven ERROR logs, delayed observation and
-  perpetual limits remain evidence, not passes for this local correction.
+- [x] Deploy the correction and repeat the unchanged30-minute connected window.
+  Revision142/`f61e6516c` retains901 samples/quality pass,270 recorded orders/
+  141 Spot fills, matching checkpoints and three completed profile shutdowns.
+  No in-window ERROR/restart/ownership loss; three probe timeouts remain.
+- [ ] Close the remaining connected gates. Spot95.32% still fails99% with15
+  gaps/6 unknown; one three-sample submission-pending episode spans4.037s.
+  No submission-block event occurs, so positive connected qualification of the
+  fixed branch stays open. Keep residual probe and perpetual gates and all
+  historical revision141 failures. See
+  [revision142](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision142-session-fence-deployment-and-observation).
 
 Evidence: `build/session-shutdown-retry-20261114/`; see
 [the local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision141-session-fence-retry-correction--local).

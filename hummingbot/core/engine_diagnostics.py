@@ -21,14 +21,14 @@ from contextvars import ContextVar
 
 OPERATIONS = frozenset({
     'strategy.tick', 'strategy.reports', 'controller.cycle', 'order.submit',
-    'order.cancel', 'order.terminal', 'position.checkpoint', 'owner.read',
+    'order.cancel', 'order.terminal', 'order.intent', 'order.created', 'position.checkpoint', 'owner.read',
     'db.sql', 'db.commit', 'service.observe', 'executor.terminal', 'order.proof',
     'shutdown.total', 'shutdown.core', 'shutdown.strategy', 'shutdown.hold',
     'shutdown.cancel', 'shutdown.proof_before', 'shutdown.proof_after',
 })
 SLOW_MS = {
     'strategy.tick': 250, 'strategy.reports': 250, 'controller.cycle': 1000,
-    'order.submit': 1000, 'order.cancel': 1000, 'order.proof': 1000,
+    'order.submit': 1000, 'order.intent': 100, 'order.created': 100, 'order.cancel': 1000, 'order.proof': 1000,
     'order.terminal': 250, 'executor.terminal': 250, 'position.checkpoint': 250,
     'owner.read': 100, 'db.sql': 100, 'db.commit': 100, 'service.observe': 1000,
     'shutdown.total': 1000, 'shutdown.core': 1000, 'shutdown.strategy': 1000,
@@ -91,7 +91,7 @@ def trace_runtime(operation, *, order_parameter=None):
             order = kwargs.get(order_parameter) if order_parameter in kwargs else (
                 args[index] if index is not None and len(args) > index else None)
             if order is not None and not isinstance(order, str):
-                order = getattr(order, 'client_order_id', None)
+                order = getattr(order, 'client_order_id', None) or getattr(order, 'order_id', None)
             return dict(entity=entity, order=order)
 
         def token(tracer, args, kwargs):

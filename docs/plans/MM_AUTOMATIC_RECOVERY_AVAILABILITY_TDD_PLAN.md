@@ -471,10 +471,24 @@ policy is changed as part of local implementation.
   one identity, retires the managed entry without retry and preserves cached
   fills/fees. Native912 +4 subtests, final13 focused cases,118 PostgreSQL tests
   and two scoped packaged regressions pass; genuine safety errors stay errors.
-- [ ] Deploy this session-fence correction and repeat connected qualification.
-  No new env/migration is needed. The five revision141 probes and conservative
-  quote/perpetual gates are not closed by the local fix. See
-  [the local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision141-session-fence-retry-correction--local).
+- [x] Deploy the session-fence correction and repeat connected observation:
+  revision142/`f61e6516c`,901 samples/quality pass,270 recorded orders/141 Spot
+  fills, matching checkpoints and three completed profile shutdowns. No
+  in-window ERROR/restart/ownership loss; final running/control88/88/no HALT.
+- [x] Follow up the revision142 pending-create episode with native history and
+  real PostgreSQL TDD. Multiple BUY identities progress; a single4s ACK is not
+  established. Intent/Created each remove two redundant guarded flushes while
+  retaining fresh admission/snapshot and COMMIT fences; bounded hashed-ID
+  timing distinguishes the DB stages. Native929 +9 subtests and217 PostgreSQL
+  checks and two same-image packaged scenarios pass locally. One final local
+  probe timeout recovers after1.043s without restart/HALT; preserve it.
+  Connected qualification is still required. See
+  [the local scope](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision142-intentack-db-follow-up--local).
+- [ ] Close remaining availability gates: Spot95.32% fails99% with15 gaps and6
+  unknown; three short probe timeouts remain. No submission-block event occurs,
+  so positive connected fault qualification stays open, along with perpetual
+  post-fill and other fault gates. Historical failures are retained. See
+  [revision142](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision142-session-fence-deployment-and-observation).
 - [x] Local TDD for the Spot-outflow guard retry burst: native connector/PG
   reproduces12 client IDs before the fix; typed cap denial now retires one unsent
   managed BUY without consuming the exchange retry budget. Controller admission

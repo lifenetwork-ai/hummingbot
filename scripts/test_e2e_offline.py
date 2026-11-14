@@ -760,6 +760,9 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         original = path.read_bytes()
         config = yaml.safe_load(original)
         config['spot_outflow'] = dict(window_seconds=3600, max_net_outflow_quote='500', fee_allowance_rate='.01')
+        # Exercise the same opt-in timing path as the deployed service. Timing
+        # cannot change the native proof/ownership/financial assertions below.
+        self.env['ENGINE_DIAGNOSTICS_ENABLED'] = 'true'
         try:
             path.write_text(yaml.safe_dump(config))
             self.metrics['shutdown_proof_policy_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -772,6 +775,19 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                     target = self.report / (bot + '.log')
                     target.write_text(logs.stdout + logs.stderr)
                     target.chmod(0o600)
+        completed = dict.fromkeys(('order.intent', 'order.created'), 0)
+        for target in self.report.glob('*.log'):
+            for line in target.read_text().splitlines():
+                try:
+                    message = json.loads(line).get('message', '')
+                    if message.startswith('Engine diagnostic '):
+                        stages = json.loads(message.removeprefix('Engine diagnostic ')).get('operations', {})
+                        for stage in completed:
+                            completed[stage] = max(completed[stage], stages.get(stage, {}).get('completed', 0))
+                except (ValueError, AttributeError):
+                    continue
+        assert all(completed.values()), 'Missing completed native intent/ACK timing evidence.'
+        self.metrics['creation_stage_diagnostics'] = dict(enabled=True, completed=completed)
 
     def until_stopped_scenario(self, *, slow_terminal_proof=False):
         """Use a fresh ledger so this case does not overflow bounded history checks."""

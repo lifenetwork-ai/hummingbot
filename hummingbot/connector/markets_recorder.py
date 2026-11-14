@@ -650,6 +650,7 @@ class MarketsRecorder:
                                         saved_state=saved_state)
             session.add(market_states)
 
+    @trace_runtime('order.intent', order_parameter='order')
     def record_order_intent(self, market: ConnectorBase, order) -> None:
         """Persist existing order identity/tracking state before an external submission."""
         from hummingbot.core.cleanup_authority import current_cleanup_scope
@@ -673,13 +674,19 @@ class MarketsRecorder:
             if self.durable_position_checkpoints:
                 from hummingbot.core.order_submission_guard import active_guard
                 from hummingbot.model.runtime_journal import prepare_attempt
-                prepare_attempt(session, order, active_guard(), market)
+
+                # Binding metadata does not depend on the pending Order INSERT.
+                # Persist the complete identity/status together at the existing
+                # checkpoint read, preserving its write fence and final commit.
+                with session.no_autoflush:
+                    prepare_attempt(session, order, active_guard(), market)
             if cleanup is not None:
                 from hummingbot.model.cleanup_positions import record_cleanup_intent
                 record_cleanup_intent(session, cleanup, record)
             # Keep the original side even when a terminal update precedes any
             # Created callback. This records intent, not exchange admission.
-            self._add_order_status(session, record, timestamp, record.last_status)
+            with session.no_autoflush:
+                self._add_order_status(session, record, timestamp, record.last_status)
             self.save_market_states(self._config_file_path, market, session, new_order_id=order.client_order_id)
 
     def _event_configuration(self, session, market, order):
@@ -761,6 +768,7 @@ class MarketsRecorder:
         market_states: Optional[MarketState] = query.one_or_none()
         return market_states
 
+    @trace_runtime('order.created', order_parameter='evt')
     def _did_create_order(self,
                           event_tag: int,
                           market: ConnectorBase,
@@ -817,8 +825,12 @@ class MarketsRecorder:
                         order_record.last_status = event_type.name
                     if order_record.last_status in (MarketEvent.BuyOrderCreated.name, MarketEvent.SellOrderCreated.name):
                         order_record.last_update_timestamp = max(order_record.last_update_timestamp, timestamp)
-                self._attempt_observation(session, evt.order_id, 'acknowledged')
-                self._add_order_status(session, order_record, timestamp, event_type.name)
+                # These lookups need only the previously persisted attempt and
+                # history. Flush the ACK changes together before the fresh
+                # tracking snapshot; never carry this scope across that read.
+                with session.no_autoflush:
+                    self._attempt_observation(session, evt.order_id, 'acknowledged')
+                    self._add_order_status(session, order_record, timestamp, event_type.name)
                 self.save_market_states(config_file_path, market, session=session)
         if evt.exchange_order_id and self._uses_reconstruction_history(market):
             market.add_exchange_order_ids_from_market_recorder({evt.exchange_order_id: evt.order_id})

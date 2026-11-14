@@ -1,5 +1,68 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Revision142 intent/ACK DB work — local follow-up
+
+Real PostgreSQL reproduces four flushes each for ordinary intent persistence
+and Created acknowledgement. Grouping only independent metadata/history reads
+reduces each to two flushes, retaining the fresh tracking snapshot and final
+COMMIT. Cleanup audits keep their original write-fence boundary. Paired tests
+replay the predecessor flush cuts with the same writes, owner and DB, alternating
+old/new execution order four times per stage and per injected delay.
+
+| Stage | Delay per SQL | SQL before → after | Owner reads before → after | Local p50 before → after |
+| --- | ---: | ---: | ---: | ---: |
+| Intent |0ms|17 →15|5 →3|26.554 →20.585ms|
+| Intent |5ms|17 →15|5 →3|176.615 →160.795ms|
+| Created ACK |0ms|14 →12|4 →2|37.581 →30.632ms|
+| Created ACK |5ms|14 →12|4 →2|136.609 →123.702ms|
+
+Receipt: `build/quote-gap142-followup-20261114/final-performance.json`, key
+`creation_pipeline_coalescing`. Each pair asserts two fewer SQL/owner reads
+and unchanged economic/snapshot results; wall-clock medians are evidence only,
+not a latency assertion. These are small local component measurements with a
+synthetic connector, not Cloud ACK timings or a controlled deployment A/B.
+The earlier focused paired receipt is retained separately in
+`creation-flush-paired.json`; both runs agree on the fixed SQL/read reduction.
+
+Two bounded hashed-ID stages, `order.intent` and `order.created`, distinguish
+the DB phases on the next deployed run without changing existing collector or
+runtime budgets. The three consecutive revision142 pending-BUY samples include
+progress by multiple native order identities; they do not establish one4s ACK
+delay. The original Spot95.32% failure,15 gaps,6 unknowns and probe warnings stay
+open. See [the correlation and safety scope](../demo/cloudrun-quote-replacement-acceptance.md#revision142-intentack-db-follow-up--local).
+
+Validation:929 native +9 subtests,217 disposable PostgreSQL tests and both
+same-image packaged shutdown-proof/Spot-outflow scenarios pass. Diagnostics-on
+shutdown observes completed intent/Created stages, keeps the unchanged8s budget
+under ten1.25s terminal reads and preserves exact fills/fees through handoff.
+Its final run still has one303.954ms probe timeout, recovered after1.043s,
+without restart/HALT. The captured binding-read frame and short completed spans
+do not establish a single300ms query; residual loop/probe work stays open.
+
+## Revision142 deployed session-fence correction — 2026-11-14
+
+Commit`f61e6516c` is verified on revision142 at100% traffic, unchanged2CPU/1GiB
+and non-image settings. The unchanged30-minute classifier completes901 samples
+with quality pass,270 recorded orders/141 Spot fills and matching final
+financial/binding checkpoints. Three profile shutdowns complete at1.440/1.148/
+1.130s; control/ack88/88 remains running/no HALT with health200 and no pending
+creation or unapplied fill. The exact window has44 WARNING, no ERROR/restart/
+ownership loss and three short probe timeouts. The INFO-inclusive block query
+has no entry, so the fixed branch has no positive connected fault receipt yet.
+
+Quote acceptance still fails: Spot428 two-sided/15 gaps/6 unknown/452 guards
+gives95.32%. Three of the gaps are consecutive BUY submission-pending samples
+spanning4.037s; the other12 are isolated. This is sampled pending state, not
+exact venue ACK latency. Perpetual has no confirmed eligible two-sided samples
+or new fill. Different fill/guard mixes prevent attributing the lower quote
+percentage or fewer probe timeouts to the patch alone. No completed retained
+DB/owner span or watchdog sample intersects an exact probe wait; causality stays
+open. See [the full connected result and limits](../demo/cloudrun-quote-replacement-acceptance.md#revision142-session-fence-deployment-and-observation).
+
+A separate tail through16:17UTC remains running/no HALT/no ERROR, with two
+additional short probe timeouts. Retain them separately from the three exact
+window timeouts; this is not a zero-probe result.
+
 ## Revision141 session-fence retry correction — local
 
 Real native connector/PostgreSQL RED reproduces12 local client IDs for one
@@ -13,7 +76,7 @@ Native912 +4 subtests, final13 focused cases,118 PostgreSQL and two packaged
 shutdown-proof/outflow regressions pass. The exact fence cut is exercised by
 native connector/PG tests; packaged cases cover the surrounding lifecycle and
 financial invariants. Both run on the same final manifest. This local two-file
-Python correction is not deployed and needs no new env/migration.
+Python correction is now deployed on revision142 and needs no new env/migration.
 
 The sampled INSERT flush and pool pre-ping remain necessary native DB paths;
 removing repeated retry work is not proof that all five connected probe waits

@@ -1,9 +1,28 @@
 # OKX Demo and current offline image acceptance
 
+Local follow-up after revision142 reduces ordinary intent/Created persistence
+from four guarded flushes to two and adds bounded timing for these DB stages.
+Native929 tests +9 subtests,217 disposable PostgreSQL tests and two same-image
+packaged scenarios pass. The final local shutdown run still has one303.954ms
+probe timeout, recovered after1.043s without restart/HALT. This is not deployed
+evidence and does not close Spot95.32%, perpetual eligibility or
+the residual probe gates. No config/migration is needed. See
+[the local follow-up](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision142-intentack-db-follow-up--local).
+
+Latest2026-11-14,23:13ICT: revision142/`f61e6516c` is verified at100% traffic,
+unchanged non-image settings. Its complete901-sample30-minute window passes
+sample quality, records270 orders/141 Spot fills and ends running/control88/88/
+no HALT with health200 and matching checkpoints. Three profile shutdowns finish
+at1.440/1.148/1.130s, without observed ERROR/restart/ownership loss. Three short
+probe timeouts remain. Spot95.32% still fails99%; perpetual has no new fill or
+confirmed eligible two-sided samples. No submission-block event occurs, so the
+fixed branch has no positive connected fault receipt. This is not full release
+acceptance. See [revision142](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision142-session-fence-deployment-and-observation).
+
 Local follow-up after revision141: the shutdown-fenced maker retry is reproduced
 with native connector/PostgreSQL (12 local IDs, no transport). The correction
 retires one managed entry without retry, retaining fills/fees and genuine safety
-errors. Native/PG and both packaged regressions pass; it is not deployed and
+errors. Native/PG and both packaged regressions pass; it is now deployed on revision142 and
 requires no new env/migration. See
 [the local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision141-session-fence-retry-correction--local).
 
