@@ -27,6 +27,11 @@ async def test_disabled_policy_preserves_the_pre_reduction_catalogue_hash(path, 
     raw.pop('default_duration_mode', None)
     for template in raw['markets'].values():
         template.pop('inventory_reduction', None)
+    if Path(path) == DEMO:
+        # This is a historical compatibility fixture. The reviewed Demo policy
+        # has since changed; reconstruct its original thresholds too, without
+        # changing the current catalogue or accepting a new golden hash.
+        raw.update(max_global_drawdown_quote='2000', max_controller_drawdown_quote='1000')
     catalogue = MMProfilesConfig.model_validate(raw)
     assert catalogue.catalogue_hash() == expected
     raw = catalogue.model_dump(mode='json')
@@ -34,6 +39,22 @@ async def test_disabled_policy_preserves_the_pre_reduction_catalogue_hash(path, 
     for template in raw['markets'].values():
         template['inventory_reduction'] = {'mode': 'disabled'}
     assert MMProfilesConfig.model_validate(raw).catalogue_hash() == expected
+
+
+@pytest.mark.asyncio
+async def test_current_reviewed_demo_drawdown_is_hashed_and_pinned_without_historical_normalization():
+    catalogue = await MMProfilesConfig.load(DEMO)
+    policy = catalogue.drawdown_policy()
+    assert policy['max_controller_drawdown_quote'] == '2500'
+    assert policy['max_global_drawdown_quote'] == '5000'
+    old = MMProfilesConfig.model_validate({**catalogue.model_dump(mode='json'),
+                                           'max_controller_drawdown_quote': '1000', 'max_global_drawdown_quote': '2000'})
+    assert old.catalogue_hash() != catalogue.catalogue_hash()
+    session = MMSession.create(catalogue, MMSessionRequest(market_mode='both', profile_id='follow_market',
+                                                           duration_mode='until_stopped'), rng=random.Random(1))
+    restored = MMSession.model_validate(session.model_dump(mode='json'))
+    assert restored.catalogue.catalogue_hash() == catalogue.catalogue_hash()
+    assert restored.catalogue.drawdown_policy() == policy
 
 
 @pytest.mark.asyncio

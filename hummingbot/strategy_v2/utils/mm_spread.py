@@ -1,5 +1,7 @@
 """Optional LIFE spread composition using existing maker fees and NATR only."""
+import asyncio
 import math
+from contextvars import Context
 from decimal import Decimal
 from typing import List, Literal, Optional
 
@@ -8,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_valid
 from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
 
 ONE = Decimal('1')
+_NATR_PREPARATION = None
 
 
 class VolatilityDefenseConfig(BaseModel):
@@ -126,6 +129,36 @@ def natr_value(frame, length):
     if not value.is_finite() or value < 0:
         raise ValueError('candles_unavailable')
     return value
+
+
+def _warm_natr():
+    """Load/initialize only pure indicator code; never publish synthetic data."""
+    import pandas as pd
+    frame = pd.DataFrame({'high': [101.] * 15, 'low': [99.] * 15, 'close': [100.] * 15})
+    natr_value(frame, 14)  # Discard the result; real completed candles remain mandatory.
+
+
+async def prepare_natr(*, wait=True):
+    """Share one bounded first-use job across controllers on the engine loop.
+
+    A canceled waiter cannot cancel another controller's preparation. The job
+    holds no connector, authority or market snapshot; failures retry on the
+    next normal controller cycle using its declared volatility fallback.
+    """
+    global _NATR_PREPARATION
+    task = _NATR_PREPARATION
+    if task is not None and task.done() and not task.cancelled() and task.exception() is None:
+        return True
+    loop = asyncio.get_running_loop()
+    if task is None or task.get_loop() is not loop or task.done():
+        task = loop.create_task(asyncio.to_thread(_warm_natr), name='mm-indicator-preparation', context=Context())
+        # A retired waiter may leave no one awaiting a failed pure preparation.
+        task.add_done_callback(lambda done: None if done.cancelled() else done.exception())
+        _NATR_PREPARATION = task
+    if not wait:
+        return False  # Normal cycles must still run freshness/cancellation while preparation is pending.
+    await asyncio.shield(task)
+    return True
 
 
 class SpreadPolicy:

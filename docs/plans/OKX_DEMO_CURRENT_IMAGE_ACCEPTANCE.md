@@ -1,6 +1,14 @@
 # OKX Demo and current offline image acceptance
 
-Latest deployment2026-11-15,12:11 ICT:151/`4b302019a` verifies the recovery-label
+Latest deployment2026-11-15:152/`caab218c1` verifies bounded fill-read batching
+at100% traffic with matching immutable artifact, unchanged spec/session/control90
+and policy/peaks. Recorded activity continues;28 checkpoint completions have
+zero errors in the retained diagnostic snapshot. Keep two recovered probes,
+the6.82 s controller span and one transient readiness503; health returns200.
+No application ERROR/restart/ownership loss is observed. The30-minute quote and
+residual-probe gates remain open; see [verification](../../reports/performance/mm-quote-replacement-latency.md#revision152-deployment-verification).
+
+Earlier deployment2026-11-15,12:11 ICT:151/`4b302019a` verifies the recovery-label
 fix, same session/control90 and risk peaks/policy, matching financial/binding
 hashes and all health200. Short smoke and49 recorded orders/14 Spot fills pass;
 four probes recover. See [deployment verification](../../reports/demo/cloudrun-drawdown-2500-5000.md#revision151-recovery-label-deployment-verification).

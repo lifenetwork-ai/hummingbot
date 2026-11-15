@@ -1,6 +1,16 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest deployment2026-11-15,12:11 ICT:151/`4b302019a` runs the recovery-label
+Latest deployment2026-11-15:152/`caab218c1` is verified at100% traffic with
+matching immutable digest and unchanged non-image spec/session/control90/policy
+and API-observed peaks. Since Ready through16:35:29 there are102 recorded orders
+and25 Spot fills. Keep two recovered probes, one6.82 s controller-cycle span,
+one short-smoke report-wait gap and one transient `/ready`503 near generation
+36→37. Health subsequently returns200; no application ERROR/restart/ownership
+loss is observed. A retained snapshot has28 completed checkpoints, zero errors,
+max204.56 ms. This is not a new30-minute quote/performance qualification; see
+[the scoped verification](../performance/mm-quote-replacement-latency.md#revision152-deployment-verification).
+
+Earlier deployment2026-11-15,12:11 ICT:151/`4b302019a` runs the recovery-label
 correction at100% traffic, retaining session/control90, risk peaks/policy and
 matching native financial/binding hashes. Live OpenAPI/recovery API smoke pass;
 final health200/no HALT,49 recorded orders/14 Spot fills since Ready. Four probes

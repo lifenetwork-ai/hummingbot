@@ -20,14 +20,16 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 OPERATIONS = frozenset({
-    'strategy.tick', 'strategy.reports', 'controller.cycle', 'order.submit', 'order.admission', 'order.place',
+    'strategy.tick', 'strategy.reports', 'controller.cycle', 'controller.indicator', 'order.submit', 'order.admission', 'order.place',
+    'controller.reference', 'controller.proposals', 'controller.actions', 'controller.policy',
     'order.cancel', 'order.terminal', 'order.intent', 'order.created', 'position.checkpoint', 'owner.read',
     'db.sql', 'db.commit', 'db.ping', 'service.observe', 'executor.terminal', 'order.proof',
     'shutdown.total', 'shutdown.core', 'shutdown.strategy', 'shutdown.hold',
     'shutdown.cancel', 'shutdown.proof_before', 'shutdown.proof_after',
 })
 SLOW_MS = {
-    'strategy.tick': 250, 'strategy.reports': 250, 'controller.cycle': 1000,
+    'strategy.tick': 250, 'strategy.reports': 250, 'controller.cycle': 1000, 'controller.indicator': 250,
+    'controller.reference': 250, 'controller.proposals': 250, 'controller.actions': 250, 'controller.policy': 100,
     'order.submit': 1000, 'order.admission': 1000, 'order.place': 1000,
     'order.intent': 100, 'order.created': 100, 'order.cancel': 1000, 'order.proof': 1000,
     'order.terminal': 250, 'executor.terminal': 250, 'position.checkpoint': 250,

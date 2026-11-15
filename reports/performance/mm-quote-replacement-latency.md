@@ -1,5 +1,66 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Cold indicator preparation — local 2026-11-15
+
+Revision152's controller cycle spans16:20:38–16:20:44 ICT (6816.68 ms), across
+its first probe warning. The retained96-entry recent ring no longer contains
+its children. Maximum SQL/owner timings in a later snapshot do not account for
+the whole interval, so the exact Cloud cause remains unproven. The inherited
+parent ID also refers to an earlier, completed service observation; it does not
+make this cycle part of that observation's measured duration.
+
+Code inspection and fresh processes reproduce another blocking path: the first
+NATR call synchronously imports/initializes `pandas_ta` inside controller work.
+Warmed1–2 ms calls conceal that first-use cost. Five native RED cases establish
+loop-thread loading, absent shared preparation/cancellation behavior and unsafe
+fallback retry placement. The correction prepares only pure indicator code on
+one shared worker before normal controller work, under the existing startup
+deadline. A fresh execution context carries no order/cleanup authority. The
+synthetic warmup result is discarded: it never becomes a market observation,
+anchor, cached multiplier, financial row or permission to quote. Real completed
+candles, freshness, fees, caps, session admission and owner/send gates remain
+unchanged. Disabled volatility never creates this preparation job.
+
+One canceled waiter cannot cancel another controller's preparation. Failures
+retain the configured static/wait fallback. A separate draft RED shows that
+waiting again on an unfinished job can postpone freshness checks; subsequent
+normal cycles therefore poll readiness without parking, and retain one worker.
+Tests also cover isolation between controller observations and revocation while
+preparation is pending. The original NATR calculation/formula is unchanged.
+
+New bounded `controller.indicator`, `controller.reference`,
+`controller.proposals`, `controller.actions` and `controller.policy` spans
+separate preparation, data, proposal work, queue publication and policy writes.
+No raw arguments are exported and no probe/clock/recovery budget is relaxed.
+A long cooperative preparation span can still be reported as slow while the
+heartbeat progresses; span elapsed time alone is not loop blocking.
+
+Two alternating fresh-process controls restoring the former loading schedule
+measure first cycles273–542 ms and heartbeat gaps278–546 ms. Two candidates
+measure6.2–6.6 ms and15–20 ms respectively, with identical NATR and one native
+proposal group per run. These use real controller/watchdog code and mocked
+external I/O, without injected business sleeps or venue acknowledgements.
+A separate pure-indicator smoke on a cached Linux amd64 base with the candidate
+module mounted read-only, network disabled and2CPU/1GiB gives686→127 ms heartbeat
+gap and identical NATR. That emulated-container smoke is not a packaged
+full-service candidate qualification or a Cloud latency comparison.
+
+The source-frozen Cloud Run regression target passes3830 tests +16 subtests;
+28 related disposable PostgreSQL tests pass. Final indicator/catalogue checks
+pass21 tests, overlapping that selection and adding the revocation case. The
+initial broad regression also exposes a pre-existing historical catalogue hash
+fixture failure, independently reproduced with the committed versions of all
+three changed runtime modules. The historical fixture now reconstructs its
+original1,000/2,000 limits; its golden hash is unchanged. A separate test pins
+the actual reviewed2,500/5,000 catalogue/session policy. No YAML is changed.
+
+All receipts, source hashes, the original REDs and the corrected draft failures
+are retained under `build/controller-cycle-followup-20261115/`. No environment
+change, migration or live mutation is required/performed. At18:47 ICT a GET
+still sees152 running/no HALT/control90. The candidate is not deployed; retain
+all earlier probe/readiness/quote failures. A subsequent one-image cold-start
+and30-minute connected observation is required before assigning a Cloud gain.
+
 ## Bounded checkpoint fill-read batching — local 2026-11-15
 
 Following the injected blocking-checkpoint replay reveals an avoidable linear
@@ -46,6 +107,48 @@ Receipts: `build/local-checkpoint-fill-batch-20261115/`, including the original
 PostgreSQL RED, SQLite candidate RED, final native/PostgreSQL results and paired
 measurements. Paired measurements inject50 ms per actual fill-read round trip
 on disposable PostgreSQL; they are not Cloud database latency measurements.
+
+### Revision152 deployment verification
+
+On2026-11-15, revision `hummingbot-demo-00152-lg9` is Ready at16:19:21 ICT
+and serves100% traffic. Its immutable digest
+`sha256:e48ec86740e09af16065cc7db2b02adf872aacbdc1477a9a40211ab13e39dcbc`
+matches the artifact tagged with full commit `caab218c1e9eb48401e8619fb979daa7d9c5f7c3`.
+Non-image revision spec, session/control90,2,500/5,000 policy and API-observed
+PnL peaks match151. This verification sends only GET/read operations and leaves
+trading active; it does not repeat a native DB hash audit or alter runtime state.
+
+Bounded complete recorded-history pagination from Ready through16:35:29 gives
+102 orders (35 Spot BUY,35 Spot SELL,32 perpetual SELL) and25 Spot fills
+(20 BUY/five SELL). A separate31-pair GET smoke from16:35:28–16:36:28 retains
+the same image/session/control and no runtime error/operator-required HALT.
+Spot has25 two-sided samples, five size/outflow-protected one-sided samples and
+one BUY `executor_report` gap. Keep all samples; this minute is not the30-minute
+quote acceptance. Perpetual remains SELL-only at the configured breakeven;
+BUY reports `inventory_limit`, so its two-sided target remains unqualified.
+
+Retained logs from Ready through16:38:59 contain16 WARNING, one system INFO and
+one HTTP ERROR. There are no observed application ERROR, child restarts or
+ownership-loss records. Two probes recover:16:20:38/16:36:22,300.842/300.795 ms,
+max probe gap1.305 s. The second aligns with the sampled report-wait gap;
+alignment does not prove its cause. Retained unique spans include
+`controller.cycle`6816.68 ms (16:20:38–16:20:44), `service.observe` up to1433.62 ms,
+`shutdown.total` up to1308.29 ms and `db.commit` up to190.72 ms. Async span elapsed
+time is not all proven event-loop blocking; cumulative slow-span packets are
+deduplicated instead of counted as separate occurrences.
+
+The HTTP ERROR is this verifier's `/ready`503 at16:37:30, near generation36→37;
+the failed client attempt did not capture the contemporaneous status/body.
+Retain it as a transient observation without asserting its unique cause.
+At16:37:58, startup/live/ready are200,152 is running/no HALT and control/ack90;
+Spot currently has two SELLs with BUY size/allocation-blocked, and perpetual
+has two closing SELLs. One earlier readback has two Spot BUY/two SELLs.
+
+The latest retained native counters at16:37:58 show28 position checkpoints
+started/completed, zero errors and maximum204.56 ms. They do not expose per-call
+batch size or form a controlled latency comparison. INFO exclusion remains;
+neither missing INFO nor these counters close the residual probe/99% gates.
+Evidence: `build/checkpoint-fill-batch-postdeploy-20261115/`.
 
 ## Offline composition replay without Cloud INFO — 2026-11-15
 

@@ -15,6 +15,38 @@ plus its normal loop sleep. A cancel ACK can update the order during that wait
 without waking the task. Managed closing quotes will use a coalescing wake event;
 legacy executors retain their timing. Waking a loop grants no new order authority.
 
+## Cold indicator preparation — local 2026-11-15
+
+- [x] Correlate152's6816.68 ms controller cycle with the first probe window.
+  Its children have already left the retained recent ring; no unique Cloud
+  cause is proven. Reproduce synchronous first-use NATR import/calculation in
+  fresh processes instead of treating warmed unit calls as a cold-start test.
+- [x] RED five native preparation cases. Share one pure worker job for enabled
+  volatility, await preparation within the existing startup budget and discard
+  its synthetic result. Actual completed candles still supply every quote.
+- [x] Preserve cancellation, current execution context and declared static/wait
+  fallback. The draft pending-worker test catches a postponed freshness check;
+  normal retries now poll without waiting and cannot create another worker.
+  Revocation during preparation cannot reopen quotes after completion.
+- [x] Add bounded reference/proposal/action/policy subspans and a preparation
+  stage. The missing-subphase RED is retained. Async preparation elapsed time
+  is distinguished from heartbeat stalls; no health threshold is changed.
+- [x] The full source-frozen regression passes3830 tests +16 subtests;28
+  disposable PostgreSQL cases pass. Final indicator/catalogue selection21
+  passes (overlapping coverage). The pre-existing historical catalogue hash
+  failure is reproduced on committed source and corrected only in its fixture;
+  current2,500/5,000 policy remains independently hashed/session-pinned.
+- [x] Fresh-process native controls retain identical NATR and native proposals:
+  first-cycle273–542 ms becomes6.2–6.6 ms, sampled heartbeat gap278–546 ms becomes
+  15–20 ms. Packaged pure-indicator smoke at2CPU/1GiB also preserves NATR;
+  its686→127 ms heartbeat observation is not a full-service or Cloud acceptance.
+- [ ] Commit/deploy the candidate and observe cold startup/Random handoff plus
+  the unchanged30-minute quote/probe window on one image. The18:47 ICT GET
+  still sees152 running/no HALT; this local work does not deploy or reset it.
+
+Evidence: `build/controller-cycle-followup-20261115/`; see
+[scope and measurements](../../reports/performance/mm-quote-replacement-latency.md#cold-indicator-preparation--local-2026-11-15).
+
 ## Bounded checkpoint fill-read batching — local 2026-11-15
 
 - [x] Follow the local blocking-write replay into the actual recorder. Do not
@@ -39,8 +71,16 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
   injected per fill-read round trip reduces six reads to one and median
   checkpoint duration391.42 ms to125.04 ms. These are scoped local injected
   measurements, not Cloud performance or a latency pass threshold.
-- [ ] Deploy and measure actual connected probes/quotes on one image before
-  assigning any Cloud improvement or closing the unchanged99% quote gate.
+- [x] Verify152/`caab218c1` at100% traffic, matching immutable artifact/revision
+  digest and unchanged non-image spec. Same session/control90, policy and peaks;
+  short GET smoke and recorded activity pass. A retained snapshot has28
+  completed checkpoints/zero errors, max204.56 ms; no batch-size attribution.
+- [ ] Complete the unchanged connected30-minute quote/performance target.
+  The short152 check retains two recovered probes, one6.82 s controller cycle,
+  one report-wait sample and a transient `/ready`503 near generation36→37.
+  Health returns200, without observed restart/ownership loss or application
+  exception. These observations do not establish a unique cause or a Cloud
+  performance gain from batching.
 
 This reduces repeated waits when several entries hand off together. It does
 not remove an individually slow synchronous DB call or establish Cloud probe
