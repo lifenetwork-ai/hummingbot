@@ -1,5 +1,17 @@
 # OKX Demo and current offline image acceptance
 
+Latest 2026-11-15, 03:14 ICT: revision145/`f5f181e92` is verified at 100% traffic,
+unchanged 2 CPU/1 GiB/env. Its completed collection has897 samples, 187 recorded
+orders/76 Spot fills and matching checkpoints, but quality fails after one status
+timeout. Spot95.74% still fails99%; Perpetual remains unqualified. Four probes
+remain; no engine restart/ownership loss. Final process is live/no HALT but both
+markets have zero quotes under `reference_deviation`; `/ready`503 is retained
+as an HTTP ERROR, distinct from an application exception. No guard is widened.
+See [revision145](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision145-single-held-checkpoint-deployment-and-observation).
+Separate 03:18:23 ICT readback: generation175 is running/no HALT, health200,
+Spot2 BUY/2 SELL and Perpetual0 BUY/2 SELL with unchanged control88/88. The
+automatic return to quotes does not close the failed window's gates.
+
 Latest2026-11-15,02:09ICT: revision144/4fa9ef95c is verified at100% traffic,
 unchanged2CPU/1GiB/env. The valid repeated30-minute window has901 samples,
 230 recorded orders/102 Spot fills, matching checkpoints and final running/

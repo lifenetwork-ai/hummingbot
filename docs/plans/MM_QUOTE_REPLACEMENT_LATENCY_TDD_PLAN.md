@@ -15,6 +15,34 @@ plus its normal loop sleep. A cancel ACK can update the order during that wait
 without waking the task. Managed closing quotes will use a coalescing wake event;
 legacy executors retain their timing. Waking a loop grants no new order authority.
 
+## Revision145 status/probe follow-up
+
+- [x] Retain the failed connected window: 9 gaps (4 executor-activity,
+  4 submission-pending, 1 proposal-confirmation), 7 unknown and one status-read
+  timeout. The available history does not prove one per-order ACK bottleneck.
+- [x] RED four status cases against the original handler; bound the authenticated
+  handler to 5 s across queue/primary worker/optional recovery lookup. Return
+  qualified 503, retain physical worker capacity and skip expired queued work.
+- [x] Separate queue/run timing, safe server request ID and hashed optional
+  client correlation. Opt-in collector retains header/body phase and reviewed
+  numeric Server-Timing without changing the 10 s sampling budget/classifier.
+- [x] RED real PostgreSQL pre-ping visibility; add opt-in `db.ping` timing while
+  preserving native validation, reconnects and owner/write fences. A real
+  response-loss proxy confirms bounded status response, live API and retained
+  physical work without losing the independent owner.
+- [x] Complete final native/PostgreSQL and same-image packaged regression:
+  1,524 native checks, final30 HTTP checks and63 distinct selected PostgreSQL
+  cases pass. Same-image shutdown/Spot-outflow flows preserve fills/fees,
+  duplicate handling and owner handoff.155 completed pings are positively
+  observed; finite logs retain seven WARNING/no ERROR/probe transition.
+  Preserve setup failures and the corrected RED; update only the old tracked-
+  order fixture, not its runtime gate. Swagger check passes.
+- [ ] Deploy and correlate new client/server evidence before claiming the old
+  timeout or all four probes solved. Ordinary quote gaps/profile unknowns,
+  Perpetual eligibility and the 99% target remain open. No guard is widened.
+
+Evidence: `build/status-probe-followup-20261115/`.
+
 ## Checks
 
 - [x] RED: cancel ACK during the5s wait must retire a managed CLOSE promptly,
@@ -60,9 +88,18 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
   on `9af647729fb0`: delayed terminal proof, exact fills/fees, duplicate receipts,
   clean restart and revision handoff pass. Finite-flow logs retain seven WARNING
   entries with no ERROR/probe timeout. This is not full release qualification.
-- [ ] Deploy a qualified candidate and repeat the unchanged connected window;
-  the nine gaps, unknowns, residual probe and perpetual gates remain open.
-  Even fixing all nine gaps leaves 232/238 = 97.48% due to six unknowns.
+- [x] Deploy on145/`f5f181e92` and collect the unchanged 30-minute window:
+  897 samples, 187 recorded orders/76 Spot fills, matching checkpoints and no
+  restart/ownership loss. Quality FAIL after one status-read timeout; Spot95.74%
+  fails99% with9 gaps/7 unknown. Preserve the descriptive result, not a pass.
+- [ ] Resolve the quality/read timeout, ordinary quote gaps/profile unknowns
+  and four residual probes with scoped evidence. Perpetual remains unqualified;
+  final quote withdrawal is `reference_deviation` above the configured2% guard.
+  Do not reset HALT or widen guards to obtain an acceptance result. See
+  [revision145](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision145-single-held-checkpoint-deployment-and-observation).
+- [x] Preserve the separate 03:18:23 ICT readback: generation175 running/no HALT,
+  health200, Spot2 BUY/2 SELL and Perpetual0 BUY/2 SELL, unchanged control88/88.
+  No guard/control mutation is used; the failed window remains failed.
 
 Evidence: `build/quote-gap144-followup-20261115/`; see
 [the local scope](../../reports/performance/mm-quote-replacement-latency.md#revision144-single-held-transfer-follow-up--local-2026-11-15).

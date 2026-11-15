@@ -1,5 +1,84 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Revision145 status/probe follow-up — local, 2026-11-15
+
+The connected status timeout still has no proven client/network/server cause.
+Its client had no pre-response correlation identity; existing cursor hooks also
+omitted the pre-ping sampled during one probe. The retained nine gaps include
+four executor waits, four submissions and one proposal confirmation. A three-
+sample cluster changes missing side while creations/fills progress; the first
+gap is left-censored by the window boundary. None proves one exact ACK delay.
+
+Four qualified RED cases against the original status handler reproduce the
+missing request-level bound and missing timing evidence. The authenticated
+handler now has a five-second budget covering admission wait, its primary DB
+read and optional recovery lookup. Expiry returns the existing qualified503;
+running work retains its physical slot/session until completion, while expired
+work still in the admission queue is skipped. No stale success or owner/control
+version is invented. Authentication and network transit are outside this budget.
+
+Status responses expose `Server-Timing` for handler/primary queue/worker time.
+Slow/failing requests log fixed scalar fields and the generated server request
+ID; an optional32-hex client request header supplies only a hashed correlation
+field, never authentication/audit identity. Fast correlated reads log INFO.
+Telemetry failure cannot change the DB call, response or cancellation outcome.
+The opt-in collector records correlation, HTTP status, reviewed numeric metrics
+and awaiting-header/body/complete phases, retaining failed reads as unknown.
+The existing10 s client budget, sampling cadence and classifier are unchanged.
+
+`db.ping` observes the native dialect method that precedes cursor events. Native
+pre-ping validation/reconnection, SQL/I/O budgets, ownership and financial fences
+are unchanged. Two original PostgreSQL RED cases prove the visibility gap.
+A real response-loss proxy then observes a physical ping continuing after the
+HTTP503 while `/live` and the independent owner remain healthy; the slot is
+released only after native I/O/reconnect completes, and the next read is fresh.
+This is a reproduced fault, not proof it caused the historical10 s timeout.
+
+Validation: 1,524 native checks, 30 HTTP checks after the final header change,
+and63 distinct selected PostgreSQL cases across the62-case regression plus the
+four-case ping/HTTP replay. Retain initial status fixture setup failures and
+the corrected four-case RED; one pre-existing availability fixture is updated
+to provide the tracked native order required by its unchanged runtime gate.
+Swagger remains unchanged. Same-image `shutdown-proof` and `spot-outflow` pass
+on config digest `95f9801500d9`, manifest `9e724195112a`: exact fills/fees,
+duplicate delivery, owner handoff/restart and outflow limits remain valid.
+Packaged logs positively observe155 completed pings, retain seven WARNING,
+and contain no ERROR/probe transition in these finite flows.
+
+Evidence: `build/status-probe-followup-20261115/`, packaged runs
+`build/e2e-offline/20261115-034519-3a0db8/` and
+`build/e2e-offline/20261115-034743-cbf756/`. No new env or migration is needed.
+No Cloud/control/guard mutation is made; the03:50 ICT readback remains running,
+no HALT, all health200 on145. The local candidate still needs deployment and
+correlated observation before closing the original timeout, all four probes,
+ordinary quote gaps/unknowns, Perpetual or99% acceptance gates.
+
+## Revision145 connected single held-checkpoint observation — 2026-11-15
+
+Revision145/`f5f181e92` is verified at 100% traffic with unchanged 2 CPU/1 GiB/env.
+The 02:44:22–03:14:23 ICT collection completes 897 samples, 187 recorded orders
+and 76 Spot fills. Financial/account-binding checkpoints match; final pending
+creations, uncertain attempts and unapplied fills are zero, owner533/control88/88
+are preserved and no engine restart/ownership loss is logged.
+
+Quality fails after one `/status` read timeout; its missing-identity diagnostic
+is the same failed observation, not a second deployment. Spot360/376 = 95.74%
+still fails99% (9 gaps/7 unknown); conditional97.56% also fails. Perpetual remains
+unqualified. Different eligibility/fill mixes and the quality failure prevent
+a controlled comparison with144. No classifier or threshold is relaxed.
+
+Four probe timeouts remain. One has63 overlapping synchronous DB/owner spans
+(union181.76ms, largest SQL6.86ms) and a sampled pre-ping stack; the other three
+lack retained overlap. This is limited causal evidence, not a unique explanation.
+Exact-window logs retain62 WARNING and one HTTP GET/ready503 ERROR, no application
+exception. The process is live/no HALT at final readback but both markets have
+zero working quotes under `reference_deviation`: observed3.43%/3.54%, versus
+configured2% maximum/1% resume. Guarded intervals are not quote uptime.
+The separate 03:18:23 ICT readback is running/no HALT at generation175, health200,
+Spot2 BUY/2 SELL and Perpetual0 BUY/2 SELL without operator mutation. Keep this
+later recovery distinct from the completed failed window.
+See [the full scope](../demo/cloudrun-quote-replacement-acceptance.md#revision145-single-held-checkpoint-deployment-and-observation).
+
 ## Revision144 single held-transfer follow-up — local, 2026-11-15
 
 The nine retained Spot gaps comprise five executor-activity and four submission
@@ -49,8 +128,8 @@ Evidence: `build/quote-gap144-followup-20261115/`; native and PostgreSQL logs,
 original RED/setup failures and `performance-final.json` remain retained.
 Packaged evidence: `build/e2e-offline/20261115-022532-bbd66b/` and
 `build/e2e-offline/20261115-022721-44fe0c/`.
-Connected quote/probe/unknown and perpetual gates remain open pending deployment
-and another unchanged observation; this local result does not close them.
+The fix is now deployed on145, but the later connected quality/quote failure
+does not close probe/unknown or perpetual gates. This local result remains scoped.
 
 ## Revision144 connected guarded-admission observation — 2026-11-15
 

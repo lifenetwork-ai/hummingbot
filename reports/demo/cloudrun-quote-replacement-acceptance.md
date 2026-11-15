@@ -1,12 +1,33 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
+Local follow-up after145 bounds the authenticated status read to5 s, preserves
+physical DB worker capacity after HTTP timeout, and adds queue/run/client
+correlation plus native `db.ping` evidence. Native/PostgreSQL and same-image
+shutdown/outflow checks pass; see [the scoped follow-up](../performance/mm-quote-replacement-latency.md#revision145-statusprobe-follow-up--local-2026-11-15).
+It is not deployed and does not close the original timeout/probe/quote gates.
+
+Latest observation (2026-11-15, 03:14 ICT): revision145/`f5f181e92` is verified
+at 100% traffic with unchanged 2 CPU/1 GiB/env. The completed 30-minute collection
+has 897 samples, 187 recorded orders/76 Spot fills and matching checkpoints,
+but quality fails after one `/status` read timeout. Spot's descriptive 95.74%
+still fails 99%; Perpetual has no confirmed eligible two-sided samples. Four
+probe timeouts remain. At final readback the process is live/no HALT, but both
+markets have zero working quotes under `reference_deviation` and `/ready`503.
+See [revision145](#revision145-single-held-checkpoint-deployment-and-observation).
+
+Post-window readback at 03:18:23 ICT: generation175 is running/no HALT, all health
+endpoints200, Spot2 BUY/2 SELL and Perpetual0 BUY/2 SELL. Control/ack88/88 and
+revision145 remain unchanged. The guard has cleared without operator mutation;
+this later readback does not repair the failed observation.
+
 Local follow-up after revision144 groups the ordinary single held transfer's
 financial writes after fill validation: four flushes become two, 23 SQL become
 20, with all write fences and one final COMMIT retained. Native/PostgreSQL
 regression, paired component timings and two same-image packaged shutdown/
 Spot-outflow flows pass locally; their bounded scope is recorded in
 [the local scope](../performance/mm-quote-replacement-latency.md#revision144-single-held-transfer-follow-up--local-2026-11-15).
-This candidate is not deployed; the connected failures below remain unchanged.
+It is now deployed on revision145; neither local checks nor the later failed
+connected observation close the quote/probe/quality/perpetual gates.
 
 Latest completed observation (2026-11-15,02:09ICT): revision144/4fa9ef95c is
 verified at100% traffic with unchanged2CPU/1GiB/env. The repeated uninterrupted
@@ -161,6 +182,78 @@ Subsequent operational control observation05:54–06:24UTC retains19 probe
 timeouts across three successful profile changes. The local read/startup TDD
 follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
+
+## Revision145 single held-checkpoint deployment and observation
+
+The immutable full-commit tag `f5f181e92701e2786b64f1c914f8cfed6bdcdd2f`
+and revision `hummingbot-demo-00145-krm` both resolve to image
+`sha256:7a79ab2a24cf459980e0f968bd7f045fc2689d1ab32b1a3ca993be9e27d853f3`.
+Cloud Run is Ready from 02:41:41 ICT and remains at 100% traffic. Non-image
+container/spec settings match144, including 2 CPU/1 GiB and the existing env.
+Initial API health is 200, running/no HALT, control/ack88/88; physical owner533
+and the existing session survive the observation with generations171→174.
+
+Window 02:44:22.040–03:14:23.258 ICT (19:44:22.040–20:14:23.258 UTC Nov14)
+completes 897 samples with the unchanged classifier and two-second cadence.
+Sampled wall span is 1800.792 s, maximum gap 11.892 s. One `/status` request
+times out after its existing 10 s budget at 02:49:52.224; the next read succeeds
+at 02:49:52.450 with the same identity. The missing-identity diagnostic is a
+consequence of that one failed read, not a second observed deployment. Retain
+the unknown sample and quality FAIL. The Mac power log contains no Sleep/Wake
+around this read; the unique client/network/server cause remains unproven.
+
+| Market | Two-sided | Eligible gap | Guard excluded | Unknown | Descriptive result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Spot | 360 | 9 | 521 | 7 | 360/376 = 95.74%; fails99% and quality |
+| Perpetual | 0 | 0 | 890 | 7 | No confirmed eligible samples; unqualified |
+
+Spot's conditional 360/369 = 97.56% also fails. The nine gaps report four
+executor-activity, four submission-pending and one proposal-confirmation wait.
+Six unknowns surround profile transitions; one is the failed API read. Two raw
+HALT observations explicitly describe the temporary shutdown fence, clear in
+the next sample and remain unknowns. Three shutdown totals are 1.172/1.249/0.270 s;
+different working-order loads prevent attributing their differences to the patch.
+Neither the failed quality gate nor the different eligibility/fill mix permits
+a controlled improvement claim against144's 93.70%.
+
+The complete native history scan returns 187 recorded orders (139 Spot/48
+Perpetual), zero provisional orders and 76 Spot fills/no Perpetual fills.
+Initial/mid/final REPEATABLE READ READ ONLY snapshots retain matching financial
+and account-binding hashes and three positions. Watermark57660→57797→58127;
+the initial two unapplied fills progress to zero. Final pending creations,
+prepared/possibly-sent/uncertain attempts and unapplied fills are zero; no risk
+stop or recovery block is recorded. Control/ack88/88 and physical owner533 remain.
+
+Final process state is running but `waiting_for_mm_readiness`, with zero quotes
+on both markets under `reference_deviation`. The session configuration confirms
+a 200 bps maximum and 100 bps resume threshold. At 03:14:57 ICT observed deviations
+are 342.99 bps Spot and 353.76 bps Perpetual. `/startup` and `/live` are200;
+`/ready` is503. Guarded intervals are excluded, never counted as working quotes.
+The last sustained block starts at 03:08:38.991 and persists to the window end;
+earlier reference-deviation samples also occur before that profile handoff.
+By the separate 03:18:23 ICT readback, generation175 is running/no HALT with
+health200 and Spot2 BUY/2 SELL, Perpetual0 BUY/2 SELL. No control, policy or guard
+mutation is made; the later state does not erase the recorded guarded intervals.
+
+Exact-window logging, confirmed after ingestion, has 62 WARNING and one ERROR:
+44 diagnostics, 14 no-working-quote warnings under trading conditions and four
+probe timeouts300.930/300.770/300.829/300.749 ms. The ERROR is our HTTP GET/ready503
+at 03:09:26.786, not an application exception. No engine restart or ownership loss
+is logged. Three additional probe timeouts and two OKX server-time warnings
+occur before the measurement and are retained separately.
+
+Of 324 retained synchronous main-thread spans and 11 watchdog samples, only
+the first probe has overlapping spans/a sampled stack. Its 63 nested spans
+cover about 181.76 ms without double counting; largest retained SQL is 6.86 ms,
+and the sampled stack is connection checkout/pre-ping with no heartbeat progress.
+This is evidence of synchronous DB work during that wait, not a single300 ms
+SQL or a unique cause for all probes. Missing retained overlap for the other
+three cannot exclude unobserved blocking. The300 ms budget stays unchanged.
+
+Evidence (ignored/private): `build/held-transfer-postdeploy-20261115-024254/`.
+No Cloud, credentials, risk, HALT or trading-control mutation is made. The
+deployment identity is verified; quote/quality/probe/perpetual and production
+gates remain open.
 
 ## Revision144 guarded-admission deployment and observation
 

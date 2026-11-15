@@ -493,6 +493,17 @@ Ordinary status uses the owner's stored observation, marked stale when that owne
 is unavailable. A reporting projection failure marks prior account/position/PnL
 observations stale even while the trading owner remains healthy.
 
+The authenticated `/status` handler has a five-second read budget covering DB
+queue/work and the optional recovery lookup. Expiry returns the existing503
+`unavailable` envelope; it does not terminate the physical DB worker or imply
+that the trading engine stopped. Authentication and network transit have their
+own timing, outside this handler budget. Keep failed observations stale.
+Optional `Server-Timing` headers expose handler duration (`status`) and primary
+read queue/worker durations (`db_queue`, `db_run`) in milliseconds. A `running`
+description denotes work still executing after response timeout. These values
+are diagnostics, not readiness or order-outcome evidence; body/API contracts
+and server-generated `X-Request-ID` retain their existing meanings.
+
 Do not derive one green “Running” badge from HTTP 200, `/live`, `running`, a command
 receipt or one market's `ready` field alone.
 

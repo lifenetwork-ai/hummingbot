@@ -176,9 +176,11 @@ async def test_queued_order_is_blocked_after_task_failure_but_cancellation_is_al
     owner = BotOwnership(MagicMock(), "hummingbot")
     owner.check_owner = MagicMock(return_value={})
     owner.runtime_ready_check = lambda: False
-    with pytest.raises(SubmissionBlocked):
-        owner.before_order(SimpleNamespace(), SimpleNamespace())
-    with pytest.raises(SubmissionBlocked):
+    order = SimpleNamespace(client_order_id='queued', is_pending_create=True)
+    connector = SimpleNamespace(in_flight_orders={'queued': order})
+    with pytest.raises(SubmissionBlocked, match='runtime task is not healthy'):
+        owner.before_order(connector, order)
+    with pytest.raises(SubmissionBlocked, match='runtime task is not healthy'):
         await owner.authorize_rest(SimpleNamespace(url="https://www.okx.com/api/v5/trade/order"))
     assert await owner.authorize_rest(SimpleNamespace(url="https://www.okx.com/api/v5/trade/cancel-order")) is None
 

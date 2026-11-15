@@ -514,3 +514,17 @@ policy is changed as part of local implementation.
   [revision144](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision144-guarded-admission-deployment-and-observation).
 - [ ] General concurrent openings/Perpetual CLOSE: extend only after independent
   worst-case shared-collateral, hedge-quantity and cost-basis proofs are tested.
+- [x] Verify single-held-checkpoint coalescing on145/`f5f181e92` with unchanged
+  resources/env. The completed897-sample window has187 recorded orders/76 Spot
+  fills, matching checkpoints, owner533/control88/88 and no engine restart or
+  ownership loss. Final pending creations/unapplied fills/uncertain attempts
+  are zero. No maintenance or risk/control mutation is performed.
+- [ ] Close145's quality/quote/probe/perpetual gates: one status-read timeout
+  fails quality; Spot95.74% fails99% with9 gaps/7 unknown, and four probe warnings
+  remain. Final quote withdrawal is the configured `reference_deviation` guard,
+  with live process/no HALT and `/ready`503, not an unexplained engine stop.
+  Preserve the HTTP ERROR and all guard/unknown failures. See
+  [revision145](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision145-single-held-checkpoint-deployment-and-observation).
+  A later 03:18:23 ICT readback is running/no HALT/health200 at generation175,
+  Spot2 BUY/2 SELL and Perpetual0 BUY/2 SELL, unchanged control88/88 and no manual
+  guard mutation. Keep the failed window and remaining gates open.

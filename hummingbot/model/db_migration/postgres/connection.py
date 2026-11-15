@@ -3,12 +3,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
 from hummingbot.client.config.runtime_config import RuntimeSettings
+from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.model.db_migration.postgres.io_deadline import DeadlineConnection, install_io_deadline
 
 
 def create_postgres_engine(settings: RuntimeSettings) -> Engine:
     install_io_deadline()
-    return create_engine(
+    engine = create_engine(
         settings.database_url,
         pool_pre_ping=True,
         # Retain warm reader connections within the configured ceiling.
@@ -31,3 +32,13 @@ def create_postgres_engine(settings: RuntimeSettings) -> Engine:
                         "-c idle_in_transaction_session_timeout=5000 -c idle_session_timeout=30000"),
         },
     )
+    # Pool pre-ping executes through DBAPI before the SQL cursor hooks. Observe
+    # its native outcome without disabling validation or changing reconnects.
+    native_ping = engine.dialect.do_ping
+
+    @trace_runtime('db.ping')
+    def observed_ping(dbapi_connection):
+        return native_ping(dbapi_connection)
+
+    engine.dialect.do_ping = observed_ping
+    return engine

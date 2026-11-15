@@ -7,11 +7,54 @@ cancellation never frees capacity while its physical DB call is still running.
 import asyncio
 import heapq
 import itertools
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 
 class DatabaseBusy(RuntimeError):
     """Safe backpressure: callers may retry with their existing request identity."""
+
+
+class DatabaseWorkTiming:
+    """One request's primary read, without retaining the call or its arguments."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.queued_at = self.started_at = self.finished_at = None
+        self.was_rejected = False
+
+    def queued(self):
+        with self.lock:
+            self.queued_at = time.monotonic()
+
+    def started(self):
+        with self.lock:
+            self.started_at = time.monotonic()
+
+    def finished(self):
+        with self.lock:
+            self.finished_at = time.monotonic()
+
+    def rejected(self):
+        with self.lock:
+            self.was_rejected = True
+
+    def mark(self, stage):
+        try:
+            getattr(self, stage)()
+        except Exception:
+            pass  # Optional telemetry cannot suppress or change a DB call.
+
+    def snapshot(self):
+        with self.lock:
+            queued, started, finished = self.queued_at, self.started_at, self.finished_at
+            rejected = self.was_rejected
+            now = time.monotonic()
+        phase = 'finished' if finished is not None else 'running' if started is not None else 'queued'
+        return dict(database_phase='rejected' if rejected else phase if queued is not None else 'not_submitted',
+                    queue_ms=max(0, (started if started is not None else now) - queued) * 1000 if queued is not None else 0,
+                    worker_ms=max(0, (finished if finished is not None else now) - started) * 1000 if started is not None else None)
 
 
 class AdminDatabaseExecutor:
