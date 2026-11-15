@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from test.hummingbot.core.test_recovery import drawdown_checkpoint
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -95,6 +96,21 @@ async def test_overview_explains_check_availability_without_querying_exchange():
         body = await result.json()
         assert body['halted'] and body['check_available'] and not body['reset_available']
         assert body['operation'] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('reason', ['drawdown_controller_limit', 'drawdown_global_limit'])
+async def test_overview_explains_valid_drawdown_as_risk_protection_and_never_offers_reset(reason):
+    async with client() as (http, store):
+        store.state.read.return_value['recovery_state'].update(
+            reason=reason, strategy_checkpoints={'life_mm_profiles.yaml': drawdown_checkpoint(reason)})
+        result = await http.get(ADMIN_PREFIX + '/recovery')
+        assert result.status == 200
+        body = await result.json()
+        assert body['halted'] and body['check_available'] and not body['reset_available']
+        assert [row['code'] for row in body['blockers']] == ['recovery_risk_stop']
+        assert 'cannot reset risk limits, peaks or stop latches' in body['blockers'][0]['detail']
+        store.request.assert_not_called()
 
 
 @pytest.mark.asyncio

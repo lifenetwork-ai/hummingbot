@@ -1502,6 +1502,11 @@ expiry rejection atomically with retirement of its intent and saved tracker. Fin
 
 ### Reviewed manual recovery
 
+A valid drawdown breach is a `recovery_risk_stop`, not proof of checkpoint
+corruption. Show the risk-review guidance and keep Recover disabled: this API
+does not reset risk limits, PnL peaks or stop latches. A malformed drawdown
+checkpoint still reports `recovery_checkpoint_invalid` and blocks recovery.
+
 | Endpoint under `/api/v1/admin` | Purpose |
 | --- | --- |
 | `GET /recovery` | Current blockers, check/reset availability and latest operation |

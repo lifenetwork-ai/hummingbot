@@ -1,5 +1,20 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Revision150 source-policy deployment observation — 2026-11-15
+
+The30-minute901-sample window on150/`3d59c383f` passes collection quality, with
+222 recorded orders/99 Spot fills, all API reads200 and final matching native
+financial/binding hashes. Owner/control90 and original peaks persist; final
+health is200, without operator-required HALT, restart or ownership loss. Keep
+three auto-clearing Random shutdown fences and nine unknowns in the denominator.
+Spot459/481=95.43% fails99% (conditional459/472=97.25%); Perpetual has no eligible
+two-sided samples. Thirteen Spot gaps show pending submission/cancel/executor/
+proposal observations, not one proved bottleneck. Five probes recover in-window,
+three earlier probes remain separate, and app INFO is excluded. This is source
+policy synchronization and continued trading, not a controlled performance gain
+or completed quote/probe acceptance. The separate checkpoint-label fix is local
+and does not affect this measured image. See [the exact scope](../demo/cloudrun-drawdown-2500-5000.md#revision150-source-deployment-and-connected-follow-up).
+
 ## Revision149 approved Demo risk policy and resumed trading
 
 On2026-11-15 the operator approves2,500 USDT per controller/5,000 globally for

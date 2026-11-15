@@ -1,12 +1,14 @@
 # OKX Demo and current offline image acceptance
 
-Latest2026-11-15,10:30 ICT: operator-approved Demo policy2,500/controller and
-5,000/global is applied in repository/deployed YAML and durable checkpoint.
-Revision149 restores running at control90, all health endpoints200,13 recorded
-orders/one new Spot SELL fill; native financial/binding hashes and peaks match.
-No financial row was rewritten during maintenance. One startup probe recovers
-without restart/HALT; BUY size/inventory guards remain. This short observation
-does not close30-minute quote/probe gates. See [policy maintenance](../../reports/demo/cloudrun-drawdown-2500-5000.md).
+Latest2026-11-15,11:22 ICT: source150/`3d59c383f` preserves the approved
+2,500/controller–5,000/global limits and peaks. Its30-minute window has901
+samples, no failed API reads,222 recorded orders/99 Spot fills and final matching
+financial/binding hashes; all health200, same owner/control90 and no operator-
+required HALT/restart/ownership loss. Three Random shutdown fences auto-clear;
+nine unknowns remain counted. Spot95.43% fails99%; Perpetual has no eligible
+two-sided sample. Five probes recover, with three earlier probes separate.
+INFO retention and quote/probe acceptance remain open. The separate recovery
+label correction is local, not deployed. See [the scoped results](../../reports/demo/cloudrun-drawdown-2500-5000.md#revision150-source-deployment-and-connected-follow-up).
 
 Earlier read-only risk review2026-11-15,10:07 ICT: native covered-report drawdown
 is Spot1,477.60/limit1,000, Perpetual398.57/1,000 and global1,323.52/2,000 USDT.

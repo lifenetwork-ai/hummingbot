@@ -81,3 +81,93 @@ blocked by the previously documented GCP logging permissions.
 Evidence is private under `build/drawdown-2500-5000-20261115/`. The repository
 YAML records the same approved limits so the next source deployment preserves
 the live policy binding. No Git push is performed by this operation.
+
+## Revision150 source deployment and connected follow-up
+
+The full commit tag `3d59c383fd1e79aa3b7e0f59c352d367fa805882` independently
+matches the deployed digest
+`sha256:3044c394d7271f550c85643731d3844e8a1427665adedef04d7194c6e9e24a64`
+on `hummingbot-demo-00150-nfn`, at100% traffic. Ready is10:48:06 ICT on2026-11-15.
+Non-image revision settings match149. API catalogue/checkpoint limits are
+2,500/controller and5,000/global; the original PnL peaks, session identity,
+control/ack90 and until-stopped duration survive deployment. Initial
+startup/live/ready all return200.
+
+A GET-only observation from 10:52:17 to 11:22:18 ICT completes 901 samples on
+one revision/session/control. Collection quality passes: wall span 1,800.889 s,
+maximum sample gap 2.278 s and no failed API reads. The unchanged conservative
+classifier retains unknown observations as failures and guards separately.
+
+| Market | Two-sided samples | Eligible gaps | Guard excluded | Unknown | Conservative result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Spot | 459 | 13 | 420 | 9 | 459/481 = 95.43%; fails 99% |
+| Perpetual | 0 | 0 | 892 | 9 | No confirmed eligible samples; unqualified |
+
+Spot's conditional fraction excluding unknowns is 459/472 = 97.25%; it also
+fails 99%. The 13 gap samples show submission pending (3), cancel confirmation
+(1), executor activity (6), executor report (2) and proposal confirmation (1).
+These are sampled stages, not continuous gap durations or a proved unique
+bottleneck. Spot guards include order size, allocation and rolling outflow;
+Perpetual BUY remains inventory blocked. No guard, threshold or classifier is
+relaxed for acceptance.
+
+Complete bounded recorded-history pagination returns 222 orders (162 Spot,
+60 Perpetual) and 99 Spot fills (62 BUY, 37 SELL) in the same half-open window.
+These are recorded orders/fills, not a count of fully filled orders or all
+exchange activity. Final independent OKX GET matches both account bindings and
+confirms two live Spot SELLs and two Perpetual SELLs on the long leg at 72,938.67,
+the existing fee-inclusive breakeven quote.
+
+Random advances through generations 2/3/4/5, including a repeated sideways
+selection. At 10:57:27, 11:07:27 and 11:17:28, one sample per transition reports
+`halted=true`, `next_action=wait` and explicit temporary shutdown-fence guidance;
+each clears next sample. Running returns after approximately 10–12 s. All
+nine unknown transition samples remain in the conservative denominator. There
+is no observed drawdown breach or operator-required technical HALT; no recovery
+command or live mutation is performed by this read-only follow-up.
+
+At 11:22:49, startup/live/ready are all 200 and the bot remains running on150,
+control/ack90, without HALT. At 11:22:51, native financial/binding hashes match,
+owner537 remains unchanged, watermark advances to66145 and pending mutations,
+pending creations, unapplied fills and uncertain submissions are zero. Original
+PnL peaks and 2,500/5,000 limits remain exact. Initial watermark was65720 at
+10:57:02; the watermark is journal activity, not a fill count.
+
+The final bounded log review retains 56 WARNING/no application ERROR, restart
+or ownership loss in the observation: 17 loop-stall/recovered pairs,15 slow-stage
+records,5 probe warnings and2 protective `spread_policy_quote_rejected` events.
+In-window probes occur at 10:57:38,11:03:04,11:05:58,11:09:42 and11:17:39;
+elapsed time is300.822–301.060 ms with maximum probe gap1.305–1.306 s. All
+recover. Three earlier warnings at10:49:21,10:49:27 and10:51:03 remain separate
+(300.816–301.004 ms). Repeated diagnostic records are not automatically separate
+slow operations. Application INFO is still excluded by the project rule; complete
+submission-stage correlation and a unique probe cause remain unqualified.
+
+Final service readback preserves 100% traffic and the complete original service
+spec. The bot is left running. This is a successful source-policy deployment
+and observed continued trading, not a passed two-sided quote or probe-performance
+acceptance. The earlier 95.06% result remains in its original window; this is
+not a controlled performance comparison.
+
+## Local correction for the false recovery-checkpoint label
+
+The earlier147 checkpoint is valid but contains an active drawdown breach.
+`recovery_blockers` incorrectly equated `operator_action_required=true` with
+invalid checkpoint data. It now uses the native invalid-checkpoint reason while
+retaining `recovery_risk_stop`. No risk limit, peak, latch, reset authorization,
+financial mutation, MM cycle or schema is changed.
+
+Four native/HTTP and two real PostgreSQL RED failures reproduce the wrong extra
+`recovery_checkpoint_invalid` label for controller/global breaches. Final142
+native and34 PostgreSQL checks pass. Malformed scope/nonfinite peaks still
+report invalid data, a valid inactive bound policy permits technical review,
+and actual reset requests for active risk fail before any receipt/audit/state
+change. HTTP keeps Recover unavailable and returns the existing risk guidance.
+Swagger is unchanged; hooks pass after isort's formatting-only correction.
+The same local code is also replayed against the actual quiesced pre-maintenance
+checkpoint: it returns only `recovery_risk_stop`, preserves the original state
+and performs no live command or DB write.
+
+This source correction is absent from the measured150 image.
+Evidence for source deployment, connected observation and the separate local
+TDD is private under `build/drawdown-policy-postdeploy-20261115/`.

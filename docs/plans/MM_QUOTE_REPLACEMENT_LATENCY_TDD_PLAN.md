@@ -58,6 +58,15 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
 - [ ] Repeat unchanged connected qualification after operator review of the
   drawdown stop and INFO retention. No30-minute window is started while halted;
   no latency improvement, old timeout cause, perpetual or99% pass is established.
+- [x] Observe source revision150/`3d59c383f` for30 minutes after policy approval:
+  901 samples pass collection quality on one revision/session/control90;
+  222 recorded orders/99 Spot fills and final native financial/binding hashes
+  match. All health200, peaks/2,500–5,000 limits preserved, no ERROR/restart/
+  ownership loss or operator-required HALT. Keep three transient Random shutdown
+  fences and nine unknowns. Spot459/481=95.43% fails99%; Perpetual has no eligible
+  two-sided sample. Five probes recover in-window; three pre-window remain
+  separate. INFO retention and performance/quote acceptance stay open. See
+  [the source deployment](../../reports/demo/cloudrun-drawdown-2500-5000.md#revision150-source-deployment-and-connected-follow-up).
 - [x] Revalue stopped147 read-only using the native cold-start history/held
   report path and two fresh Demo book samples. At10:07:10 ICT, Spot drawdown
   1,477.60 exceeds1,000; Perpetual398.57/global1,323.52 remain below1,000/2,000.
@@ -73,10 +82,14 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
   confirms live SELL quotes on both markets; retain BUY size/inventory guards
   and one recovered startup probe. Source YAML carries the same approved limits.
   This is not a new30-minute quote/probe gate. See [maintenance](../../reports/demo/cloudrun-drawdown-2500-5000.md).
-- [ ] TDD the separate presentation bug: a valid breached drawdown checkpoint
+- [x] TDD the separate presentation bug: a valid breached drawdown checkpoint
   must retain `recovery_risk_stop` without being mislabeled checkpoint-invalid.
   Malformed checkpoints and every risk latch must still block recovery/reset.
-  Offline replay is in the147 deployment evidence; no code change is made yet.
+  Four native/HTTP and two PostgreSQL RED failures reproduce the false invalid
+  label. The local correction checks the actual invalid-checkpoint reason;
+  142 native and34 PostgreSQL checks pass, including durable reset rejection
+  with unchanged peaks/latch/audit. Swagger is unchanged; hooks pass. This
+  correction is local and not part of the deployed150 observation.
 
 Evidence: `build/quote-gap146-followup-20261115/`.
 

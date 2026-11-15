@@ -1,12 +1,15 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest2026-11-15,10:30 ICT: after explicit approval, Demo policy is2,500 USDT per
-controller/5,000 total, with peaks and all financial rows preserved during the
-maintenance transaction (audit315). Revision149 is running at control90,
-startup/live/ready200;13 short readbacks retain one session with13 recorded
-orders/one Spot SELL fill. Venue GET confirms live SELL quotes on both markets;
-BUY size/inventory guards remain. A startup probe recovers; this is not a new
-30-minute quote/probe acceptance. See [the policy application](cloudrun-drawdown-2500-5000.md).
+Latest2026-11-15,11:22 ICT: source150/`3d59c383f` runs the approved2,500/5,000
+policy with original peaks and unchanged settings. Its901-sample30-minute window
+passes collection quality:222 recorded orders/99 Spot fills, all API reads200,
+same owner/control90, final health200 and matching financial/binding hashes.
+There is no operator-required HALT, restart or ownership loss; preserve three
+auto-clearing Random shutdown fences/nine unknown samples. Spot459/481=95.43%
+fails99%; Perpetual remains guard-only/unqualified. Five in-window probes recover,
+with three pre-window probes separate. INFO remains excluded. The local recovery
+label fix passes142 native/34 PostgreSQL checks and is not deployed. See
+[the completed scoped follow-up](cloudrun-drawdown-2500-5000.md#revision150-source-deployment-and-connected-follow-up).
 
 Earlier risk review2026-11-15,10:07 ICT: native cold-start revaluation gives
 Spot drawdown1,477.60 USDT versus1,000, Perpetual398.57 versus1,000, and global
