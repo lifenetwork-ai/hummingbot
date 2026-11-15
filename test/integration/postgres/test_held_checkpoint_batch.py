@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import delete, event, select
+from sqlalchemy import delete, event, select, update
 
 from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
@@ -77,7 +77,11 @@ def test_held_checkpoint_batches_metadata_reads_and_fill_journal_update(owned, c
     chunks = (count + 99) // 100
     assert sum('FROM executors' in sql for sql in selects) == chunks
     assert sum('FROM orders' in sql for sql in selects) == chunks
-    assert sum('FROM trade_fills' in sql and 'LIMIT' in sql for sql in selects) == len(infos)
+    # Each branch keeps its own 1001-row sentinel; one round trip covers at
+    # most eight orders, rather than one network wait for every order.
+    fill_reads = [sql for sql in statements if 'FROM trade_fills' in sql and 'LIMIT' in sql]
+    assert len(fill_reads) == (count + 7) // 8
+    assert sum(sql.count('FROM trade_fills') for sql in fill_reads) == count
     assert sum(sql.lstrip().upper().startswith('UPDATE RUNTIME_JOURNAL') for sql in statements) == chunks
     with owned.manager.get_new_session() as session:
         position = session.query(Position).one()
@@ -128,7 +132,7 @@ def test_held_checkpoint_single_executor_with_multiple_orders_still_batches(owne
         owned.recorder.checkpoint_held_positions(positions, [info])
     selects = [sql for sql in statements if sql.lstrip().upper().startswith('SELECT')]
     assert sum('FROM orders' in sql for sql in selects) == 1
-    assert sum('FROM trade_fills' in sql and 'LIMIT' in sql for sql in selects) == 2
+    assert sum('FROM trade_fills' in sql and 'LIMIT' in sql for sql in statements) == 1
     with owned.manager.get_new_session() as session:
         assert session.query(Executors).count() == 1
         assert session.query(Order).filter_by(position_applied=True).count() == 2
@@ -276,12 +280,96 @@ def test_held_checkpoint_batch_fence_or_commit_failure_rolls_back_every_member(o
     unchanged(owned, count, with_checkpoint=with_checkpoint)
 
 
-def test_held_checkpoint_preserves_per_order_fill_bound(owned):
-    infos, positions = group(owned, count=2)
+@pytest.mark.parametrize('count', [2, 9])
+def test_held_checkpoint_preserves_per_order_fill_bound(owned, count):
+    infos, positions = group(owned, count=count)
     identity = infos[-1].custom_info['held_position_orders'][0]['client_order_id']
     with owned.engine.begin() as connection:
         original = dict(connection.execute(select(TradeFill).where(TradeFill.order_id == identity)).mappings().one())
         connection.execute(TradeFill.__table__.insert(), [dict(original, exchange_trade_id='overflow-' + str(i)) for i in range(1000)])
     with pytest.raises(ValueError, match='bounded native transfer'):
         owned.recorder.checkpoint_held_positions(positions, infos)
-    unchanged(owned, 2)
+    unchanged(owned, count)
+
+
+def test_held_checkpoint_accepts_exactly_one_thousand_fills_without_starving_next_order(owned):
+    # 1000 + 1 + 1 exceeds a shared 1001-row LIMIT, but each order is valid.
+    infos, positions = group(owned, count=3)
+    order = infos[0].custom_info['held_position_orders'][0]
+    identity = order['client_order_id']
+    with owned.engine.begin() as connection:
+        original = dict(connection.execute(select(TradeFill).where(TradeFill.order_id == identity)).mappings().one())
+        values = dict(amount=Decimal('.0001'), trade_fee_in_quote=Decimal('.00001'),
+                      trade_fee=AddedToCostTradeFee(flat_fees=[TokenAmount('USDT', Decimal('.00001'))]).to_json())
+        connection.execute(update(TradeFill).where(TradeFill.order_id == identity).values(**values))
+        extra = [dict(original, **values, exchange_trade_id='boundary-' + str(i)) for i in range(999)]
+        connection.execute(TradeFill.__table__.insert(), extra)
+    order['order_fills'].update({row['exchange_trade_id']: {} for row in extra})
+    with queries(owned.engine) as statements:
+        owned.recorder.checkpoint_held_positions(positions, infos)
+    assert sum('FROM trade_fills' in sql and 'LIMIT' in sql for sql in statements) == 1
+    with owned.manager.get_new_session() as session:
+        assert session.query(Position).one().amount == Decimal('.3')
+        assert session.query(Position).one().cum_fees_quote == Decimal('.03')
+        assert session.query(Order).filter_by(position_applied=True).count() == 3
+        assert session.get(RuntimeCheckpoint, 'test.yml').financial_hash == financial_hash(session)
+
+
+def test_held_checkpoint_paired_fill_read_roundtrips(owned):
+    import time
+    from statistics import median
+    from test.integration.postgres.test_performance import report
+
+    serial = 0
+
+    def legacy(session, identities):
+        for identity in identities:
+            yield identity, session.query(TradeFill).filter_by(order_id=identity).limit(1001).all()
+
+    def run(before, delay):
+        nonlocal serial
+        serial += 1
+        infos, positions = group(owned, 6, prefix=f'paired-fill-read-{serial}-')
+        for field in ('amount', 'volume_traded_quote', 'cum_fees_quote'):
+            setattr(positions[0], field, getattr(positions[0], field) * serial)
+
+        def delayed_roundtrip(connection, cursor, statement, *args):
+            if 'FROM trade_fills' in statement and 'LIMIT' in statement:
+                time.sleep(delay)
+
+        control = patch.object(owned.recorder, '_iter_held_order_fill_proofs', legacy) if before else nullcontext()
+        event.listen(owned.engine, 'before_cursor_execute', delayed_roundtrip)
+        try:
+            with control, queries(owned.engine) as statements:
+                started = time.perf_counter()
+                owned.recorder.checkpoint_held_positions(positions, infos)
+                elapsed = (time.perf_counter() - started) * 1000
+        finally:
+            event.remove(owned.engine, 'before_cursor_execute', delayed_roundtrip)
+        reads = sum('FROM trade_fills' in sql and 'LIMIT' in sql for sql in statements)
+        assert reads == (6 if before else 1)
+        with owned.manager.get_new_session() as session:
+            assert session.query(Position).one().amount == Decimal('.6') * serial
+            assert session.query(Position).one().cum_fees_quote == Decimal('.06') * serial
+            assert session.query(Order).filter_by(position_applied=True).count() == 6 * serial
+            assert session.query(RuntimeJournal).filter_by(kind='fill', applied=False).count() == 0
+            assert session.get(RuntimeCheckpoint, 'test.yml').financial_hash == financial_hash(session)
+        return dict(duration_ms=elapsed, fill_read_roundtrips=reads, sql_statements=len(statements))
+
+    # Warm both native paths before alternating. Latency is an injected wait per
+    # actual SQL round trip, not a Cloud measurement or a timing pass threshold.
+    run(True, 0)
+    run(False, 0)
+    pairs = []
+    for index in range(3):
+        pair = {}
+        for before in ((True, False) if index % 2 == 0 else (False, True)):
+            pair['before' if before else 'after'] = run(before, .05)
+        assert pair['before']['sql_statements'] - pair['after']['sql_statements'] == 5
+        pairs.append(pair)
+    report('held_fill_read_batch', dict(
+        pairs=pairs, before_p50_ms=median(p['before']['duration_ms'] for p in pairs),
+        after_p50_ms=median(p['after']['duration_ms'] for p in pairs), injected_wait_per_read_ms=50,
+        qualification='Actual disposable PostgreSQL/recorder/owner, six synthetic native filled orders per transfer. '
+                      'Alternating warmed former read schedule; 50 ms injected per fill SQL round trip. '
+                      'No Cloud root-cause or whole-MM/zero-probe attribution.'))

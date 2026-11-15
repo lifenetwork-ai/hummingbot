@@ -1,5 +1,95 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Bounded checkpoint fill-read batching — local 2026-11-15
+
+Following the injected blocking-checkpoint replay reveals an avoidable linear
+SQL read schedule in the actual recorder: the already-batched hold transfer
+still fetches fills separately for every order. Three PostgreSQL RED cases
+retain six/101/two reads where one/13/one round trip suffices. These establish a
+local round-trip cost; they do not identify the cause of Cloud's individual
+probes or justify moving a shared physical-owner connection onto a worker.
+
+The recorder now reads up to eight orders in one UNION query, on the unchanged
+transaction. Each limited subquery retains its own1001-row overflow sentinel;
+there is no shared outer limit. Proof is consumed in input order and only one
+chunk is retained for subsequent validation. Single-order reads remain a single
+direct query. Exact original fees, amounts/identity coverage, both financial
+hashes, physical-owner fences, atomic position/application receipts and native
+commit/rollback remain mandatory before report publication releases a level.
+
+The tests check1000 valid fills plus two other orders without starvation,
+1001-fill overflow in either the first or a later chunk, corrupt last-member
+proof, duplicate application, invalid ownership and commit failure. Four actual
+SQLite cases protect compatibility; the draft UNION syntax failed two of these
+before the limited members were nested, and that candidate failure is retained
+separately. The new native tests are included in `test-cloudrun-regression`.
+No environment change, schema migration, new worker, cache authority or relaxed
+risk/health threshold is introduced.
+
+Validation passes216 native tests plus5 subtests and62 related disposable
+PostgreSQL cases, including checkpoint recovery, closing costs and unknown
+COMMIT outcomes; hooks pass. The warmed alternating six-order replay makes
+six fill reads before and one after, reducing total statements26 to21 without
+removing any ownership/commit checks. With50 ms deliberately added per fill
+read, median checkpoint time is391.42 ms before/125.04 ms after across three
+pairs. A101-order transfer uses13 fill-read round trips instead of101. Single
+orders still use one. These measurements demonstrate the grouped-round-trip
+saving, not an observed Cloud latency improvement.
+
+SQL and COMMIT remain synchronous. A single400 ms DB wait can still stall the
+loop; the original deliberate slow-checkpoint replay continues to test and
+observe that fact. This change targets accumulated round trips during grouped
+handoffs, not a claim of zero slow probes or of meeting the connected99% quote
+target. Existing failed/unknown Cloud observations retain their status.
+
+Receipts: `build/local-checkpoint-fill-batch-20261115/`, including the original
+PostgreSQL RED, SQLite candidate RED, final native/PostgreSQL results and paired
+measurements. Paired measurements inject50 ms per actual fill-read round trip
+on disposable PostgreSQL; they are not Cloud database latency measurements.
+
+## Offline composition replay without Cloud INFO — 2026-11-15
+
+The operator cannot enable application INFO retention. The local follow-up
+therefore exercises representative states from the retained gap review without
+requiring a Cloud logging change. It does not replay the exact Cloud order IDs,
+market/account history or machine scheduling, and makes no new live mutation.
+
+`test_quote_progress_replay.py` composes the native LifeMM controller and
+PositionExecutor loops with the strategy action listener, account watcher and
+coalesced report publisher. External venue observations and recorder persistence
+are faked; financial hold/report/admission decisions remain native. Twelve cases
+cover four full-fill/account orderings across BUY/SELL, four delayed-cancel ACK
+cases with/without duplicate late partial fills, two revoked-session cases, one
+failed hold commit/retry, and one deliberately blocked synchronous checkpoint.
+The pipeline ends at a new native CreateExecutorAction, not a fabricated venue
+acceptance. Quantities and original fees remain exact and held once. Missing
+cash or cancellation proof prevents replacement; failed persistence retains
+capacity until the ordinary report retry. Late cash cannot reopen a revoked
+session. No existing risk/cap/financial proof is weakened.
+
+With normal periodic actor ticks held at60 s in the test, current-scope events
+still produce replacement proposals within the500 ms test deadline after proof
+and successful persistence. A separate injected400 ms checkpoint blocks the
+actual loop: the watchdog observes both `strategy.reports` and
+`position.checkpoint`, records a stall and subsequent recovery, and proposal
+progress resumes after the blocking call returns. This demonstrates one possible
+mechanism; it does not establish that Cloud's probes were caused by that stage.
+These deadlines are test guards, not an end-to-end trading latency benchmark.
+
+All12 cases pass, and the related native selection passes130 tests total; hooks
+pass. Receipt: `build/local-quote-progress-20261115/native-junit.xml`. Initial
+fixture failures used the shared legacy entry flag and default controller ID;
+correcting them is not a runtime fix or RED production-bug evidence. No additional
+runtime defect or avoidable post-proof tick is established in these branches.
+Submission/proposal transport timing, real DB waits and host contention still
+need separate evidence. Preserve the revision150 Spot95.43%/99% failure, all
+unknown samples, unqualified perpetual target and unresolved Cloud probe causes.
+
+Revision151/`4b302019a` subsequently deploys the checkpoint-label correction;
+its short health/recovery/OpenAPI/native DB checks pass, with49 recorded orders,
+14 Spot fills and four recovered probes after Ready. This is not another
+30-minute quote/performance acceptance. See [verification](../demo/cloudrun-drawdown-2500-5000.md#revision151-recovery-label-deployment-verification).
+
 ## Revision150 source-policy deployment observation — 2026-11-15
 
 The30-minute901-sample window on150/`3d59c383f` passes collection quality, with
@@ -12,8 +102,8 @@ two-sided samples. Thirteen Spot gaps show pending submission/cancel/executor/
 proposal observations, not one proved bottleneck. Five probes recover in-window,
 three earlier probes remain separate, and app INFO is excluded. This is source
 policy synchronization and continued trading, not a controlled performance gain
-or completed quote/probe acceptance. The separate checkpoint-label fix is local
-and does not affect this measured image. See [the exact scope](../demo/cloudrun-drawdown-2500-5000.md#revision150-source-deployment-and-connected-follow-up).
+or completed quote/probe acceptance. The separate checkpoint-label fix deploys
+in151 and does not affect this measured150 image. See [the exact scope](../demo/cloudrun-drawdown-2500-5000.md#revision150-source-deployment-and-connected-follow-up).
 
 ## Revision149 approved Demo risk policy and resumed trading
 

@@ -10,7 +10,7 @@ from shutil import move
 from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
-from sqlalchemy import or_, tuple_
+from sqlalchemy import or_, select, tuple_, union_all
 from sqlalchemy.engine import Row
 from sqlalchemy.orm import Query, Session, defer
 
@@ -311,6 +311,28 @@ class MarketsRecorder:
         with self._sql_manager.get_new_session() as session:
             return applied_executors(session, identities)
 
+    @staticmethod
+    def _iter_held_order_fill_proofs(session, identities):
+        """Bound both network waits and resident fill rows on this transaction.
+
+        Each UNION member has its own overflow sentinel. A shared outer LIMIT
+        could hide an oversized order behind another order's fills. Retain only
+        one eight-order chunk, never cache proof across callbacks/transactions.
+        """
+        for offset in range(0, len(identities), 8):
+            chunk = identities[offset:offset + 8]
+            statements = [select(TradeFill).where(TradeFill.order_id == identity).limit(1001) for identity in chunk]
+            # Nest each limited member so SQLite and PostgreSQL both apply
+            # LIMIT to that order, rather than to the combined result.
+            statement = union_all(*(select(*item.subquery().c) for item in statements)) if len(statements) > 1 else statements[0]
+            rows = session.query(TradeFill).from_statement(statement).all()
+            grouped = {identity: [] for identity in chunk}
+            for row in rows:
+                grouped[row.order_id].append(row)
+            for identity in chunk:
+                yield identity, grouped[identity]
+            del rows, grouped
+
     def ensure_runtime_checkpoint(self):
         """Empty ledgers may establish a baseline without inventing old history.
 
@@ -406,8 +428,8 @@ class MarketsRecorder:
                 except (ValueError, ArithmeticError, TypeError):
                     pass  # Unproven old costs cannot supply authority to a new session.
             # Prefetch rows by identity on this transaction, in bounded SQL
-            # parameter groups. Fill proof remains per order with its 1001-row
-            # sentinel; no proof is cached across callbacks or commits.
+            # parameter groups. Fill reads also batch, with an independent
+            # 1001-row sentinel per order; no proof survives this transaction.
             executor_ids = list(dict.fromkeys(info.id for info in infos))
             order_ids = list(dict.fromkeys(
                 order['client_order_id'] for info in infos for order in info.custom_info.get('held_position_orders', [])))
@@ -428,6 +450,7 @@ class MarketsRecorder:
             # must not flush the pending financial writes either. All proof
             # remains on this transaction before the first guarded write.
             with session.no_autoflush:
+                fill_proofs = self._iter_held_order_fill_proofs(session, order_ids)
                 for info in infos:
                     data = json.loads(info.model_dump_json())
                     existing = existing_executors.get(info.id) if batch else session.get(Executors, info.id)
@@ -451,7 +474,9 @@ class MarketsRecorder:
                             raise ValueError('Durable order identity is missing from the managed held transfer')
                         if recorded_order is not None and recorded_order.position_applied:
                             raise ValueError('Fill application already belongs to a held executor')
-                        fills = session.query(TradeFill).filter_by(order_id=identity).limit(1001).all()
+                        proven_identity, fills = next(fill_proofs, (None, ()))
+                        if proven_identity != identity:
+                            raise ValueError('Fill coverage order identity mismatch')
                         if len(fills) > 1000:
                             raise ValueError('Fill coverage exceeds the bounded native transfer')
                         if fills or managed:

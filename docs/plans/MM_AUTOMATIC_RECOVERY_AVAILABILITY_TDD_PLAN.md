@@ -1,6 +1,11 @@
 # MM automatic recovery and availability
 
-Latest2026-11-15,11:22 ICT: source150/`3d59c383f` preserves the approved
+Latest deployment2026-11-15,12:11 ICT:151/`4b302019a` verifies the recovery-label
+fix, same session/control90 and risk peaks/policy, matching financial/binding
+hashes and all health200. Short smoke and49 recorded orders/14 Spot fills pass;
+four probes recover. See [deployment verification](../../reports/demo/cloudrun-drawdown-2500-5000.md#revision151-recovery-label-deployment-verification).
+
+Completed2026-11-15,11:22 ICT: source150/`3d59c383f` preserves the approved
 2,500/controller–5,000/global limits and peaks. Its30-minute window has901
 samples, no failed API reads,222 recorded orders/99 Spot fills and final matching
 financial/binding hashes; all health200, same owner/control90 and no operator-
@@ -8,7 +13,7 @@ required HALT/restart/ownership loss. Three Random shutdown fences auto-clear;
 nine unknowns remain counted. Spot95.43% fails99%; Perpetual has no eligible
 two-sided sample. Five probes recover, with three earlier probes separate.
 INFO retention and quote/probe acceptance remain open. The separate recovery
-label correction is local, not deployed. See [the scoped results](../../reports/demo/cloudrun-drawdown-2500-5000.md#revision150-source-deployment-and-connected-follow-up).
+label correction is deployed by151. See [the scoped results](../../reports/demo/cloudrun-drawdown-2500-5000.md#revision150-source-deployment-and-connected-follow-up).
 
 Earlier read-only risk review2026-11-15,10:07 ICT: native covered-report drawdown
 is Spot1,477.60/limit1,000, Perpetual398.57/1,000 and global1,323.52/2,000 USDT.

@@ -149,7 +149,7 @@ and observed continued trading, not a passed two-sided quote or probe-performanc
 acceptance. The earlier 95.06% result remains in its original window; this is
 not a controlled performance comparison.
 
-## Local correction for the false recovery-checkpoint label
+## Source correction for the false recovery-checkpoint label
 
 The earlier147 checkpoint is valid but contains an active drawdown breach.
 `recovery_blockers` incorrectly equated `operator_action_required=true` with
@@ -168,6 +168,59 @@ The same local code is also replayed against the actual quiesced pre-maintenance
 checkpoint: it returns only `recovery_risk_stop`, preserves the original state
 and performs no live command or DB write.
 
-This source correction is absent from the measured150 image.
+This source correction is absent from the measured150 image and deployed by151
+as verified below.
 Evidence for source deployment, connected observation and the separate local
 TDD is private under `build/drawdown-policy-postdeploy-20261115/`.
+
+## Revision151 recovery-label deployment verification
+
+Cloud Build for full commit `4b302019a3bb90875588b06f35e513d84f53c0ab` succeeds
+at12:02:12 ICT on2026-11-15. Revision `hummingbot-demo-00151-mb4` is Ready at
+12:02:05 and serves100% traffic. The immutable revision and the full-commit
+artifact independently match digest
+`sha256:e265accef80cb39d766fa97706c2d39757554ff7e18a4a34280a3525b18baae2`.
+Non-image revision settings match150. During reconciliation the template changed
+before the Ready revision changed; final proof uses the immutable revision
+digest/Ready/traffic, not the template alone. The initial template-only candidate
+is retained separately and is not used as deployment proof.
+
+The original session, until-stopped mode, control/ack90, PnL peaks and2,500/5,000
+limits survive the handoff. At12:08:49, read-only native financial/binding hashes
+match with owner538, watermark66817 and no pending mutations/creations, unapplied
+fills or uncertain submissions. Live OpenAPI paths/components equal the repo.
+`GET /recovery` returns the healthy running-state blockers, Recover unavailable
+and no false checkpoint-invalid code. No live breach is induced and no recovery
+command is sent; active-risk rejection remains qualified by native/HTTP/PG TDD.
+
+A short smoke from12:07:34 to12:10:35 has91 samples, no runtime/error/identity
+failures and the same session/control. It begins during guard recovery after
+Random advances from generation9 to10; running is observed again at12:07:40.
+It does not cover the complete earlier shutdown fence or constitute another
+30-minute quote/performance acceptance. Since Ready through12:10:35, complete
+bounded recorded-history pagination gives49 orders and14 Spot fills (13 BUY,
+one SELL). At12:11:41, startup/live/ready are200 and151 remains running/no HALT.
+Independent venue GET at12:11:48 matches both accounts and confirms one Spot
+BUY/two Spot SELLs and two closing long-leg Perpetual SELLs at breakeven72,938.67.
+
+The151 log window through12:10:35 retains20 WARNING/no application ERROR,
+restart or ownership loss: five stall/recovered pairs, six slow-stage records
+and four probes (300.950–301.114 ms; maximum probe gap1.307–1.310 s). Probes
+recover. INFO retention and the previous95.43%/Perpetual quote gates remain open;
+this read-path correction proves no MM latency improvement.
+
+Separate predecessor150 evidence includes an ERROR at11:57:27, before this
+deployment: native `OKXExpiredOrderRejection`, venue code50036. The recorded
+order is terminal `OrderFailure`, `creation_pending=false`, zero recorded fill.
+The bot is running afterward, with no HALT. This error is retained and is not
+attributed to151 or represented as bad credentials by the canned network warning.
+
+All verification is GET/read-only. The bot is left running; no service config,
+credential, risk policy or financial row is changed by the verification. Private
+evidence: `build/recovery-label-postdeploy-20261115/`.
+
+Latest readback at12:16:20 ICT still has151 running/no HALT, control90 and all
+three health endpoints200. Extended retained logs from Ready through that
+timestamp have29 WARNING/no application ERROR/restart/ownership loss; the probe
+count remains four. Additional stall/recovery records are retained. The own
+local read-only SQL proxy is stopped; Cloud Run and trading are left active.

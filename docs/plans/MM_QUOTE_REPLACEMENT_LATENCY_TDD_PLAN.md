@@ -15,6 +15,67 @@ plus its normal loop sleep. A cancel ACK can update the order during that wait
 without waking the task. Managed closing quotes will use a coalescing wake event;
 legacy executors retain their timing. Waking a loop grants no new order authority.
 
+## Bounded checkpoint fill-read batching — local 2026-11-15
+
+- [x] Follow the local blocking-write replay into the actual recorder. Do not
+  move the ownership-lock connection or native financial writes into an
+  unsynchronized worker. RED three real PostgreSQL query-budget failures:
+  six orders read fills six times,101 orders101 times, and one executor with
+  two held orders reads twice.
+- [x] Batch fill reads in groups of at most eight, on the original transaction,
+  with an independent1001-row sentinel on every member. Keep the one-order
+  fast path, ordered proof consumption, exact amounts/original fees, identity
+  and financial hashes, physical ownership checks, one commit and rollback.
+  No proof cache survives this transaction.
+- [x] Check compatibility against actual SQLite too. Keep the two failing
+  candidate SQL syntax cases separate from the original PostgreSQL RED;
+  nesting the limited members preserves both supported dialects.
+- [x] Wire the local composition and fill-read tests into the existing Cloud Run
+  regression target. Validate both the legal1000-fill boundary and1001-fill
+  rejection, including a later chunk; a shared outer LIMIT must not hide or
+  truncate another order's proof.
+- [x] Validate216 native tests +5 subtests,62 related disposable PostgreSQL
+  cases and hooks. The alternating six-order PostgreSQL replay with50 ms
+  injected per fill-read round trip reduces six reads to one and median
+  checkpoint duration391.42 ms to125.04 ms. These are scoped local injected
+  measurements, not Cloud performance or a latency pass threshold.
+- [ ] Deploy and measure actual connected probes/quotes on one image before
+  assigning any Cloud improvement or closing the unchanged99% quote gate.
+
+This reduces repeated waits when several entries hand off together. It does
+not remove an individually slow synchronous DB call or establish Cloud probe
+causality. Qualification/results are recorded in the
+[existing report](../../reports/performance/mm-quote-replacement-latency.md#bounded-checkpoint-fill-read-batching--local-2026-11-15).
+
+## Offline composition replay without Cloud INFO — 2026-11-15
+
+- [x] Reproduce representative fill/account, cancellation and financial-report
+  waits through native LifeMM/PositionExecutor loops, the strategy action
+  listener, account watcher and coalesced report publisher. Run both sides and
+  account-before/after-fill orderings; hold cancellation ACK and deliver a late
+  partial fill twice. Fake only external observations/persistence, not the
+  native handoff/report decisions.
+- [x] Verify failed hold persistence keeps the level reserved until the regular
+  native report retry succeeds; revoked sessions cannot reopen from late cash
+  updates. Preserve exact quantity/fees and no early replacement.
+- [x] Inject a400 ms synchronous checkpoint delay within that composition:
+  the actual watchdog records a loop stall with `strategy.reports` and
+  `position.checkpoint` active, records recovery, and native proposal progress
+  resumes only after the write returns. This is an injected cause, not proof
+  of the reason for any particular Cloud probe.
+- [x] All12 composition cases and the related native regression pass:130 tests
+  total, hooks pass. The60 s test interval isolates event wakeups; the500 ms
+  completion assertions are local test deadlines, not Cloud SLO measurements.
+- [ ] Identify the actual causes of the remaining connected gaps/probes.
+  No new production defect is established by this replay; the initial fixture
+  failures (legacy configured-price flag/default controller ID) are not RED
+  evidence of a runtime bug. The initial replay alone changes no runtime, risk
+  limit, timeout or qualification classifier. The revision150 Spot95.43%/99% failure and unknowns
+  remain; this work does not qualify submission/proposal ACK latency on Cloud.
+
+Receipt: `build/local-quote-progress-20261115/native-junit.xml`; see
+[local replay limits](../../reports/performance/mm-quote-replacement-latency.md#offline-composition-replay-without-cloud-info--2026-11-15).
+
 ## Revision146 submission/probe evidence follow-up
 
 - [x] Review all18 retained gap samples and nearby recorded orders/fills. The
@@ -90,6 +151,13 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
   142 native and34 PostgreSQL checks pass, including durable reset rejection
   with unchanged peaks/latch/audit. Swagger is unchanged; hooks pass. This
   correction is local and not part of the deployed150 observation.
+- [x] Deploy151/`4b302019a`: immutable revision/artifact digest and100% traffic
+  match, with unchanged non-image settings and preserved session/control90,
+  peaks/2,500–5,000 limits. Native financial/binding hashes, live OpenAPI and
+  healthy recovery API smoke pass.91 short samples retain runtime/identity,
+  49 recorded orders/14 Spot fills follow Ready and final health200/no HALT.
+  Retain four recovered probes and the separate150 expired-order rejection;
+  this is not a new quote/performance pass. See [verification](../../reports/demo/cloudrun-drawdown-2500-5000.md#revision151-recovery-label-deployment-verification).
 
 Evidence: `build/quote-gap146-followup-20261115/`.
 

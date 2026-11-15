@@ -1,6 +1,14 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest2026-11-15,11:22 ICT: source150/`3d59c383f` runs the approved2,500/5,000
+Latest deployment2026-11-15,12:11 ICT:151/`4b302019a` runs the recovery-label
+correction at100% traffic, retaining session/control90, risk peaks/policy and
+matching native financial/binding hashes. Live OpenAPI/recovery API smoke pass;
+final health200/no HALT,49 recorded orders/14 Spot fills since Ready. Four probes
+recover with no new-revision application ERROR/restart/ownership loss. Keep the
+separate150 expiry rejection; this is a short deployment check, not a new
+30-minute quote result. See [verification](cloudrun-drawdown-2500-5000.md#revision151-recovery-label-deployment-verification).
+
+Completed2026-11-15,11:22 ICT: source150/`3d59c383f` runs the approved2,500/5,000
 policy with original peaks and unchanged settings. Its901-sample30-minute window
 passes collection quality:222 recorded orders/99 Spot fills, all API reads200,
 same owner/control90, final health200 and matching financial/binding hashes.
@@ -8,7 +16,7 @@ There is no operator-required HALT, restart or ownership loss; preserve three
 auto-clearing Random shutdown fences/nine unknown samples. Spot459/481=95.43%
 fails99%; Perpetual remains guard-only/unqualified. Five in-window probes recover,
 with three pre-window probes separate. INFO remains excluded. The local recovery
-label fix passes142 native/34 PostgreSQL checks and is not deployed. See
+label fix passes142 native/34 PostgreSQL checks and is deployed by151. See
 [the completed scoped follow-up](cloudrun-drawdown-2500-5000.md#revision150-source-deployment-and-connected-follow-up).
 
 Earlier risk review2026-11-15,10:07 ICT: native cold-start revaluation gives
