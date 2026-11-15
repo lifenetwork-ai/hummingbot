@@ -1,9 +1,32 @@
 # OKX Demo and current offline image acceptance
 
+Latest2026-11-15,10:30 ICT: operator-approved Demo policy2,500/controller and
+5,000/global is applied in repository/deployed YAML and durable checkpoint.
+Revision149 restores running at control90, all health endpoints200,13 recorded
+orders/one new Spot SELL fill; native financial/binding hashes and peaks match.
+No financial row was rewritten during maintenance. One startup probe recovers
+without restart/HALT; BUY size/inventory guards remain. This short observation
+does not close30-minute quote/probe gates. See [policy maintenance](../../reports/demo/cloudrun-drawdown-2500-5000.md).
+
+Earlier read-only risk review2026-11-15,10:07 ICT: native covered-report drawdown
+is Spot1,477.60/limit1,000, Perpetual398.57/1,000 and global1,323.52/2,000 USDT.
+Venue quantities/pending orders and audited Spot cash changes match. Native
+latch-only rearm replay stops again; live risk settings/latch remain unchanged.
+This is current revaluation, not account equity loss or09:12 trigger-time PnL.
+See [risk review](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision147-drawdown-revaluation-and-unchanged-policy-replay).
+
+Latest deployment check2026-11-15,09:40 ICT:147/`f3567186c` is verified at100%
+traffic with unchanged settings. The bot inherits a Spot drawdown stop recorded
+on146 at09:12:45, before the new revision Ready09:19. DB financial/binding hashes
+match with no unresolved work; startup/live200, ready503 and no post-Ready
+orders/fills. The1,000/2,000 policy and risk latch are unchanged. No quote window
+is started while halted; INFO retention remains blocked. See
+[revision147](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision147-deployment-with-inherited-drawdown-stop).
+
 Local follow-up after146 repairs missing submission/probe evidence; final native,
 PostgreSQL and same-image packaged checks pass. The enabled flow retains168 phase
 records/zero drops; final finite logs have no ERROR/probe transition, with the
-initial losses/probes preserved. The code is not deployed. Cloud INFO retention
+initial losses/probes preserved. The code is deployed from147. Cloud INFO retention
 remains blocked by403 for `logging.sinks.update` / `logging.exclusions.update`;
 the sink is unchanged. No quote/probe/perpetual gate is closed. See
 [the local scope](../../reports/performance/mm-quote-replacement-latency.md#revision146-retained-evidence-and-local-follow-up--2026-11-15).

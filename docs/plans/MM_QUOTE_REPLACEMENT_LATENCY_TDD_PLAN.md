@@ -51,9 +51,32 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
   `logging.exclusions.update`); readback proves the rule is unchanged. The
   reviewed exception preserves HTTP/other-service filters; it does not require
   another service revision or a financial/control change.
-- [ ] Deploy and repeat unchanged connected qualification after log retention
-  is available. No latency improvement, old timeout cause, perpetual acceptance
-  or99% quote pass is established by this observational correction.
+- [x] Deploy147/`f3567186c`, verify immutable image/100% traffic and unchanged
+  non-image settings. Inherited Spot drawdown stop is established on146 at
+  09:12:45 ICT, before147 Ready09:19; DB hashes match with no unresolved work.
+  Startup/live200, ready503, zero post-Ready orders/fills. No risk reset/change.
+- [ ] Repeat unchanged connected qualification after operator review of the
+  drawdown stop and INFO retention. No30-minute window is started while halted;
+  no latency improvement, old timeout cause, perpetual or99% pass is established.
+- [x] Revalue stopped147 read-only using the native cold-start history/held
+  report path and two fresh Demo book samples. At10:07:10 ICT, Spot drawdown
+  1,477.60 exceeds1,000; Perpetual398.57/global1,323.52 remain below1,000/2,000.
+  GET-only account/quantity/pending-order and audited Spot cash-delta checks pass;
+  snapshots preserve financial hashes, risk peaks/policy and journal watermark.
+  Native in-memory latch-only rearm replay stops again for the same Spot reason.
+  At that read-only step no live rearm or new risk policy is selected. See [risk review](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision147-drawdown-revaluation-and-unchanged-policy-replay).
+- [x] Apply the subsequent explicit2,500/controller/5,000/global Demo approval:
+  native replay/binding and37 profile/drawdown tests pass; exclusive reviewed
+  maintenance preserves peaks/all financial rows and appends audit315. Overlay
+  only the YAML on147, restore149 and Start at control90. Thirteen short readbacks
+  show all health200/no HALT,13 recorded orders/one Spot SELL fill. Venue GET
+  confirms live SELL quotes on both markets; retain BUY size/inventory guards
+  and one recovered startup probe. Source YAML carries the same approved limits.
+  This is not a new30-minute quote/probe gate. See [maintenance](../../reports/demo/cloudrun-drawdown-2500-5000.md).
+- [ ] TDD the separate presentation bug: a valid breached drawdown checkpoint
+  must retain `recovery_risk_stop` without being mislabeled checkpoint-invalid.
+  Malformed checkpoints and every risk latch must still block recovery/reset.
+  Offline replay is in the147 deployment evidence; no code change is made yet.
 
 Evidence: `build/quote-gap146-followup-20261115/`.
 

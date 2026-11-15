@@ -1,5 +1,30 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
+Latest2026-11-15,10:30 ICT: after explicit approval, Demo policy is2,500 USDT per
+controller/5,000 total, with peaks and all financial rows preserved during the
+maintenance transaction (audit315). Revision149 is running at control90,
+startup/live/ready200;13 short readbacks retain one session with13 recorded
+orders/one Spot SELL fill. Venue GET confirms live SELL quotes on both markets;
+BUY size/inventory guards remain. A startup probe recovers; this is not a new
+30-minute quote/probe acceptance. See [the policy application](cloudrun-drawdown-2500-5000.md).
+
+Earlier risk review2026-11-15,10:07 ICT: native cold-start revaluation gives
+Spot drawdown1,477.60 USDT versus1,000, Perpetual398.57 versus1,000, and global
+1,323.52 versus2,000. Account identities, pending orders, Perpetual quantity and
+Spot cash-delta proof match the ledger. Native replay immediately re-triggers
+Spot risk after a hypothetical latch-only clear, with unchanged policy/peaks.
+No live rearm/start or risk change is made. See
+[the revaluation](#revision147-drawdown-revaluation-and-unchanged-policy-replay).
+
+Latest deployment check (2026-11-15,09:40 ICT): revision147/`f3567186c` is
+verified at100% traffic with unchanged2 CPU/1 GiB/env. Trading is blocked by an
+inherited Spot drawdown stop: predecessor146 records `drawdown_controller_limit`
+at09:12:45 ICT, before147 becomes Ready at09:19. Financial/binding checkpoint
+hashes match and pending/uncertain/unapplied work is zero. Startup/live200 and
+ready503 describe a live service with halted trading, not a completed quote gate.
+No order/fill is recorded after147 becomes Ready. INFO remains excluded by the
+project sink. See [revision147](#revision147-deployment-with-inherited-drawdown-stop).
+
 Local follow-up after146 repairs submission/probe evidence loss with separate
 native phase timing, bounded64-entry watchdog publication and INFO stack samples
 under the unchanged WARNING budget. Seven RED failures,461 native checks +9
@@ -8,7 +33,7 @@ qualification are retained. The enabled packaged flow observes168 phase records,
 zero drops; final finite flows retain9 WARNING/no ERROR/probe transition. The
 first candidate's22 drops/two probes remain recorded. GCP denies both sink and
 exclusion updates, so INFO retention is still blocked by IAM and no Cloud service
-or control is changed. This local correction is not deployed and does not close
+or control was changed at that local step. The code is deployed from147 and does not close
 the95.06% quote result or residual probe gates. See
 [the scoped evidence](../performance/mm-quote-replacement-latency.md#revision146-retained-evidence-and-local-follow-up--2026-11-15).
 
@@ -203,6 +228,110 @@ Subsequent operational control observation05:54–06:24UTC retains19 probe
 timeouts across three successful profile changes. The local read/startup TDD
 follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
+
+## Revision147 drawdown revaluation and unchanged-policy replay
+
+Read-only review2026-11-15 uses the deployed native cold-start report path:
+37,198 projected executor rows through `read_startup_performance`, persisted
+PositionHold restoration and `generate_performance_report`. Historical Float to
+Decimal behavior, original held fees and the declared two-controller scope are
+preserved. These are covered V2 report amounts, not account equity or session
+net profit; funding remains excluded. Public OKX Demo book midpoints are read
+fresh for each sample and pass the native10 s mark-age checks. No stale stored
+unrealized PnL or quote-reference price is substituted for the current mark.
+
+Latest samples are10:07:05 and10:07:10 ICT. At10:07:10:
+
+| Scope | Covered PnL, USDT | Stored peak, USDT | Drawdown, USDT | Limit, USDT |
+| --- | ---: | ---: | ---: | ---: |
+| Spot | 3,953.42 | 5,431.02 | 1,477.60 | 1,000 |
+| Perpetual | -321.99 | 76.58 | 398.57 | 1,000 |
+| Global | 3,631.43 | 4,954.95 | 1,323.52 | 2,000 |
+
+Unrounded Spot drawdown is1,477.6004947522192, exceeding its limit by
+477.6004947522192. Global and Perpetual remain below their limits. Earlier10:01
+samples retain Spot drawdown1,553.95/1,574.39 and global1,385.63/1,406.44; subsequent
+prices changed those values. All four samples exceed the Spot threshold. No
+current measurement is represented as the missing09:12 trigger-time PnL.
+
+The original `_control_mm_drawdown` is replayed in memory at each latest sample,
+starting with only the stop/breach flags cleared and preserving policy/peaks.
+Both evaluations re-trigger `drawdown_controller_limit` for `demo_btc_spot`.
+Native stop/checkpoint callbacks are captured in memory, with no live command,
+DB write or trading-start side effect. The initial replay fixture needed its
+JSON enum-map keys restored before native DTO validation; that setup error is
+retained separately and is not a bot/runtime failure. Clearing the live latch
+alone therefore has no qualified unchanged-policy path to sustained operation
+at these marks. No alternative risk budget is selected by this review.
+
+Venue/account proof uses only GET requests, with a lower transport guard rejecting
+non-GET methods. Both active credential identities match their retained bindings;
+Spot/SWAP pending orders are zero. Native contract conversion confirms Perpetual
+LONG0.0498 BTC and no nonzero SHORT, matching the ledger. Spot BTC cash is exactly
+0.574613841768, matching the audited Nov12 cash0.537640242688 plus the original
+net change from7,573 additional Spot fills: gross base+0.03755142 minus BTC
+fees0.000577820920. All1,594 Spot prefix records retain their original quantity,
+price, side and fee identity; current Spot count is9,167. This is a net cash-delta
+reconciliation, not a fresh REST proof of every historical fill or account-wide PnL.
+
+Independent READ ONLY/repeatable-read snapshots before and after price sampling
+preserve control/owner, all risk checkpoints, the full projected history,
+financial/binding hashes, positions and journal watermark65238. Zero pending,
+uncertain or unapplied work remains. The final cash review checks the same
+checkpoint again. Secrets are decrypted only in process memory for the reviewed
+read-only adapter; no secret bundle is exported. The bot's live risk latch,
+limits, peaks, positions, credentials and control intent remain unchanged.
+
+Evidence: `build/drawdown-review-20261115-095619/`, including retained initial
+samples, current valuation, native rearm replay and audited cash-delta proof.
+Any new policy/risk acknowledgement remains a separate operator decision;
+connected quote/probe qualification is not reopened by this read-only calculation.
+
+## Revision147 deployment with inherited drawdown stop
+
+The immutable full-commit tag `f3567186c56dfa1100e79163637beee2dd4a23fe` matches
+image `affee3d873e5` on `hummingbot-demo-00147-sh4`, at100% traffic. Non-image
+revision settings match146, including2 CPU/1 GiB and the diagnostic flag.
+Revision Ready is09:19:12 ICT; service traffic Ready is09:19:14. The sampled API
+state is halted/`RecoveryRequired`, control/ack88/88, session generation210.
+`/startup` and `/live` are200; `/ready`503. This deployment is not qualified for
+trading/quote improvement while the risk latch prevents strategy admission.
+
+Predecessor146 logs an actual drawdown incident at09:12:45.018 ICT, preceding
+this revision. Its other ERROR in the reviewed09:10–09:21 slice is our HTTP
+GET/ready503 at09:11:02, not another application exception. Read-only DB confirms
+`halt_kind=manual`, `reason=drawdown_controller_limit`, `_is_stop_triggered=true`
+and the breached controller `demo_btc_spot`. Here manual means an operator-latched
+risk stop; it does not identify a user action. Policy remains1,000/controller
+and2,000/global, with stored Spot peak5,431.0214715450232. The breach checkpoint
+does not retain trigger-time current PnL, so no exact drawdown or net trading
+loss is inferred from that peak.
+
+The repeatable-read snapshot preserves physical owner535, three position rows,
+matching financial/account-binding hashes, watermark65238 and zero pending
+creations, unresolved submission states, pending mutations or unapplied fills.
+Complete bounded API history from09:19:12 to09:40:37 returns zero orders/fills.
+Bootstrap is explicitly withheld for durable HALT. The final09:18–09:43 bounded
+query has two WARNING entries and one HTTP GET/ready503 ERROR from our readback;
+no application exception/restart/probe transition is recorded. Absence of order
+phase spans is unexercised trading, not proof that the instrumentation passed.
+No30-minute quote window is started, rather than reporting a zero-eligible pass.
+
+The sink still drops bot INFO. Its app-stream exception remains an IAM action;
+metadata/code deployment alone cannot restore those records. A separate offline
+replay finds a presentation issue: `checkpoint_drawdown_status` accepts the
+stored checkpoint and reports the valid breach, but `recovery_blockers` also
+adds `recovery_checkpoint_invalid` merely because operator action is required.
+Keep the risk-stop blocker and fix that classification with TDD separately;
+this misleading label is not evidence of a corrupt financial checkpoint or a
+cause for clearing the latch. The returned latest recovery operation is an old
+Nov12 failure and is not a new147 recovery attempt.
+
+Evidence: `build/submission-evidence-postdeploy-20261115-093534/`. Checks use
+read-only metadata/log/API and READ ONLY DB transactions. No Stop/Start/reset,
+risk policy, peak, checkpoint, credential, sink or deployment mutation is made.
+Next trading qualification requires operator review of the drawdown stop and
+restored INFO visibility; original95.06%/Perpetual/probe gates remain open.
 
 ## Revision146 status timing and native pre-ping observation
 

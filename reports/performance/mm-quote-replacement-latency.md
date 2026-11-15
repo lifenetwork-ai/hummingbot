@@ -1,5 +1,57 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Revision149 approved Demo risk policy and resumed trading
+
+On2026-11-15 the operator approves2,500 USDT per controller/5,000 globally for
+the current drawdown incident. Native replay/binding pass and maintenance
+audit315 preserves peaks and every financial row. Revision149 overlays only
+the YAML on147, preserving runtime config and all other policies. Start/control90
+and13 short readbacks show running/no HALT, all health200,13 recorded orders
+and one new Spot SELL fill. Both markets have independently observed live SELL
+quotes; BUY size/inventory guards remain. One startup probe recovers without
+restart. This is a policy change, not a code performance improvement or a new
+30-minute/99% quote acceptance. See [the scoped maintenance](../demo/cloudrun-drawdown-2500-5000.md).
+
+## Revision147 native risk revaluation — 2026-11-15
+
+A read-only native cold-start report replay over37,198 historical projections,
+the persisted held positions and two fresh OKX Demo midpoint samples confirms
+the Spot blocker persists. At10:07:10 ICT, Spot covered PnL3,953.42 versus stored
+peak5,431.02 yields drawdown1,477.60 USDT (limit1,000). Perpetual drawdown398.57
+and global1,323.52 remain below1,000/2,000 respectively. Earlier10:01 samples,
+with different marks, retain higher Spot drawdown1,553.95/1,574.39. These are
+covered report values, not account equity loss or the historical trigger-time PnL.
+
+GET-only venue checks show no pending orders, matching LONG0.0498 BTC, and exact
+Spot BTC cash0.574613841768 from the audited prefix plus7,573 recorded new fills
+and their original BTC fees. Financial/binding hashes, risk peaks/checkpoints,
+positions, full projected history and watermark65238 remain stable across reads.
+Native `_control_mm_drawdown` replay re-latches the Spot breach after a hypothetical
+flag-only clear at both current samples. At that read-only step no live rearm,
+new policy or threshold relaxation was authorized/applied. The audit/replay fixture setup error is retained
+and corrected; it is not a trading-engine defect. See
+[full risk-review scope](../demo/cloudrun-quote-replacement-acceptance.md#revision147-drawdown-revaluation-and-unchanged-policy-replay).
+
+## Revision147 deployment is blocked by an inherited risk stop
+
+Revision147/`f3567186c` independently matches image `affee3d873e5` at100% traffic,
+unchanged2 CPU/1 GiB/env. No new quote/probe performance result is available:
+predecessor146 records Spot `drawdown_controller_limit` at09:12:45 ICT, before
+147 Ready09:19. The service is live200 but trading halted/ready503. The read-only
+DB has matching financial/binding hashes and no pending/uncertain/unapplied work;
+policy1,000/controller/2,000/global and risk peaks/latches remain intact. No
+orders/fills are recorded in the complete09:19–09:40 history. Do not treat the
+new revision's quiet stopped workload as proof of active MM speed. Final09:18–09:43
+logs retain2 WARNING and one HTTP GET/ready503 ERROR, no application exception,
+restart, ownership loss or probe transition.
+
+The project sink still excludes the new INFO evidence. Full connected stage/
+quote qualification therefore awaits risk-stop review and INFO retention. A
+pure offline replay also separates a status defect: a valid breached drawdown
+checkpoint is incorrectly labelled `recovery_checkpoint_invalid` by recovery
+presentation. The actual risk blocker remains correct; this replay authorizes
+no reset or risk change. See [the deployment evidence](../demo/cloudrun-quote-replacement-acceptance.md#revision147-deployment-with-inherited-drawdown-stop).
+
 ## Revision146 retained evidence and local follow-up — 2026-11-15
 
 Reviewing the18 failed Spot samples does not establish one slow OKX ACK. A40 s
