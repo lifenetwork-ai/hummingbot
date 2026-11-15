@@ -1,12 +1,13 @@
 """Queued order admission retains lifecycle authority without starving callbacks."""
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from hummingbot.core import order_submission_guard as gates
 from hummingbot.core.bot_ownership import BotOwnership
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 
 
 @pytest.fixture
@@ -125,3 +126,73 @@ async def test_no_postgres_guard_preserves_immediate_legacy_path(monkeypatch):
     asyncio.get_running_loop().call_soon(lambda: setattr(marker, 'called', True))
     await gates.before_order(None, None)
     assert not marker.called
+
+
+@pytest.mark.asyncio
+async def test_final_gate_waits_for_its_turn_before_rechecking_guard_identity(owner, monkeypatch):
+    owner._authorize_rest = AsyncMock()
+    await owner.submission_admission.acquire()
+    task = asyncio.create_task(owner.authorize_rest(SimpleNamespace(url='https://offline.invalid/api/v5/trade/order')))
+    await asyncio.sleep(0)
+    assert task in owner.submission_tasks
+    monkeypatch.setattr(gates, '_guard', object())
+    owner.submission_admission.release()
+    with pytest.raises(gates.SubmissionBlocked, match='owner changed'):
+        await task
+    owner._authorize_rest.assert_not_awaited()
+    await asyncio.sleep(0)
+    assert not owner.submission_tasks and not owner.submission_admission.locked()
+
+
+@pytest.mark.asyncio
+async def test_cancel_and_account_paths_do_not_queue_behind_order_send_admission(owner):
+    owner._authorize_rest = AsyncMock(return_value='original-authority-result')
+    await owner.submission_admission.acquire()
+    try:
+        for path in ('/api/v5/trade/cancel-order', '/api/v5/trade/cancel-batch-orders', '/api/v5/account/set-leverage'):
+            request = SimpleNamespace(url='https://offline.invalid' + path)
+            assert await owner.authorize_rest(request) == 'original-authority-result'
+        assert owner._authorize_rest.await_count == 3 and not owner.submission_tasks
+    finally:
+        owner.submission_admission.release()
+
+
+@pytest.mark.asyncio
+async def test_final_gate_releases_admission_before_network_wait_and_retains_scopes(owner):
+    release, calls, authorized = asyncio.Event(), [], []
+
+    async def authorize(request):
+        calls.append((request.index, gates.current_session_scope()))
+
+    owner._authorize_rest = authorize
+
+    async def send(index):
+        with gates.session_order_scope('session', index):
+            context = await gates.before_rest(SimpleNamespace(
+                url='https://offline.invalid/api/v5/trade/order', index=index, is_auth_required=True, method=RESTMethod.POST))
+            try:
+                authorized.append(index)
+                await release.wait()
+            finally:
+                gates.completed_rest(context)
+
+    tasks = [asyncio.create_task(send(i)) for i in range(8)]
+    try:
+        async with asyncio.timeout(1):
+            while len(authorized) < 8:
+                await asyncio.sleep(0)
+        assert calls == [(i, ('session', i)) for i in range(8)]
+        assert not owner.submission_admission.locked() and len(owner.transport_tasks) == 8
+    finally:
+        release.set()
+        await asyncio.gather(*tasks)
+    await asyncio.sleep(0)
+    assert not owner.submission_tasks and not owner.transport_tasks
+
+
+@pytest.mark.asyncio
+async def test_direct_final_gate_does_not_retain_its_long_lived_caller_after_authorization(owner):
+    owner._authorize_rest = AsyncMock()
+    await owner.authorize_rest(SimpleNamespace(url='https://offline.invalid/api/v5/trade/order'))
+    assert asyncio.current_task() not in owner.submission_tasks
+    assert not owner.submission_admission.locked()

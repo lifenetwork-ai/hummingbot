@@ -1,5 +1,156 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Final send gate progress — local 2026-11-16
+
+The153 retained stacks narrow the follow-up without attributing every probe to
+the largest SQL counter. Its367.70 ms SQL runs on worker thread140515985065664,
+not loop thread140516997257088. Of ten retained in-window loop-stall stacks,
+five explicitly pass through `_record_send_attempt` (owner read, journal SELECT,
+UPDATE or COMMIT); others include terminal writes. Two sampled Spot submission
+gaps are near send-gate stall stacks, but temporal proximity does not prove a
+unique cause or continuous ACK downtime. INFO gaps remain a limitation.
+
+Four real PostgreSQL RED tests reproduce two avoidable costs and their lifecycle
+effects: two journal round trips per send, all eight final gates preceding a
+queued health callback, all eight preceding a queued Stop, and a final-gate
+caller entering transport before a queued cancellation can run. Admission was
+already cooperative before intent creation; the later gate after throttle/auth
+still performed a synchronous burst. The correction shares its existing lock
+and yields one loop turn before fresh final authorization. It releases the slot
+before network I/O. Cancel/account paths retain their existing authority checks
+without queuing behind order admission; no permission is cached across the wait.
+Only the queued/final-check scope temporarily tracks a direct REST caller;
+native create tasks keep their existing lifetime tracking and the transport
+counter owns subsequent HTTP I/O. A draft retention RED catches and removes an
+indefinite reference to a long-lived service caller; cancellation still drains
+the queued scope without abandoning DB work or releasing native send authority.
+
+`UPDATE ... WHERE state='prepared' RETURNING context` replaces journal
+SELECT-for-update plus UPDATE. PostgreSQL still locks the row; immutable owner,
+generation, credential and close-effect checks run inside that same transaction
+before COMMIT/transport. Validation failure rolls back every changed field. A
+lost COMMIT response still leaves the local sent marker conservative and blocks
+transport/retry, whether the database committed or rolled back. Physical-owner
+reads and native financial commits stay on their original loop/session.
+
+Additional REDs expose a false technical HALT when an admitted but unsent order
+is canceled/removed while waiting: the global unresolved-intent scan sees the
+retired tracker and calls it an unknown send. Two controls restoring HEAD's
+original authorization reproduce this during throttling, before the new queue
+exists. The corrected final gate rejects only its active local identity that
+has not crossed the local sent boundary; the native create failure handler
+durably resolves it. A possibly-sent marker still requires reconciliation.
+Regression covers task cancellation and both tracker retirements during
+throttle and final admission, unchanged-row rollback and both simulated journal
+COMMIT outcomes against real PostgreSQL. A canceled Task leaves `rejected`;
+native failure-event completion advances a retired/revoked order to `terminal`.
+Both retain no payload hash/receipt and no false HALT for proven-unsent work.
+
+Two alternating fresh-ledger predecessor/candidate pairs use real PostgreSQL
+and eight real intents, external transport mocked, with3 ms injected per SQL:
+
+| Observation | Predecessor | Candidate |
+| --- | ---: | ---: |
+| Final gates before queued health callback | 8 | 1 |
+| Callback wait | 391.76–410.15 ms | 15.60–17.25 ms |
+| Maximum sampled heartbeat gap | 436.63–452.73 ms | 101.57–123.77 ms |
+| SQL statements, including receipt writes | 56 | 48 |
+| Journal statements, including receipt writes | 24 | 16 |
+| Whole eight-request burst | 431.93–448.04 ms | 378.83–458.21 ms |
+
+Every pair retains eight requests and eight durable HTTP receipts with unchanged
+intent quantities/prices. One candidate burst takes458.21 ms versus its448.04 ms
+control: fewer SQL statements and faster callback service do not prove improved
+whole-burst completion in every run. Earlier draft pairs (callback280–410→11–12
+ms) remain separate in `initial-paired/`; the table is the final source-frozen
+replay. These local injected measurements are not Cloud latency/SLO results.
+Individual slow DB calls and terminal-write waits can still
+block the loop; this work neither removes them nor closes the failed99% quote
+gate. No environment, migration, risk cap, timeout or live mutation is required.
+The deployed153 results below remain unchanged until a new image is measured.
+
+Final source-frozen `make test-cloudrun-regression` passes3842 tests +16
+subtests. Disposable PostgreSQL selection passes197 cases:191 related runtime
+cases, four paired replay cases and two original-authorization retirement
+controls. The39-case focused native lifecycle selection overlaps the full
+target. Final hooks and source-hash checks pass. Commit/deploy and a fresh
+connected30-minute observation remain pending.
+
+Evidence: `build/probe-submission-followup-20261116/` retains the scoped Cloud
+stack correlation, original four REDs, subsequent retirement REDs, original
+authorization controls, paired receipts and final validation. Initial broad
+failures are retained separately: CLI fixtures lacked the installed guard now
+rechecked after a wait; the old Stop test expected one send, while the corrected
+gate blocks that send too. Native cancellation/failure-event state expectations
+are corrected without weakening their no-transport/no-HALT assertions.
+
+## Revision153 deployment verification — 2026-11-16
+
+Cloud Run `hummingbot-demo-00153-htz` is Ready at23:48:51 ICT on November15,
+serving100% traffic. Commit `9a73fae97865e7892f982d364c09aff037793b1f` matches
+both the revision and registry artifact digest
+`sha256:80dae72043b4d8103b910a8a25898401b740625c60edfb8d0ceefe61efe08f10`.
+The non-image revision spec matches152:2CPU/1GiB, always-allocated CPU and
+min/max instances1. Session and control/ack90 remain unchanged; no service,
+credential, DB, risk or logging configuration is mutated by this verification.
+
+The connected window is00:08:38–00:38:39 ICT on November16
+(`2026-11-15T17:08:38.272154Z`–`17:38:39.491812Z`). All901 paired samples
+succeed; sample span1800.984 s, maximum gap2.417 s. Collection quality passes.
+The classifier is byte-identical to the prior conservative v3 classifier:
+SHA256 `ce60b823674db68a850cafd03fe7e90d77dc8cd0484716bee31b315e6a03e753`.
+
+| Market | Two-sided | Guard-excluded | Eligible gaps | Unknown | Conservative result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Spot | 326 | 563 | 5 | 7 | 326/338 =96.45%; FAIL99% |
+| Perpetual | 0 | 894 | 0 | 7 | UNQUALIFIED; no confirmed eligible samples |
+
+Spot's conditional result is326/331 =98.49%; unknowns remain failures in the
+conservative result. Four gap samples show submission pending, one executor
+activity. These are sampled states, not proven continuous ACK delays. Spot
+guards include order-size rejection and allocation limits; Perpetual remains
+primarily inventory-limited under close-first/breakeven. No guard is relaxed.
+Recorded window activity is200 orders and64 Spot fills (37BUY/27SELL), with
+zero Perpetual fills. Bounded ordered pagination covers the window completely;
+recorded orders are not an independent proof of venue acceptance.
+
+Retained logs contain five probe timeouts in this window, each around301 ms,
+plus three earlier timeouts after deployment. All recover. The window retains
+10 loop-stall/recovery pairs and11 slow-stage warnings, with no application
+ERROR, HTTP error, scheduled child restart or ownership loss. Diagnostic packets
+show one engine PID and one Cloud instance. At00:37:27 a single status sample
+has a temporary shutdown fence (`halted=true`, next action `wait`); the next
+sample clears it and generation85 reaches running by00:37:37. Keep this sample
+unknown: it is not an operator-required HALT or evidence of uninterrupted quotes.
+Generations82–85 retain the same session/control. INFO exclusions remain in
+place, so missing INFO messages cannot establish missing execution.
+Late-ingestion readback through00:45:14 ICT leaves all pre-window/window counts
+unchanged. After the window it retains seven further warnings (three slow
+stages and two stall/recovery pairs), with no additional probe, application
+ERROR, HTTP error or ownership loss; these do not change the fixed-window score.
+
+Latest cumulative diagnostics have12 completed indicator spans, zero errors,
+max3827.33 ms during startup; latest preparation span is0.021 ms. Controller
+cycles complete7075/7075 with zero errors and max17.71 ms. Thus a long startup
+preparation span is distinct from hot controller-cycle blocking. Checkpoints
+complete67/67 with zero errors, max160.49 ms. Residual maxima are SQL367.70 ms,
+COMMIT207.48 ms and owner read196.76 ms. These counters are cumulative since
+boot, not window-only totals; they do not assign a unique cause to every probe
+or missing quote. The comparison with152 is not a controlled A/B measurement.
+
+Partial resource observations through00:24 ICT have one-minute CPU p95 up to
+6.95% and memory p95 up to47.95%. They cannot rule out subsecond scheduling,
+GIL or I/O stalls. At00:39:21, startup/live/ready all return200, revision153 is
+running with no error/HALT, Spot has1BUY/2SELL and Perpetual0BUY/2SELL. The bot
+is left running. This verifies deployment and collection, not full release
+acceptance:99% quotes and residual probe latency remain open. Follow-up should
+correlate individual SQL/COMMIT waits and pending send/ACK transitions without
+weakening economic guards or probe thresholds.
+
+Private receipts: `build/natr-preparation-postdeploy-20261116/` includes immutable
+deployment checks,901 samples, unchanged classifier, scoped log summaries,
+pagination receipts and final health. No token or credential is published.
+
 ## Cold indicator preparation — local 2026-11-15
 
 Revision152's controller cycle spans16:20:38–16:20:44 ICT (6816.68 ms), across
@@ -57,9 +208,9 @@ the actual reviewed2,500/5,000 catalogue/session policy. No YAML is changed.
 All receipts, source hashes, the original REDs and the corrected draft failures
 are retained under `build/controller-cycle-followup-20261115/`. No environment
 change, migration or live mutation is required/performed. At18:47 ICT a GET
-still sees152 running/no HALT/control90. The candidate is not deployed; retain
-all earlier probe/readiness/quote failures. A subsequent one-image cold-start
-and30-minute connected observation is required before assigning a Cloud gain.
+still sees152 running/no HALT/control90. The candidate was not deployed at that
+local cutoff. The subsequent153 deployment and30-minute observation above
+retain the earlier failures; neither establishes a controlled Cloud gain.
 
 ## Bounded checkpoint fill-read batching — local 2026-11-15
 

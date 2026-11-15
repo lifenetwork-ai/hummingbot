@@ -76,6 +76,7 @@ test-cloudrun-regression:
 		test/hummingbot/core/test_trading_core.py test/hummingbot/core/test_engine_diagnostics.py test/hummingbot/core/web_assistant \
 		test/hummingbot/core/test_ownership_order_refresh.py \
 		test/hummingbot/core/test_terminal_read_fairness.py \
+		test/hummingbot/core/test_submission_admission_fairness.py \
 		test/hummingbot/core/test_strategy_startup_read_fairness.py \
 		test/hummingbot/connector/test_managed_pending_polling.py \
 		test/hummingbot/core/test_recovery.py test/hummingbot/core/test_recovery_exchange.py \

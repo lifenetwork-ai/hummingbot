@@ -170,10 +170,12 @@ def test_optional_engine_detail_failure_retains_only_known_control_flags(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_queued_order_is_blocked_after_task_failure_but_cancellation_is_allowed():
+async def test_queued_order_is_blocked_after_task_failure_but_cancellation_is_allowed(monkeypatch):
+    from hummingbot.core import order_submission_guard as gates
     from hummingbot.core.bot_ownership import BotOwnership
     from hummingbot.core.order_submission_guard import SubmissionBlocked
     owner = BotOwnership(MagicMock(), "hummingbot")
+    monkeypatch.setattr(gates, 'active_guard', lambda: owner)
     owner.check_owner = MagicMock(return_value={})
     owner.runtime_ready_check = lambda: False
     order = SimpleNamespace(client_order_id='queued', is_pending_create=True)

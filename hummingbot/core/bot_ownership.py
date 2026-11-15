@@ -508,9 +508,14 @@ class BotOwnership:
         # A lost COMMIT reply is ambiguous even though this coroutine will not
         # deliberately invoke transport after the exception.
         with self.connection.begin():
-            row = self.connection.execute(select(SubmissionAttempt).where(
-                SubmissionAttempt.order_id == client_id).with_for_update()).mappings().one()
-            if (row['state'] != 'prepared' or row['context']['owner_uuid'] != self.owner_uuid
+            # UPDATE takes the row lock and returns its immutable context in one
+            # round trip. Validation still runs before COMMIT/transport; a bad
+            # context or payload rolls the transition back, never granting send.
+            row = self.connection.execute(update(SubmissionAttempt).where(
+                SubmissionAttempt.order_id == client_id, SubmissionAttempt.state == 'prepared').values(
+                state='possibly_sent', payload_hash=digest(data), deadline_ms=deadline).returning(
+                SubmissionAttempt.context)).mappings().one_or_none()
+            if (row is None or row['context']['owner_uuid'] != self.owner_uuid
                     or row['context']['generation'] != self.generation):
                 raise SubmissionBlocked('Submission attempt was already sent or belongs to another owner.')
             self._validate_close_transport(row['context'], client_id, data)
@@ -522,8 +527,6 @@ class BotOwnership:
                 if not key or expected != row['context']['credential_fingerprint']:
                     raise SubmissionBlocked('Authenticated transport identity does not match its recorded account scope.')
             self.sent_intents.add(client_id)
-            self.connection.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == client_id).values(
-                state='possibly_sent', payload_hash=digest(data), deadline_ms=deadline))
 
     def _validate_close_transport(self, context, identity, data):
         """Bind a managed close to its immutable intent at the existing SQL gate."""
@@ -576,6 +579,31 @@ class BotOwnership:
         session.info["ownership_fenced_transaction"] = session.get_transaction()
 
     async def authorize_rest(self, request):
+        if urlparse(request.url).path != ORDER_PATH:
+            return await self._authorize_rest(request)
+        from hummingbot.core.order_submission_guard import active_guard
+
+        # Share admission's loop-turn discipline after throttling/authentication
+        # too. Never hold this slot during network I/O, and never yield between
+        # the final fresh authority/durable send checks and returning permission.
+        task = asyncio.current_task()
+        temporary = task is not None and task not in self.submission_tasks
+        if temporary:
+            self.submission_tasks.add(task)
+        try:
+            async with self.submission_admission:
+                await asyncio.sleep(0)
+                if active_guard() is not self:
+                    raise SubmissionBlocked('Trading owner changed before final send authorization.')
+                return await self._authorize_rest(request)
+        finally:
+            # Native create tasks retain their original lifetime tracking. A
+            # direct REST caller may be the long-lived service loop; retain it
+            # only while queued here, then transport_started/finished owns I/O.
+            if temporary:
+                self.submission_tasks.discard(task)
+
+    async def _authorize_rest(self, request):
         path = urlparse(request.url).path
         try:
             data = json.loads(getattr(request, "data", None) or "{}") if path == ORDER_PATH else {}
@@ -614,6 +642,13 @@ class BotOwnership:
             client_id = data.get("clOrdId")
             connector, order = next(((connector, connector.in_flight_orders[client_id])
                                      for connector in self.connectors.values() if client_id in connector.in_flight_orders), (None, None))
+            if (client_id in self.active_intents and client_id not in self.sent_intents
+                    and (order is None or not order.is_pending_create and not order.exchange_order_id)):
+                # The tracked order can retire during throttle/final admission.
+                # This process has not crossed its durable send boundary. Let
+                # the native create handler reject that intent before the
+                # global unresolved-intent check can misclassify it as sent.
+                raise SessionSubmissionBlocked('The native order was retired before final send authorization.')
             self._check_mm_authority(row, self.intent_scopes.get(client_id), connector=connector, order=order)
             from hummingbot.connector.markets_recorder import MarketsRecorder
             recorder = MarketsRecorder._shared_instance

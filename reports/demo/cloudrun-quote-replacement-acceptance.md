@@ -1,6 +1,18 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest deployment2026-11-15:152/`caab218c1` is verified at100% traffic with
+Latest verification2026-11-16:153/`9a73fae97` matches its immutable artifact,
+serves100% traffic and completes901 samples over30 minutes on one image.
+Collection quality passes; Spot326/338 =96.45% conservative fails99%, while
+Perpetual has no eligible two-sided samples. Keep five recovered probes in the
+window and three earlier after deployment. One sampled temporary shutdown fence
+auto-clears; no observed restart, ownership loss or operator-required HALT.
+There are200 recorded orders and64 Spot fills in-window. Final00:39:21 ICT
+readback is running/no HALT/control90 with all health200. Controller max17.71 ms
+is distinct from startup indicator preparation3.83 s; SQL max367.70 ms remains
+for correlation. No live mutation or guard relaxation is performed. Quote/probe
+release gates remain open; see [scoped results](../performance/mm-quote-replacement-latency.md#revision153-deployment-verification--2026-11-16).
+
+Earlier deployment2026-11-15:152/`caab218c1` is verified at100% traffic with
 matching immutable digest and unchanged non-image spec/session/control90/policy
 and API-observed peaks. Since Ready through16:35:29 there are102 recorded orders
 and25 Spot fills. Keep two recovered probes, one6.82 s controller-cycle span,

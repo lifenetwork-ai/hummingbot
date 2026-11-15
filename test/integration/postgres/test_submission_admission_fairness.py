@@ -112,10 +112,13 @@ def test_stop_between_native_admissions_prevents_the_rest_of_the_burst(native):
 
     with patch.object(native.recorder, 'record_order_intent', side_effect=record):
         native.loop.run_until_complete(burst())
-    assert len(admitted) == native.transport.call.await_count == 1
+    # Stop now runs before the first order's final send fence too. Its prepared
+    # intent must be rejected durably instead of crossing the transport gate.
+    assert len(admitted) == 1 and native.transport.call.await_count == 0
     with native.manager.get_new_session() as db:
         assert db.query(Order).count() == db.query(SubmissionAttempt).count() == 1
         assert not db.query(Order).filter(Order.creation_pending.is_(True)).count()
+        assert db.query(SubmissionAttempt).one().state == 'terminal'
     assert not native.store.read()['recovery_state'].get('halt')
 
 

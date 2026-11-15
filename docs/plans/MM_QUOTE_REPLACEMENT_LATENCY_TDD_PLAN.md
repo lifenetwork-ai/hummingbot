@@ -15,6 +15,38 @@ plus its normal loop sleep. A cancel ACK can update the order during that wait
 without waking the task. Managed closing quotes will use a coalescing wake event;
 legacy executors retain their timing. Waking a loop grants no new order authority.
 
+## Final send gate progress — local 2026-11-16
+
+- [x] Correlate153's actual retained thread/stack evidence: the367.70 ms SQL is
+  on a worker; five of ten in-window stall stacks explicitly enter send-journal
+  work. Keep terminal writes, sampled gaps and missing INFO as separate limits.
+- [x] RED four real PostgreSQL cases before editing runtime: journal read budget,
+  health callback progress, Stop between final gates and queued cancellation.
+  Share admission's cooperative loop turn at final authorization; keep network
+  I/O outside that slot and freshly recheck guard/owner/session after the wait.
+- [x] Reduce the journal transition to one conditional UPDATE/RETURNING while
+  retaining validation, atomic rollback, physical ownership, commit-before-send
+  and ambiguous-COMMIT protection. Account/cancel authority is unchanged.
+- [x] RED two tracker-retirement false-HALT cases. Original-authorization controls
+  reproduce the same pre-existing throttle race. Resolve only locally proven
+  unsent identities via the native failure handler; retain unknown-send fences.
+- [x] Keep direct-call queue tracking scoped to final authorization; a draft
+  lifecycle RED catches retention of a long-lived service task. Native create
+  tracking and transport counters retain their original lifetimes.
+- [x] Paired fresh-ledger replay with3 ms injected per SQL retains eight sends/
+  receipts,56→48 statements, health callback392–410→16–17 ms and heartbeat
+  gap437–453→102–124 ms on final frozen source. One complete burst is slower;
+  this qualifies callback fairness, not improved whole-burst throughput or
+  Cloud quote performance. Earlier draft timings remain separately recorded.
+- [x] Final source-frozen regression passes3842 tests +16 subtests;197
+  disposable PostgreSQL cases pass (191 related +4 paired +2 original controls).
+  Focused39 native lifecycle cases overlap the target. Hooks/hashes pass.
+- [ ] Commit/deploy the candidate; no environment or migration change required.
+- [ ] Observe a fresh unchanged30-minute window.153 still fails99% Spot quotes;
+  do not claim every probe or terminal-write delay is fixed by this candidate.
+
+See [scope and receipts](../../reports/performance/mm-quote-replacement-latency.md#final-send-gate-progress--local-2026-11-16).
+
 ## Cold indicator preparation — local 2026-11-15
 
 - [x] Correlate152's6816.68 ms controller cycle with the first probe window.
@@ -40,9 +72,15 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
   first-cycle273–542 ms becomes6.2–6.6 ms, sampled heartbeat gap278–546 ms becomes
   15–20 ms. Packaged pure-indicator smoke at2CPU/1GiB also preserves NATR;
   its686→127 ms heartbeat observation is not a full-service or Cloud acceptance.
-- [ ] Commit/deploy the candidate and observe cold startup/Random handoff plus
-  the unchanged30-minute quote/probe window on one image. The18:47 ICT GET
-  still sees152 running/no HALT; this local work does not deploy or reset it.
+- [x] Verify153/`9a73fae97` with matching immutable digest and unchanged spec;
+  complete the unchanged30-minute cold-start/Random follow-up:901 samples,
+  quality pass, same session/control90. Controller max17.71 ms; startup pure
+  preparation max3.83 s is outside the hot cycle. No live mutation is performed.
+- [ ] Close99% quotes and residual probes: Spot96.45% conservative fails;
+  Perpetual has no eligible samples. Five probes recover in-window, three
+  earlier. One sampled shutdown fence auto-clears; no restart/operator-required
+  HALT. Keep SQL367.70 ms and pending-send gap samples for further correlation.
+  See [153 verification](../../reports/performance/mm-quote-replacement-latency.md#revision153-deployment-verification--2026-11-16).
 
 Evidence: `build/controller-cycle-followup-20261115/`; see
 [scope and measurements](../../reports/performance/mm-quote-replacement-latency.md#cold-indicator-preparation--local-2026-11-15).
