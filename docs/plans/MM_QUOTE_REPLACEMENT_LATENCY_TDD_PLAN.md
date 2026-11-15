@@ -15,6 +15,48 @@ plus its normal loop sleep. A cancel ACK can update the order during that wait
 without waking the task. Managed closing quotes will use a coalescing wake event;
 legacy executors retain their timing. Waking a loop grants no new order authority.
 
+## Revision146 submission/probe evidence follow-up
+
+- [x] Review all18 retained gap samples and nearby recorded orders/fills. The
+  busiest40 s contains27 BUY orders/24 BUY fills; pending tracker IDs and exact
+  phase boundaries are absent in the old observations. Proximity does not prove
+  one ACK delay. Preserve95.06%/all unknowns and the six probe warnings.
+- [x] RED six evidence failures: SQL churn evicts short submission spans,
+  admission/placement phases are absent, queued cancellation is not timed,
+  a30 s warning budget suppresses a separate stall stack, and INFO/sink retry
+  behavior is unqualified. Add a real watchdog/off-loop delivery check.
+- [x] Retain hashed completed phases in a separate bounded ring; publish only
+  from the watchdog, at most once per2 s. Use completion sequence rather than
+  span ID so late-finishing parents survive; expose overflow and sink retry.
+  Keep placement separate from Created publication and authority.
+- [x] Preserve the first packaged result: both flows pass but the32-entry buffer
+  loses22 timing records and each flow logs one probe warning. RED the complete
+  eight-order/five-phase burst, then increase the fixed bound to64. Keep24 KB
+  packets, no raw arguments/IDs and unchanged native financial/send gates.
+- [x] Keep WARNING capture at30 s and add INFO samples for suppressed separate
+  stalls at most once per5 s; do not change the300 ms supervisor limit or infer
+  that every probe is now explained.
+- [x] Final461 native checks plus9 subtests pass;25 distinct PostgreSQL cases
+  pass, including actual native admission/ACK/owner and unknown-COMMIT paths.
+  Re-run the two native PostgreSQL stage cases after the final buffer change.
+  Swagger remains unchanged. Preserve the initial amd64-build selection error.
+- [x] Final same-image shutdown/outflow qualification passes on config
+  `81a1fb84711e`, manifest `17fdc66d925a`. All three changed runtime files match
+  the packaged bytes. The enabled flow retains168 completed phase records with
+  zero drops and packets<=19,733 bytes; the outflow flow checks the disabled path.
+  Final flows retain9 WARNING total/no ERROR/probe transition. Preserve the
+  initial32-entry drops/probes and do not infer a connected probe speedup.
+- [ ] Restore Cloud INFO retention using an authorized GCP identity. Both the
+  sink update and exclusion-only PATCH return403 (`logging.sinks.update` /
+  `logging.exclusions.update`); readback proves the rule is unchanged. The
+  reviewed exception preserves HTTP/other-service filters; it does not require
+  another service revision or a financial/control change.
+- [ ] Deploy and repeat unchanged connected qualification after log retention
+  is available. No latency improvement, old timeout cause, perpetual acceptance
+  or99% quote pass is established by this observational correction.
+
+Evidence: `build/quote-gap146-followup-20261115/`.
+
 ## Revision145 status/probe follow-up
 
 - [x] Retain the failed connected window: 9 gaps (4 executor-activity,
@@ -37,11 +79,19 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
   observed; finite logs retain seven WARNING/no ERROR/probe transition.
   Preserve setup failures and the corrected RED; update only the old tracked-
   order fixture, not its runtime gate. Swagger check passes.
-- [ ] Deploy and correlate new client/server evidence before claiming the old
-  timeout or all four probes solved. Ordinary quote gaps/profile unknowns,
-  Perpetual eligibility and the 99% target remain open. No guard is widened.
+- [x] Deploy146/`3e0392607` at100% traffic with unchanged env/resources and
+  complete901 samples on one revision/session. Collection quality passes;
+  all status/liquidity reads200 and final health/checkpoint hashes match.
+  Header queue/run/server-ID timing and native pre-ping spans are observed.
+- [ ] Close the original timeout/probe/quote gates. Fast INFO is excluded by the
+  project sink, so full retained server-log correlation is unverified; no5 s
+  timeout occurs. Six in-window probes remain (two with limited synchronous
+  overlap), no ERROR/restart/ownership loss. Spot95.06% fails99%;5 unknowns include
+  one temporary shutdown fence. Perpetual has no confirmed eligible sample.
+  No guard is widened. See [revision146 evidence](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision146-status-timing-and-native-pre-ping-observation).
 
-Evidence: `build/status-probe-followup-20261115/`.
+Evidence: `build/status-probe-followup-20261115/` and
+`build/status-probe-postdeploy-20261115-080255/`.
 
 ## Checks
 

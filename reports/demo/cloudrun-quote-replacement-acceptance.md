@@ -1,10 +1,31 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
+Local follow-up after146 repairs submission/probe evidence loss with separate
+native phase timing, bounded64-entry watchdog publication and INFO stack samples
+under the unchanged WARNING budget. Seven RED failures,461 native checks +9
+subtests,25 distinct PostgreSQL cases and final same-image shutdown/outflow
+qualification are retained. The enabled packaged flow observes168 phase records,
+zero drops; final finite flows retain9 WARNING/no ERROR/probe transition. The
+first candidate's22 drops/two probes remain recorded. GCP denies both sink and
+exclusion updates, so INFO retention is still blocked by IAM and no Cloud service
+or control is changed. This local correction is not deployed and does not close
+the95.06% quote result or residual probe gates. See
+[the scoped evidence](../performance/mm-quote-replacement-latency.md#revision146-retained-evidence-and-local-follow-up--2026-11-15).
+
+Latest observation (2026-11-15, 08:36 ICT): revision146/`3e0392607` is verified
+at100% traffic with unchanged2 CPU/1 GiB/env. The complete901-sample window
+passes collection quality; all status/liquidity reads return200 and final health
+is200. There are272 recorded orders/129 Spot fills, matching financial/binding
+checkpoints and no final pending/uncertain/unapplied effects. Six in-window
+probe timeouts remain, without ERROR/restart/ownership loss. Spot95.06% fails99%;
+Perpetual has no confirmed eligible two-sided samples. See
+[revision146](#revision146-status-timing-and-native-pre-ping-observation).
+
 Local follow-up after145 bounds the authenticated status read to5 s, preserves
 physical DB worker capacity after HTTP timeout, and adds queue/run/client
 correlation plus native `db.ping` evidence. Native/PostgreSQL and same-image
 shutdown/outflow checks pass; see [the scoped follow-up](../performance/mm-quote-replacement-latency.md#revision145-statusprobe-follow-up--local-2026-11-15).
-It is not deployed and does not close the original timeout/probe/quote gates.
+It is deployed on146; the original timeout/probe/quote gates remain open.
 
 Latest observation (2026-11-15, 03:14 ICT): revision145/`f5f181e92` is verified
 at 100% traffic with unchanged 2 CPU/1 GiB/env. The completed 30-minute collection
@@ -182,6 +203,64 @@ Subsequent operational control observation05:54–06:24UTC retains19 probe
 timeouts across three successful profile changes. The local read/startup TDD
 follow-up was qualified separately before deployment; see
 [the follow-up record](#revision126-thirty-minute-control-and-local-loop-fairness-follow-up).
+
+## Revision146 status timing and native pre-ping observation
+
+The deployed full commit `3e0392607f81721bc48092c2d33a0a55603a145d` independently
+matches image `b73db4148e12` on `hummingbot-demo-00146-zxj`. Ready/traffic remain
+100%; all non-image settings compare unchanged to145, including2 CPU/1 GiB.
+The08:06:41–08:36:43 ICT window holds one revision/session with901 samples,
+1801.270 s observed span and2.315 s maximum gap. Collection quality passes.
+All901 status and901 liquidity reads return200 with no missing identity or API
+error. This preserves the failed145 window; different eligibility/fill mixes
+prevent attributing a controlled performance improvement to the deployment.
+
+Status client median/p95/max are100.03/118.55/411.67 ms; handler14.07/26.30/243.49 ms.
+Primary queue p95/max are12.36/45.13 ms and worker17.28/241.86 ms. Every client
+read retains its correlation hash; all status responses expose server request
+IDs and finished DB timing. The project `_Default` sink currently excludes this
+service's INFO logs:
+zero retained `Admin status read` records cannot prove non-receipt. Header
+correlation is verified, but full client-to-retained-server-log correlation is
+not. No5 s server timeout occurs, so its connected fault branch is unexercised;
+local fault evidence does not establish the cause of the historical10 s timeout.
+
+Final control/ack88/88, physical owner534 and three positions are preserved.
+Financial and account-binding hashes match; checkpoint watermark63755 becomes
+64487, with zero pending creations, uncertain/prepared/possibly-sent attempts,
+unapplied fills or risk stop. Complete bounded API history returns272 recorded
+orders (210 Spot/62 perpetual),129 Spot fills, no provisional order and no new
+perpetual fill. These are recorded history counts, not272 confirmed submissions.
+Final `/startup`, `/live`, `/ready` are200 and the bot is running without HALT.
+
+Spot443/(443+18+5)=95.06% fails99%; conditional443/461=96.10% also fails.
+There are435 guarded and5 unknown samples. Perpetual has896 guarded/5 unknown,
+zero confirmed eligible samples, and stays unqualified. The18 Spot gap samples
+contain16 submission-pending,3 executor-activity and1 proposal-confirmation side
+occurrences; side counts can exceed samples. The five unknowns include one raw
+temporary shutdown fence, cleared at the next sample, rather than an incident
+HALT reset. Three profile shutdowns finish in1.100/0.847/1.074 s without restart.
+No classifier,99% target,300 ms probe limit or guard is relaxed.
+
+The exact window retains57 WARNING:43 diagnostic events,8 submission blocks
+(7 Spot-outflow,1 spread-policy),6 probe timeouts at300.757–301.002 ms; no ERROR,
+engine restart or ownership loss. Thirty-one distinct completed pre-ping spans
+are retained across threads (maximum26.72 ms, no error);15 are on the main thread.
+Two probes overlap retained synchronous DB/owner work with union160.78/62.44 ms
+and sampled SQL waits. The other four lack retained overlap. Neither the
+pre-ping subset nor async-submit wall overlap explains an entire probe. These
+are censored deadline observations, not proven engine-stall durations. A separate
+startup-to-window query retains3 earlier probe warnings and no ERROR/restart.
+
+Separate08:40:52 ICT readback is running/no HALT at generation207, control88/88
+and health200. Both markets have2 working SELL/no BUY: Spot BUY is blocked by
+`spot_outflow_blocked`, perpetual BUY by `inventory_limit`. This later state
+does not change the completed window or prove two-sided acceptance.
+
+Evidence: `build/status-probe-postdeploy-20261115-080255/`. Only read-only API,
+metadata, logging and repeatable-read DB snapshots were used. Remaining gates:
+residual probe attribution, original status-timeout cause/server-log correlation,
+ordinary quote gaps/profile unknowns and connected perpetual/two-sided acceptance.
 
 ## Revision145 single held-checkpoint deployment and observation
 

@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 OPERATIONS = frozenset({
-    'strategy.tick', 'strategy.reports', 'controller.cycle', 'order.submit',
+    'strategy.tick', 'strategy.reports', 'controller.cycle', 'order.submit', 'order.admission', 'order.place',
     'order.cancel', 'order.terminal', 'order.intent', 'order.created', 'position.checkpoint', 'owner.read',
     'db.sql', 'db.commit', 'db.ping', 'service.observe', 'executor.terminal', 'order.proof',
     'shutdown.total', 'shutdown.core', 'shutdown.strategy', 'shutdown.hold',
@@ -28,13 +28,15 @@ OPERATIONS = frozenset({
 })
 SLOW_MS = {
     'strategy.tick': 250, 'strategy.reports': 250, 'controller.cycle': 1000,
-    'order.submit': 1000, 'order.intent': 100, 'order.created': 100, 'order.cancel': 1000, 'order.proof': 1000,
+    'order.submit': 1000, 'order.admission': 1000, 'order.place': 1000,
+    'order.intent': 100, 'order.created': 100, 'order.cancel': 1000, 'order.proof': 1000,
     'order.terminal': 250, 'executor.terminal': 250, 'position.checkpoint': 250,
     'owner.read': 100, 'db.sql': 100, 'db.commit': 100, 'db.ping': 100, 'service.observe': 1000,
     'shutdown.total': 1000, 'shutdown.core': 1000, 'shutdown.strategy': 1000,
     'shutdown.hold': 1000, 'shutdown.cancel': 1000,
     'shutdown.proof_before': 1000, 'shutdown.proof_after': 1000,
 }
+SUBMISSION_OPERATIONS = frozenset({'order.submit', 'order.admission', 'order.intent', 'order.place', 'order.created'})
 _ACTIVE = None
 _PARENT = ContextVar('engine_diagnostic_parent', default=None)
 
@@ -147,6 +149,9 @@ class EngineDiagnostics:
         self.clock, self.max_active = clock, max_active
         self.recent, self.active, self.operations = deque(maxlen=capacity), {}, {}
         self._shutdown_recent = deque(maxlen=32)
+        self._submission_recent = deque(maxlen=64)
+        self._submission_completed = self._submission_published = 0
+        self._last_submission_emitted_ns = -2_000_000_000
         self.sequence = self.dropped_spans = self.sink_errors = 0
         self.lock, self.stopping = threading.Lock(), threading.Event()
         self.loop_thread_id = self.worker = self.heartbeat_task = None
@@ -156,12 +161,16 @@ class EngineDiagnostics:
         self._last_slow_emitted_ns = -30_000_000_000
         self._slow, self._slow_dirty = deque(maxlen=8), False
         self._episode = None
+        self._sample_episode = self._sampled_heartbeat = None
+        self._last_stack_sample_ns = -5_000_000_000
         self.hooks = []
 
     @staticmethod
     def _log(payload):
-        logging.getLogger(__name__).warning('Engine diagnostic %s', json.dumps(payload, separators=(',', ':')),
-                                            extra={'event': payload['event'], 'scope': 'runtime'})
+        level = (logging.INFO if payload['event'] in
+                 ('order_submission_stages', 'engine_loop_sample', 'engine_loop_sample_recovered') else logging.WARNING)
+        logging.getLogger(__name__).log(level, 'Engine diagnostic %s', json.dumps(payload, separators=(',', ':')),
+                                        extra={'event': payload['event'], 'scope': 'runtime'})
 
     def begin(self, operation, *, entity=None, order=None):
         try:
@@ -205,6 +214,10 @@ class EngineDiagnostics:
                 self.recent.append(dict(row, phase='end', end_ns=now, duration_ms=duration, error=bool(error)))
                 if row['operation'].startswith('shutdown.'):
                     self._shutdown_recent.append(dict(row, end_ns=now, duration_ms=duration))
+                if row['operation'] in SUBMISSION_OPERATIONS and row['order'] is not None:
+                    self._submission_completed += 1
+                    self._submission_recent.append(dict(row, end_ns=now, duration_ms=duration, error=bool(error),
+                                                        completion_sequence=self._submission_completed))
                 stats = self.operations[row['operation']]
                 stats['completed'] += 1
                 stats['errors'] += bool(error)
@@ -237,6 +250,7 @@ class EngineDiagnostics:
         with self.lock:
             return dict(recent=[dict(row) for row in self.recent], active=[dict(row) for row in self.active.values()],
                         shutdown_recent=[dict(row) for row in self._shutdown_recent],
+                        submission_recent=[dict(row) for row in self._submission_recent],
                         operations={name: dict(stats) for name, stats in self.operations.items()},
                         dropped_spans=self.dropped_spans, sink_errors=self.sink_errors,
                         sql_hooks_attached=bool(self.hooks))
@@ -265,22 +279,57 @@ class EngineDiagnostics:
 
     def _deliver(self, payload):
         if self._closed:
-            return
+            return False
         try:
             if len(json.dumps(payload).encode()) > 24000:
                 payload['recent'] = payload.get('recent', [])[-16:]
                 payload['active'] = payload.get('active', [])[:8]
                 payload['stacks'] = payload.get('stacks', [])[:1]
+                payload['submission_recent'] = payload.get('submission_recent', [])[-8:]
                 payload['truncated'] = True
+            if len(json.dumps(payload).encode()) > 24000:
+                payload['shutdown_recent'] = payload.get('shutdown_recent', [])[-8:]
+                payload['slow'] = payload.get('slow', [])[-4:]
             if len(json.dumps(payload).encode()) <= 24000:
                 self.emit(payload)
+                return True
         except Exception:
             self.sink_errors += 1
+        return False
+
+    def _publish_submissions(self, now):
+        # Only the watchdog calls the sink: never log on the native writer or
+        # while holding its diagnostic lock. Completion sequence, not span ID,
+        # keeps parents that finish after their children have been published.
+        if now - self._last_submission_emitted_ns < 2_000_000_000:
+            return
+        with self.lock:
+            first, last = self._submission_published, self._submission_completed
+            completed = [dict(row) for row in self._submission_recent if row['completion_sequence'] > first]
+        if first == last:
+            return
+        self._last_submission_emitted_ns = now
+        payload = dict(event='order_submission_stages', at_ns=now, wall_time_ns=time.time_ns(), process_id=os.getpid(),
+                       completed=completed, from_sequence=first + 1, to_sequence=last,
+                       dropped_since_previous=max(0, last - first - len(completed)))
+        if self._deliver(payload):
+            with self.lock:
+                self._submission_published = last
+
+    def _capture_loop(self, now, beat, gap_ms, event):
+        self._last_stack_sample_ns, self._sampled_heartbeat = now, beat
+        payload = dict(event=event, at_ns=now, heartbeat_ns=beat, wall_time_ns=time.time_ns(),
+                       heartbeat_gap_ms=gap_ms, process_id=os.getpid(), **self.snapshot())
+        payload['stacks'] = self._stacks(payload['active'])
+        payload['stack_sampled_at_ns'] = self.clock()
+        payload['heartbeat_advanced_during_capture'] = self._beat_ns != beat
+        self._deliver(payload)
 
     def watch_once(self):
         if not self._started or self._closed:
             return
         beat, now = self._beat_ns, self.clock()
+        self._publish_submissions(now)
         if beat != self._beat_ns:
             return  # The loop advanced while this diagnostic thread was descheduled.
         gap_ms = (now - beat) / 1e6
@@ -292,6 +341,11 @@ class EngineDiagnostics:
                                    wall_time_ns=time.time_ns(), detected_at_ns=self._episode, process_id=os.getpid(),
                                    slow=slow, **self.snapshot()))
                 self._episode = None
+            if self._sample_episode is not None:
+                self._deliver(dict(event='engine_loop_sample_recovered', at_ns=now, heartbeat_ns=beat,
+                                   wall_time_ns=time.time_ns(), detected_at_ns=self._sample_episode,
+                                   process_id=os.getpid(), **self.snapshot()))
+                self._sample_episode = None
             if now - self._last_slow_emitted_ns >= 30_000_000_000:
                 with self.lock:
                     slow = list(self._slow) if self._slow_dirty else []
@@ -303,14 +357,14 @@ class EngineDiagnostics:
                                        process_id=os.getpid(), **self.snapshot()))
             return
         if now - self._last_emitted_ns < 30_000_000_000:
+            if (self._episode is None and self._sampled_heartbeat != beat
+                    and now - self._last_stack_sample_ns >= 5_000_000_000):
+                self._sample_episode = now
+                self._capture_loop(now, beat, gap_ms, 'engine_loop_sample')
             return
         self._last_emitted_ns, self._episode = now, now
-        payload = dict(event='engine_loop_stall', at_ns=now, heartbeat_ns=beat,
-                       wall_time_ns=time.time_ns(), heartbeat_gap_ms=gap_ms, process_id=os.getpid(), **self.snapshot())
-        payload['stacks'] = self._stacks(payload['active'])
-        payload['stack_sampled_at_ns'] = self.clock()
-        payload['heartbeat_advanced_during_capture'] = self._beat_ns != beat
-        self._deliver(payload)
+        self._sample_episode = None
+        self._capture_loop(now, beat, gap_ms, 'engine_loop_stall')
 
     async def start(self):
         global _ACTIVE

@@ -1,5 +1,25 @@
 # OKX Demo and current offline image acceptance
 
+Local follow-up after146 repairs missing submission/probe evidence; final native,
+PostgreSQL and same-image packaged checks pass. The enabled flow retains168 phase
+records/zero drops; final finite logs have no ERROR/probe transition, with the
+initial losses/probes preserved. The code is not deployed. Cloud INFO retention
+remains blocked by403 for `logging.sinks.update` / `logging.exclusions.update`;
+the sink is unchanged. No quote/probe/perpetual gate is closed. See
+[the local scope](../../reports/performance/mm-quote-replacement-latency.md#revision146-retained-evidence-and-local-follow-up--2026-11-15).
+
+Latest 2026-11-15,08:36 ICT: revision146/`3e0392607` is verified at100% traffic,
+unchanged2 CPU/1 GiB/env. The901-sample30-minute window passes collection quality,
+all status/liquidity reads return200 and final health/checkpoint hashes match.
+There are272 recorded orders/129 Spot fills, no final pending/uncertain/unapplied
+work, ERROR/restart/ownership loss or incident HALT reset. Six probe warnings
+remain, with three earlier startup probes retained separately. Spot95.06% fails99%;
+Perpetual has no confirmed eligible two-sided samples. Five unknowns include one
+temporary shutdown fence that clears next sample. Fast INFO is excluded by the
+project sink; header timing is verified but complete server-log correlation and
+the original status-timeout cause remain open. No guard or threshold is relaxed.
+See [revision146](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision146-status-timing-and-native-pre-ping-observation).
+
 Latest 2026-11-15, 03:14 ICT: revision145/`f5f181e92` is verified at 100% traffic,
 unchanged 2 CPU/1 GiB/env. Its completed collection has897 samples, 187 recorded
 orders/76 Spot fills and matching checkpoints, but quality fails after one status

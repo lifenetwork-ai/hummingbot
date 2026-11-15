@@ -1,5 +1,25 @@
 # MM automatic recovery and availability
 
+Local follow-up after146 repairs missing submission/probe evidence; final native,
+PostgreSQL and same-image packaged checks pass. The enabled flow retains168 phase
+records/zero drops; final finite logs have no ERROR/probe transition, with the
+initial losses/probes preserved. The code is not deployed. Cloud INFO retention
+remains blocked by403 for `logging.sinks.update` / `logging.exclusions.update`;
+the sink is unchanged. No quote/probe/perpetual gate is closed. See
+[the local scope](../../reports/performance/mm-quote-replacement-latency.md#revision146-retained-evidence-and-local-follow-up--2026-11-15).
+
+Latest 2026-11-15,08:36 ICT: revision146/`3e0392607` is verified at100% traffic,
+unchanged2 CPU/1 GiB/env. The901-sample30-minute window passes collection quality,
+all status/liquidity reads return200 and final health/checkpoint hashes match.
+There are272 recorded orders/129 Spot fills, no final pending/uncertain/unapplied
+work, ERROR/restart/ownership loss or incident HALT reset. Six probe warnings
+remain, with three earlier startup probes retained separately. Spot95.06% fails99%;
+Perpetual has no confirmed eligible two-sided samples. Five unknowns include one
+temporary shutdown fence that clears next sample. Fast INFO is excluded by the
+project sink; header timing is verified but complete server-log correlation and
+the original status-timeout cause remain open. No guard or threshold is relaxed.
+See [revision146](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision146-status-timing-and-native-pre-ping-observation).
+
 Local follow-up2026-11-14: experimental funded Spot SELL admission during supported
 uncertain Spot BUYs is implemented behind a default-false flag. Its native,
 PostgreSQL and full-service qualification is recorded in the

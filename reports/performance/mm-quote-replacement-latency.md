@@ -1,5 +1,94 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Revision146 retained evidence and local follow-up — 2026-11-15
+
+Reviewing the18 failed Spot samples does not establish one slow OKX ACK. A40 s
+cluster contains27 recorded BUY orders and24 BUY fills; eight completed submit,
+eight intent and eight Created spans survive overall, while30 order hashes can
+be matched across all retained stages. Pending tracker IDs are absent and native
+creation timestamps are coarse. Timestamp proximity is kept as a candidate
+association, not an exact pending-order map or a duration of continuous outage.
+
+Six original-code RED cases reproduce missing evidence, not a proved trading
+fault: short phases vanish under SQL churn, native admission/placement are not
+separate, cancellation lacks phase evidence, warning throttling misses a second
+stack, and new INFO delivery/retry is unqualified. A watchdog-thread check verifies
+that publication happens off-loop without holding its lock. A later RED burst
+reproduces the first packaged32-entry buffer losing phase records. The final
+fixed64-entry ring retains an eight-order/five-phase burst; overflow remains
+explicit rather than being counted as complete coverage.
+
+Completed records are batched at most once per2 s from the watchdog, keyed by
+completion sequence so a parent's late finish is not lost. Native admission,
+intent, placement/ACK dispatch and Created publication remain distinct; stages
+can overlap and placement includes final gates/receipt work, not just the network.
+Separate INFO stack samples, limited to5 s, supplement the unchanged30 s WARNING
+budget. The300 ms probe limit, financial/ownership/terminal fences, caps and
+fee-inclusive breakeven policy are unchanged. No new env or API schema is added.
+
+Validation: final461 native checks +9 subtests,25 distinct PostgreSQL checks,
+and a final replay of the two native PostgreSQL stage cases pass. Seven RED
+failures are retained across the six-case original replay and the later burst.
+The first packaged shutdown/outflow flows pass but retain22 dropped phase records
+and one probe warning in each flow; they are superseded for final buffer
+qualification, not erased. The initial image build selected the host architecture
+and failed base resolution; the explicit amd64 build succeeds. Final packaged
+shutdown/outflow qualification passes on config `81a1fb84711e`, manifest
+`17fdc66d925a`, with exact bytes for the three changed runtime files. The enabled
+flow retains168 completed phases (32 each submit/admission/intent/place and40
+Created callbacks), zero dropped records and maximum packet19,733 bytes. These
+are phase callbacks, not168 orders. The disabled outflow flow also passes. Final
+logs retain9 WARNING/no ERROR/probe transition; INFO supplemental-stack sampling
+is qualified deterministically, not positively exercised in these finite flows.
+This does not establish faster connected MM or erase the two initial probes.
+
+The project logging sink still excludes fast INFO. Updating the sink and the
+narrower exclusion endpoint both return403 for the current identity; the rule
+readback is unchanged. The prepared stdout/stderr exception is at
+`build/quote-gap146-followup-20261115/logging-change-public.json`; an authorized
+operator can apply `apply_logging_exception.py` from that directory. It keeps
+HTTP request/other-service filters and changes no service or DB setting.
+A new deploy/unchanged30-minute observation with retained INFO is still required
+before closing the original status timeout, residual probes, ordinary quote gaps,
+profile unknowns, Perpetual or99% gates. Separate09:09:35 ICT readback remains
+on146/control88/88 without HALT/error, startup/live200 but ready503 and no quotes.
+The fresh guard views show perpetual `reference_deviation` at200.56 bps and Spot
+`guard_recovering` at165.57 bps; profile is `follow_token`, generation210. This is
+a guard admission pause on the deployed predecessor, not an effect of the local
+candidate or proof of a new technical HALT. No guard/control is changed. Evidence is in
+`build/quote-gap146-followup-20261115/`; final packaged runs are
+`build/e2e-offline/20261115-090417-b97cec/` and
+`build/e2e-offline/20261115-090536-c199b5/`.
+
+## Revision146 connected status/pre-ping observation — 2026-11-15
+
+Revision146/`3e0392607` is verified at100% traffic with unchanged2 CPU/1 GiB/env.
+The08:06:41–08:36:43 ICT collection has901 samples/quality pass and no API error:
+all status/liquidity reads return200. Status client median/p95/max are
+100.03/118.55/411.67 ms; handler14.07/26.30/243.49 ms. Primary queue p95/max are
+12.36/45.13 ms, worker17.28/241.86 ms. All status headers carry server identity
+and finished queue/run timing. Fast INFO records are excluded by the current
+project logging sink, so complete server-log correlation remains unverified.
+No5 s timeout occurs; do not infer its fault branch was exercised or the
+historical10 s timeout's cause was solved.
+
+Final health200/control88/88/no HALT and financial/binding hashes match, with
+zero pending/uncertain/unapplied effects. Complete history returns272 recorded
+orders/129 Spot fills. Three shutdowns complete in1.100/0.847/1.074 s. The one
+sampled temporary shutdown fence clears next sample and remains unknown.
+Spot443two-sided/18gaps/435guards/5unknown yields95.06%, failing99%; perpetual
+has896guards/5unknown and no confirmed eligible two-sided sample/new fill.
+
+The exact window has57 WARNING (43 diagnostics,8 guard-blocked submissions,
+6 probes), zero ERROR/restart/ownership loss. Retained native pings are positively
+observed:31 completed spans across threads, maximum26.72 ms, no error. Two of
+six300.757–301.002 ms probe transitions overlap main-thread DB/owner work with
+union160.78/62.44 ms and SQL-wait stacks; four have no retained overlap. This
+limited evidence supplies no unique common cause and does not justify relaxing
+probe limits. Three earlier startup probes stay separate. Different eligibility,
+fill load and the preceding quality failure prevent a controlled speedup claim.
+See [full scope](../demo/cloudrun-quote-replacement-acceptance.md#revision146-status-timing-and-native-pre-ping-observation).
+
 ## Revision145 status/probe follow-up — local, 2026-11-15
 
 The connected status timeout still has no proven client/network/server cause.
@@ -49,9 +138,9 @@ Evidence: `build/status-probe-followup-20261115/`, packaged runs
 `build/e2e-offline/20261115-034519-3a0db8/` and
 `build/e2e-offline/20261115-034743-cbf756/`. No new env or migration is needed.
 No Cloud/control/guard mutation is made; the03:50 ICT readback remains running,
-no HALT, all health200 on145. The local candidate still needs deployment and
-correlated observation before closing the original timeout, all four probes,
-ordinary quote gaps/unknowns, Perpetual or99% acceptance gates.
+no HALT, all health200 on145. The candidate is deployed on146 with a complete correlated-header observation
+above; the original timeout, residual probes, ordinary quote gaps/unknowns,
+Perpetual and99% acceptance gates remain open.
 
 ## Revision145 connected single held-checkpoint observation — 2026-11-15
 

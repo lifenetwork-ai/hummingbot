@@ -326,6 +326,7 @@ class BotOwnership:
             self.submission_tasks.add(task)
             task.add_done_callback(self.submission_tasks.discard)
 
+    @trace_runtime('order.admission', order_parameter='order')
     async def admit_order(self, connector, order):
         """Yield between synchronous admissions without moving the writer off-loop."""
         from hummingbot.core.order_submission_guard import active_guard
