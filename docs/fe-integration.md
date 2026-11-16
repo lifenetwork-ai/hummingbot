@@ -442,6 +442,16 @@ last observation and **Stop orders**. Use the identity fields described below;
 show unknown/mismatch explicitly rather than inferring the environment from a URL.
 Shared balances appear once; spot and perpetual have separate quote/exposure cards.
 
+`GET /status` can also return the optional `overview` reporting supplement. Use
+the generated DTOs and [Overview reporting contract](overview-reporting.md).
+Inventory units follow the pair's base asset; monetary values are plain decimal
+strings, including tiny fees. Rolling total-time coverage and eligible coverage
+have different denominators: render eligibility-unknown and restrictions, consult
+`measurement_ready`, and use the conservative eligible fraction for the approved
+target. A zero eligible denominator is unqualified. Fee `processing_state=ready`
+means catch-up finished a source sweep; it does not override `history_complete=false`.
+Missing/stale reporting must not disable independent status/control views or Stop.
+
 An overview wireframe (not a shipped UI):
 
 ```text

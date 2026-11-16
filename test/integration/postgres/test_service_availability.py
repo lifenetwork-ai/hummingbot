@@ -162,7 +162,8 @@ def test_delayed_status_query_does_not_timeout_private_health(publication):
     entered, probe_ready = threading.Event(), threading.Event()
 
     def delay_publication(connection, cursor, statement, params, context, many):
-        if not entered.is_set() and statement.startswith('SELECT bot_state.status, bot_state.mm_session'):
+        if (not entered.is_set() and statement.startswith('SELECT ')
+                and 'bot_state' in statement and 'FOR UPDATE' in statement):
             entered.set()
             connection.exec_driver_sql('SELECT pg_sleep(0.4)')
 

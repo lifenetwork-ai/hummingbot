@@ -1,8 +1,29 @@
 """History fixture preparation for disposable offline load databases only."""
 import json
 import time
+from decimal import Decimal
 
 from scripts.test_e2e_offline import docker, http, poll
+
+
+def external_book_levels(fixtures, *, base_quantity=None):
+    """LIFE fixture quantities are base tokens; SWAP wire quantities are contracts.
+
+    A missing base quantity replays the historical native-wire fixture exactly.
+    It must remain available as a thin-book negative control.
+    """
+    quantities = {'LIFE-USDT': '100000', 'LIFE-USDT-SWAP': '100000'}
+    if base_quantity is not None:
+        quantity = Decimal(str(base_quantity))
+        instrument = next(row for row in fixtures['perpetual_instruments']['data']
+                          if row['instId'] == 'LIFE-USDT-SWAP')
+        contract = Decimal(str(instrument['ctVal']))
+        if not quantity.is_finite() or not contract.is_finite() or quantity <= 0 or contract <= 0:
+            raise ValueError('Healthy external fixture requires finite positive base quantity and contract value')
+        quantities = {'LIFE-USDT': format(quantity, 'f'), 'LIFE-USDT-SWAP': format(quantity / contract, 'f')}
+    return {instrument: dict(bids=[['.099', quantity], ['.098999', quantity]],
+                             asks=[['.101', quantity], ['.101001', quantity]])
+            for instrument, quantity in quantities.items()}
 
 
 def _stopped(row):

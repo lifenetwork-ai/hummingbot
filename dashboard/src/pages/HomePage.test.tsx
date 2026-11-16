@@ -59,6 +59,7 @@ describe('HomePage (Overview)', () => {
           operator: null,
           owner_available: true,
           automatic_recovery: null,
+          overview: null,
           owner_identity: null,
           phase: 'running',
           process_identity: null,

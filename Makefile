@@ -69,6 +69,8 @@ test-cloudrun-regression:
 	$(PYTHON) -m pytest -q test/hummingbot/client/test_performance.py
 	$(PYTHON) -m pytest -q test/hummingbot/cli test/hummingbot/model test/hummingbot/client/test_runner.py \
 		test/hummingbot/connector/test_markets_recorder.py \
+		test/hummingbot/connector/test_client_order_tracker.py \
+		test/hummingbot/connector/test_terminal_cancel_ack.py \
 		test/hummingbot/connector/test_held_fill_proof_reads.py \
 		test/hummingbot/connector/test_trade_fee_replay.py \
 		test/hummingbot/connector/test_recorder_history_retention.py \
@@ -76,6 +78,10 @@ test-cloudrun-regression:
 		test/hummingbot/core/test_trading_core.py test/hummingbot/core/test_engine_diagnostics.py test/hummingbot/core/web_assistant \
 		test/hummingbot/core/test_ownership_order_refresh.py \
 		test/hummingbot/core/test_terminal_read_fairness.py \
+		test/hummingbot/core/test_overview_coverage.py \
+		test/hummingbot/core/test_overview_eligibility.py \
+		test/hummingbot/core/test_overview_market_observations.py \
+		test/hummingbot/core/test_overview_recovery.py \
 		test/hummingbot/core/test_submission_admission_fairness.py \
 		test/hummingbot/core/test_strategy_startup_read_fairness.py \
 		test/hummingbot/connector/test_managed_pending_polling.py \

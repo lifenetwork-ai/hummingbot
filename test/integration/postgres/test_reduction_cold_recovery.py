@@ -52,6 +52,9 @@ def test_native_close_lost_ack_cold_recovery_reduces_held_leg_and_applies_origin
                                              VenuePosition('BTC-USDT', venue_side, Decimal(0), Decimal(100), Decimal(2 * direction), Decimal(1)))
     exchange._account_available_balances['USDT'] = Decimal('1000')
     exchange.position_snapshot_times['BTC-USDT'] = 1000
+    # This fixture is a complete hedge snapshot, including the absent other leg.
+    opposite_side = PositionSide.SHORT if leg == TradeType.BUY else PositionSide.LONG
+    exchange.position_absence_times[('BTC-USDT', opposite_side)] = 1000
     key = exchange._perpetual_trading.position_key('BTC-USDT', venue_side)
     exchange.position_observations[key] = dict(observed_at=1000, margin_mode='cross')
     controller.market_data_provider.get_connector_with_fallback.return_value = exchange
