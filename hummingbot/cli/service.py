@@ -484,7 +484,8 @@ class ServiceHost:
         self.store = BotStateStore(self.engine, self.settings.bot_id)
         self.store.ensure()
         self.observations.reporting = ((self.store.read() or {}).get("status") or {}).get("reporting") or {}
-        self.owner = BotOwnership(self.engine, self.settings.bot_id, stopping=self.stop.is_set)
+        self.owner = BotOwnership(self.engine, self.settings.bot_id, stopping=self.stop.is_set,
+                                  scoped_recovery=self.settings.scoped_recovery_enabled)
         self.catalogue = {kind: list_configs(kind) for kind in STRATEGY_TYPES}
         self.config_hashes = {kind: {name: hashlib.sha256(config_path(kind, name).read_bytes()).hexdigest()
                                      for name in files} for kind, files in self.catalogue.items()}
@@ -860,14 +861,17 @@ class ServiceHost:
             automatic_active = automatic is not None and automatic.active
             if automatic_active:
                 self.phase = 'reconciling_orders'
-                for controller in self._mm_controllers():
-                    controller.revoke_session()
-            if self.mm_session is not None and not automatic_active:
+                if not automatic.isolated:
+                    for controller in self._mm_controllers():
+                        controller.revoke_session()
+            if self.mm_session is not None and (not automatic_active or automatic.isolated):
                 try:
                     admitted = not (row["recovery_state"] or {}).get("halt") and await self.admit_mm_session()
                 except (ValueError, ControlConflict):
                     admitted = False
                 self.phase = "running" if admitted else "waiting_for_mm_readiness"
+                if automatic_active and admitted:
+                    self.phase = 'reconciling_orders'  # Actual trading proof is still incomplete.
                 if not admitted:
                     for controller in self._mm_controllers():
                         controller.revoke_session()
@@ -922,10 +926,14 @@ class ServiceHost:
                 await guard.reconcile_terminal()
                 if guard.reason_code == "spot_outflow_observation_unavailable":
                     guard.reason_code = None
-                if guard.terminal_pending:
+                terminal_failure = guard.terminal_reason_code()
+                if terminal_failure:
                     self.next_outflow_poll = time.monotonic() + self.availability.fail(
-                        "spot_outflow", guard.terminal_reason_code(), retry=True)
+                        "spot_outflow", terminal_failure, retry=True)
                 else:
+                    # The bounded batch can leave unattempted orders, including
+                    # arrivals during an awaited proof. Keep their reservations
+                    # and ordinary polling cadence; backlog is not a read failure.
                     self.availability.clear("spot_outflow")
             except Exception as error:
                 self.owner.check_owner()

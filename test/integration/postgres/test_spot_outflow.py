@@ -100,8 +100,9 @@ def test_final_send_rechecks_cashflow_after_a_late_commit_and_unsent_denial_pres
     owned.recorder._did_fill_order(MarketEvent.OrderFilled.value, owned.market, evt)
     request = RESTRequest(method=RESTMethod.POST, url="https://www.okx.com/api/v5/trade/order", is_auth_required=True,
                           data=json.dumps(dict(clOrdId="a", instId="LIFE-USDT", side="buy", sz="5", px="10", tdMode="cash")))
-    with pytest.raises(SubmissionBlocked, match="spot_outflow_limit"):
+    with pytest.raises(SubmissionBlocked, match="spot_outflow_limit") as denied:
         asyncio.run(owned.owner.authorize_rest(request))
+    assert type(denied.value).__name__ == 'SpotOutflowBlocked'
     owned.owner.order_failed(owned.market, queued)
     assert "a" not in owned.owner.sent_intents
     buy(owned, session, "sell", TradeType.SELL)

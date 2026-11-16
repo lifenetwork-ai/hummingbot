@@ -50,6 +50,35 @@ def test_retention_and_error_metadata_are_bounded_without_raw_identifiers():
     assert not emitted
 
 
+def test_shutdown_timeout_retains_completed_current_phases_despite_sql_churn(monkeypatch):
+    import hummingbot.core.engine_diagnostics as diagnostic
+
+    now = [1_000_000_000]
+    tracer = EngineDiagnostics(clock=lambda: now[0], capacity=8)
+    monkeypatch.setattr(diagnostic, '_ACTIVE', tracer)
+    # A past shutdown must not be attributed to the next one.
+    with tracer.span('shutdown.total'):
+        with tracer.span('shutdown.cancel'):
+            now[0] += 10_000_000
+    with tracer.span('shutdown.total'):
+        with tracer.span('shutdown.core'):
+            with tracer.span('shutdown.proof_before', order='do-not-export-order'):
+                now[0] += 3_000_000_000
+            for _ in range(30):
+                with tracer.span('db.sql'):
+                    pass
+            with tracer.span('shutdown.proof_after'):
+                now[0] += 1_500_000_000
+                stages = diagnostic.active_shutdown_stages()
+                completed = [s for s in stages if s.get('phase') == 'completed']
+                assert completed == [dict(operation='shutdown.proof_before', phase='completed', elapsed_ms=3000.0)]
+                assert not any(s['operation'] == 'shutdown.cancel' for s in stages)
+                assert {'shutdown.total', 'shutdown.core', 'shutdown.proof_after'} <= {
+                    s['operation']for s in stages if s.get('phase') == 'active'}
+                assert len(stages) <= 8 and 'do-not-export' not in json.dumps(stages)
+    assert diagnostic.active_shutdown_stages() == []
+
+
 @pytest.mark.asyncio
 async def test_real_loop_stall_has_stage_and_sanitized_stack_then_tears_down():
     records = []
@@ -149,6 +178,28 @@ def test_warning_budget_and_snapshot_size_stay_bounded():
     tracer.watch_once()
     assert [r['event'] for r in records] == ['engine_loop_stall', 'engine_loop_recovered']
     assert all(len(json.dumps(r).encode()) <= 24000 for r in records)
+
+
+def test_recovery_keeps_the_completed_blocking_span_when_periodic_slow_log_is_throttled():
+    clock, records = [1_000_000_000], []
+    tracer = EngineDiagnostics(emit=records.append, clock=lambda: clock[0], capacity=8)
+    tracer.loop_thread_id, tracer._started, tracer._beat_ns = threading.get_ident(), True, 0
+    token = tracer.begin('db.sql', order='never-log-this-order')
+    tracer.watch_once()
+    clock[0] += 400_000_000
+    tracer.finish(token)
+    for _ in range(30):
+        with tracer.span('db.sql'):
+            pass
+    tracer._last_slow_emitted_ns = clock[0]
+    tracer._beat_ns = clock[0]
+    tracer.watch_once()
+    recovered = next(row for row in records if row['event'] == 'engine_loop_recovered')
+    assert any(s['id'] == token['id'] and s['duration_ms'] == 400 and s['end_ns'] == clock[0]
+               for s in recovered.get('slow', []))
+    assert len(recovered['recent']) <= 8
+    assert 'never-log-this-order' not in json.dumps(recovered)
+    assert all(len(json.dumps(row).encode()) <= 24000 for row in records)
 
 
 @pytest.mark.asyncio

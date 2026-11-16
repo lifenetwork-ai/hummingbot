@@ -76,7 +76,9 @@ def recovery_blockers(state):
                 if 'mm_drawdown_policy' in checkpoint:
                     from hummingbot.core.mm_drawdown import checkpoint_drawdown_status
                     view = checkpoint_drawdown_status(checkpoint)
-                    if view is None or view['operator_action_required']:
+                    # A valid retained breach requires operator review, not checkpoint repair.
+                    # Its risk-stop blocker above still prevents technical recovery from resetting it.
+                    if view is None or view['reason_code'] == 'drawdown_checkpoint_invalid':
                         reasons.append('recovery_checkpoint_invalid')
                 if 'max_global_pnl' in checkpoint:
                     if decimal(checkpoint['max_global_pnl']) < 0:

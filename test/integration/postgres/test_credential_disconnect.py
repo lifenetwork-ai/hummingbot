@@ -126,3 +126,34 @@ def test_absent_owner_accepts_cleanup_but_cannot_report_completion_or_remove_sec
     assert receipt['status'] == 'accepted' and receipt['result']['stage'] == 'waiting_for_owner'
     assert not store.finish_disconnect(receipt['id'], 'owner', 1, evidence={})
     assert store.load('okx', 'okx', 'demo')['envelope'] is not None
+
+
+@pytest.mark.parametrize('change', [None, 'operation', 'version', 'command', 'companion', 'running'])
+def test_retiring_credential_binding_requires_exact_current_disconnect(managed, monkeypatch, change):
+    from sqlalchemy.orm import Session
+
+    from hummingbot.model.admin_command import AdminCommand
+    from hummingbot.model.exchange_credential import ExchangeCredential
+    from hummingbot.model.runtime_journal import bindings, retiring_bindings
+    monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
+    store, actor = loaded(managed, both=True)
+    with Session(store.engine) as session:
+        expected = bindings(session, store.bot_id)
+    receipt = disconnect(store, actor, control=2)
+    with Session(store.engine) as session, session.begin():
+        selected = session.get(ExchangeCredential, (store.bot_id, 'okx', 'okx', 'demo'))
+        if change == 'operation':
+            selected.operation_id = 'other-operation'
+        elif change == 'version':
+            selected.version += 1
+        elif change == 'command':
+            session.get(AdminCommand, receipt['id']).effective_version += 1
+        elif change == 'companion':
+            session.get(ExchangeCredential, (store.bot_id, 'okx', 'okx_perpetual', 'demo')).state = 'revoking'
+    state = store.store.read()
+    if change == 'running':
+        state['desired_state'] = 'running'
+    with Session(store.engine) as session:
+        assert len(bindings(session, store.bot_id)) < len(expected)
+        actual = retiring_bindings(session, state)
+    assert actual == (expected if change is None else None)

@@ -752,13 +752,51 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             raise AssertionError(f"{error}; command={json.dumps(latest)}; runtime={json.dumps(runtime)}") from error
         return receipt
 
-    def until_stopped_scenario(self):
+    def shutdown_proof_scenario(self):
+        # The ordinary continuous scenario does not arm Spot outflow. This
+        # fault specifically exercises its independent terminal fee proof.
+        import yaml
+        path = self.assets / 'life_mm_profiles.yaml'
+        original = path.read_bytes()
+        config = yaml.safe_load(original)
+        config['spot_outflow'] = dict(window_seconds=3600, max_net_outflow_quote='500', fee_allowance_rate='.01')
+        # Exercise the same opt-in timing path as the deployed service. Timing
+        # cannot change the native proof/ownership/financial assertions below.
+        self.env['ENGINE_DIAGNOSTICS_ENABLED'] = 'true'
+        try:
+            path.write_text(yaml.safe_dump(config))
+            self.metrics['shutdown_proof_policy_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+            self.until_stopped_scenario(slow_terminal_proof=True)
+        finally:
+            path.write_bytes(original)
+            for bot in self.containers:
+                if bot not in (self.pg, self.simulator):
+                    logs = docker('logs', bot, check=False)
+                    target = self.report / (bot + '.log')
+                    target.write_text(logs.stdout + logs.stderr)
+                    target.chmod(0o600)
+        completed = dict.fromkeys(('order.intent', 'order.created'), 0)
+        for target in self.report.glob('*.log'):
+            for line in target.read_text().splitlines():
+                try:
+                    message = json.loads(line).get('message', '')
+                    if message.startswith('Engine diagnostic '):
+                        stages = json.loads(message.removeprefix('Engine diagnostic ')).get('operations', {})
+                        for stage in completed:
+                            completed[stage] = max(completed[stage], stages.get(stage, {}).get('completed', 0))
+                except (ValueError, AttributeError):
+                    continue
+        assert all(completed.values()), 'Missing completed native intent/ACK timing evidence.'
+        self.metrics['creation_stage_diagnostics'] = dict(enabled=True, completed=completed)
+
+    def until_stopped_scenario(self, *, slow_terminal_proof=False):
         """Use a fresh ledger so this case does not overflow bounded history checks."""
         print("Offline E2E: continuous random rollover, overlapping revision handoff and Stop", flush=True)
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
         for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
             self.env["HBOT_OKX_PERPETUAL_" + field] = value
-        first, port = self.start("mm-until-first")
+        resources = dict(cpus=2, memory_mib=1024) if slow_terminal_proof else {}
+        first, port = self.start("mm-until-first", **resources)
         # Until-stopped random sessions retain finite step authority and survive
         # an actual clean process replacement without inventing a new session.
         self.mm_command(port, 'start', market_mode='both', selection='random', duration_mode='until_stopped')
@@ -766,15 +804,27 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert continuous['expires_at'] is None and continuous['step_expires_at'] is not None
         poll(lambda: sum(order['state'] == 'live' for order in self.ledger()['orders']) == 8,
              description='continuous quotes before terminal-fill checkpoint race')
+        original_owner = self.state()['owner_generation']
         targeted = [next(order for order in self.ledger()['orders'] if order['state'] == 'live'
                          and order['side'] == 'buy' and order['instId'].endswith('-SWAP') == perpetual)
                     for perpetual in (False, True)]
         for order in targeted:
             self.control(fill=dict(clOrdId=order['clOrdId'], amount='.1', fee='.000001'))
         self.control(fill_on_cancel=[dict(clOrdId=order['clOrdId'], amount='.1', fee='.000001') for order in targeted])
+        if slow_terminal_proof:
+            self.control(terminal_read_delay_seconds=1.25)
         poll(lambda: self.state()['mm_session']['generation'] > continuous['generation'], timeout=35,
              description='until-stopped random rollover')
         self.wait_running(port)
+        if slow_terminal_proof:
+            assert self.state()['owner_generation'] == original_owner, 'Delayed proof restarted the engine.'
+            delayed = [row for row in self.ledger()['requests'] if row.get('injected_terminal_read_delay_s')]
+            assert len(delayed) >= 10 and len({row['terminal_read_client_id'] for row in delayed}) >= 2
+            self.metrics['shutdown_proof_latency_fault'] = dict(delay_per_request_s=1.25,
+                                                                delayed_reads=len(delayed),
+                                                                unchanged_owner_generation=True,
+                                                                native_shutdown_budget_s=8)
+            self.control(terminal_read_delay_seconds=0)
         poll(lambda: sum(order['state'] == 'live' for order in self.ledger()['orders']) == 8
              and self.sql('SELECT count(*) FROM orders WHERE creation_pending') == '0',
              description='continuous random step is established before clean restart')
@@ -799,7 +849,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                         pending_mutations=bool(state.get('pending_mutations')),
                         stopped_checkpoint=checkpoint.get('_is_stop_triggered'))
         before_handoff = self.state()
-        successor, successor_port = self.start('mm-until-restart', auto_migrate=False)
+        successor, successor_port = self.start('mm-until-restart', auto_migrate=False, **resources)
         # A Cloud Run rollout starts the new revision before terminating the old
         # one. Startup may be healthy, but standby must not claim trading authority.
         standby = self.state()
@@ -1294,6 +1344,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         original = path.read_bytes()
         profiles = yaml.safe_load(path.read_text())
         profiles["spot_outflow"] = dict(window_seconds=300, max_net_outflow_quote="30", fee_allowance_rate=".01")
+        for market in profiles['markets'].values():
+            market['spread_policy'] = dict(fee_floor=True)
         path.write_text(yaml.safe_dump(profiles))
         self.report.joinpath("effective-outflow-profiles.yaml").write_bytes(path.read_bytes())
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
@@ -1313,6 +1365,17 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
              description="only one spot BUY fits the outflow cap; both funded sells remain")
         poll(lambda: len(live("LIFE-USDT-SWAP", "buy")) == 2, description="spot cap leaves perpetual admission intact")
         assert flow()["ready"] and Decimal(flow()["reserved_quote"]) <= 30
+        # Both proposals can be queued before the first native BUY reserves
+        # cash. Any final-gate denial must retire locally instead of spinning.
+        time.sleep(2)
+        logs = docker('logs', first, check=False)
+        lines = (logs.stdout + logs.stderr).splitlines()
+        denied = [line for line in lines if 'Order submission blocked by service checks' in line
+                  and 'reason=spot_outflow_limit' in line]
+        denied_ids = {re.search(r'order_id=([A-Za-z0-9]+)', line).group(1) for line in denied}
+        assert len(denied_ids) <= len(profiles['markets']['spot']['buy_spreads']), 'Outflow denial spun through local IDs'
+        assert not any('Open order blocked by service checks' in line and 'reason=spot_outflow_limit' in line
+                       and 'Retry count' in line for line in lines), 'Executor retried an unchanged outflow cap'
         buy = live("LIFE-USDT", "buy")[0]
         amount = Decimal(buy["sz"]) / 2
         self.control(fill={"clOrdId": buy["clOrdId"], "amount": str(amount), "fee": ".001"}, duplicate=True)
@@ -1345,6 +1408,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert Decimal(flow()["reserved_quote"]) == 0
         assert self.sql("SELECT count(*) FROM trade_fills") == "2" and not self.ledger()["unknown"]
         self.metrics["spot_outflow"] = dict(buy_only_cap=True, perpetual_unaffected=True, funded_sells_continue=True,
+                                            queued_denials=len(denied_ids), no_local_outflow_retry=True,
                                             partial_commit=True, original_usdt_fee_and_rebate=True, duplicates=2,
                                             terminal_proof_releases=True, restart_and_mode_switch=True, bound_identity=True,
                                             used_quote=str(after_sell), effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
@@ -1901,7 +1965,8 @@ def main():
     from scripts.mm_cleanup_faults import SCENARIOS as cleanup_fault_scenarios
     from scripts.mm_managed_lifecycle import SCENARIOS as managed_scenarios
     from scripts.mm_reduction_checks import SCENARIOS as reduction_scenarios
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, *reduction_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "pending-terminal-ws"), default="all")
+    from scripts.mm_scoped_fault_checks import SCENARIOS as scoped_fault_scenarios
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, *reduction_scenarios, *scoped_fault_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "shutdown-proof", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "scoped-uncertainty", "scoped-positive", "pending-terminal-ws"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument('--keep-going', action='store_true', help='Collect all independent scenario failures; the final gate still fails.')
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
@@ -1921,7 +1986,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="hbot-e2e-assets-") as directory:
         assets = Path(directory)
         assets.chmod(0o755)
-        for name in ("exchange.py", "runtime_smoke.py", "availability_service.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
+        for name in ("exchange.py", "runtime_smoke.py", "availability_service.py", "oom_entrypoint.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
             assets.joinpath(name).write_bytes((ROOT / "test/e2e/offline" / name).read_bytes())
         write_fixtures(assets / "fixtures.json")
         import yaml
@@ -1939,7 +2004,7 @@ def main():
                   "architecture": "amd64", "config_sha256": hashlib.sha256((assets / "pmm.yml").read_bytes()).hexdigest(),
                   "fixture_sha256": {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(assets.iterdir())}}
         result['harness_source_sha256'] = {name: hashlib.sha256((ROOT / 'scripts' / name).read_bytes()).hexdigest()
-                                           for name in ('test_e2e_offline.py', 'mm_managed_environment.py', 'mm_managed_lifecycle.py', 'mm_cleanup_faults.py', 'mm_quote_refresh_checks.py', 'mm_feed_recovery_checks.py', 'mm_post_only_checks.py', 'mm_submission_uncertainty_checks.py', 'mm_legacy_recovery_fixture.py', 'mm_reduction_checks.py', 'mm_startup_checks.py', 'mm_pending_terminal_checks.py')}
+                                           for name in ('test_e2e_offline.py', 'mm_managed_environment.py', 'mm_managed_lifecycle.py', 'mm_cleanup_faults.py', 'mm_quote_refresh_checks.py', 'mm_feed_recovery_checks.py', 'mm_post_only_checks.py', 'mm_submission_uncertainty_checks.py', 'mm_scoped_fault_checks.py', 'test_mm_oom.py', 'mm_legacy_recovery_fixture.py', 'mm_reduction_checks.py', 'mm_startup_checks.py', 'mm_pending_terminal_checks.py')}
         try:
             print("Offline E2E: runtime ABI, JIT, TLS, SDK discovery and size budget", flush=True)
             smoke = docker("run", "--rm", "--platform", "linux/amd64", "--network", "none", "--read-only",
@@ -1947,9 +2012,9 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "pending-terminal-ws") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "shutdown-proof", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "scoped-uncertainty", "scoped-positive", "pending-terminal-ws") if args.scenario == "all" else (args.scenario,)
             if args.scenario == 'all':
-                scenarios += managed_scenarios + cleanup_fault_scenarios + reduction_scenarios
+                scenarios += managed_scenarios + cleanup_fault_scenarios + reduction_scenarios + scoped_fault_scenarios
             elif args.scenario == 'managed-lifecycle':
                 scenarios = managed_scenarios
             elif args.scenario == 'managed-cleanup-faults':
@@ -2004,6 +2069,8 @@ def main():
                         harness.initial_position_restart_scenario()
                     elif scenario == "until-stopped":
                         harness.until_stopped_scenario()
+                    elif scenario == "shutdown-proof":
+                        harness.shutdown_proof_scenario()
                     elif scenario == "funding":
                         harness.funding_scenario()
                     elif scenario == "availability":
@@ -2015,6 +2082,15 @@ def main():
                     elif scenario == "startup-latency":
                         from scripts.mm_startup_checks import scenario as startup_latency
                         startup_latency(harness)
+                    elif scenario in scoped_fault_scenarios:
+                        from scripts.mm_scoped_fault_checks import scenario as scoped_fault
+                        scoped_fault(harness, scenario)
+                    elif scenario == "scoped-positive":
+                        from scripts.mm_submission_uncertainty_checks import scoped_positive_scenario
+                        scoped_positive_scenario(harness)
+                    elif scenario == "scoped-uncertainty":
+                        from scripts.mm_submission_uncertainty_checks import scoped_scenario
+                        scoped_scenario(harness)
                     elif scenario == "automatic-recovery":
                         from scripts.mm_submission_uncertainty_checks import positive_scenario
                         positive_scenario(harness)

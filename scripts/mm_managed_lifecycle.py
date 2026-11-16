@@ -16,12 +16,12 @@ SCENARIOS = ('managed-close-ack-crash', 'managed-close-fill-crash', 'managed-rot
              'managed-close-visibility')
 
 
-def initialize(harness):
+def initialize(harness, *, cpus=1, memory_mib=None):
     harness.env.update(EXCHANGE_CREDENTIALS_SOURCE='postgres_kms', KMS_PROVIDER='local',
                        KMS_LOCAL_SECRET_KEY=LOCAL_KEK, KMS_LOCAL_KEY_ID='local-v1', OKX_TRADING_ENV='demo',
                        OKX_SITE='www', ADMIN_API_ENABLED='true', ADMIN_BASIC_AUTH_ENABLED='true',
                        ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin', FUNDING_SYNC_INTERVAL_SECONDS='2')
-    bot, port = harness.start('managed-lifecycle')
+    bot, port = harness.start('managed-lifecycle', cpus=cpus, memory_mib=memory_mib)
     for connector in ('okx', 'okx_perpetual'):
         save(harness, port, connector, 'a', key='initial-' + connector)
     poll(lambda: connection_status(harness, port, environment='demo', connected=True), description='initial managed connections')

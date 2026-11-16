@@ -486,6 +486,11 @@ class RecoverySummary(APIModel):
 
 class AutomaticRecoveryStatus(APIModel):
     cold_recovery_supported: bool = False
+    isolated: bool = False
+    quarantined_orders: int = Field(default=0, ge=0, le=64)
+    admission_mode: Literal['paused', 'funded_spot_sell'] = 'paused'
+    reserved_base: Dict[str, Decimal] = Field(default_factory=dict)
+    reserved_quote_worst_case: Decimal = Decimal('0')
     phase: Literal['idle', 'reconciling', 'bootstrapping_recovery', 'waiting_for_readiness', 'settled_stopped', 'manual_required']
     reason_code: Optional[str] = None
     operator_required: bool = False

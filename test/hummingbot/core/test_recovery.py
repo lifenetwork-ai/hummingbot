@@ -15,6 +15,47 @@ def snapshot():
                                 amount='0', volume_traded_quote='0', breakeven_price='0', realized_pnl_quote='0', cum_fees_quote='0', unrealized_pnl_quote='0')])
 
 
+def drawdown_checkpoint(reason='drawdown_controller_limit'):
+    return dict(mm_drawdown_policy=dict(
+        metric='covered_v2_report_drawdown', max_global_drawdown_quote='5000', max_controller_drawdown_quote='2500',
+        scope={'spot': dict(connector_name='okx', trading_pair='BTC-USDT'),
+               'perpetual': dict(connector_name='okx_perpetual', trading_pair='BTC-USDT')}),
+        max_global_pnl='4954.94', max_pnl_by_controller={'spot': '5431.02', 'perpetual': '76.57'},
+        _is_stop_triggered=True, drawdown_exited_controllers=['spot', 'perpetual'],
+        mm_drawdown_breach=dict(reason_code=reason, controller_id='spot' if reason == 'drawdown_controller_limit' else None))
+
+
+@pytest.mark.parametrize('reason', ['drawdown_controller_limit', 'drawdown_global_limit'])
+def test_valid_drawdown_breach_reports_risk_stop_without_false_checkpoint_corruption(reason):
+    data = snapshot()
+    data['state']['recovery_state'].update(reason=reason, strategy_checkpoints={'life_mm_profiles.yaml': drawdown_checkpoint(reason)})
+    before = deepcopy(data)
+    assert recovery_blockers(data['state']) == ['recovery_risk_stop']
+    assert data == before
+
+
+@pytest.mark.parametrize('corruption', ['nonfinite_peak', 'invalid_scope'])
+def test_corrupt_drawdown_checkpoint_remains_invalid_and_risk_latched(corruption):
+    data = snapshot()
+    checkpoint = drawdown_checkpoint()
+    if corruption == 'nonfinite_peak':
+        checkpoint['max_global_pnl'] = 'NaN'
+    else:
+        checkpoint['mm_drawdown_policy']['scope']['spot']['connector_name'] = 'unsupported'
+    data['state']['recovery_state'].update(reason='drawdown_controller_limit', strategy_checkpoints={'life_mm_profiles.yaml': checkpoint})
+    assert recovery_blockers(data['state']) == ['recovery_checkpoint_invalid', 'recovery_risk_stop']
+
+
+def test_healthy_bound_drawdown_checkpoint_allows_technical_review_but_retains_peaks():
+    data = snapshot()
+    checkpoint = drawdown_checkpoint()
+    checkpoint.update(_is_stop_triggered=False, drawdown_exited_controllers=[], mm_drawdown_breach=None)
+    data['state']['recovery_state']['strategy_checkpoints'] = {'life_mm_profiles.yaml': checkpoint}
+    before = deepcopy(data)
+    assert recovery_blockers(data['state']) == []
+    assert data == before
+
+
 def test_replay_extends_known_prefix_and_preserves_original_snapshot():
     data = snapshot(); before = deepcopy(data)
     plan = replay_positions(data)

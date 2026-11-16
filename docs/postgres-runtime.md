@@ -381,6 +381,19 @@ rechecks the exchange and local ledger, atomically repairs only proven position
 aggregates, records actor/audit/receipt and clears the technical HALT. Success
 leaves trading stopped; Start is separate. See [FE recovery contract](fe-integration.md#admin-recovery).
 
+Experimental scoped recovery (`MM_SCOPED_RECOVERY_ENABLED=false` by default)
+can keep funded Spot cash SELLs available during bounded, supported managed Spot
+BUY uncertainty. It requires a verified cold checkpoint, unchanged account and
+credentials, and the immutable original fee reservation recorded before send.
+All new BUY and Perpetual mutations remain paused. Unknown client IDs survive
+Stop and owner handoff; neither50013 nor51603 releases their reservations.
+Legacy/unsupported effects retain the ordinary shared-account pause. This mode
+keeps startup/live available while readiness stays degraded503 and exact native
+proof runs in background. It does not change risk stops or allow unchecked
+financial repair. See the [qualification plan](plans/MM_AUTOMATIC_RECOVERY_AVAILABILITY_TDD_PLAN.md#scoped-uncertain-outcome-follow-up--2026-11-13)
+and [status contract](fe-integration.md#automatic-order-reconciliation) before
+considering a rollout. No deployment env is enabled by this local change.
+
 For a clean financial checkpoint with a reviewed audit/receipt anchor, recovery
 verifies the complete venue/journal suffix rather than loading lifetime history
 into the 5,000-order/2,000-fill repair window. It preserves financial rows and
@@ -421,6 +434,23 @@ Regular owner reads keep an active owner alive, and `pool_pre_ping` replaces
 expired idle readers. This is an idle-session limit, not a change to active SQL,
 the existing2-second statement budget or3-second response deadline. Takeover
 still retains unresolved-effect HALT and requires normal recovery review.
+
+Opt-in engine diagnostics now include `db.ping`: native pool validation runs
+before SQLAlchemy cursor events, so its time is distinct from `db.sql`.
+Instrumentation preserves the native ping/reconnect result and exports no SQL,
+parameters or connection credentials. It does not disable `pool_pre_ping`, relax
+the owner/write fence or change SQL/I/O budgets.
+
+The authenticated admin status handler bounds its queue/read/recovery lookup
+to5 s. Expiry returns503 `unavailable` with qualified process diagnostics; a
+running DB call keeps its physical worker slot until actual completion, and
+expired work still in the admission queue is skipped. Optional `Server-Timing`
+and safe request correlation distinguish primary queue/run time from HTTP
+header/body wait. Authentication and transit are outside the handler budget.
+These are reporting observations, not proof that the trading owner stopped.
+The operator collector can opt into `read_observed_json` with
+`collect_quote_observation(..., read_with_timing=True)`; keep the existing10 s
+client budget, unknown-as-failure classification and original failed evidence.
 
 A recorder rollback latches that manager unhealthy and blocks subsequent ORM
 flushes/bulk writes, including tracking snapshots. A failed fill cannot be followed

@@ -1,4 +1,5 @@
 from copy import deepcopy
+from test.hummingbot.core.test_recovery import drawdown_checkpoint
 
 import pytest
 from sqlalchemy import select
@@ -32,6 +33,26 @@ def test_recovery_requires_admin_at_persistence_boundary(recovering, role):
     with pytest.raises(AccessDenied):
         store.request('recovery_check', 'key', {'expected_version': 0}, Principal('basic:test', 'basic', role), 'req')
     assert store.latest() is None
+
+
+@pytest.mark.parametrize('reason', ['drawdown_controller_limit', 'drawdown_global_limit'])
+def test_valid_drawdown_reset_is_rejected_as_risk_and_preserves_durable_checkpoint(recovering, reason):
+    store, owner = recovering
+    owner.require_recovery(reason)
+    owner._mutate_recovery(lambda state: state.update(strategy_checkpoints={'life_mm_profiles.yaml': drawdown_checkpoint(reason)}))
+    before = owner.check_owner()
+    with store.engine.connect() as db:
+        audits_before = db.execute(select(AdminAuditEvent)).mappings().all()
+    with pytest.raises(ControlConflict) as error:
+        store.request('recovery_reset', 'risk-reset', dict(expected_version=0, check_id='unreviewed',
+                      confirmation_token='a' * 32), ADMIN, 'req')
+    assert error.value.code == 'recovery_risk_stop'
+    after = owner.check_owner()
+    assert after['recovery_state'] == before['recovery_state']
+    assert after['control_version'] == before['control_version']
+    assert store.latest() is None
+    with store.engine.connect() as db:
+        assert db.execute(select(AdminAuditEvent)).mappings().all() == audits_before
 
 
 def ready_check(store, owner):

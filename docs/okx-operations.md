@@ -263,6 +263,10 @@ readback and retain the existing shutdown deadline/fence if proof is unavailable
 type without raw provider errors. `service.incidents` uses the corresponding
 `spot_outflow_terminal_*` reason so an unresolved proof can be distinguished from
 a spending cap. Do not clear protective state to make this wait disappear.
+The regular poll checks at most four terminal candidates. An unattempted remainder
+or a new arrival during that poll keeps its reservation and BUY-only wait, without
+being classified as a failed read. Actual unsuccessful proofs retain their stage
+incident and retry backoff; normal backlog continues on the existing poll cadence.
 
 Funding a wallet does not erase recorded trading outflow. A local cancel request
 alone does not release uncertain reservations. Restart does not reset HALT or

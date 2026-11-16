@@ -493,6 +493,17 @@ Ordinary status uses the owner's stored observation, marked stale when that owne
 is unavailable. A reporting projection failure marks prior account/position/PnL
 observations stale even while the trading owner remains healthy.
 
+The authenticated `/status` handler has a five-second read budget covering DB
+queue/work and the optional recovery lookup. Expiry returns the existing503
+`unavailable` envelope; it does not terminate the physical DB worker or imply
+that the trading engine stopped. Authentication and network transit have their
+own timing, outside this handler budget. Keep failed observations stale.
+Optional `Server-Timing` headers expose handler duration (`status`) and primary
+read queue/worker durations (`db_queue`, `db_run`) in milliseconds. A `running`
+description denotes work still executing after response timeout. These values
+are diagnostics, not readiness or order-outcome evidence; body/API contracts
+and server-generated `X-Request-ID` retain their existing meanings.
+
 Do not derive one green “Running” badge from HTTP 200, `/live`, `running`, a command
 receipt or one market's `ready` field alone.
 
@@ -606,6 +617,15 @@ active executors and cooldown. `spot_outflow_blocked` is a guard denial, not pro
 that the spending ceiling was reached: inspect `/status.spot_outflow`, including
 coverage, pending terminal orders and the last BUY denial, for its specific cause.
 
+A fresh pre-intent/pre-transport outflow-cap denial is typed `SpotOutflowBlocked`:
+the connector logs WARNING and the executor keeps its per-order DEBUG reason.
+An unsent managed Spot maker BUY retires through normal hold/shutdown bookkeeping
+instead of immediately spending its retry budget on new client IDs. The
+controller waits for its ordinary outflow preview to permit a fresh proposal;
+SELL and perpetual admission retain their existing gates. This neither resets
+the cap nor proves that an accepted/uncertain order was cancelled. Binding,
+fee/projection failures and changed original terms remain safety errors.
+
 Proposal diagnostics expire after five seconds. Their original UTC
 `proposal_observed_at` stays visible; an outdated or absent diagnosis becomes
 `quote_reason_unavailable` instead of repeating an old balance denial as current.
@@ -627,6 +647,9 @@ expandable technical-details panel for maintainers.
 
 Local pending creation does not prove that transport started or OKX accepted an
 order. A pending executor report does not identify a particular failed task.
+After a report failure, previous exposure/report values may remain visible,
+but controller readiness stays closed until a successful native report publish.
+Pending/working state alone does not prove that financial persistence succeeded.
 `unknown` is retained when there is no reliable stage evidence; do not invent a
 root cause. Working/idle/unavailable sides have no active diagnosis. Gaps, owner/
 generation changes, restart, invalid samples, stage/reason changes and observed
@@ -781,7 +804,11 @@ terminal-proof semantics. Owner-unavailable observations are marked stale.
 is exhausted. Scoped service incidents distinguish `spot_outflow_terminal_` stages
 `order_read`, `order_terminal`, `order_identity`, `fills_read`, `fill_identity`,
 `fill_coverage`, `order_recheck` and `recording`; retain the ordinary BUY-only wait
-and show the stage. Unknown stages retain the generic terminal-unavailable reason.
+and show the stage. Actual proof failures with unknown stages retain the generic
+terminal-unavailable reason. A bounded poll may leave orders not yet attempted,
+including arrivals during verification. Those orders remain a BUY-only verification
+wait and retain reservations, but do not create a failure incident or exponential
+retry delay. Use `pending_terminal_orders` to show the wait even without an incident.
 A complete native fill matching committed quantities/prices/original fees can
 settle its reservation without a redundant REST read. Spent USDT remains charged;
 this does not reset policy or grant Start/Reset authority.
@@ -1437,6 +1464,29 @@ context; render a retry countdown only while automatic work is active.
 available for supported journaled effects. False does not mean a current warm
 reconciliation failed; legacy ledgers need a reviewed baseline for cold recovery.
 The flag does not bypass current account, ownership, risk or control checks.
+The experimental `MM_SCOPED_RECOVERY_ENABLED` flag defaults to false. With a
+verified checkpoint and supported managed Spot BUY uncertainty, status may
+report `isolated=true`, `admission_mode=funded_spot_sell`, `quarantined_orders`,
+`reserved_base` and `reserved_quote_worst_case` (decimal strings, including the
+original supported fee envelope). Only funded Spot cash SELLs may continue;
+new BUYs and every Perpetual mutation remain paused. Unsupported or legacy
+attempts without the original fee envelope retain the shared-account pause.
+Render this as degraded trading with reserved uncertainty. Do not interpret
+`isolated=true` as two-sided quoting or completed reconciliation. Startup/live
+remain available; `/ready` remains503 while proof is incomplete. Existing Stop,
+ownership, persistence and risk gates still apply. On Stop, a supported unresolved
+intent can remain durably reserved with `phase=settled_stopped`; it has not been
+rejected, canceled or erased. A cold successor restores that obligation before
+admission. Deploying the flag does not manufacture support for old attempts.
+Disconnect does not erase an uncertain order. With this feature enabled, the
+runtime may retain its original verified binding while handing the obligation
+to cleanup; the selected key remains `revoking` and trading stays stopped. If
+order readback returns51603, the same credential operation reports
+`stage=waiting_for_dependency`, `reason_code=cleanup_orders_pending` and
+`next_retry_at`. Show “Waiting for order verification”, not “Disconnected”.
+The encrypted key and intent remain until actual terminal proof permits cleanup;
+neither retry count nor an empty open-order list authorizes credential removal.
+The handoff's binding projection grants no new-order or Start permission.
 During a verified owner shutdown, `recovery.halted` can briefly remain true as
 the admission fence. When `recovery.next_action=wait`, render the returned
 `operator` guidance instead of a manual-HALT banner: Start/Switch remain disabled,
@@ -1454,6 +1504,11 @@ correlation. `automatic_recovery_order_rejected` records an exact durable venue
 expiry rejection atomically with retirement of its intent and saved tracker. Financial proof/context stays private; no secret is returned.
 
 ### Reviewed manual recovery
+
+A valid drawdown breach is a `recovery_risk_stop`, not proof of checkpoint
+corruption. Show the risk-review guidance and keep Recover disabled: this API
+does not reset risk limits, PnL peaks or stop latches. A malformed drawdown
+checkpoint still reports `recovery_checkpoint_invalid` and blocks recovery.
 
 | Endpoint under `/api/v1/admin` | Purpose |
 | --- | --- |

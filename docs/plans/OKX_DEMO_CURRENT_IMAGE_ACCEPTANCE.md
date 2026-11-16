@@ -1,6 +1,156 @@
 # OKX Demo and current offline image acceptance
 
-Latest 2026-11-13: revision121/e635f3da7 deploys the readiness-wait correction.
+Latest verification2026-11-16:154/`7008a0d1f` matches its immutable artifact
+at100% traffic, with unchanged non-image spec and control/ack90. The unchanged
+30-minute window has901 samples, quality pass,149 recorded orders/17 Spot fills
+and zero failed reads, in-window probe timeouts, application ERROR, observed
+restart or ownership loss. Retain one earlier startup probe and two in-window
+loop-stall/recovery pairs. One sampled shutdown fence auto-clears; no operator
+reset is needed. Final02:06:49 ICT health is200/running/no HALT. Spot193/203
+=95.07% conservative fails99%; Perpetual has no eligible samples. Quote and
+residual startup/terminal-latency gates remain open. These differently guarded
+windows do not establish a controlled speed comparison; see [154 results](../../reports/performance/mm-quote-replacement-latency.md#revision154-deployment-verification--2026-11-16).
+
+Earlier verification2026-11-16:153/`9a73fae97` matches its immutable artifact,
+serves100% traffic and completes901 samples over30 minutes on one image.
+Collection quality passes; Spot326/338 =96.45% conservative fails99%, while
+Perpetual has no eligible two-sided samples. Keep five recovered probes in the
+window and three earlier after deployment. One sampled temporary shutdown fence
+auto-clears; no observed restart, ownership loss or operator-required HALT.
+There are200 recorded orders and64 Spot fills in-window. Final00:39:21 ICT
+readback is running/no HALT/control90 with all health200. Controller max17.71 ms
+is distinct from startup indicator preparation3.83 s; SQL max367.70 ms remains
+for correlation. No live mutation or guard relaxation is performed. Quote/probe
+release gates remain open; see [scoped results](../../reports/performance/mm-quote-replacement-latency.md#revision153-deployment-verification--2026-11-16).
+
+Earlier deployment2026-11-15:152/`caab218c1` verifies bounded fill-read batching
+at100% traffic with matching immutable artifact, unchanged spec/session/control90
+and policy/peaks. Recorded activity continues;28 checkpoint completions have
+zero errors in the retained diagnostic snapshot. Keep two recovered probes,
+the6.82 s controller span and one transient readiness503; health returns200.
+No application ERROR/restart/ownership loss is observed. The30-minute quote and
+residual-probe gates remain open; see [verification](../../reports/performance/mm-quote-replacement-latency.md#revision152-deployment-verification).
+
+Earlier deployment2026-11-15,12:11 ICT:151/`4b302019a` verifies the recovery-label
+fix, same session/control90 and risk peaks/policy, matching financial/binding
+hashes and all health200. Short smoke and49 recorded orders/14 Spot fills pass;
+four probes recover. See [deployment verification](../../reports/demo/cloudrun-drawdown-2500-5000.md#revision151-recovery-label-deployment-verification).
+
+Completed2026-11-15,11:22 ICT: source150/`3d59c383f` preserves the approved
+2,500/controller–5,000/global limits and peaks. Its30-minute window has901
+samples, no failed API reads,222 recorded orders/99 Spot fills and final matching
+financial/binding hashes; all health200, same owner/control90 and no operator-
+required HALT/restart/ownership loss. Three Random shutdown fences auto-clear;
+nine unknowns remain counted. Spot95.43% fails99%; Perpetual has no eligible
+two-sided sample. Five probes recover, with three earlier probes separate.
+INFO retention and quote/probe acceptance remain open. The separate recovery
+label correction is deployed by151. See [the scoped results](../../reports/demo/cloudrun-drawdown-2500-5000.md#revision150-source-deployment-and-connected-follow-up).
+
+Earlier read-only risk review2026-11-15,10:07 ICT: native covered-report drawdown
+is Spot1,477.60/limit1,000, Perpetual398.57/1,000 and global1,323.52/2,000 USDT.
+Venue quantities/pending orders and audited Spot cash changes match. Native
+latch-only rearm replay stops again; live risk settings/latch remain unchanged.
+This is current revaluation, not account equity loss or09:12 trigger-time PnL.
+See [risk review](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision147-drawdown-revaluation-and-unchanged-policy-replay).
+
+Latest deployment check2026-11-15,09:40 ICT:147/`f3567186c` is verified at100%
+traffic with unchanged settings. The bot inherits a Spot drawdown stop recorded
+on146 at09:12:45, before the new revision Ready09:19. DB financial/binding hashes
+match with no unresolved work; startup/live200, ready503 and no post-Ready
+orders/fills. The1,000/2,000 policy and risk latch are unchanged. No quote window
+is started while halted; INFO retention remains blocked. See
+[revision147](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision147-deployment-with-inherited-drawdown-stop).
+
+Local follow-up after146 repairs missing submission/probe evidence; final native,
+PostgreSQL and same-image packaged checks pass. The enabled flow retains168 phase
+records/zero drops; final finite logs have no ERROR/probe transition, with the
+initial losses/probes preserved. The code is deployed from147. Cloud INFO retention
+remains blocked by403 for `logging.sinks.update` / `logging.exclusions.update`;
+the sink is unchanged. No quote/probe/perpetual gate is closed. See
+[the local scope](../../reports/performance/mm-quote-replacement-latency.md#revision146-retained-evidence-and-local-follow-up--2026-11-15).
+
+Latest 2026-11-15,08:36 ICT: revision146/`3e0392607` is verified at100% traffic,
+unchanged2 CPU/1 GiB/env. The901-sample30-minute window passes collection quality,
+all status/liquidity reads return200 and final health/checkpoint hashes match.
+There are272 recorded orders/129 Spot fills, no final pending/uncertain/unapplied
+work, ERROR/restart/ownership loss or incident HALT reset. Six probe warnings
+remain, with three earlier startup probes retained separately. Spot95.06% fails99%;
+Perpetual has no confirmed eligible two-sided samples. Five unknowns include one
+temporary shutdown fence that clears next sample. Fast INFO is excluded by the
+project sink; header timing is verified but complete server-log correlation and
+the original status-timeout cause remain open. No guard or threshold is relaxed.
+See [revision146](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision146-status-timing-and-native-pre-ping-observation).
+
+Latest 2026-11-15, 03:14 ICT: revision145/`f5f181e92` is verified at 100% traffic,
+unchanged 2 CPU/1 GiB/env. Its completed collection has897 samples, 187 recorded
+orders/76 Spot fills and matching checkpoints, but quality fails after one status
+timeout. Spot95.74% still fails99%; Perpetual remains unqualified. Four probes
+remain; no engine restart/ownership loss. Final process is live/no HALT but both
+markets have zero quotes under `reference_deviation`; `/ready`503 is retained
+as an HTTP ERROR, distinct from an application exception. No guard is widened.
+See [revision145](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision145-single-held-checkpoint-deployment-and-observation).
+Separate 03:18:23 ICT readback: generation175 is running/no HALT, health200,
+Spot2 BUY/2 SELL and Perpetual0 BUY/2 SELL with unchanged control88/88. The
+automatic return to quotes does not close the failed window's gates.
+
+Latest2026-11-15,02:09ICT: revision144/4fa9ef95c is verified at100% traffic,
+unchanged2CPU/1GiB/env. The valid repeated30-minute window has901 samples,
+230 recorded orders/102 Spot fills, matching checkpoints and final running/
+control88/88/health200. Three profile shutdowns complete without ERROR/restart/
+ownership loss. One300.798ms probe timeout remains; Spot93.70% fails99% and
+perpetual has no confirmed eligible two-sided samples/new fills. The first
+Mac-sleep-interrupted attempt remains invalid. This is not full release
+acceptance. See [revision144](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision144-guarded-admission-deployment-and-observation).
+
+Local follow-up after revision142 reduces ordinary intent/Created persistence
+from four guarded flushes to two and adds bounded timing for these DB stages.
+Native929 tests +9 subtests,217 disposable PostgreSQL tests and two same-image
+packaged scenarios pass. The final local shutdown run still has one303.954ms
+probe timeout, recovered after1.043s without restart/HALT. The fix is now deployed
+and included in revision144; its local evidence does not close quote/perpetual or
+the residual probe gates. No config/migration is needed. See
+[the local follow-up](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision142-intentack-db-follow-up--local).
+
+Latest2026-11-14,23:13ICT: revision142/`f61e6516c` is verified at100% traffic,
+unchanged non-image settings. Its complete901-sample30-minute window passes
+sample quality, records270 orders/141 Spot fills and ends running/control88/88/
+no HALT with health200 and matching checkpoints. Three profile shutdowns finish
+at1.440/1.148/1.130s, without observed ERROR/restart/ownership loss. Three short
+probe timeouts remain. Spot95.32% still fails99%; perpetual has no new fill or
+confirmed eligible two-sided samples. No submission-block event occurs, so the
+fixed branch has no positive connected fault receipt. This is not full release
+acceptance. See [revision142](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision142-session-fence-deployment-and-observation).
+
+Local follow-up after revision141: the shutdown-fenced maker retry is reproduced
+with native connector/PostgreSQL (12 local IDs, no transport). The correction
+retires one managed entry without retry, retaining fills/fees and genuine safety
+errors. Native/PG and both packaged regressions pass; it is now deployed on revision142 and
+requires no new env/migration. See
+[the local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision141-session-fence-retry-correction--local).
+
+Latest2026-11-14,20:09ICT: revision141/`d56186f29` is verified at100% traffic,
+unchanged non-image settings. The complete30-minute window retains898 samples
+with quality pass,186 recorded orders/47 Spot fills and matching checkpoints.
+Final health is200; control88/88 is running/no HALT. Three profile shutdowns
+finish in1.588/1.404/1.521s without restart/ownership loss. Spot98.06% still
+fails99%; perpetual remains unqualified. Five probe timeouts, one delayed
+observation and7 guard-block ERROR entries/paired retry logs remain. This is
+not an ERROR-free result or full release acceptance. See
+[revision141](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision141-shutdown-proof-deployment-and-observation).
+
+The deployed cleanup correction has3,760 native +16 subtests,98 PostgreSQL and
+2 packaged E2E passes. Historical local failures and connected limitations stay
+retained. See [the local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision140-shutdown-proof-sharing-and-local-correction).
+
+Previously2026-11-14: revision140/`53f21fa38` is independently verified at100% traffic.
+Its unchanged901-sample30-minute window has204 recorded orders/65 Spot fills,
+no in-window ERROR/restart,8 probe timeouts and matching final checkpoints.
+Bot remains running/no HALT/control88/88. Quote acceptance is still open:
+Spot97.68% fails99%; perpetual has no confirmed eligible two-sided samples/new
+fill. A pre-window8s shutdown timeout/restart remains a separate open incident.
+See the [revision140 evidence](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision140-cash-progress-deployment-and-observation).
+
+Earlier2026-11-13: revision121/e635f3da7 deploys the readiness-wait correction.
 The old technical HALT is recovered after independent verification, audit264,
 with zero financial/risk changes. Start succeeds at control86, both/Random/
 until-stopped. The00:13 local short check is running with active orders, no HALT,

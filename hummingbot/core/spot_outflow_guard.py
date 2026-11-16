@@ -9,9 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 
 from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketEvent, OrderFilledEvent
-from hummingbot.core.order_submission_guard import SubmissionBlocked
+from hummingbot.core.order_submission_guard import SpotOutflowBlocked, SubmissionBlocked
 from hummingbot.core.spot_outflow import MAX_FILLS, ZERO, SpotOutflowConfig, SpotOutflowPolicy, SpotOutflowProjection
 from hummingbot.model.order import Order
 from hummingbot.model.trade_fill import TradeFill
@@ -167,8 +168,18 @@ class SpotOutflowGuard:
             if self.terminal_pending:
                 raise ValueError("spot_outflow_reconciling")
             flat = self._flat_fee(connector, order)
+            amount, price = Decimal(order.amount), Decimal(order.price)
+            if any(not value.is_finite() or value <= ZERO for value in (amount, price)):
+                raise ValueError("spot_outflow_order_terms_unavailable")
+            existing = self.projection.reservations.get(order.client_order_id)
+            if existing is not None and (existing.amount, existing.price, existing.flat_fee) != (amount, price, flat):
+                raise ValueError("spot_outflow_order_terms_changed")
             if not self.projection.reserve(order, flat):
-                raise ValueError(self.projection.reason() or "spot_outflow_limit")
+                reason = self.projection.reason()
+                if reason:
+                    raise ValueError(reason)
+                self.last_buy_denial = "spot_outflow_limit"
+                raise SpotOutflowBlocked(self.last_buy_denial)
         except (ValueError, TypeError, ArithmeticError) as error:
             self.last_buy_denial = str(error)
             raise SubmissionBlocked(self.last_buy_denial) from None
@@ -221,11 +232,12 @@ class SpotOutflowGuard:
             if order.is_done:
                 self.mark_terminal_pending(client_id)
 
-    async def reconcile_terminal(self, *, all_orders=False):
+    async def reconcile_terminal(self, *, all_orders=False, deferred=()):
         for client_id, (_, order) in self.orders.items():
             if order.is_done or all_orders:
                 self.mark_terminal_pending(client_id)
-        candidates = tuple(islice(self.terminal_pending, MAX_FILLS if all_orders else 4))
+        candidates = tuple(islice((identity for identity in self.terminal_pending if identity not in deferred),
+                                  MAX_FILLS if all_orders else 4))
         for client_id in candidates:
             if client_id not in self.terminal_pending:
                 continue  # An earlier awaited proof may have removed an unsent order.
@@ -240,11 +252,8 @@ class SpotOutflowGuard:
             except (ValueError, OSError, asyncio.TimeoutError, KeyError, ArithmeticError) as error:
                 self._terminal_failure(client_id, type(error).__name__)
                 continue  # Retain the reservation and explicit BUY-only wait.
-            self.terminal_pending.pop(client_id, None)
-            self.orders.pop(client_id, None)
-            self.terminal_stages.pop(client_id, None)
-            self.terminal_failures.pop(client_id, None)
-        if all_orders and self.terminal_pending:
+            self._forget_terminal_order(client_id)
+        if all_orders and set(self.terminal_pending) - set(deferred):
             raise SubmissionBlocked("spot_outflow terminal fill reconciliation is incomplete")
 
     def _confirm_committed_fill(self, client_id):
@@ -262,6 +271,40 @@ class SpotOutflowGuard:
         self.projection.confirm_terminal(client_id, order.amount)
         return True
 
+    async def refresh_canceled_order(self, connector, order):
+        """One fresh strong proof can serve shutdown and this cash reservation.
+
+        Only an exact retained Spot BUY with a venue ID is supported. A cancel
+        ACK may still be queued locally; the fresh venue proof, not that local
+        state, establishes termination. No proof crosses checkpoint phases.
+        """
+        retained = self.orders.get(order.client_order_id)
+        if (connector.name != 'okx' or order.trade_type != TradeType.BUY or not order.exchange_order_id
+                or order.current_state not in (OrderState.CANCELED, OrderState.PENDING_CANCEL,
+                                               OrderState.OPEN, OrderState.PARTIALLY_FILLED)
+                or retained is None or retained[0] is not connector or retained[1] is not order):
+            return False
+        self._check_terminal_identity(connector, order)
+        self.mark_terminal_pending(order.client_order_id)
+        if not await self._confirm(order.client_order_id, apply_terminal=True):
+            return False  # Stale/nonterminal venue data retains the native polling path.
+        self._forget_terminal_order(order.client_order_id)
+        return True
+
+    def _check_terminal_identity(self, connector, order):
+        self.owner.check_owner()
+        retained = self.orders.get(order.client_order_id, (None, None))
+        if not self._identity_matches() or retained[0] is not connector or retained[1] is not order:
+            raise SubmissionBlocked('spot_outflow terminal order/account identity changed')
+
+    def _forget_terminal_order(self, client_id):
+        # Projection reservations are retired only by confirm_terminal/advance,
+        # including committed fills whose exchange timestamp is still future.
+        self.terminal_pending.pop(client_id, None)
+        self.orders.pop(client_id, None)
+        self.terminal_stages.pop(client_id, None)
+        self.terminal_failures.pop(client_id, None)
+
     def _terminal_failure(self, client_id, error_type):
         if client_id not in self.terminal_pending:
             self.terminal_stages.pop(client_id, None)
@@ -277,13 +320,14 @@ class SpotOutflowGuard:
         self.terminal_failures[client_id] = failure
 
     def terminal_reason_code(self):
+        """Return an actual proof failure, not merely unattempted bounded work."""
         for client_id in self.terminal_pending:
             failure = self.terminal_failures.get(client_id)
             if failure:
                 return 'spot_outflow_terminal_' + failure[0]
-        return 'spot_outflow_terminal_unavailable'
+        return None
 
-    async def _confirm(self, client_id):
+    async def _confirm(self, client_id, *, apply_terminal=False):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         connector, order = self.orders[client_id]
         self.terminal_stages[client_id] = 'order_read'
@@ -333,6 +377,8 @@ class SpotOutflowGuard:
         if (str(final.get("code")) != "0" or len(final.get("data", [])) != 1
                 or any(final["data"][0].get(key) != first.get(key) for key in keys)):
             raise ValueError("Order changed during terminal proof")
+        if apply_terminal:
+            self._check_terminal_identity(connector, order)
         self.terminal_stages[client_id] = 'recording'
         recorder = MarketsRecorder._shared_instance
         recorder._did_create_order(MarketEvent.BuyOrderCreated.value, connector, BuyOrderCreatedEvent(
@@ -348,6 +394,14 @@ class SpotOutflowGuard:
                 amount=fill.fill_base_amount, trade_fee=fill.fee, exchange_trade_id=fill.trade_id,
                 leverage=order.leverage, position=order.position.value))
         recorder.sql_manager.assert_persistence_healthy()
+        if apply_terminal:
+            # Keep native fill-before-terminal ordering. The converter is the
+            # connector's normal polling converter; it performs no second GET.
+            await connector._order_tracker.process_order_update(
+                connector._order_update_from_data(order, final['data'][0]))
+            self._check_terminal_identity(connector, order)
+            if order.executed_amount_base != total:
+                raise ValueError('Native terminal fill quantity does not match the proof')
         self.projection.confirm_terminal(client_id, total)
         return True
 

@@ -56,6 +56,10 @@ class MarketReadinessBlocked(SubmissionBlocked):
     """Required market/data/exposure readiness currently prevents submission."""
 
 
+class SpotOutflowBlocked(MarketReadinessBlocked):
+    """The current cash BUY cannot fit within its unchanged outflow cap."""
+
+
 class QuoteRefreshRequired(SubmissionBlocked):
     """The fresh pre-transport spread check rejected a configured entry quote."""
 
@@ -65,6 +69,7 @@ def submission_block_log_context(error_type):
     return {
         "SessionSubmissionBlocked": (logging.INFO, "session_submission_closed"),
         "MarketReadinessBlocked": (logging.WARNING, "market_not_ready"),
+        "SpotOutflowBlocked": (logging.WARNING, "spot_outflow_limit"),
         "QuoteRefreshRequired": (logging.WARNING, "spread_policy_quote_rejected"),
         "SubmissionBlocked": (logging.ERROR, "submission_safety_blocked"),
         "OwnershipLost": (logging.ERROR, "ownership_lost"),
@@ -87,7 +92,7 @@ def active_guard():
 async def before_order(connector, order) -> None:
     guard = active_guard()
     if guard is not None:
-        guard.before_order(connector, order)
+        await guard.admit_order(connector, order)
 
 
 async def before_rest(request):
@@ -129,6 +134,16 @@ def unresolved_submission(client_order_id):
 
 def managed_terminal_order(order):
     return postgres_requested() and _guard is not None and getattr(order, '_managed_recovery_order', False) is True
+
+
+def recovery_side_permitted(connector_name, side):
+    """Proposal filtering only; both durable send gates remain authoritative."""
+    if not postgres_requested() or _guard is None or getattr(_guard, 'scoped_recovery_enabled', False) is not True:
+        return True
+    recovery = _guard.automatic_recovery
+    if not recovery.active:
+        return True
+    return recovery.isolated and connector_name == 'okx' and side.name == 'SELL'
 
 
 @trace_runtime('order.proof', order_parameter='order')

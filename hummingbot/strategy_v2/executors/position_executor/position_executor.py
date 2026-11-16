@@ -63,6 +63,19 @@ class PositionExecutor(ExecutorBase):
 
         self._total_executed_amount_backup: Decimal = Decimal("0")
         self._shutdown_orders_changed = asyncio.Event()
+        self._restored_pending_entry = None
+
+    def bind_pending_entry(self, order):
+        """Attach an existing durable intent; this executor may never place it again."""
+        if (self._open_order is not None or self.config.connector_name != 'okx'
+                or self.config.mm_session_id is None or self.config.side != TradeType.BUY
+                or order.trade_type != self.config.side or order.trading_pair != self.config.trading_pair
+                or order.amount != self.config.amount or order.price != self.config.entry_price):
+            raise ValueError('Restored entry identity mismatch')
+        self._restored_pending_entry = order
+        self._open_order = TrackedOrder(order_id=order.client_order_id)
+        self._open_order.order = order
+        self._entry_quote_prepared = True
 
     @property
     def is_perpetual(self) -> bool:
@@ -360,6 +373,13 @@ class PositionExecutor(ExecutorBase):
 
         :return: None
         """
+        restored = self._restored_pending_entry
+        if restored is not None and restored.executed_amount_base:
+            controller = getattr(self._strategy, 'controllers', {}).get(self.config.controller_id)
+            check = getattr(type(controller), '_entry_account_covers_fill', None)
+            stamps = [trade.fill_timestamp for trade in restored.order_fills.values()]
+            if not stamps or check is None or not check(controller, self.executor_info, max(stamps)):
+                return  # No capacity release before the account covers the known debit/credit.
         self.close_timestamp = self._strategy.current_timestamp
         if self.all_orders_completed():
             if self.close_type == CloseType.POSITION_HOLD:
@@ -496,6 +516,9 @@ class PositionExecutor(ExecutorBase):
 
         :return: None
         """
+        if self._restored_pending_entry is not None:
+            self.early_stop(keep_position=True)
+            return  # A terminal callback must never reopen a restored uncertain ID.
         if (not self._entry_quote_prepared and self._open_order is None and not self._failed_orders
                 and self.config.mm_session_id is not None and self.config.use_configured_entry_price):
             controllers = getattr(self._strategy, 'controllers', {})
@@ -753,6 +776,12 @@ class PositionExecutor(ExecutorBase):
         self._total_executed_amount_backup += event.base_asset_amount
         self.update_tracked_orders_with_order_id(event.order_id)
 
+        if (self._is_managed_maker_entry and self._open_order
+                and self._open_order.order_id == event.order_id):
+            notify = getattr(self._strategy, 'notify_executor_entry_filled', None)
+            if callable(notify):
+                notify(self)
+
         if self._take_profit_limit_order and self._take_profit_limit_order.order_id == event.order_id:
             self.close_type = CloseType.TAKE_PROFIT
             self._close_order = self._take_profit_limit_order
@@ -781,6 +810,8 @@ class PositionExecutor(ExecutorBase):
                 self.early_stop(keep_position=True)
                 self.logger().debug('Confirmed zero-filled maker entry canceled; retiring executor_id=%s order_id=%s',
                                     self.config.id, event.order_id)
+            elif self._restored_pending_entry is not None:
+                self.early_stop(keep_position=True)
         if self._take_profit_limit_order and event.order_id == self._take_profit_limit_order.order_id:
             self._failed_orders.append(self._take_profit_limit_order)
             self._take_profit_limit_order = None
@@ -792,6 +823,13 @@ class PositionExecutor(ExecutorBase):
         """
         self._notify_shutdown_order_change(event.order_id)
         if self._open_order and event.order_id == self._open_order.order_id:
+            session_closed = (event.error_type == 'SessionSubmissionBlocked'
+                              and getattr(self.config, 'mm_session_id', None) is not None
+                              and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
+            if session_closed and self._open_order.order is None:
+                # Native failure may precede the created callback. Retain its
+                # cached order/fills for the existing terminal-first checkpoint.
+                self.update_tracked_orders_with_order_id(event.order_id)
             self._failed_orders.append(self._open_order)
             self._open_order = None
             # A configured entry cannot fix a fresh spread rejection by retrying
@@ -799,10 +837,18 @@ class PositionExecutor(ExecutorBase):
             # only the controller may build a replacement from current policy.
             reprice = (event.error_type == "QuoteRefreshRequired" and self.config.use_configured_entry_price
                        and self.status == RunnableStatus.RUNNING)
-            if reprice:
+            outflow_wait = (event.error_type == "SpotOutflowBlocked" and self.config.mm_session_id is not None
+                            and self.config.connector_name == 'okx' and self.config.side == TradeType.BUY
+                            and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
+            if reprice or (outflow_wait or session_closed) and self.status == RunnableStatus.RUNNING:
+                # An unchanged cap or retired session cannot be repaired with a
+                # new local identity. Drain/hold native effects normally; only
+                # fresh controller/session admission can authorize a replacement.
                 self.early_stop(keep_position=True)
-            self._log_order_failure("Open", event, reprice=reprice)
-            self._current_retries += 1
+            self._log_order_failure("Open", event, reprice=reprice, outflow_wait=outflow_wait,
+                                    session_closed=session_closed)
+            if not (outflow_wait or session_closed):
+                self._current_retries += 1
         elif self._close_order and event.order_id == self._close_order.order_id:
             self._failed_orders.append(self._close_order)
             self._close_order = None
@@ -819,18 +865,24 @@ class PositionExecutor(ExecutorBase):
                (self._open_order, self._close_order, self._take_profit_limit_order)):
             self._shutdown_orders_changed.set()
 
-    def _log_order_failure(self, role: str, event: MarketOrderFailureEvent, *, reprice: bool = False):
+    def _log_order_failure(self, role: str, event: MarketOrderFailureEvent, *, reprice: bool = False,
+                           outflow_wait: bool = False, session_closed: bool = False):
         from hummingbot.core.order_submission_guard import submission_block_log_context
         context = submission_block_log_context(event.error_type)
         if context is None:
             self.logger().error(f"{role} order failed {event.order_id}. Retrying {self._current_retries}/{self._max_retries}")
             return
         level, reason = context
-        if event.error_type == 'QuoteRefreshRequired':
+        if event.error_type in ('QuoteRefreshRequired', 'SpotOutflowBlocked'):
             # The connector owns the bounded operational warning; executor
             # retirement and its per-order diagnostic remain intact.
             level = logging.DEBUG
-        action = "Retiring entry executor for a fresh quote." if reprice else f"Retry count {self._current_retries}/{self._max_retries}."
+        if session_closed:
+            action = "Retiring entry executor for a closed session; no local retry."
+        elif outflow_wait:
+            action = "Waiting for outflow capacity through the controller; no local retry."
+        else:
+            action = "Retiring entry executor for a fresh quote." if reprice else f"Retry count {self._current_retries}/{self._max_retries}."
         self.logger().log(
             level, "%s order blocked by service checks: order_id=%s reason=%s. %s",
             role, event.order_id, event.error_message or reason, action,
@@ -931,6 +983,8 @@ class PositionExecutor(ExecutorBase):
                     self._trailing_stop_trigger_pct = net_pnl_pct - self.config.triple_barrier_config.trailing_stop.trailing_delta
 
     async def validate_sufficient_balance(self):
+        if self._restored_pending_entry is not None:
+            return  # It is an existing reserved effect, not a new budget request.
         if self.is_perpetual:
             order_candidate = PerpetualOrderCandidate(
                 trading_pair=self.config.trading_pair,

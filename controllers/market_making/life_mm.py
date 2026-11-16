@@ -21,7 +21,7 @@ from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.utils.inventory_skew import InventorySkewConfig, inventory_skew_ratios
 from hummingbot.strategy_v2.utils.listing_bootstrap import ListingBootstrap
-from hummingbot.strategy_v2.utils.mm_spread import SpreadPolicy, SpreadPolicyConfig
+from hummingbot.strategy_v2.utils.mm_spread import SpreadPolicy, SpreadPolicyConfig, prepare_natr
 from hummingbot.strategy_v2.utils.perpetual_reduction import InventoryReductionConfig
 from hummingbot.strategy_v2.utils.perpetual_reduction_runtime import PerpetualReductionMixin, quote_price
 from hummingbot.strategy_v2.utils.quote_guard import (
@@ -230,6 +230,9 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         self._startup_retry_sleep = asyncio.sleep
         self._quote_guard = QuoteGuard(config.quote_guards, config.sideways_range)
         self._spread_policy = SpreadPolicy(config.spread_policy)
+        # None: no initial preparation yet; False: use fallback and retry
+        # without parking normal freshness/cancellation cycles.
+        self._natr_prepared: Optional[bool] = None
         self._volatility_saved_pause = None
         self._volatility_checkpoint = None
         self._last_defense_log = None
@@ -311,6 +314,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
             self._spread_policy.defense.state = 'reduced'
         self._spread_policy.defense.reset_recovery()
 
+    @trace_runtime('controller.policy')
     def sync_volatility_checkpoint(self):
         if self._spread_policy.defense is None:
             return True
@@ -555,7 +559,8 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 if self._bootstrap is not None and not self._bootstrap.market_qualified else self.config.total_amount_quote)
         return base * self._spread_policy.size_factor(self.market_data_provider.time())
 
-    def update_reference(self, *, sample_guard=False):
+    @trace_runtime('controller.reference')
+    def update_reference(self, *, sample_guard=False, refresh_volatility=True):
         guard_status = None
         self._inventory_factors = (Decimal("1"), Decimal("1"), Decimal("1"))
         self._inventory_status = None
@@ -607,7 +612,8 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                     candle = self._spread_candle_config()
                     key = provider._generate_candle_feed_key(candle)
                     # Use existing feed only. Readiness/send checks never create/fetch a feed.
-                    self._spread_policy.refresh(provider.candles_feeds.get(key), provider.time())
+                    if refresh_volatility:
+                        self._spread_policy.refresh(provider.candles_feeds.get(key), provider.time())
                     self._spread_policy.sample_defense(provider.time(), time.monotonic())
                 if cfg.defense is not None:
                     if self._spread_policy.defense.state == 'paused':
@@ -658,8 +664,21 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                                    "spread_policy": self._spread_status(reason=reason, sample=sample_guard) if self.config.spread_policy.enabled else None,
                                    "internal_error": not isinstance(error, (ValueError, ArithmeticError, OSError))}
 
+    @trace_runtime('controller.indicator')
+    async def _prepare_volatility_indicator(self, *, wait=False):
+        try:
+            self._natr_prepared = (await self._startup_once(prepare_natr) if wait else await prepare_natr(wait=False))
+        except Exception:
+            self._natr_prepared = False
+        if not self._natr_prepared:
+            # Preserve the declared static/wait fallback without retrying the
+            # failed dependency synchronously on the event loop.
+            self._spread_policy.refresh(None, self.market_data_provider.time())
+
     async def update_processed_data(self):
-        self.update_reference(sample_guard=True)
+        if self.config.spread_policy.volatility.enabled and not self._natr_prepared:
+            await self._prepare_volatility_indicator(wait=self._natr_prepared is None)
+        self.update_reference(sample_guard=True, refresh_volatility=self._natr_prepared is True)
 
     @trace_runtime('controller.cycle')
     async def control_task(self):
@@ -691,6 +710,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         except asyncio.TimeoutError:
             pass  # Periodic freshness and cancellation checks still run without publications.
 
+    @trace_runtime('controller.actions')
     async def send_actions(self, executor_actions):
         event = self.executors_update_event
         revision = event.revision if isinstance(event, _ExecutorUpdateEvent) else None
@@ -714,6 +734,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         self._stops_requested.update(active)
         return actions
 
+    @trace_runtime('controller.proposals')
     def determine_executor_actions(self):
         if self.reduction_enabled:
             if self._control_error or not self._session_admitted or not self.processed_data.get('ready') or not self.market_data_provider.ready:
@@ -905,6 +926,11 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
 
     def create_actions_proposal(self):
         if self.reduction_enabled:
+            from hummingbot.core.order_submission_guard import recovery_side_permitted
+            if not recovery_side_permitted(self.config.connector_name, TradeType.SELL):
+                self._reset_quote_diagnostics()
+                self._quote_reason('uncertain_order_risk_paused')
+                return []
             return self._create_reduction_actions()
         return self._create_actions_proposal()
 
@@ -935,6 +961,10 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 return []
             for action in super().create_actions_proposal():
                 config = action.executor_config
+                from hummingbot.core.order_submission_guard import recovery_side_permitted
+                if not recovery_side_permitted(self.config.connector_name, config.side):
+                    self._quote_reason('uncertain_order_risk_paused', config.side)
+                    continue
                 if (self.config.inventory_skew.enabled or self._spread_policy.defense is not None) and pending_allocation + config.amount * config.entry_price > self._quote_budget():
                     self._quote_reason('allocation_limit', config.side)
                     continue
@@ -1074,6 +1104,9 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 self._control_wait_until = None
 
     async def on_start(self):
+        if self.config.spread_policy.volatility.enabled and not self._natr_prepared:
+            self._startup_stage = 'volatility_indicator'
+            await self._prepare_volatility_indicator(wait=True)
         if self.config.connector_name == "okx_perpetual":
             connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
             self._startup_stage = 'position_mode_lock'

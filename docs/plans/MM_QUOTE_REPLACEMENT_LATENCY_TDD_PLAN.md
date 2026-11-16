@@ -15,6 +15,306 @@ plus its normal loop sleep. A cancel ACK can update the order during that wait
 without waking the task. Managed closing quotes will use a coalescing wake event;
 legacy executors retain their timing. Waking a loop grants no new order authority.
 
+## Native quote pipeline follow-up — local 2026-11-16
+
+- [x] Preserve154's classifier and failed95.07% result. Join all three SELL gaps
+  to recorded order/fill timelines with opaque IDs. Recorded second-resolution
+  timestamps and absent retained per-order phases cannot prove exact DB/ACK
+  delays. Treat sampled pending states separately from a demonstrated defect.
+- [x] Resolve the seven unknown samples: five startup frames without usable
+  liquidity, one old-generation shutdown fence and one wait for the first
+  drawdown report. Keep every sample unknown; do not reclassify startup as quotes.
+- [x] Extend native composition through proposal, executor, actual OKX connector,
+  REST/authentication, tracker ACK and `own_quotes`. Four BUY/SELL and account-
+  ordering cases retain account/commit gates, observe no-working/pending states
+  and one send while ACK is held, then regain two-sided observation after ACK.
+- [x] RED three independent report-readiness defects: failed native hold commit
+  re-publishes old action readiness; ordinary report/valuation failure leaves
+  prior readiness set. Only successful native report publication may set it;
+  failure clears readiness while retaining exposure data and normal retries.
+- [x] Exercise real PostgreSQL errors after flush and before COMMIT: financial
+  rows roll back, the failed-writer latch remains closed and listener/controller
+  readiness cannot bypass it. No automatic latch reset or fresh send authority.
+- [x] Frozen Cloud Run regression passes3849 tests +16 subtests;101 related
+  disposable PostgreSQL tests and hooks pass. The focused7 native cases overlap
+  the target. Runtime/test source hashes match the validated snapshot.
+- [ ] Commit/deploy this report-readiness correction; no environment, migration
+  or API schema change is required.
+- [ ] Observe the subsequent image; do not claim this independently reproduced
+  failure-path bug caused154's healthy short waits or closes the99% quote gate.
+
+Evidence: `build/quote-handoff-followup-20261116/`; see
+[native follow-up](../../reports/performance/mm-quote-replacement-latency.md#native-quote-pipeline-follow-up--local-2026-11-16).
+
+## Final send gate progress — local 2026-11-16
+
+- [x] Correlate153's actual retained thread/stack evidence: the367.70 ms SQL is
+  on a worker; five of ten in-window stall stacks explicitly enter send-journal
+  work. Keep terminal writes, sampled gaps and missing INFO as separate limits.
+- [x] RED four real PostgreSQL cases before editing runtime: journal read budget,
+  health callback progress, Stop between final gates and queued cancellation.
+  Share admission's cooperative loop turn at final authorization; keep network
+  I/O outside that slot and freshly recheck guard/owner/session after the wait.
+- [x] Reduce the journal transition to one conditional UPDATE/RETURNING while
+  retaining validation, atomic rollback, physical ownership, commit-before-send
+  and ambiguous-COMMIT protection. Account/cancel authority is unchanged.
+- [x] RED two tracker-retirement false-HALT cases. Original-authorization controls
+  reproduce the same pre-existing throttle race. Resolve only locally proven
+  unsent identities via the native failure handler; retain unknown-send fences.
+- [x] Keep direct-call queue tracking scoped to final authorization; a draft
+  lifecycle RED catches retention of a long-lived service task. Native create
+  tracking and transport counters retain their original lifetimes.
+- [x] Paired fresh-ledger replay with3 ms injected per SQL retains eight sends/
+  receipts,56→48 statements, health callback392–410→16–17 ms and heartbeat
+  gap437–453→102–124 ms on final frozen source. One complete burst is slower;
+  this qualifies callback fairness, not improved whole-burst throughput or
+  Cloud quote performance. Earlier draft timings remain separately recorded.
+- [x] Final source-frozen regression passes3842 tests +16 subtests;197
+  disposable PostgreSQL cases pass (191 related +4 paired +2 original controls).
+  Focused39 native lifecycle cases overlap the target. Hooks/hashes pass.
+- [x] Commit/deploy7008a0d1f on154 at100% traffic with matching immutable digest
+  and unchanged non-image spec. No environment or migration change required.
+- [x] Complete the unchanged30-minute window:901 samples, quality pass,149
+  recorded orders/17 Spot fills, no failed reads/restarts/ownership loss or
+  in-window probe timeout. One temporary shutdown fence auto-clears; retain the
+  separate startup probe. Final health200/running/no HALT/control90.
+- [ ] Close99% quotes and residual startup/terminal latency:154 Spot95.07%
+  conservative fails (193 two-sided/3 gaps/7 unknown); Perpetual has no eligible
+  samples. Retain two loop-stall/recovery pairs and INFO limitations. These
+  differently guarded windows are not a controlled performance comparison.
+
+[154 verification](../../reports/performance/mm-quote-replacement-latency.md#revision154-deployment-verification--2026-11-16).
+
+See [scope and receipts](../../reports/performance/mm-quote-replacement-latency.md#final-send-gate-progress--local-2026-11-16).
+
+## Cold indicator preparation — local 2026-11-15
+
+- [x] Correlate152's6816.68 ms controller cycle with the first probe window.
+  Its children have already left the retained recent ring; no unique Cloud
+  cause is proven. Reproduce synchronous first-use NATR import/calculation in
+  fresh processes instead of treating warmed unit calls as a cold-start test.
+- [x] RED five native preparation cases. Share one pure worker job for enabled
+  volatility, await preparation within the existing startup budget and discard
+  its synthetic result. Actual completed candles still supply every quote.
+- [x] Preserve cancellation, current execution context and declared static/wait
+  fallback. The draft pending-worker test catches a postponed freshness check;
+  normal retries now poll without waiting and cannot create another worker.
+  Revocation during preparation cannot reopen quotes after completion.
+- [x] Add bounded reference/proposal/action/policy subspans and a preparation
+  stage. The missing-subphase RED is retained. Async preparation elapsed time
+  is distinguished from heartbeat stalls; no health threshold is changed.
+- [x] The full source-frozen regression passes3830 tests +16 subtests;28
+  disposable PostgreSQL cases pass. Final indicator/catalogue selection21
+  passes (overlapping coverage). The pre-existing historical catalogue hash
+  failure is reproduced on committed source and corrected only in its fixture;
+  current2,500/5,000 policy remains independently hashed/session-pinned.
+- [x] Fresh-process native controls retain identical NATR and native proposals:
+  first-cycle273–542 ms becomes6.2–6.6 ms, sampled heartbeat gap278–546 ms becomes
+  15–20 ms. Packaged pure-indicator smoke at2CPU/1GiB also preserves NATR;
+  its686→127 ms heartbeat observation is not a full-service or Cloud acceptance.
+- [x] Verify153/`9a73fae97` with matching immutable digest and unchanged spec;
+  complete the unchanged30-minute cold-start/Random follow-up:901 samples,
+  quality pass, same session/control90. Controller max17.71 ms; startup pure
+  preparation max3.83 s is outside the hot cycle. No live mutation is performed.
+- [ ] Close99% quotes and residual probes: Spot96.45% conservative fails;
+  Perpetual has no eligible samples. Five probes recover in-window, three
+  earlier. One sampled shutdown fence auto-clears; no restart/operator-required
+  HALT. Keep SQL367.70 ms and pending-send gap samples for further correlation.
+  See [153 verification](../../reports/performance/mm-quote-replacement-latency.md#revision153-deployment-verification--2026-11-16).
+
+Evidence: `build/controller-cycle-followup-20261115/`; see
+[scope and measurements](../../reports/performance/mm-quote-replacement-latency.md#cold-indicator-preparation--local-2026-11-15).
+
+## Bounded checkpoint fill-read batching — local 2026-11-15
+
+- [x] Follow the local blocking-write replay into the actual recorder. Do not
+  move the ownership-lock connection or native financial writes into an
+  unsynchronized worker. RED three real PostgreSQL query-budget failures:
+  six orders read fills six times,101 orders101 times, and one executor with
+  two held orders reads twice.
+- [x] Batch fill reads in groups of at most eight, on the original transaction,
+  with an independent1001-row sentinel on every member. Keep the one-order
+  fast path, ordered proof consumption, exact amounts/original fees, identity
+  and financial hashes, physical ownership checks, one commit and rollback.
+  No proof cache survives this transaction.
+- [x] Check compatibility against actual SQLite too. Keep the two failing
+  candidate SQL syntax cases separate from the original PostgreSQL RED;
+  nesting the limited members preserves both supported dialects.
+- [x] Wire the local composition and fill-read tests into the existing Cloud Run
+  regression target. Validate both the legal1000-fill boundary and1001-fill
+  rejection, including a later chunk; a shared outer LIMIT must not hide or
+  truncate another order's proof.
+- [x] Validate216 native tests +5 subtests,62 related disposable PostgreSQL
+  cases and hooks. The alternating six-order PostgreSQL replay with50 ms
+  injected per fill-read round trip reduces six reads to one and median
+  checkpoint duration391.42 ms to125.04 ms. These are scoped local injected
+  measurements, not Cloud performance or a latency pass threshold.
+- [x] Verify152/`caab218c1` at100% traffic, matching immutable artifact/revision
+  digest and unchanged non-image spec. Same session/control90, policy and peaks;
+  short GET smoke and recorded activity pass. A retained snapshot has28
+  completed checkpoints/zero errors, max204.56 ms; no batch-size attribution.
+- [ ] Complete the unchanged connected30-minute quote/performance target.
+  The short152 check retains two recovered probes, one6.82 s controller cycle,
+  one report-wait sample and a transient `/ready`503 near generation36→37.
+  Health returns200, without observed restart/ownership loss or application
+  exception. These observations do not establish a unique cause or a Cloud
+  performance gain from batching.
+
+This reduces repeated waits when several entries hand off together. It does
+not remove an individually slow synchronous DB call or establish Cloud probe
+causality. Qualification/results are recorded in the
+[existing report](../../reports/performance/mm-quote-replacement-latency.md#bounded-checkpoint-fill-read-batching--local-2026-11-15).
+
+## Offline composition replay without Cloud INFO — 2026-11-15
+
+- [x] Reproduce representative fill/account, cancellation and financial-report
+  waits through native LifeMM/PositionExecutor loops, the strategy action
+  listener, account watcher and coalesced report publisher. Run both sides and
+  account-before/after-fill orderings; hold cancellation ACK and deliver a late
+  partial fill twice. Fake only external observations/persistence, not the
+  native handoff/report decisions.
+- [x] Verify failed hold persistence keeps the level reserved until the regular
+  native report retry succeeds; revoked sessions cannot reopen from late cash
+  updates. Preserve exact quantity/fees and no early replacement.
+- [x] Inject a400 ms synchronous checkpoint delay within that composition:
+  the actual watchdog records a loop stall with `strategy.reports` and
+  `position.checkpoint` active, records recovery, and native proposal progress
+  resumes only after the write returns. This is an injected cause, not proof
+  of the reason for any particular Cloud probe.
+- [x] All12 composition cases and the related native regression pass:130 tests
+  total, hooks pass. The60 s test interval isolates event wakeups; the500 ms
+  completion assertions are local test deadlines, not Cloud SLO measurements.
+- [ ] Identify the actual causes of the remaining connected gaps/probes.
+  No new production defect is established by this replay; the initial fixture
+  failures (legacy configured-price flag/default controller ID) are not RED
+  evidence of a runtime bug. The initial replay alone changes no runtime, risk
+  limit, timeout or qualification classifier. The revision150 Spot95.43%/99% failure and unknowns
+  remain; this work does not qualify submission/proposal ACK latency on Cloud.
+
+Receipt: `build/local-quote-progress-20261115/native-junit.xml`; see
+[local replay limits](../../reports/performance/mm-quote-replacement-latency.md#offline-composition-replay-without-cloud-info--2026-11-15).
+
+## Revision146 submission/probe evidence follow-up
+
+- [x] Review all18 retained gap samples and nearby recorded orders/fills. The
+  busiest40 s contains27 BUY orders/24 BUY fills; pending tracker IDs and exact
+  phase boundaries are absent in the old observations. Proximity does not prove
+  one ACK delay. Preserve95.06%/all unknowns and the six probe warnings.
+- [x] RED six evidence failures: SQL churn evicts short submission spans,
+  admission/placement phases are absent, queued cancellation is not timed,
+  a30 s warning budget suppresses a separate stall stack, and INFO/sink retry
+  behavior is unqualified. Add a real watchdog/off-loop delivery check.
+- [x] Retain hashed completed phases in a separate bounded ring; publish only
+  from the watchdog, at most once per2 s. Use completion sequence rather than
+  span ID so late-finishing parents survive; expose overflow and sink retry.
+  Keep placement separate from Created publication and authority.
+- [x] Preserve the first packaged result: both flows pass but the32-entry buffer
+  loses22 timing records and each flow logs one probe warning. RED the complete
+  eight-order/five-phase burst, then increase the fixed bound to64. Keep24 KB
+  packets, no raw arguments/IDs and unchanged native financial/send gates.
+- [x] Keep WARNING capture at30 s and add INFO samples for suppressed separate
+  stalls at most once per5 s; do not change the300 ms supervisor limit or infer
+  that every probe is now explained.
+- [x] Final461 native checks plus9 subtests pass;25 distinct PostgreSQL cases
+  pass, including actual native admission/ACK/owner and unknown-COMMIT paths.
+  Re-run the two native PostgreSQL stage cases after the final buffer change.
+  Swagger remains unchanged. Preserve the initial amd64-build selection error.
+- [x] Final same-image shutdown/outflow qualification passes on config
+  `81a1fb84711e`, manifest `17fdc66d925a`. All three changed runtime files match
+  the packaged bytes. The enabled flow retains168 completed phase records with
+  zero drops and packets<=19,733 bytes; the outflow flow checks the disabled path.
+  Final flows retain9 WARNING total/no ERROR/probe transition. Preserve the
+  initial32-entry drops/probes and do not infer a connected probe speedup.
+- [ ] Restore Cloud INFO retention using an authorized GCP identity. Both the
+  sink update and exclusion-only PATCH return403 (`logging.sinks.update` /
+  `logging.exclusions.update`); readback proves the rule is unchanged. The
+  reviewed exception preserves HTTP/other-service filters; it does not require
+  another service revision or a financial/control change.
+- [x] Deploy147/`f3567186c`, verify immutable image/100% traffic and unchanged
+  non-image settings. Inherited Spot drawdown stop is established on146 at
+  09:12:45 ICT, before147 Ready09:19; DB hashes match with no unresolved work.
+  Startup/live200, ready503, zero post-Ready orders/fills. No risk reset/change.
+- [ ] Repeat unchanged connected qualification after operator review of the
+  drawdown stop and INFO retention. No30-minute window is started while halted;
+  no latency improvement, old timeout cause, perpetual or99% pass is established.
+- [x] Observe source revision150/`3d59c383f` for30 minutes after policy approval:
+  901 samples pass collection quality on one revision/session/control90;
+  222 recorded orders/99 Spot fills and final native financial/binding hashes
+  match. All health200, peaks/2,500–5,000 limits preserved, no ERROR/restart/
+  ownership loss or operator-required HALT. Keep three transient Random shutdown
+  fences and nine unknowns. Spot459/481=95.43% fails99%; Perpetual has no eligible
+  two-sided sample. Five probes recover in-window; three pre-window remain
+  separate. INFO retention and performance/quote acceptance stay open. See
+  [the source deployment](../../reports/demo/cloudrun-drawdown-2500-5000.md#revision150-source-deployment-and-connected-follow-up).
+- [x] Revalue stopped147 read-only using the native cold-start history/held
+  report path and two fresh Demo book samples. At10:07:10 ICT, Spot drawdown
+  1,477.60 exceeds1,000; Perpetual398.57/global1,323.52 remain below1,000/2,000.
+  GET-only account/quantity/pending-order and audited Spot cash-delta checks pass;
+  snapshots preserve financial hashes, risk peaks/policy and journal watermark.
+  Native in-memory latch-only rearm replay stops again for the same Spot reason.
+  At that read-only step no live rearm or new risk policy is selected. See [risk review](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision147-drawdown-revaluation-and-unchanged-policy-replay).
+- [x] Apply the subsequent explicit2,500/controller/5,000/global Demo approval:
+  native replay/binding and37 profile/drawdown tests pass; exclusive reviewed
+  maintenance preserves peaks/all financial rows and appends audit315. Overlay
+  only the YAML on147, restore149 and Start at control90. Thirteen short readbacks
+  show all health200/no HALT,13 recorded orders/one Spot SELL fill. Venue GET
+  confirms live SELL quotes on both markets; retain BUY size/inventory guards
+  and one recovered startup probe. Source YAML carries the same approved limits.
+  This is not a new30-minute quote/probe gate. See [maintenance](../../reports/demo/cloudrun-drawdown-2500-5000.md).
+- [x] TDD the separate presentation bug: a valid breached drawdown checkpoint
+  must retain `recovery_risk_stop` without being mislabeled checkpoint-invalid.
+  Malformed checkpoints and every risk latch must still block recovery/reset.
+  Four native/HTTP and two PostgreSQL RED failures reproduce the false invalid
+  label. The local correction checks the actual invalid-checkpoint reason;
+  142 native and34 PostgreSQL checks pass, including durable reset rejection
+  with unchanged peaks/latch/audit. Swagger is unchanged; hooks pass. This
+  correction is local and not part of the deployed150 observation.
+- [x] Deploy151/`4b302019a`: immutable revision/artifact digest and100% traffic
+  match, with unchanged non-image settings and preserved session/control90,
+  peaks/2,500–5,000 limits. Native financial/binding hashes, live OpenAPI and
+  healthy recovery API smoke pass.91 short samples retain runtime/identity,
+  49 recorded orders/14 Spot fills follow Ready and final health200/no HALT.
+  Retain four recovered probes and the separate150 expired-order rejection;
+  this is not a new quote/performance pass. See [verification](../../reports/demo/cloudrun-drawdown-2500-5000.md#revision151-recovery-label-deployment-verification).
+
+Evidence: `build/quote-gap146-followup-20261115/`.
+
+## Revision145 status/probe follow-up
+
+- [x] Retain the failed connected window: 9 gaps (4 executor-activity,
+  4 submission-pending, 1 proposal-confirmation), 7 unknown and one status-read
+  timeout. The available history does not prove one per-order ACK bottleneck.
+- [x] RED four status cases against the original handler; bound the authenticated
+  handler to 5 s across queue/primary worker/optional recovery lookup. Return
+  qualified 503, retain physical worker capacity and skip expired queued work.
+- [x] Separate queue/run timing, safe server request ID and hashed optional
+  client correlation. Opt-in collector retains header/body phase and reviewed
+  numeric Server-Timing without changing the 10 s sampling budget/classifier.
+- [x] RED real PostgreSQL pre-ping visibility; add opt-in `db.ping` timing while
+  preserving native validation, reconnects and owner/write fences. A real
+  response-loss proxy confirms bounded status response, live API and retained
+  physical work without losing the independent owner.
+- [x] Complete final native/PostgreSQL and same-image packaged regression:
+  1,524 native checks, final30 HTTP checks and63 distinct selected PostgreSQL
+  cases pass. Same-image shutdown/Spot-outflow flows preserve fills/fees,
+  duplicate handling and owner handoff.155 completed pings are positively
+  observed; finite logs retain seven WARNING/no ERROR/probe transition.
+  Preserve setup failures and the corrected RED; update only the old tracked-
+  order fixture, not its runtime gate. Swagger check passes.
+- [x] Deploy146/`3e0392607` at100% traffic with unchanged env/resources and
+  complete901 samples on one revision/session. Collection quality passes;
+  all status/liquidity reads200 and final health/checkpoint hashes match.
+  Header queue/run/server-ID timing and native pre-ping spans are observed.
+- [ ] Close the original timeout/probe/quote gates. Fast INFO is excluded by the
+  project sink, so full retained server-log correlation is unverified; no5 s
+  timeout occurs. Six in-window probes remain (two with limited synchronous
+  overlap), no ERROR/restart/ownership loss. Spot95.06% fails99%;5 unknowns include
+  one temporary shutdown fence. Perpetual has no confirmed eligible sample.
+  No guard is widened. See [revision146 evidence](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision146-status-timing-and-native-pre-ping-observation).
+
+Evidence: `build/status-probe-followup-20261115/` and
+`build/status-probe-postdeploy-20261115-080255/`.
+
 ## Checks
 
 - [x] RED: cancel ACK during the5s wait must retire a managed CLOSE promptly,
@@ -34,6 +334,255 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
   retained evidence. Preserve the shutdown fence and unknown-as-failure rule.
 - [x] Deploy the earlier correction and repeat connected quote qualification.
   Revision111/112 windows retain their failures; deployment is not a99% pass.
+
+## Revision144 fill-to-replacement follow-up
+
+- [x] Inspect the nine Spot gaps: five executor-activity and four submission
+  waits, with seven clustered within one minute. Nearby creations/fills do not
+  identify a unique per-order ACK delay; preserve the failed 93.70% result.
+  Perpetual BUY is inventory-limited while SELL quotes work; retain its caps,
+  fee-inclusive breakeven policy and unqualified two-sided result.
+- [x] RED on disposable PostgreSQL: the ordinary single-executor held transfer
+  autoflushes pending financial writes during metadata/fill validation. Five
+  new cases fail before changing runtime, including existing/new executor rows
+  and invalid fee/fill identity/missing-order proofs. Rollback already protects
+  correctness; the unnecessary guarded flushes consume synchronous loop time.
+- [x] Group the single transfer's writes after validation, preserving exact
+  fill/fee coverage, per-order bounds, physical-owner fences and final COMMIT.
+- [x] Run native handoff/controller/publication regression and PostgreSQL
+  rollback, ownership-loss, replay and cost-basis tests; measure SQL/flush cost
+  with the previous schedule as control. Native 860 tests +5 subtests pass;
+  149 PostgreSQL cases pass, then a corrected 24-case held suite closes one
+  benchmark setup failure (150 distinct selected cases). Seven measured pairs
+  show SQL 23→20/flushes 4→2 and component median 28.91→25.37 ms; this is not
+  whole-MM latency evidence. Keep the initial setup failure and RED artifacts.
+- [x] Complete same-candidate packaged shutdown and Spot-outflow qualification
+  on `9af647729fb0`: delayed terminal proof, exact fills/fees, duplicate receipts,
+  clean restart and revision handoff pass. Finite-flow logs retain seven WARNING
+  entries with no ERROR/probe timeout. This is not full release qualification.
+- [x] Deploy on145/`f5f181e92` and collect the unchanged 30-minute window:
+  897 samples, 187 recorded orders/76 Spot fills, matching checkpoints and no
+  restart/ownership loss. Quality FAIL after one status-read timeout; Spot95.74%
+  fails99% with9 gaps/7 unknown. Preserve the descriptive result, not a pass.
+- [ ] Resolve the quality/read timeout, ordinary quote gaps/profile unknowns
+  and four residual probes with scoped evidence. Perpetual remains unqualified;
+  final quote withdrawal is `reference_deviation` above the configured2% guard.
+  Do not reset HALT or widen guards to obtain an acceptance result. See
+  [revision145](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision145-single-held-checkpoint-deployment-and-observation).
+- [x] Preserve the separate 03:18:23 ICT readback: generation175 running/no HALT,
+  health200, Spot2 BUY/2 SELL and Perpetual0 BUY/2 SELL, unchanged control88/88.
+  No guard/control mutation is used; the failed window remains failed.
+
+Evidence: `build/quote-gap144-followup-20261115/`; see
+[the local scope](../../reports/performance/mm-quote-replacement-latency.md#revision144-single-held-transfer-follow-up--local-2026-11-15).
+
+## Local probe callback fairness — 2026-11-15
+
+- [x] Reconstruct the retained local303.954ms timeout. Two heartbeat values are
+  386.608ms apart; supervisor1.043s includes the next poll, not a continuous
+  engine freeze. Keep the original warning and its limited causal evidence.
+- [x] RED on native OKX/real PostgreSQL: eight ready create tasks delay a queued
+  callback until eight synchronous admissions finish. No single300ms SQL is
+  established. The paired same-DB replay records callback wait941→52ms with
+  the same2ms SQL injection; timing is not a Cloud latency assertion.
+- [x] Share an owner admission slot across connectors and yield one loop turn
+  before synchronous admission. Preserve task scope, fresh owner/risk checks,
+  intent/financial COMMIT and the separate final send gate. Release before HTTP.
+- [x] Register queued tasks for shutdown; cover canceled waiters, guard changes,
+  admission errors, transport concurrency and Stop between native admissions.
+  Reject retired/untracked native identities before writing an intent.
+- [x] Qualify the final candidate:958 native +9 subtests,222 PostgreSQL tests
+  and three same-image packaged shutdown-proof, Spot outflow and managed
+  Disconnect visibility flows pass. No ERROR/probe timeout is logged in these
+  finite flows; the historical warning stays retained.
+- [x] Check total MM burst progress too: two fresh-ledger controls pass with
+  272 SQL each, callback wait978→38ms and all-eight completion1569→1594ms.
+  The single total is1.6% higher; do not call it a throughput improvement or
+  replace the connected quote acceptance window with callback timing.
+- [x] Deploy and repeat unchanged connected30-minute observation on144/4fa9ef95c:
+  901 samples/quality pass,230 recorded orders/102 Spot fills, matching final
+  checkpoints and three successful profile shutdowns. No in-window ERROR/
+  restart/ownership loss; final running/control88/88/health200.
+- [ ] Close remaining gates: Spot93.70% fails99%(9gaps/6unknown), perpetual
+  has no confirmed eligible two-sided samples/new fills, and one300.798ms probe
+  timeout remains without a unique blocking cause. Retain the invalid first
+  Mac-sleep attempt and all historical failures. See
+  [revision144](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision144-guarded-admission-deployment-and-observation).
+
+Evidence: `build/probe-admission-followup-20261115/`; see
+[the exact local timeline and scope](../../reports/demo/cloudrun-quote-replacement-acceptance.md#probe-callback-fairness--local-follow-up-2026-11-15).
+
+## Revision142 intent/ACK persistence follow-up
+
+- [x] Correlate the15 missing Spot samples, including three consecutive pending
+  BUY observations, with retained native history/spans. Multiple order pairs
+  progress during that episode; aggregate samples cannot identify one4s ACK.
+  Retain the original gaps, unknowns and failed95.32% result.
+- [x] RED ordinary intent/Created paths on real PostgreSQL: both perform four
+  flushes instead of two. Group independent metadata/history lookups only;
+  preserve cleanup audit fencing, fresh admission reads and final COMMIT.
+- [x] Cover owner loss after flush, commit failure, terminal/uncertain duplicate
+  ACKs and an unadmitted sibling tracker. Economic history and snapshot roll
+  back together; a stale/uncertain outcome never gains send authority.
+- [x] Alternate predecessor/candidate flush schedules on the same DB and assert
+  two fewer owner reads/SQL statements per stage. Record wall timing separately.
+- [x] Add bounded hashed-ID intent/Created timing and verify the real recorder's
+  successful/error stages, without exporting raw IDs, SQL or exception text.
+- [x] Native929 +9 subtests and217 disposable PostgreSQL regressions pass,
+  including creation rollback/precedence, cleanup and unknown-COMMIT cases.
+- [x] Qualify shutdown-proof with diagnostics on and Spot outflow on the same
+  immutable local candidate. Both pass with existing deadlines and economic
+  assertions; completed stages are positively observed. Keep the final local
+  probe timeout303.954ms/recovered1.043s, without restart/HALT, as open evidence.
+- [x] Deploy the coalescing fix on143 and observe it together with admission
+  fairness on144. The repeated901-sample window passes quality, not the quote
+  target; DB stage versus transport/probe attribution remains separate.
+  Unknown-as-failure and financial/risk/ownership gates are unchanged.
+
+Evidence: `build/quote-gap142-followup-20261114/`; see
+[the local acceptance scope](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision142-intentack-db-follow-up--local).
+
+## Revision138 probe correlation and startup history
+
+- [x] Inspect the deployed revision138 diagnostics. One initial probe wait
+  contains a cold import stack; three sampled profile startups stop inside
+  projected executor-history `fetchmany`. Separate physical-owner/COMMIT waits
+  remain visible. These are multiple blocking paths, not one established cause
+  of every client timeout.
+- [x] Replay the prepatch TradingCore initializer with the corrected blocked-read
+  fixture: loop progress, cancellation draining, malformed-history publication
+  and recorder replacement fail. Move only the streamed history reduction to a
+  worker; construct strategy/native objects on their loop after the read.
+- [x] Retain projected batches, native Decimal row order and exact close counts.
+  Close the reader on invalid rows/transport failure and drain it on repeated
+  cancellation. Recheck recorder, persistence and controller scope before use;
+  the existing owner/control/credential fence still precedes clock admission.
+- [x] Run the Cloud Run regression and disposable PostgreSQL history tests.
+  The packaged continuous Random/cold restart/overlapping-owner-handoff/Stop
+  scenario passes. This is local qualification, not a deployed probe result.
+- [x] Finish the unchanged 30-minute revision138 window:901 samples/quality pass,
+  one probe timeout with direct history-fetch stack overlap, zero ERROR/restart.
+  Keep quote gate failed (Spot95.24%, perpetual no confirmed eligible samples),
+  all8 unknown samples/market and three transient shutdown fences.
+- [x] Deploy the startup-history correction and compare a fresh window on one
+  immutable image. Revision139/`6cb7e7f56`:901 samples/quality pass,161 recorded
+  orders/39 Spot fills, zero ERROR/restart/probe timeout in the exact window and
+  no sampled main-thread history-fetch recurrence. Final checkpoints match.
+- [ ] Close the remaining quote/probe causes: Spot96.51% still fails99%; perpetual
+  has no confirmed eligible two-sided samples. A separate startup probe timeout
+  and sampled physical writer/ownership/flush/point-read waits remain. Do not
+  raise thresholds or treat sampled absence as proof of zero loop delay.
+
+Evidence: `build/probe-correlation-20261114-1338/`; the existing
+[latency report](../../reports/performance/mm-quote-replacement-latency.md)
+records the correction and its limits.
+
+## Revision139 cash-observation progress follow-up
+
+- [x] Correlate all six Spot missing-quote samples and five unknown samples with
+  bounded native order details and retained diagnostics. Two full-entry reports
+  precede the required fresh cash observations; other samples include pending
+  submissions/ACKs, guard transitions and financial DB waits. No single cause
+  is established for all six. Keep every original failed/unknown sample.
+- [x] RED/GREEN the later-account path using the native Spot connector,
+  PositionExecutor, StrategyV2Base report publisher and existing controller cash
+  coverage predicate. A coalescing balance event requests one report when both
+  assets cover a current full fill; unchanged native commit/controller handoff
+  still owns capacity. No polling or direct quote submission is added.
+- [x] RED/GREEN repeated account updates after the same covered fill; do not
+  turn a balance stream into a periodic reporter. Reject invalid/stale cash,
+  retired scope, revoked admission, report failures and late updates after Stop.
+- [x] Qualify the deduplicated candidate:3,757 native tests +16 subtests, hooks
+  and two packaged E2Es on one immutable manifest pass. Spot outflow preserves
+  committed fills/original fees and no local retry; continuous Random rollover,
+  overlapping-owner handoff, cold restart and Stop retain session/control and
+  four exact fills. These are scoped regression checks, not a latency A/B.
+- [x] Verify current perpetual CLOSE payload hashes against saved submission
+  attempts and receipts. LONG0.0498 has two working SELL CLOSE quotes; there is
+  no opening-SHORT fallback. Fee-inclusive closing math and native fee-readiness
+  are recorded separately from an independent current exchange fee read.
+- [x] Deploy this follow-up and repeat the unchanged30-minute quote window.
+  Revision140/`53f21fa38`:901 samples/quality pass,204 recorded orders/65 Spot
+  fills, no in-window ERROR/restart and matching final checkpoints. This does
+  not establish exact ACK latency or a controlled latency improvement.
+- [ ] Close the remaining quote/probe/shutdown gates. Spot97.68% still fails99%,
+  with5 gaps/6 unknown and8 probe timeouts. A separate pre-window8s shutdown
+  deadline causes one engine restart before automatic resumed quotes; retain
+  that incident. Perpetual has no new fill or confirmed eligible two-sided
+  sample. Keep caps, fee policy and unknown-as-failure unchanged. See
+  [revision140](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision140-cash-progress-deployment-and-observation).
+
+Evidence: `build/quote-gap139-review-20261114-1515/`; see the
+[correlation and limits](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision139-cash-progress-correlation-and-local-correction).
+
+## Revision140 shutdown/probe follow-up
+
+- [x] Reproduce duplicate status/fill reads across owner cleanup and Spot cashflow
+  proof with real PostgreSQL/native connector parsing. A controlled1.25s/request
+  clock exhausts the unchanged8s budget before the fix.
+- [x] Share the stronger existing status/full-paginated-fills/status proof within
+  a phase; retain fresh post-checkpoint readback, current owner/account/order,
+  original fees, future-fill reservations and the3-request concurrency bound.
+- [x] Use full-service fault RED to catch cancel ACK/local tracker lag. Add native
+  `OPEN`, `PARTIALLY_FILLED`, `PENDING_CANCEL`, `CANCELED` cases; venue proof is
+  mandatory regardless of local state. Reject late fills/changed terms/binding
+  or owner loss, including changes during the native terminal callback.
+- [x] Remove the extra cash-update report after the controller already queued
+  handoff. Preserve regular-clock retry and all financial/capacity boundaries.
+- [x] Retain completed shutdown stage timings for the current root and completed
+  slow spans in existing recovery diagnostics. Test bounded/redacted payloads,
+  SQL churn and throttled periodic logs. No causal claim for all8 probe waits.
+- [x] Qualify final source:3,760 native +16 subtests,98 PostgreSQL and two packaged
+  E2Es pass. The predecessor restarts under the slow-proof fault; the final image
+  handles10 delayed requests at1.25s each with the same owner and exact fills/fees,
+  then passes cold/overlapping handoff and Stop at2CPU/1GiB. Keep the first failed
+  candidate and fixture failures as separate evidence.
+- [x] Commit/deploy the qualified follow-up and repeat the unchanged connected
+  30-minute quote/probe window. Revision141/`d56186f29` retains898 samples/quality
+  pass,186 recorded orders/47 Spot fills, matching checkpoints and three
+  completed profile shutdowns at1.588/1.404/1.521s without restart/ownership loss.
+- [ ] Close remaining connected gates: Spot98.06% fails99% with6 gaps/8 unknown;
+  perpetual remains unqualified. Retain5 probe timeouts, one delayed observation
+  and7 ERROR entries for four shutdown-fenced BUY attempts/paired retry logs.
+  TDD queued-versus-fresh retry and transport identity before changing generic
+  safety-block behavior. Do not suppress ownership/unknown-effect protection.
+  See [revision141](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision141-shutdown-proof-deployment-and-observation).
+
+Evidence: `build/shutdown-proof-followup-20261114/`; see
+[the full local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision140-shutdown-proof-sharing-and-local-correction).
+
+## Revision141 session-fence retry follow-up
+
+- [x] Reproduce the shutdown-fenced entry burst with the native OKX connector,
+  executor callbacks and disposable PostgreSQL. Both before-intent and
+  after-throttle cuts produce12 local client IDs without a transport call.
+- [x] Classify only an explicitly closed, same-config `shutdown_pending` fence
+  with no reason/pending mutation as expected session closure. Different config,
+  manual HALT, pending effects and lost ownership retain their safety errors.
+- [x] Retire managed maker entries on typed session closure without spending an
+  exchange retry. Preserve cached native partials/original fees, duplicate-event
+  idempotence, both markets/sides, configured/legacy distinction and terminal
+  proof. The real after-throttle unsent intent must become non-pending/terminal.
+- [x] Run native and PostgreSQL regression, including ownership, ambiguous COMMIT,
+  shutdown and driver deadlines. Audit the sampled SQL flush/pool pre-ping paths;
+  retain required ping/financial commits and avoid an unproved probe-fix claim.
+- [x] Complete packaged shutdown-proof/outflow regression on the same final
+  candidate. Delayed proof retains owner/session and exact fills/fees; native
+  outflow cap denial, funded SELLs, duplicate events and restart binding pass.
+  The exact fenced-entry fault is reproduced in native connector/PG tests.
+- [x] Deploy the correction and repeat the unchanged30-minute connected window.
+  Revision142/`f61e6516c` retains901 samples/quality pass,270 recorded orders/
+  141 Spot fills, matching checkpoints and three completed profile shutdowns.
+  No in-window ERROR/restart/ownership loss; three probe timeouts remain.
+- [ ] Close the remaining connected gates. Spot95.32% still fails99% with15
+  gaps/6 unknown; one three-sample submission-pending episode spans4.037s.
+  No submission-block event occurs, so positive connected qualification of the
+  fixed branch stays open. Keep residual probe and perpetual gates and all
+  historical revision141 failures. See
+  [revision142](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision142-session-fence-deployment-and-observation).
+
+Evidence: `build/session-shutdown-retry-20261114/`; see
+[the local correction](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision141-session-fence-retry-correction--local).
 
 ## Additional incident found during connected observation
 
@@ -486,8 +1035,15 @@ under `build/checkpoint-metadata-batch-20261113/`.
   scenario at2CPU/1GiB:12 dropped terminal frames, repeated actual5s native
   polling on both connectors, exact fill/fee receipts, reserved pending levels
   and unchanged owner/session/PID. The full-service check is not a latency A/B.
-- [ ] Deploy the entry-wakeup change and repeat the unchanged connected30-minute
-  target. Revision128's96.99% and
+- [x] Deploy the entry-wakeup change: revision129/e1b9876ee is verified at 100%
+  traffic with unchanged environment/resources. The 18:10 ICT check is running,
+  no HALT, Spot 2 BUY/2 SELL.
+- [ ] Complete the unchanged connected30-minute target. The interrupted
+  revision129 observation retains 880 samples over 29m19s: Spot 97.54%, five
+  probe timeout transitions, no observed ERROR/restart; Perpetual is unqualified
+  because no confirmed eligible samples exist. A separate post-window query
+  adds one probe timeout and a spot-outflow terminal-unavailable incident.
+  Keep the incomplete quality gate and quote failure open. Revision128's96.99% and
   the earlier98s outage remain failed evidence. Probe/COMMIT/owner-read delays
   remain separate follow-ups; waking an executor is no new trading authority.
 
@@ -496,6 +1052,31 @@ Evidence: `build/quote-gap-followup-20261113/` and
 `build/e2e-offline/20261113-172030-ad7782/`; use the existing
 [acceptance record](../../reports/demo/cloudrun-quote-replacement-acceptance.md)
 for artifact identities and qualification scope.
+
+### Revision129 fill-gap and terminal-backlog follow-up
+
+- [x] Correlate all eight missing-quote samples with bounded recorder history:
+  84 Spot orders and 33 timelines show full-entry completion/replenishment;
+  every next two-second sample is two-sided. Keep the original failed samples.
+- [x] Reproduce three missing full-entry publication cases before changing code.
+  Reuse the existing coalesced report publisher for current managed full entries;
+  preserve fresh-account handoff, financial commit, capacity and shutdown gates.
+- [x] Reproduce two false terminal-failure/backoff cases: bounded backlog and
+  arrivals during successful proof. Keep unattempted work on normal polling;
+  actual failed proofs retain stage incidents/backoff and all reservations.
+- [x] Compare all eight gap times with retained probe/loop diagnostics. One is
+  within one second of a probe timeout; synchronous DB waits remain visible and
+  are not established as the sole cause of all quote gaps.
+- [x] Validate the local correction: 3,691 native tests +16 subtests, 29
+  disposable PostgreSQL tests and hooks pass. Fresh 18:22 ICT Cloud status has
+  no HALT, no active incident and no pending terminal Spot orders; that check
+  still observes the unpatched revision129, not a candidate acceptance run.
+- [ ] Deploy the qualified follow-up and repeat the full unchanged 30-minute
+  observation on one image; do not close the 99% quote or residual probe gates
+  from unit tests or the incomplete revision129 observation.
+
+Evidence: `build/quote-gap-review-20261113/`; details and limits are in the
+[existing acceptance report](../../reports/demo/cloudrun-quote-replacement-acceptance.md#revision129-fill-gap-correlation-and-local-correction).
 
 Evidence: `build/probe-terminal-investigation-20261113-1253/`. The baseline is
 revision126. Connected revision127 evidence is in

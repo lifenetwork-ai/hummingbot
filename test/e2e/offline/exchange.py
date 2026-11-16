@@ -108,12 +108,14 @@ class Exchange:
         self.subscriptions = []
         self.hold_ack = False
         self.submission_busy = False
+        self.submission_busy_side = None
         self.accepted_response_lost = 0
         self.cancel_before_ack = False
         self.cancel_before_ack_remaining = None
         self.cancel_delay_seconds = 0
         self.account_mutation_delay_seconds = 0
         self.account_read_delay_seconds = 0
+        self.terminal_read_delay_seconds = 0
         self.cancel_pending_visibility = {}
         self.cancel_pending_visibility_served = 0
         self.cancel_pending_visibility_reads = 0
@@ -480,6 +482,9 @@ class Exchange:
                     self.cancel_pending_visibility_served += 1
             return self.ok(rows)
         if path == "/api/v5/trade/fills":
+            if self.terminal_read_delay_seconds:
+                order = next((row for row in self.orders.values() if row['ordId'] == request.query.get('ordId')), None)
+                await self._delay_terminal_read(order, observed)
             for identity in self.withhold_fills_for:
                 if not request.query.get('ordId') or self.orders[identity]['ordId'] == request.query['ordId']:
                     self.withheld_fill_reads[identity] = self.withheld_fill_reads.get(identity, 0) + 1
@@ -488,6 +493,7 @@ class Exchange:
                             and (not request.query.get("ordId") or fill["ordId"] == request.query["ordId"])])
         if path == "/api/v5/trade/order" and method == "GET":
             order = self.orders.get(request.query.get("clOrdId"))
+            await self._delay_terminal_read(order, observed)
             if order is None:
                 return web.json_response({"code": "51603", "msg": "order absent", "data": []})
             identity = order['clOrdId']
@@ -501,7 +507,7 @@ class Exchange:
                 return web.json_response({"code": "51603", "msg": "status not visible yet", "data": []})
             return self.ok([order])
         if path == "/api/v5/trade/order" and method == "POST":
-            if self.submission_busy:
+            if self.submission_busy or self.submission_busy_side == data.get('side'):
                 observed['injected_submission_busy'] = True
                 return web.json_response({'code': '50013', 'msg': 'System is busy, please try again later.'}, status=429)
             # A bounded terminal-before-ACK fault admits only its selected
@@ -615,6 +621,13 @@ class Exchange:
         self.unknown.append({"method": method, "path": path})
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
 
+    async def _delay_terminal_read(self, order, observed):
+        if (self.terminal_read_delay_seconds and order is not None and order['state'] == 'canceled'
+                and order['side'] == 'buy' and not order['instId'].endswith('-SWAP')):
+            observed['injected_terminal_read_delay_s'] = self.terminal_read_delay_seconds
+            observed['terminal_read_client_id'] = order['clOrdId']
+            await asyncio.sleep(self.terminal_read_delay_seconds)
+
     async def control(self, data):
         for name in ('suppress_terminal_ws_for', 'withhold_fills_for'):
             if name in data:
@@ -633,6 +646,10 @@ class Exchange:
             if type(data['submission_busy']) is not bool:
                 return web.json_response({'error': 'invalid_submission_busy'}, status=400)
             self.submission_busy = data['submission_busy']
+        if 'submission_busy_side' in data:
+            if data['submission_busy_side'] not in (None, 'buy', 'sell'):
+                return web.json_response({'error': 'invalid_submission_busy_side'}, status=400)
+            self.submission_busy_side = data['submission_busy_side']
         if 'accepted_response_lost' in data:
             count = data['accepted_response_lost']
             if type(count) is not int or not 0 <= count <= 10:
@@ -700,6 +717,10 @@ class Exchange:
             delay = float(data['account_read_delay_seconds'])
             assert 0 <= delay <= 40
             self.account_read_delay_seconds = delay
+        if 'terminal_read_delay_seconds' in data:
+            delay = float(data['terminal_read_delay_seconds'])
+            assert 0 <= delay <= 2
+            self.terminal_read_delay_seconds = delay
         if 'cancel_pending_visibility_reads' in data:
             count = data['cancel_pending_visibility_reads']
             if type(count) is not int or not 0 <= count <= 5:

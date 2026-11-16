@@ -12,6 +12,85 @@ from hummingbot.core.engine_diagnostics import EngineDiagnostics
 owned = _owned
 
 
+def test_pre_ping_is_measured_separately_from_cursor_sql(pg_engine, monkeypatch):
+    import hummingbot.core.engine_diagnostics as diagnostic
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+    from hummingbot.model.db_migration.postgres.connection import create_postgres_engine
+
+    clock = [1_000_000_000]
+    tracer = EngineDiagnostics(emit=lambda _: None, clock=lambda: clock[0])
+    monkeypatch.setattr(diagnostic, '_ACTIVE', tracer)
+    dialect = type(pg_engine.dialect)
+    native_ping = dialect.do_ping
+    calls = []
+
+    def delayed_ping(self, raw):
+        calls.append(raw)
+        clock[0] += 120_000_000
+        return native_ping(self, raw)
+
+    monkeypatch.setattr(dialect, 'do_ping', delayed_ping)
+    engine = create_postgres_engine(RuntimeSettings.from_environment({
+        'DATABASE_URL': pg_engine.url.render_as_string(hide_password=False)}))
+    tracer.attach_engine(engine)
+    try:
+        with engine.connect() as connection:
+            assert connection.execute(text('SELECT 7')).scalar_one() == 7
+        with engine.connect() as connection:
+            assert connection.execute(text('SELECT :secret'), {'secret': 'never-export-ping-parameter'}).scalar_one()
+        snapshot = tracer.snapshot()
+        assert len(calls) == 1
+        assert snapshot['operations']['db.sql']['completed'] == 2
+        assert snapshot['operations']['db.ping']['completed'] == 1
+        assert snapshot['operations']['db.ping']['max_duration_ms'] == 120
+        assert not snapshot['active'] and 'never-export' not in json.dumps(snapshot)
+    finally:
+        tracer.detach_engine()
+        engine.dispose()
+
+
+def test_pre_ping_observation_preserves_stale_connection_replacement(pg_engine, monkeypatch):
+    import hummingbot.core.engine_diagnostics as diagnostic
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+    from hummingbot.model.db_migration.postgres.connection import create_postgres_engine
+
+    tracer = EngineDiagnostics(emit=lambda _: None)
+    monkeypatch.setattr(diagnostic, '_ACTIVE', tracer)
+    engine = create_postgres_engine(RuntimeSettings.from_environment({
+        'DATABASE_URL': pg_engine.url.render_as_string(hide_password=False)}))
+    try:
+        with engine.connect() as connection:
+            old_pid = connection.execute(text('SELECT pg_backend_pid()')).scalar_one()
+            raw = connection.connection.driver_connection
+        raw.close()  # Native pre-ping must reject/reconnect this pooled reader.
+        with engine.connect() as connection:
+            assert connection.execute(text('SELECT pg_backend_pid()')).scalar_one() != old_pid
+        state = tracer.snapshot()
+        assert state['operations']['db.ping']['completed'] == 1
+        assert state['operations']['db.ping']['errors'] == 1
+        assert not state['active']
+    finally:
+        engine.dispose()
+
+
+def test_pre_ping_diagnostic_failure_cannot_break_checkout(pg_engine, monkeypatch):
+    import hummingbot.core.engine_diagnostics as diagnostic
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+    from hummingbot.model.db_migration.postgres.connection import create_postgres_engine
+
+    tracer = EngineDiagnostics(emit=lambda _: None)
+    monkeypatch.setattr(diagnostic, '_ACTIVE', tracer)
+    monkeypatch.setattr(tracer, 'begin', lambda *a, **kw: (_ for _ in ()).throw(MemoryError()))
+    engine = create_postgres_engine(RuntimeSettings.from_environment({
+        'DATABASE_URL': pg_engine.url.render_as_string(hide_password=False)}))
+    try:
+        for _ in range(2):
+            with engine.connect() as connection:
+                assert connection.execute(text('SELECT 7')).scalar_one() == 7
+    finally:
+        engine.dispose()
+
+
 @pytest.mark.parametrize('fail', [False, True])
 def test_diagnostics_commit_tracks_actual_dbapi_outcome_without_exporting_error(owned, fail, monkeypatch):
     import hummingbot.core.engine_diagnostics as diagnostic

@@ -19,6 +19,10 @@ def main():
         raise RuntimeError('Disposable test database required')
     fixture = owned.__wrapped__(engine, pytest.MonkeyPatch())
     context = next(fixture)
+    if '--scoped' in sys.argv:
+        context.owner.scoped_recovery_enabled = True
+        context.owner._mutate_recovery(lambda state: state.update(spot_outflow={
+            'policy': {'max_net_outflow_quote': '50'}}))
     native = managed_native.__wrapped__(context)
     context, exchange, recorder, transport = next(native)
     stage = sys.argv[1]

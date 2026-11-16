@@ -3,6 +3,7 @@
 Engine balances may represent equity. Keep exchange cash fields for reporting
 without changing the connector's trading balance semantics or valuing positions.
 """
+import asyncio
 import time
 from decimal import Decimal, InvalidOperation
 
@@ -54,3 +55,6 @@ def record_balance_details(connector, details):
         "observed_at": time.time(),
         "source": "okx_account_balance",
     }
+    event = getattr(connector, 'account_balance_update_event', None)
+    if isinstance(event, asyncio.Event):
+        event.set()  # Progress only; consumers must independently validate cash/freshness.
