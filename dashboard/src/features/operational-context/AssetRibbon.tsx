@@ -1,6 +1,5 @@
 import { AlertTriangle, ShieldCheck, Wallet } from 'lucide-react'
 import { Badge } from '../../shared/components/Badge'
-import { ProfileSignatureChip } from '../../shared/components/ProfileSignatureChip'
 import { formatLife, formatUsdt } from '../../shared/utils/formatters'
 import { useAssetRibbonController } from './useAssetRibbonController'
 
@@ -16,8 +15,8 @@ export function AssetRibbon() {
           <span className="text-app-muted">Available LIFE:</span><span className="font-mono font-bold" title={account.life ?? undefined}>{formatLife(account.life)}</span>
           {account.observation !== 'fresh' && <span className="text-[10px] text-app-muted">({account.observation})</span>}
         </div>)}
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5"><span className="text-app-muted">Positions & PnL:</span><span className="font-mono font-semibold">{model.positions.length ? `${model.positions.length} recorded position(s)` : model.positionsObserved ? 'Flat within observed scope' : 'Unverified positions'}</span></div>
-        {model.profileId && <div className="hidden items-center gap-1.5 lg:flex"><span className="text-app-muted">Strategy:</span><ProfileSignatureChip profileId={model.profileId} selection={model.selection} size="sm" /></div>}
+        {/* <div className="flex min-w-0 flex-wrap items-center gap-1.5"><span className="text-app-muted">Positions & PnL:</span><span className="font-mono font-semibold">{model.positions.length ? `${model.positions.length} recorded position(s)` : model.positionsObserved ? 'Flat within observed scope' : 'Unverified positions'}</span></div> */}
+        {/* {model.profileId && <div className="hidden items-center gap-1.5 lg:flex"><span className="text-app-muted">Strategy:</span><ProfileSignatureChip profileId={model.profileId} selection={model.selection} size="sm" /></div>} */}
       </div>
       <Badge tone={model.riskState === 'blocked' ? 'danger' : 'neutral'} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px]">
         {model.riskState === 'blocked' ? <AlertTriangle size={10} /> : <ShieldCheck size={10} />}

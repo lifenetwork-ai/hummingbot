@@ -59,6 +59,7 @@ describe('HomePage (Overview)', () => {
           operator: null,
           owner_available: true,
           automatic_recovery: null,
+          overview: null,
           owner_identity: null,
           phase: 'running',
           process_identity: null,
@@ -130,21 +131,23 @@ describe('HomePage (Overview)', () => {
 
     render(<HomePage />)
 
-    // Layer 1: control bar + 4 KPIs (emergency stop is a global floating action, not per-page)
-    expect(screen.getByText('Account USDT equity')).toBeInTheDocument()
-    expect(screen.getByText(/Net Position/)).toBeInTheDocument()
-    expect(screen.getByText('Two-Sided Coverage (session)')).toBeInTheDocument()
-    expect(screen.getByText('Capital Protection')).toBeInTheDocument()
+    // Q1 — mandate bar
+    expect(screen.getByText('Assigned mandate')).toBeInTheDocument()
 
-    // Layer 2: operational focus
-    expect(screen.getByText('Derivative Positions & Skew')).toBeInTheDocument()
+    // KPI strip — target/actual pairs
+    expect(screen.getByText('Spread vs target')).toBeInTheDocument()
+    expect(screen.getByText('Session coverage (two-sided)')).toBeInTheDocument()
+    expect(screen.getByText('Net position & PnL')).toBeInTheDocument()
+    expect(screen.getByText('Total assets')).toBeInTheDocument()
 
-    // Layer 3: diagnostics — composition card complements the KPI, no duplicate headline
-    expect(screen.getByText('Coverage Time Composition')).toBeInTheDocument()
-    expect(screen.getByText(/Balances/)).toBeInTheDocument()
+    // Q3+Q4 — liquidity verdict per market; Q5 — capital & risk; Q6 — decision
+    expect(screen.getByText('LIFE-USDT')).toBeInTheDocument()
+    expect(screen.getByText('Positions & inventory')).toBeInTheDocument()
+    expect(screen.getByText('Session verdict & action')).toBeInTheDocument()
+
+    // Risk guards dialog: opens only on purpose — no rule is shown on the page itself
     expect(screen.queryByText('Rule 1 · Drawdown')).not.toBeInTheDocument()
-
-    const riskGuardsButton = screen.getByRole('button', { name: /view rule details/i })
+    const riskGuardsButton = screen.getByRole('button', { name: /per-policy details/i })
     riskGuardsButton.focus()
     fireEvent.click(riskGuardsButton)
     expect(screen.getByRole('dialog', { name: 'Capital Protection' })).toBeInTheDocument()
@@ -154,8 +157,5 @@ describe('HomePage (Overview)', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Capital Protection' })).not.toBeInTheDocument()
     expect(riskGuardsButton).toHaveFocus()
-
-    // Session coverage remains available before 30 minutes; no rolling SLA is inferred.
-    expect(screen.getAllByText('SESSION TOTAL').length).toBeGreaterThanOrEqual(1)
   })
 })

@@ -16,15 +16,16 @@ describe('Overview completed model integration', () => {
       http.get(`${pageApiUrl}/statistics/liquidity`, () => HttpResponse.json(completionOverview.liquidity.data)))
     render(<HomePage />, { wrapper: pageWrapper() })
     expect(await screen.findByText('#2')).toBeInTheDocument()
-    expect(screen.getAllByText('Inventory restriction').length).toBeGreaterThan(0)
-    expect(screen.getByTitle(/Rolling SLA is not provided by this API/)).toBeInTheDocument()
+    // Question-axis layout: mandate → KPI (target/actual) → liquidity → capital/risk → verdict
+    expect(screen.getByText('Assigned mandate')).toBeInTheDocument()
+    expect(screen.getByText('Session coverage (two-sided)')).toBeInTheDocument()
+    // Rolling 30m unavailable → explicit "no data" chip on the KPI strip
+    expect(screen.getByTitle(/Rolling 30-minute SLA data unavailable/)).toBeInTheDocument()
+    expect(screen.getAllByText('INSUFFICIENT DATA').length).toBeGreaterThan(0)
     expect(screen.queryByText('Safe')).not.toBeInTheDocument()
-    // 30-minute barcode: NO DATA placeholder — per-minute data is not simulated
-    expect(screen.getByText('Rolling 30-minute SLA and per-minute history are not provided by this API.')).toBeInTheDocument()
-    expect(screen.getAllByText(/Unverified:.*Observed but not eligible:/).length).toBeGreaterThan(0)
-    expect(screen.queryByTitle(/Minute -/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/account_cash/)).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /view rule details/i }))
+    // Guards show no rule on the page — only inside the dialog
+    expect(screen.queryByText(/Rule 1 · Quote Guard/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /per-policy details/i }))
     expect(screen.getByRole('dialog', { name: 'Capital Protection' })).toBeInTheDocument()
     expect(screen.getByText(/Rule 1 · Quote Guard — spot \(LIFE-USDT\)/)).toBeInTheDocument()
     expect(screen.getByText('Rule 2 · Drawdown')).toBeInTheDocument()
@@ -62,8 +63,9 @@ describe('Overview completed model integration', () => {
     )
     render(<HomePage />, { wrapper: pageWrapper() })
     expect(await screen.findByText('Positions: API error')).toBeInTheDocument()
-    expect(screen.getAllByText('SESSION TOTAL').length).toBeGreaterThan(0)
-    expect(screen.queryByText('FLAT')).not.toBeInTheDocument()
+    // Independent sources still render: the positions error must not hide the KPI strip
+    expect(screen.getByText('Spread vs target')).toBeInTheDocument()
+    expect(screen.getByText('Net position & PnL')).toBeInTheDocument()
     fail = false
     fireEvent.click(screen.getByRole('button', { name: 'Retry positions' }))
     await waitFor(() => expect(screen.queryByText('Positions: API error')).not.toBeInTheDocument())

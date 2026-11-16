@@ -2,27 +2,34 @@ import { useCallback, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useOverviewController } from '../features/overview/useOverviewController'
 import { useOperationalContext } from '../features/operational-context/useOperationalContext'
+import { CapitalRiskCard } from '../features/overview/CapitalRiskCard'
 import { DataSourceErrorBanner } from '../features/overview/DataSourceErrorBanner'
-import { HeldPositionsCard } from '../features/overview/HeldPositionsCard'
+import { DecisionCard } from '../features/overview/DecisionCard'
+import { LiquidityVerdictCard, type DetailMode } from '../features/overview/LiquidityVerdictCard'
+import { MandateBar } from '../features/overview/MandateBar'
 import { NoSessionNotice } from '../features/overview/NoSessionNotice'
-import { OperatingTargetsCard } from '../features/overview/OperatingTargetsCard'
 import { OperatorAttentionBanner } from '../features/overview/OperatorAttentionBanner'
-import { OverviewControlBar } from '../features/overview/OverviewControlBar'
-import { OverviewKpiStrip } from '../features/overview/OverviewKpiStrip'
+import { OverviewKpiStripV2 } from '../features/overview/OverviewKpiStripV2'
+import { ProfileExplorerDialog } from '../features/overview/ProfileExplorerDialog'
 import { RiskGuardsCard } from '../features/overview/RiskGuardsCard'
-import { SessionDiagnostics } from '../features/overview/SessionDiagnostics'
-import { SharedBalancesCard } from '../features/overview/SharedBalancesCard'
-import { WorkingOrdersSection } from '../features/overview/WorkingOrdersSection'
+import { deriveDecision } from '../features/overview/deriveDecision'
+import { deriveCapitalRisk, deriveLiquidity, deriveMandate } from '../features/overview/supplement'
 import { Dialog } from '../shared/components/Dialog'
 import { MotionPage } from '../shared/motion/MotionPage'
 
 export function HomePage() {
   const [riskGuardsOpen, setRiskGuardsOpen] = useState(false)
   const closeRiskGuards = useCallback(() => setRiskGuardsOpen(false), [])
+  const [profileExplorerOpen, setProfileExplorerOpen] = useState(false)
+
   const navigate = useNavigate()
   const context = useOperationalContext()
+  // Chế độ xem theo role: read = Foundation (chỉ verdict/chi phí/hành động),
+  // write/admin = Operator (thấy thêm chi tiết kỹ thuật). Không có toggle thủ công.
+  const mode: DetailMode = context.identity?.role === 'admin' || context.identity?.role === 'write' ? 'operator' : 'foundation'
   const model = useOverviewController(context)
   const { status, balances, liquidity, positions } = model
+  const statusData = status.data
 
   const handleBannerAction = (action: string) => {
     if (action === 'check_recovery') {
@@ -32,12 +39,19 @@ export function HomePage() {
     }
   }
 
-  const statusData = status.data
-  const balancesData = balances.data
-  const positionsData = positions.data
-  // When a global sync warning (reconcile/halt) is active, dim the order area
-  // instead of repeating the warning box in each column.
-  const globalReconcile = Boolean(statusData?.recovery?.halted)
+  // Supplement views — một nguồn dữ liệu duy nhất cho mọi block
+  const supplement = statusData?.overview ?? null
+  const mandate = deriveMandate(model, supplement)
+  const liquidityMarkets = deriveLiquidity(model, supplement)
+  const capital = deriveCapitalRisk(model, supplement)
+  const decision = deriveDecision(liquidityMarkets, capital)
+
+  // Anchor LIFE cho ProfileExplorer (session anchors từ /status)
+  const anchors = statusData?.observed_session?.anchors ?? statusData?.session?.anchors ?? null
+  const firstAnchor = anchors ? Object.values(anchors)[0] : undefined
+  const anchorLifeNum = firstAnchor ? Number(firstAnchor.life) : null
+
+  const spreadTargetForExplorer = liquidityMarkets.find((m) => m.spreadTargetBps !== null)?.spreadTargetBps ?? null
 
   return (
     <MotionPage>
@@ -51,71 +65,38 @@ export function HomePage() {
             { name: 'Positions', phase: positions.phase, error: positions.error, data: positions.data, refreshing: positions.refreshing, retry: model.refreshPositions },
           ]}
         />
-        {/* Operational warnings (only when there is an incident needing intervention) */}
         <OperatorAttentionBanner
           operator={model.task.operator}
           recovery={statusData?.recovery}
           observation={model.observation.status}
           onAction={handleBannerAction}
         />
-        {/* New-operator onboarding: explain NO DATA indicators before the first session */}
         <NoSessionNotice status={statusData} />
 
-        {/* LAYER 1 — Slim control bar + 4 survival KPIs (~15% of the top area) */}
-        <OverviewControlBar
-          overview={model}
-          observation={model.observation.status}
-          isLoading={status.phase === 'loading'}
-        />
-        <OverviewKpiStrip
-          overview={model}
-          isLoading={status.phase === 'loading'}
-          onOpenRiskGuards={() => setRiskGuardsOpen(true)}
+        {/* Q1 — nhiệm vụ được giao */}
+        <MandateBar
+          view={mandate}
+          guards={capital.guardsSummary}
+          onOpenProfileExplorer={() => setProfileExplorerOpen(true)}
         />
 
-        {/* LAYER 2 — Operational focus: Working Orders (65%) | Exposure & Skew (35%) */}
-        <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-12 items-stretch">
-          <section className="lg:col-span-8 xl:col-span-8 flex flex-col" aria-label="Liquidity and live orders on the exchange">
-            <WorkingOrdersSection
-              markets={model.markets}
-              isLoading={liquidity.phase === 'loading'}
-              dimmed={globalReconcile}
-              className="h-full"
-            />
-          </section>
-          <section className="lg:col-span-4 xl:col-span-4 flex flex-col" aria-label="Derivative positions and inventory skew">
-            <HeldPositionsCard
-              error={positions.error}
-              positions={positionsData}
-              isLoading={positions.phase === 'loading'}
-              available={positions.phase === 'ready' && positionsData?.owner_available === true}
-              markets={model.positionMarkets}
-              className="h-full"
-            />
-          </section>
-        </div>
+        {/* KPI strip — số to tường minh + target cạnh actual */}
+        <OverviewKpiStripV2 liquidity={liquidityMarkets} capital={capital} />
 
-        {/* LAYER 3 — Diagnostics: detailed SLA | Detailed balances & session IDs */}
-        <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-12 items-stretch">
-          <section className="lg:col-span-6 xl:col-span-6 flex flex-col gap-3" aria-label="Quality commitments and 30-minute SLA">
-            <OperatingTargetsCard
-              markets={model.markets}
-              isLoading={liquidity.phase === 'loading'}
-              className="h-full"
-            />
-          </section>
-          <section className="flex flex-col gap-3 lg:col-span-6 xl:col-span-6" aria-label="Actual asset balances and session information">
-            <SharedBalancesCard
-              error={balances.error}
-              balances={balancesData}
-              available={balances.phase === 'ready' && balancesData?.owner_available === true}
-              isLoading={balances.phase === 'loading'}
-              className="flex-1"
-            />
-            <SessionDiagnostics overview={model} observation={model.observation.status} />
-          </section>
-        </div>
+        {/* Q3+Q4 — thanh khoản: verdict theo market + vì sao chưa đạt */}
+        <section aria-label="Liquidity and live orders on the exchange">
+          <LiquidityVerdictCard markets={liquidityMarkets} mode={mode} />
+        </section>
+
+        {/* Q5 — vốn & rủi ro */}
+        <section aria-label="Capital, balances and risk limits">
+          <CapitalRiskCard view={capital} mode={mode} riskLimits={mandate.riskLimits} onOpenRiskGuards={() => setRiskGuardsOpen(true)} />
+        </section>
+
+        {/* Q6 — đánh giá & hành động */}
+        <DecisionCard decision={decision} />
       </div>
+
       <Dialog
         open={riskGuardsOpen}
         onClose={closeRiskGuards}
@@ -133,6 +114,14 @@ export function HomePage() {
           isLoading={status.phase === 'loading'}
         />
       </Dialog>
+
+      <ProfileExplorerDialog
+        open={profileExplorerOpen}
+        onClose={() => setProfileExplorerOpen(false)}
+        activeProfileId={mandate.profileId}
+        anchorLife={anchorLifeNum !== null && Number.isFinite(anchorLifeNum) && anchorLifeNum > 0 ? anchorLifeNum : null}
+        spreadBps={spreadTargetForExplorer}
+      />
     </MotionPage>
   )
 }

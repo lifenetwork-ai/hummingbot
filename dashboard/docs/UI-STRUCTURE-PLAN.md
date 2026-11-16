@@ -1,7 +1,7 @@
 # Kế hoạch cấu trúc màn hình và cây component — LIFE MM Dashboard
 > **Tài liệu đối ứng cho:** [`docs/LOGIC-HANDOFF.md`](LOGIC-HANDOFF.md)
 > **Tuân thủ quy ước:** [`docs/COORDINATION.md`](COORDINATION.md), [`dashboard/TODO.md`](../TODO.md), [`docs/frontend-requirements.md`](../../docs/frontend-requirements.md), [`docs/fe-integration.md`](../../docs/fe-integration.md)
-> **Phiên bản:** 1.3.0 (Phạm vi, bàn giao và nghiệm thu đủ sáu đợt triển khai)
+> **Phiên bản:** 1.4.0 (Bổ sung cấu trúc Overview theo trục câu hỏi — mục 3.2)
 
 ---
 
@@ -96,6 +96,28 @@ flowchart TD
 | | `RecoveryResetDialog` | Admin | Admin xác nhận áp dụng bản sửa đổi (Reset) khi điều kiện recovery hợp lệ và có confirmation token. |
 
 ---
+
+### 3.2. Cấu trúc trang Overview theo trục câu hỏi (phiên bản 1.4.0)
+
+Review chi tiết tại [`OVERVIEW-REVIEW.md`](OVERVIEW-REVIEW.md). Tổ chức lại Overview theo **câu hỏi của Foundation** ([`docs/overview.md`](../../docs/overview.md)) thay vì theo nguồn dữ liệu; mỗi chỉ số hiển thị theo cặp **target / actual / gap**:
+
+```text
+Q1. Nhiệm vụ được giao     Profile · Markets · Thời hạn · Vốn phân bổ · Giới hạn rủi ro (tóm tắt, không giấu trong dialog)
+Q3+Q4. Thanh khoản         Verdict theo market: spread (vs target) · depth 2 phía · two-sided · coverage % (vs 99%) — MỘT chỗ duy nhất
+                           └ sub-panel "vì sao chưa đạt": composition + diagnosis + quoting absent
+Q5. Vốn & rủi ro            Tồn kho/vị thế · vốn còn & dành cho lệnh · phí trong phiên · guards status (bản tóm tắt điều hành)
+Q6. Đánh giá & hành động    Tổng hợp phiên: đạt % · chi phí · rủi ro → Continue / Adjust / Stop (link sang Statistics/Session)
+```
+
+Quy tắc áp dụng cho toàn bộ trang:
+
+1. **Một verdict duy nhất cho coverage** — tổng hợp ở Q3+Q4; không lặp headline ở card composition.
+2. **Target lấy từ cấu hình phiên** (spread policy, coverage target); không dùng ngưỡng cứng làm target hiển thị.
+3. **Risk guards có bản tóm tắt điều hành trên trang** (Đang ổn / Cần can thiệp / Dừng an toàn); dialog chỉ giữ chi tiết kỹ thuật.
+4. **Freshness xử lý tập trung một chỗ** — một trạng thái quan sát chung đầu trang; dữ liệu cấp dưới chỉ hiển thị `—` có nhãn.
+5. **Dữ liệu backend chưa cung cấp** hiển thị tường minh "chưa có dữ liệu" (trượt giá, depth ladder, hold benchmark, rolling SLA) — xem danh mục tại [OVERVIEW-REVIEW mục 5](OVERVIEW-REVIEW.md#5-khoảng-trống-dữ-liệu-backend).
+
+Đã triển khai chính thức: HomePage (`src/pages/HomePage.tsx`) dùng bố cục theo trục câu hỏi với dữ liệu thật từ supplement `status.overview` (`OverviewSupplementOutput`, map tại `src/features/overview/supplement.ts`). Prototype `/overview-preview` và mock data đã bị xóa; dữ liệu backend chưa cung cấp hiển thị chip "chưa có dữ liệu" (`BackendGapChip`).
 
 ## 4. Cây component cấp chức năng & Bố cục Responsive
 

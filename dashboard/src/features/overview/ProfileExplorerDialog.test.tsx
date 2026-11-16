@@ -53,6 +53,24 @@ describe('ProfileExplorerDialog', () => {
     expect(screen.getByTestId('profile-explorer-target')).toHaveTextContent('0.01204')
   })
 
+  it('shows the how-it-works steps, pricing chain and scenario reset', async () => {
+    server.use(http.get(`${pageApiUrl}/profiles`, () => HttpResponse.json({
+      catalogue_hash: 'h', process_identity: null, reporting_timezone: 'UTC',
+      market_modes: ['spot'], duration_modes: ['timed'],
+      catalogue: { profiles: catalogue, markets: {}, random: { profile_ids: ['follow_market'], step_duration_seconds: 120 } },
+    })))
+    renderExplorer({ anchorLife: 0.012, spreadBps: 40 })
+    await waitFor(() => expect(screen.getByTestId('profile-explorer-references')).toBeInTheDocument())
+    expect(screen.getByTestId('profile-explorer-steps')).toBeInTheDocument()
+    // Chain: anchor 0.012 ± 0% → target 0.012, quotes ±40bps around it
+    expect(screen.getByTestId('profile-explorer-chain')).toHaveTextContent('0.012')
+    expect(screen.getByTestId('profile-explorer-chain')).toHaveTextContent('± 40 bps')
+    fireEvent.change(screen.getByRole('slider', { name: /BTC-USDT move/i }), { target: { value: 1 } })
+    expect(screen.getByTestId('profile-explorer-move')).toHaveTextContent('+0.6%')
+    fireEvent.click(screen.getByTestId('profile-explorer-reset'))
+    expect(screen.getByTestId('profile-explorer-move')).toHaveTextContent('+0.0%')
+  })
+
   it('explains sideways without references and keeps the move at zero', async () => {
     server.use(http.get(`${pageApiUrl}/profiles`, () => HttpResponse.json({
       catalogue_hash: 'h', process_identity: null, reporting_timezone: 'UTC',
