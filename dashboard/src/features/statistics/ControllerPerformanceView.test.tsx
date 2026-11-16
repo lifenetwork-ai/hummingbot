@@ -84,22 +84,36 @@ describe('ControllerPerformanceView', () => {
     expect(screen.getByText('LIFE-USDT')).toBeInTheDocument()
     expect(screen.getByText('Connector: binance')).toBeInTheDocument()
     expect(screen.getByText('Fresh')).toBeInTheDocument()
-    expect(screen.getByText('TAKE_PROFIT: 12')).toBeInTheDocument()
-    expect(screen.getByText('STOP_LOSS: 2')).toBeInTheDocument()
+    expect(screen.getByText('Take profit: 12')).toBeInTheDocument()
+    expect(screen.getByText('Stop loss: 2')).toBeInTheDocument()
 
     // Controller 2
     expect(screen.getByText('ctrl-perp-hedge-2')).toBeInTheDocument()
     expect(screen.getByText('BTC-USDT')).toBeInTheDocument()
     expect(screen.getByText('Connector: okx_perpetual')).toBeInTheDocument()
     expect(screen.getByText('Stale')).toBeInTheDocument()
-    expect(screen.getByText('EXPIRED: 1')).toBeInTheDocument()
+    expect(screen.getByText('Expired: 1')).toBeInTheDocument()
 
     // Disclaimers
     expect(
-      screen.getByText(/Performance metrics are not aggregated across controllers/i),
+      screen.getByText(/Σ tiles are for scale only; metrics are not aggregated into total account PnL/i),
     ).toBeInTheDocument()
     expect(screen.getByText(/percentage_points/i)).toBeInTheDocument()
     expect(screen.getByText(/volume_traded/i)).toBeInTheDocument()
+
+    // KPI strip — display-only sums across rows
+    expect(screen.getByText('Σ Volume Traded')).toBeInTheDocument()
+    expect(screen.getByText('10,000.00 USDT')).toBeInTheDocument()
+    expect(screen.getByText('Σ Global PnL')).toBeInTheDocument()
+    expect(screen.getByText('+65.50 USDT')).toBeInTheDocument()
+    expect(screen.getByText(/Sum of controllers — not account PnL/i)).toBeInTheDocument()
+    expect(screen.getByText('Controller Observations')).toBeInTheDocument()
+    expect(screen.getByText('1 fresh')).toBeInTheDocument()
+    expect(screen.getByText('1 stale · 0 unknown')).toBeInTheDocument()
+
+    // Inline bar legends
+    expect(screen.getAllByText('realized').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('unrealized').length).toBeGreaterThan(0)
   })
 
   it('renders error state independently using completionUnavailablePerformance', () => {

@@ -20,4 +20,10 @@ describe('controller performance source panel', () => {
     expect(derivePerformancePanel({ phase: 'ready', data: { ...data, owner_available: false }, error: null, refreshing: false }).rows[0].observation).toBe('unknown')
     expect(derivePerformancePanel({ phase: 'loading', error: null, refreshing: true }).rows).toEqual([])
   })
+  it('normalizes numeric CloseType enum keys to canonical names', () => {
+    const withNumericKeys = structuredClone(data)
+    withNumericKeys.markets[0].observations[0].report.close_type_counts = { '10': 11959, '5': 16488, '8': 1662 }
+    const model = derivePerformancePanel({ phase: 'ready', data: withNumericKeys, error: null, refreshing: false })
+    expect(model.rows[0].report.close_type_counts).toEqual({ POSITION_HOLD: 11959, EARLY_STOP: 16488, FAILED: 1662 })
+  })
 })
