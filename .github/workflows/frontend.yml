@@ -57,6 +57,9 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run test:coverage
       - run: pnpm run build
+        env:
+          VITE_ADMIN_API_BASE_URL: ${{ vars.VITE_ADMIN_API_BASE_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
       - name: Upload frontend production build
         uses: actions/upload-artifact@v4
         with:
