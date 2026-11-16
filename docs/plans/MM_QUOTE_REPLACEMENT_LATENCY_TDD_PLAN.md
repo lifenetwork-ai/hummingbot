@@ -41,9 +41,18 @@ legacy executors retain their timing. Waking a loop grants no new order authorit
 - [x] Final source-frozen regression passes3842 tests +16 subtests;197
   disposable PostgreSQL cases pass (191 related +4 paired +2 original controls).
   Focused39 native lifecycle cases overlap the target. Hooks/hashes pass.
-- [ ] Commit/deploy the candidate; no environment or migration change required.
-- [ ] Observe a fresh unchanged30-minute window.153 still fails99% Spot quotes;
-  do not claim every probe or terminal-write delay is fixed by this candidate.
+- [x] Commit/deploy7008a0d1f on154 at100% traffic with matching immutable digest
+  and unchanged non-image spec. No environment or migration change required.
+- [x] Complete the unchanged30-minute window:901 samples, quality pass,149
+  recorded orders/17 Spot fills, no failed reads/restarts/ownership loss or
+  in-window probe timeout. One temporary shutdown fence auto-clears; retain the
+  separate startup probe. Final health200/running/no HALT/control90.
+- [ ] Close99% quotes and residual startup/terminal latency:154 Spot95.07%
+  conservative fails (193 two-sided/3 gaps/7 unknown); Perpetual has no eligible
+  samples. Retain two loop-stall/recovery pairs and INFO limitations. These
+  differently guarded windows are not a controlled performance comparison.
+
+[154 verification](../../reports/performance/mm-quote-replacement-latency.md#revision154-deployment-verification--2026-11-16).
 
 See [scope and receipts](../../reports/performance/mm-quote-replacement-latency.md#final-send-gate-progress--local-2026-11-16).
 

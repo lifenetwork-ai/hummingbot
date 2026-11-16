@@ -1,5 +1,75 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Revision154 deployment verification — 2026-11-16
+
+`hummingbot-demo-00154-jgw` is Ready at01:28:50 ICT on November16, serving100%
+traffic. The full commit tag `7008a0d1f4fa4a3c12c2942d675ee7a191059f3a` and
+revision independently resolve to
+`sha256:c62ee662afb37dc3ede5e1e43681253dc23f2bb05eac1ec823b42164781384ed`.
+The non-image revision spec matches153. No deployment setting, DB, credential,
+risk policy or logging exclusion is mutated during this GET-only verification.
+Initial/final policy is2,500/controller–5,000/global; session expiry remains
+unbounded, session/control/ack90 unchanged, and Random generations90–93 advance.
+
+The fixed window is01:36:24–02:06:26 ICT
+(`2026-11-15T18:36:24.890355Z`–`19:06:26.534583Z`):901 paired samples, no failed
+reads/identity changes,1801.436 s sampled span and2.186 s maximum gap. Collection
+quality passes. The conservative v3 classifier is unchanged, SHA256
+`ce60b823674db68a850cafd03fe7e90d77dc8cd0484716bee31b315e6a03e753`.
+
+| Market | Two-sided | Guard-excluded | Eligible gaps | Unknown | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Spot | 193 | 698 | 3 | 7 | 193/203 =95.07% conservative; FAIL99% |
+| Perpetual | 0 | 894 | 0 | 7 | UNQUALIFIED; no confirmed eligible samples |
+
+Spot's conditional result is193/196 =98.47%. Two gaps show SELL submission
+pending (01:39:59,02:05:14), one SELL executor activity (02:01:06), with no
+continuous downtime established by these isolated samples. Guard reasons mainly
+include order-size rejection/allocation/Spot-outflow restrictions; Perpetual
+remains inventory-limited under close-first/breakeven. Unknowns remain failures.
+Compared with153, confirmed Spot eligibility is196 rather than331 and
+guard-excluded samples698 rather than563. The windows differ in market/profile/
+inventory workload; neither quote percentages nor probe counts establish a
+controlled performance gain or regression.
+
+Recorded activity in-window is149 orders (Spot58BUY/31SELL, Perpetual60SELL)
+and17 Spot fills (1BUY/16SELL), zero Perpetual fills. Since Ready through the
+window end there are215 orders/46 Spot fills. Three order pages and one fill
+page cover the scope completely. These are recorded native rows, not an
+independent REST audit of every venue acceptance.
+
+Retained in-window logs have zero probe timeouts, no application/HTTP ERROR,
+scheduled child restart or ownership loss, one diagnostic engine PID and one
+Cloud instance. Ten warnings consist of six slow-stage messages and two
+loop-stall/recovery pairs. The sampled stacks are terminal ORM flush/SQL
+(01:39:58,251.77 ms heartbeat gap) and create-event COMMIT
+(01:57:39,253.08 ms). Individual cursor/COMMIT timing is distinct from an entire
+ready batch's heartbeat delay. Preserve the separate startup probe at01:29:59,
+elapsed300.832 ms, max probe gap1.307 s; it recovers before the measured window.
+This max-gap metric is not a measured recovery duration. INFO exclusions remain
+unchanged, so missing INFO cannot prove missing execution or identify every ACK.
+
+One status sample at01:57:28 reports a temporary shutdown fence with next action
+`wait`; it clears at01:57:30 and generation93 is running at01:57:38. It remains
+unknown, not an operator-required HALT. Other observed handoffs at01:37:29 and
+01:47:29 return to running about10 s later, with no sampled HALT flag.
+
+The last retained in-window diagnostic packet is01:57:58, not the window end.
+Its cumulative counters since boot have controller cycles4047/4047, zero errors,
+max18.50 ms; SQL max59.55 ms, COMMIT30.22 ms, owner read50.30 ms and held-position
+checkpoints16/16, zero errors, max118.78 ms. Startup indicator preparation peaks
+at4.44 s outside the hot cycle. These maxima cannot describe unlogged later work.
+At02:06:49, all three health endpoints return200,154 is running/no error/HALT,
+control/ack90; Spot has2BUY/0SELL and Perpetual0BUY/2SELL. The bot is left running.
+Late-ingestion readback through02:08:34 preserves all startup/window counts.
+After the window, six warnings comprise two further stall/recovery pairs and
+two slow-stage messages, with no probe/application/HTTP error or ownership loss.
+An independent02:09:31 readback still has154 running/no error/HALT/control90 and
+all three health endpoints200. These later warnings do not change the fixed score.
+Deployment/collection pass;99% quote acceptance and residual startup/terminal
+latency remain open. No release-wide pass or proof that all stalls are fixed is
+assigned. Private receipts are in `build/final-send-postdeploy-20261116/`.
+
 ## Final send gate progress — local 2026-11-16
 
 The153 retained stacks narrow the follow-up without attributing every probe to
@@ -73,8 +143,9 @@ Final source-frozen `make test-cloudrun-regression` passes3842 tests +16
 subtests. Disposable PostgreSQL selection passes197 cases:191 related runtime
 cases, four paired replay cases and two original-authorization retirement
 controls. The39-case focused native lifecycle selection overlaps the full
-target. Final hooks and source-hash checks pass. Commit/deploy and a fresh
-connected30-minute observation remain pending.
+target. Final hooks and source-hash checks pass. At this local cutoff,
+commit/deploy and a fresh connected30-minute observation were pending; the154
+verification above records their subsequent scope and failed quote gate.
 
 Evidence: `build/probe-submission-followup-20261116/` retains the scoped Cloud
 stack correlation, original four REDs, subsequent retirement REDs, original

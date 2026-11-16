@@ -1,6 +1,17 @@
 # Cloud Run quote/recovery acceptance — 2026-11-12
 
-Latest verification2026-11-16:153/`9a73fae97` matches its immutable artifact,
+Latest verification2026-11-16:154/`7008a0d1f` matches its immutable artifact
+at100% traffic, with unchanged non-image spec and control/ack90. The unchanged
+30-minute window has901 samples, quality pass,149 recorded orders/17 Spot fills
+and zero failed reads, in-window probe timeouts, application ERROR, observed
+restart or ownership loss. Retain one earlier startup probe and two in-window
+loop-stall/recovery pairs. One sampled shutdown fence auto-clears; no operator
+reset is needed. Final02:06:49 ICT health is200/running/no HALT. Spot193/203
+=95.07% conservative fails99%; Perpetual has no eligible samples. Quote and
+residual startup/terminal-latency gates remain open. These differently guarded
+windows do not establish a controlled speed comparison; see [154 results](../performance/mm-quote-replacement-latency.md#revision154-deployment-verification--2026-11-16).
+
+Earlier verification2026-11-16:153/`9a73fae97` matches its immutable artifact,
 serves100% traffic and completes901 samples over30 minutes on one image.
 Collection quality passes; Spot326/338 =96.45% conservative fails99%, while
 Perpetual has no eligible two-sided samples. Keep five recovered probes in the
