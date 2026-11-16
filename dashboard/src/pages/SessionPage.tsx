@@ -10,6 +10,7 @@ import { useSessionConfiguration } from '../features/history/useHistoryQueries'
 import { useCommandReceipt } from '../core/api/hooks'
 import { useOperationalContext } from '../features/operational-context/useOperationalContext'
 import { CommandReceiptTracker } from '../features/session/CommandReceiptTracker'
+import { usePreviousSessionCommand } from '../features/session/usePreviousSessionCommand'
 import { SessionConfigForm, type SessionDraftConfig } from '../features/session/SessionConfigForm'
 import { SessionDiffReview } from '../features/session/SessionDiffReview'
 import { Button } from '../shared/components/Button'
@@ -28,6 +29,7 @@ export function SessionPage() {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const receipt = useCommandReceipt(control.commandReceipt?.reference.id)
+  const previousCommand = usePreviousSessionCommand(receipt.data)
   const currentControlVersion = context.controlVersion
   const reportError = (error: unknown) => error instanceof Error ? error.message : 'Could not verify the outcome of the operation.'
   const handleReview = (action: 'start' | 'switch', draft: SessionDraftConfig) => {
@@ -140,7 +142,7 @@ export function SessionPage() {
 
         {control.commandReceipt && step !== 'tracker' && (
           <div className="mb-5">
-            <CommandReceiptTracker receipt={receipt.data} isLoading={receipt.isLoading} error={receipt.error?.message} />
+            <CommandReceiptTracker receipt={receipt.data} previousReceipt={previousCommand.previous} previousLoading={previousCommand.isLoading} isLoading={receipt.isLoading} error={receipt.error?.message} />
           </div>
         )}
 
@@ -207,6 +209,8 @@ export function SessionPage() {
             {step === 'tracker' && (
               <CommandReceiptTracker
                 receipt={receipt.data}
+                previousReceipt={previousCommand.previous}
+                previousLoading={previousCommand.isLoading}
                 isLoading={receipt.isLoading || control.submitting}
                 error={submitError ?? receipt.error?.message}
                 onReset={() => {
