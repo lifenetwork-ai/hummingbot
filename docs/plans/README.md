@@ -1,5 +1,10 @@
 # Plans and remaining verification
 
+The [Admin Overview reporting TDD plan](ADMIN_OVERVIEW_REPORTING_TDD_PLAN.md)
+tracks PR #2 contract corrections, eligible rolling coverage, reporting isolation
+and session fees beyond 10,000 fills. It is planned work; the review reproductions
+and existing passing tests do not qualify an implementation or deployment.
+
 Updated 2026-11-12 local. Current recovery work is tracked in
 [automatic recovery and availability](MM_AUTOMATIC_RECOVERY_AVAILABILITY_TDD_PLAN.md)
 and its [connected baseline/handoff report](../../reports/demo/cloudrun-runtime-baseline-handoff.md).
