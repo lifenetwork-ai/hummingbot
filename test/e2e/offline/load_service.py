@@ -22,12 +22,14 @@ from aiohttp import web
 from load_incidents import IncidentBuffer, capture_limit
 from load_process_metrics import MetricsExporter, collect_requested
 from load_trace import (
+    DeferredCancelTrace,
     DeferredGCTrace,
     FullGCProbe,
     TraceRecorder,
     TraceSink,
     backend_pid,
     instrument_admin_queue,
+    instrument_async,
     instrument_sync,
     runtime_trace_sink,
     sample_heartbeat,
@@ -145,6 +147,7 @@ loop_beat_ns = time.monotonic_ns()
 watchdog_stop = threading.Event()
 gc_trace = DeferredGCTrace() if tracer else None
 full_gc_probe = FullGCProbe() if os.environ.get('HBOT_LOAD_GC_DIAGNOSTICS') == '1' else None
+cancel_trace = DeferredCancelTrace() if os.environ.get('HBOT_MM_ACTIVITY_DIAGNOSTICS') == '1' else None
 metrics_exporter = MetricsExporter(Path('/tmp/load-metrics-api.json' if process_role == 'api' else '/tmp/load-metrics.json'))
 if trace_sink:
     atexit.register(trace_sink.close)
@@ -188,6 +191,7 @@ if os.environ.get('HBOT_MM_ACTIVITY_DIAGNOSTICS') == '1' and process_role == 'en
     def emit_mm_activity(record):
         emit_trace(record)
         mm_activity_sink.emit({**record, 'capturing_role': process_role, 'capturing_pid': os.getpid()})
+        cancel_trace.observe(record)
 
     mm_activity = ActivityRecorder(emit_mm_activity)
     instrument_cycle(StrategyV2Base, 'tick', 'strategy.tick', mm_activity,
@@ -231,7 +235,8 @@ def save_incident_summary():
     temporary = destination.with_suffix('.new')
     temporary.write_text(json.dumps({**incidents.summary(), 'at': time.time(), 'process_id': os.getpid(),
                                      'sink': incident_sink.summary(), 'dropped_spans': tracer.dropped_spans,
-                                     'gc_trace': gc_trace.summary()}))
+                                     'gc_trace': gc_trace.summary(),
+                                     'cancel_trace': cancel_trace.summary() if cancel_trace is not None else None}))
     temporary.replace(destination)
 
 
@@ -450,6 +455,8 @@ def watchdog(loop_thread_id):
     trigger_path = Path('/tmp/load-incident-trigger.json')
     while not watchdog_stop.wait(.05):
         gc_trace.drain(emit_trace)
+        if cancel_trace is not None and incidents is not None:
+            cancel_trace.drain(incidents.trigger)
         now = time.monotonic_ns()
         cpu = Path("/sys/fs/cgroup/cpu.stat")
         if incidents:
@@ -506,6 +513,14 @@ def watchdog(loop_thread_id):
             incidents.trigger(dict(kind='loop_stall_trigger', at_ns=now, at=heartbeat['at'],
                                    process_role=process_role, lag_ms=lag_ms))
         emit_trace(record)
+
+
+if trace_sink and process_role == 'engine':
+    from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
+    from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
+
+    for connector in (OkxExchange, OkxPerpetualDerivative):
+        instrument_async(connector, '_place_cancel', 'order.cancel.' + connector.__name__, tracer)
 
 
 if tracer:

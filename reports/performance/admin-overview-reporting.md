@@ -617,3 +617,52 @@ C remains open for API warmup tail-latency attribution and the isolated paired
 cancel-p99 failure. Functional correctness and a successful long soak do not
 waive either failed gate. A new connected 30-minute Demo acceptance window remains
 separately open after any approved deployment.
+
+### Bounded tail investigation — 2026-11-17
+
+The original warmup failure (read p99 5,127.91ms) and pair-two cancel regression
+(41.69 to 125.46ms) remain failed. No production code is changed in this follow-up.
+The changes add opt-in test diagnostics and six regression cases for the capture
+mechanism; the final expanded diagnostic regression passes 81 tests. Changed-file
+hooks pass. The 1,133 packaged production file hashes remain unchanged.
+
+The retained worst cancel reaches the simulator HTTP handler at 15.550ms and
+its terminal effect at 15.602ms, then returns from the native coroutine at
+125.459ms. The remaining 109.856ms does not establish a unique cause: completion
+at the simulator and receipt/processing of its response are different events.
+The original incident capture did not retain causal stacks for that interval.
+The test harness now queues a bounded scalar marker for completed cancels
+>=100ms and drains it from the watchdog, outside producer locks. Full tracing
+also records async cancel spans without arguments or exception messages.
+
+Three bounded diagnostic windows retain the same immutable production artifacts,
+100,000-row history and normalized healthy book depth, at 2 CPU /2GiB. AC source
+was observed throughout; these runs do not replace the original acceptance runs.
+
+| Diagnostic | Evidence directory under `build/mm-load` | Read p95/p99 (ms) | Native cancel samples /maximum |
+| --- | --- | --- | --- |
+| Candidate, 360 seconds | `20261117-001704-e8b46b` | 135.13 /420.56 | 67 /47.75ms |
+| Baseline, 360 seconds | `20261117-002502-ed7cfb` | 51.49 /186.30 | 67 /60.74ms |
+| Exact canonical warmup, 300 seconds, full trace | `20261117-003452-8138e6` | 133.65 /324.35 | Full trace retains slow spans, not all-call cancel counts |
+
+Neither original tail reproduces. In the full-trace warmup the largest retained
+API request takes 673.06ms, with two sequential SQL spans of 378.87/286.96ms and
+0.061ms worker queue wait. It is a daily-statistics request, without the original
+multi-second broad route stall. API full GC observations are <=16.03ms in this
+run and <=18.20ms in the candidate 360-second diagnostic. This does not establish
+the GC duration or cause of the original stall.
+
+The original warmup's final minute adds 47 cgroup CPU throttle periods and
+5.313 seconds of cumulative throttled time, after no increase over the preceding
+three minute samples. The new traced measurement adds one period /19.746ms
+between its first and last in-window CPU samples. This is correlation with
+resource contention, not attribution of individual requests: the old run lacks
+fine-grained causal capture at the boundary. The retained macOS power log shows
+no Sleep/Wake transition in the failed warmup interval; AC samples alone would
+not prove that.
+
+Raw diagnostic results, power observations and retained cancel decomposition are
+under `build/overview-tail-investigation-20261117`. The 300-second run deliberately
+stops before mixed, so its overall incomplete-release result must not be reported
+as a full qualification pass. C remains open; retain the existing margins and
+capture a recurrence before proposing a production fix for these tails.

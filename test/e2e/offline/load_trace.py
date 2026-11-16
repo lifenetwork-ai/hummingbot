@@ -1,5 +1,6 @@
 """Bounded, test-only causal traces. Never records SQL parameters or frame locals."""
 import contextvars
+import functools
 import hashlib
 import heapq
 import inspect
@@ -59,6 +60,36 @@ class FullGCProbe:
                                     duration_ms=(time.monotonic_ns() - started) / 1e6,
                                     thread_cpu_ms=(time.thread_time_ns() - cpu) / 1e6,
                                     collected=info['collected']))
+
+
+class DeferredCancelTrace:
+    """Queue slow cancel markers for watchdog capture outside producer locks."""
+
+    def __init__(self, *, limit=128, minimum_ms=100):
+        self.pending = deque(maxlen=limit)
+        self.minimum_ms = minimum_ms
+        self.dropped_events = 0
+
+    def observe(self, row):
+        if (row.get('operation') != 'order.cancel' or row.get('phase') != 'end'
+                or row.get('duration_ms', 0) < self.minimum_ms):
+            return
+        if len(self.pending) == self.pending.maxlen:
+            self.dropped_events += 1
+        self.pending.append(dict(kind='cancel_tail_trigger', **{key: row[key] for key in
+                                 ('at_ns', 'start_ns', 'duration_ms', 'event_id', 'order_id', 'connector')}))
+
+    def drain(self, sink):
+        while self.pending:
+            try:
+                event = self.pending.popleft()
+            except IndexError:
+                break
+            sink(event)
+
+    def summary(self):
+        return dict(pending_events=len(self.pending), max_events=self.pending.maxlen,
+                    dropped_events=self.dropped_events)
 
 
 class DeferredGCTrace:
@@ -132,6 +163,24 @@ def instrument_sync(owner, name, key, samples, totals, tracer, attributes=None, 
                 else:
                     tracer.end(span, error=error, **details)
     setattr(owner, name, classmethod(measured) if isinstance(descriptor, classmethod) else measured)
+
+
+def instrument_async(owner, name, operation, tracer):
+    """Trace an async operation and its SQL children without copying arguments."""
+    original = getattr(owner, name)
+
+    @functools.wraps(original)
+    async def measured(*args, **kwargs):
+        span = tracer.begin(operation)
+        error = None
+        try:
+            return await original(*args, **kwargs)
+        except BaseException as exception:
+            error = type(exception).__name__
+            raise
+        finally:
+            tracer.end(span, error=error)
+    setattr(owner, name, measured)
 
 
 def instrument_admin_queue(owner, samples, totals, tracer):

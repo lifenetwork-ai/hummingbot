@@ -455,3 +455,44 @@ bounded evidence, reproduce any demonstrated code fault, and retain the existing
 acceptance margins. Do not infer a unique cause from the known encoding-lock fix,
 or use another passing window to replace a failed one. Connected 30-minute Demo
 acceptance remains separate after an approved deployment.
+
+### C investigation follow-up — 2026-11-17
+
+- [x] Retain the failed pair-two cancel interval: the slowest call takes
+  125.459ms, with the simulator handler/terminal reached at 15.550/15.602ms;
+  another 109.856ms elapses before the native coroutine returns. Other calls in
+  the same twelve-cancel burst also show tails. This does not uniquely attribute
+  time between HTTP handler completion and coroutine return.
+- [x] Locate the warmup transition: minute samples through 240s retain roughly
+  131–134ms p95; the last minute produces the broad route tails. The original
+  canonical run did not retain causal incident stacks at that boundary.
+- [x] Add bounded deferred capture for completed cancels >=100ms in the opt-in
+  MM diagnostic wrapper. Producer callbacks only enqueue scalar markers; the
+  watchdog flushes incident history. Three new RED/GREEN cases and 59 nearby
+  diagnostic tests pass, including lock reentry, capacity and private-field checks.
+- [x] Run one predeclared diagnostic pair, candidate then baseline: 360 seconds
+  each, 2 CPU /2GiB, 100,000 history rows, the same normalized healthy depth,
+  security/defense workload and immutable production images. Enable GC timing
+  and bounded incident/MM capture (128 incident limit, unchanged RAM/disk caps)
+  to cover the late warmup transition and slow cancel bursts. Observe AC before,
+  during and after. These are diagnosis, not replacement acceptance results.
+  Candidate p95/p99 135.13/420.56ms, baseline 51.49/186.30ms; maximum native
+  cancel 47.75/60.74ms over 67 samples each. Neither original tail is reproduced.
+  API full GC events remain <=18.20ms; this does not attribute the old 3s stall.
+- [x] Add full-trace async cancel spans with nested SQL/queue context; three
+  RED/GREEN result/exception/cancellation cases preserve inputs and outcomes.
+  All 62 nearby diagnostic tests pass. The failed RED test process starts after
+  the baseline measurement ends, so it does not overlap the measured interval.
+- [x] Replay exactly the first canonical 300-second warmup with full tracing and
+  GC timing, then stop before mixed. Keep production images/resources/workload
+  unchanged; this bounded diagnosis also does not replace failed acceptance.
+  `20261117-003452-8138e6`: warmup p95/p99 133.65/324.35ms, no HTTP errors;
+  original multi-second tail not reproduced. The largest retained API request
+  is 673.06ms, including two sequential SQL spans of 378.87/286.96ms; sampled
+  API full GC remains <=16.03ms. No new production-path fix is justified by this
+  diagnostic. The deliberately partial run does not qualify the full release.
+  Final expanded diagnostic regression: 81 passed; all changed-file hooks pass.
+- [ ] Attribute demonstrated stalls, reproduce actual code faults with tests,
+  and apply the smallest fix. Preserve failed gates and acceptance margins.
+- [ ] Repeat affected checks and qualify the final runtime artifact, including
+  the required unchanged load/soak scope after any production-path change.
