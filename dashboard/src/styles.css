@@ -46,6 +46,37 @@
     text-wrap: balance;
   }
 
+  /*
+   * Categorical chart series palette: fixed order, assigned by series order, never
+   * cycled. Validated (adjacent-pair CVD separation, lightness band, chroma,
+   * contrast) for the app chart surfaces: light #FFFFFF and dark #1B1A23. Light
+   * slots 3/4/5 sit below 3:1 on the light surface, so charts using this palette
+   * must keep visible labels, a legend and an expandable detail table as the
+   * relief channel. Chart series colors have no semantic theme token yet; this
+   * class is the single source for them until one joins `src/theme/_config.ts`.
+   */
+  .chart-series-palette {
+    --chart-series-1: #2a78d6;
+    --chart-series-2: #eb6834;
+    --chart-series-3: #1baf7a;
+    --chart-series-4: #eda100;
+    --chart-series-5: #e87ba4;
+    --chart-series-6: #008300;
+    --chart-series-7: #6250d6;
+    --chart-series-8: #e34948;
+  }
+
+  .dark .chart-series-palette {
+    --chart-series-1: #3987e5;
+    --chart-series-2: #d95926;
+    --chart-series-3: #199e70;
+    --chart-series-4: #c98500;
+    --chart-series-5: #d55181;
+    --chart-series-6: #0ca30c;
+    --chart-series-7: #9085e9;
+    --chart-series-8: #e66767;
+  }
+
   .brand-grid {
     background-image:
       linear-gradient(to right, rgba(0, 118, 245, 0.045) 1px, transparent 1px),
