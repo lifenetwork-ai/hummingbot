@@ -784,11 +784,10 @@ class StrategyV2Base(StrategyPyBase):
             try:
                 actions = await self.actions_queue.get()
                 self.executor_orchestrator.execute_actions(actions)
+                # Only a successful native report may publish executor state
+                # and reopen controller readiness. Re-publishing the previous
+                # report here would bypass a failed financial handoff.
                 self.update_executors_info()
-                controller_id = actions[0].controller_id
-                controller = self.controllers.get(controller_id)
-                controller.executors_info = self.get_executors_by_controller(controller_id)
-                controller.executors_update_event.set()
             except asyncio.CancelledError:
                 raise
             except Exception as e:
@@ -926,6 +925,13 @@ class StrategyV2Base(StrategyPyBase):
         except Exception as e:
             self.controller_reports_error = type(e).__name__
             self.logger().error(f"Error updating controller reports: {e}", exc_info=True)
+        finally:
+            if self.controller_reports_error is not None:
+                # Keep old exposure/report data for observation, but never use
+                # a previous readiness publication as fresh admission evidence.
+                # Normal clock/report retries restore readiness on success.
+                for controller in self.controllers.values():
+                    controller.executors_update_event.clear()
 
     @staticmethod
     def is_perpetual(connector: str) -> bool:

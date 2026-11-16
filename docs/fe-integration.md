@@ -647,6 +647,9 @@ expandable technical-details panel for maintainers.
 
 Local pending creation does not prove that transport started or OKX accepted an
 order. A pending executor report does not identify a particular failed task.
+After a report failure, previous exposure/report values may remain visible,
+but controller readiness stays closed until a successful native report publish.
+Pending/working state alone does not prove that financial persistence succeeded.
 `unknown` is retained when there is no reliable stage evidence; do not invent a
 root cause. Working/idle/unavailable sides have no active diagnosis. Gaps, owner/
 generation changes, restart, invalid samples, stage/reason changes and observed

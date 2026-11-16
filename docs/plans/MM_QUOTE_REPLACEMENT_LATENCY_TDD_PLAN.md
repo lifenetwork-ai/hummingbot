@@ -15,6 +15,37 @@ plus its normal loop sleep. A cancel ACK can update the order during that wait
 without waking the task. Managed closing quotes will use a coalescing wake event;
 legacy executors retain their timing. Waking a loop grants no new order authority.
 
+## Native quote pipeline follow-up — local 2026-11-16
+
+- [x] Preserve154's classifier and failed95.07% result. Join all three SELL gaps
+  to recorded order/fill timelines with opaque IDs. Recorded second-resolution
+  timestamps and absent retained per-order phases cannot prove exact DB/ACK
+  delays. Treat sampled pending states separately from a demonstrated defect.
+- [x] Resolve the seven unknown samples: five startup frames without usable
+  liquidity, one old-generation shutdown fence and one wait for the first
+  drawdown report. Keep every sample unknown; do not reclassify startup as quotes.
+- [x] Extend native composition through proposal, executor, actual OKX connector,
+  REST/authentication, tracker ACK and `own_quotes`. Four BUY/SELL and account-
+  ordering cases retain account/commit gates, observe no-working/pending states
+  and one send while ACK is held, then regain two-sided observation after ACK.
+- [x] RED three independent report-readiness defects: failed native hold commit
+  re-publishes old action readiness; ordinary report/valuation failure leaves
+  prior readiness set. Only successful native report publication may set it;
+  failure clears readiness while retaining exposure data and normal retries.
+- [x] Exercise real PostgreSQL errors after flush and before COMMIT: financial
+  rows roll back, the failed-writer latch remains closed and listener/controller
+  readiness cannot bypass it. No automatic latch reset or fresh send authority.
+- [x] Frozen Cloud Run regression passes3849 tests +16 subtests;101 related
+  disposable PostgreSQL tests and hooks pass. The focused7 native cases overlap
+  the target. Runtime/test source hashes match the validated snapshot.
+- [ ] Commit/deploy this report-readiness correction; no environment, migration
+  or API schema change is required.
+- [ ] Observe the subsequent image; do not claim this independently reproduced
+  failure-path bug caused154's healthy short waits or closes the99% quote gate.
+
+Evidence: `build/quote-handoff-followup-20261116/`; see
+[native follow-up](../../reports/performance/mm-quote-replacement-latency.md#native-quote-pipeline-follow-up--local-2026-11-16).
+
 ## Final send gate progress — local 2026-11-16
 
 - [x] Correlate153's actual retained thread/stack evidence: the367.70 ms SQL is

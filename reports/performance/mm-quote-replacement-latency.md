@@ -1,5 +1,66 @@
 # Quote replacement and expired-order recovery — 2026-11-12
 
+## Native quote pipeline follow-up — local 2026-11-16
+
+The154 result remains95.07%, with its original classifier/sample receipts.
+The two submission-pending SELL samples are near recorded replacements; the
+executor-activity sample follows two recorded SELL fills/completions. Recorded
+creation/fill timestamps have second resolution, and none of those identities
+joins to a retained per-order submission phase. Those observations do not
+identify exact DB-versus-venue ACK time or prove a runtime hang.
+
+All seven unknowns have concrete contemporaneous states: five `starting` frames
+with invalid liquidity, one protected shutdown fence with a stale generation92
+observation while93 is current, and one `waiting_for_mm_readiness` frame with
+`drawdown_report_unavailable`. The last is not an approved guard exclusion in
+the retained classifier. All seven stay unknown; no policy, readiness reason,
+threshold or classification is changed to improve the score.
+
+The earlier composition stopped at a replacement proposal. Four additional
+cases now run native LifeMM, PositionExecutor, action listener/orchestrator,
+actual OkxExchange order tasks, REST serialization/authentication and tracker
+callbacks through an ACK. Only external market/account/transport observations
+and recorder persistence are faked. BUY/SELL and account-before/after-fill
+orderings preserve the financial handoff before sending. While account proof
+is absent, the native observation can have `executor_activity` with no pending
+submission; while transport/ACK is held, it has `submission_pending`. Each case
+sends exactly once while ACK is held and regains two-sided working-order
+observation after ACK. Long periodic waits isolate event progress; these local
+test deadlines are not Cloud latency or financial-database qualification.
+
+Code inspection separately exposes a report-failure bug. The action listener
+called `update_executors_info`, which records errors without raising, then
+unconditionally re-published the previous executor list and readiness event.
+A periodic report/valuation failure also left a previously set event intact.
+Three confirmed native REDs demonstrate this with a failed held-position commit,
+an ordinary report error and unavailable valuation. Initial fixture timeouts
+(an unseeded controller cache and missing keep-position transition) are retained
+separately and are not runtime RED evidence.
+
+The correction removes the listener's stale re-publication and clears readiness
+after report failure. Successful native report publication remains the single
+path that updates controllers and reopens readiness. Old exposure/report values
+remain available for observation; normal clock/report retries are unchanged.
+Temporary read/valuation recovery can publish a later successful report; an
+actually failed financial writer retains its existing failure latch/recovery
+requirements. No guard, native commit, account proof, fee rule or risk cap is
+bypassed. Two real PostgreSQL cases force errors after flush and before COMMIT:
+position/executor/application rows roll back, the fill stays unapplied, checkpoint
+hash remains consistent and readiness stays closed on further failed retries.
+
+Revision154's retained logs have no report exception, so this independently
+reproduced failure-path defect is not assigned as the cause of its three sampled
+quote gaps. Its venue wait/required financial handoff and planned profile
+transitions remain distinct. A new deployment/connected window is still needed;
+neither these regressions nor the correction establishes99% quote acceptance.
+The frozen Cloud Run target passes3849 tests +16 subtests;101 related disposable
+PostgreSQL cases pass, including native checkpoints, send-gate and actual lost
+COMMIT-response cases. The focused7 native cases overlap that target. Hooks and
+source-hash verification pass; disposable database containers are removed. The
+correction remains local, with no environment, migration or API schema change.
+Receipts: `build/quote-handoff-followup-20261116/` contains opaque recorded-timeline
+joins, all seven state rows, confirmed REDs, fixture failures and final validation.
+
 ## Revision154 deployment verification — 2026-11-16
 
 `hummingbot-demo-00154-jgw` is Ready at01:28:50 ICT on November16, serving100%

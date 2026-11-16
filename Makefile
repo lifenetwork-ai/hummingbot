@@ -100,6 +100,7 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/executors/test_managed_entry_wakeup.py \
 		test/hummingbot/strategy_v2/executors/test_entry_account_progress.py \
 		test/hummingbot/strategy_v2/executors/test_managed_terminal_publication.py \
+		test/hummingbot/strategy_v2/executors/test_action_report_barrier.py \
 		test/hummingbot/strategy_v2/executors/test_executor_identity.py \
 		test/hummingbot/strategy_v2/executors/order_executor \
 		test/hummingbot/strategy_v2/test_runnable_base.py \
@@ -138,6 +139,7 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/controllers/test_spread_rejection_lifecycle.py \
 		test/hummingbot/strategy_v2/controllers/test_filled_entry_handoff.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_progress_replay.py \
+		test/hummingbot/strategy_v2/controllers/test_quote_native_ack_replay.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_refresh_continuity.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_diagnostics.py \
 		test/hummingbot/strategy_v2/controllers/test_life_mm_spread.py \
