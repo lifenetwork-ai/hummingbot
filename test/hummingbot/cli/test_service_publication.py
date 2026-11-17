@@ -1,5 +1,6 @@
 """Durable status publication must not occupy the engine event loop."""
 import asyncio
+import importlib
 import threading
 import time
 from types import SimpleNamespace
@@ -12,6 +13,9 @@ from hummingbot.client.config.runtime_config import RuntimeSettings
 
 
 def host(monkeypatch):
+    # Production bootstraps connectors before observing. Do not spend the DB
+    # worker handshake deadline importing the connector catalogue on a cold run.
+    importlib.import_module('hummingbot.cli.overview_capture')
     item = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
                        asyncio.Event(), MagicMock())
     item.hb = SimpleNamespace(trading_core=SimpleNamespace(strategy=None, connector_manager=SimpleNamespace(connectors={})))
@@ -209,6 +213,53 @@ async def test_worker_receives_detached_snapshot_and_does_not_read_live_state(mo
         await task
         assert received == ['1']
         assert item._daily_next_write_at == 0
+    finally:
+        release.set()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_json_normalization_leaves_loop_responsive_and_preserves_daily_failure(monkeypatch):
+    from decimal import Decimal
+
+    item = host(monkeypatch)
+    entered, release = threading.Event(), threading.Event()
+    loop_thread = threading.get_ident()
+    threads, received = [], []
+    live = {'balances': {'BTC': Decimal('1.2500')}, 'rows': [{'count': 1}]}
+    live['mm_liquidity'] = {'_coverage_buckets': {'spot': {'1000': [1000, 1001, 1., 1.]}}}
+    item.snapshot.return_value = live
+    from hummingbot.cli import service
+    dumps = service.json.dumps
+
+    def slow_json(*args, **kwargs):
+        threads.append(threading.get_ident())
+        entered.set()
+        release.wait(2)
+        return dumps(*args, **kwargs)
+
+    def write(**fields):
+        received.append(fields['status'].copy())
+        fields['status']['daily_snapshot_error'] = 'OSError'
+        return True
+
+    monkeypatch.setattr(service.json, 'dumps', slow_json)
+    item.owner.store.publish.side_effect = write
+    task = asyncio.create_task(item.publish_status(0))
+    try:
+        assert await asyncio.to_thread(entered.wait, 2)
+        assert threads == [threads[0]] and threads[0] != loop_thread
+        assert not task.done()
+        assert (await item.health(SimpleNamespace(path='/live'))).status == 200
+        live['balances']['BTC'] = Decimal('9')
+        live['rows'][0]['count'] = 9
+        live['mm_liquidity']['_coverage_buckets']['spot']['1000'][2] = 0
+        release.set()
+        await task
+        assert received == [{'balances': {'BTC': '1.2500'}, 'rows': [{'count': 1}],
+                             'mm_liquidity': {'_coverage_buckets': {'spot': {'1000': [1000, 1001, 1., 1.]}}}}]
+        assert item._daily_next_write_at == 0
+        assert item._daily_retry_at > 0
     finally:
         release.set()
         await asyncio.gather(task, return_exceptions=True)

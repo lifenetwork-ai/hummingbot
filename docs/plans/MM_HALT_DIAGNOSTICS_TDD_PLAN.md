@@ -4,6 +4,12 @@ Scope approved 2026-11-17: explain the actual persisted Demo HALT, reproduce and
 fix demonstrated code faults, publish safe cause metadata, and retain recovery
 proofs. No blanket HALT reset, risk change or implicit trading restart.
 
+Latest connected result: revision164 on exact `a153807bf` completes the large
+checkpoint Check/Reset API flow and explicit Start. Control95 is acknowledged
+running, no HALT, startup/live/ready200. This closes technical recovery on this
+Demo artifact; the broader load/soak and production release gates retain their
+existing scopes and failures. Detailed connected receipts are recorded below.
+
 Read-only Demo evidence contradicts the initial ownership-only attribution:
 the stored manual reason is `A required runtime task failed; inspect service
 availability status.` At 2026-11-16 08:16:53 UTC, the OKX perpetual stream task
@@ -59,8 +65,8 @@ Check returns `recovery_scope_limit`; no Reset or Start is issued.
   unchanged Demo ledger, covering14,519 journaled suffix fills. This is local DB
   eligibility, not exchange verification or permission to reset HALT.
 - [x] Affected PostgreSQL59 and native93 pass; preserve original RED1/control10.
-- [ ] Commit/deploy the follow-up, then repeat the real Check/reviewed Reset/Start
-  workflow. Demo remains stopped and HALTed atcontrol93; no manual DB repair.
+- [x] Commit/deploy the follow-up and repeat Check/reviewed Reset/Start. The
+  workflow completes on revision164; earlier failed attempts remain recorded.
 
 Evidence: `build/halt-recovery-postdeploy-20261117`. The API commands use the
 configured Basic admin identity and retain ordinary audit records. This is not a
@@ -83,9 +89,9 @@ new Google-login acceptance. No credentials, risk limits or ledger rows are edit
   rejection, complete double-scan agreement and final exposure checks. Persist
   safe progress between jobs instead of increasing the page cap or120s job budget.
   Partial/interrupted proof must never expose confirmation or reset permission.
-- [ ] Qualify >10k per-connector suffix, restart/timeout/cursor-race and stale-proof
-  cases locally; deploy and finish connected Check/Recover/Start only after full
-  proof. Current Demo remains stopped +HALT. No manual maintenance is applied.
+- [x] Qualify >10k per-connector suffix, restart/timeout/cursor-race and stale-proof
+  cases locally, then complete connected Check/Recover/Start with full proof on
+  revision164. The historical revision161 stop/failure below remains retained.
 
 Read-only DB inspection, API receipts, registry proof and bounded log observations
 are in `build/halt-recovery-r161-20261117`. The limits are enforced protection;
@@ -111,8 +117,8 @@ this review does not authorize their removal or claim a new MM/soak pass.
   Reset independently revalidates both scans, never reuses a Check as venue proof.
 - [x] Expose sanitized pending progress through existing recovery receipts;
   update API/operations docs and run native/PG/migration/service regressions.
-- [ ] Connected Check/Recover/Start requires a later deployed artifact. Migration023
-  must be applied before the new schema can pass startup validation; no new env.
+- [x] Connected Check/Recover/Start completes on revision164 after migration023
+  and the publication-lock fix. No new deployment env is required.
 
 Local qualification (`build/recovery-segmented-20261117`): native157 pass;
 PostgreSQL regression68 pass; physical-owner rollback plus supervised API/cold
@@ -171,3 +177,43 @@ publication paths, authority changes and a financial edit racing request receipt
 six are also in the regression set. Source/deployed recovery remains open until
 the new artifact completes a fresh connected proof. Evidence:
 `build/recovery-owner-drain-20261117`, `build/recovery-finalization-lock-20261117`.
+
+### Revision164 connected recovery and continuous Demo — passed scoped workflow
+
+CI deploys exact `a153807bfe55248f815c91bea930d8a21eef32af` on
+`hummingbot-demo-00164-b8b`, digest
+`sha256:0fe5c423dd05423a09b6ca737da27d800934b958bf7a93a64ed86c34b270b0a0`.
+The parallel manual build completes later with the same source but a different
+digest; its deployment guard stops before mutation after noticing CI's rollout.
+Only the actual CI digest above is qualified by the connected observations.
+
+Fresh Check `4fddec02-0d52-40e6-892a-f6265ec2ef6e` verifies both complete
+14,519-fill scans over292 pages and finishes `review_required`/can_recovertrue.
+Reset `e951b861-8828-45ba-b703-bc8e23d35fca` independently repeats both scans,
+finishes `recovered` within the unchanged review TTL and advances the reviewed
+journal anchor to88427. No position repair is proposed/applied. Both receipts
+retain the same owner/generation556 through the final running observation.
+
+Before Start, SELECT-only comparison confirms all55,876 orders/15,169 fills and
+three complete position rows unchanged; protected risk state and pinned
+catalogue match exactly. The journal-owner marker changes553->556 to match the
+actual physical owner, not a risk reset. Temporary proof rows are cleaned to0.
+Configured Basic admin identity supplies normal API audit; this is not a new
+Google-auth acceptance. No manual HALT/financial write or limit change is used.
+
+Explicit Start receipt `4f93bb06-37cf-4f80-8b36-ce3c110001e4` succeeds atcontrol95,
+session `4f1a91bd-5751-496c-a951-aac40cc872ee`: both markets, fixedfollow_market,
+until_stopped and expires_atnull. Clock, strategy and recorder run; all three
+health endpoints200. A bounded post-Start observation exceeds3 minutes. Final
+counts55,923 orders/15,172 fills show47 new order records and3 new Spot fills.
+Spot works2BUY/2SELL; Perpetual works2SELL CLOSE orders, with BUY blocked by
+inventory_limit. Do not count that as perpetual two-sided liquidity acceptance.
+
+No new service_failed/child_restart/recovery_blocked is observed in the sampled
+revision164 query window. Two child-probe timeout warnings occur during connector
+startup (about301ms each request); the same owner remains healthy/running at the
+end, without HALT/restart. Recovery INFO rows are not present in the captured
+query, so no exact recovery duration is inferred. Longer soak, resource gate C,
+KMS/FE and broader release gates are not closed by this scoped run. SQL proxy is
+closed; local disposable PG/image removed. Evidence:
+`build/recovery-finalization-lock-20261117`.
