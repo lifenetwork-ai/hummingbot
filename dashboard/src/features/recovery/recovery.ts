@@ -18,6 +18,7 @@ export function recoveryEntry(input: {
   if (!input.overview.halted) return { allowed: false, reason: 'recovery_not_halted' }
   if (input.operationPending) return { allowed: false, reason: 'recovery_in_progress' }
   if (!input.statusFresh || !input.status) return { allowed: false, reason: 'status_unavailable' }
+  if (input.status.recovery?.next_action === 'wait') return { allowed: false, reason: 'shutdown_verification_pending' }
   const session = input.status.observed_session
   if (input.status.desired_state !== 'stopped' || input.status.acknowledged_version < input.status.control_version ||
       (session && session.status !== 'stopped' && session.status !== 'expired')) {
@@ -39,6 +40,7 @@ export function reviewRecovery(input: {
   if (!input.permission) return { allowed: false, reason: 'permission_required' }
   if (!input.overview?.halted) return { allowed: false, reason: 'recovery_not_halted' }
   if (!input.statusFresh || !input.status || !input.overview.reset_available) return { allowed: false, reason: 'reset_unavailable' }
+  if (input.status.recovery?.next_action === 'wait') return { allowed: false, reason: 'shutdown_verification_pending' }
   const session = input.status.observed_session
   if (input.status.desired_state !== 'stopped' || input.status.acknowledged_version < input.status.control_version ||
       (session && session.status !== 'stopped' && session.status !== 'expired')) {

@@ -64,6 +64,7 @@ const AUDIT_ACTION_OPTIONS = [
   { value: 'recovery_position_repaired', label: 'recovery_position_repaired — Recovery position repaired' },
   { value: 'automatic_recovery_paused', label: 'automatic_recovery_paused — Automatic recovery paused' },
   { value: 'automatic_recovery_order_verified', label: 'automatic_recovery_order_verified — Recovery order verified' },
+  { value: 'automatic_recovery_order_rejected', label: 'automatic_recovery_order_rejected — Recovery order rejected' },
   { value: 'automatic_recovery_resumed', label: 'automatic_recovery_resumed — Automatic recovery resumed' },
   // Reconciliation
   { value: 'reconciliation_requested', label: 'reconciliation_requested — Reconciliation requested' },

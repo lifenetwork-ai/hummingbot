@@ -4,6 +4,12 @@ import { SessionConfigForm } from './SessionConfigForm'
 import type { FormFeedbackModel } from '../../core/api/operation-feedback'
 
 describe('SessionConfigForm inline feedback integration', () => {
+  it('waits for asynchronous profiles before initializing the deployment duration default', () => {
+    const props = { initialAction: 'start' as const, actionAvailability: defaultActionAvailability, onSubmitReview: vi.fn() }
+    const { rerender } = render(<SessionConfigForm {...props} isLoading defaultDurationMode="timed" />)
+    rerender(<SessionConfigForm {...props} defaultDurationMode="until_stopped" profilesData={sampleProfilesData} />)
+    expect(screen.getByRole('button', { name: 'Until manually stopped' })).toHaveAttribute('aria-pressed', 'true')
+  })
   const defaultActionAvailability = {
     start: { allowed: true, detail: 'Start available' },
     switch: { allowed: true, detail: 'Switch available' },
@@ -29,6 +35,47 @@ describe('SessionConfigForm inline feedback integration', () => {
       spot_outflow: { buy_allowed: true, max_net_outflow_quote: '500', recorded_net_outflow_quote: '0' },
     },
   } as unknown as import('../../core/api/schema').components['schemas']['ProfilesResponseOutput']
+
+  it('initializes an untouched duration selection from the catalogue default', () => {
+    render(
+      <SessionConfigForm
+        initialAction="start"
+        defaultDurationMode="until_stopped"
+        actionAvailability={defaultActionAvailability}
+        profilesData={sampleProfilesData}
+        onSubmitReview={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Until manually stopped' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Timed' }).getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('falls back to the first advertised mode when the default is not advertised', () => {
+    render(
+      <SessionConfigForm
+        initialAction="start"
+        defaultDurationMode="until_stopped"
+        actionAvailability={defaultActionAvailability}
+        profilesData={{ ...sampleProfilesData, duration_modes: ['timed'] }}
+        onSubmitReview={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Timed' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('never overwrites an explicit operator duration choice', () => {
+    render(
+      <SessionConfigForm
+        initialConfig={{ durationMode: 'timed' }}
+        initialAction="start"
+        defaultDurationMode="until_stopped"
+        actionAvailability={defaultActionAvailability}
+        profilesData={sampleProfilesData}
+        onSubmitReview={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Timed' }).getAttribute('aria-pressed')).toBe('true')
+  })
 
   it('renders inline error on action and profileId from feedbackModel', () => {
     const feedbackModel: FormFeedbackModel = {

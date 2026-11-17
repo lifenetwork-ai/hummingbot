@@ -1,13 +1,135 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { AdminRecoveryView } from './AdminRecoveryView'
 import { completionRecoveryComparison } from '../../test/mocks/completionFixtures'
+import { deriveRecoveryPresentation } from '../recovery/presentation'
 import type { RecoveryDecision } from '../recovery/recovery'
+import type { ReadResponse } from '../../core/api/admin'
+import { contextStatus } from '../../test/mocks/contextFixtures'
 import type { components } from '../../core/api/schema'
 
 describe('AdminRecoveryView', () => {
+  it('uses shutdown guidance and disables manual actions while the runtime reports wait', () => {
+    const status: ReadResponse<'getRuntimeStatus'> = { ...contextStatus, recovery: { ...contextStatus.recovery!, halted: true, next_action: 'wait' }, operator: { state: 'waiting', label: 'Verifying shutdown', detail: 'Wait for owner shutdown.', next_action: 'wait' } }
+    render(<AdminRecoveryView recoverySummary={{ ...noHaltSummary, halted: true }} status={status}
+      recoveryPresentation={deriveRecoveryPresentation(status, true)} checkDecision={allowedDecision} reviewDecision={allowedDecision}
+      onCheckRecovery={vi.fn()} onRetryCheck={vi.fn()} onResetRecovery={vi.fn()} onRetryReset={vi.fn()} onRefresh={vi.fn()} />)
+    expect(screen.getByText('Verifying shutdown')).toBeInTheDocument()
+    expect(screen.queryByText('HALT Incident Recovery')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Check recovery' })).toBeDisabled()
+  })
   const allowedDecision: RecoveryDecision = { allowed: true }
   const deniedDecision: RecoveryDecision = { allowed: false, reason: 'permission_required' }
+  const noHaltSummary = { cause: null, halted: false, check_available: false, reset_available: false, blockers: [], operation: null, control_version: 2 }
+
+  const automatic: NonNullable<ReadResponse<'getRuntimeStatus'>['automatic_recovery']> = {
+    admission_mode: 'paused', cold_recovery_supported: true, isolated: false, last_progress_at: null,
+    next_retry_at: null, operator_required: false, order_id: null, phase: 'reconciling',
+    quarantined_orders: 1, reason_code: 'order_outcome_unknown', reserved_base: { BTC: '0.125' },
+    reserved_quote_worst_case: '5400.25', stale: false, started_at: 1762300000000,
+  }
+  const statusWithAutomatic = { ...contextStatus, automatic_recovery: automatic } as ReadResponse<'getRuntimeStatus'>
+
+  it('does not report "No recovery needed" while automatic recovery is active', () => {
+    render(
+      <AdminRecoveryView
+        recoverySummary={noHaltSummary}
+        status={statusWithAutomatic as unknown as components['schemas']['StatusResponseOutput']}
+        recoveryPresentation={deriveRecoveryPresentation(statusWithAutomatic, true)}
+        checkDecision={allowedDecision}
+        reviewDecision={allowedDecision}
+        onCheckRecovery={vi.fn()}
+        onRetryCheck={vi.fn()}
+        onResetRecovery={vi.fn()}
+        onRetryReset={vi.fn()}
+        onRefresh={vi.fn()}
+      />,
+    )
+    expect(screen.queryByText('No Incident Recovery Required')).not.toBeInTheDocument()
+    expect(screen.getByText(/Automatic order recovery in progress/)).toBeInTheDocument()
+    expect(screen.getByText('reconciling')).toBeInTheDocument()
+    expect(screen.getByText(/0.125 BTC/)).toBeInTheDocument()
+  })
+
+  it('does not report "No recovery needed" when the observation is stale', () => {
+    const staleAutomatic = { ...automatic, phase: 'idle' as const, quarantined_orders: 0, reserved_base: undefined, reserved_quote_worst_case: '0' }
+    const staleStatus = { ...contextStatus, automatic_recovery: staleAutomatic } as ReadResponse<'getRuntimeStatus'>
+    render(
+      <AdminRecoveryView
+        recoverySummary={noHaltSummary}
+        status={staleStatus as unknown as components['schemas']['StatusResponseOutput']}
+        recoveryPresentation={deriveRecoveryPresentation(staleStatus, false)}
+        checkDecision={allowedDecision}
+        reviewDecision={allowedDecision}
+        onCheckRecovery={vi.fn()}
+        onRetryCheck={vi.fn()}
+        onResetRecovery={vi.fn()}
+        onRetryReset={vi.fn()}
+        onRefresh={vi.fn()}
+      />,
+    )
+    expect(screen.queryByText('No Incident Recovery Required')).not.toBeInTheDocument()
+  })
+
+  it('reports "No recovery needed" only for a fresh idle observation', () => {
+    const idleStatus = {
+      ...contextStatus,
+      recovery: { halted: false, detail: null, next_action: 'none', check_available: false, reset_available: false, pending_mutations: false, status_url: '/recovery' },
+      automatic_recovery: { ...automatic, phase: 'idle' as const, quarantined_orders: 0, reserved_base: undefined, reserved_quote_worst_case: '0' },
+    } as unknown as ReadResponse<'getRuntimeStatus'>
+    render(
+      <AdminRecoveryView
+        recoverySummary={noHaltSummary}
+        status={idleStatus as unknown as components['schemas']['StatusResponseOutput']}
+        recoveryPresentation={deriveRecoveryPresentation(idleStatus, true)}
+        checkDecision={allowedDecision}
+        reviewDecision={allowedDecision}
+        onCheckRecovery={vi.fn()}
+        onRetryCheck={vi.fn()}
+        onResetRecovery={vi.fn()}
+        onRetryReset={vi.fn()}
+        onRefresh={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('No Incident Recovery Required')).toBeInTheDocument()
+  })
+
+  it('presents verification per the verified-checkpoint scope, including orders_checked=0 meaning', () => {
+    const activeOperation = {
+      id: 'op-checkpoint',
+      action: 'recovery_check' as const,
+      status: 'succeeded' as const,
+      stage: 'review_required' as const,
+      expires_at: new Date(Date.now() + 60000).toISOString(),
+      blockers: [],
+      proposed_changes: [],
+      verification: { scope: 'verified_checkpoint', orders_checked: 0, fills_checked: 12 },
+    } as unknown as components['schemas']['RecoveryOperationOutput']
+
+    render(
+      <AdminRecoveryView
+        activeOperation={activeOperation}
+        checkDecision={allowedDecision}
+        reviewDecision={allowedDecision}
+        onCheckRecovery={vi.fn()}
+        onRetryCheck={vi.fn()}
+        onResetRecovery={vi.fn()}
+        onRetryReset={vi.fn()}
+        onRefresh={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('verified_checkpoint')).toBeInTheDocument()
+    expect(screen.getByText(/financial rows, remaining cost basis and risk checkpoints are preserved/)).toBeInTheDocument()
+    expect(screen.getByText(/orders_checked = 0 means no historical per-order REST reads were needed/)).toBeInTheDocument()
+    expect(screen.getByText(/No ledger changes proposed — this is expected on the checkpoint route/)).toBeInTheDocument()
+    expect(screen.getByText(/An empty proposed-change list is a valid review outcome/)).toBeInTheDocument()
+
+    // Reset confirmation follows the scope copy: nothing to apply on the checkpoint route
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Reset' }))
+    expect(screen.getByText('Confirm verified checkpoint review')).toBeInTheDocument()
+    expect(screen.getByText(/No ledger changes will be applied/)).toBeInTheDocument()
+  })
+
 
   it('renders contact Admin instructions and no check/reset buttons when permission denied', () => {
     render(

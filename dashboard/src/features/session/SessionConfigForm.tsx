@@ -19,6 +19,8 @@ export interface SessionDraftConfig {
 
 export interface SessionConfigFormProps {
   initialConfig?: Partial<SessionDraftConfig>
+  /** Catalogue default from `defaultSessionDurationMode` (logic); used only to initialize an untouched selection. */
+  defaultDurationMode?: SessionDraftConfig['durationMode'] | null
   initialAction: 'start' | 'switch'
   actionAvailability: Record<'start' | 'switch', { allowed: boolean; detail: string }>
   activeSessionId?: string | null
@@ -36,6 +38,7 @@ export interface SessionConfigFormProps {
 
 export function SessionConfigForm({
   initialConfig,
+  defaultDurationMode,
   initialAction,
   actionAvailability,
   activeSessionId,
@@ -71,9 +74,12 @@ export function SessionConfigForm({
 
   useEffect(() => {
     if (marketMode === null && marketModes.length > 0) setMarketMode(marketModes[0]!)
-    if (durationMode === null && durationModes.length > 0) setDurationMode(durationModes[0]!)
+    // Initialize an untouched duration selection from the catalogue default; never overwrite an explicit operator choice.
+    if (profilesData && durationMode === null && durationModes.length > 0) {
+      setDurationMode(defaultDurationMode && durationModes.includes(defaultDurationMode) ? defaultDurationMode : durationModes[0]!)
+    }
     if (selection === 'fixed' && profileId === null && profileEntries.length > 0) setProfileId(profileEntries[0]!)
-  }, [marketMode, marketModes, durationMode, durationModes, selection, profileId, profileEntries])
+  }, [marketMode, marketModes, durationMode, durationModes, defaultDurationMode, profilesData, selection, profileId, profileEntries])
 
   const handleValidateAndSubmit = (e: React.FormEvent) => {
     e.preventDefault()

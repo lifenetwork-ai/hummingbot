@@ -16,6 +16,16 @@ export type SessionReview = Readonly<{
 }>
 export type ReviewResult = { review?: SessionReview; errors: Record<string, string> }
 
+/** Initialize an untouched form; reviewed commands always pin an explicit mode. */
+export function defaultSessionDurationMode(profiles: {
+  duration_modes?: Array<'timed' | 'until_stopped'>
+  catalogue: { default_duration_mode?: 'timed' | 'until_stopped'; allow_until_stopped: boolean }
+} | null | undefined): SessionDraft['durationMode'] {
+  const mode = profiles?.catalogue.default_duration_mode ?? 'timed'
+  return mode === 'until_stopped' && profiles?.catalogue.allow_until_stopped &&
+    profiles.duration_modes?.includes('until_stopped') ? 'until_stopped' : 'timed'
+}
+
 export function reviewSession(input: {
   action: 'start' | 'switch'
   draft: SessionDraft

@@ -1,4 +1,5 @@
 import type { components } from '../../core/api/schema'
+import type { deriveRecoveryPresentation } from '../recovery/presentation'
 import type { ObservationState } from './model'
 import { Banner } from '../../shared/components/Banner'
 import { localizeSystemMessage } from '../../shared/utils/formatters'
@@ -6,6 +7,8 @@ import { localizeSystemMessage } from '../../shared/utils/formatters'
 export interface OperatorAttentionBannerProps {
   operator?: components['schemas']['OperatorStatusOutput'] | null
   recovery?: components['schemas']['RecoverySummaryOutput'] | null
+  /** Derived recovery context retained for composed callers; backend next_action controls the banner state. */
+  recoveryPresentation?: ReturnType<typeof deriveRecoveryPresentation> | null
   observation?: ObservationState
   onAction?: (action: string) => void
   className?: string
@@ -27,13 +30,16 @@ export function OperatorAttentionBanner({
   onAction,
   className,
 }: OperatorAttentionBannerProps) {
-  const isHalted = recovery?.halted === true
-  const isRecoveryWaiting = isHalted && recovery?.next_action === 'wait'
-  const cause = isHalted && !isRecoveryWaiting ? recovery?.cause : null
+  const halted = recovery?.halted === true
+  // A verified-owner shutdown keeps recovery.halted=true only as the admission fence.
+  // While recovery.next_action=wait, the returned operator guidance replaces the manual-HALT banner.
+  const waitingForShutdown = halted && recovery?.next_action === 'wait'
+  const isHalted = halted && !waitingForShutdown
+  const cause = isHalted ? recovery?.cause : null
   const isStale = observation !== undefined && observation !== 'fresh'
 
   // If neither recovery nor operator is provided, nothing to display
-  if (!isHalted && !operator) {
+  if (!halted && !operator) {
     return null
   }
 
@@ -42,21 +48,25 @@ export function OperatorAttentionBanner({
   const isNeedsAttention = operatorState === 'needs_attention'
   const isWaiting = operatorState === 'waiting'
 
-  const variant: 'error' | 'warning' | 'info' | 'success' = (isHalted && !isRecoveryWaiting) || isUnavailable
+  const variant: 'error' | 'warning' | 'info' | 'success' = isHalted || isUnavailable
     ? 'error'
-    : isNeedsAttention || isRecoveryWaiting
+    : isNeedsAttention || waitingForShutdown
       ? 'warning'
       : isWaiting
         ? 'info'
         : 'info'
 
-  const title = isHalted && !isRecoveryWaiting
-    ? (cause?.label || 'Trading halted')
-    : (operator?.label || (isWaiting ? 'Waiting for operational conditions' : isNeedsAttention ? 'Operational warning requires attention' : 'Operational status'))
+  const title = isHalted
+    ? (cause?.label || (operator?.label ? `Trading halted — ${operator.label}` : 'Trading halted'))
+    : waitingForShutdown
+      ? (operator?.label || 'System shutdown is being verified')
+      : (operator?.label || (isWaiting ? 'Waiting for operational conditions' : isNeedsAttention ? 'Operational warning requires attention' : 'Operational status'))
 
-  const rawDetail = isHalted && !isRecoveryWaiting
-    ? (cause?.detail || recovery?.detail || operator?.detail || 'Backend reports HALT; inspect root cause and recovery prerequisites.')
-    : (operator?.detail || 'System state confirmed by controller.')
+  const rawDetail = isHalted
+    ? (cause?.detail || operator?.detail || recovery?.detail || 'Backend reports HALT; inspect root cause and recovery prerequisites.')
+    : waitingForShutdown
+      ? (operator?.detail || recovery?.detail || 'Shutdown is being verified. Start and Switch stay disabled; Stop remains available.')
+      : (operator?.detail || 'System state confirmed by controller.')
   const detail = localizeSystemMessage(rawDetail)
 
   const nextAction = (isHalted ? recovery?.next_action : operator?.next_action) || 'monitor'

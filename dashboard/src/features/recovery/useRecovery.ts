@@ -10,6 +10,8 @@ import { deriveFormFeedback } from '../../core/api/operation-feedback'
 import { useTrackedReceipts } from '../../core/api/useTrackedReceipts'
 import { useOperationalContext } from '../operational-context/useOperationalContext'
 import { recoveryComplete, recoveryEntry, recoveryOperationPending, reviewRecovery } from './recovery'
+import { deriveRecoveryPresentation, deriveRecoveryVerification } from './presentation'
+import { useObservationTime } from '../../shared/utils/useObservationTime'
 
 function newKey() { return crypto.randomUUID() }
 function hideConfirmationToken<T extends { confirmation_token: string | null }>(operation: T): T {
@@ -27,6 +29,7 @@ export function useRecovery() {
   const permission = Boolean(identity?.permissions.manage_recovery)
   const overview = useAdminQuery('getRecovery', {}, { enabled: permission })
   const status = operational.status
+  const now = useObservationTime(Boolean(status.data?.automatic_recovery))
   const refreshStatus = operational.refreshStatus
   const checkMutation = useAdminMutation('checkRecovery')
   const resetMutation = useAdminMutation('resetRecovery')
@@ -154,6 +157,7 @@ export function useRecovery() {
 
   const retryCheck = async () => {
     assertPermission()
+    if (status.data?.recovery?.next_action === 'wait') throw new Error('shutdown_verification_pending')
     const startedIn = scopeRef.current
     const generation = scopeGeneration.current
     if (!pendingCheck.current) throw new Error('No recovery check with an unknown outcome is available to retry')
@@ -229,6 +233,7 @@ export function useRecovery() {
 
   const retryReset = async () => {
     assertPermission()
+    if (status.data?.recovery?.next_action === 'wait') throw new Error('shutdown_verification_pending')
     const startedIn = scopeRef.current
     const generation = scopeGeneration.current
     if (!pendingReset.current) throw new Error('No recovery reset with an unknown outcome is available to retry')
@@ -251,6 +256,8 @@ export function useRecovery() {
   }
 
   return {
+    presentation: deriveRecoveryPresentation(status.data, status.phase === 'ready', now),
+    verification: deriveRecoveryVerification(publicOperation),
     overview: { data: publicOverview, error: overview.error, isLoading: overview.isLoading, isFetching: overview.isFetching, refetch: async () => {
       const { data, ...result } = await overview.refetch()
       return { ...result, data: data ? { ...data, operation: data.operation ? hideConfirmationToken(data.operation) : null } : undefined }

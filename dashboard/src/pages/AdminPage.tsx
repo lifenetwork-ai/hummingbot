@@ -187,6 +187,7 @@ export function AdminPage(): ReactElement {
         {activeTab === 'recovery' && (
           <AdminRecoveryView
             recoverySummary={recovery.overview.data}
+            recoveryPresentation={recovery.presentation}
             hasAccess={recovery.access.allowed}
             comparison={recovery.comparison}
             status={recovery.status.data}

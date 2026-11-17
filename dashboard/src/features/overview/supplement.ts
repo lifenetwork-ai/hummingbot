@@ -6,27 +6,27 @@
  *
  * Quy ước: thiếu dữ liệu → null/unavailable, không bao giờ biến thành 0 (UI-STRUCTURE-PLAN 5.3).
  */
-import type { components } from '../../core/api/schema'
+import type { OverviewSupplementSchemas } from './supplement-contract'
 import type { OverviewModel } from './model'
 import { parseAmount } from './parseAmount'
 
-type Supplement = components['schemas']['OverviewSupplementOutput']
-type RiskRule = components['schemas']['OverviewRiskRuleOutput']
-type CapitalAllocated = components['schemas']['OverviewCapitalAllocatedOutput']
-type SessionDelta = components['schemas']['OverviewSessionDeltaOutput']
-type SessionFees = components['schemas']['OverviewSessionFeesOutput']
-type HoldBenchmark = components['schemas']['OverviewHoldBenchmarkOutput']
-type Portfolio = components['schemas']['OverviewPortfolioOutput']
+type Supplement = OverviewSupplementSchemas['OverviewSupplementOutput']
+type RiskRule = OverviewSupplementSchemas['OverviewRiskRuleOutput']
+type CapitalAllocated = OverviewSupplementSchemas['OverviewCapitalAllocatedOutput']
+type SessionDelta = OverviewSupplementSchemas['OverviewSessionDeltaOutput']
+type SessionFees = OverviewSupplementSchemas['OverviewSessionFeesOutput']
+type HoldBenchmark = OverviewSupplementSchemas['OverviewHoldBenchmarkOutput']
+type Portfolio = OverviewSupplementSchemas['OverviewPortfolioOutput']
 
 /** Observation wrapper từ backend: value null hoặc unavailable_reason → unavailable. */
 export type Observed<T> =
   | { available: true; value: T; stale: boolean; observedAt: string | null }
   | { available: false; reason: string | null }
 
-function observe<T>(o: { observed_at: string | null; stale: boolean; unavailable_reason: string | null; value: T | null }): Observed<T> {
-  return o.value !== null
+function observe<T>(o: { observed_at: string | null; stale: boolean; unavailable_reason: string | null; value: T | null }, retainStale = false): Observed<T> {
+  return o.value !== null && o.observed_at !== null && ((!o.stale && o.unavailable_reason === null) || (retainStale && o.stale))
     ? { available: true, value: o.value, stale: o.stale, observedAt: o.observed_at }
-    : { available: false, reason: o.unavailable_reason }
+    : { available: false, reason: o.unavailable_reason ?? (o.stale ? 'stale_observation' : o.value !== null ? 'observation_time_unavailable' : null) }
 }
 
 // ---------- Q1: Mandate ----------
@@ -49,6 +49,7 @@ export interface MandateView {
   timeRemainingSeconds: number | null
   totalSessionSeconds: number | null
   running: boolean | null
+  operationalStatus: 'RUNNING' | 'STARTING' | 'STOPPING' | 'STOPPED' | 'HALTED' | 'UNKNOWN' | 'STALE'
   observedAt: string | null
   /** Vốn phân bổ — observation (backend: session_configuration) */
   capitalAllocated: Observed<CapitalAllocated>
@@ -79,14 +80,21 @@ export interface LiquidityMarketView {
   buyOrderCount: number | null
   sellOrderCount: number | null
   coverageFraction: number | null
+  /** Total-time sampled coverage, distinct from the eligible SLO denominator. */
+  totalTimeCoverageFraction: number | null
   /** null khi backend chưa có SLA target được cấu hình. */
   coverageTargetFraction: number | null
   /** rolling 30m từ supplement; null → UI hiện "chưa có" và dùng cumulative */
   rollingCoverageAvailable: boolean
+  measurementReady: boolean
+  eligibleSeconds: number
+  restrictedSeconds: number
+  eligibilityUnknownSeconds: number
+  measurementReason: string | null
   fullWindow: boolean | null
   why: LiquidityWhy
-  depth: Observed<components['schemas']['OverviewDepthOutput']>
-  slippage: Observed<components['schemas']['OverviewSlippageOutput']>
+  depth: Observed<OverviewSupplementSchemas['OverviewDepthOutput']>
+  slippage: Observed<OverviewSupplementSchemas['OverviewSlippageOutput']>
 }
 
 // ---------- Q5: Capital & risk ----------
@@ -182,6 +190,22 @@ function spreadTargetBps(policy: OverviewModel['risk']['marketPolicies'][number]
   return widest > 0 ? widest : (buy ?? sell ?? null)
 }
 
+/** Runtime evidence takes precedence over the requested session state. */
+function operationalStatus(model: OverviewModel): MandateView['operationalStatus'] {
+  if (model.observation.status === 'stale') return 'STALE'
+  if (model.observation.status !== 'fresh') return 'UNKNOWN'
+  const recovery = model.risk.recovery
+  if (recovery?.halted && recovery.next_action === 'wait') return 'STOPPING'
+  if (recovery?.halted || model.task.runtime.phase === 'halted') return 'HALTED'
+  switch (model.task.runtime.phase) {
+    case 'running': return model.task.runtime.running === true ? 'RUNNING' : 'UNKNOWN'
+    case 'starting': return 'STARTING'
+    case 'stopping': return 'STOPPING'
+    case 'stopped': return 'STOPPED'
+    default: return 'UNKNOWN'
+  }
+}
+
 export function deriveMandate(model: OverviewModel, supp: Supplement | null): MandateView {
   const requested = model.task.requested
   const observed = model.task.observed
@@ -198,6 +222,7 @@ export function deriveMandate(model: OverviewModel, supp: Supplement | null): Ma
     timeRemainingSeconds: model.task.timeRemainingSeconds,
     totalSessionSeconds: requested?.request.duration_seconds ?? null,
     running: model.task.runtime.running,
+    operationalStatus: operationalStatus(model),
     observedAt: model.observation.status === 'fresh' || model.observation.status === 'stale' ? model.observation.observedAt : null,
     capitalAllocated: supp ? observe(supp.session.capital_allocated) : { available: false as const, reason: null },
     riskLimits: (supp?.risk_rules.value ?? []).map((rule) => ({
@@ -232,15 +257,21 @@ export function deriveLiquidity(model: OverviewModel, supp: Supplement | null): 
       askNotional: sell?.notional ?? null,
       buyOrderCount: buy?.orderCount ?? null,
       sellOrderCount: sell?.orderCount ?? null,
-      coverageFraction: rollingValue?.rolling_30m_fraction ?? market.twoSidedElapsedFraction ?? null,
+      coverageFraction: rollingValue?.conservative_eligible_fraction ?? null,
+      totalTimeCoverageFraction: rollingValue?.rolling_30m_fraction ?? null,
       coverageTargetFraction: rollingValue?.target_fraction ?? null,
       rollingCoverageAvailable: rolling.available,
+      measurementReady: rolling.available && rollingValue !== null && rollingValue.measurement_ready,
+      eligibleSeconds: rollingValue?.eligible_seconds ?? 0,
+      restrictedSeconds: rollingValue?.restricted_seconds ?? 0,
+      eligibilityUnknownSeconds: rollingValue?.eligibility_unknown_seconds ?? 0,
+      measurementReason: rollingValue?.measurement_reason ?? null,
       fullWindow: rollingValue?.full_window ?? null,
       why: {
-        elapsedSeconds: market.coverageWindow.elapsedSeconds,
-        eligibleSeconds: market.coverageWindow.eligibleSeconds,
-        notEligibleSeconds: market.coverageWindow.readinessIneligibleObservedSeconds,
-        unknownSeconds: market.coverageWindow.unknownSeconds,
+        elapsedSeconds: rollingValue?.elapsed_seconds ?? market.coverageWindow.elapsedSeconds,
+        eligibleSeconds: rollingValue?.eligible_seconds ?? market.coverageWindow.eligibleSeconds,
+        notEligibleSeconds: rollingValue?.restricted_seconds ?? market.coverageWindow.readinessIneligibleObservedSeconds,
+        unknownSeconds: rollingValue?.eligibility_unknown_seconds ?? market.coverageWindow.unknownSeconds,
         quotingAbsentSeconds: market.noQuoteSeconds,
         diagnosis: diagnosisSide?.diagnosis?.next_action ?? null,
       },
@@ -287,14 +318,15 @@ export function deriveCapitalRisk(model: OverviewModel, supp: Supplement | null)
     },
     portfolio: supp ? observe(supp.portfolio) : { available: false as const, reason: null },
     sessionDelta: supp ? observe(supp.session.delta) : { available: false as const, reason: null },
-    fees: supp ? observe(supp.session.fees) : { available: false as const, reason: null },
-    holdBenchmark: supp ? observe(supp.session.benchmark_hold) : { available: false as const, reason: null },
+    fees: supp ? observe(supp.session.fees, true) : { available: false as const, reason: null },
+    holdBenchmark: supp ? observe(supp.session.benchmark_hold, true) : { available: false as const, reason: null },
     balances: (supp?.balances.value ?? []).map((b) => ({ asset: b.asset, free: b.free, reservedForOrders: b.reserved_for_open_orders })),
-    guardsSummary: supp?.risk_rules.value ? guardsFromRules(supp.risk_rules.value, !supp.risk_rules.stale && supp.risk_rules.unavailable_reason === null) : EMPTY_GUARDS,
+    guardsSummary: supp?.risk_rules.value ? guardsFromRules(supp.risk_rules.value,
+      supp.risk_rules.observed_at !== null && !supp.risk_rules.stale && supp.risk_rules.unavailable_reason === null) : EMPTY_GUARDS,
   }
 }
 
-/** Cho biết supplement đã được backend triển khai chưa (null cho đến khi collectors xong). */
+/** Available only after the reporting contract is published and integrated. */
 export function supplementAvailable(model: OverviewModel): boolean {
-  return model.status.data?.overview != null
+  return model.overviewSupplement != null
 }

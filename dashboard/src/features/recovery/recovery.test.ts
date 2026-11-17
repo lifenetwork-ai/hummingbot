@@ -19,6 +19,12 @@ const check = (overrides: Partial<RecoveryOperation> = {}) => ({
 }) as RecoveryOperation
 
 describe('recovery decisions', () => {
+  it('blocks manual Check and Reset during the shutdown fence even if an older overview permits them', () => {
+    const waiting = status({ recovery: { halted: true, next_action: 'wait' } as ReadResponse<'getRuntimeStatus'>['recovery'] })
+    const input = { permission: true, overview: overview(), status: waiting, statusFresh: true }
+    expect(recoveryEntry({ ...input, operationPending: false })).toEqual({ allowed: false, reason: 'shutdown_verification_pending' })
+    expect(reviewRecovery({ ...input, operation: check(), now: 1_000 })).toEqual({ allowed: false, reason: 'shutdown_verification_pending' })
+  })
   it('requires admin, HALT, fresh stopped acknowledgement and backend check availability', () => {
     const input = { permission: true, overview: overview(), status: status(), statusFresh: true, operationPending: false }
     expect(recoveryEntry(input)).toEqual({ allowed: true })

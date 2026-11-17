@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupPageApi, pageApiUrl, pageWrapper } from '../test/operationalTest'
 import { contextStatus } from '../test/mocks/contextFixtures'
@@ -7,8 +7,10 @@ import { commandReceipt } from '../test/mocks/receiptFixtures'
 import { notify } from '../core/feedback/notify'
 import { server } from '../test/mocks/server'
 import { SessionPage } from './SessionPage'
-vi.mock('@tanstack/react-router', () => ({ Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a> }))
+const navigate = vi.hoisted(() => vi.fn())
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate, Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a> }))
 setupPageApi()
+beforeEach(() => navigate.mockClear())
 function stopped() {
   server.use(http.get(`${pageApiUrl}/status`, () => HttpResponse.json({ ...contextStatus, control_version: 5, desired_state: 'stopped', session: null,
     actions: { start: { allowed: true, detail: 'Ready', reason_code: null }, switch: { allowed: false, detail: 'No session', reason_code: 'no_session' }, stop: { allowed: false, detail: 'No session', reason_code: 'no_session' } } })),
@@ -31,13 +33,26 @@ describe('SessionPage integrated controller', () => {
     server.use(http.post(`${pageApiUrl}/commands`, async ({ request }) => { calls.push(await request.json()); return HttpResponse.json({ ...commandReceipt, id: 'started-1', action: 'start', status: 'accepted' }, { status: 202 }) }))
     render(<SessionPage />, { wrapper: pageWrapper() })
     await review()
-    await screen.findByText('Command successfully applied!')
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/', replace: true }))
     expect(success).not.toHaveBeenCalled()
     expect(info).toHaveBeenCalledWith('Configuration receipt received — verification not yet complete', expect.objectContaining({ id: 'session-submit' }))
     success.mockRestore(); info.mockRestore()
     expect(calls).toEqual([{ action: 'start', expected_version: 5, expected_catalogue_hash: 'catalogue-reviewed', market_mode: 'spot', selection: 'fixed', profile_id: 'follow_market', duration_mode: 'until_stopped', duration_seconds: null }])
     expect(screen.getAllByText('started-1').length).toBeGreaterThan(0)
   })
+  it.each(['accepted', 'running', 'failed', 'superseded'])(
+    'keeps the receipt tracker open for a %s command', async (status) => {
+      stopped()
+      server.use(
+        http.post(`${pageApiUrl}/commands`, () => HttpResponse.json({ ...commandReceipt, id: 'pending-1', action: 'start', status: 'accepted' }, { status: 202 })),
+        http.get(`${pageApiUrl}/commands/:id`, ({ params }) => HttpResponse.json({ ...commandReceipt, id: params.id, action: 'start', status })),
+      )
+      render(<SessionPage />, { wrapper: pageWrapper() })
+      await review()
+      await waitFor(() => expect(screen.getAllByText('pending-1').length).toBeGreaterThan(0))
+      expect(navigate).not.toHaveBeenCalled()
+    },
+  )
   it('restores timeout state after remount and explicitly retries the identical request', async () => {
     stopped()
     const calls: { body: unknown; key: string | null }[] = []
@@ -73,6 +88,8 @@ describe('SessionPage integrated controller', () => {
     render(<SessionPage />, { wrapper: pageWrapper() })
     const reviewButton = await screen.findByRole('button', { name: /Continue: Review Configuration Diff/ })
     await waitFor(() => expect(reviewButton).toBeEnabled())
+    // The catalogue default is Until stopped; the operator explicitly switches to Timed
+    fireEvent.click(screen.getByRole('button', { name: 'Timed' }))
     fireEvent.click(screen.getByRole('checkbox', { name: /Use default duration from YAML/ }))
     fireEvent.change(screen.getByLabelText('Duration (seconds)'), { target: { value: '999' } })
     fireEvent.click(reviewButton)

@@ -65,9 +65,11 @@ export function deriveCredentialSlot(identity: Identity | null, catalogue: Sourc
     source: catalogue.data?.source ?? status.data?.source ?? null,
     fields: descriptor?.fields ?? [],
     decisions: { set: setDecision, disconnect: disconnectDecision,
-      retry: status.phase !== 'ready' ? denied('credential_status_unavailable', 'Refresh credential status before retrying cleanup.')
+      retry: !managed ? denied('managed_source_required', 'Credentials are managed by deployment.')
+        : status.phase !== 'ready' ? denied('credential_status_unavailable', 'Refresh credential status before retrying cleanup.')
         : !runtimeFresh ? denied('status_stale', 'Refresh fresh bot status before retrying cleanup.') : retry,
-      repair: status.phase !== 'ready' ? denied('credential_status_unavailable', 'Refresh credential status before repairing cleanup.')
+      repair: !managed ? denied('managed_source_required', 'Credentials are managed by deployment.')
+        : status.phase !== 'ready' ? denied('credential_status_unavailable', 'Refresh credential status before repairing cleanup.')
         : !runtimeFresh ? denied('status_stale', 'Refresh fresh bot status before repairing cleanup.') : repair },
     stopAcknowledged,
     connectionState: catalogue.phase === 'error' || status.phase === 'error' ? 'unavailable' as const
@@ -76,8 +78,7 @@ export function deriveCredentialSlot(identity: Identity | null, catalogue: Sourc
       : disconnected ? 'disconnected' as const
       : connected ? 'connected' as const
       : slot.configured ? 'checking' as const : 'not_configured' as const,
-    cleanup: cleanup && { ...cleanup, rootReceiptId: cleanup.id, blockedStage: null as string | null, reasonCode: null as string | null, nextRetryAt: null as string | null,
-      finalProofs: { ordersTerminalVerified: false, positionsFlatVerified: false, ledgerConfirmed: false, consumersDetached: false } },
+    cleanup: cleanup && { ...cleanup, rootReceiptId: cleanup.id, ...deriveCleanupProgress(undefined) },
     // A zero/missing row count or child receipt is never enough to conclude root cleanup.
     // Disconnection success also requires all four verified cleanup proofs from the root receipt.
     disconnectedProof: false,
@@ -100,6 +101,33 @@ export function cleanupComplete(receipt: ResponseBody<'getCredentialOperation'> 
 }
 
 export type CredentialFormValues = Record<string, string>
+
+/** Progress is separate from removal proof; an uncertain order retains its credential. */
+export function deriveCleanupProgress(receipt: ResponseBody<'getCredentialOperation'> | undefined) {
+  const result = receipt?.result
+  const complete = cleanupComplete(receipt)
+  const labels: Record<string, string> = {
+    waiting_for_owner: 'Waiting for trading service',
+    checking_account: 'Checking connection and saved positions',
+    cancelling_orders: 'Cancelling pending orders',
+    closing_positions: 'Closing perpetual positions',
+    verifying: 'Verifying orders and positions',
+    detaching: 'Removing saved connection',
+    waiting_for_dependency: 'Waiting to retry',
+    action_required: 'Action required',
+    removed: 'Waiting for removal verification',
+  }
+  return {
+    stage: result?.stage ?? null,
+    label: complete ? 'Disconnected' : result?.reason_code === 'cleanup_orders_pending'
+      ? 'Waiting for order verification' : labels[result?.stage ?? ''] ?? 'Waiting for operation status',
+    blockedStage: result?.blocked_stage ?? null,
+    reasonCode: result?.reason_code ?? null,
+    nextRetryAt: result?.next_retry_at ?? null,
+    finalProofs: cleanupProofs(receipt),
+    complete,
+  }
+}
 
 /** Validate complete input by server-declared field names; caller must clear its secret state after submit. */
 export function validateCredentialBundle(fields: Catalogue['exchanges'][number]['fields'], values: CredentialFormValues): string[] {

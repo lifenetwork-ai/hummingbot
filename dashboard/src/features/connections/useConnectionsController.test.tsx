@@ -58,6 +58,23 @@ function installReads() {
 afterEach(() => { canManage = true; staleRuntime = false; recoveryActive = false })
 
 describe('Connections controller', () => {
+  it('maps uncertain cleanup from the root receipt without removing credentials or posting a retry', async () => {
+    installReads()
+    const posts = vi.fn()
+    server.use(
+      http.post(`${baseUrl}/credentials/operations/root-1/retry`, () => { posts(); return HttpResponse.json({}) }),
+      http.get(`${baseUrl}/credentials/operations/root-1`, () => HttpResponse.json({ id: 'root-1', status: 'applying', result: {
+        stage: 'waiting_for_dependency', reason_code: 'cleanup_orders_pending', blocked_stage: 'verifying', next_retry_at: '2026-11-16T00:00:00Z',
+        orders_terminal_verified: false, positions_flat_verified: true, ledger_confirmed: false, consumers_detached: false,
+      } })),
+    )
+    const { result } = renderHook(useConnectionsController, { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.slots[0]?.cleanup?.label).toBe('Waiting for order verification'))
+    expect(result.current.slots[0]?.cleanup).toMatchObject({ rootReceiptId: 'root-1', stage: 'waiting_for_dependency', complete: false, nextRetryAt: '2026-11-16T00:00:00Z' })
+    expect(result.current.slots[0]?.slot?.configured).toBe(true)
+    expect(result.current.slots[0]?.disconnectedProof).toBe(false)
+    expect(posts).not.toHaveBeenCalled()
+  })
   it('submits each action with current versions and root cleanup ID, then follows receipts', async () => {
     installReads()
     const bodies = new Map<string, unknown>()

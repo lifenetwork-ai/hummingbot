@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, Layers, SlidersHorizontal } from 'lucide-react'
 import { notify } from '../core/feedback/notify'
 import { buildConfigurationReview } from '../features/session-control/configuration-review'
 import { ConfigurationReadOnlyView } from '../features/session/ConfigurationReadOnlyView'
 import { FeedbackDetailsView } from '../features/session/FeedbackDetailsView'
 import type { SessionReview } from '../features/session-control/session-control'
+import { defaultSessionDurationMode } from '../features/session-control/session-control'
 import { useSessionControl } from '../features/session-control/useSessionControl'
 import { useSessionConfiguration } from '../features/history/useHistoryQueries'
 import { useCommandReceipt } from '../core/api/hooks'
@@ -18,6 +20,7 @@ import { SectionLabel } from '../shared/components/SectionLabel'
 import { MotionPage } from '../shared/motion/MotionPage'
 
 export function SessionPage() {
+  const navigate = useNavigate()
   const context = useOperationalContext()
   const control = useSessionControl()
   const profilesQuery = control.profiles
@@ -30,6 +33,12 @@ export function SessionPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const receipt = useCommandReceipt(control.commandReceipt?.reference.id)
   const previousCommand = usePreviousSessionCommand(receipt.data)
+  useEffect(() => {
+    if (step === 'tracker' && receipt.data?.status === 'succeeded'
+      && (receipt.data.action === 'start' || receipt.data.action === 'switch')) {
+      void navigate({ to: '/', replace: true })
+    }
+  }, [step, receipt.data?.status, receipt.data?.action, navigate])
   const currentControlVersion = context.controlVersion
   const reportError = (error: unknown) => error instanceof Error ? error.message : 'Could not verify the outcome of the operation.'
   const handleReview = (action: 'start' | 'switch', draft: SessionDraftConfig) => {
@@ -154,6 +163,7 @@ export function SessionPage() {
               <>
                 <SessionConfigForm
                   initialConfig={draftConfig ?? undefined}
+                  defaultDurationMode={defaultSessionDurationMode(profilesQuery.data)}
                   initialAction={context.actions.start.allowed ? 'start' : 'switch'}
                   actionAvailability={{ start: context.actions.start, switch: context.actions.switch }}
                   activeSessionId={currentSessionId}

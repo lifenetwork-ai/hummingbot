@@ -162,6 +162,10 @@ describe('HistoryFiltersBar', () => {
       fireEvent.change(actionSelect, { target: { value: 'login' } })
       expect(onChange).toHaveBeenCalledWith({ action: 'login' })
 
+      // Automatic recovery audit actions are filterable when the backend reports them
+      fireEvent.change(actionSelect, { target: { value: 'automatic_recovery_order_rejected' } })
+      expect(onChange).toHaveBeenCalledWith({ action: 'automatic_recovery_order_rejected' })
+
       // Select outcome
       const outcomeSelect = screen.getByLabelText(/Outcome/i)
       fireEvent.change(outcomeSelect, { target: { value: 'succeeded' } })

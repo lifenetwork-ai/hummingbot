@@ -2725,14 +2725,11 @@ export interface components {
              * @default false
              */
             identity_verified: boolean;
-<<<<<<< HEAD
-=======
             /**
              * Site
              * @default null
              */
             site: ("www" | "app" | "my") | null;
->>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
         };
         /** OverviewCapitalAllocated */
         OverviewCapitalAllocatedOutput: {
@@ -2749,8 +2746,6 @@ export interface components {
         /** OverviewCoverageMinute */
         OverviewCoverageMinuteOutput: {
             /**
-<<<<<<< HEAD
-=======
              * Eligibility Unknown Seconds
              * @default 0
              */
@@ -2761,15 +2756,12 @@ export interface components {
              */
             eligible_seconds: number;
             /**
->>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
              * Minute Ts
              * Format: date-time
              */
             minute_ts: string;
             /** Observed Seconds */
             observed_seconds: number;
-<<<<<<< HEAD
-=======
             /**
              * Restricted Seconds
              * @default 0
@@ -2784,7 +2776,6 @@ export interface components {
              * @default 0
              */
             two_sided_eligible_seconds: number;
->>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
             /** Two Sided Seconds */
             two_sided_seconds: number;
             /** Unknown Seconds */
@@ -2848,16 +2839,8 @@ export interface components {
         };
         /** OverviewInventoryLimit */
         OverviewInventoryLimitOutput: {
-<<<<<<< HEAD
-            /**
-             * Asset
-             * @constant
-             */
-            asset: "LIFE";
-=======
             /** Asset */
             asset: string;
->>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
             /** Controller Id */
             controller_id: string;
             /**
@@ -3161,27 +3144,13 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "violated" | "disabled" | "unknown";
-<<<<<<< HEAD
-            /**
-             * Unit
-             * @enum {string}
-             */
-            unit: "USDT" | "LIFE" | "fraction" | "seconds" | "bps";
-=======
             /** Unit */
             unit: string;
->>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
             /** Upper Limit */
             upper_limit: string | null;
         };
         /** OverviewRollingCoverage */
         OverviewRollingCoverageOutput: {
-<<<<<<< HEAD
-            /** Elapsed Seconds */
-            elapsed_seconds: number;
-            /** Full Window */
-            full_window: boolean;
-=======
             /**
              * Conditional Eligible Fraction
              * @default null
@@ -3222,14 +3191,11 @@ export interface components {
              * @default eligibility_history_unavailable
              */
             measurement_reason: string | null;
->>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
             /** Observed Seconds */
             observed_seconds: number;
             /** Per Minute */
             per_minute: components["schemas"]["OverviewCoverageMinuteOutput"][] | null;
             /**
-<<<<<<< HEAD
-=======
              * Restricted Seconds
              * @default 0
              */
@@ -3239,21 +3205,17 @@ export interface components {
                 [key: string]: number;
             };
             /**
->>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
              * Rolling 30M Fraction
              * @description two_sided_seconds / elapsed_seconds; unknown remains in denominator.
              */
             rolling_30m_fraction: number | null;
             /** Target Fraction */
             target_fraction: number | null;
-<<<<<<< HEAD
-=======
             /**
              * Two Sided Eligible Seconds
              * @default 0
              */
             two_sided_eligible_seconds: number;
->>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
             /** Two Sided Seconds */
             two_sided_seconds: number;
             /** Unknown Seconds */
@@ -3308,11 +3270,6 @@ export interface components {
         };
         /** OverviewSessionFees */
         OverviewSessionFeesOutput: {
-<<<<<<< HEAD
-            /** By Market */
-            by_market: components["schemas"]["OverviewMarketFeesOutput"][] | null;
-            /**
-=======
             /**
              * Backfill Processed Fill Count
              * @default null
@@ -3326,7 +3283,6 @@ export interface components {
              */
             caught_up_at: string | null;
             /**
->>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
              * Conversion Basis
              * @constant
              */
@@ -3334,8 +3290,6 @@ export interface components {
             /** History Complete */
             history_complete: boolean;
             /**
-<<<<<<< HEAD
-=======
              * Processed Fill Count
              * @default null
              */
@@ -3357,7 +3311,6 @@ export interface components {
              */
             reported_projection_version: number | null;
             /**
->>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
              * Through At
              * Format: date-time
              */

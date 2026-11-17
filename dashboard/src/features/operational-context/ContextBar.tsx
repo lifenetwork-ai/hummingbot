@@ -455,13 +455,17 @@ export function ContextBar({
                         ) : (
                           <ul className="mt-2 space-y-2">
                             {Object.entries(actions).map(([name, availability]) => (
-                              <li key={name} className="flex flex-wrap items-center gap-2 text-sm">
-                                <Badge tone={availability.allowed ? 'success' : 'neutral'}>
+                              <li key={name} className="flex flex-wrap items-center gap-2.5 text-sm">
+                                <Badge
+                                  tone={availability.allowed ? 'success' : 'warning'}
+                                  className="shrink-0"
+                                >
                                   {name}: {availability.allowed ? 'allowed' : 'blocked'}
                                 </Badge>
                                 {!availability.allowed && (
-                                  <span className="text-app-muted">
-                                    {availability.detail || availability.reasonCode || 'No reason provided by backend'}
+                                  <span className="flex items-center gap-2 text-xs text-app-muted dark:text-app-muted/75">
+                                    <span className="h-1 w-1 rounded-full bg-app-border dark:bg-app-border/80 shrink-0" aria-hidden="true" />
+                                    <span>{availability.detail || availability.reasonCode || 'No reason provided by backend'}</span>
                                   </span>
                                 )}
                               </li>

@@ -116,14 +116,16 @@ export function CapitalRiskCard({ view, mode, riskLimits = [], onOpenRiskGuards 
         <div className="mt-3 space-y-1.5 border-t border-app-border/40 pt-2 text-[10px] text-app-muted">
           <p className="flex items-center justify-between gap-1.5">
             <span className="flex items-center gap-1.5">
-              {c.fees.available && !c.fees.value.history_complete ? 'Fees recorded (history incomplete)' : 'Session fees'}
+              {c.fees.available
+                ? `Session fees${c.fees.stale ? ' · stale' : ''}${c.fees.value.processing_state === 'catching_up' ? ' · catching up' : ''}${!c.fees.value.history_complete ? ' · history incomplete' : ''}`
+                : 'Session fees'}
               {!c.fees.available && <BackendGapChip detail={c.fees.reason ?? 'Aggregate session fees unavailable (OverviewSupplement.session.fees).'} />}
             </span>
             <span className="font-mono font-bold text-app-text">{c.fees.available ? `${c.fees.value.total_usdt} USDT` : '—'}</span>
           </p>
           <p className="flex items-center justify-between gap-1.5">
             <span className="flex items-center gap-1.5">
-              Session vs hold
+              {c.holdBenchmark.available && c.holdBenchmark.stale ? 'Session vs hold (stale)' : 'Session vs hold'}
               {!c.holdBenchmark.available && <BackendGapChip detail={c.holdBenchmark.reason ?? 'Hold benchmark unavailable (OverviewSupplement.session.benchmark_hold).'} />}
             </span>
             <span className="font-mono font-bold text-app-text">

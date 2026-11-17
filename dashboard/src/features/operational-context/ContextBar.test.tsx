@@ -32,6 +32,7 @@ describe('ContextBar', () => {
     expect(screen.getByText('okx · spot · LIFE-USDT')).toBeInTheDocument()
     expect(screen.getByText('Operator · google:operator')).toBeInTheDocument()
     expect(screen.getByText('start: blocked')).toBeInTheDocument()
+    expect(screen.getByText('start: blocked')).toHaveClass('text-app-warning')
     expect(screen.getByText('Session is active.')).toBeInTheDocument()
   })
 

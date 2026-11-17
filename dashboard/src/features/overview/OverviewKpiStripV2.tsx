@@ -76,10 +76,10 @@ function scrollToAndFlash(id: string) {
 /**
  * KPI strip — 4 tile số to, mỗi chỉ số có target cạnh actual (bố cục theo trục câu hỏi).
  */
-export function OverviewKpiStripV2({ liquidity, capital }: { liquidity: LiquidityMarketView[]; capital: CapitalRiskView }) {
+export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liquidity: LiquidityMarketView[]; capital: CapitalRiskView; onViewBalances?: () => void }) {
   const spreads = liquidity.filter((m) => m.spreadActualBps !== null)
   const allSpreadsMet = spreads.length > 0 && spreads.every((m) => (m.spreadActualBps ?? 0) <= (m.spreadTargetBps ?? Infinity))
-  const coverageKnown = liquidity.length > 0 && liquidity.every((m) => m.coverageTargetFraction !== null && m.coverageFraction !== null && m.rollingCoverageAvailable && m.fullWindow === true)
+  const coverageKnown = liquidity.length > 0 && liquidity.every((m) => m.coverageTargetFraction !== null && m.coverageFraction !== null && m.rollingCoverageAvailable && m.measurementReady && m.eligibleSeconds > 0 && m.fullWindow === true)
   const allCoverageMet = coverageKnown ? liquidity.every((m) => m.coverageTargetFraction !== null && (m.coverageFraction ?? 0) >= m.coverageTargetFraction) : undefined
   const rollingAny = liquidity.some((m) => m.rollingCoverageAvailable)
 
@@ -109,11 +109,11 @@ export function OverviewKpiStripV2({ liquidity, capital }: { liquidity: Liquidit
         </div>
       </KpiTile>
 
-      <KpiTile label="Session coverage (two-sided)">
+      <KpiTile label="Eligible coverage (two-sided)">
         <div className="space-y-2.5">
           {liquidity.map((m) => {
-            const known = m.coverageTargetFraction !== null && m.coverageFraction !== null && m.rollingCoverageAvailable && m.fullWindow === true
-            const met = m.coverageTargetFraction !== null && (m.coverageFraction ?? 0) >= m.coverageTargetFraction
+            const known = m.coverageTargetFraction !== null && m.coverageFraction !== null && m.rollingCoverageAvailable && m.measurementReady && m.eligibleSeconds > 0 && m.fullWindow === true
+            const met = known && m.coverageFraction! >= m.coverageTargetFraction!
             return (
               <MetricRow
                 key={m.market}
@@ -128,8 +128,8 @@ export function OverviewKpiStripV2({ liquidity, capital }: { liquidity: Liquidit
             )
           })}
           <div className="flex items-center gap-1.5">
-            <TargetLine met={allCoverageMet}>{rollingAny ? 'Rolling 30m' : 'Cumulative session'}</TargetLine>
-            {!rollingAny && <BackendGapChip detail="Rolling 30-minute SLA data unavailable — showing cumulative session coverage (OverviewSupplement.markets[].coverage)." />}
+            <TargetLine met={allCoverageMet}>{rollingAny ? 'Eligible rolling 30m' : 'Eligible rolling coverage unavailable'}</TargetLine>
+            {!rollingAny && <BackendGapChip detail="Eligible rolling coverage data unavailable (status.overview.markets[].coverage)." />}
           </div>
         </div>
       </KpiTile>
@@ -178,8 +178,9 @@ export function OverviewKpiStripV2({ liquidity, capital }: { liquidity: Liquidit
               <TargetLine>Valued at {portfolio.valuation.valuation_mark}{delta && !delta.adjusted_for_transfers && ' · transfers not adjusted'}</TargetLine>
             </>
           ) : (
-            <TargetLine>Portfolio snapshot unavailable <BackendGapChip detail="OverviewSupplement.portfolio has no value yet." /></TargetLine>
+            <TargetLine>Portfolio valuation unavailable</TargetLine>
           )}
+          {onViewBalances && <button type="button" onClick={onViewBalances} className="min-h-11 rounded-button px-2 text-xs font-medium text-app-action hover:bg-app-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action">View balances →</button>}
         </div>
       </KpiTile>
     </div>

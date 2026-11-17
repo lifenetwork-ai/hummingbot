@@ -12,8 +12,8 @@ export type DetailMode = 'foundation' | 'operator'
 
 function isMet(market: LiquidityMarketView) {
   return (
-    (market.spreadActualBps ?? Infinity) <= (market.spreadTargetBps ?? Infinity) &&
-    market.coverageTargetFraction !== null && market.fullWindow === true && market.rollingCoverageAvailable &&
+    market.spreadActualBps !== null && market.spreadTargetBps !== null && market.spreadActualBps <= market.spreadTargetBps &&
+    market.coverageTargetFraction !== null && market.fullWindow === true && market.rollingCoverageAvailable && market.measurementReady && market.eligibleSeconds > 0 &&
     (market.coverageFraction ?? 0) >= market.coverageTargetFraction &&
     market.twoSided
   )
@@ -23,7 +23,7 @@ function MarketVerdict({ market, mode }: { market: LiquidityMarketView; mode: De
   const [whyOpen, setWhyOpen] = useState(false)
   const spreadMet = market.spreadTargetBps !== null && (market.spreadActualBps ?? Infinity) <= market.spreadTargetBps
   const overallMet = isMet(market)
-  const evidenceKnown = market.spreadTargetBps !== null && market.spreadActualBps !== null && market.coverageTargetFraction !== null && market.coverageFraction !== null && market.fullWindow === true && market.rollingCoverageAvailable
+  const evidenceKnown = market.spreadTargetBps !== null && market.spreadActualBps !== null && market.coverageTargetFraction !== null && market.coverageFraction !== null && market.fullWindow === true && market.rollingCoverageAvailable && market.measurementReady && market.eligibleSeconds > 0
 
   const bidNum = parseAmount(market.bidNotional) ?? 0
   const askNum = parseAmount(market.askNotional) ?? 0
@@ -145,13 +145,18 @@ function MarketVerdict({ market, mode }: { market: LiquidityMarketView; mode: De
                 <span className="text-app-muted"> (thresholds 20s / 60s)</span>
               </p>
               {w.diagnosis && <p className="text-app-text">{w.diagnosis}</p>}
-              {mode === 'operator' && !market.rollingCoverageAvailable && (
-                <p className="text-[10px] text-app-muted">Coverage shown as session cumulative — rolling 30-minute data unavailable.</p>
-              )}
             </div>
           )}
         </div>
       )}
+      {mode === 'operator' && market.rollingCoverageAvailable && (
+        <div className="mt-3 text-[10px] text-app-muted">
+          <p>Total-time coverage {market.totalTimeCoverageFraction !== null ? `${(market.totalTimeCoverageFraction * 100).toFixed(1)}%` : '—'} · eligible coverage {market.coverageFraction !== null ? `${(market.coverageFraction * 100).toFixed(1)}%` : '—'}</p>
+          <p>Eligible {formatDuration(market.eligibleSeconds)} · restricted {formatDuration(market.restrictedSeconds)} · eligibility unknown {formatDuration(market.eligibilityUnknownSeconds)}</p>
+          {(!market.measurementReady || market.eligibleSeconds === 0 || market.fullWindow !== true) && <p>Target unqualified{market.measurementReason ? `: ${market.measurementReason}` : ''}</p>}
+        </div>
+      )}
+      {mode === 'operator' && !market.rollingCoverageAvailable && <p className="mt-3 text-[10px] text-app-muted">Eligible rolling coverage data unavailable.</p>}
     </Surface>
   )
 }

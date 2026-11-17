@@ -124,6 +124,11 @@ export function deriveOverview({ status, liquidity, balances, positions }: Overv
   }))
 
   return {
+    // Supplement metrics are meaningful only for the same fresh owner/session snapshot.
+    overviewSupplement: statusCurrent &&
+      status.data?.overview?.session_id === (status.data?.observed_session?.id ?? null)
+      ? status.data.overview
+      : null,
     status,
     liquidity,
     balances,

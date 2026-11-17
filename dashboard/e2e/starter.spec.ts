@@ -3,7 +3,7 @@ import { expect, test, openAccountMenu, selectTheme } from './auth-fixture'
 test('starter navigation and theme switching', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Sign in with Google' }).click()
-  await expect(page.getByRole('heading', { name: 'Shared Balances' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Assigned mandate' })).toBeVisible()
   await selectTheme(page, 'dark')
   await expect(page.locator('html')).toHaveClass(/dark/)
   await page.goto('/ui-kit')
@@ -32,7 +32,7 @@ for (const width of [390, 1280]) {
       await expect(page).toHaveURL(/\/login\?redirect=/)
       await page.getByRole('button', { name: 'Sign in with Google' }).click()
       await expect(page).toHaveURL('/')
-      await expect(page.getByRole('heading', { name: 'Shared Balances' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Assigned mandate' })).toBeVisible()
       await page.reload()
       await openAccountMenu(page)
       await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()

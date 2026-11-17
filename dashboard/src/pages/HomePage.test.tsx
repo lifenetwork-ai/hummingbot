@@ -136,9 +136,12 @@ describe('HomePage (Overview)', () => {
 
     // KPI strip — target/actual pairs
     expect(screen.getByText('Spread vs target')).toBeInTheDocument()
-    expect(screen.getByText('Session coverage (two-sided)')).toBeInTheDocument()
+    expect(screen.getByText('Eligible coverage (two-sided)')).toBeInTheDocument()
     expect(screen.getByText('Net position & PnL')).toBeInTheDocument()
     expect(screen.getByText('Total assets')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'View balances →' }))
+    expect(screen.getByRole('dialog', { name: 'Account balances' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     // Q3+Q4 — liquidity verdict per market; Q5 — capital & risk; Q6 — decision
     expect(screen.getByText('LIFE-USDT')).toBeInTheDocument()

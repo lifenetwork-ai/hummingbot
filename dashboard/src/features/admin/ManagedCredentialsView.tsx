@@ -146,13 +146,27 @@ export function ManagedCredentialsView({ catalogue: _catalogue, slots, locks, ca
               <p className="font-semibold text-app-text flex items-center gap-1.5 flex-wrap">
                 <span>Cleanup</span>
                 <CopyableId id={slot.cleanup.id} truncateLength={10} copyLabel="Copy Cleanup ID" />
-                <span>· stage: {slot.cleanup.blockedStage ?? slot.cleanup.reasonCode ?? 'in progress'}</span>
+                <span aria-live="polite">· {slot.cleanup.label}</span>
               </p>
+              {slot.cleanup.label === 'Waiting for order verification' && (
+                <p className="mt-1 text-app-muted">
+                  An uncertain order is still being verified on the exchange. The key and intent remain until terminal proof
+                  permits cleanup; neither retries nor an empty open-order list authorize key removal.
+                </p>
+              )}
               <dl className="mt-2 grid gap-1 text-app-muted sm:grid-cols-2">
                 {Object.entries(slot.cleanup.finalProofs).map(([proof, complete]) => <div key={proof}>{proof}: {complete ? 'verified' : 'not verified'}</div>)}
               </dl>
               {slot.cleanup.nextRetryAt && <p className="mt-2 text-app-muted">Next retry: {slot.cleanup.nextRetryAt}</p>}
               {slot.disconnectedProof && <p role="status" className="mt-2 font-semibold text-app-success">Removal verified by the root operation and all final proofs.</p>}
+              <details className="mt-2">
+                <summary className="cursor-pointer text-[11px] text-app-muted">Details</summary>
+                <p className="mt-1 font-mono text-[11px] text-app-muted">
+                  stage: {slot.cleanup.stage ?? '—'}
+                  {slot.cleanup.blockedStage && <> · blocked_stage: {slot.cleanup.blockedStage}</>}
+                  {slot.cleanup.reasonCode && <> · reason_code: {slot.cleanup.reasonCode}</>}
+                </p>
+              </details>
             </div>}
 
             {slotLocks.length > 0 && <div className="mt-4 space-y-2" aria-live="polite">

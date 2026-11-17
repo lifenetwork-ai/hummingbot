@@ -23,10 +23,10 @@ const positions: Positions = {
 
 const status: Status = {
   acknowledged_version: 4, automatic_recovery: null, bot_id: 'bot-1', control_version: 5, desired_state: 'running',
-  drawdown: null, error: null, funding_sync: null, heartbeat_age_seconds: 1, overview: null, owner_available: true,
+  drawdown: null, error: null, funding_sync: null, heartbeat_age_seconds: 1, owner_available: true,
   owner_identity: null, process_identity: null, phase: 'running', running: true, server_time: '2026-11-11T00:00:00Z',
   observation: { observed_at: '2026-11-11T00:00:00Z', reason_code: null, session_matches: true, stale: false },
-  observed_session: null, operator: { detail: 'Waiting for quotes', label: 'Waiting', next_action: 'monitor', state: 'waiting' },
+  observed_session: null, overview: null, operator: { detail: 'Waiting for quotes', label: 'Waiting', next_action: 'monitor', state: 'waiting' },
   recovery: null, service: null, session: null, session_configuration_url: null, spot_outflow: null,
   time_remaining_seconds: null,
 }
@@ -66,6 +66,34 @@ function input(overrides: Partial<OverviewInput> = {}): OverviewInput {
 }
 
 describe('deriveOverview', () => {
+  const overview = {
+    account_scope: { account_ids: [], environment: 'demo', identity_verified: true, site: null },
+    balances: { observed_at: null, stale: false, unavailable_reason: null, value: null },
+    contract_version: 1 as const,
+    inventory_limits: { observed_at: null, stale: false, unavailable_reason: null, value: null },
+    markets: [],
+    portfolio: { observed_at: null, stale: false, unavailable_reason: null, value: null },
+    references: { observed_at: null, stale: false, unavailable_reason: null, value: null },
+    risk_rules: { observed_at: null, stale: false, unavailable_reason: null, value: null },
+    server_time: '2026-11-11T00:00:00Z',
+    session: {
+      capital_allocated: { observed_at: null, stale: false, unavailable_reason: null, value: null },
+      delta: { observed_at: null, stale: false, unavailable_reason: null, value: null },
+      benchmark_hold: { observed_at: null, stale: false, unavailable_reason: null, value: null },
+      fees: { observed_at: null, stale: false, unavailable_reason: null, value: null },
+    },
+    session_id: 'session-1', session_started_at: null,
+  } satisfies NonNullable<Status['overview']>
+
+  it('uses reporting only for a fresh matching owner/session status', () => {
+    expect(deriveOverview(input({ status: source({ ...status, overview }) })).overviewSupplement).toEqual(overview)
+    expect(deriveOverview(input({ status: source({ ...status, overview: null }) })).overviewSupplement).toBeNull()
+    const stale = { ...status, overview, observation: { ...status.observation!, stale: true } }
+    expect(deriveOverview(input({ status: source(stale) })).overviewSupplement).toBeNull()
+    const mismatch = { ...status, overview: { ...overview, session_id: 'other-session' } }
+    expect(deriveOverview(input({ status: source(mismatch) })).overviewSupplement).toBeNull()
+    expect(deriveOverview(input({ status: source({ ...status, overview }, 'error') })).overviewSupplement).toBeNull()
+  })
   it('keeps requested and observed sessions separate and diagnoses sides from sampled owner evidence', () => {
     const model = deriveOverview(input())
     expect(model.task.operator?.state).toBe('waiting')

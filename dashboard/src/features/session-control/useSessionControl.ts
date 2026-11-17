@@ -9,7 +9,7 @@ import { useTrackedReceipts } from '../../core/api/useTrackedReceipts'
 import { deriveFormFeedback, operationFeedback } from '../../core/api/operation-feedback'
 import { useAuth } from '../../core/auth/auth-context'
 import { useOperationalContext } from '../operational-context/useOperationalContext'
-import { makeStopCommand, reviewSession, type SessionDraft, type SessionReview } from './session-control'
+import { defaultSessionDurationMode, makeStopCommand, reviewSession, type SessionDraft, type SessionReview } from './session-control'
 
 const commandChannel = 'session'
 const stopChannel = 'stop'
@@ -146,6 +146,7 @@ export function useSessionControl(options: { includeProfiles?: boolean; trackCom
     })
   }
   return {
+    defaultDurationMode: defaultSessionDurationMode(profiles.data),
     status, profiles, review, submitReviewed, stop, retryPending, retryStop,
     clearReviewedFeedback: () => {
       if (!startOrSwitch.isPending && ['fix_request', 'refresh_state'].includes(operationFeedback(startOrSwitch.error)?.retry ?? '')) startOrSwitch.reset()

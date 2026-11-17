@@ -51,6 +51,17 @@ describe('Connections workflow logic', () => {
     expect(validateCredentialBundle(catalogue.data!.exchanges[0].fields, { api_key: 'secret' })).toEqual([])
   })
 
+  it.each(['catalogue', 'status'] as const)('blocks cleanup mutations when %s credentials are deployment-managed', (source) => {
+    const externalCatalogue = source === 'catalogue'
+      ? { ...catalogue, data: { ...catalogue.data!, source: 'environment' as const } } : catalogue
+    const externalStatus = source === 'status'
+      ? { ...status, data: { ...status.data!, source: 'environment' as const } } : status
+    const model = deriveCredentialSlot(identity, externalCatalogue, externalStatus, runtime(), 'okx', 'spot')
+    for (const action of ['set', 'disconnect', 'retry', 'repair'] as const) {
+      expect(model.decisions[action]).toMatchObject({ allowed: false, reasonCode: 'managed_source_required' })
+    }
+  })
+
   it('requires all independent root cleanup proofs and terminal removed status', () => {
     const proof = { orders_terminal_verified: true, positions_flat_verified: true, ledger_confirmed: true, consumers_detached: true }
     const receipt = { status: 'succeeded', result: { stage: 'removed', ...proof } } as unknown as import('../../core/api/admin').ReadResponse<'getCredentialOperation'>

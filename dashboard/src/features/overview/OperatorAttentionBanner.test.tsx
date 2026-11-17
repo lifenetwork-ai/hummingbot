@@ -1,6 +1,15 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import type { ReadResponse } from '../../core/api/admin'
+import { contextStatus } from '../../test/mocks/contextFixtures'
+import { deriveRecoveryPresentation } from '../recovery/presentation'
 import { OperatorAttentionBanner } from './OperatorAttentionBanner'
+
+const haltedWaitStatus = {
+  ...contextStatus,
+  recovery: { halted: true, detail: 'Shutdown verification in progress.', next_action: 'wait', check_available: false, reset_available: false, pending_mutations: false, status_url: '/recovery' },
+  operator: { state: 'waiting', label: 'Shutdown being verified', detail: 'Start and Switch stay disabled; Stop remains available.', next_action: 'wait' },
+} as ReadResponse<'getRuntimeStatus'>
 
 describe('OperatorAttentionBanner backend guidance', () => {
   it('presents a temporary shutdown fence as returned progress instead of an emergency', () => {
@@ -40,6 +49,36 @@ describe('OperatorAttentionBanner backend guidance', () => {
     }} />)
     expect(screen.getByText('Trading halted; cause unavailable')).toBeInTheDocument()
     expect(screen.getByText(/Event time unavailable/)).toBeInTheDocument()
+  })
+
+  it('renders operator guidance instead of an EMERGENCY HALT banner while recovery.next_action=wait', () => {
+    const action = vi.fn()
+    render(
+      <OperatorAttentionBanner
+        operator={haltedWaitStatus.operator}
+        recovery={haltedWaitStatus.recovery}
+        recoveryPresentation={deriveRecoveryPresentation(haltedWaitStatus, true)}
+        onAction={action}
+      />,
+    )
+    expect(screen.queryByText(/EMERGENCY HALT/)).not.toBeInTheDocument()
+    expect(screen.getByText('Shutdown being verified')).toBeInTheDocument()
+    expect(screen.getByText(/Start and Switch stay disabled; Stop remains available/)).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('keeps the manual HALT banner when next_action is not wait', () => {
+    const status = {
+      ...contextStatus,
+      recovery: { halted: true, detail: 'Manual HALT active.', next_action: 'check_recovery', check_available: true, reset_available: false, pending_mutations: false, status_url: '/recovery' },
+    } as ReadResponse<'getRuntimeStatus'>
+    render(
+      <OperatorAttentionBanner
+        recovery={status.recovery}
+        recoveryPresentation={deriveRecoveryPresentation(status, true)}
+      />,
+    )
+    expect(screen.getByText('Trading halted')).toBeInTheDocument()
   })
   it('does not recategorize a risk stop as technical recovery or invent a recovery action', () => {
     const action = vi.fn()
@@ -105,4 +144,29 @@ describe('OperatorAttentionBanner backend guidance', () => {
     button.click()
     expect(action).toHaveBeenCalledWith('start')
   })
+
+  it('blocks navigation actions when the observation is stale', () => {
+    const action = vi.fn()
+    render(
+      <OperatorAttentionBanner
+        operator={{ state: 'needs_attention', label: 'Session expired', detail: 'Start is available after refresh.', next_action: 'start' }}
+        observation="stale"
+        onAction={action}
+      />,
+    )
+    expect(screen.getByText(/Observation data is not current/)).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(action).not.toHaveBeenCalled()
+  })
+})
+
+it('shows backend technical guidance for a connector HALT', () => {
+  render(<OperatorAttentionBanner
+    operator={{ state: 'needs_attention', label: 'Technical review needed', detail: 'Trading cannot restart until the cause is resolved.', next_action: 'contact_support' }}
+    recovery={{ halted: true, cause: null, detail: 'Contact support before restarting trading.', next_action: 'contact_support', check_available: false, reset_available: false, pending_mutations: false, status_url: '/recovery' }}
+  />)
+  expect(screen.getByText('Trading halted — Technical review needed')).toBeInTheDocument()
+  expect(screen.getByText('Trading cannot restart until the cause is resolved.')).toBeInTheDocument()
+  expect(screen.queryByText(/EMERGENCY HALT/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('button')).not.toBeInTheDocument()
 })

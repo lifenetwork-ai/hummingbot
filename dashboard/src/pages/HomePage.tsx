@@ -1,7 +1,9 @@
+import { AccountBalancesPanel } from '../features/overview/AccountBalancesPanel'
 import { useCallback, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useOverviewController } from '../features/overview/useOverviewController'
 import { useOperationalContext } from '../features/operational-context/useOperationalContext'
+import { AutomaticRecoveryCard } from '../features/overview/AutomaticRecoveryCard'
 import { CapitalRiskCard } from '../features/overview/CapitalRiskCard'
 import { DataSourceErrorBanner } from '../features/overview/DataSourceErrorBanner'
 import { DecisionCard } from '../features/overview/DecisionCard'
@@ -9,6 +11,7 @@ import { LiquidityVerdictCard, type DetailMode } from '../features/overview/Liqu
 import { MandateBar } from '../features/overview/MandateBar'
 import { NoSessionNotice } from '../features/overview/NoSessionNotice'
 import { OperatorAttentionBanner } from '../features/overview/OperatorAttentionBanner'
+import { OperationalDiagnosticsCard } from '../features/overview/OperationalDiagnosticsCard'
 import { OverviewKpiStripV2 } from '../features/overview/OverviewKpiStripV2'
 import { ProfileExplorerDialog } from '../features/overview/ProfileExplorerDialog'
 import { RiskGuardsCard } from '../features/overview/RiskGuardsCard'
@@ -18,6 +21,8 @@ import { Dialog } from '../shared/components/Dialog'
 import { MotionPage } from '../shared/motion/MotionPage'
 
 export function HomePage() {
+  const [balancesOpen, setBalancesOpen] = useState(false)
+  const closeBalances = useCallback(() => setBalancesOpen(false), [])
   const [riskGuardsOpen, setRiskGuardsOpen] = useState(false)
   const closeRiskGuards = useCallback(() => setRiskGuardsOpen(false), [])
   const [profileExplorerOpen, setProfileExplorerOpen] = useState(false)
@@ -40,7 +45,7 @@ export function HomePage() {
   }
 
   // Supplement views — một nguồn dữ liệu duy nhất cho mọi block
-  const supplement = statusData?.overview ?? null
+  const supplement = model.overviewSupplement
   const mandate = deriveMandate(model, supplement)
   const liquidityMarkets = deriveLiquidity(model, supplement)
   const capital = deriveCapitalRisk(model, supplement)
@@ -68,10 +73,14 @@ export function HomePage() {
         <OperatorAttentionBanner
           operator={model.task.operator}
           recovery={statusData?.recovery}
+          recoveryPresentation={model.recoveryPresentation}
           observation={model.observation.status}
           onAction={handleBannerAction}
         />
         <NoSessionNotice status={statusData} />
+
+        {/* Automatic order recovery + scoped trading + reserved capital/orders */}
+        <AutomaticRecoveryCard presentation={model.recoveryPresentation} />
 
         {/* Q1 — nhiệm vụ được giao */}
         <MandateBar
@@ -81,7 +90,8 @@ export function HomePage() {
         />
 
         {/* KPI strip — số to tường minh + target cạnh actual */}
-        <OverviewKpiStripV2 liquidity={liquidityMarkets} capital={capital} />
+        <OverviewKpiStripV2 liquidity={liquidityMarkets} capital={capital} onViewBalances={() => setBalancesOpen(true)} />
+        <AccountBalancesPanel open={balancesOpen} onClose={closeBalances} source={balances} onRefresh={context.refreshBalances} />
 
         {/* Q3+Q4 — thanh khoản: verdict theo market + vì sao chưa đạt */}
         <section aria-label="Liquidity and live orders on the exchange">
@@ -95,6 +105,9 @@ export function HomePage() {
 
         {/* Q6 — đánh giá & hành động */}
         <DecisionCard decision={decision} />
+
+        {/* Service phase/incidents, perpetual reduction, Spot BUY terminal verification */}
+        <OperationalDiagnosticsCard diagnostics={model.diagnostics} processDiagnostics={model.processDiagnostics} />
       </div>
 
       <Dialog

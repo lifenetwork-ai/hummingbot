@@ -8,6 +8,8 @@ export interface RecoveryResetDialogProps {
   onConfirmReset: () => Promise<void> | void
   isResetting?: boolean
   error?: string | null
+  /** True for verification.scope=verified_checkpoint with an empty proposed-change list. */
+  checkpointPreserved?: boolean
 }
 
 export function RecoveryResetDialog({
@@ -16,6 +18,7 @@ export function RecoveryResetDialog({
   onConfirmReset,
   isResetting = false,
   error = null,
+  checkpointPreserved = false,
 }: RecoveryResetDialogProps) {
   return (
     <Dialog
@@ -24,7 +27,9 @@ export function RecoveryResetDialog({
         if (!isResetting) onOpenChange(false)
       }}
       title="Confirm Recovery Reset"
-      description="Apply reviewed changes to bring the bot out of HALT state."
+      description={checkpointPreserved
+        ? 'Confirm the verified checkpoint review to close the HALT.'
+        : 'Apply reviewed changes to bring the bot out of HALT state.'}
       className="max-w-md"
     >
       <div className="space-y-4 text-xs text-app-text">
@@ -32,9 +37,14 @@ export function RecoveryResetDialog({
           <div className="flex items-start gap-2.5">
             <Wrench size={18} className="text-app-warning mt-0.5 shrink-0" />
             <div>
-              <h4 className="font-bold text-app-text">Apply reviewed checkpoint modifications</h4>
+              <h4 className="font-bold text-app-text">
+                {checkpointPreserved ? 'Confirm verified checkpoint review' : 'Apply reviewed checkpoint modifications'}
+              </h4>
               <p className="mt-1 leading-relaxed text-app-muted">
-                The system will synchronize position checkpoints and return the bot to a <strong>Safe Stopped (Stopped)</strong> state. The bot will NOT automatically resume trading.
+                {checkpointPreserved
+                  ? <>No ledger changes will be applied — financial rows, remaining cost basis and risk checkpoints are preserved as reviewed. </>
+                  : <>The system will synchronize position checkpoints and applies the reviewed changes. </>}
+                The system will return the bot to a <strong>Safe Stopped (Stopped)</strong> state. The bot will NOT automatically resume trading.
               </p>
             </div>
           </div>

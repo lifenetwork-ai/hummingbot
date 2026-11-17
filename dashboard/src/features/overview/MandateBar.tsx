@@ -19,6 +19,9 @@ export function MandateBar({
   onOpenProfileExplorer?: () => void
 }) {
   const m = view
+  const statusTone = m.operationalStatus === 'HALTED' ? 'danger'
+    : ['STALE', 'STARTING', 'STOPPING'].includes(m.operationalStatus) ? 'warning'
+      : m.operationalStatus === 'RUNNING' ? 'success' : 'neutral'
   return (
     <Surface className="p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -28,9 +31,9 @@ export function MandateBar({
           totalSeconds={m.totalSessionSeconds}
           observedAt={m.observedAt}
         />
-        <Badge tone={m.running ? 'success' : 'neutral'} className="text-[11px]">
-          <span className={cn('mr-1 h-1.5 w-1.5 rounded-full', m.running ? 'bg-emerald-500' : 'bg-app-muted')} />
-          {m.running ? 'RUNNING' : 'STOPPED'}
+        <Badge tone={statusTone} className="text-[11px]">
+          <span className="mr-1 h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+          {m.operationalStatus}
         </Badge>
         <span className="ml-auto text-[11px] text-app-muted">
           {m.observedAt ? `Observed at ${new Date(m.observedAt).toLocaleTimeString('en-GB')}` : 'No observation yet'}

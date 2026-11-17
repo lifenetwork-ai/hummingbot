@@ -9,7 +9,7 @@ import { useApiSessionScope } from '../../core/api/ApiSessionContext'
 import { deriveFormFeedback } from '../../core/api/operation-feedback'
 import { ApiError } from '../../core/api/client'
 import { useOperationalContext } from '../operational-context/useOperationalContext'
-import { cleanupComplete, cleanupProofs, deriveCredentialSlot, validateCredentialBundle, type CredentialFormValues } from './connections'
+import { cleanupComplete, deriveCleanupProgress, deriveCredentialSlot, validateCredentialBundle, type CredentialFormValues } from './connections'
 
 type LockedAction = 'set' | 'disconnect' | 'retry' | 'repair'
 type DecisionLock = { key: string; scopeToken: string; action: LockedAction; exchange: string; connector: string; credentialVersion: number; controlVersion: number; operationVersion: number | null; idempotencyKey: string; retryReviewed: boolean; state: 'pending' | 'accepted' | 'unknown'; receiptId: string | null; retryAt?: number }
@@ -72,10 +72,7 @@ export function useConnectionsController() {
     const decisions = operational.recoveryLock?.active ? { set: { allowed: false, reasonCode: 'recovery_in_progress', detail: operational.recoveryLock.detail }, disconnect: { allowed: false, reasonCode: 'recovery_in_progress', detail: operational.recoveryLock.detail }, retry: { allowed: false, reasonCode: 'recovery_in_progress', detail: operational.recoveryLock.detail }, repair: { allowed: false, reasonCode: 'recovery_in_progress', detail: operational.recoveryLock.detail } } : model.decisions
     return { ...model, decisions, disconnectedProof: model.connectionState === 'disconnected' && cleanupComplete(rootReceipt), cleanup: model.cleanup && rootReceipt ? {
       ...model.cleanup,
-      blockedStage: rootReceipt.result.blocked_stage,
-      reasonCode: rootReceipt.result.reason_code,
-      nextRetryAt: rootReceipt.result.next_retry_at,
-      finalProofs: cleanupProofs(rootReceipt),
+      ...deriveCleanupProgress(rootReceipt),
     } : model.cleanup }
   }))
 

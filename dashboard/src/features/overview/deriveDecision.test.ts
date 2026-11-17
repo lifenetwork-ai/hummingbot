@@ -16,8 +16,14 @@ function metMarket(overrides: Partial<LiquidityMarketView> = {}): LiquidityMarke
     buyOrderCount: 3,
     sellOrderCount: 3,
     coverageFraction: 0.995,
+    totalTimeCoverageFraction: 0.995,
     coverageTargetFraction: 0.99,
     rollingCoverageAvailable: true,
+    measurementReady: true,
+    eligibleSeconds: 1790,
+    restrictedSeconds: 5,
+    eligibilityUnknownSeconds: 5,
+    measurementReason: null,
     fullWindow: true,
     why: {
       elapsedSeconds: 1800,
@@ -82,6 +88,23 @@ describe('deriveDecision', () => {
     expect(row?.note).toContain('beats benchmark')
   })
 
+  it('does not treat stale benchmark values as a current performance result', () => {
+    const d = deriveDecision([metMarket()], {
+      ...baseCapital,
+      holdBenchmark: { available: true, stale: true, observedAt: null, value: {
+        baseline_at: '', basis: 'initial_spot_assets', hold_pnl_usdt: '1', initial_life: '0', initial_usdt: '0',
+        outperform_usdt: '1', session_pnl_usdt: '2', transfer_treatment: 'excluded_from_both',
+        valuation: { currency: 'USDT', prices: [], valuation_mark: 'mid', valued_at: '' },
+      } },
+    })
+    expect(d.rows.find((r) => r.goal === 'Performance understood')?.verdict).toBe('unknown')
+  })
+
+  it('uses conservative eligible coverage instead of total-time coverage for the target', () => {
+    const d = deriveDecision([metMarket({ coverageFraction: 0.98, totalTimeCoverageFraction: 0.999 })], baseCapital)
+    expect(d.rows.find((r) => r.goal === 'Liquidity maintained')?.verdict).toBe('not_met')
+  })
+
   it('flags inventory breach as not_met risk', () => {
     const d = deriveDecision([metMarket()], {
       ...baseCapital,
@@ -95,11 +118,17 @@ describe('deriveDecision', () => {
 })
 
 describe('supplement completeness gates', () => {
-  it.each([false, true])('never marks incomplete or stale fees as met (stale=%s)', (stale) => {
+  it.each([
+    { stale: false, history_complete: false, processing_state: 'ready' as const },
+    { stale: false, history_complete: true, processing_state: 'catching_up' as const },
+    { stale: true, history_complete: true, processing_state: 'ready' as const },
+  ])('never marks stale, catching-up, or incomplete fees as met: %j', (feeState) => {
     const capital: CapitalRiskView = {
       ...baseCapital,
-      fees: { available: true, stale, observedAt: null, value: {
-        total_usdt: '0.12', by_market: null, conversion_basis: 'at_fill', history_complete: stale, through_at: '',
+      fees: { available: true, stale: feeState.stale, observedAt: null, value: {
+        total_usdt: '0.12', by_market: null, conversion_basis: 'at_fill', history_complete: feeState.history_complete, through_at: '',
+        backfill_processed_fill_count: null, caught_up_at: null, processed_fill_count: null,
+        processing_projection_version: null, processing_state: feeState.processing_state, reported_projection_version: null,
       } },
     }
     expect(deriveDecision([metMarket()], capital).rows.find((r) => r.goal === 'Capital & costs reasonable')?.verdict).toBe('unknown')
@@ -109,6 +138,8 @@ describe('supplement completeness gates', () => {
     { coverageTargetFraction: null },
     { fullWindow: false },
     { rollingCoverageAvailable: false },
+    { measurementReady: false },
+    { eligibleSeconds: 0 },
   ])('does not turn missing rolling SLA evidence into success: %j', (missing) => {
     const decision = deriveDecision([metMarket(missing)], baseCapital)
     expect(decision.rows.find((r) => r.goal === 'Liquidity maintained')?.verdict).toBe('unknown')

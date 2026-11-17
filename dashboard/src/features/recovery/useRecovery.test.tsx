@@ -29,11 +29,31 @@ const operational = { status: { phase: 'ready', data: status, error: null, refre
 const checkOperation = { action: 'recovery_check', id: 'check-1', status: 'succeeded', stage: 'review_required',
   can_recover: true, confirmation_token: 'secret-confirmation', expires_at: new Date(Date.now() + 60_000).toISOString(),
   trading_state: 'stopped', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), detail: 'Review',
-  label: 'Recovery check', proposed_changes: [], verification: { orders: 1 } }
+  label: 'Recovery check', proposed_changes: [], verification: { scope: 'verified_checkpoint', orders_checked: 0, fills_checked: 1 } }
 const resetOperation = { ...checkOperation, action: 'recovery_reset', id: 'reset-1', status: 'succeeded', stage: 'recovered',
   confirmation_token: null, proposed_changes: [], repaired_positions: [] }
 
 describe('useRecovery', () => {
+  it('does not replay an unknown Check after shutdown verification begins', async () => {
+    let waiting = false
+    let writes = 0
+    server.use(
+      http.get(`${baseUrl}/status`, () => HttpResponse.json(status)),
+      http.get(`${baseUrl}/recovery`, () => HttpResponse.json({ halted: true, check_available: true, reset_available: false, blockers: [], operation: null, control_version: 7 })),
+      http.post(`${baseUrl}/recovery/check`, () => { writes++; return HttpResponse.json({ detail: 'unknown outcome' }, { status: 503 }) }),
+    )
+    function ScopedWrapper({ children }: PropsWithChildren) {
+      const current = { ...operational, status: { ...operational.status, data: { ...operational.status.data!, recovery: waiting ? { halted: true, next_action: 'wait' } : null } } } as OperationalContextValue
+      return <ApiProvider session={{ baseUrl, cacheIdentity: 'shutdown-check' }}><OperationalContext.Provider value={current}>{children}</OperationalContext.Provider></ApiProvider>
+    }
+    const { result, rerender } = renderHook(useRecovery, { wrapper: ScopedWrapper })
+    await waitFor(() => expect(result.current.checkAvailable).toBe(true))
+    await act(async () => { await expect(result.current.check()).rejects.toThrow() })
+    waiting = true
+    rerender()
+    await act(async () => { await expect(result.current.retryCheck()).rejects.toThrow('shutdown_verification_pending') })
+    expect(writes).toBe(1)
+  })
   it('checks, polls the exact receipt, confirms the same version, and reports recovered without starting', async () => {
     const writes: Array<{ url: string; body: unknown; key: string | null }> = []
     server.use(
@@ -57,6 +77,7 @@ describe('useRecovery', () => {
     await waitFor(() => expect(result.current.reviewAvailable).toBe(true))
     expect(result.current.checkReceipt.data?.confirmation_token).toBeNull()
     expect(result.current.operation?.confirmation_token).toBeNull()
+    expect(result.current.verification).toMatchObject({ checkpointPreserved: true, ordersChecked: 0, fillsChecked: 1, proposedChanges: [], ordersCheckedMeaning: 'no_historical_per_order_reads' })
     expect(writes[0]).toMatchObject({ url: '/api/v1/admin/recovery/check', body: { expected_version: 7 } })
     await act(async () => { await result.current.confirmReset() })
     await waitFor(() => expect(result.current.completed).toBe(true))

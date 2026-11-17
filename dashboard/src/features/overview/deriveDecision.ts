@@ -53,7 +53,7 @@ export function deriveDecision(liquidity: LiquidityMarketView[], capital: Capita
   const covNotes = liquidity.map((m) => {
     const fraction = m.coverageFraction
     const target = m.coverageTargetFraction
-    const known = fraction !== null && target !== null && m.rollingCoverageAvailable && m.fullWindow === true
+    const known = fraction !== null && target !== null && m.rollingCoverageAvailable && m.measurementReady && m.eligibleSeconds > 0 && m.fullWindow === true
     const met = known && fraction >= target
     return {
       known,
@@ -72,7 +72,7 @@ export function deriveDecision(liquidity: LiquidityMarketView[], capital: Capita
   })
 
   // Mục tiêu 3 — vốn & chi phí hợp lý: phí trong phiên (signed: dương = đã trả)
-  const fees = capital.fees.available && !capital.fees.stale && capital.fees.value.history_complete
+  const fees = capital.fees.available && !capital.fees.stale && capital.fees.value.processing_state === 'ready' && capital.fees.value.history_complete
     ? capital.fees.value.total_usdt : null
   rows.push({
     goal: 'Capital & costs reasonable',
@@ -105,7 +105,7 @@ export function deriveDecision(liquidity: LiquidityMarketView[], capital: Capita
   })
 
   // Mục tiêu 5 — hiệu quả vs benchmark hold
-  const bench = capital.holdBenchmark.available ? capital.holdBenchmark.value : null
+  const bench = capital.holdBenchmark.available && !capital.holdBenchmark.stale ? capital.holdBenchmark.value : null
   const outperform = bench !== null ? parseAmount(bench.outperform_usdt) : null
   rows.push({
     goal: 'Performance understood',

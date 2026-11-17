@@ -49,6 +49,44 @@ describe('ManagedCredentialsView', () => {
     expect(screen.getByRole('button', { name: /Disconnect/ })).toBeInTheDocument()
   })
 
+  it('shows the friendly cleanup stage with reason code kept in Details', () => {
+    const slotWithCleanup = {
+      ...sampleSlot,
+      cleanup: {
+        id: 'cleanup-1',
+        stage: 'waiting_for_dependency',
+        label: 'Waiting for order verification',
+        blockedStage: null,
+        reasonCode: 'cleanup_orders_pending',
+        nextRetryAt: '2026-11-16T00:01:00Z',
+        finalProofs: { ordersFlatVerified: false, positionsFlatVerified: true, ledgerConfirmed: false, consumersDetached: true },
+        complete: false,
+      },
+    } as unknown as typeof sampleSlot
+    render(
+      <ManagedCredentialsView
+        slots={[slotWithCleanup]}
+        locks={[]}
+        canManage={true}
+        isLoading={false}
+        isSubmitting={false}
+        onRefresh={vi.fn()}
+        onSetCredentials={vi.fn()}
+        onRetryCleanup={vi.fn()}
+        onRepairCleanup={vi.fn()}
+        onReviewUnknown={vi.fn()}
+        onOpenDisconnect={vi.fn()}
+      />,
+    )
+    expect(screen.getByText(/Waiting for order verification/)).toBeInTheDocument()
+    expect(screen.getByText(/An uncertain order is still being verified on the exchange/)).toBeInTheDocument()
+    expect(screen.getByText(/Next retry: 2026-11-16T00:01:00Z/)).toBeInTheDocument()
+    // The raw stage/reason stay collapsed inside Details; expanding confirms they are preserved
+    fireEvent.click(screen.getByText('Details'))
+    expect(screen.getByText(/stage: waiting_for_dependency/)).toBeInTheDocument()
+    expect(screen.getByText(/reason_code: cleanup_orders_pending/)).toBeInTheDocument()
+  })
+
   it('renders inline error on credential field from feedbackModel when form is open', () => {
     const feedbackModel: FormFeedbackModel = {
       feedback: {

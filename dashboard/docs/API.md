@@ -253,3 +253,18 @@ has this approved persistence path: exchange secrets, recovery confirmation toke
 query caches and mutation bodies are not persisted by auth. Tokens never belong in
 URLs or logs. Hosted Google/CORS/gateway/IAM and real account acceptance still need
 separate evidence.
+
+### Account balance details
+
+Overview’s **Total assets → View balances** opens a right side panel (full width
+on mobile) using the workspace’s shared `getBalances` query. Accounts retain their
+identity and environment. Each currency shows cash balance, available cash, equity and available equity
+in table columns, with horizontal scrolling on small screens. Observation time,
+connector and source appear below the table. API precision is preserved and missing values remain distinct from zero.
+Refresh uses the shared query; failures retain the last snapshot with a warning.
+Stale or absent snapshot entries and unavailable owners are marked unverified.
+
+The balances response does not provide a portfolio valuation in USDT. The Total
+assets KPI uses `status.overview.portfolio` when fresh reporting is available;
+missing or stale valuation remains unavailable. Account balance details retain
+their independent query and observation state.
