@@ -90,7 +90,7 @@ describe('AdminPage integrated controllers', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm Reset' }))
     await screen.findByText('Recovery Succeeded')
     expect(calls.map((call) => call.path)).toEqual(['check', 'reset'])
-    expect(calls[1].body).toEqual({ expected_version: 9, check_id: 'check-ui', confirmation_token: token })
+    expect(calls[1].body).toEqual({ expected_version: 9, check_id: 'check-ui', confirmation_token: token, confirm_order_changes: false })
     expect(calls[1].key).not.toBe(calls[0].key)
   })
 

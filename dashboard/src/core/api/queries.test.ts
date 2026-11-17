@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
-import { ApiError } from './client'
-import { pollingInterval, receiptFinished } from './queries'
+import { describe, expect, it, vi } from 'vitest'
+import { createAdminApi } from './admin'
+import { ApiError, createApiClient } from './client'
+import { adminQueryOptions, pollingInterval, receiptFinished } from './queries'
 import { readRetryDelay, retryRead, createDashboardQueryClient } from './queryClient'
 import { invalidateAfterMutation, invalidateAfterReceipt } from './invalidation'
 import type { WriteOperation } from './admin'
@@ -74,5 +75,35 @@ describe('mutation/receipt cache dependencies', () => {
       expect(client.getQueryState(['admin', 'getRecovery', {}])?.isInvalidated).toBe(true)
       expect(client.getQueryState(['admin', 'getPositions', {}])?.isInvalidated).toBe(operation !== 'checkRecovery')
     } finally { client.clear() }
+  })
+})
+
+describe('static metadata cache', () => {
+  it('reuses profiles for 60s, refreshes on expiry/invalidation, and keeps runtime reads fresh', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    const api = createAdminApi(createApiClient({ baseUrl: 'https://cache.test/api/v1/admin', getToken: () => 'test', fetch: fetcher }))
+    const client = createDashboardQueryClient()
+    const initial = Date.now()
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(initial)
+    try {
+      const options = adminQueryOptions(api, 'listProfiles', {})
+      await client.fetchQuery(options)
+      clock.mockReturnValue(initial + 59000)
+      await client.fetchQuery(options)
+      expect(fetcher).toHaveBeenCalledTimes(1)
+      clock.mockReturnValue(initial + 60001)
+      await client.fetchQuery(options)
+      expect(fetcher).toHaveBeenCalledTimes(2)
+      await client.invalidateQueries({ queryKey: ['admin', 'listProfiles'] })
+      await client.fetchQuery(options)
+      expect(fetcher).toHaveBeenCalledTimes(3)
+      const runtime = adminQueryOptions(api, 'getRuntimeStatus', {})
+      await client.fetchQuery(runtime)
+      await client.fetchQuery(runtime)
+      expect(fetcher).toHaveBeenCalledTimes(5)
+    } finally {
+      clock.mockRestore()
+      client.clear()
+    }
   })
 })

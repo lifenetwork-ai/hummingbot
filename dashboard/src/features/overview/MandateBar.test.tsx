@@ -13,6 +13,18 @@ function renderStatus(data: Status | undefined, failed = false) {
 }
 
 describe('mandate operational status', () => {
+  it('formats risk amounts by their backend unit and keeps missing exposure unknown', () => {
+    const model = deriveOverview({ status: { phase: 'ready', data: contextStatus, error: null, refreshing: false }, liquidity: loading, positions: loading, balances: loading })
+    const view = { ...deriveMandate(model, null), riskLimits: [
+      { ruleId: 'drawdown', current: '857.669896390764799999999996', limit: '2500', status: 'ok' as const, unit: 'USDT' },
+      { ruleId: 'inventory', current: null, limit: '0.05', status: 'unknown' as const, unit: 'BTC' },
+    ] }
+    render(<MandateBar view={view} guards={deriveCapitalRisk(model, null).guardsSummary} />)
+    expect(screen.getByText('857.67 USDT')).toBeInTheDocument()
+    expect(screen.getByText('0.05000000 BTC')).toBeInTheDocument()
+    expect(screen.queryByText(/857\.669896390/)).not.toBeInTheDocument()
+  })
+
   it.each(['running', 'starting', 'stopping', 'stopped', 'halted'])('renders runtime phase %s independently of requested state', (phase) => {
     renderStatus({ ...contextStatus, phase, running: phase === 'running' })
     expect(screen.getByText(phase.toUpperCase())).toBeInTheDocument()

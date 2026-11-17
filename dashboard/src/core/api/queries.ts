@@ -46,6 +46,9 @@ export function adminQueryOptions<K extends ReadOperation>(api: AdminApi, operat
   return queryOptions<ReadResponse<K>, Error>({
     queryKey: adminKeys.query(operation, input),
     queryFn: input === undefined ? skipToken : ({ signal }) => api.read(operation, input, signal),
+    // Deployed catalogue metadata is static within a revision. Runtime/account
+    // observations stay immediately stale; session-scoped QueryClients isolate users.
+    staleTime: operation === 'listProfiles' ? 60_000 : 0,
     retry: retryRead, retryDelay: readRetryDelay,
     refetchOnWindowFocus: true, refetchOnReconnect: true,
     refetchIntervalInBackground: false,

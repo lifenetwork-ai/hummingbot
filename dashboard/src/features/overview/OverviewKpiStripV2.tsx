@@ -77,8 +77,11 @@ function scrollToAndFlash(id: string) {
  * KPI strip — 4 tile số to, mỗi chỉ số có target cạnh actual (bố cục theo trục câu hỏi).
  */
 export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liquidity: LiquidityMarketView[]; capital: CapitalRiskView; onViewBalances?: () => void }) {
-  const spreads = liquidity.filter((m) => m.spreadActualBps !== null)
-  const allSpreadsMet = spreads.length > 0 && spreads.every((m) => (m.spreadActualBps ?? 0) <= (m.spreadTargetBps ?? Infinity))
+  const spreadsKnown = liquidity.length > 0 && liquidity.every(m => m.spreadActualBps !== null && m.spreadTargetBps !== null)
+  const anySpreadExceeded = liquidity.some(m => m.spreadActualBps !== null && m.spreadTargetBps !== null && m.spreadActualBps > m.spreadTargetBps)
+  const allSpreadsMet = anySpreadExceeded ? false : spreadsKnown ? true : undefined
+  const spreadUnknownDetail = liquidity.length === 0 || liquidity.some(m => m.spreadActualBps === null)
+    ? 'Spread unavailable — two working sides required' : 'Spread target unavailable'
   const coverageKnown = liquidity.length > 0 && liquidity.every((m) => m.coverageTargetFraction !== null && m.coverageFraction !== null && m.rollingCoverageAvailable && m.measurementReady && m.eligibleSeconds > 0 && m.fullWindow === true)
   const allCoverageMet = coverageKnown ? liquidity.every((m) => m.coverageTargetFraction !== null && (m.coverageFraction ?? 0) >= m.coverageTargetFraction) : undefined
   const rollingAny = liquidity.some((m) => m.rollingCoverageAvailable)
@@ -92,7 +95,7 @@ export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liq
       <KpiTile label="Spread vs target">
         <div className="space-y-2.5">
           {liquidity.map((m) => {
-            const met = m.spreadTargetBps !== null && (m.spreadActualBps ?? Infinity) <= m.spreadTargetBps
+            const met = m.spreadTargetBps !== null && m.spreadActualBps !== null ? m.spreadActualBps <= m.spreadTargetBps : undefined
             return (
               <MetricRow
                 key={m.market}
@@ -100,12 +103,12 @@ export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liq
                 target={`${m.spreadTargetBps ?? '—'} bps`}
                 onClick={() => scrollToAndFlash(`market-card-${m.market}`)}
               >
-                <BigValue tone={met ? 'positive' : 'negative'}>{m.spreadActualBps ?? '—'}</BigValue>
+                <BigValue tone={met === undefined ? 'default' : met ? 'positive' : 'negative'}>{m.spreadActualBps ?? '—'}</BigValue>
                 <span className="text-[10px] font-normal text-app-muted">bps</span>
               </MetricRow>
             )
           })}
-          <TargetLine met={allSpreadsMet}>{allSpreadsMet ? 'All markets within spread target' : 'Some markets exceed spread target'}</TargetLine>
+          <TargetLine met={allSpreadsMet}>{allSpreadsMet === undefined ? spreadUnknownDetail : allSpreadsMet ? 'All markets within spread target' : 'Some markets exceed spread target'}</TargetLine>
         </div>
       </KpiTile>
 
@@ -138,7 +141,7 @@ export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liq
         <div className="space-y-2.5">
           <MetricRow label={net.pair ?? 'Perp'} target="perpetual" onClick={() => scrollToAndFlash('capital-risk-card')}>
             <BigValue tone={net.side === 'LONG' ? 'positive' : net.side === 'SHORT' ? 'negative' : 'default'}>
-              {net.side === 'FLAT' ? 'FLAT' : `${net.side} ${net.amount}`}
+              {!net.observed || net.amount === '—' ? '—' : net.side === 'FLAT' ? 'FLAT' : `${net.side} ${net.amount}`}
             </BigValue>
           </MetricRow>
           <div className="flex items-baseline gap-1.5 text-xs">
@@ -147,7 +150,7 @@ export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liq
               {net.pnlUsdt !== null ? `${net.pnlUsdt} USDT` : '—'}
             </span>
           </div>
-          {!net.observed && <TargetLine>Positions not observed — figures may be stale</TargetLine>}
+          {!net.observed && <TargetLine>Net position unavailable — check individual positions</TargetLine>}
         </div>
       </KpiTile>
 

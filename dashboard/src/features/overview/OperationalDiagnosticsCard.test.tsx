@@ -61,7 +61,7 @@ describe('OperationalDiagnosticsCard', () => {
   it('renders perpetual reduction per market and side with friendly reasons and stale marking', () => {
     const status = withStatus({
       markets: [
-        { market: 'perpetual', pair: 'BTC-USDT-SWAP', connector: 'okx_perpetual', admitted: true, ready: true, reason: null, reference_price: '42000', inventory_skew: null, quote_guard: null, spread_policy: null,
+        { market: 'perpetual', pair: 'BTC-USDT-SWAP', base_asset: null, quote_asset: null, connector: 'okx_perpetual', admitted: true, ready: true, reason: null, reference_price: '42000', inventory_skew: null, quote_guard: null, spread_policy: null,
           inventory_reduction: {
             mode: 'close_first', price_mode: 'breakeven', stale: false, fee_ready: false, observed_at: '2026-11-15T23:59:58Z',
             sides: {

@@ -5,7 +5,7 @@ import type { components } from '../../core/api/schema'
 import { Badge } from '../../shared/components/Badge'
 import { Button } from '../../shared/components/Button'
 import { CopyableId } from '../../shared/components/CopyableId'
-import { formatLife, formatPrice } from '../../shared/utils/formatters'
+import { formatPairAmount, formatPrice } from '../../shared/utils/formatters'
 
 export interface OrderDetailDrawerProps {
   open: boolean
@@ -113,15 +113,15 @@ export function OrderDetailDrawer({ open, onClose, order, detail, isDetailLoadin
               </div>
               <div className="flex justify-between">
                 <span className="text-app-muted">Original Amount:</span>
-                <span className="font-mono font-bold text-app-text">{formatLife(actual.amount)}</span>
+                <span className="font-mono font-bold text-app-text">{formatPairAmount(actual.amount, actual.pair)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-app-muted">Filled Amount:</span>
-                <span className="font-mono text-app-text font-semibold">{formatLife(actual.recorded_filled_amount)}</span>
+                <span className="font-mono text-app-text font-semibold">{formatPairAmount(actual.recorded_filled_amount, actual.pair)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-app-muted">Remaining Amount:</span>
-                <span className="font-mono font-bold text-app-text">{formatLife(actual.recorded_remaining_amount)}</span>
+                <span className="font-mono font-bold text-app-text">{formatPairAmount(actual.recorded_remaining_amount, actual.pair)}</span>
               </div>
               <div className="flex justify-between border-t border-app-border/40 pt-2">
                 <span className="text-app-muted">Created At:</span>
@@ -154,7 +154,7 @@ export function OrderDetailDrawer({ open, onClose, order, detail, isDetailLoadin
               {fillsLoading ? <p role="status" className="mt-2 text-xs text-app-muted">Loading linked fills...</p>
                 : fillsError ? <p role="alert" className="mt-2 text-xs text-app-danger">Failed to load fills; fill counts in order list are preserved separately.</p>
                   : fills.length === 0 ? <p className="mt-2 text-xs text-app-muted">No recorded fills for this order.</p>
-                    : <ul className="mt-2 space-y-1 text-xs">{fills.map((fill) => <li key={fill.id} className="flex justify-between gap-2"><time className="text-app-muted" dateTime={fill.timestamp}>{new Date(fill.timestamp).toLocaleString('en-US')}</time><span>{fill.side} · {formatLife(fill.amount)} @ {formatPrice(fill.price)}</span><span className="font-mono">{(fill.fee?.flat_fees ?? []).map((fee) => `${fee.amount} ${fee.token}`).join(', ') || (fill.fee_in_quote ?? '—')}</span></li>)}</ul>}
+                    : <ul className="mt-2 space-y-1 text-xs">{fills.map((fill) => <li key={fill.id} className="flex justify-between gap-2"><time className="text-app-muted" dateTime={fill.timestamp}>{new Date(fill.timestamp).toLocaleString('en-US')}</time><span>{fill.side} · {formatPairAmount(fill.amount, fill.pair)} @ {formatPrice(fill.price)}</span><span className="font-mono">{(fill.fee?.flat_fees ?? []).map((fee) => `${fee.amount} ${fee.token}`).join(', ') || (fill.fee_in_quote ?? '—')}</span></li>)}</ul>}
               {fillsHasNextPage && onNextFillsPage && <Button variant="secondary" className="mt-2 h-8 px-3 text-xs" disabled={fillsFetchingNextPage} onClick={onNextFillsPage}>{fillsFetchingNextPage ? 'Loading...' : 'Load more fills'}</Button>}
             </section>
           </div>

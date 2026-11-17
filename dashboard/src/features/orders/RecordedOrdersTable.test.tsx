@@ -25,6 +25,13 @@ describe('RecordedOrdersTable', () => {
     updated_at: '2026-11-10T00:00:00Z',
   }
 
+  it('keeps historical row assets and BTC precision independent of the active pair', () => {
+    render(<RecordedOrdersTable orders={[{ ...sampleOrder, id: 'btc', pair: 'BTC-USDT', amount: '0.00077758', recorded_remaining_amount: '0.0002' }, sampleOrder]} onSelectOrder={vi.fn()} />)
+    expect(screen.getByText('0.00077758 BTC')).toBeInTheDocument()
+    expect(screen.getAllByText('1,000.0000 LIFE').length).toBeGreaterThan(0)
+    expect(screen.queryByText('0.0008 LIFE')).not.toBeInTheDocument()
+  })
+
   it('renders order ID truncated with full ID in title for hover and has copy button', () => {
     const onSelect = vi.fn()
     render(<RecordedOrdersTable orders={[sampleOrder]} onSelectOrder={onSelect} />)

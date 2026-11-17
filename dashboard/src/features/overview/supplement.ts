@@ -9,6 +9,8 @@
 import type { OverviewSupplementSchemas } from './supplement-contract'
 import type { OverviewModel } from './model'
 import { parseAmount } from './parseAmount'
+import { formatAmount, formatPairAmount, sumDecimalAmounts } from '../../shared/utils/formatters'
+import { summarizePositions } from './position-summary'
 
 type Supplement = OverviewSupplementSchemas['OverviewSupplementOutput']
 type RiskRule = OverviewSupplementSchemas['OverviewRiskRuleOutput']
@@ -299,22 +301,21 @@ export function deriveCapitalRisk(model: OverviewModel, supp: Supplement | null)
       })),
     )
 
-  const long = positions.filter((p) => p.side === 'LONG')
-  const short = positions.filter((p) => p.side === 'SHORT')
-  const longAmount = long.reduce((sum, p) => sum + (parseAmount(p.amount) ?? 0), 0)
-  const shortAmount = short.reduce((sum, p) => sum + (parseAmount(p.amount) ?? 0), 0)
-  const net = longAmount - shortAmount
-  const pnlSum = positions.reduce((sum, p) => sum + (parseAmount(p.pnlUsdt ?? null) ?? 0), 0)
-  const pair = positions[0]?.pair ?? null
+  const summary = summarizePositions(model.positionMarkets.filter(market => market.market === 'perpetual'))
+  const net = summary.observed && summary.sameInstrument ? positions.length ? sumDecimalAmounts(positions.map(p =>
+    `${p.side === 'SHORT' ? '-' : ''}${p.amount.trim().replace(/^[+-]/, '')}`)) : '0' : null
+  const pnlSum = summary.observed && positions.every(p => p.pair.endsWith('-USDT'))
+    ? positions.length ? sumDecimalAmounts(positions.map(p => p.pnlUsdt)) : '0' : null
+  const pnlDisplay = pnlSum === null ? null : `${pnlSum.startsWith('-') ? '' : '+'}${formatAmount(pnlSum, 2).replaceAll(',', '')}`
 
   return {
     positions,
     netPosition: {
-      pair,
-      side: net > 0 ? 'LONG' : net < 0 ? 'SHORT' : positions.length > 0 ? 'FLAT' : 'FLAT',
-      amount: Math.abs(net).toLocaleString('en-US', { maximumFractionDigits: 0 }),
-      pnlUsdt: positions.length > 0 ? `${pnlSum >= 0 ? '+' : ''}${pnlSum.toFixed(2)}` : null,
-      observed: model.positionMarkets.some((m) => m.observation === 'fresh'),
+      pair: summary.pair,
+      side: net === null || !/[1-9]/.test(net) ? 'FLAT' : net.startsWith('-') ? 'SHORT' : 'LONG',
+      amount: net === null ? '—' : summary.pair ? formatPairAmount(net.replace(/^-/, ''), summary.pair) : '0',
+      pnlUsdt: pnlDisplay,
+      observed: summary.observed && summary.sameInstrument,
     },
     portfolio: supp ? observe(supp.portfolio) : { available: false as const, reason: null },
     sessionDelta: supp ? observe(supp.session.delta) : { available: false as const, reason: null },

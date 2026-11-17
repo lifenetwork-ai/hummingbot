@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatAssetAmount,
+  formatPairAmount,
+  pairAssets,
+  sumDecimalAmounts,
   formatDuration,
   formatLife,
   formatPercentage,
@@ -35,12 +38,35 @@ describe('formatters', () => {
   })
 
   it('formats asset amounts dynamically and localizes messages', () => {
-    expect(formatAssetAmount('1.23456', 'BTC')).toBe('1.2346 BTC')
+    expect(formatAssetAmount('1.23456', 'BTC')).toBe('1.23456000 BTC')
     expect(formatAssetAmount('100.5', 'USDT')).toBe('100.50 USDT')
-    expect(formatAssetAmount('5.25', 'ETH')).toBe('5.2500 ETH')
+    expect(formatAssetAmount('5.25', 'ETH')).toBe('5.25000000 ETH')
     expect(formatAssetAmount(null, 'BTC')).toBe('—')
     expect(localizeSystemMessage('The market is not actively quoting.')).toBe('The market is not actively quoting.')
     expect(localizePhase('starting')).toBe('Starting')
+  })
+
+  it('retains BTC base precision independently of fiat and missing values', () => {
+    expect(formatAssetAmount('0.00077758', 'BTC')).toBe('0.00077758 BTC')
+    expect(formatAssetAmount('1e-8', 'BTC')).toBe('0.00000001 BTC')
+    expect(formatAssetAmount('0', 'BTC')).toBe('0.00000000 BTC')
+    expect(formatAssetAmount(null, 'BTC')).toBe('—')
+    expect(formatAssetAmount('0.0498', 'BTC')).toBe('0.04980000 BTC')
+  })
+
+  it('uses canonical history pairs without guessing malformed or venue-native units', () => {
+    expect(pairAssets('ETH-BTC')).toEqual({ base: 'ETH', quote: 'BTC' })
+    expect(formatPairAmount('0.00077758', 'BTC-USDT')).toBe('0.00077758 BTC')
+    for (const pair of [null, undefined, '', 'BTC/USDT', 'BTC-USDT-SWAP']) {
+      expect(pairAssets(pair)).toBeNull()
+      expect(formatPairAmount('1', pair)).toBe('—')
+    }
+  })
+  it('aggregates signed display decimals exactly while retaining invalid operands as unknown', () => {
+    expect(sumDecimalAmounts(['9007199254740993.125', '-9007199254740993', '1e-8'])).toBe('0.12500001')
+    expect(sumDecimalAmounts(['0.0498', '-0.0497'])).toBe('0.0001')
+    expect(sumDecimalAmounts(['1', null])).toBeNull()
+    expect(sumDecimalAmounts(['1', 'invalid'])).toBeNull()
   })
 
   it('formats spread and percentage', () => {

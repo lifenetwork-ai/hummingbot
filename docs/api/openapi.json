@@ -4782,6 +4782,19 @@
             "title": "Admitted",
             "type": "boolean"
           },
+          "base_asset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Base asset of this observed pair; null for an unrecognized pair. Independent of readiness, never a reference-basket asset.",
+            "title": "Base Asset"
+          },
           "connector": {
             "title": "Connector",
             "type": "string"
@@ -4820,6 +4833,19 @@
           "pair": {
             "title": "Pair",
             "type": "string"
+          },
+          "quote_asset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Quote asset of this observed pair; null for an unrecognized pair. Use balance.currency and fee.token for those observations.",
+            "title": "Quote Asset"
           },
           "quote_guard": {
             "anyOf": [

@@ -30,6 +30,19 @@ Frontend CI checks generated types when dashboard or schema changes. Backend dri
 checking uses `make swagger-backend-check` in its Python-only CI lane; the two CI lanes jointly check the contract chain. Generated declarations are excluded from ESLint; TypeScript
 checks their consumers. No server is needed for frontend generation.
 
+`getRuntimeStatus.markets[]` supplies the observed pair's `base_asset` and
+`quote_asset`; the shared operational provider owns this query. The balance
+ribbon uses those assets with account-scoped balance observations, deduplicating
+Spot/Perpetual assets without adding requests. Unknown or mismatched context
+never defaults to LIFE; stale context remains tagged. Historical orders/fills
+retain their own pair units. Do not convert normalized Perpetual base amounts
+to contracts again. See [display assets and caching](../../docs/fe-integration.md#display-assets-and-metadata-caching).
+
+Only deployed catalogue metadata (`listProfiles`) has a 60s fresh cache interval.
+Runtime/account queries retain their polling/freshness policy. QueryClients are
+isolated by connection/auth identity; explicit refetch or invalidation bypasses
+the catalogue TTL. All server HTTP responses remain private `no-store`.
+
 ## HTTP adapter
 
 ```ts

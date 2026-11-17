@@ -1,10 +1,12 @@
 """HTTP contracts shared by validation, serialization and handler OpenAPI metadata."""
 import math
+import re
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from functools import lru_cache
 from typing import Annotated, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, TypeAdapter, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, TypeAdapter, field_validator, model_validator
 
 from controllers.market_making.life_mm import ReferencePair
 from hummingbot.cli.admin_overview_models import OverviewSupplement
@@ -28,6 +30,12 @@ UTCDateTime = Annotated[datetime, PlainSerializer(_as_utc, return_type=datetime,
 
 class APIModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+@lru_cache(maxsize=128)
+def _observed_pair_assets(pair):
+    """Immutable display metadata only; never cache status, account or trading rules."""
+    return tuple(pair.split('-')) if re.fullmatch(r'[A-Z0-9][A-Z0-9._]*-[A-Z0-9][A-Z0-9._]*', pair) else (None, None)
 
 
 class RuntimeIncident(APIModel):
@@ -375,6 +383,8 @@ class MarketReadiness(APIModel):
     market: Literal["spot", "perpetual"]
     connector: str
     pair: str
+    base_asset: Optional[str] = Field(default=None, description='Base asset of this observed pair; null for an unrecognized pair. Independent of readiness, never a reference-basket asset.')
+    quote_asset: Optional[str] = Field(default=None, description='Quote asset of this observed pair; null for an unrecognized pair. Use balance.currency and fee.token for those observations.')
     ready: bool
     admitted: bool
     reference_price: Optional[Decimal]
@@ -384,6 +394,15 @@ class MarketReadiness(APIModel):
     spread_policy: Optional[SpreadPolicyStatus] = None
     inventory_reduction: Optional[InventoryReductionStatus] = Field(default=None,
                                                                     description='Last local reduction-capacity evaluation; null when disabled. Never order admission or current quote availability.')
+
+    @model_validator(mode='before')
+    @classmethod
+    def observed_pair_assets(cls, value):
+        if isinstance(value, dict):
+            pair = value.get('pair')
+            assets = _observed_pair_assets(pair) if isinstance(pair, str) and len(pair) <= 120 else (None, None)
+            return {**value, 'base_asset': assets[0], 'quote_asset': assets[1]}
+        return value
 
 
 class FundingSyncStatus(APIModel):

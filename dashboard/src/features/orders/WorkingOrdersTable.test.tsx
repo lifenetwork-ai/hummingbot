@@ -35,6 +35,13 @@ describe('WorkingOrdersTable', () => {
     },
   )
 
+  it('keeps historical row assets and BTC precision independent of the active pair', () => {
+    render(<WorkingOrdersTable orders={[{ ...sampleWorkingOrder, id: 'btc', pair: 'BTC-USDT', amount: '0.00077758', recorded_remaining_amount: '0.0002' }, sampleWorkingOrder]} onSelectOrder={vi.fn()} />)
+    expect(screen.getByText('0.00077758 BTC')).toBeInTheDocument()
+    expect(screen.getAllByText('1,000.0000 LIFE').length).toBeGreaterThan(0)
+    expect(screen.queryByText('0.0008 LIFE')).not.toBeInTheDocument()
+  })
+
   it('shows an empty result when the API returns no orders', () => {
     render(<WorkingOrdersTable orders={[]} onSelectOrder={vi.fn()} />)
     expect(screen.getByText('No open orders found on this results page.')).toBeInTheDocument()

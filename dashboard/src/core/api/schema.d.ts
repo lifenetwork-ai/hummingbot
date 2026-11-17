@@ -2561,6 +2561,12 @@ export interface components {
         MarketReadinessOutput: {
             /** Admitted */
             admitted: boolean;
+            /**
+             * Base Asset
+             * @description Base asset of this observed pair; null for an unrecognized pair. Independent of readiness, never a reference-basket asset.
+             * @default null
+             */
+            base_asset: string | null;
             /** Connector */
             connector: string;
             /**
@@ -2577,6 +2583,12 @@ export interface components {
             market: "spot" | "perpetual";
             /** Pair */
             pair: string;
+            /**
+             * Quote Asset
+             * @description Quote asset of this observed pair; null for an unrecognized pair. Use balance.currency and fee.token for those observations.
+             * @default null
+             */
+            quote_asset: string | null;
             /** @default null */
             quote_guard: components["schemas"]["QuoteGuardStatusOutput"] | null;
             /** Ready */

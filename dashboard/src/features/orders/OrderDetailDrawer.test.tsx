@@ -25,6 +25,14 @@ describe('OrderDetailDrawer', () => {
     updated_at: '2026-11-10T00:00:00Z',
   }
 
+  it('renders BTC original, filled and remaining quantities in the order asset', () => {
+    render(<OrderDetailDrawer open onClose={vi.fn()} order={{ ...sampleOrder, pair: 'BTC-USDT', amount: '0.00077758', recorded_filled_amount: '0.00057758', recorded_remaining_amount: '0.0002' }} />)
+    expect(screen.getByText('0.00077758 BTC')).toBeInTheDocument()
+    expect(screen.getByText('0.00057758 BTC')).toBeInTheDocument()
+    expect(screen.getByText('0.00020000 BTC')).toBeInTheDocument()
+    expect(screen.queryByText(/LIFE/)).not.toBeInTheDocument()
+  })
+
   it('renders internal order ID and exchange order ID with copy buttons and hover titles', () => {
     const onClose = vi.fn()
     render(<OrderDetailDrawer open={true} onClose={onClose} order={sampleOrder} />)

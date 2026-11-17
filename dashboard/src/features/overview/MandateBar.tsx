@@ -1,4 +1,5 @@
 import { cn } from '../../shared/utils/cn'
+import { formatAssetAmount } from '../../shared/utils/formatters'
 import { Badge } from '../../shared/components/Badge'
 import { Surface } from '../../shared/components/Surface'
 import { SessionCountdownRing } from './SessionCountdownRing'
@@ -49,7 +50,7 @@ export function MandateBar({
                 type="button"
                 onClick={onOpenProfileExplorer}
                 className="inline-flex min-h-[28px] items-center gap-1 rounded font-mono font-bold text-app-text underline decoration-app-border decoration-dotted underline-offset-4 hover:text-app-action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action"
-                title="Open: how this profile prices LIFE"
+                title="Open: how this profile prices the traded pair"
               >
                 {m.profileId}
                 <span className="font-sans font-normal text-app-muted">({m.selection}{m.randomStep ? <> · step <span className="font-mono">{m.randomStep}</span></> : null})</span>
@@ -88,7 +89,7 @@ export function MandateBar({
             {m.riskLimits.length === 0 && <span className="text-[11px] text-app-muted">No risk rules data</span>}
             {m.riskLimits.map((limit) => (
               <span key={limit.ruleId} className={cn('font-mono text-[11px]', limit.status === 'violated' ? 'font-bold text-app-danger' : limit.status === 'unknown' ? 'text-app-warning' : 'text-app-text')}>
-                {limit.ruleId}: <span className="text-app-muted">{limit.limit ?? '—'}</span> → {limit.current ?? '—'} <span className="text-app-muted">{limit.unit}</span>
+                {limit.ruleId}: <span className="text-app-muted" title={limit.limit ?? undefined}>{formatAssetAmount(limit.limit, limit.unit)}</span> → <span title={limit.current ?? undefined}>{formatAssetAmount(limit.current, limit.unit)}</span>
               </span>
             ))}
           </dd>

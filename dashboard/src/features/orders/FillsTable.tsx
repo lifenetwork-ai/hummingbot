@@ -2,7 +2,7 @@ import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
 import type { components } from '../../core/api/schema'
 import { Badge } from '../../shared/components/Badge'
 import { CopyableId } from '../../shared/components/CopyableId'
-import { formatLife, formatPrice } from '../../shared/utils/formatters'
+import { formatPairAmount, formatPrice } from '../../shared/utils/formatters'
 
 export interface FillsTableProps {
   fills: components['schemas']['FillViewOutput'][]
@@ -66,7 +66,7 @@ export function FillsTable({ fills, isLoading, nextCursor, isFetchingNextPage, e
                     </Badge>
                   </td>
                   <td className="p-3 font-mono font-bold text-app-text">{formatPrice(f.price)}</td>
-                  <td className="p-3 font-mono text-app-text">{formatLife(f.amount)}</td>
+                  <td className="p-3 font-mono text-app-text">{formatPairAmount(f.amount, f.pair)}</td>
                   <td className="p-3 font-mono text-app-muted text-[11px]">{feeText}</td>
                   <td className="p-3">
                     {f.order_id ? (

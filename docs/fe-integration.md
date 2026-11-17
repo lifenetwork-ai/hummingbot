@@ -387,6 +387,40 @@ also describes the effective request. Neither is a secret or a field for an
 operator to type. Put hashes, revision IDs and technical diagnostics in Details.
 Configured process/owner environment identity is not exchange-account verification.
 
+### Display assets and metadata caching
+
+Use `markets[]` in `GET /api/v1/admin/status` as the active observed market context: `market`,
+`connector`, canonical Hummingbot `pair`, `base_asset` and `quote_asset`. For
+BTC-USDT the last two fields are BTC/USDT, including Perpetual where reported
+amounts are already normalized to base units, not native contract counts.
+The assets describe that observed pair, not reference baskets or today's YAML.
+They are independent of readiness; preserve the parent observation's freshness
+and session-match state. Unrecognized/absent pair context has null assets, never
+a default LIFE asset. During a session mismatch the ribbon must wait for matching
+context rather than relabel the previous pair's balances. A stale last-good
+context may only be presented with its stale indication.
+
+Orders/fills/details derive amount units from each historical row's own `pair`,
+not the active status pair. Balances use `currency`; fees use each original
+`token` (and `quote_currency` for quote-converted fees). Preserve decimal strings;
+BTC display supports eight places and never rounds a nonzero position to zero.
+Aggregate net exposure only across the same instrument with fresh observations;
+mixed pairs or missing observations remain unknown. Missing one quote side means
+own spread is unavailable, not a measured spread-target violation. Missing
+portfolio valuation, capital mandate or risk exposure remains missing; quote
+budget is not a substitute for account capital.
+
+Cache only static metadata: backend pair/asset parsing uses a bounded 128-entry
+cache of immutable tuples. It performs no venue/DB reads and caches no balances,
+readiness, account binding or trading rules. The FE reuses the existing shared
+status query; no extra metadata polling endpoint is added. Deployed `/profiles`
+catalogues have a 60s fresh interval in the authenticated connection's QueryClient,
+with normal invalidation/manual refetch and cache clearing on identity changes.
+Runtime/account reads remain immediately stale in that cache; HTTP responses
+remain `Cache-Control: no-store`. Continue sending `expected_catalogue_hash`;
+after `catalogue_changed`, explicitly refresh and review, never auto-retry a
+mutation with a silently replaced configuration.
+
 ### Restart and rollout examples
 
 **Restart while active.** A session follows the saved BTC/ETH basket with a

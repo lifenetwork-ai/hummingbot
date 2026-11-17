@@ -11,7 +11,7 @@ const base: Status = {
   server_time: new Date(now).toISOString(),
   observation: { observed_at: new Date(now).toISOString(), reason_code: null, stale: false, session_matches: true },
   markets: [{
-    market: 'perpetual', connector: 'okx', pair: 'BTC-USDT-SWAP', admitted: true, ready: true, reason: null,
+    market: 'perpetual', connector: 'okx', pair: 'BTC-USDT-SWAP', base_asset: null, quote_asset: null, admitted: true, ready: true, reason: null,
     inventory_skew: null, quote_guard: null, spread_policy: null, reference_price: null,
     inventory_reduction: {
       mode: 'close_first', price_mode: 'breakeven', observed_at: new Date(now - 5000).toISOString(), stale: false,

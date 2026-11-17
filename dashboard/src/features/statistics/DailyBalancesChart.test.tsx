@@ -56,7 +56,7 @@ describe('DailyBalancesChart', () => {
     expect(screen.getAllByText('9,500.00 USDT').length).toBeGreaterThan(0)
     // Vs the first recorded day (10000): 9500.
     expect(screen.getAllByText('-5.0%').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('0.5500 BTC').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('0.55000000 BTC').length).toBeGreaterThan(0)
     // Vs the first recorded day (0.5): 0.55.
     expect(screen.getAllByText('+10.0%').length).toBeGreaterThan(0)
   })
@@ -69,7 +69,7 @@ describe('DailyBalancesChart', () => {
     expect(screen.getAllByText('2026-11-09').length).toBeGreaterThan(0)
     expect(screen.getAllByText('11,000.00 USDT').length).toBeGreaterThan(0)
     expect(screen.getAllByText('+10.0%').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('0.4000 BTC').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('0.40000000 BTC').length).toBeGreaterThan(0)
     expect(screen.getAllByText('-20.0%').length).toBeGreaterThan(0)
   })
 

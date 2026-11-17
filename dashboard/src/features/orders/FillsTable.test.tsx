@@ -17,6 +17,13 @@ describe('FillsTable', () => {
     timestamp: '2026-11-10T00:00:00Z',
   } as unknown as components['schemas']['FillViewOutput']
 
+  it('uses the fill pair for base amount and preserves the fee token', () => {
+    render(<FillsTable fills={[{ ...sampleFill, pair: 'BTC-USDT', amount: '0.00077758', fee: { fee_type: null, percent: '0', percent_token: null, flat_fees: [{ amount: '0.00000053', token: 'BTC' }] } }]} />)
+    expect(screen.getByText('0.00077758 BTC')).toBeInTheDocument()
+    expect(screen.getByText('0.00000053 BTC')).toBeInTheDocument()
+    expect(screen.queryByText(/LIFE/)).not.toBeInTheDocument()
+  })
+
   it('renders linked order ID truncated with full ID in title for hover and has copy button', () => {
     render(<FillsTable fills={[sampleFill]} />)
 

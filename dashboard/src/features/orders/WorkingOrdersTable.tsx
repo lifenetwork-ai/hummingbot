@@ -3,7 +3,7 @@ import type { components } from '../../core/api/schema'
 import { Badge } from '../../shared/components/Badge'
 import { Button } from '../../shared/components/Button'
 import { CopyableId } from '../../shared/components/CopyableId'
-import { formatLife, formatPrice } from '../../shared/utils/formatters'
+import { formatPairAmount, formatPrice } from '../../shared/utils/formatters'
 
 export interface WorkingOrdersTableProps {
   orders: components['schemas']['OrderViewOutput'][]
@@ -72,7 +72,7 @@ export function WorkingOrdersTable({ orders, isLoading, nextCursor, isFetchingNe
                     </Badge>
                   </td>
                   <td className="p-3 font-mono font-bold text-app-text">{formatPrice(o.price)}</td>
-                  <td className="p-3 font-mono text-app-text">{formatLife(o.amount)}</td>
+                  <td className="p-3 font-mono text-app-text">{formatPairAmount(o.amount, o.pair)}</td>
                   <td className="p-3"><Badge tone="neutral" className="text-[10px]">{o.status}</Badge></td>
 
                   <td className="p-3 text-right">

@@ -52,7 +52,7 @@ export function DisconnectConfirmationDialog({
                   <strong className="text-app-danger">Close Perpetual positions at market price:</strong> Unlike Stop (which preserves positions), Disconnect will <strong>close all Perpetual contract positions using Market orders</strong>. This may incur trading fees and slippage.
                 </li>
                 <li>
-                  <strong>Spot assets preserved:</strong> Spot LIFE and USDT tokens will not be sold and remain untouched in the exchange account.
+                  <strong>Spot assets preserved:</strong> Spot assets will not be sold and remain untouched in the exchange account.
                 </li>
                 <li>
                   <strong>Exchange API keys are not revoked:</strong> The system only removes credentials from the bot database. You must still log in to the exchange console to delete API keys if you wish to revoke them permanently.

@@ -5,11 +5,18 @@ import { useOperationalContext } from './useOperationalContext'
 export function useAssetRibbonController() {
   const context = useOperationalContext()
   const positions = useAdminQuery('getPositions', {}, { enabled: context.identity?.permissions.read === true })
+  const currencies = context.environmentMismatch || context.observationState === 'unknown' || context.observationState === 'session_mismatch' ? [] :
+    [...new Set(context.markets.flatMap(market =>
+      market.base_asset && market.quote_asset && market.pair === `${market.base_asset}-${market.quote_asset}`
+        ? [market.quote_asset, market.base_asset] : []))]
   const accounts = context.accounts.map((account) => ({
     id: account.data.account_id,
-    observation: account.observation,
-    usdt: account.data.balances.find((balance) => balance.currency === 'USDT')?.available_cash ?? null,
-    life: account.data.balances.find((balance) => balance.currency === 'LIFE')?.available_cash ?? null,
+    observation: account.observation === 'unknown' || context.observationState === 'unknown' || context.observationState === 'session_mismatch'
+      ? 'unknown' as const : context.observationState === 'fresh' ? account.observation : 'stale' as const,
+    balances: currencies.map(currency => {
+      const balance = account.data.balances.find(row => row.currency === currency)
+      return { currency, available: balance && balance.present_in_latest_snapshot !== false ? balance.available_cash : null }
+    }),
   }))
   const markets = positions.data?.markets ?? []
   const observed = positions.isSuccess && positions.data.owner_available && markets.length > 0 &&
@@ -20,7 +27,7 @@ export function useAssetRibbonController() {
   const policyCurrent = context.observationState === 'fresh'
   const known = policyCurrent && Boolean(drawdown?.ready && !drawdown.stale && outflow?.ready && !outflow.stale)
   const blocked = policyCurrent && Boolean(drawdown?.breached_controller_id || (outflow?.ready && !outflow.stale && !outflow.buy_allowed))
-  return { accounts, positions: items, positionsObserved: observed, positionError: positions.error,
+  return { accounts, assetContextAvailable: currencies.length > 0, positions: items, positionsObserved: observed, positionError: positions.error,
     riskState: blocked ? 'blocked' as const : known ? 'no_reported_blocker' as const : 'unknown' as const,
     profileId: context.status.data?.observed_session?.profile_id ?? context.status.data?.session?.profile_id,
     selection: context.status.data?.session?.request.selection }

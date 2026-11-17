@@ -3,7 +3,7 @@ import type { components } from '../../core/api/schema'
 import { Badge } from '../../shared/components/Badge'
 import { Button } from '../../shared/components/Button'
 import { CopyableId } from '../../shared/components/CopyableId'
-import { formatLife, formatPrice } from '../../shared/utils/formatters'
+import { formatPairAmount, formatPrice } from '../../shared/utils/formatters'
 
 export interface RecordedOrdersTableProps {
   orders: components['schemas']['OrderViewOutput'][]
@@ -77,8 +77,8 @@ export function RecordedOrdersTable({
                     </Badge>
                   </td>
                   <td className="p-3 font-mono font-bold text-app-text">{formatPrice(o.price)}</td>
-                  <td className="p-3 font-mono text-app-text">{formatLife(o.amount)}</td>
-                  <td className="p-3 font-mono text-app-text">{formatLife(o.recorded_remaining_amount)}</td>
+                  <td className="p-3 font-mono text-app-text">{formatPairAmount(o.amount, o.pair)}</td>
+                  <td className="p-3 font-mono text-app-text">{formatPairAmount(o.recorded_remaining_amount, o.pair)}</td>
                   <td className="p-3">
                     <Badge
                       tone={o.status === 'FILLED' ? 'success' : o.status === 'CANCELED' ? 'neutral' : 'warning'}

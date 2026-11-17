@@ -1,4 +1,6 @@
 /** Display-only decimal formatting. Server decimal strings remain authoritative. */
+import { sumDecimalStrings } from './decimal'
+
 type Decimal = { negative: boolean; digits: string; scale: number }
 function decimal(value: string | number | null | undefined): Decimal | null {
   if (value === null || value === undefined || (typeof value === 'number' && !Number.isFinite(value))) return null
@@ -58,10 +60,31 @@ export function formatAssetAmount(value: string | number | null | undefined, cur
   const parsed = decimal(value)
   const curr = currency?.toUpperCase()
   if (!parsed) return '—'
-  const places = curr === 'USDT' || curr === 'USD' ? 2 : curr === 'BTC' || curr === 'ETH' || curr === 'LIFE' ? 4 : 2
+  const places = curr === 'USDT' || curr === 'USD' ? 2 : curr === 'LIFE' ? 4 : 8
   const output = fixed(parsed, places)
   if (output === '—') return '—'
   return curr ? `${output} ${curr}` : output
+}
+
+/** Hummingbot pair notation, not venue instrument IDs (such as BTC-USDT-SWAP). */
+export function pairAssets(pair: string | null | undefined): { base: string; quote: string } | null {
+  if (!pair || !/^[A-Z0-9][A-Z0-9._]*-[A-Z0-9][A-Z0-9._]*$/.test(pair)) return null
+  const [base, quote] = pair.split('-')
+  return { base, quote }
+}
+
+/** History rows retain their own pair even after the active session changes. */
+export function formatPairAmount(value: string | number | null | undefined, pair: string | null | undefined): string {
+  const assets = pairAssets(pair)
+  return assets ? formatAssetAmount(value, assets.base) : '—'
+}
+
+/** Exact display aggregation; missing/malformed operands never become zero. */
+export function sumDecimalAmounts(values: readonly (string | null | undefined)[]): string | null {
+  return sumDecimalStrings(values.map(value => {
+    const parsed = decimal(value)
+    return parsed ? render(parsed).replaceAll(',', '') : null
+  }))
 }
 export function localizeSystemMessage(text: string | null | undefined): string {
   if (!text) return ''

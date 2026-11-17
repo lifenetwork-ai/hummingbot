@@ -19,7 +19,7 @@ export interface ProfileExplorerDialogProps {
   /** Profile currently quoted on Overview, preselected when the dialog opens. */
   activeProfileId?: string | null
   /**
-   * Session anchors from /status (first controller entry): LIFE mid and reference
+   * Session anchors from /status (first controller entry): traded pair mid and reference
    * prices captured at session start. Null when no session is running.
    */
   anchorLife?: number | null
@@ -143,7 +143,7 @@ function HowItWorksDetails({ scenarioBody }: { scenarioBody?: string }) {
       <ol className="mt-1.5 space-y-1.5 text-xs leading-relaxed text-app-muted" data-testid="profile-explorer-steps">
         <li className="flex gap-2">
           <span className="font-mono font-bold text-app-action">1</span>
-          <span><span className="font-semibold text-app-text">Session start:</span> the bot records the anchor — the LIFE mid and every reference pair's price at that moment.</span>
+          <span><span className="font-semibold text-app-text">Session start:</span> the bot records the anchor — the traded pair mid and every reference pair's price at that moment.</span>
         </li>
         <li className="flex gap-2">
           <span className="font-mono font-bold text-app-action">2</span>
@@ -178,7 +178,7 @@ export function ProfileExplorerDialog({ open, onClose, activeProfileId, anchorLi
     <Dialog
       open={open}
       onClose={onClose}
-      title="How this profile prices LIFE"
+      title="How this profile prices the traded pair"
       description="A profile answers one question: where is the centre that quotes hug? target mid = session anchor × (1 + Σ weightᵢ × pair moveᵢ) — the spread policy then places quotes around it."
       className={cn('max-w-xl', className)}
     >
