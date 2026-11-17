@@ -9,6 +9,7 @@ from hummingbot.core.admin_identity import AccessDenied
 from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.core.recovery import RECOVERY_TIMEOUT_SECONDS, RecoveryBlocked, recovery_blockers, replay_positions
 from hummingbot.core.recovery_exchange import verify_exchange
+from hummingbot.core.recovery_terminal import verify_terminal_orders
 from hummingbot.core.segmented_recovery import verify_segment
 from hummingbot.model.bot_state_store import ControlConflict
 from hummingbot.model.recovery_store import RecoveryStore
@@ -144,6 +145,18 @@ class RecoveryCoordinator:
             proof = await verify_segment(snapshot, self.readers, lookup, progress, save)
             if proof is None:
                 return  # Same durable operation resumes on the next observer tick.
+            if snapshot.get('terminal_orders'):
+                changes = await verify_terminal_orders(snapshot, self.readers)
+                # Metadata reads are another exchange-observation window. The
+                # completed durable scans stay fixed; recheck account heads,
+                # open orders and exposure after those reads before finalizing.
+                completed = await self.call(self.store.get, row['id'])
+                progress = completed['result']['_private']['proof']
+                proof = await verify_segment(snapshot, self.readers, lookup, progress, save)
+                if proof is None:
+                    raise RecoveryBlocked('recovery_check_unavailable')
+                proof['terminal_order_changes'] = changes
+                proof['orders_checked'] = len(changes)
         else:
             proof = await verify_exchange(snapshot, plan, self.readers)
         owner.check_owner()

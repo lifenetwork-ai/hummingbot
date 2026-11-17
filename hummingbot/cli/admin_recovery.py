@@ -25,6 +25,8 @@ class RecoveryCheckRequest(APIModel):
 class RecoveryResetRequest(RecoveryCheckRequest):
     check_id: str = Field(min_length=1, max_length=128, strict=True)
     confirmation_token: str = Field(pattern=r'^[a-f0-9]{32}$', strict=True)
+    confirm_order_changes: bool = Field(default=False, strict=True,
+                                        description='Must be true after explicitly reviewing nonempty proposed_order_changes. Omit/false cannot authorize order metadata repair.')
 
 
 class RecoveryBlocker(APIModel):
@@ -53,6 +55,27 @@ class RecoveryPositionRepair(APIModel):
     valuation_basis: Literal['reconstructed_average_entry_not_live_pnl']
 
 
+class RecoveryOrderMetadata(APIModel):
+    status: Literal['BuyOrderCreated', 'SellOrderCreated', 'OrderCancelled']
+    attempt_state: Literal['acknowledged', 'terminal']
+    tracked: bool
+
+
+class RecoveryOrderRepair(APIModel):
+    id: str
+    connector: Literal['okx', 'okx_perpetual']
+    pair: str
+    exchange_order_id: str
+    side: Literal['BUY', 'SELL']
+    position: Literal['NIL', 'OPEN', 'CLOSE']
+    amount: str
+    price: str
+    terminal_timestamp: int = Field(ge=0, description='Native cancellation timestamp in epoch milliseconds.')
+    before: RecoveryOrderMetadata
+    after: RecoveryOrderMetadata
+    evidence: Literal['native_canceled_zero_fill']
+
+
 class RecoveryOperation(APIModel):
     id: str
     action: Literal['recovery_check', 'recovery_reset']
@@ -64,6 +87,8 @@ class RecoveryOperation(APIModel):
     blockers: List[RecoveryBlocker] = Field(default_factory=list)
     proposed_changes: List[RecoveryPositionRepair] = Field(default_factory=list)
     repaired_positions: List[RecoveryPositionRepair] = Field(default_factory=list)
+    proposed_order_changes: List[RecoveryOrderRepair] = Field(default_factory=list)
+    repaired_orders: List[RecoveryOrderRepair] = Field(default_factory=list)
     confirmation_token: Optional[str] = None
     expires_at: Optional[UTCDateTime] = None
     verification: Dict[str, Any] = Field(default_factory=dict)
@@ -103,6 +128,7 @@ def operation_response(row):
                              label=label, detail=detail, can_recover=bool(report.get('can_recover')),
                              blockers=[blocker(code) for code in report.get('blockers', [])],
                              proposed_changes=report.get('proposed_changes', []), repaired_positions=report.get('repaired_positions', []),
+                             proposed_order_changes=report.get('proposed_order_changes', []), repaired_orders=report.get('repaired_orders', []),
                              confirmation_token=report.get('confirmation_token'), expires_at=report.get('expires_at'),
                              verification=report.get('verification', {}), created_at=row['created_at'], updated_at=row['updated_at'])
 
@@ -156,7 +182,7 @@ class AdminRecoveryAPI:
         if not 1 <= len(key) <= 128 or any(not 33 <= ord(character) <= 126 for character in key):
             raise ValueError('Idempotency-Key is required')
         row = await self.run_control_database(self.recovery_store().request, action,
-                                              key, payload.model_dump(), request['admin_principal'], request_id(request))
+                                              key, payload.model_dump(exclude_unset=True), request['admin_principal'], request_id(request))
         return web.json_response(operation_response(row).model_dump(mode='json'), status=202)
 
     @api_operation(operation_id='getRecoveryOperation', summary='Read exact recovery progress or outcome without contacting the exchange',

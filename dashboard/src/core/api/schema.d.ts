@@ -4271,6 +4271,10 @@ export interface components {
             label: string;
             /** Proposed Changes */
             proposed_changes?: components["schemas"]["RecoveryPositionRepairOutput"][];
+            /** Proposed Order Changes */
+            proposed_order_changes?: components["schemas"]["RecoveryOrderRepairOutput"][];
+            /** Repaired Orders */
+            repaired_orders?: components["schemas"]["RecoveryOrderRepairOutput"][];
             /** Repaired Positions */
             repaired_positions?: components["schemas"]["RecoveryPositionRepairOutput"][];
             /** Stage */
@@ -4295,6 +4299,61 @@ export interface components {
             verification?: {
                 [key: string]: unknown;
             };
+        };
+        /** RecoveryOrderMetadata */
+        RecoveryOrderMetadataOutput: {
+            /**
+             * Attempt State
+             * @enum {string}
+             */
+            attempt_state: "acknowledged" | "terminal";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "BuyOrderCreated" | "SellOrderCreated" | "OrderCancelled";
+            /** Tracked */
+            tracked: boolean;
+        };
+        /** RecoveryOrderRepair */
+        RecoveryOrderRepairOutput: {
+            after: components["schemas"]["RecoveryOrderMetadataOutput"];
+            /** Amount */
+            amount: string;
+            before: components["schemas"]["RecoveryOrderMetadataOutput"];
+            /**
+             * Connector
+             * @enum {string}
+             */
+            connector: "okx" | "okx_perpetual";
+            /**
+             * Evidence
+             * @constant
+             */
+            evidence: "native_canceled_zero_fill";
+            /** Exchange Order Id */
+            exchange_order_id: string;
+            /** Id */
+            id: string;
+            /** Pair */
+            pair: string;
+            /**
+             * Position
+             * @enum {string}
+             */
+            position: "NIL" | "OPEN" | "CLOSE";
+            /** Price */
+            price: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "BUY" | "SELL";
+            /**
+             * Terminal Timestamp
+             * @description Native cancellation timestamp in epoch milliseconds.
+             */
+            terminal_timestamp: number;
         };
         /** RecoveryOverview */
         RecoveryOverviewOutput: {
@@ -4358,6 +4417,12 @@ export interface components {
         RecoveryResetRequest: {
             /** Check Id */
             check_id: string;
+            /**
+             * Confirm Order Changes
+             * @description Must be true after explicitly reviewing nonempty proposed_order_changes. Omit/false cannot authorize order metadata repair.
+             * @default false
+             */
+            confirm_order_changes: boolean;
             /** Confirmation Token */
             confirmation_token: string;
             /** Expected Version */

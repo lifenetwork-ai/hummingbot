@@ -82,7 +82,7 @@ def reviewed_anchor(connection, state, checkpoint):
                 journal_watermark=0, prefix_unjournaled_fills=details['verified_fills'], venue_heads=None)
 
 
-def unresolved_attempts(connection):
+def unresolved_attempts(connection, *, excluding=()):
     # The recorder durably retires rejected creates as `rejected`, including
     # positive venue-expiry rejections and locally unsent failures. They are
     # resolved only with the corresponding failure row and no fill/venue ID.
@@ -92,7 +92,7 @@ def unresolved_attempts(connection):
         Order.last_status == 'OrderFailure', Order.exchange_order_id.is_(None))).correlate(SubmissionAttempt)
     fills = exists(select(TradeFill.order_id).where(
         TradeFill.order_id == SubmissionAttempt.order_id)).correlate(SubmissionAttempt)
-    return bool(connection.scalar(select(exists().where(or_(
+    return bool(connection.scalar(select(exists().where(SubmissionAttempt.order_id.notin_(excluding), or_(
         SubmissionAttempt.state.notin_(('terminal', 'rejected')),
         and_(SubmissionAttempt.state == 'rejected', or_(~failed_order, fills)))))))
 
@@ -113,8 +113,10 @@ def snapshot(connection, state, positions, bindings):
         anchor = reviewed_anchor(connection, state, checkpoint)
         if anchor is None or not 0 <= anchor['journal_watermark'] <= checkpoint.watermark:
             return None
-        if (connection.scalar(select(exists().where(Order.creation_pending.is_(True))))
-                or unresolved_attempts(connection)
+        from hummingbot.model.recovery_terminal import candidates
+        terminal_orders = candidates(connection, state, bindings, checkpoint.payload)
+        if (terminal_orders is None or connection.scalar(select(exists().where(Order.creation_pending.is_(True))))
+                or unresolved_attempts(connection, excluding=[row['id'] for row in terminal_orders])
                 or connection.scalar(select(exists().where(RuntimeJournal.applied.is_(False))))):
             return None
         unjournaled = connection.scalar(select(func.count()).select_from(TradeFill).where(
@@ -126,19 +128,8 @@ def snapshot(connection, state, positions, bindings):
         covered = connection.scalar(select(func.count()).select_from(RuntimeJournal).join(TradeFill, fill_identity()).where(work))
         if expected != covered:
             return None
-        # Persisted nonterminal tracker state is not an empty exchange account.
-        from hummingbot.core.data_type.in_flight_order import InFlightOrder
-        trackers = connection.execute(select(MarketState).limit(101)).mappings().all()
-        if len(trackers) > 100:
-            return None
-        try:
-            if any(len(row['saved_state']) > 1000 or any(not InFlightOrder.from_json(value).is_done
-                                                         for value in row['saved_state'].values()) for row in trackers):
-                return None
-        except (ValueError, TypeError, KeyError, ArithmeticError):
-            return None
         value = dict(financial_hash=checkpoint.financial_hash, bindings_hash=checkpoint.bindings_hash,
                      watermark=checkpoint.watermark, payload=checkpoint.payload, anchor=anchor,
                      expected_fills=expected, prefix_unjournaled_fills=unjournaled)
     return dict(mode=MODE, state=state, positions=positions, bindings=bindings, orders=[], fills=[], truncated=False,
-                checkpoint=value, ledger_hash=ledger_hash(connection))
+                checkpoint=value, ledger_hash=ledger_hash(connection), terminal_orders=terminal_orders)

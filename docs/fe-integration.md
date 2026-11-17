@@ -1569,11 +1569,25 @@ checkpoint still reports `recovery_checkpoint_invalid` and blocks recovery.
    before/after changes and ask the admin to confirm. `verification` reports the
    verified order/fill counts. A confirmation is valid for five minutes and only
    for the same owner, generation, control version, credentials and ledger.
+   Display both `proposed_changes` (positions) and `proposed_order_changes`
+   (terminal order metadata). Each order preview includes client/venue ID,
+   connector/pair, side/position, exact amount/price, native cancellation time
+   and before/after status, attempt state and tracker membership. An empty
+   position list does not mean that no order metadata change is proposed.
 4. POST `/recovery/reset` with a new Idempotency-Key and the returned fields:
 
    ```json
    {"expected_version":16,"check_id":"<check operation id>","confirmation_token":"<returned 32-character token>"}
    ```
+
+   When `proposed_order_changes` is nonempty, include `"confirm_order_changes":true`
+   only after explicit admin review of that list. Omission/false returns409
+   `recovery_order_review_required`; strings/numbers are validation errors.
+   Older clients cannot silently authorize metadata repairs using only the
+   existing token. Do not retry with true automatically.
+   The current dashboard keeps this flag false until a dedicated order-metadata
+   review is implemented. The new flow can be confirmed through the admin
+   API/Swagger after explicit review; type generation alone does not add that UI.
 
 5. Poll the reset receipt. Only `status=succeeded` and `stage=recovered` means
    recovery completed. Display **Recovery complete — trading is stopped**.
@@ -1592,6 +1606,9 @@ endpoints. Admins can review `recovery_check_requested/completed/failed`,
 `recovery_reset_requested/completed/failed` and `recovery_position_repaired` in
 `GET /access/audit`; `operation_id` links the atomic before/after receipt.
 Secrets and private proof fingerprints never appear in recovery responses.
+`recovery_order_repaired` audits link each completed metadata correction to the
+Reset receipt; `repaired_orders` gives the exact applied list. A partial batch
+or failure never means recovery completed.
 
 Recovery supports two server-selected proof scopes, using the same admin
 Check → review → Reset → separate Start flow. Both require managed
@@ -1607,13 +1624,24 @@ cross/hedge USDT perpetual, and at most 100 unambiguous existing position rows.
   `verification.unfilled_terminal_orders_without_local_side` reports that count.
 - `verification.scope=verified_checkpoint`: a clean financial checkpoint with an
   auditable reviewed anchor, unchanged account binding, complete applied journal
-  coverage and no unsettled submission/tracker work. Lifetime order/fill counts
+  coverage. Clean ledgers have no unsettled submission/tracker work. A bounded
+  exception permits up to64 fully identified, locally acknowledged maker orders
+  with immutable original receipt/account/credential evidence and zero local
+  fills. Every unsettled attempt and nonterminal tracker must be covered.
+  Check proves native cancellation and zero fills with authenticated
+  status/fills/status reads, in addition to the complete two-pass suffix and
+  account proof. Reset independently repeats those proofs and applies only the
+  exact reviewed terminal metadata/tracker/history/attempt corrections atomically
+  with its audits and technical HALT removal. Pending/uncertain sends, not-found,
+  fills, partial/corrupt evidence, unsupported contexts and drift remain blocked.
+  Lifetime order/fill counts
   do not impose those 5,000/2,000 limits. Recovery verifies every venue fill since
   the anchor, matching native order/trade identities, quantities, execution prices
   and original fees to the applied journal. It verifies full account open orders
   and perpetual exposure twice. `proposed_changes=[]`: this route preserves
   financial rows, remaining cost basis and risk checkpoints. `fills_checked`
-  counts the suffix; `orders_checked=0` means no historical per-order REST reads,
+  counts the suffix; `orders_checked` counts terminal metadata candidates and
+  is0 for a clean ledger. That0 means no historical per-order REST reads,
   not an unverified exchange account. Successful Reset records an auditable new
   anchor in the same transaction as the receipt and technical HALT removal.
 

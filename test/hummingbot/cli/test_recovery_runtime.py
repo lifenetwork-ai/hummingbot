@@ -48,6 +48,51 @@ async def test_pending_send_is_reported_before_position_replay_or_credential_loa
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('complete', [False, True])
+async def test_terminal_metadata_proof_waits_for_complete_checkpoint_scans(monkeypatch, complete):
+    instance, store = coordinator(monkeypatch)
+    snapshot = store.snapshot.return_value
+    snapshot.update(mode='verified_checkpoint', terminal_orders=[dict(id='reviewed-order')])
+    monkeypatch.setattr(module, 'verify_segment', AsyncMock(return_value=dict(verified=True, scope='verified_checkpoint') if complete else None))
+    proof = AsyncMock(return_value=[dict(id='reviewed-order')])
+    monkeypatch.setattr(module, 'verify_terminal_orders', proof)
+    try:
+        await instance.run('op')
+        store.fail.assert_not_called()
+        if complete:
+            proof.assert_awaited_once_with(snapshot, {})
+            assert module.verify_segment.await_count == 2
+            verification = store.finish_check.call_args.args[-1]
+            assert verification['terminal_order_changes'] == [dict(id='reviewed-order')]
+            assert verification['orders_checked'] == 1
+        else:
+            assert module.verify_segment.await_count == 1
+            proof.assert_not_awaited()
+            store.finish_check.assert_not_called()
+        store.finish_reset.assert_not_called()
+        assert not instance.host.running and not instance.host.owner.allow_new_orders
+    finally:
+        await instance.close()
+
+
+@pytest.mark.asyncio
+async def test_account_change_during_terminal_reads_cannot_finalize_recovery(monkeypatch):
+    instance, store = coordinator(monkeypatch)
+    store.snapshot.return_value.update(mode='verified_checkpoint', terminal_orders=[dict(id='order')])
+    monkeypatch.setattr(module, 'verify_segment', AsyncMock(side_effect=[
+        dict(verified=True, scope='verified_checkpoint'), RecoveryBlocked('recovery_exchange_changed')]))
+    monkeypatch.setattr(module, 'verify_terminal_orders', AsyncMock(return_value=[dict(id='order')]))
+    try:
+        await instance.run('op')
+        assert store.fail.call_args.args[-1] == 'recovery_exchange_changed'
+        store.finish_check.assert_not_called()
+        store.finish_reset.assert_not_called()
+        assert not instance.host.running and instance.host.halt_requested
+    finally:
+        await instance.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('action', ['recovery_check', 'recovery_reset'])
 async def test_verified_completion_never_starts_trading(monkeypatch, action):
     instance, store = coordinator(monkeypatch, action=action)

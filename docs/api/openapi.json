@@ -9174,6 +9174,20 @@
             "title": "Proposed Changes",
             "type": "array"
           },
+          "proposed_order_changes": {
+            "items": {
+              "$ref": "#/components/schemas/RecoveryOrderRepairOutput"
+            },
+            "title": "Proposed Order Changes",
+            "type": "array"
+          },
+          "repaired_orders": {
+            "items": {
+              "$ref": "#/components/schemas/RecoveryOrderRepairOutput"
+            },
+            "title": "Repaired Orders",
+            "type": "array"
+          },
           "repaired_positions": {
             "items": {
               "$ref": "#/components/schemas/RecoveryPositionRepairOutput"
@@ -9224,6 +9238,122 @@
           "updated_at"
         ],
         "title": "RecoveryOperation",
+        "type": "object"
+      },
+      "RecoveryOrderMetadataOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "attempt_state": {
+            "enum": [
+              "acknowledged",
+              "terminal"
+            ],
+            "title": "Attempt State",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "BuyOrderCreated",
+              "SellOrderCreated",
+              "OrderCancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tracked": {
+            "title": "Tracked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "status",
+          "attempt_state",
+          "tracked"
+        ],
+        "title": "RecoveryOrderMetadata",
+        "type": "object"
+      },
+      "RecoveryOrderRepairOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "$ref": "#/components/schemas/RecoveryOrderMetadataOutput"
+          },
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "before": {
+            "$ref": "#/components/schemas/RecoveryOrderMetadataOutput"
+          },
+          "connector": {
+            "enum": [
+              "okx",
+              "okx_perpetual"
+            ],
+            "title": "Connector",
+            "type": "string"
+          },
+          "evidence": {
+            "const": "native_canceled_zero_fill",
+            "title": "Evidence",
+            "type": "string"
+          },
+          "exchange_order_id": {
+            "title": "Exchange Order Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "position": {
+            "enum": [
+              "NIL",
+              "OPEN",
+              "CLOSE"
+            ],
+            "title": "Position",
+            "type": "string"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "terminal_timestamp": {
+            "description": "Native cancellation timestamp in epoch milliseconds.",
+            "minimum": 0,
+            "title": "Terminal Timestamp",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "connector",
+          "pair",
+          "exchange_order_id",
+          "side",
+          "position",
+          "amount",
+          "price",
+          "terminal_timestamp",
+          "before",
+          "after",
+          "evidence"
+        ],
+        "title": "RecoveryOrderRepair",
         "type": "object"
       },
       "RecoveryOverviewOutput": {
@@ -9388,6 +9518,12 @@
             "minLength": 1,
             "title": "Check Id",
             "type": "string"
+          },
+          "confirm_order_changes": {
+            "default": false,
+            "description": "Must be true after explicitly reviewing nonempty proposed_order_changes. Omit/false cannot authorize order metadata repair.",
+            "title": "Confirm Order Changes",
+            "type": "boolean"
           },
           "confirmation_token": {
             "pattern": "^[a-f0-9]{32}$",

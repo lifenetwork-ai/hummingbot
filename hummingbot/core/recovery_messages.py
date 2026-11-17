@@ -5,6 +5,8 @@ RECOVERY_MESSAGES = {
     'recovery_not_halted': ('refresh_state', 'No recovery stop is currently recorded.'),
     'recovery_pending_mutations': ('contact_support', 'An exchange action has an unresolved outcome. Technical review is required.'),
     'recovery_pending_intents': ('contact_support', 'An order submission is unresolved. Keep trading stopped and reconcile it first.'),
+    'recovery_terminal_order_unproven': ('contact_support', 'A saved order cannot be positively verified as canceled with zero fills. Trading remains stopped; no order metadata was repaired.'),
+    'recovery_order_review_required': ('refresh_state', 'Review every proposed order metadata change and explicitly confirm it before recovery.'),
     'recovery_operation_in_progress': ('wait', 'Recovery is already in progress. Wait for its result.'),
     'recovery_risk_stop': ('contact_support', 'A risk protection is active. Recovery cannot reset risk limits, peaks or stop latches.'),
     'recovery_checkpoint_invalid': ('contact_support', 'Saved risk information cannot be verified. Recovery is blocked.'),

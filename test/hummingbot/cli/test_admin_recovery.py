@@ -143,6 +143,38 @@ async def test_unicode_confirmation_is_validation_error_without_storage_call():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('confirmed', [False, True])
+async def test_reset_forwards_explicit_order_review_choice(confirmed):
+    async with client() as (http, store):
+        response = await http.post(ADMIN_PREFIX + '/recovery/reset', json=dict(
+            expected_version=3, check_id='check', confirmation_token='a' * 32, confirm_order_changes=confirmed),
+            headers={'Idempotency-Key': 'reset'})
+        assert response.status == 202
+        assert store.request.call_args.args[2]['confirm_order_changes'] is confirmed
+
+
+@pytest.mark.asyncio
+async def test_legacy_reset_body_keeps_its_retry_identity_after_schema_extension():
+    payload = dict(expected_version=3, check_id='check', confirmation_token='a' * 32)
+    async with client() as (http, store):
+        response = await http.post(ADMIN_PREFIX + '/recovery/reset', json=payload,
+                                   headers={'Idempotency-Key': 'legacy-retry'})
+        assert response.status == 202
+        assert store.request.call_args.args[2] == payload
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('confirmed', [1, 'true', None])
+async def test_reset_does_not_coerce_order_review_confirmation(confirmed):
+    async with client() as (http, store):
+        response = await http.post(ADMIN_PREFIX + '/recovery/reset', json=dict(
+            expected_version=3, check_id='check', confirmation_token='a' * 32, confirm_order_changes=confirmed),
+            headers={'Idempotency-Key': 'reset'})
+        assert response.status == 422
+        store.request.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_legacy_runtime_task_halt_explains_cause_and_can_only_check_after_stop():
     async with client() as (http, store):
         state = store.state.read.return_value

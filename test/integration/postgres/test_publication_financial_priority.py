@@ -7,6 +7,7 @@ from test.integration.postgres.test_service_availability import publication as _
 
 import pytest
 from sqlalchemy import create_engine, func, select, text, update
+from sqlalchemy.exc import OperationalError
 
 from hummingbot.core.data_type.common import OrderType
 from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketEvent
@@ -14,6 +15,47 @@ from hummingbot.model.order import Order
 
 owned = _owned
 publication = _publication
+
+
+def test_positive_venue_receipt_survives_create_ack_fence_timeout(owned):
+    """An accepted exchange order must not become an assumed local failure.
+
+    Reproduce the observed boundary: send receipt committed, native create ACK
+    arrives, then the recorder cannot obtain its financial ownership fence.
+    Removing the blocker restores SQL access but cannot repair the lost ACK.
+    """
+    from hummingbot.model.runtime_journal import SubmissionAttempt
+    from hummingbot.model.trade_fill import TradeFill
+
+    order = intent(owned)
+    receipt = {'code': '0', 'http_status': 200,
+               'order': {'ordId': 'accepted-venue-order', 'clOrdId': order.client_order_id, 'sCode': '0'}}
+    with owned.engine.begin() as connection:
+        assert connection.execute(update(SubmissionAttempt).where(
+            SubmissionAttempt.order_id == order.client_order_id).values(
+                state='possibly_sent', receipt=receipt)).rowcount == 1
+    ack = BuyOrderCreatedEvent(timestamp=1700000001, creation_timestamp=order.creation_timestamp,
+                               type=OrderType.LIMIT, trading_pair=order.trading_pair, amount=order.amount,
+                               price=order.price, order_id=order.client_order_id,
+                               exchange_order_id='accepted-venue-order')
+    with owned.engine.begin() as blocker:
+        blocker.execute(text('SELECT bot_id FROM bot_state FOR UPDATE')).all()
+        with pytest.raises(OperationalError) as error:
+            owned.recorder._did_create_order(MarketEvent.BuyOrderCreated.value, owned.market, ack)
+        assert error.value.orig.pgcode == '55P03'
+    assert not owned.manager.persistence_healthy
+    # A successful ping after the blocking transaction ends is not proof that
+    # the ACK was stored, nor permission to retry an exchange POST.
+    with owned.engine.connect() as connection:
+        assert connection.scalar(text('SELECT 1')) == 1
+        saved = connection.execute(select(*Order.__table__.c).where(Order.id == order.client_order_id)).mappings().one()
+        attempt = connection.execute(select(*SubmissionAttempt.__table__.c).where(
+            SubmissionAttempt.order_id == order.client_order_id)).mappings().one()
+        assert saved['creation_pending'] and saved['exchange_order_id'] is None
+        assert attempt['state'] == 'possibly_sent' and attempt['receipt'] == receipt
+        assert connection.scalar(select(func.count()).select_from(TradeFill)) == 0
+    with pytest.raises(RuntimeError, match='reconciliation'):
+        owned.manager.assert_persistence_healthy()
 
 
 def publish(owned, status=None):

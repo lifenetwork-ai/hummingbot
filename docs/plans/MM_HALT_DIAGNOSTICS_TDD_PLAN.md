@@ -36,8 +36,45 @@ Its local fix stages bills before a fresh nonwaiting physical-owner fence,
 validates concurrent duplicate identities and updates only funding_sync in SQL.
 Bills/cursor remain atomic; no critical financial error is retried or hidden.
 Both background writers now keep large JSON reads/encoding outside the final
-authority lock. The deployed revision166 remains HALTed; commit/deployment and
-fresh audited Stop/Check/Recover/Start qualification are still open.
+authority lock. Commit `d87cccdf6` is now deployed on revision167 at100% traffic;
+its five-minute read-only observation confirms startup/live200, fresh status
+and completed owner handoff. The prior revision166 HALT remains, so ready503
+and `recovery_stop_required` are expected. No new application error/restart is
+returned in the bounded log query. Fresh audited Stop/Check/Recover/Start and
+trading-load qualification remain open. Evidence and limits are recorded in
+the reporting report's revision167 section and
+`build/background-write-postdeploy-20261117`.
+
+Operator-requested revision167 recovery: Stop succeeds at control96. Initial
+Check blocks on a pending create ACK whose successful venue receipt survived
+the financial fence timeout. Two native proofs show the exact order canceled
+with zero fills. The separately approved one-order metadata repair commits
+audit357, preserving all23 unaffected table checksums, all15,250 fills,3 positions,
+risk, credentials and runtime checkpoints; HALT remains. A fresh Check then
+reports scope_limit because five additional acknowledged attempts and saved
+trackers from the same failed cleanup make verified-checkpoint mode ineligible.
+Two native passes prove all five canceled/zero-fill and both accounts without
+open orders. Supplemental five-order maintenance is rehearsed/preflighted but
+the operator chooses to keep stopped and implement the API path instead.
+No Reset or Start has been submitted. See
+[the exact repair and remaining scope](../../reports/demo/cloudrun-recorder-ack-recovery-20261117.md).
+An additional real-PostgreSQL regression reproduces success-receipt -> ACK
+fence55P03 -> retained pending intent/unhealthy recorder, without losing the
+receipt or allowing a later SQL ping to reopen admission. The publication and
+funding priority scope now passes20 tests; hooks pass. This does not close the
+remaining stopped terminal-metadata API gap or qualify live trading on167.
+
+The subsequent local API implementation covers this bounded acknowledged,
+canceled/zero-fill metadata case through Check/review/Reset. It preserves the
+complete checkpoint suffix proof, adds fresh terminal evidence and final account
+checks, requires explicit `confirm_order_changes=true` and atomically audits the
+reviewed metadata changes while leaving trading stopped. Pending/uncertain sends
+and financial uncertainty remain blocked. Local final PostgreSQL30/native140,
+the seven affected recovery-hook tests and checks pass; broader PostgreSQL104
+is an overlapping earlier scope. Read-only validation recognizes exactly the
+five unchanged current Demo candidates. No new image is deployed and no
+connected Reset/Start is sent. Connected acceptance remains open in
+[the API implementation plan](RECOVERY_TERMINAL_METADATA_TDD_PLAN.md).
 
 Read-only Demo evidence contradicts the initial ownership-only attribution:
 the stored manual reason is `A required runtime task failed; inspect service

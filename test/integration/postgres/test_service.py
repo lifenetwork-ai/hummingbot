@@ -138,6 +138,10 @@ if os.environ.get('HBOT_OFFLINE_RECOVERY_EMPTY') == 'true':
     async def recovery_get(self, path_url, **kwargs):
         if path_url == '/api/v5/account/config':
             return {'code': '0', 'data': [{'uid': candidate_account}]}
+        if path_url == '/api/v5/trade/order' and os.environ.get('HBOT_OFFLINE_RECOVERY_ORDERS'):
+            orders = json.loads(pathlib.Path(os.environ['HBOT_OFFLINE_RECOVERY_ORDERS']).read_text())
+            identity = (kwargs.get('params') or {}).get('clOrdId')
+            return {'code': '0', 'data': [orders[identity]]} if identity in orders else {'code': '51603', 'data': []}
         if path_url in ('/api/v5/trade/orders-pending', '/api/v5/trade/fills', '/api/v5/account/positions'):
             return {'code': '0', 'data': []}
         raise RuntimeError('Unexpected recovery exchange read')

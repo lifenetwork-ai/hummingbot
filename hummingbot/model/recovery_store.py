@@ -130,6 +130,8 @@ class RecoveryStore:
             _conflict('recovery_proof_expired')
         if not self._same_owner(state, report['_private']):
             _conflict('recovery_owner_changed')
+        if report.get('proposed_order_changes') and payload.get('confirm_order_changes') is not True:
+            _conflict('recovery_order_review_required')
         current_snapshot = self.snapshot(connection) if current_snapshot is None else current_snapshot
         if fingerprint({**current_snapshot, 'state': state}) != report['_private']['fingerprint']:
             _conflict('recovery_state_changed')
@@ -299,7 +301,7 @@ class RecoveryStore:
         from hummingbot.core.segmented_recovery import validate_progress
         private = (self.get(row['id'], connection)['result'] or {}).get('_private') or {}
         proof = private.get('proof')
-        if proof is None and not verification.get('segmented'):
+        if proof is None and not verification.get('segmented') and not snapshot.get('terminal_orders'):
             return  # Existing bounded complete-history / one-shot verifier.
         if proof:
             validate_progress(proof, {**snapshot, 'state': self._state(connection)})
@@ -334,8 +336,11 @@ class RecoveryStore:
                 _conflict('recovery_state_changed')
             if not blockers:
                 self._complete_segmented_proof(connection, row, snapshot, verification)
+                from hummingbot.core.recovery_terminal import validate_changes
+                validate_changes(snapshot, verification.get('terminal_order_changes', []))
             result = dict(stage='blocked' if blockers else 'review_required', can_recover=not blockers,
                           blockers=blockers, proposed_changes=plan, verification=verification,
+                          proposed_order_changes=verification.get('terminal_order_changes', []) if not blockers else [],
                           confirmation_token=None if blockers else uuid.uuid4().hex,
                           expires_at=(state['database_now'] + timedelta(seconds=PROOF_TTL_SECONDS)).isoformat(),
                           _private={**row['result']['_private'], 'fingerprint': fingerprint(snapshot)})
@@ -355,6 +360,20 @@ class RecoveryStore:
                     or plan != check['result']['proposed_changes']):
                 _conflict('recovery_state_changed')
             self._complete_segmented_proof(connection, row, snapshot, verification)
+            from hummingbot.model.recovery_terminal import apply_changes
+            order_changes = verification.get('terminal_order_changes', [])
+            if order_changes != check['result'].get('proposed_order_changes', []):
+                _conflict('recovery_state_changed')
+            apply_changes(connection, snapshot, order_changes)
+            for change in order_changes:
+                self.access.audit(connection, actor=actor, action='recovery_order_repaired', outcome='succeeded',
+                                  operation_id=row['id'], request_id=row['result']['_private']['request_id'],
+                                  target_id=change['id'], connector=change['connector'], exchange='okx',
+                                  environment=next(r['environment'] for r in snapshot['bindings']
+                                                   if r['connector'] == change['connector'] and r['state'] == 'active'),
+                                  reason_code='verified_native_cancellation',
+                                  details=dict(order_id=change['id'], pair=change['pair'], amount=change['amount'],
+                                               stage='terminal_metadata_repaired'))
             for change in plan:
                 conditions = [Position.id == change['id'], Position.controller_id == change['controller_id'],
                               Position.connector_name == change['connector'], Position.trading_pair == change['pair']]
@@ -395,6 +414,7 @@ class RecoveryStore:
             recovery['runtime_active'] = False
             state['recovery_state'] = recovery
             result = dict(stage='recovered', can_recover=False, blockers=[], repaired_positions=plan,
+                          repaired_orders=order_changes,
                           verification=verification, trading_state='stopped', halt_cause=recovered_cause,
                           _private=row['result']['_private'])
             self._finish(connection, state, row, result, actor, control_version=state['control_version'] + 1)

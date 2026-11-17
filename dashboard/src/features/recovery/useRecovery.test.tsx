@@ -82,7 +82,7 @@ describe('useRecovery', () => {
     await act(async () => { await result.current.confirmReset() })
     await waitFor(() => expect(result.current.completed).toBe(true))
     expect(writes[1]).toMatchObject({ url: '/api/v1/admin/recovery/reset',
-      body: { expected_version: 7, check_id: 'check-1', confirmation_token: 'secret-confirmation' } })
+      body: { expected_version: 7, check_id: 'check-1', confirmation_token: 'secret-confirmation', confirm_order_changes: false } })
     expect(result.current.completed).toBe(true)
     expect(writes.map(({ url }) => url)).toEqual(['/api/v1/admin/recovery/check', '/api/v1/admin/recovery/reset'])
   })

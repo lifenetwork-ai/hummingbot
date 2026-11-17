@@ -429,6 +429,21 @@ history remain blocked. Those cases still require an explicit operator-reviewed
 database maintenance change after independent reconciliation. Do not change only
 `halt`, delete history or reset risk checkpoints to make startup pass.
 
+The checkpoint route can preview up to64 acknowledged, fully identified maker
+orders with stale zero-fill trackers. Every unsettled attempt/live tracker must
+be covered by immutable receipt/account/credential scope. Check verifies native
+status/fills/status cancellation evidence after its complete two-pass suffix
+proof; it writes only its recovery receipt/progress. API `proposed_order_changes`
+lists the exact metadata changes. Reset requires explicit
+`confirm_order_changes=true` in addition to the existing reviewed token, repeats
+the independent venue proof and applies only that same list under fresh
+owner/control/actor/risk/ledger fences. OrderCancelled metadata, terminal attempt
+state, exact tracker removal, cancel history and per-order audit commit atomically
+with technical HALT removal. Receipts/context, financial fills/positions/costs,
+credentials, risk limits and peaks remain unchanged; success stays stopped.
+Unknown/pending sends, not-found, any execution or incomplete/changed evidence
+remain blocked. This is not permission to infer order absence or resubmit a POST.
+
 Migration021 adds immutable submission attempts, a fill/application journal and
 verified runtime checkpoints, plus `orders.position_applied`. Apply it through
 the existing controlled migration/handover procedure. It does not backfill an

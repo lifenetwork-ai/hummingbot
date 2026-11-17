@@ -8,7 +8,8 @@ Latest runtime observation: revision166 enters a new technical HALT at14:31:30UT
 after its bounded probe observation. Recorder ownership fencing hits a1s
 BotState row-lock timeout; cleanup fails and the engine restarts. It remains
 HALTed; no recovery mutation is submitted. The historical recovery completion
-above is not a statement that the current bot is running. See the final section.
+above is not a statement that the current bot is running. Revision167 now deploys
+the background-writer fix but retains this same HALT; see the final section.
 
 Updated 2026-11-17. Contract, coverage, durable fees and the publication-read
 optimization are implemented. The encoding-before-lock artifact passes all 989
@@ -1593,9 +1594,96 @@ does not eliminate every possible database wait. The optimized checkpoint copy
 still has measured loop cost and is a separate remaining follow-up. No new load,
 soak or production pass is claimed. Disposable test containers are removed.
 
-The patch is local and not deployed. Demo remains revision166/HALT, control95;
+At completion of local remediation, the patch was not deployed and Demo remained
+revision166/HALT, control95;
 no Stop/Reset/Start or direct ledger maintenance was issued during remediation.
 After deployment, ordinary audited recovery needs fresh exchange verification
 before Start. Observe beyond the prior31-minute failure point. Evidence:
 `build/publication-financial-priority-20261117`, including original RED outputs,
 baseline assertion failures, final regressions and hooks.
+
+### Revision167 deployment — startup verified, prior HALT retained
+
+CI build `c221b27e-e8f5-4b41-956b-1413770dd938` succeeds at15:40:20UTC.
+Registry config confirms exact commit `d87cccdf6b0a58e48b544aeb9b36e780490c6ffa`
+on `hummingbot-demo-00167-gz7`, resolved digest
+`sha256:c275270601988c6959ba089c3e019a58f6d9cc31230f214f4c72b9fd5991d4a9`.
+Ready/100% traffic is observed at15:40:26UTC. The first two status samples still
+report revision166 as owner during handoff; from15:41:30 onward, process and
+owner identities both report revision167.
+
+Eleven samples through15:45:37UTC span311 seconds. Every sample has fresh
+observation, acknowledged control95, startup/live200 and ready503; all remain
+HALTed/not running. The persisted cause still identifies revision166's
+`trading_health_failed` at14:31:30.806152UTC, with incomplete cleanup. It is not a
+new revision167 failure. Recovery GET still reports `recovery_stop_required`.
+
+The bounded WARNING+ query through15:46UTC returns12 rows, below its1000 limit:
+eleven HTTP request ERROR rows are the observer's ready503 requests, and the
+single application warning is `trading_bootstrap_blocked` at15:41:19UTC,
+explicitly withholding trading pending operator recovery. No application ERROR,
+child restart or new probe-failure warning is returned in that window. This
+short HALTed observation does not qualify financial contention under trading
+load, longer soak or the release. No Stop/Check/Reset/Start, DB maintenance,
+credentials, env or risk writes are submitted. Next qualification remains the
+audited Stop/Check/Recover/Start flow with fresh exchange proof, followed by an
+observation beyond the prior31-minute failure point. Evidence:
+`build/background-write-postdeploy-20261117`.
+
+### Revision167 recovery follow-up — remaining terminal metadata
+
+The operator requests recovery and approves the scoped single pending-ACK
+repair in [the incident proposal](../demo/cloudrun-recorder-ack-recovery-20261117.md).
+Stop succeeds at control/ack96. Native proof twice matches the venue's positive
+success receipt and canceled/zero-fill outcome. The drained transaction commits
+audit357, one order/attempt/tracker metadata correction, two order-status rows
+and one audit. All23 unaffected tables retain identical checksums; financial
+rows, positions, risk, credentials and checkpoints are preserved. HALT stays set.
+The first streaming checksum attempt is canceled before any repair and scaling
+restored; the completed attempt uses server-side checksums. Original service
+scaling/template is restored after the approved repair.
+
+The next Check, `2e62c349-42ef-4516-9cd5-ca9d65d11606`, reports scope_limit.
+Read-only attribution finds a valid financial/binding/environment checkpoint
+and anchor, no pending orders or unapplied journal, but five acknowledged
+attempts with nonterminal trackers from the failed cleanup. Those disable the
+large-history checkpoint path, and its small-history fallback is over scope.
+Two native scans confirm all five orders canceled/zero-fill, exact terms and
+empty Spot/Perpetual pending lists. A separately reviewed batch is prepared and
+rehearsed; it has not been applied. No Reset/Start or live-load qualification is
+claimed. The plan/proposal record the remaining API terminal-metadata gap.
+
+New regression retains the successful venue receipt through a real55P03 create
+ACK rollback and proves a later SQL ping cannot make that recorder healthy.
+Publication/funding priority scope20 tests and hooks pass. Evidence:
+`build/recovery-background-write-20261117`.
+
+### Terminal metadata API — local implementation, Demo kept stopped
+
+The operator selects the API implementation instead of the supplemental
+five-order maintenance. No extra connected ledger repair, Reset or Start is
+submitted. Check can now retain an anchored large-history route with at most64
+fully identified acknowledged maker candidates and zero local execution. Native
+status/fills/status proofs must establish cancellation/zero fills for every
+candidate, alongside the complete two-scan suffix/account proof. Account heads,
+open orders and exposure are checked again after metadata reads.
+
+The typed preview is `proposed_order_changes`. Reset needs explicit
+`confirm_order_changes=true`, fresh independent proof and an identical reviewed
+list. Metadata, tracker/history/attempt updates and per-order audits commit with
+HALT removal in one owner/control/actor/risk/ledger-fenced transaction. Fills,
+positions, costs, immutable receipts/context and risk are preserved; recovery
+success remains stopped. Legacy omitted request fields are preserved in retry
+hashes. The current dashboard sends false until its order-review UI is added.
+
+Qualification: three RED cases retained; earlier broad PostgreSQL104, final
+PostgreSQL30 (including three supervised lifecycle cases), native140 and seven
+recovery-hook tests pass, with overlapping scopes. Mixed-market proof covers
+three Spot/two Perpetual orders, both hedge legs and three unchanged positions
+with nonempty journaled fills. Schema/type checks, TypeScript, ESLint and hooks
+pass. A READ ONLY local-validator check recognizes exactly the five current
+Demo candidates at stopped control96/HALT. This is not connected execution or
+live trading acceptance of the new API; no migration/env/risk change or deployment
+occurs. The proxy and disposable containers are closed. Evidence and remaining
+connected gate: `build/recovery-terminal-api-20261117` and
+[the TDD plan](../../docs/plans/RECOVERY_TERMINAL_METADATA_TDD_PLAN.md).

@@ -210,6 +210,7 @@ export function useRecovery() {
       expected_version: checkedVersion,
       check_id: reviewedCheck.id,
       confirmation_token: token,
+      confirm_order_changes: false,
     }, idempotencyKey: newKey() }
     pendingReset.current = input
     let receipt
