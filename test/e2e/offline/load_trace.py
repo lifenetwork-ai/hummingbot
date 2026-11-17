@@ -108,14 +108,15 @@ class DeferredGCTrace:
     def __call__(self, phase, info):
         key = threading.get_ident(), info['generation']
         if phase == 'start':
-            self.started[key] = time.monotonic_ns()
+            self.started[key] = time.monotonic_ns(), time.thread_time_ns()
         elif key in self.started:
-            started = self.started.pop(key)
+            started, cpu = self.started.pop(key)
             duration = (time.monotonic_ns() - started) / 1e6
             if duration >= self.minimum_ms:
                 if len(self.pending) == self.pending.maxlen:
                     self.dropped_events += 1
                 self.pending.append(dict(kind='gc', at=time.time(), start_ns=started, duration_ms=duration,
+                                         thread_cpu_ms=(time.thread_time_ns() - cpu) / 1e6,
                                          thread_id=key[0], generation=key[1], collected=info['collected']))
 
     def drain(self, sink):

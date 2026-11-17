@@ -496,3 +496,75 @@ acceptance remains separate after an approved deployment.
   and apply the smallest fix. Preserve failed gates and acceptance margins.
 - [ ] Repeat affected checks and qualify the final runtime artifact, including
   the required unchanged load/soak scope after any production-path change.
+
+### Controlled CPU contention diagnosis — predeclared 2026-11-17
+
+This experiment tests sensitivity to CPU contention; it cannot establish the
+cause of a historical event or replace healthy acceptance. No quotas, deadlines,
+guards, risk settings or production images will be changed.
+
+- [x] Run baseline then candidate, once each: 360-second diagnostic probe,
+  2 CPU /2GiB application quota, 100,000 history rows, the same healthy book,
+  security/defense workload, GC/incident/MM capture and 128 incident limit.
+- [x] Within each probe inject the same bounded sibling-process CPU pulses in
+  the application cgroup: three workers for 20 seconds at approximately 180s,
+  then twelve workers for 10 seconds at approximately 260s. Each worker has an
+  absolute deadline; record actual container timestamps and cgroup counters.
+  The last approximately 90 seconds observe recovery. Stop only owned workers.
+- [x] Retain failed latency/rate gates during injection; inspect independent
+  ledger convergence, process/owner continuity and recovery after the pulses.
+  Record AC and Docker VM resources. Do not run regressions during measurement.
+- [x] Compare incident stacks, heartbeat/CPU counters and native cancel/venue
+  terminal timestamps. If a code fault is demonstrated, reproduce it with a
+  failing test before fixing it. Otherwise report the remaining uncertainty.
+
+Results: baseline `20261117-005346-0ff3d1`, candidate
+`20261117-010136-69bc4f`. Read p95/p99 is 519.34/5,024.63ms versus
+3,567.82/6,252.99ms; both diagnostic runs retain latency failures. Each has 360
+exact independent fills, matching positions/funding, stable sampled role PIDs,
+no restart/error logs and a final running state with working BUY/SELL quotes.
+Baseline's 162.81ms cancel overlaps the first CPU pulse; candidate's largest
+181.93ms cancel occurs before the injected worker pulse. CPU contention can
+produce the observed symptoms, but it is not a unique explanation of the old
+failures or of every new cancel tail.
+
+The pre-pulse candidate trace also records a generation-zero GC pause of
+726.82ms and API heartbeat lag of 836.30ms. Its GC wall-time measurement lacks
+collector-thread CPU, so it cannot separate collection work from descheduling.
+Three new RED/GREEN cases require both wall and thread CPU timing for generations
+0/1/2; final diagnostic regression passes 84 cases. This test-only instrumentation
+change follows measurement, so it supplies no retroactive CPU reading for that
+pause. Production files, GC policy and thresholds remain unchanged. C stays open.
+
+### Young-GC attribution follow-up — predeclared 2026-11-17
+
+- [x] Run exactly one 300-second canonical warmup on the same frozen candidate,
+  2 CPU /2GiB, 100,000 history rows and existing security/defense/book workload.
+  Enable full tracing, deferred GC wall/thread CPU timing for all generations,
+  full-GC timing and async cancel spans. Stop before mixed. Do not inject CPU
+  workers or run test suites during this measurement; observe AC throughout.
+- [x] Inspect GC pause intervals against collector-thread CPU, heartbeat lag,
+  cgroup counters and cancel spans/SQL children. Elapsed time exceeding thread
+  CPU is not automatically scheduler delay: it can also include waits or work
+  elsewhere. Do not infer the old pause's CPU from a new collection.
+- [x] Check independent fills/positions and final runtime state. Preserve all
+  original acceptance failures. A passing diagnostic is not release qualification.
+- [x] If a specific production fault is demonstrated, write its failing test
+  before applying a fix. Otherwise retain the uncertainty and stop this bounded
+  experiment without tuning GC or changing trading deadlines/guards.
+
+Result `20261117-013436-448f3f`: read p95/p99 136.76/381.47ms; no warmup
+violations or unexpected HTTP errors, 300 exact fills and matching positions,
+stable role PIDs and final running/working-quote snapshots. API GC >=10ms is
+captured only for generation two (14 events); largest wall/thread CPU is
+13.742/13.289ms. No generation-zero/one pause >=10ms appears in the measured
+window. The old 726.82ms API pause does not recur, so its cause remains unknown.
+Engine full GC reaches 233.175ms wall /232.592ms thread CPU, demonstrating real
+collector CPU in this new event, not explaining the historical API event.
+No retained slow native cancel span appears. In-window capture metrics show
+zero dropped GC events/records; engine child spans have bounded eviction, so
+absence of a retained cancel span is not a new all-call latency qualification.
+All 41 power observations report AC. Host CPU sampling includes busy editor/
+browser processes; this remains a nonexclusive local diagnostic environment.
+Stop the bounded experiment with no production change. C and connected Demo
+acceptance remain open; this passing partial warmup supersedes no failed gate.

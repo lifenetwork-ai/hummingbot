@@ -666,3 +666,108 @@ under `build/overview-tail-investigation-20261117`. The 300-second run deliberat
 stops before mixed, so its overall incomplete-release result must not be reported
 as a full qualification pass. C remains open; retain the existing margins and
 capture a recurrence before proposing a production fix for these tails.
+
+### Controlled CPU contention — 2026-11-17
+
+Two predeclared local diagnostic probes run baseline then candidate, once each,
+for 360 seconds with the same frozen images, workload, 100,000-row history and
+2 CPU /2GiB application quota. CPU-only sibling processes share that cgroup:
+three workers for 20 seconds near 180s, twelve for 10 seconds near 260s. Every
+worker has an absolute deadline and exits normally. Neither quota nor production
+configuration is changed. Actual pulse starts are 179.70/259.61s for baseline and
+179.85/259.67s for candidate, relative to their measurement windows. AC is sampled
+before/during/after both runs; Docker VM resources remain 8 CPU /8,218,251,264B.
+
+| Diagnostic | Evidence under `build/mm-load` | Read p95/p99 (ms) | Exact ledger |
+| --- | --- | --- | --- |
+| Baseline with CPU pulses | `20261117-005346-0ff3d1` | 519.34 /5,024.63 | 360 venue /360 recorder fills; positions match |
+| Candidate with CPU pulses | `20261117-010136-69bc4f` | 3,567.82 /6,252.99 | 360 venue /360 recorder fills; positions match |
+
+Both runs fail existing latency budgets; both retain zero unexpected HTTP errors.
+Candidate is more sensitive to this injected contention in these windows. These
+are fault diagnostics, not qualification passes, and do not supersede the failed
+healthy warmup or paired cancel gate.
+
+The baseline's first pulse captures a 162.81ms native cancel: simulator handler
+entry at 3.028ms, terminal cancellation at 3.037ms, then another 159.770ms before
+the coroutine returns. This recreates the post-terminal delay shape seen in the
+old 125.46ms outlier. The candidate's largest cancel is 181.93ms at 178.949s,
+returning before the first worker pulse begins at 179.85s. It must not be
+attributed to those running workers. Injector startup is not separately timed on
+the shared Linux clock, so its contribution cannot be excluded using a host-file
+timestamp. This earlier event also spends most time after terminal effect:
+173.259ms.
+
+The candidate pre-pulse trace records a generation-zero GC pause of 726.82ms,
+an API loop stall of 836.30ms and a separate engine stall of 932.23ms. The API
+stack includes timestamp serialization in an orders response; engine samples
+include qualification and DB waits. These point samples are not evidence that
+the named frames themselves consume the entire pause. GC elapsed time also
+does not establish collector CPU use. Existing full-GC CPU measurements cover
+generation two only, leaving this generation-zero event without that distinction.
+Three RED/GREEN cases now require wall time and collector-thread CPU for deferred
+GC records across generations 0/1/2; 84 diagnostic tests pass. This diagnostic-only
+change occurs after both measurements; the original CPU use remains unknown.
+
+Final snapshots show both runs still running, with three working orders per
+side on both markets, no error/restart/ownership-loss logs, matching two funding
+bills and three daily snapshots. All minute samples retain the same role PIDs.
+During the final approximately 90 seconds, baseline/candidate record 25/13
+native cancel returns (maximum 94.27/17.81ms), 25/13 submit returns and 90 strategy
+ticks each. These observations support recovery; they do not prove continuous
+quoting or a separately measured post-pulse HTTP p99.
+
+Raw pulse timestamps/cgroup counters, power observations, analysis and regression
+logs remain in `build/overview-cpu-contention-20261117`. No production fault has
+been isolated sufficiently to justify a production patch. Keep C open, retain
+every failed gate and distinguish resource contention from demonstrated code
+faults before choosing the next fix.
+
+### No-injection GC attribution follow-up — 2026-11-17
+
+One predeclared 300-second canonical warmup runs with full tracing and the new
+wall/thread CPU GC measurements, without injected CPU workers. Frozen candidate,
+2 CPU /2GiB, 100,000-row history, book/security/defense workload and production
+GC policy are unchanged. Evidence: `build/mm-load/20261117-013436-448f3f`;
+driver/host observations/analysis: `build/overview-gc-attribution-20261117`.
+
+- Read p95/p99: 136.76/381.47ms; zero warmup violations and unexpected HTTP errors.
+- Independent ledger: 300 venue /300 recorder fills, matching positions, two
+  funding bills and three daily snapshots.
+- All minute samples retain supervisor/engine/API PIDs 1/32/33; final state is
+  running with working BUY/SELL orders on both markets, with no error, ownership
+  loss or restart lines in retained bot logs.
+- API GC captures >=10ms: 14 generation-two events; largest is 13.742ms wall
+  /13.289ms collector-thread CPU. No generation-zero/one event reaches the
+  capture threshold in the measurement window. The old 726.82ms API pause is
+  not reproduced, and its CPU use cannot be reconstructed from these events.
+- Engine full GC at 182.357s takes 233.175ms wall /232.592ms thread CPU. This
+  collection uses CPU for nearly all of its elapsed time. Another young-GC
+  event takes 54.032ms wall /34.367ms CPU. These are different events in a
+  different process from the historical API pause.
+
+Maximum retained heartbeat lag is 258.57ms for API and 399.27ms for engine.
+The largest retained API request is an orders page taking 852.83ms; its thread
+CPU span is inclusive of interleaved loop work, not exclusive request CPU.
+There are no retained native cancel spans above the 100ms trace threshold.
+In-window role metrics show zero dropped GC events and zero dropped trace
+records, but the engine's bounded child-span selection evicts 150 children.
+This evidence is not an all-call cancel percentile or continuous-quoting proof.
+
+Use the same-PID in-window metrics for capture-loss accounting. The standalone
+shutdown summary files belong to an earlier fixture startup stopped before
+history preparation; final harness cleanup forcibly removes the test containers.
+Those files do not establish final capture counters or graceful Stop for this
+deliberately partial scope.
+
+All 41 sampled power observations report AC; Docker VM resources remain 8 CPU
+/8,218,251,264B. Host process sampling includes busy VS Code/Chrome processes,
+so this is not an exclusive performance worker. Between the first/last API CPU
+samples in-window, cgroup counters add 10 throttle periods /168.654ms cumulative
+throttled time; that does not attribute individual GC/request pauses.
+
+The bounded experiment ends without a new production patch or GC tuning.
+The three previously added GC timing regression cases and the 84-case diagnostic
+regression remain the validation of the test-only timing change. C remains open:
+this successful partial warmup does not replace the failed healthy warmup,
+paired cancel gate, or the separate connected Demo acceptance.
