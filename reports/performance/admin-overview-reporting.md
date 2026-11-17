@@ -1350,3 +1350,52 @@ docs describe pending stages, retry progress, migration023 and this limitation.
 Evidence: `build/recovery-segmented-20261117`. These source edits are not deployed;
 no Cloud/financial mutation, connected recovery pass, MM pass or new soak result
 is claimed. Last connected observation remains revision161, stopped/HALTcontrol93.
+
+### Revision162 deploy attempt — required migration not applied
+
+Build `95da713d-839e-4464-8c5c-97b2cff5da01` successfully builds commit
+`9d2c4b53312c5d9ac97dd300bad1c4e39025a42a`; registry config matches image
+`sha256:981b334ca3b8e923506120585b1019876ef565ec1336f370f6835b3441c82e93`.
+Revision `hummingbot-demo-00162-zks` then fails startup with
+`schema_incompatible`/`PostgreSQLBootstrapError`, engine exit78. Build deploy
+fails; revision161 remains the ready revision with100% traffic.
+
+Revision162 has `ENABLE_AUTO_MIGRATION=true`. SELECT-only DB inspection confirms
+both migration023 and `recovery_proof_fills` absent while the existing advisory
+owner remains active. Itscontrol93 is acknowledged stopped/HALT. The guarded
+runner cannot perform DDL until the old owner exits; normal Stop only stops
+trading, so the rollout still needs an owner-drained migration step. This is a
+schema/startup failure, not a new recovery-proof or financial write failure.
+
+Current API observation: startup/live200, ready503, status/recovery200; API and
+owner identities bothrevision161, stopped/HALTcontrol93. No DDL, Reset/Start,
+financial, credentials or risk changes are applied. Proxy55479 is closed after
+inspection. Connected recovery remains unqualified. Evidence:
+`build/recovery-segmented-postdeploy-20261117`.
+
+### Owner-drained migration completed; checkpoint finalization follow-up
+
+The authorized maintenance sequence manually scales only Demo to0, waits for
+actual owner-lock release, runs the packaged guarded migration023 and restores
+the original automatic min1/max1 while deploying the verified immutable image.
+`hummingbot-demo-r023-20261117-115009` becomes Ready100% on exact `9d2c4b533`.
+Before/after migration preserves55,876 orders,15,169 fills,3 positions and risk
+state. CPU2/memory1GiB, env and credentials are unchanged. Startup/live200;
+stopped inherited HALT keeps ready503. Evidence: `build/recovery-owner-drain-20261117`.
+
+Fresh Check `a5624666-9750-42d7-b37b-ec7122f17f2e` verifies both complete
+14,519-fill scans over292 native pages. During finalization the engine reports
+`critical_persistence_failure` and restarts; owner generation changes and the
+receipt fails `recovery_owner_changed`. No Reset or Start is issued. The SQL
+failure mechanism is reproduced with a deliberately delayed checkpoint snapshot
+and concurrent production status publication: all three Check/Reset boundaries
+fail on the original code. The fix streams the bulk hash before acquiring the
+BotState publication/authority lock, retaining financial SHARE locks at final
+proof and fresh authority/risk checks immediately before commit. Request receipt
+is never permission to repair a concurrently edited ledger.
+
+Native157 and PostgreSQL regression66 pass. Focused lock/drift tests7 pass, with
+six overlapping that regression scope. No deadline, pool, page cap, financial
+proof or risk policy is relaxed. Connected recovery is still open until a new
+artifact passes; this is not a new MM/soak availability pass. Evidence:
+`build/recovery-finalization-lock-20261117`.

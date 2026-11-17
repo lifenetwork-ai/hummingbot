@@ -403,7 +403,14 @@ resumable verification; no deployment env change is required. Snapshot and final
 ledger hashing run on the recovery worker in batches; physical owner checks stay
 on their owning loop. Finalization locks the proof tables while the core is
 stopped and rejects intervening changes. The suffix remains bounded by exchange
-retention and bounded verification jobs. Each job reads at most100 history pages
+retention and bounded verification jobs. For checkpoint recovery, the bulk ledger
+hash is read before taking the BotState row lock used by heartbeat publication.
+Final Check/Reset retain financial-table SHARE locks throughout that read, then
+compare fresh owner/control/risk state under the short final authority lock.
+Reset request acceptance is only a queue receipt: a financial edit racing its
+precomputed read is still rejected by the independent final locked proof before
+any repair or HALT removal. It cannot grant execution authority on its own.
+Each job reads at most100 history pages
 of100 fills and yields after90 seconds within the unchanged120-second deadline.
 Cursor, fixed venue cutoff/heads and digest advance atomically with per-pass
 identity deduplication. The same owner can resume a canceled worker from its last

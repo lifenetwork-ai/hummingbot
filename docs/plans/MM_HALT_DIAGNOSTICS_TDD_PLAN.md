@@ -130,3 +130,44 @@ before the unchanged review expiry. No live Reset/Start or new soak pass is clai
 
 Raw evidence: `build/halt-diagnostics-20261117`. The current production image
 does not include these edits. Keep prior resource failures and release gates.
+
+### Revision162 rollout observation — schema gate remains blocked
+
+Cloud Build `95da713d-839e-4464-8c5c-97b2cff5da01` builds target
+`9d2c4b53312c5d9ac97dd300bad1c4e39025a42a`, but its deploy step fails on
+`hummingbot-demo-00162-zks`: `schema_incompatible`, engine exit78 and failed
+startup probes. Registry config confirms that exact commit in image `981b334c...`.
+Revision161 keeps100% traffic. `ENABLE_AUTO_MIGRATION=true` is set on162.
+A SELECT-only transaction confirms migration023 absent, table
+`recovery_proof_fills` absent and the old advisory owner lock still granted.
+Stopcontrol93 is acknowledged, but Stop does not terminate the owning process.
+The guarded runner defers DDL while that owner exists; schema validation cannot
+accept the missing required table. An owner-drained migration/rollout is still
+needed before connected recovery can run. No migration bypass, DDL, Reset/Start,
+credential or risk write is performed during this observation. The read-only
+proxy is closed. Evidence: `build/recovery-segmented-postdeploy-20261117`.
+
+### Owner-drained migration and finalization/publication race
+
+Migration023 is now applied through the guarded runner after manual scaling0
+released the old owner. Original automatic min1/max1,2CPU/1GiB and environment
+were restored with the immutable `9d2c4b533` image on
+`hummingbot-demo-r023-20261117-115009`, Ready100%. Migration comparison preserves
+55,876 orders,15,169 fills,3 positions, financial rows and risk state; control93
+remains acknowledged stopped/HALT. No direct HALT or financial repair was used.
+
+Check `a5624666-9750-42d7-b37b-ec7122f17f2e` completes292 native pages across
+both14,519-fill scans but cannot finish: engine `critical_persistence_failure`
+at11:55:53UTC, followed by restart and a changed owner. Its receipt correctly
+fails `recovery_owner_changed`; no Reset or Start is submitted. The mechanism
+is reproduced locally by delaying the final snapshot while publishing status:
+three RED cases fail because checkpoint hashing holds the BotState authority row.
+
+The follow-up reads the bulk checkpoint before taking that row lock. Final
+Check/Reset keep financial SHARE locks, then compare fresh actor/owner/control/
+risk before commit; Reset acceptance alone never permits repair. Local native157
+and PostgreSQL regression66 pass. Seven focused lock/drift tests cover the three
+publication paths, authority changes and a financial edit racing request receipt;
+six are also in the regression set. Source/deployed recovery remains open until
+the new artifact completes a fresh connected proof. Evidence:
+`build/recovery-owner-drain-20261117`, `build/recovery-finalization-lock-20261117`.
