@@ -26,8 +26,8 @@ Preserve submission receipts/context, all fills/positions, financial checkpoint
 costs, credentials, risk policy and peaks. Any drift rolls back the entire batch.
 The response exposes `repaired_orders`; success leaves trading stopped.
 
-No schema, env or risk change. No connected Reset/Start or new deployment is
-implied by local implementation. The five current Demo orders remain untouched.
+No schema, env or risk change. Local implementation alone does not authorize
+connected Reset/Start. The authorized stopped recovery is recorded below.
 
 ## TDD checklist
 
@@ -45,8 +45,8 @@ implied by local implementation. The five current Demo orders remain untouched.
 - [x] Verify metadata batch rollback and immutable receipt/context preservation.
 - [x] Update API/OpenAPI, generated client types, operator and FE docs.
 - [x] Run focused PostgreSQL/native recovery regressions and relevant hooks.
-- [ ] Connected Check → reviewed Reset acceptance; revision168 Check is blocked
-  by the aged native-head history issue described below. No Reset was sent.
+- [x] Connected Check → reviewed Reset acceptance on revision169 after fixing
+  revision168's aged native-head history blocker. Success remains stopped.
 
 ## Local qualification
 
@@ -69,10 +69,11 @@ repairs until it displays and explicitly reviews the new order list. The new
 API/Swagger contract can carry that confirmation; no automatic retry promotes it.
 
 A READ ONLY connected prerequisite check with the local candidate validator
-recognizes exactly the five current Demo orders. It confirms stopped control96
-and retained HALT; it is not connected execution of the new API. The SQL proxy
-and disposable test containers are closed. No extra metadata repair, deployment,
-Reset or Start occurs in this task. Evidence: `build/recovery-terminal-api-20261117`.
+recognizes exactly the five Demo orders at stopped control96 with retained
+HALT. That pre-deployment check does not execute the new API. Its SQL proxy and
+disposable test containers are closed; no extra metadata repair, deployment,
+Reset or Start occurs in that local qualification.
+Evidence: `build/recovery-terminal-api-20261117`.
 
 ## Connected follow-up, 2026-11-18
 
@@ -101,9 +102,9 @@ verifier against actual Demo data passes both81-fill scans, positive status/
 fills/status proof for the five canceled zero-fill orders, and the final account
 head/open-order/exposure recheck. Every DB transaction is READ ONLY and progress
 is kept only in memory: this does not complete a connected API Reset.
-This follow-up is not deployed; the connected gate remains open. Keep Demo
-stopped; after deployment run a fresh Check and review the exact five orders
-before Reset. Do not reuse the failed operation or start trading.
+At that stage the follow-up is not deployed and the connected gate remains
+open. Revision169 below subsequently runs a fresh Check and exact-order review;
+the failed revision168 receipt is not reused.
 
 Evidence: `build/recovery-terminal-postdeploy-20261118` (private native reads,
 before/after read-only comparisons, failing Check receipt and RED/GREEN tests).
@@ -115,3 +116,61 @@ logs include the expected recovery blocker and slow-stage diagnostics, including
 a1.026s observation and a recovered approximately218ms owner-read loop stall.
 These are not successful trading or load acceptance; no new restart or HALT
 transition is observed in the sampled revision window.
+
+## Revision169: connected metadata recovery passed, trading stopped
+
+CI build `7e0750d1-7f99-4b2a-98e2-bcfac9b7c00b` deploys exact commit
+`8036235c22067d7433b1594a8ac4ce75201b6db2` on
+`hummingbot-demo-00169-cj5`, Ready/100% traffic, resolved image digest
+`sha256:b8d9705ab486efc36bfe77dd87181237f901c11dd138f8f5d20a3965cf7544f2`.
+The API becomes Ready before ownership handoff; recovery waits until both
+process and fresh owner identities match169 at stopped control/ack96.
+
+Check `f42415c3-d559-47ed-99e1-33193cb8675e` completes both81-fill native
+scans, positive cancellation/zero-fill proof for exactly the three Spot and two
+Perpetual orders, and the final account-head/open-order/exposure recheck. Its
+preview has five `proposed_order_changes`, no position changes or blockers.
+The exact IDs, native IDs, side/position, amounts/prices and before/after states
+match the previously reviewed scope. Reset
+`f8c19469-e4a5-449e-bd76-c23c8b8ad86a` explicitly confirms those changes,
+independently repeats proof and completes `recovered` at control/ack97.
+
+Read-only comparison verifies exactly five OrderCancelled rows, five terminal
+attempts, five tracker removals and five added cancel statuses. All immutable
+receipts/contexts and unrelated rows match. Counts remain56,473 orders,
+15,250 fills and3 positions; statuses advance183,308→183,313. Financial
+checkpoint payload/costs/watermark, runtime journal, credentials, risk and pinned
+catalogue match; only the reviewed recovery anchor advances to this Reset and
+journal watermark89267. Owner UUID/generation stays unchanged through Check/
+Reset. Five per-order success audits reference that Reset and the actual
+configured Basic admin principal; this is not Google-auth qualification.
+
+HALT is cleared and trading stays stopped. No Start, venue order/cancel/close,
+manual SQL repair, migration, service scaling or risk change is sent.
+Evidence: `build/recovery-aged-head-postdeploy-20261118`. This closes the
+connected stopped API repair scope; dashboard metadata-review UX, running
+liquidity/load/soak and broader release gates retain their separate scopes.
+
+Seven samples over182.3s after recovery stay fresh on169, stopped at control97
+without HALT; `/startup` and `/live` stay200. `/ready` remains503 because no
+trading Start was requested. The bounded revision169 application-log query has
+two recovered loop stalls, about269/271ms, and one217.5ms DB ping diagnostic;
+no application ERROR, restart or new HALT transition is observed. One audit-read
+denial is the operator helper using the incorrect `/access/audit` path; correcting
+it to the existing `/audit` route verifies all five audits without changing
+authentication or roles. These observations do not establish root cause for
+every latency sample or close load/soak gates. The task's SQL proxy is closed;
+no image/container cleanup is needed because this task creates none locally.
+
+## Separately authorized Start and running observation
+
+After the stopped recovery, the operator explicitly requests Start and30-minute
+monitoring. Start `9d99ec03-811a-487a-acc9-7455b8c508aa` succeeds at control98
+with the unchanged both-market follow_market catalogue and until_stopped/no
+expiry. The30-minute observation records39 new Spot fills, no HALT/restart and
+verified native Perpetual reduceOnly closing orders. Bot remains running.
+It is not a clean all-health or two-sided-liquidity pass: one public startup503,
+five probe warnings including startup, recovered loop stalls and insufficient
+two-sided coverage remain recorded. No second recovery, risk change or manual
+SQL repair is used. Detailed counts, evidence and limits are in
+[the connected report](../../reports/demo/cloudrun-recorder-ack-recovery-20261117.md).

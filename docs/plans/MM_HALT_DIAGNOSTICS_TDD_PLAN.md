@@ -4,11 +4,31 @@ Scope approved 2026-11-17: explain the actual persisted Demo HALT, reproduce and
 fix demonstrated code faults, publish safe cause metadata, and retain recovery
 proofs. No blanket HALT reset, risk change or implicit trading restart.
 
-Latest connected result: revision164 on exact `a153807bf` completes the large
-checkpoint Check/Reset API flow and explicit Start. Control95 is acknowledged
-running, no HALT, startup/live/ready200 at that workflow's final sample. This closes technical recovery on this
-Demo artifact; the broader load/soak and production release gates retain their
-existing scopes and failures. Detailed connected receipts are recorded below.
+Latest connected recovery: revision169 on exact `8036235c2` completes reviewed
+terminal-order metadata recovery through the normal API. Check verifies both
+81-fill suffix scans and exactly five positive canceled/zero-fill orders; Reset
+repairs only their metadata and clears the retained revision166 technical HALT.
+Control/ack97 is stopped, not running. READ ONLY comparison preserves all15,250
+fills,3 positions, financial/risk/credential rows and unrelated metadata; five
+per-order audits carry the configured Basic admin principal. No Start is sent.
+Seven fresh samples over182.3s remain stopped/no HALT with startup/live200;
+ready503 is expected. Two approximately270ms loop stalls recover in the bounded
+log window, without application ERROR or restart. The task SQL proxy is closed.
+See [the connected qualification](RECOVERY_TERMINAL_METADATA_TDD_PLAN.md).
+Revision164's earlier recovery/explicit Start remains historical evidence below;
+broader load/soak, live trading and production gates retain their separate scopes.
+
+Subsequently authorized Start `9d99ec03-811a-487a-acc9-7455b8c508aa` runs the
+unchanged both-market/fixed follow_market catalogue until_stopped at control98,
+session `325bfcf3-6651-4aa4-a8df-f0daccb783c4`, with no expiry. A30-minute
+observation records39 new Spot fills (35BUY/4SELL), unchanged owner564, no HALT/
+restart/application ERROR and zero unapplied journal entries. Native readback
+confirms working reduceOnly SELL/long orders on Perpetual; no Perpetual fill
+occurs. Bot remains running. The strict all-health gate fails on one startup503
+at1205s; the same-window continuation retains that failure, with no reset/new
+clean window. Five probe warnings including startup and31 recovered loop stalls
+remain recorded. Quote two-sided coverage also remains below/not eligible for
+the99% target. See [the full running observation](../../reports/demo/cloudrun-recorder-ack-recovery-20261117.md).
 
 Latest runtime follow-up: revision166 retains the probe optimization after a
 dashboard-only merge, but enters a new technical HALT at2026-11-17 14:31:30UTC.
@@ -72,9 +92,11 @@ reviewed metadata changes while leaving trading stopped. Pending/uncertain sends
 and financial uncertainty remain blocked. Local final PostgreSQL30/native140,
 the seven affected recovery-hook tests and checks pass; broader PostgreSQL104
 is an overlapping earlier scope. Read-only validation recognizes exactly the
-five unchanged current Demo candidates. No new image is deployed and no
-connected Reset/Start is sent. Connected acceptance remains open in
-[the API implementation plan](RECOVERY_TERMINAL_METADATA_TDD_PLAN.md).
+five unchanged Demo candidates before deployment. Revision168's connected Check
+then exposes an aged native-head endpoint-selection bug. The TDD fix on169
+completes connected Check/review/Reset as recorded at the top of this plan.
+Start stays separate: none was sent at that stopped checkpoint; the subsequently
+authorized running observation is recorded above.
 
 Read-only Demo evidence contradicts the initial ownership-only attribution:
 the stored manual reason is `A required runtime task failed; inspect service
@@ -99,9 +121,12 @@ and repeated handshake502. At08:16:54, runtime health reports
   EMERGENCY label; retain safe legacy fallback and stale-state handling.
 - [x] Run affected native/PostgreSQL/API/frontend checks and hooks. Record
   read-only cloud evidence, remaining live recovery prerequisites and limits.
-- [ ] Deploy the repaired image, Stop and run the reviewed connected recovery
-  proof/confirmation, then separately Start and monitor actual Demo. Current
-  Cloud image159 is unchanged and still HALTed; no manual DB reset is applied.
+- [x] Deploy and run the reviewed connected recovery proof/confirmation. The
+  latest revision169 completes the five-order repair while keeping stopped.
+- [x] Separately authorized Start and30-minute observation on169; bot remains
+  running at98. Retain the startup503 as a failed strict health gate.
+- [ ] Qualify health latency and the99% two-sided target; running observation
+  alone does not close these or broader production/load/soak gates.
 
 Local validation: broad native Cloud Run regression4,101 +16 subtests; final
 affected recovery/ownership/publication PostgreSQL88 cases (earlier five-module

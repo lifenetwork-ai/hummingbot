@@ -189,3 +189,104 @@ comparison confirms the failed deployed Check leaves the five orders/attempts/
 trackers, financial checkpoint, fills/positions and risk unchanged.
 The connected Reset gate remains open until that fix is deployed and a fresh
 Check/review succeeds. No Reset, Start or supplemental SQL maintenance is sent.
+
+## Revision169: five-order API recovery completed
+
+CI deploys the aged-head fix `8036235c2` as `hummingbot-demo-00169-cj5`,
+Ready/100% traffic; the resolved image digest is
+`sha256:b8d9705ab486efc36bfe77dd87181237f901c11dd138f8f5d20a3965cf7544f2`.
+Recovery waits for the new physical owner after API readiness. Fresh Check
+`f42415c3-d559-47ed-99e1-33193cb8675e` verifies both81-fill suffix scans
+and exactly the five canceled zero-fill orders listed above, with no financial
+repair or blocker. The reviewed Reset
+`f8c19469-e4a5-449e-bd76-c23c8b8ad86a` independently revalidates, atomically
+repairs those metadata rows and clears the retained technical HALT.
+
+The before/after READ ONLY comparison passes: five exact OrderCancelled updates,
+five terminal attempts, five tracker removals and five cancel-status inserts;
+original receipts/contexts and unrelated rows match. Orders56,473, fills15,250
+and positions3 stay unchanged; statuses183,308→183,313. Runtime journal,
+credentials, financial checkpoint costs/payload/watermark, risk and pinned
+catalogue match; its reviewed recovery anchor alone advances to this Reset at
+journal watermark89267. The same owner/generation completes the operation.
+Five per-order success audits carry the actual Basic admin identity and Reset
+ID, as confirmed through `/audit?operation_id=...`.
+
+Final requested state is stopped, control/ack97, no HALT. No Start or extra
+manual SQL repair is performed; the rejected supplemental maintenance remains
+unused. This is connected API recovery acceptance, not running-trading/soak or
+dashboard metadata-review acceptance. Evidence:
+`build/recovery-aged-head-postdeploy-20261118`.
+
+Post-recovery observation: seven fresh samples over182.3s keep the same169
+owner, stopped control97/no HALT, startup/live200 and expected stopped ready503.
+The bounded application-log query returns two recovered loop stalls about269/
+271ms and a217.5ms DB ping diagnostic, without application ERROR/restart/new HALT.
+One admin-access denial comes from the helper's incorrect audit URL, corrected
+to the documented `/audit` route; the actual five repair audits then verify.
+No zero-latency, running liquidity or long-soak claim is made. The SQL proxy is
+closed; no local test image/container is created during this connected task.
+
+## Authorized continuous Start:30-minute runtime observation
+
+The operator subsequently requests Start and monitoring. The API accepts Start
+`9d99ec03-811a-487a-acc9-7455b8c508aa`, then succeeds at control/ack98 on the
+same revision169 image. Session `325bfcf3-6651-4aa4-a8df-f0daccb783c4` runs
+both markets, fixed follow_market, until_stopped with expires_atnull. The
+catalogue hash remains `2e4c399583fa8e8c201b07f2ac9a26f81b987e9ccd44a03011fa463bcd94ba71`.
+Credentials stay connected; caps0.05/0.05/gross0.1BTC, close_first/breakeven,
+drawdown2500/5000 and all other catalogue values are unchanged. Normal API audit
+carries the configured Basic admin identity. No manual SQL repair or risk reset
+is used.
+
+The observed window is2026-11-17 17:52:23.849–18:22:25.752UTC,1800.9s on one
+revision/session/control. It contains56 HTTP samples; live/ready and fresh runtime
+status remain healthy in those samples, with no HALT/restart/application ERROR
+returned by the bounded log query. Owner UUID/generation564 matches before/after.
+Final READ ONLY counts are56,640 orders/15,289 fills/3 positions:167 additional
+order records and39 additional fills since Start, on38 distinct filled orders.
+All39 observed fills are Spot,35BUY and4SELL. Ledger growth matches the observed
+fill set; zero journal rows remain unapplied. Additional order records include
+local guard failures and must not be reported as167 venue-accepted orders.
+
+Native GET-only account reads at the beginning and end confirm two live
+BTC-USDT-SWAP SELL orders, posSidelong, reduceOnlytrue, price72,938.67. Perpetual
+LONG remains0.0498BTC; there is no Perpetual fill, so actual closing-fill/handoff
+acceptance remains open. The fee-inclusive breakeven policy deliberately does
+not force a loss-making close. Spot inventory skew initially suppresses SELL
+below50% BTC valuation, later admits SELL; multiplier-zero/minimum-size outcomes
+are reported as order_size_rejected. Perpetual BUY remains inventory-limited.
+
+**Retained failures/limits:** at1205.5s the public startup endpoint returns503
+with stateengine_unavailable, while live/ready return200 and runtime is still
+running/fresh/no HALT. An immediate later read returns startup200. The original
+strict monitor fails and keeps its receipt. Observation then continues to the
+original30-minute deadline without resetting the clock or claiming a new clean
+window. The largest HTTP sampling gap during diagnosis is143.26s; this is sampled
+evidence, not a continuous uptime proof. The API's engine-health proxy has a300ms
+deadline; a391.6ms loop stall at the failed sample includes checkpoint-copy stack
+evidence. This supports a timeout explanation, not proof of a unique root cause.
+
+The Start-through-final log query records five approximately301ms probe timeouts
+(one during startup, four inside the measured window),31 loop stalls and31
+recoveries; maximum recorded heartbeat gap is1286.9ms. Seventeen stall captures
+include copy_liquidity_checkpoint frames (nine in publication preparation, eight
+in capture). Slow diagnostic spans may include awaits and are not synonymous with
+loop-block duration. Two spread-policy order rejections are WARNINGs; no financial
+write failure, child restart or new technical HALT is observed. Keep the strict
+all-health/latency gate failed rather than widening timeouts or suppressing data.
+
+Server rolling coverage at the final sample retains the full1800s window. Spot
+has234.285 eligible seconds,229.133 two-sided eligible seconds (97.801% conditional,
+12.784% conservative),1558.006 eligibility-unknown seconds and7.709 policy-restricted
+seconds. It does not pass the99% target. Perpetual has no eligible time and about
+1799.435 inventory-restricted seconds, so its two-sided target is not qualified.
+Both have about0.565s observation-unknown time. Do not reinterpret the remaining
+eligibility-unknown Spot periods as measured healthy two-sided quoting.
+
+Bot remains running until stopped; no Stop is sent at the end of measurement.
+Follow-ups remain health/loop-latency TDD, two-sided qualification and a real
+Perpetual closing-fill handoff. No production/long-soak pass is claimed.
+Private evidence: `build/demo-resume-r169-20261118`, including immutable Start,
+the failed strict monitor, same-window continuation, native/DB comparisons and
+log summaries. No local image/container is created by this observation.
