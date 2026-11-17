@@ -5,8 +5,9 @@ from aiohttp import web
 from pydantic import Field
 
 from hummingbot.cli.admin_errors import request_id
-from hummingbot.cli.admin_models import APIModel, UTCDateTime
+from hummingbot.cli.admin_models import APIModel, HaltCause, UTCDateTime
 from hummingbot.cli.api_documentation import api_operation
+from hummingbot.core.halt_diagnostics import halt_cause
 from hummingbot.core.recovery import recovery_blockers
 from hummingbot.core.recovery_messages import RECOVERY_MESSAGES
 from hummingbot.model.bot_state_store import ControlConflict
@@ -78,6 +79,7 @@ class RecoveryOverview(APIModel):
     reset_available: bool
     blockers: List[RecoveryBlocker]
     operation: Optional[RecoveryOperation] = None
+    cause: Optional[HaltCause] = None
 
 
 def blocker(code):
@@ -90,6 +92,8 @@ def operation_response(row):
     stage = report.get('stage', 'queued')
     labels = {'queued': ('Recovery queued', 'Wait for the trading service to check this request.'),
               'checking_exchange': ('Checking recovery', 'Checking saved history against the exchange. Trading remains stopped.'),
+              'checking_exchange_segment': ('Checking recovery in batches', 'Verification is incomplete. More exchange history is being checked; trading remains stopped.'),
+              'waiting_for_exchange': ('Waiting for exchange verification', 'The exchange read will be retried from saved progress. Trading remains stopped.'),
               'revalidating': ('Recovering', 'Rechecking the reviewed plan before applying verified repairs.'),
               'review_required': ('Ready for review', 'Review the proposed repairs, then confirm recovery. Trading will stay stopped.'),
               'blocked': ('Recovery blocked', 'Resolve the listed reasons before running a new recovery check.'),
@@ -129,6 +133,7 @@ class AdminRecoveryAPI:
                      and row['expected_version'] == state['control_version']
                      and store._same_owner(state, row['result']['_private']) and not codes)
         model = RecoveryOverview(halted=bool((state['recovery_state'] or {}).get('halt')),
+                                 cause=halt_cause(state['recovery_state'] or {}),
                                  control_version=state['control_version'], check_available=not any(code in HARD_BLOCKERS for code in codes), reset_available=reset,
                                  blockers=[blocker(code) for code in sorted(set(codes))], operation=operation)
         return web.json_response(model.model_dump(mode='json'))

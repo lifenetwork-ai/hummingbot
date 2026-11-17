@@ -2,11 +2,14 @@
 import asyncio
 import functools
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from hummingbot.cli.admin_database import AdminDatabaseExecutor
 from hummingbot.core.admin_identity import AccessDenied
 from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.core.recovery import RECOVERY_TIMEOUT_SECONDS, RecoveryBlocked, recovery_blockers, replay_positions
 from hummingbot.core.recovery_exchange import verify_exchange
+from hummingbot.core.segmented_recovery import verify_segment
 from hummingbot.model.bot_state_store import ControlConflict
 from hummingbot.model.recovery_store import RecoveryStore
 
@@ -44,6 +47,9 @@ class RecoveryCoordinator:
         self.store = RecoveryStore(host.store)
         self.work = AdminDatabaseExecutor()
         self.readers = {}
+        self.active_row = None
+        self.segmented = False
+        self.finalizing = False
 
     async def call(self, function, *args, **kwargs):
         return await self.work.submit(functools.partial(function, *args, **kwargs), heavy=True)
@@ -63,6 +69,7 @@ class RecoveryCoordinator:
             raise
 
     async def run(self, operation_id):
+        self.active_row, self.segmented, self.finalizing = None, False, False
         try:
             await asyncio.wait_for(self._run(operation_id), RECOVERY_TIMEOUT_SECONDS)
         except asyncio.CancelledError:
@@ -73,7 +80,11 @@ class RecoveryCoordinator:
             code = (error.code if isinstance(error, (RecoveryBlocked, ControlConflict, AccessDenied)) else
                     'recovery_timeout' if isinstance(error, asyncio.TimeoutError) else 'recovery_check_unavailable')
             self.host.owner.check_owner()
-            self.store.fail(self.host.owner, operation_id, code)
+            if (self.segmented and not self.finalizing and self.active_row is not None
+                    and (isinstance(error, (asyncio.TimeoutError, OSError, SQLAlchemyError)) or code == 'recovery_exchange_unavailable')):
+                await self.finish(self.store.defer_proof, self.active_row, code)
+                return
+            await self.finish(self.store.fail, operation_id, code)
             self.host.log.warning('Recovery operation blocked code=%s', code,
                                   extra={'event': 'recovery_blocked', 'operation_id': operation_id, 'reason_code': code})
         finally:
@@ -88,6 +99,7 @@ class RecoveryCoordinator:
         row = self.store.claim(owner)
         if row is None:
             return
+        self.active_row = row
         core = host.hb.trading_core
         from hummingbot.core.automatic_recovery import AutomaticOrderRecovery
         automatic = owner.automatic_recovery
@@ -121,14 +133,21 @@ class RecoveryCoordinator:
                 raise RecoveryBlocked('unsupported_connector')
             self.readers[name] = RecoveryReader(read_only_connector(name, config))
         if checkpoint:
-            from hummingbot.core.checkpoint_recovery import verify_checkpoint_exchange
+            self.segmented = True
 
             async def lookup(keys, watermark):
                 return await self.call(self.store.checkpoint_fill_rows, keys, watermark)
-            proof = await verify_checkpoint_exchange(snapshot, self.readers, lookup)
+            progress = ((row.get('result') or {}).get('_private') or {}).get('proof')
+
+            async def save(before, after, entries):
+                return await self.finish(self.store.save_proof_progress, row, snapshot, before, after, entries)
+            proof = await verify_segment(snapshot, self.readers, lookup, progress, save)
+            if proof is None:
+                return  # Same durable operation resumes on the next observer tick.
         else:
             proof = await verify_exchange(snapshot, plan, self.readers)
         owner.check_owner()
+        self.finalizing = True  # Never automatically repeat a financial reset.
         if row['action'] == 'recovery_check':
             await self.finish(self.store.finish_check, row, snapshot, plan, proof, blockers=[])
         else:

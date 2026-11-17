@@ -3,9 +3,47 @@ import { describe, expect, it, vi } from 'vitest'
 import { OperatorAttentionBanner } from './OperatorAttentionBanner'
 
 describe('OperatorAttentionBanner backend guidance', () => {
+  it('presents a temporary shutdown fence as returned progress instead of an emergency', () => {
+    render(<OperatorAttentionBanner recovery={{ halted: true, cause: null, detail: 'Wait for owner recovery.',
+      next_action: 'wait', pending_mutations: false, check_available: false, reset_available: false, status_url: '/recovery' }}
+      operator={{ state: 'stopping', label: 'Trading owner is shutting down', detail: 'Shutdown verification is in progress.', next_action: 'wait' }} />)
+    expect(screen.getByText('Trading owner is shutting down')).toBeInTheDocument()
+    expect(screen.getByText('Shutdown verification is in progress.')).toBeInTheDocument()
+    expect(screen.queryByText(/EMERGENCY/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+  it('shows the persisted cause and known event time without an invented emergency label', () => {
+    render(<OperatorAttentionBanner recovery={{ halted: true, detail: 'Run a recovery check.', next_action: 'contact_support',
+      pending_mutations: false, check_available: false, reset_available: false, status_url: '/recovery',
+      cause: { reason_code: 'runtime_task_failed', current_reason_code: 'runtime_task_failed', category: 'technical',
+        label: 'Required trading task stopped', detail: 'Verify the user stream before restarting.',
+        occurred_at: '2026-11-16T08:16:54Z', revision: 'hummingbot-demo-00158-dxf', evidence_source: 'persisted',
+        automatic_recovery_expected: false, cleanup_incomplete: false, component: 'okx_perpetual',
+        task: '_user_stream_tracker_task', task_state: 'completed', runtime_reason_code: 'connector_task_stopped' },
+    }} />)
+    expect(screen.getByText('Required trading task stopped')).toBeInTheDocument()
+    expect(screen.getByText('Verify the user stream before restarting.')).toBeInTheDocument()
+    expect(screen.queryByText(/EMERGENCY/)).not.toBeInTheDocument()
+    expect(screen.getByText(/runtime_task_failed/)).toBeInTheDocument()
+    expect(screen.getByText(/hummingbot-demo-00158-dxf/)).toBeInTheDocument()
+    expect(screen.getByText(/2026-11-16T08:16:54Z/)).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('keeps unknown legacy event time unknown', () => {
+    render(<OperatorAttentionBanner recovery={{ halted: true, detail: 'Contact support.', next_action: 'contact_support',
+      pending_mutations: false, check_available: false, reset_available: false, status_url: '/recovery',
+      cause: { reason_code: 'halt_reason_unknown', current_reason_code: 'halt_reason_unknown', category: 'unknown',
+        label: 'Trading halted; cause unavailable', detail: 'Technical review is required.', occurred_at: null,
+        revision: null, evidence_source: 'unavailable', automatic_recovery_expected: false, cleanup_incomplete: true,
+        component: null, runtime_reason_code: null, task: null, task_state: null },
+    }} />)
+    expect(screen.getByText('Trading halted; cause unavailable')).toBeInTheDocument()
+    expect(screen.getByText(/Event time unavailable/)).toBeInTheDocument()
+  })
   it('does not recategorize a risk stop as technical recovery or invent a recovery action', () => {
     const action = vi.fn()
-    render(<OperatorAttentionBanner recovery={{ halted: true, detail: 'Risk policy remains active; contact support.', next_action: 'contact_support', check_available: false, reset_available: false, pending_mutations: false, status_url: '/recovery' }} onAction={action} />)
+    render(<OperatorAttentionBanner recovery={{ halted: true, cause: null, detail: 'Risk policy remains active; contact support.', next_action: 'contact_support', check_available: false, reset_available: false, pending_mutations: false, status_url: '/recovery' }} onAction={action} />)
     expect(screen.getByText('Risk policy remains active; contact support.')).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(screen.getByText(/Contact technical support/)).toBeInTheDocument()

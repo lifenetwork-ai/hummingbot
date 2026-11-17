@@ -7,6 +7,7 @@ from typing import Annotated, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, TypeAdapter, field_validator
 
 from controllers.market_making.life_mm import ReferencePair
+from hummingbot.cli.admin_overview_models import OverviewSupplement
 from hummingbot.client.config.mm_profiles import DurationMode, MarketMode, MMProfilesConfig
 from hummingbot.core.admin_reconciliation import ReconciliationRequest
 from hummingbot.core.control_errors import RequestError
@@ -474,6 +475,23 @@ class ObservationStatus(APIModel):
     reason_code: Optional[str] = None
 
 
+class HaltCause(APIModel):
+    reason_code: str
+    current_reason_code: str
+    category: Literal['technical', 'risk', 'shutdown', 'unknown']
+    label: str
+    detail: str
+    occurred_at: Optional[UTCDateTime] = None
+    revision: Optional[str] = None
+    evidence_source: Literal['persisted', 'legacy_reason', 'unavailable']
+    automatic_recovery_expected: bool
+    cleanup_incomplete: bool
+    runtime_reason_code: Optional[str] = None
+    component: Optional[str] = None
+    task: Optional[str] = None
+    task_state: Optional[Literal['completed', 'failed', 'cancelled', 'stalled']] = None
+
+
 class RecoverySummary(APIModel):
     halted: bool
     pending_mutations: bool
@@ -482,6 +500,7 @@ class RecoverySummary(APIModel):
     reset_available: bool = False
     check_available: bool = False
     status_url: str = "/api/v1/admin/recovery"
+    cause: Optional[HaltCause] = None
 
 
 class AutomaticRecoveryStatus(APIModel):
@@ -502,6 +521,7 @@ class AutomaticRecoveryStatus(APIModel):
 
 
 class StatusResponse(APIModel):
+    overview: Optional[OverviewSupplement] = Field(default=None, description="Optional account/session reporting observations. Null if projection is unavailable; individual missing metrics remain null. Never controls trading.")
     automatic_recovery: Optional[AutomaticRecoveryStatus] = None
     quote_activity: Dict[Literal['spot', 'perpetual'], QuoteActivity] = Field(default_factory=dict)
     process_identity: Optional[RuntimeIdentity] = None

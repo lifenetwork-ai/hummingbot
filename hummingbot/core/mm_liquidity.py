@@ -10,6 +10,108 @@ from itertools import islice
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.mm_quote_activity import quote_activity, unavailable_activity
+from hummingbot.core.overview_coverage import GROUPS, add_interval, eligibility, eligibility_fields, project_buckets
+
+COVERAGE_WINDOW_SECONDS = 1800
+COVERAGE_HISTORY_LIMIT = 1800
+
+
+def _valid_intervals(history, *, ceiling):
+    if not isinstance(history, list) or len(history) > COVERAGE_HISTORY_LIMIT:
+        return []
+    result = []
+    prior_end = None
+    for interval in history:
+        if not isinstance(interval, dict) or set(interval) != {'start', 'end', 'two_sided'}:
+            return []
+        start, end, two_sided = interval['start'], interval['end'], interval['two_sided']
+        if (type(start) not in (int, float) or type(end) not in (int, float)
+                or not math.isfinite(start) or not math.isfinite(end) or end <= start
+                or end > ceiling or type(two_sided) is not bool
+                or prior_end is not None and start < prior_end):
+            return []
+        result.append(dict(start=float(start), end=float(end), two_sided=two_sided))
+        prior_end = end
+    return result
+
+
+def rolling_coverage(frame, market, *, now, target_fraction=None):
+    """Return a bounded, checkpoint-backed rolling window; absent history is unknown."""
+    if (not isinstance(frame, dict) or market not in ('spot', 'perpetual')
+            or type(now) not in (int, float) or not math.isfinite(now)):
+        raise ValueError('invalid_rolling_coverage_input')
+    if (target_fraction is not None and (type(target_fraction) not in (int, float)
+                                         or not math.isfinite(target_fraction)
+                                         or not 0 <= target_fraction <= 1)):
+        target_fraction = None
+
+    started = frame.get('started_at')
+    ended = frame.get('ended_at')
+    if type(started) not in (int, float) or not math.isfinite(started):
+        started = now
+    if type(ended) not in (int, float) or not math.isfinite(ended):
+        ended = None
+    window_end = min(float(now), float(ended)) if ended is not None else float(now)
+    window_start = max(float(started), window_end - COVERAGE_WINDOW_SECONDS)
+    elapsed = max(0.0, window_end - window_start)
+    history_ceiling = window_end
+    raw_history = frame.get('_coverage_history')
+    raw_market_history = raw_history.get(market) if isinstance(raw_history, dict) else None
+    intervals = _valid_intervals(raw_market_history, ceiling=history_ceiling)
+    if not intervals:
+        intervals = []
+
+    first_minute = math.floor(window_start / 60) * 60
+    per_minute = []
+    minute_start = first_minute
+    observed_total = two_sided_total = 0.0
+    while minute_start < window_end:
+        minute_end = min(minute_start + 60, window_end)
+        clip_start, clip_end = max(window_start, minute_start), min(window_end, minute_end)
+        observed = two_sided = 0.0
+        for interval in intervals:
+            overlap = max(0.0, min(clip_end, interval['end']) - max(clip_start, interval['start']))
+            if overlap:
+                observed += overlap
+                if interval['two_sided']:
+                    two_sided += overlap
+        duration = max(0.0, clip_end - clip_start)
+        observed = min(observed, duration)
+        two_sided = min(two_sided, observed)
+        per_minute.append(dict(minute_ts=minute_start, observed_seconds=observed,
+                               unknown_seconds=max(0.0, duration - observed),
+                               two_sided_seconds=two_sided))
+        observed_total += observed
+        two_sided_total += two_sided
+        minute_start += 60
+    observed_total = min(observed_total, elapsed)
+    two_sided_total = min(two_sided_total, observed_total)
+    result = dict(window_seconds=COVERAGE_WINDOW_SECONDS, window_start=window_start, window_end=window_end,
+                  elapsed_seconds=elapsed, observed_seconds=observed_total,
+                  unknown_seconds=max(0.0, elapsed - observed_total), two_sided_seconds=two_sided_total,
+                  rolling_30m_fraction=two_sided_total / elapsed if elapsed > 0 else None,
+                  target_fraction=target_fraction, full_window=elapsed >= COVERAGE_WINDOW_SECONDS,
+                  per_minute=per_minute)
+    zero = [0.] * (4 + len(GROUPS))
+    projected = project_buckets((frame.get('_coverage_buckets') or {}).get(market), start=window_start, end=window_end)
+    result.update(eligibility_fields(zero, elapsed, full_window=result['full_window']))
+    for minute in per_minute:
+        duration = max(0., min(minute['minute_ts'] + 60, window_end) - max(minute['minute_ts'], window_start))
+        minute.update({key: value for key, value in eligibility_fields(zero, duration, full_window=False).items()
+                       if key.endswith('_seconds')})
+    if projected is not None:
+        totals, minutes = projected
+        result.update(observed_seconds=totals[0], two_sided_seconds=totals[1],
+                      unknown_seconds=max(0., elapsed - totals[0]),
+                      rolling_30m_fraction=totals[1] / elapsed if elapsed > 0 else None,
+                      **eligibility_fields(totals, elapsed, full_window=result['full_window']))
+        for minute in per_minute:
+            duration = max(0., min(minute['minute_ts'] + 60, window_end) - max(minute['minute_ts'], window_start))
+            values = minutes.get(minute['minute_ts'], zero)
+            minute.update(observed_seconds=values[0], two_sided_seconds=values[1], unknown_seconds=max(0., duration - values[0]))
+            minute.update({key: value for key, value in eligibility_fields(values, duration, full_window=False).items()
+                           if key.endswith('_seconds')})
+    return result
 
 
 def own_quotes(connector, pair, *, max_orders):
@@ -59,7 +161,9 @@ class LiquidityObserver:
         self.previous = None
         self.previous_monotonic = None
         self.previous_owner = None
+        self.previous_wall = None
         self._warning_logs = {}
+        self._validated_bucket_markets = set()
 
     def _log_warning(self, market, activity, monotonic_now):
         prior = self._warning_logs.get(market)
@@ -90,8 +194,12 @@ class LiquidityObserver:
             ended = min(now, session.get('expires_at') or now) if session.get('status') == 'expired' else now
         elapsed = max(0, (ended if ended is not None else now) - started) if started is not None and math.isfinite(started) else 0
         if not self.frame or self.frame.get('session_id') != session['session_id']:
-            self.frame = dict(session_id=session['session_id'], coverage_started_at=now, markets={})
+            self.frame = dict(session_id=session['session_id'], coverage_started_at=now, markets={}, _coverage_history={}, _coverage_buckets={})
             self.previous = None
+            self.previous_monotonic = None
+            self.previous_owner = None
+            self.previous_wall = None
+            self._validated_bucket_markets.clear()
         old = self.frame.get('markets', {})
         if not isinstance(old, dict) or not set(old).union(observations) <= {'spot', 'perpetual'}:
             raise ValueError('liquidity_checkpoint_unavailable')
@@ -99,6 +207,14 @@ class LiquidityObserver:
         delta = monotonic_now - self.previous_monotonic if self.previous_monotonic is not None else 0
         continuous = (self.previous is not None and self.previous_owner == owner_generation
                       and ended is None and self.frame.get('generation') == session['generation'] and 0 < delta <= 5)
+        wall_delta = now - self.previous_wall if self.previous_wall is not None else 0
+        wall_continuous = self.previous_wall is not None and 0 < wall_delta <= 5
+        histories = self.frame.get('_coverage_history')
+        if not isinstance(histories, dict):
+            histories = {}
+        all_buckets = self.frame.get('_coverage_buckets')
+        if not isinstance(all_buckets, dict):
+            all_buckets = {}
         for market in set(old).union(observations):
             observation = observations.get(market, dict(valid=False, eligible=False, reason_code='liquidity_observation_unavailable',
                                                         best_bid=None, best_ask=None, bid_notional=None, ask_notional=None, spread_bps=None, two_sided=False,
@@ -118,22 +234,52 @@ class LiquidityObserver:
                 if persistent:
                     totals['two_sided_seconds'] += delta
             totals = {key: min(value, elapsed) for key, value in totals.items()}
+            history = _valid_intervals(histories.get(market, []), ceiling=now)
+            cutoff = now - COVERAGE_WINDOW_SECONDS
+            history = [dict(start=max(item['start'], cutoff), end=item['end'], two_sided=item['two_sided'])
+                       for item in history if item['end'] > cutoff]
+            buckets = all_buckets.get(market)
+            if market not in self._validated_bucket_markets:
+                if project_buckets(buckets, start=cutoff, end=now) is None:
+                    buckets = {}
+                self._validated_bucket_markets.add(market)
+            buckets = {key: value for key, value in buckets.items() if int(key) + 1 > cutoff}
+            persistent = bool(
+                continuous and wall_continuous and before and before.get('valid')
+                and observation.get('valid')
+                and set(before.get('bid_ids', [])).intersection(observation.get('bid_ids', []))
+                and set(before.get('ask_ids', [])).intersection(observation.get('ask_ids', [])))
+            if (continuous and wall_continuous and abs(delta - wall_delta) <= 1
+                    and before and before.get('valid') and observation.get('valid')):
+                credited = min(delta, wall_delta)
+                interval_start = now - credited
+                if credited > 0 and (not history or history[-1]['end'] <= interval_start):
+                    running = session.get('status') == 'running'
+                    old_state = eligibility(before, now=self.previous_wall, running=running)
+                    new_state = eligibility(observation, now=now, running=running)
+                    state = new_state if old_state == new_state else 'unknown'
+                    add_interval(buckets, start=interval_start, end=now, state=state, two_sided=persistent)
+            histories[market] = history
+            all_buckets[market] = buckets
             activity = quote_activity(observation, now=now, previous=prior, delta=delta,
                                       continuous=bool(continuous and before and before.get('valid') and observation.get('valid')),
                                       monitoring=started is not None and session.get('status') == 'running' and ended is None,
                                       warning_seconds=warning_seconds)
             self._log_warning(market, activity, monotonic_now)
             current[market] = {**{key: value for key, value in observation.items()
-                                  if key not in ('bid_ids', 'ask_ids', 'proposal', 'pending_orders', 'awaiting_executor_report')},
+                                  if key not in ('bid_ids', 'ask_ids', 'proposal', 'pending_orders', 'awaiting_executor_report', 'slo_scope_valid', 'session_admitted')},
                                'working_orders': observation.get('working_orders') if observation.get('valid') else None,
                                'quote_activity': activity,
                                **totals, 'elapsed_seconds': elapsed, 'unknown_seconds': max(0, elapsed - totals['observed_seconds']),
                                'two_sided_fraction_of_elapsed': totals['two_sided_seconds'] / elapsed if elapsed else None}
         self.frame.update(generation=session['generation'], profile_id=session['profile_id'], started_at=started,
-                          observed_at=now, ended_at=ended, markets=current, measurement='sampled_owner_observations')
+                          observed_at=now, ended_at=ended, markets=current, _coverage_history=histories,
+                          _coverage_buckets=all_buckets,
+                          measurement='sampled_owner_observations')
         self.previous = deepcopy(observations)
         self.previous_monotonic = monotonic_now
         self.previous_owner = owner_generation
+        self.previous_wall = now if self.previous_wall is None or now > self.previous_wall else None
         return deepcopy(self.frame)
 
 
@@ -174,6 +320,9 @@ def capture_liquidity(host):
                           if host.phase == 'waiting_for_mm_readiness' else None) or 'session_not_admitted'
             value.update(valid=True, eligible=host.phase == 'running' and bool(controller.processed_data.get('ready')),
                          reason_code=reason)
+            value['slo_scope_valid'] = (getattr(controller.config, 'mm_session_id', None) == session.id
+                                        and getattr(controller.config, 'mm_generation', None) == session.generation)
+            value['session_admitted'] = getattr(controller, '_session_admitted', False) is True
         except Exception:
             pass
         observations[market] = value
@@ -196,6 +345,9 @@ def _liquidity_view(row, *, session_id=None, market='all'):
     age = row.get('heartbeat_age_s')
     stale = (not row.get('owner_uuid') or age is None or not 0 <= float(age) <= 5 or not 0 <= now - observed <= 5
              or snapshot.get('generation') != current.get('generation'))
+    snapshot.pop('_coverage_history', None)
+    snapshot.pop('_coverage_buckets', None)
+    snapshot.pop('_overview_recovery', None)
     snapshot['state'] = 'unavailable' if stale else 'observed'
     selected = {}
     for key, value in snapshot['markets'].items():

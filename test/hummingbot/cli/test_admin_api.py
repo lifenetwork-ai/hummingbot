@@ -77,3 +77,20 @@ async def test_profiles_and_unknown_owner_status_are_structured():
         status = await (await http.get(ADMIN_PREFIX + "/status")).json()
         assert not status["owner_available"] and not status["running"]
         assert status["control_version"] == 1
+
+
+@pytest.mark.asyncio
+async def test_status_explains_legacy_halt_without_raw_errors_or_fabricated_event_time():
+    state = dict(bot_id='hummingbot', desired_state='running', control_version=1,
+                 acknowledged_version=1, heartbeat_age_s=0, owner_uuid='owner', database_now=1200,
+                 status=dict(phase='halted', running=False, mm_session=None), mm_session=None,
+                 recovery_summary=dict(halted=True, reason='A required runtime task failed; inspect service availability status.'))
+    async with client(state=state) as (http, _):
+        response = await http.get(ADMIN_PREFIX + '/status')
+        assert response.status == 200
+        body = await response.json()
+        assert body['recovery']['cause']['reason_code'] == 'runtime_task_failed'
+        assert body['recovery']['cause']['occurred_at'] is None
+        assert body['operator']['label'] == 'Required trading task stopped'
+        assert not body['actions']['start']['allowed']
+        assert not body['recovery']['check_available']

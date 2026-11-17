@@ -5,6 +5,20 @@ fee report. It does not patch trading, ownership, the recorder or connection poo
 """
 SLOW_REPORT_MODE = "wait"
 SLOW_REPORT_TIMEOUTS = 1
+SLOW_REPORT_TARGET = "daily"
+
+
+def slow_report_statement(statement, *, target, mode):
+    if target == 'overview':
+        if mode != 'wait':
+            raise ValueError('Overview injection supports bounded server wait only')
+        return ('WITH injected_wait AS MATERIALIZED (SELECT pg_sleep(2.1)) ' + statement.lstrip()).replace(
+            'FROM trade_fills f', 'FROM injected_wait CROSS JOIN trade_fills f', 1)
+    if mode == 'wait':
+        statement = statement.replace('WITH scoped AS (', 'WITH injected_wait AS MATERIALIZED (SELECT pg_sleep(2.1)), scoped AS (', 1)
+        return statement.replace('FROM scoped CROSS JOIN LATERAL', 'FROM scoped CROSS JOIN injected_wait CROSS JOIN LATERAL', 1)
+    return statement.replace('FROM scoped CROSS JOIN LATERAL', 'FROM scoped CROSS JOIN generate_series(1,20) AS injected_cpu CROSS JOIN LATERAL', 1)
+
 
 if process_role == "api":  # noqa: F821 -- supplied by the test instrumentation wrapper
     import threading
@@ -26,21 +40,18 @@ if process_role == "api":  # noqa: F821 -- supplied by the test instrumentation 
         claimed = False
         with _slow_daily_lock:
             if (marker.exists() and len(_slow_daily_attempts) < SLOW_REPORT_TIMEOUTS
-                    and "json_to_recordset" in statement and "FROM scoped CROSS JOIN LATERAL" in statement):
+                    and ((SLOW_REPORT_TARGET == 'daily' and "json_to_recordset" in statement and "FROM scoped CROSS JOIN LATERAL" in statement)
+                         or (SLOW_REPORT_TARGET == 'overview' and '/* overview_fee_source_batch */' in statement))):
                 context._slow_daily_index = len(_slow_daily_attempts)
-                _slow_daily_attempts.append({"started_at": time.time()})  # noqa: F821
+                _slow_daily_attempts.append({"started_at": time.time(), "report_target": SLOW_REPORT_TARGET})  # noqa: F821
                 if len(_slow_daily_attempts) == SLOW_REPORT_TIMEOUTS:
                     marker.unlink()
                 save_slow_daily_attempts()
                 context._slow_daily_injected = claimed = True
         if claimed:
-            logging.getLogger(__name__).info("Test-only slow daily query started",  # noqa: F821
-                                             extra={"event": "test_slow_daily_started"})
-            if SLOW_REPORT_MODE == "wait":
-                statement = statement.replace("WITH scoped AS (", "WITH injected_wait AS MATERIALIZED (SELECT pg_sleep(2.1)), scoped AS (", 1)
-                statement = statement.replace("FROM scoped CROSS JOIN LATERAL", "FROM scoped CROSS JOIN injected_wait CROSS JOIN LATERAL", 1)
-            else:
-                statement = statement.replace("FROM scoped CROSS JOIN LATERAL", "FROM scoped CROSS JOIN generate_series(1,20) AS injected_cpu CROSS JOIN LATERAL", 1)
+            logging.getLogger(__name__).info("Test-only slow report query started",  # noqa: F821
+                                             extra={"event": "test_slow_daily_started", "report_target": SLOW_REPORT_TARGET})
+            statement = slow_report_statement(statement, target=SLOW_REPORT_TARGET, mode=SLOW_REPORT_MODE)
         return statement, parameters
 
     @event.listens_for(Engine, "handle_error")  # noqa: F821

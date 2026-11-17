@@ -1,6 +1,8 @@
 """Bounded rolling projection of committed recorder fills and pending BUY risk."""
 import heapq
 import json
+from collections import deque
+from copy import deepcopy
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Dict
@@ -11,6 +13,7 @@ ZERO = Decimal("0")
 MAX_FILLS = 250000
 MAX_RESERVATIONS = 256
 MAX_ORDER_FILLS = 10000
+ADVANCE_BATCH = 512
 
 
 class SpotOutflowConfig(BaseModel):
@@ -40,6 +43,7 @@ class SpotOutflowProjection:
         self.coverage_start_ms = coverage_start_ms
         self.now_ms = 0
         self.entries, self.future, self.expiry = {}, [], []
+        self.pending_fills = deque()
         self._latest_expiry_ms = 0
         self.reservations: Dict[str, Reservation] = {}
         self.net = ZERO
@@ -52,14 +56,25 @@ class SpotOutflowProjection:
         self.invalid = set()
         self.clock_failure = False
 
-    def advance(self, now_ms):
+    def catching_up(self):
+        return bool(self.pending_fills or self._due_work())
+
+    def _due_work(self):
+        return ((self.future and self.future[0][0] < self.now_ms)
+                or (self.expiry and self.expiry[0][0] < self.now_ms - self.config.window_seconds * 1000))
+
+    def advance(self, now_ms, *, max_work=None):
+        if max_work is not None and (type(max_work) is not int or max_work <= 0):
+            raise ValueError('Clock advance work budget must be a positive integer')
         self.clock_failure = not isinstance(now_ms, int) or now_ms < self.now_ms
         if self.clock_failure:
             return
         self.now_ms = now_ms
         start = now_ms - self.config.window_seconds * 1000
-        while self.future and self.future[0][0] < now_ms:
+        work, limit = 0, max_work if max_work is not None else float('inf')
+        while self.future and self.future[0][0] < now_ms and work < limit:
             stamp, key = heapq.heappop(self.future)
+            work += 1
             value = self.entries.get(key)
             if value is None:
                 continue
@@ -83,7 +98,7 @@ class SpotOutflowProjection:
         if not self.future:
             self.future_risk = ZERO
             self.future_costs.clear()
-        if len(self.expiry) >= 1024 and self._latest_expiry_ms < start:
+        if max_work is None and len(self.expiry) >= 1024 and self._latest_expiry_ms < start:
             # All entries in this heap are due. Sorting once preserves exactly
             # the heappop order (including Decimal arithmetic) without repeated
             # heap repair during a large same-time expiry. Future risk is separate.
@@ -95,14 +110,27 @@ class SpotOutflowProjection:
                     self._apply(value, -1)
                     self.invalid.discard(key)
         else:
-            while self.expiry and self.expiry[0][0] < start:
+            while self.expiry and self.expiry[0][0] < start and work < limit:
                 _, key = heapq.heappop(self.expiry)
+                work += 1
                 value = self.entries.pop(key, None)
                 if value is not None:
                     self._apply(value, -1)
                     self.invalid.discard(key)
         if not self.expiry:
             self._latest_expiry_ms = 0
+        # Committed arrivals cannot reorder Decimal arithmetic across a clock
+        # catch-up. Replay detached fills only after all due heap work is done.
+        while self.pending_fills and not self._due_work() and work < limit:
+            try:
+                self._add_fill(self.pending_fills.popleft())
+            except (ValueError, TypeError, KeyError, ArithmeticError):
+                # Match the owner's synchronous committed-fill boundary: bad
+                # data blocks BUY without escaping through the service loop.
+                self.failure = 'spot_outflow_fill_invalid'
+            work += 1
+        if self.catching_up():
+            return
         for key, reservation in list(self.reservations.items()):
             if reservation.terminal_amount is not None and reservation.committed >= reservation.terminal_amount:
                 del self.reservations[key]
@@ -122,6 +150,18 @@ class SpotOutflowProjection:
         reservation.committed += amount
 
     def add_fill(self, row):
+        if row["market"] != "okx" or row["symbol"] != self.pair:
+            return
+        if self.catching_up():
+            if len(self.entries) + len(self.pending_fills) >= MAX_FILLS:
+                self.failure = 'spot_outflow_projection_limit'
+            else:
+                self.pending_fills.append(deepcopy(row))
+            return
+        self._add_fill(row)
+        self.advance(self.now_ms, max_work=ADVANCE_BATCH)
+
+    def _add_fill(self, row):
         if row["market"] != "okx" or row["symbol"] != self.pair:
             return
         key = (row["market"], row["order_id"], row["exchange_trade_id"])
@@ -187,13 +227,14 @@ class SpotOutflowProjection:
                 self.future_costs[key[1]] = self.future_costs.get(key[1], ZERO) + cost
                 self.future_risk += cost
             heapq.heappush(self.future, (stamp, key))
-        self.advance(self.now_ms)
 
     def reason(self):
         if self.failure:
             return self.failure
         if self.clock_failure:
             return "spot_outflow_clock_unavailable"
+        if self.catching_up():
+            return 'spot_outflow_projection_catching_up'
         if self.invalid:
             return "spot_outflow_fee_unavailable"
         if self.now_ms - self.coverage_start_ms < self.config.window_seconds * 1000:
@@ -228,14 +269,14 @@ class SpotOutflowProjection:
             if not committed_amount.is_finite() or not ZERO <= committed_amount <= item.amount:
                 raise ValueError("Terminal quantity is invalid")
             item.terminal_amount = committed_amount
-            self.advance(self.now_ms)
+            self.advance(self.now_ms, max_work=ADVANCE_BATCH)
 
     def release_unsent(self, order_id):
         self.reservations.pop(order_id, None)
 
     def status(self):
         reason = self.reason()
-        reserved = self.reserved()
+        reserved = None if self.catching_up() else self.reserved()
         return dict(ready=reason is None, reason_code=reason,
                     recorded_net_outflow_quote=None if reason else self.net,
                     reserved_quote=reserved,

@@ -442,6 +442,16 @@ last observation and **Stop orders**. Use the identity fields described below;
 show unknown/mismatch explicitly rather than inferring the environment from a URL.
 Shared balances appear once; spot and perpetual have separate quote/exposure cards.
 
+`GET /status` can also return the optional `overview` reporting supplement. Use
+the generated DTOs and [Overview reporting contract](overview-reporting.md).
+Inventory units follow the pair's base asset; monetary values are plain decimal
+strings, including tiny fees. Rolling total-time coverage and eligible coverage
+have different denominators: render eligibility-unknown and restrictions, consult
+`measurement_ready`, and use the conservative eligible fraction for the approved
+target. A zero eligible denominator is unqualified. Fee `processing_state=ready`
+means catch-up finished a source sweep; it does not override `history_complete=false`.
+Missing/stale reporting must not disable independent status/control views or Stop.
+
 An overview wireframe (not a shipped UI):
 
 ```text
@@ -794,6 +804,14 @@ peaks, observed PnL/drawdown and readiness/HALT reason. Stopped or stale current
 PnL is `null`; known peaks and confirmed breach remain visible. This metric
 includes reported trade fees and excludes funding; it is not account equity.
 See [managed MM drawdown](life-mm-controls.md#drawdown) for configuration and bound policy.
+
+A bounded clock catch-up reports `reason_code=spot_outflow_projection_catching_up`,
+`ready=false`, `stale=true`, `buy_allowed=false`, and null recorded/reserved/
+remaining quote values. Show “Updating spending window”; this is a transient
+BUY wait, not a breached cap or HALT. SELL/cancel remain available. A queued
+managed maker BUY uses typed `SpotOutflowPending`, retires without consuming
+exchange retries, and returns through fresh controller admission after catch-up.
+No partial totals authorize a new BUY.
 
 Optional `status.spot_outflow` exposes the bound rolling spot USDT policy,
 committed/reserved/remaining capacity, original non-USDT fees and BUY-only
@@ -1505,6 +1523,29 @@ expiry rejection atomically with retirement of its intent and saved tracker. Fin
 
 ### Reviewed manual recovery
 
+`GET /status.recovery.cause` and admin-only `GET /recovery.cause` explain a
+durable HALT with the same safe projection. The nullable object contains
+`reason_code`, `current_reason_code`, `category`, `label`, `detail`,
+`occurred_at`, `revision`, `evidence_source`, `automatic_recovery_expected` and
+`cleanup_incomplete`. Known runtime failures can also identify
+`runtime_reason_code`, `component`, `task` and `task_state`.
+
+Display the returned cause label/detail instead of assigning every HALT an
+“EMERGENCY” label. The initial persisted cause survives later cleanup failures;
+`current_reason_code` reflects the reason currently used for recovery eligibility.
+Unknown legacy times/revisions stay null; never substitute response/server time
+or the current revision as the incident origin. `evidence_source=legacy_reason`
+means only the known old reason was recovered, not its original task or time.
+`halt_reason_unknown` requests review without exposing raw saved exception text.
+For a temporary shutdown fence with `next_action=wait`, continue to show the
+operator's shutdown/progress guidance. The cause is explanatory: blockers,
+freshness, permissions and reviewed confirmation still govern Check/Recover.
+
+The supported technical stop `runtime_task_failed` permits a stopped recovery
+check; it does not certify that a task was repaired or authorize Start. Recovery
+still verifies credentials, orders, fills, positions, owner and unchanged risk
+checkpoints. A separate Start after recovery uses the deployed task implementation.
+
 A valid drawdown breach is a `recovery_risk_stop`, not proof of checkpoint
 corruption. Show the risk-review guidance and keep Recover disabled: this API
 does not reset risk limits, PnL peaks or stop latches. A malformed drawdown
@@ -1576,11 +1617,34 @@ cross/hedge USDT perpetual, and at most 100 unambiguous existing position rows.
   not an unverified exchange account. Successful Reset records an auditable new
   anchor in the same transaction as the receipt and technical HALT removal.
 
-The checkpoint route permits at most 100 pages of 100 fills per connector and an
-anchor younger than 89 days. Older suffixes use the official
+The checkpoint route resumes the same operation across bounded jobs: at most100
+history pages of100 fills per job, yielding by90 seconds within its120-second
+deadline. It permits250,000 suffix fills per scan, two complete matching scans,
+a30-minute proof lifetime and an anchor younger than89 days. Older suffixes use the official
 [OKX historical fills endpoint](https://www.okx.com/docs-v5/en/#order-book-trading-trade-get-transaction-details-last-3-months);
-missing/repeated cursors, unavailable pages, unknown venue fills or page-budget
-exhaustion remain blocked. No pagination cap is silently treated as completion.
+missing/repeated cursors, unknown venue fills and incomplete/changed evidence
+remain blocked. Reaching a job budget saves progress and resumes; it never means
+completion. GET/evidence DB failures retry up to five consecutive times with
+bounded backoff; financial finalization is never blindly retried.
+
+Poll the existing operation ID throughout `status=applying`:
+
+- `stage=checking_exchange_segment`: `verification.verified=false` and
+  `verification.progress={scan, scans_required:2, pages_checked, fills_checked,
+  expected_fills, complete:false}`. Pages are cumulative; fills are for the current
+  scan, so the fill counter resets when the second scan begins.
+- `stage=waiting_for_exchange`: safe `verification.retry_count` and
+  `next_retry_at` explain the retry. Keep polling the same ID.
+- Both stages keep `can_recover=false`, `confirmation_token=null`,
+  `expires_at=null`, and trading stopped. Do not render a confirmation action or
+  treat saved progress as successful recovery. Native IDs, cursors and private
+  digests are never returned in pending progress.
+
+Only full proof produces `review_required`; the existing five-minute confirmation
+TTL starts then and remains enforced at final Reset commit. Reset performs its
+own fresh two-pass proof; a long or interrupted Reset can expire the review and
+require a new Check. Owner/control/account/ledger/risk drift also requires a new
+Check. Migration023 adds temporary proof identity rows; no env toggle is needed.
 It streams the local ledger fingerprint in batches on the recovery DB worker;
 local hash work still grows with ledger size. Physical ownership is checked on
 its owning event loop, including immediately before commit. Cancellation drains
@@ -1606,5 +1670,5 @@ maintenance; the new route cannot certify missing evidence.
 `valuation_basis=reconstructed_average_entry_not_live_pnl`: it is reconstruction
 at the average entry, not a current market valuation or a claim that losses were
 recovered. Use the existing fresh valuation panels for live PnL. Do not relabel
-risk stops as recoverable technical incidents. The total exchange-check budget
-is 120 seconds, with bounded GET requests and no background trading admission.
+risk stops as recoverable technical incidents. Each worker job retains its
+120-second timeout, with bounded GET requests and no background trading admission.

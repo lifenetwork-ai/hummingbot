@@ -53,7 +53,7 @@ class ServiceFormatter(logging.Formatter):
             owner_generation=getattr(owner, "generation", None) or 0,
             revision=getattr(host, "revision", None) or os.environ.get("K_REVISION") or os.environ.get("COMMIT_SHA") or "local")
         for name in ("event", "reason_code", "scope", "session_id", "command_id", "error_type", "request_id", "actor_id",
-                     "buy_wait_stage", "sell_wait_stage"):
+                     "buy_wait_stage", "sell_wait_stage", "ownership_reason_code", "sqlstate", "connection_invalidated"):
             value = getattr(record, name, None)
             if isinstance(value, (str, int, bool)):
                 payload[name] = value

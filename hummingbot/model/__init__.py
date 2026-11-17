@@ -29,6 +29,7 @@ def get_declarative_base():
     from .position import Position  # noqa: F401
     from .range_position_collected_fees import RangePositionCollectedFees  # noqa: F401
     from .range_position_update import RangePositionUpdate  # noqa: F401
+    from .recovery_proof import RecoveryProofFill  # noqa: F401
     from .runtime_journal import RuntimeCheckpoint, RuntimeJournal, SubmissionAttempt  # noqa: F401
     from .trade_fill import TradeFill  # noqa: F401
     return HummingbotBase

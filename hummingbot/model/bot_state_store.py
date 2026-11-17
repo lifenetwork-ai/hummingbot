@@ -1,9 +1,10 @@
 """Small operational-state adapter for the existing bot_state table."""
+import json
 from contextlib import nullcontext
 from typing import Optional
 
-from sqlalchemy import select, text, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import bindparam, case, cast, func, select, text, update
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 
@@ -26,8 +27,15 @@ class BotStateStore:
     def read(self, *, publication: bool = False) -> Optional[dict]:
         # Reporting needs fresh control/heartbeat and the published snapshot,
         # but not private recovery details or the full archived catalogue.
+        # Strip checkpoint histories in PostgreSQL, before network transfer and
+        # driver JSON decoding. Owner/restart reads still use the full row.
+        from hummingbot.core.halt_diagnostics import publication_halt_fields
         columns = ("bot_id, desired_state, control_version, acknowledged_version, owner_uuid, owner_generation, "
-                   "heartbeat, status, revision, jsonb_build_object('halted', recovery_state->'halt' = 'true'::jsonb, "
+                   "heartbeat, CASE WHEN jsonb_typeof(status->'mm_liquidity')='object' THEN "
+                   "jsonb_set(status, '{mm_liquidity}', (status->'mm_liquidity') - "
+                   "ARRAY['_coverage_history', '_coverage_buckets', '_overview_recovery']) ELSE status END AS status, "
+                   "revision, jsonb_build_object('halted', recovery_state->'halt' = 'true'::jsonb, "
+                   + publication_halt_fields() +
                    "'shutdown_pending', COALESCE(recovery_state->'halt' = 'true'::jsonb "
                    "AND recovery_state->>'halt_kind'='shutdown_pending' "
                    "AND COALESCE(recovery_state->>'reason', '')='', false), "
@@ -124,8 +132,28 @@ class BotStateStore:
         """An old process/command cannot acknowledge newer control intent."""
         status.pop("daily_snapshot_error", None)
         status.pop("mm_history_error", None)
+        # JSON adaptation may be expensive for a complete restart checkpoint.
+        # Do it before taking the authority row lock used by financial writers
+        # and Stop. Guard/error metadata is resolved atomically under that lock.
+        serialize = self.engine.dialect._json_serializer or json.dumps
+        prepared_status = serialize(status)
+
+        def status_value():
+            metadata = {key: status[key] for key in
+                        ("mm_guard_observation", "mm_history_error", "daily_snapshot_error") if key in status}
+            return cast(bindparam("prepared_status_json", prepared_status), JSONB).op("||")(
+                cast(bindparam("publication_status_metadata", serialize(metadata)), JSONB))
+
         with self.engine.begin() as connection:
-            previous = connection.execute(select(BotState.status, BotState.mm_session).where(
+            # Guard history needs its previous observation, not private telemetry
+            # histories. Keep malformed legacy status behavior and the full
+            # session, row lock and authority predicates; the new snapshot below
+            # is still written in full for restart/checkpoint recovery.
+            guard_status = case((func.jsonb_typeof(BotState.status) == 'object',
+                                 func.jsonb_build_object('mm_guard_observation',
+                                                         BotState.status['mm_guard_observation'])),
+                                else_=BotState.status).label('status')
+            previous = connection.execute(select(guard_status, BotState.mm_session).where(
                 BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
                 BotState.owner_generation == owner_generation, BotState.control_version == version,
                 BotState.acknowledged_version <= version).with_for_update()).mappings().first()
@@ -145,7 +173,7 @@ class BotStateStore:
                 BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
                 BotState.owner_generation == owner_generation, BotState.control_version == version,
                 BotState.acknowledged_version <= version,
-            ).values(acknowledged_version=version, heartbeat=text("clock_timestamp()"), status=status,
+            ).values(acknowledged_version=version, heartbeat=text("clock_timestamp()"), status=status_value(),
                      revision=revision).returning(BotState.mm_session, BotState.desired_state)).mappings().first()
             if result is None:
                 return False
@@ -164,7 +192,7 @@ class BotStateStore:
                 if isinstance(error, OperationalError) and not _optional_statement_timeout(error):
                     raise
                 status["daily_snapshot_error"] = type(error).__name__
-                connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(status=status))
+                connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(status=status_value()))
             return True
 
     def request_mm_session(self, *, action, expected_version, catalogue=None, request=None,

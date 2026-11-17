@@ -166,9 +166,10 @@ async def test_changed_second_scan_never_revalidates_a_preview(context):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('segmented', [False, True])
 @pytest.mark.parametrize('action,side,leg', [('OPEN', 'BUY', 'long'), ('OPEN', 'SELL', 'short'),
                                              ('CLOSE', 'SELL', 'long'), ('CLOSE', 'BUY', 'short')])
-async def test_perpetual_native_contract_conversion_and_both_hedge_legs(context, action, side, leg):
+async def test_perpetual_native_contract_conversion_and_both_hedge_legs(context, action, side, leg, segmented):
     reader, data, lookup, row = context
     reader.name = 'okx_perpetual'
     reader.connector = OkxPerpetualDerivative(okx_perpetual_api_key='test', okx_perpetual_secret_key='test',
@@ -196,11 +197,20 @@ async def test_perpetual_native_contract_conversion_and_both_hedge_legs(context,
         return await original(**kwargs)
 
     reader._api_get = responses
-    proof = await verify_checkpoint_exchange(data, {'okx_perpetual': reader}, lookup)
+
+    async def verify():
+        if segmented:
+            from test.hummingbot.core.test_segmented_recovery import Evidence
+
+            from hummingbot.core.segmented_recovery import verify_segment
+            return await verify_segment(data, {'okx_perpetual': reader}, lookup, None, Evidence().save)
+        return await verify_checkpoint_exchange(data, {'okx_perpetual': reader}, lookup)
+
+    proof = await verify()
     assert proof['verified'] and proof['position_legs_checked'] == 1
     data['positions'][0]['amount'] = '.03'
     with pytest.raises(RecoveryBlocked, match='recovery_position_mismatch'):
-        await verify_checkpoint_exchange(data, {'okx_perpetual': reader}, lookup)
+        await verify()
 
 
 @pytest.mark.asyncio

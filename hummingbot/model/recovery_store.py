@@ -8,7 +8,8 @@ from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime, timedelta
 
-from sqlalchemy import exists, func, select, text, tuple_, update
+from sqlalchemy import delete, exists, func, select, text, tuple_, update
+from sqlalchemy.exc import IntegrityError
 
 from hummingbot.core.admin_identity import Principal
 from hummingbot.core.recovery import MAX_FILLS, MAX_ORDERS, PROOF_TTL_SECONDS, decimal, fingerprint, recovery_blockers
@@ -20,6 +21,7 @@ from hummingbot.model.exchange_credential import ExchangeCredential
 from hummingbot.model.order import Order
 from hummingbot.model.order_status import OrderStatus
 from hummingbot.model.position import Position
+from hummingbot.model.recovery_proof import RecoveryProofFill
 from hummingbot.model.trade_fill import TradeFill
 
 ACTIONS = ('recovery_check', 'recovery_reset')
@@ -114,7 +116,7 @@ class RecoveryStore:
     def _same_owner(state, private):
         return state['owner_uuid'] == private['owner_uuid'] and state['owner_generation'] == private['owner_generation']
 
-    def _checked_preview(self, connection, payload, state):
+    def _checked_preview(self, connection, payload, state, *, current_snapshot=None):
         check = self.get(payload['check_id'], connection)
         if (not check or check['action'] != 'recovery_check' or check['status'] != 'succeeded'
                 or not (check['result'] or {}).get('can_recover')):
@@ -128,7 +130,8 @@ class RecoveryStore:
             _conflict('recovery_proof_expired')
         if not self._same_owner(state, report['_private']):
             _conflict('recovery_owner_changed')
-        if fingerprint(self.snapshot(connection)) != report['_private']['fingerprint']:
+        current_snapshot = self.snapshot(connection) if current_snapshot is None else current_snapshot
+        if fingerprint({**current_snapshot, 'state': state}) != report['_private']['fingerprint']:
             _conflict('recovery_state_changed')
         return check
 
@@ -140,6 +143,13 @@ class RecoveryStore:
         digest = hashlib.sha256(json.dumps(dict(action=action, payload=payload), sort_keys=True).encode()).hexdigest()
         with self.engine.begin() as connection:
             actor = self.access.authorize(connection, principal, 'admin')
+            # A request only queues work. Stream the large checkpoint ledger
+            # before locking the publication/authority row. Reset finalization
+            # independently revalidates under financial-table locks; accepting
+            # a request can never certify a concurrent financial change.
+            preview = self.get(payload.get('check_id', ''), connection) if action == 'recovery_reset' else None
+            prepared = (self.snapshot(connection) if preview and
+                        ((preview.get('result') or {}).get('verification') or {}).get('scope') == 'verified_checkpoint' else None)
             state = self._state(connection, lock=True)
             prior = connection.execute(select(AdminCommand).where(AdminCommand.bot_id == self.bot_id,
                                                                   AdminCommand.idempotency_key == key)).mappings().first()
@@ -163,7 +173,7 @@ class RecoveryStore:
             if (state['recovery_state'] or {}).get('recovery_operation'):
                 _conflict('recovery_operation_in_progress')
             if action == 'recovery_reset':
-                self._checked_preview(connection, payload, state)
+                self._checked_preview(connection, payload, state, current_snapshot=prepared)
             identity = str(uuid.uuid4())
             private = dict(actor=asdict(actor), request_id=request_id,
                            owner_uuid=state['owner_uuid'], owner_generation=state['owner_generation'])
@@ -199,9 +209,73 @@ class RecoveryStore:
             if not self._same_owner(state, row['result']['_private']):
                 return self._fail(connection, state, row, 'recovery_owner_changed')
             self._authorize_actor(connection, row)
+            retry_at = (row['result'].get('_private') or {}).get('retry_at')
+            if retry_at and datetime.fromisoformat(retry_at) > state['database_now']:
+                return None
             result = deepcopy(row['result']); result['stage'] = 'checking_exchange' if row['action'] == 'recovery_check' else 'revalidating'
             return dict(connection.execute(update(AdminCommand).where(AdminCommand.id == row['id']).values(
                 status='applying', result=result, updated_at=state['database_now']).returning(*AdminCommand.__table__.c)).mappings().one())
+
+    def save_proof_progress(self, owner, row, snapshot, before, after, entries):
+        """One atomic page: dedup identities and advance its private cursor."""
+        from hummingbot.core.segmented_recovery import public_progress, validate_progress
+        if (len(entries) > 100 or len(json.dumps(after, allow_nan=False).encode()) > 16384
+                or after.get('verified') is not False or after['fingerprint'] != fingerprint(snapshot)
+                or after['seq'] != (before['seq'] + 1 if before else 0)):
+            _conflict('recovery_state_changed')
+        owner.check_owner()
+        try:
+            with self.engine.begin() as connection:
+                state, actor = self._operation(connection, owner, row, checking=row['action'] == 'recovery_check')
+                if fingerprint({**snapshot, 'state': state}) != after['fingerprint']:
+                    _conflict('recovery_state_changed')
+                validate_progress(after, {**snapshot, 'state': state})
+                current = self.get(row['id'], connection)
+                report = deepcopy(current['result'])
+                existing = report['_private'].get('proof')
+                if existing == after:
+                    return True  # An acknowledged-late commit of this exact page.
+                if existing != before:
+                    _conflict('recovery_state_changed')
+                if entries:
+                    if after['scan'] != before['scan'] or after['scan'] not in (0, 1):
+                        _conflict('recovery_state_changed')
+                    connection.execute(RecoveryProofFill.__table__.insert(), [dict(command_id=row['id'], scan=after['scan'],
+                                                                                   connector=market, venue_order_id=order, trade_id=trade, bill_id=bill)
+                                                                              for market, order, trade, bill in entries])
+                report['_private']['proof'] = after
+                for key in ('retry_at', 'read_retries'):
+                    report['_private'].pop(key, None)
+                report.update(stage='checking_exchange_segment', can_recover=False,
+                              confirmation_token=None, expires_at=None, verification=public_progress(after))
+                connection.execute(update(AdminCommand).where(AdminCommand.id == row['id']).values(
+                    result=report, updated_at=state['database_now']))
+                owner.check_owner()
+            return True
+        except IntegrityError:
+            _conflict('recovery_unrecorded_or_duplicate_venue_fill')
+
+    def defer_proof(self, owner, row, code):
+        """Retry a GET-only proof from its last durable page, never grant reset."""
+        owner.check_owner()
+        with self.engine.begin() as connection:
+            state, actor = self._operation(connection, owner, row, checking=row['action'] == 'recovery_check')
+            current = self.get(row['id'], connection)
+            result = deepcopy(current['result'])
+            private = result['_private']
+            attempts = private.get('read_retries', 0) + 1
+            if attempts > 5 or (state['database_now'] - row['created_at']).total_seconds() > 1800:
+                self._fail(connection, state, current, code)
+            else:
+                private.update(read_retries=attempts,
+                               retry_at=(state['database_now'] + timedelta(seconds=min(30, 2 ** attempts))).isoformat())
+                result.update(stage='waiting_for_exchange', can_recover=False, confirmation_token=None, expires_at=None)
+                result['verification'] = {**result.get('verification', {}), 'verified': False,
+                                          'retry_count': attempts, 'next_retry_at': private['retry_at']}
+                connection.execute(update(AdminCommand).where(AdminCommand.id == row['id']).values(
+                    result=result, updated_at=state['database_now']))
+            owner.check_owner()
+        return True
 
     def _operation(self, connection, owner, row, *, checking=False):
         actor = self._authorize_actor(connection, row)
@@ -221,16 +295,45 @@ class RecoveryStore:
             _conflict(blockers[0])
         return state, actor
 
+    def _complete_segmented_proof(self, connection, row, snapshot, verification):
+        from hummingbot.core.segmented_recovery import validate_progress
+        private = (self.get(row['id'], connection)['result'] or {}).get('_private') or {}
+        proof = private.get('proof')
+        if proof is None and not verification.get('segmented'):
+            return  # Existing bounded complete-history / one-shot verifier.
+        if proof:
+            validate_progress(proof, {**snapshot, 'state': self._state(connection)})
+        expected = (snapshot.get('checkpoint') or {}).get('expected_fills')
+        if (not proof or proof.get('scan') != 2 or proof.get('count') != expected
+                or proof.get('fingerprint') != fingerprint(snapshot)
+                or (proof.get('first') or {}).get('count') != expected
+                or proof.get('first') != dict(digest=proof.get('digest'), heads=proof.get('heads'), count=expected)
+                or proof.get('connector_index') != 0 or proof.get('cursor') is not None
+                or proof.get('heads') != verification.get('venue_heads')
+                or proof.get('digest') != verification.get('proof_digest')
+                or verification.get('fills_checked') != expected or not verification.get('segmented')):
+            _conflict('recovery_check_unavailable')
+        counts = dict(connection.execute(select(RecoveryProofFill.scan, func.count()).where(
+            RecoveryProofFill.command_id == row['id']).group_by(RecoveryProofFill.scan)).all())
+        if set(counts) - {0, 1} or any(counts.get(scan, 0) != expected for scan in (0, 1)):
+            _conflict('recovery_check_unavailable')
+
     def finish_check(self, owner, row, snapshot, plan, verification, *, blockers):
         owner.check_owner()
         with self.engine.begin() as connection:
             self._lock_checkpoint_proof(connection, snapshot)
+            # SHARE locks keep the financial snapshot stable while its hash
+            # is streamed. Status publication remains free to update BotState.
+            prepared = self.snapshot(connection) if snapshot.get('mode') == 'verified_checkpoint' else None
             state, actor = self._operation(connection, owner, row, checking=True)
             if not blockers and (not verification.get('verified')
                                  or snapshot.get('mode') == 'verified_checkpoint' and (plan or verification.get('scope') != 'verified_checkpoint')):
                 _conflict('recovery_check_unavailable')
-            if fingerprint(self.snapshot(connection)) != fingerprint(snapshot):
+            current = self.snapshot(connection) if prepared is None else prepared
+            if fingerprint({**current, 'state': state}) != fingerprint(snapshot):
                 _conflict('recovery_state_changed')
+            if not blockers:
+                self._complete_segmented_proof(connection, row, snapshot, verification)
             result = dict(stage='blocked' if blockers else 'review_required', can_recover=not blockers,
                           blockers=blockers, proposed_changes=plan, verification=verification,
                           confirmation_token=None if blockers else uuid.uuid4().hex,
@@ -244,11 +347,14 @@ class RecoveryStore:
         owner.check_owner()
         with self.engine.begin() as connection:
             self._lock_checkpoint_proof(connection, snapshot)
+            prepared = self.snapshot(connection) if snapshot.get('mode') == 'verified_checkpoint' else None
             state, actor = self._operation(connection, owner, row)
-            check = self._checked_preview(connection, row['payload'], state)
-            if (not verification.get('verified') or fingerprint(self.snapshot(connection)) != fingerprint(snapshot)
+            check = self._checked_preview(connection, row['payload'], state, current_snapshot=prepared)
+            current = self.snapshot(connection) if prepared is None else prepared
+            if (not verification.get('verified') or fingerprint({**current, 'state': state}) != fingerprint(snapshot)
                     or plan != check['result']['proposed_changes']):
                 _conflict('recovery_state_changed')
+            self._complete_segmented_proof(connection, row, snapshot, verification)
             for change in plan:
                 conditions = [Position.id == change['id'], Position.controller_id == change['controller_id'],
                               Position.connector_name == change['connector'], Position.trading_pair == change['pair']]
@@ -281,13 +387,16 @@ class RecoveryStore:
                     else:
                         anchor = self._bind_runtime_baseline(session, state, row, snapshot, verification=verification)
                     verification = {**verification, 'recovery_anchor': anchor}
+            from hummingbot.core.halt_diagnostics import halt_cause
+            recovered_cause = halt_cause(state['recovery_state'])
             recovery = deepcopy(state['recovery_state'])
-            for key in ('halt', 'halt_kind', 'reason', 'shutdown_incomplete', 'automatic_recovery'):
+            for key in ('halt', 'halt_kind', 'halt_diagnostic', 'reason', 'shutdown_incomplete', 'automatic_recovery'):
                 recovery.pop(key, None)
             recovery['runtime_active'] = False
             state['recovery_state'] = recovery
             result = dict(stage='recovered', can_recover=False, blockers=[], repaired_positions=plan,
-                          verification=verification, trading_state='stopped', _private=row['result']['_private'])
+                          verification=verification, trading_state='stopped', halt_cause=recovered_cause,
+                          _private=row['result']['_private'])
             self._finish(connection, state, row, result, actor, control_version=state['control_version'] + 1)
             owner.check_owner()  # Fresh physical authority before committing all writes together.
             return True
@@ -332,6 +441,9 @@ class RecoveryStore:
         return values['payload']['recovery_anchor']
 
     def _finish(self, connection, state, row, result, actor, *, control_version=None):
+        result = deepcopy(result)
+        for key in ('proof', 'read_retries', 'retry_at'):
+            result.get('_private', {}).pop(key, None)
         recovery = deepcopy(state['recovery_state'])
         recovery.pop('recovery_operation', None)
         values = dict(recovery_state=recovery)
@@ -340,8 +452,10 @@ class RecoveryStore:
         connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(**values))
         connection.execute(update(AdminCommand).where(AdminCommand.id == row['id']).values(
             status='succeeded', result=result, updated_at=state['database_now']))
+        connection.execute(delete(RecoveryProofFill).where(RecoveryProofFill.command_id == row['id']))
         self.access.audit(connection, actor=actor, action=row['action'] + '_completed',
                           outcome='blocked' if result.get('blockers') else 'succeeded', operation_id=row['id'],
+                          reason_code=(result.get('halt_cause') or {}).get('reason_code'),
                           request_id=row['result']['_private']['request_id'])
 
     def _fail(self, connection, state, row, code):
@@ -350,6 +464,10 @@ class RecoveryStore:
             recovery.pop('recovery_operation', None)
             connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(recovery_state=recovery))
         result = {**row['result'], 'stage': 'blocked', 'can_recover': False, 'blockers': [code]}
+        result = deepcopy(result)
+        for key in ('proof', 'read_retries', 'retry_at'):
+            result.get('_private', {}).pop(key, None)
+        connection.execute(delete(RecoveryProofFill).where(RecoveryProofFill.command_id == row['id']))
         connection.execute(update(AdminCommand).where(AdminCommand.id == row['id']).values(
             status='failed', error=code, result=result, updated_at=state['database_now']))
         self.access.audit(connection, actor=Principal(**row['result']['_private']['actor']), action=row['action'] + '_failed',

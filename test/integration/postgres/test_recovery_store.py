@@ -74,11 +74,15 @@ def test_check_idempotency_and_confirmed_reset_leave_stopped_with_audit(recoveri
     assert store.finish_reset(owner, claimed, snap, [], dict(verified=True))
     state = owner.check_owner()
     assert state['desired_state'] == 'stopped' and not state['recovery_state'].get('halt')
+    assert 'halt_diagnostic' not in state['recovery_state']
+    assert store.get(request['id'])['result']['halt_cause']['reason_code'] == 'strategy_reconciliation_failed'
     assert state['control_version'] == 1 and 'recovery_operation' not in state['recovery_state']
     assert store.request('recovery_reset', 'reset', payload, ADMIN, 'again')['id'] == request['id']
     assert owner.check_owner()['control_version'] == 1
     with store.engine.connect() as db:
         actions = set(db.execute(select(AdminAuditEvent.action)).scalars())
+        cause = db.execute(select(AdminAuditEvent.reason_code).where(AdminAuditEvent.action == 'recovery_reset_completed')).scalar_one()
+        assert cause == 'strategy_reconciliation_failed'
     assert {'recovery_check_requested', 'recovery_check_completed', 'recovery_reset_requested', 'recovery_reset_completed'} <= actions
 
 

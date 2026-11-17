@@ -25,6 +25,7 @@ from hummingbot.model.db_migration.postgres.runner import (
 )
 from hummingbot.model.inventory_cost import InventoryCost
 from hummingbot.model.market_state import MarketState
+from hummingbot.model.overview_fee_projection import ReportingBase
 from hummingbot.model.sql_connection_manager import SQLConnectionManager, SQLConnectionType
 
 
@@ -36,7 +37,8 @@ def test_unqualified_scripts_use_runner_search_path_and_replay(pg_engine):
         for enabled in (True, True, False):
             bootstrap_postgres(pg_engine, auto_migrate=enabled)
         with pg_engine.connect() as connection:
-            assert set(inspect(connection).get_table_names(schema="public")) == set(get_declarative_base().metadata.tables) | {HISTORY_TABLE}
+            assert set(inspect(connection).get_table_names(schema="public")) == (
+                set(get_declarative_base().metadata.tables) | set(ReportingBase.metadata.tables) | {HISTORY_TABLE})
             assert inspect(connection).get_table_names(schema="hbot_test_shadow") == []
             validate_schema(connection)
     finally:
@@ -68,7 +70,8 @@ def test_empty_and_populated_replay_100_times(pg_engine):
             WHERE n.nspname='public'
         """)).scalars().all()
         assert all(name == name.lower() and len(name) <= 63 for name in identifiers)
-        assert set(inspect(connection).get_table_names(schema="public")) == set(get_declarative_base().metadata.tables) | {HISTORY_TABLE}
+        assert set(inspect(connection).get_table_names(schema="public")) == (
+            set(get_declarative_base().metadata.tables) | set(ReportingBase.metadata.tables) | {HISTORY_TABLE})
 
 
 def test_populated_previous_canonical_schema_adds_recovery_columns_without_data_loss(pg_engine):

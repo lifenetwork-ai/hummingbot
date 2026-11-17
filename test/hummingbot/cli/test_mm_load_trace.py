@@ -300,3 +300,23 @@ def test_full_gc_probe_is_bounded_and_ignores_young_collections(monkeypatch):
     assert [row['collected'] for row in probe.events] == [2, 3]
     assert [row['duration_ms'] for row in probe.events] == [3, 4]
     assert probe.started == {}
+
+
+@pytest.mark.parametrize('generation', [0, 1, 2])
+def test_deferred_gc_distinguishes_elapsed_pause_from_collector_thread_cpu(monkeypatch, generation):
+    from test.e2e.offline import load_trace
+    wall, cpu = [0], [0]
+    monkeypatch.setattr(load_trace.time, 'monotonic_ns', lambda: wall[0])
+    monkeypatch.setattr(load_trace.time, 'thread_time_ns', lambda: cpu[0])
+    probe = load_trace.DeferredGCTrace(minimum_ms=100)
+    probe('start', {'generation': generation})
+    # A collector can be descheduled: elapsed GC time is not CPU consumed.
+    wall[0], cpu[0] = 700_000_000, 2_000_000
+    probe('stop', {'generation': generation, 'collected': 148})
+    rows = []
+    probe.drain(rows.append)
+    assert len(rows) == 1
+    assert rows[0]['generation'] == generation
+    assert rows[0]['duration_ms'] == 700
+    assert rows[0]['thread_cpu_ms'] == 2
+    assert not probe.started

@@ -1,9 +1,18 @@
 # Plans and remaining verification
 
+The [HALT diagnostics and reconnect plan](MM_HALT_DIAGNOSTICS_TDD_PLAN.md)
+tracks the revision158 OKX user-stream reconnect failure, safe persisted cause
+metadata and API/banner explanations. The current Demo HALT predates revision159;
+readiness and recovery qualification remain separate from a successful rollout.
+
 The [Admin Overview reporting TDD plan](ADMIN_OVERVIEW_REPORTING_TDD_PLAN.md)
 tracks PR #2 contract corrections, eligible rolling coverage, reporting isolation
-and session fees beyond 10,000 fills. It is planned work; the review reproductions
-and existing passing tests do not qualify an implementation or deployment.
+and session fees beyond 10,000 fills. Implementation and local checks are recorded
+in the [2026-11-16 qualification report](../../reports/performance/admin-overview-reporting.md):
+4,033 native tests +16 subtests, 989 PG cases, 610 frontend tests, scoped packaged
+lifecycle, full 60-minute soak and SQL isolation pass. C remains unqualified:
+warmup latency and one paired cancel-p99 comparison fail. These results do not
+approve deployment or close the connected Demo window.
 
 Updated 2026-11-12 local. Current recovery work is tracked in
 [automatic recovery and availability](MM_AUTOMATIC_RECOVERY_AVAILABILITY_TDD_PLAN.md)

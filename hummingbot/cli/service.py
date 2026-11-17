@@ -88,6 +88,8 @@ class ServiceHost:
         self.halt_requested = False
         self.mm_session = None
         self.mm_liquidity_state = None
+        self.mm_overview_state = None
+        self.overview_recovery_observer = None
         self.liquidity_observer = None
         self.mm_readiness_reason = None
         self.outflow_task = None
@@ -349,6 +351,26 @@ class ServiceHost:
         # clock tick, especially on standby handover; it is not send authority.
         return (not self.stop.is_set() and getattr(self.owner, "shutdown_requested", False) is not True
                 and self.runtime_problem() is None)
+
+    def runtime_failure_context(self):
+        """Fixed component/task identities only; never exception text or locals."""
+        core = self.hb.trading_core
+        candidates = [('clock', '_clock_task', getattr(core, '_clock_task', None))]
+        for name, connector in core.connector_manager.connectors.items():
+            if name in ('okx', 'okx_perpetual'):
+                candidates.extend((name, key, getattr(connector, key, None)) for key in (
+                    '_status_polling_task', '_user_stream_tracker_task', '_user_stream_event_listener_task',
+                    '_trading_rules_polling_task'))
+        strategy = core.strategy
+        candidates.append(('strategy', 'listen_to_executor_actions_task', getattr(strategy, 'listen_to_executor_actions_task', None)))
+        for identity, controller in getattr(strategy, 'controllers', {}).items():
+            if not controller.config.manual_kill_switch and identity not in getattr(strategy, 'drawdown_exited_controllers', []):
+                candidates.append(('controller', '_control_loop_task', getattr(controller, '_control_loop_task', None)))
+        for component, key, task in candidates:
+            if isinstance(task, asyncio.Task) and task.done():
+                state = 'cancelled' if task.cancelled() else 'failed' if task.exception() is not None else 'completed'
+                return dict(component=component, task=key, task_state=state)
+        return {}
 
     async def confirmed_runtime_problem(self):
         problem = self.runtime_problem()
@@ -629,6 +651,7 @@ class ServiceHost:
                 "spot_outflow": observations["spot_outflow"],
                 "mm_session": self.mm_session.model_dump(mode="json", exclude={"catalogue"}) if self.mm_session else None,
                 "mm_liquidity": self.mm_liquidity_state,
+                "mm_overview": getattr(self, "mm_overview_state", None),
                 "mm_markets": [{"market": "spot" if controller.config.connector_name == "okx" else "perpetual",
                                 "connector": controller.config.connector_name, "pair": controller.config.trading_pair,
                                 "ready": bool(controller.processed_data.get("ready")), "admitted": controller.session_admitted,
@@ -690,6 +713,7 @@ class ServiceHost:
             return
         if await self.observe_credential_operation(row):
             self.mm_liquidity_state = self.liquidity_observer = None
+            self.mm_overview_state = self.overview_recovery_observer = None
             await self.publish_status(row["control_version"])
             return
         guard = getattr(self.owner, "spot_outflow", None)
@@ -703,7 +727,8 @@ class ServiceHost:
         if hasattr(guard, "projection") and guard.projection is not None:
             from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
             if isinstance(guard, SpotOutflowGuard):
-                guard.projection.advance(int(row["database_now"] * 1000))
+                if await guard.advance(int(row["database_now"] * 1000)):
+                    row = self.owner.check_owner()  # Stop/version may change between catch-up batches.
         from hummingbot.core.mm_drawdown import checkpoint_drawdown_status
         if getattr(self.hb.trading_core, "strategy", None) is None:
             if not self.observations.capture_checkpoint(
@@ -850,7 +875,8 @@ class ServiceHost:
             problem = await self.confirmed_runtime_problem()
             if problem is not None:
                 self.availability.fail("runtime", problem, operator=True)
-                self.owner.require_recovery("A required runtime task failed; inspect service availability status.")
+                self.owner.require_recovery("A required runtime task failed; inspect service availability status.",
+                                            runtime_reason=problem, **self.runtime_failure_context())
                 self.running, self.phase, self.error = False, "halted", problem
                 if not await self.stop_core():
                     raise RuntimeError("Failed runtime-task cleanup did not complete.")
@@ -905,7 +931,9 @@ class ServiceHost:
             self.availability.clear("liquidity")
         except Exception as error:
             self.mm_liquidity_state = self.liquidity_observer = None
+            self.mm_overview_state = self.overview_recovery_observer = None
             self.availability.fail("liquidity", "liquidity_observation_unavailable", error)
+        self.capture_overview_observation()
         await self.publish_status(version)
         await self.poll_reconciliation()
         self.poll_funding()
@@ -942,6 +970,17 @@ class ServiceHost:
                 self.next_outflow_poll = time.monotonic() + self.availability.fail(
                     "spot_outflow", "spot_outflow_observation_unavailable", error, retry=True)
         self.outflow_task = asyncio.create_task(observe())
+
+    def capture_overview_observation(self):
+        # Optional reporting cannot change admission, order state or lifecycle.
+        from hummingbot.cli.overview_capture import capture_overview
+        try:
+            self.mm_overview_state = capture_overview(self)
+            self.availability.clear("overview")
+        except Exception as error:
+            self.mm_overview_state = None
+            self.overview_recovery_observer = None
+            self.availability.fail("overview", "overview_observation_unavailable", error)
 
     def _prepare_status_publication(self, version):
         # Connector/strategy state is loop-owned. Only the detached JSON payload
@@ -1285,7 +1324,11 @@ async def run_service(*, settings=None, bind_host='0.0.0.0', admin_settings=None
                   "critical_persistence_failure" if isinstance(error, SQLAlchemyError) else failure_reason(error))
         logging.getLogger(__name__).error("Service stopped reason=%s type=%s", reason, type(error).__name__,
                                           extra={"event": "service_failed", "reason_code": reason,
-                                                 "error_type": type(error).__name__})
+                                                 "error_type": type(error).__name__,
+                                                 **({'ownership_reason_code': error.reason_code,
+                                                     **{key: value for key, value in error.diagnostic.items()
+                                                        if key in ('sqlstate', 'connection_invalidated')}}
+                                                    if isinstance(error, OwnershipLost) else {})})
         from hummingbot.cli.service_processes import failure_exit_code
         code = failure_exit_code(error)
     finally:

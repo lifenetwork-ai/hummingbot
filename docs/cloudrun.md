@@ -408,6 +408,20 @@ ownership, with compatible standby before handoff. Incompatible schema changes
 still require maintenance. Override older images that bake in unsafe `true`
 explicitly during the first upgrade; see the
 [migration policy](postgres-runtime.md#migration-policy).
+
+For an upgrade whose required schema cannot validate beside the old owner, use
+a stopped-writer maintenance window. API Stop preserves the engine process and
+its ownership lock. Save the exact service configuration and verify Stop is
+acknowledged; temporarily disable this service with manual scaling0, then verify
+the physical owner lock has actually been released. Run the packaged guarded
+migration runner, validate the schema and unchanged financial/risk data, then
+restore the original scaling while rolling out the verified immutable image.
+Keep trading stopped through startup validation; any technical HALT still needs
+the normal Check/review/Reset flow and a separate Start. If migration fails,
+restore the prior service configuration and retain HALT; do not bypass owner or
+schema guards. Check tagged revisions and other writers separately before DDL.
+Cloud Run documents disabling a service with manual scaling0 and restoring
+automatic scaling [here](https://docs.cloud.google.com/run/docs/configuring/services/manual-scaling#disable-service).
 Do not use a transaction-pooling proxy for the advisory
 owner session. The tested major is PostgreSQL 14; run the same suite against a
 different selected major before claiming support for it.

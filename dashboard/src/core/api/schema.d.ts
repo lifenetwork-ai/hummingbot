@@ -1855,6 +1855,61 @@ export interface components {
              */
             state: "not_configured" | "waiting" | "backfilling" | "observed" | "unavailable";
         };
+        /** HaltCause */
+        HaltCauseOutput: {
+            /** Automatic Recovery Expected */
+            automatic_recovery_expected: boolean;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "technical" | "risk" | "shutdown" | "unknown";
+            /** Cleanup Incomplete */
+            cleanup_incomplete: boolean;
+            /**
+             * Component
+             * @default null
+             */
+            component: string | null;
+            /** Current Reason Code */
+            current_reason_code: string;
+            /** Detail */
+            detail: string;
+            /**
+             * Evidence Source
+             * @enum {string}
+             */
+            evidence_source: "persisted" | "legacy_reason" | "unavailable";
+            /** Label */
+            label: string;
+            /**
+             * Occurred At
+             * @default null
+             */
+            occurred_at: string | null;
+            /** Reason Code */
+            reason_code: string;
+            /**
+             * Revision
+             * @default null
+             */
+            revision: string | null;
+            /**
+             * Runtime Reason Code
+             * @default null
+             */
+            runtime_reason_code: string | null;
+            /**
+             * Task
+             * @default null
+             */
+            task: string | null;
+            /**
+             * Task State
+             * @default null
+             */
+            task_state: ("completed" | "failed" | "cancelled" | "stalled") | null;
+        };
         /**
          * InitialPositionConfig
          * @description Configuration for an initial position that the controller should consider.
@@ -2670,6 +2725,14 @@ export interface components {
              * @default false
              */
             identity_verified: boolean;
+<<<<<<< HEAD
+=======
+            /**
+             * Site
+             * @default null
+             */
+            site: ("www" | "app" | "my") | null;
+>>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
         };
         /** OverviewCapitalAllocated */
         OverviewCapitalAllocatedOutput: {
@@ -2686,12 +2749,42 @@ export interface components {
         /** OverviewCoverageMinute */
         OverviewCoverageMinuteOutput: {
             /**
+<<<<<<< HEAD
+=======
+             * Eligibility Unknown Seconds
+             * @default 0
+             */
+            eligibility_unknown_seconds: number;
+            /**
+             * Eligible Seconds
+             * @default 0
+             */
+            eligible_seconds: number;
+            /**
+>>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
              * Minute Ts
              * Format: date-time
              */
             minute_ts: string;
             /** Observed Seconds */
             observed_seconds: number;
+<<<<<<< HEAD
+=======
+            /**
+             * Restricted Seconds
+             * @default 0
+             */
+            restricted_seconds: number;
+            /** Restriction Seconds */
+            restriction_seconds?: {
+                [key: string]: number;
+            };
+            /**
+             * Two Sided Eligible Seconds
+             * @default 0
+             */
+            two_sided_eligible_seconds: number;
+>>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
             /** Two Sided Seconds */
             two_sided_seconds: number;
             /** Unknown Seconds */
@@ -2755,11 +2848,16 @@ export interface components {
         };
         /** OverviewInventoryLimit */
         OverviewInventoryLimitOutput: {
+<<<<<<< HEAD
             /**
              * Asset
              * @constant
              */
             asset: "LIFE";
+=======
+            /** Asset */
+            asset: string;
+>>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
             /** Controller Id */
             controller_id: string;
             /**
@@ -3063,31 +3161,99 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "violated" | "disabled" | "unknown";
+<<<<<<< HEAD
             /**
              * Unit
              * @enum {string}
              */
             unit: "USDT" | "LIFE" | "fraction" | "seconds" | "bps";
+=======
+            /** Unit */
+            unit: string;
+>>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
             /** Upper Limit */
             upper_limit: string | null;
         };
         /** OverviewRollingCoverage */
         OverviewRollingCoverageOutput: {
+<<<<<<< HEAD
             /** Elapsed Seconds */
             elapsed_seconds: number;
             /** Full Window */
             full_window: boolean;
+=======
+            /**
+             * Conditional Eligible Fraction
+             * @default null
+             */
+            conditional_eligible_fraction: number | null;
+            /**
+             * Conservative Eligible Fraction
+             * @default null
+             */
+            conservative_eligible_fraction: number | null;
+            /** Elapsed Seconds */
+            elapsed_seconds: number;
+            /**
+             * Eligibility Unknown Seconds
+             * @default 0
+             */
+            eligibility_unknown_seconds: number;
+            /**
+             * Eligible Seconds
+             * @default 0
+             */
+            eligible_seconds: number;
+            /** Full Window */
+            full_window: boolean;
+            /**
+             * Measurement
+             * @default sampled_interval_lower_bound
+             * @constant
+             */
+            measurement: "sampled_interval_lower_bound";
+            /**
+             * Measurement Ready
+             * @default false
+             */
+            measurement_ready: boolean;
+            /**
+             * Measurement Reason
+             * @default eligibility_history_unavailable
+             */
+            measurement_reason: string | null;
+>>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
             /** Observed Seconds */
             observed_seconds: number;
             /** Per Minute */
             per_minute: components["schemas"]["OverviewCoverageMinuteOutput"][] | null;
             /**
+<<<<<<< HEAD
+=======
+             * Restricted Seconds
+             * @default 0
+             */
+            restricted_seconds: number;
+            /** Restriction Seconds */
+            restriction_seconds?: {
+                [key: string]: number;
+            };
+            /**
+>>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
              * Rolling 30M Fraction
              * @description two_sided_seconds / elapsed_seconds; unknown remains in denominator.
              */
             rolling_30m_fraction: number | null;
             /** Target Fraction */
             target_fraction: number | null;
+<<<<<<< HEAD
+=======
+            /**
+             * Two Sided Eligible Seconds
+             * @default 0
+             */
+            two_sided_eligible_seconds: number;
+>>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
             /** Two Sided Seconds */
             two_sided_seconds: number;
             /** Unknown Seconds */
@@ -3142,9 +3308,25 @@ export interface components {
         };
         /** OverviewSessionFees */
         OverviewSessionFeesOutput: {
+<<<<<<< HEAD
             /** By Market */
             by_market: components["schemas"]["OverviewMarketFeesOutput"][] | null;
             /**
+=======
+            /**
+             * Backfill Processed Fill Count
+             * @default null
+             */
+            backfill_processed_fill_count: number | null;
+            /** By Market */
+            by_market: components["schemas"]["OverviewMarketFeesOutput"][] | null;
+            /**
+             * Caught Up At
+             * @default null
+             */
+            caught_up_at: string | null;
+            /**
+>>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
              * Conversion Basis
              * @constant
              */
@@ -3152,6 +3334,30 @@ export interface components {
             /** History Complete */
             history_complete: boolean;
             /**
+<<<<<<< HEAD
+=======
+             * Processed Fill Count
+             * @default null
+             */
+            processed_fill_count: number | null;
+            /**
+             * Processing Projection Version
+             * @default null
+             */
+            processing_projection_version: number | null;
+            /**
+             * Processing State
+             * @default ready
+             * @enum {string}
+             */
+            processing_state: "ready" | "catching_up";
+            /**
+             * Reported Projection Version
+             * @default null
+             */
+            reported_projection_version: number | null;
+            /**
+>>>>>>> a153807bfe55248f815c91bea930d8a21eef32af
              * Through At
              * Format: date-time
              */
@@ -4141,6 +4347,8 @@ export interface components {
         RecoveryOverviewOutput: {
             /** Blockers */
             blockers: components["schemas"]["RecoveryBlockerOutput"][];
+            /** @default null */
+            cause: components["schemas"]["HaltCauseOutput"] | null;
             /** Check Available */
             check_available: boolean;
             /** Control Version */
@@ -4204,6 +4412,8 @@ export interface components {
         };
         /** RecoverySummary */
         RecoverySummaryOutput: {
+            /** @default null */
+            cause: components["schemas"]["HaltCauseOutput"] | null;
             /**
              * Check Available
              * @default false

@@ -64,8 +64,10 @@ class OkxPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
             raise
 
     async def _listen_for_user_stream_on_url(self, url: str, output: asyncio.Queue):
-        ws: Optional[WSAssistant] = None
         while True:
+            # A failed connection attempt must not clean up the previous
+            # iteration's already-disconnected/removed assistant.
+            ws: Optional[WSAssistant] = None
             try:
                 ws = await self._get_connected_websocket_assistant(url)
                 self._ws_assistants.append(ws)

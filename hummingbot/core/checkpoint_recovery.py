@@ -43,6 +43,49 @@ def position_scope(snapshot):
     return positions
 
 
+def checked_trades(reader, name, selected, rows):
+    """Validate exact native identities/economics/fees against applied local fills."""
+    result = []
+    local = {(r['fill']['market'], str(r['order']['exchange_order_id']), r['fill']['exchange_trade_id']): r for r in rows}
+    if len(local) != len(rows) or local.keys() != {key for key, _ in selected}:
+        raise RecoveryBlocked('recovery_unrecorded_or_duplicate_venue_fill')
+    for key, raw in selected:
+        row = local[key]; fill, order, journal = row['fill'], row['order'], row['journal']
+        if (raw.get('instId') != fill['symbol'] + ('-SWAP' if name == 'okx_perpetual' else '')
+                or raw.get('side') != fill['trade_type'].lower()
+                or raw.get('clOrdId') not in (None, '', order['id']) or order['creation_pending']):
+            raise RecoveryBlocked('recovery_order_identity_unproven')
+        if name == 'okx_perpetual':
+            leg = 'long' if (fill['trade_type'] == 'BUY') == (fill['position'] == 'OPEN') else 'short'
+            if fill['position'] not in ('OPEN', 'CLOSE') or raw.get('posSide') != leg:
+                raise RecoveryBlocked('recovery_position_scope_ambiguous')
+        tracked = SimpleNamespace(client_order_id=order['id'], trading_pair=fill['symbol'], trade_type=TradeType[fill['trade_type']])
+        trade = (reader.connector._trade_update_from_fill(tracked, raw) if name == 'okx'
+                 else reader.connector._parse_trade_update(raw, tracked))
+        if (decimal(fill['amount']) <= 0 or decimal(fill['price']) <= 0
+                or trade.fill_base_amount != fill['amount'] or trade.fill_price != fill['price']):
+            raise RecoveryBlocked('recovery_fill_mismatch')
+        if not MarketsRecorder._same_trade_fee(fill['trade_fee'], trade.fee.to_json()):
+            raise RecoveryBlocked('recovery_original_fee_mismatch')
+        fee = -decimal(raw['fee'])
+        if raw['feeCcy'] == 'USDT':
+            expected_fee = fee
+        elif name == 'okx' and raw['feeCcy'] == fill['symbol'].removesuffix('-USDT'):
+            expected_fee = fee * decimal(fill['price'])
+        else:
+            raise RecoveryBlocked('recovery_fee_basis_unsupported')
+        if expected_fee != decimal(fill['trade_fee_in_quote']):
+            raise RecoveryBlocked('recovery_original_fee_mismatch')
+        if (any(str(journal.get(k)) != str(fill[k]) for k in ('market', 'symbol', 'trade_type', 'exchange_trade_id', 'timestamp'))
+                or any(decimal(journal.get(k)) != decimal(fill[k]) for k in ('amount', 'price', 'trade_fee_in_quote'))
+                or not MarketsRecorder._same_trade_fee(fill['trade_fee'], journal.get('trade_fee'))):
+            raise RecoveryBlocked('recovery_financial_data_invalid')
+        # Event-clock timestamps are retained as metadata. Native
+        # identity/economics and complete journal coverage prove fills.
+        result.append((key, venue_id(raw, 'billId'), json.dumps([key, str(raw['billId']), raw], sort_keys=True, default=str).encode() + b'\n'))
+    return result
+
+
 async def verify_checkpoint_exchange(snapshot, readers, lookup):
     checkpoint = snapshot['checkpoint']; anchor = checkpoint['anchor']
     now = int(snapshot['state']['database_now'].timestamp() * 1000)
@@ -115,43 +158,8 @@ async def verify_checkpoint_exchange(snapshot, readers, lookup):
                     observed.add(key); selected.append((key, raw))
                 if selected:
                     rows = await lookup([key for key, _ in selected], anchor['journal_watermark'])
-                    local = {(r['fill']['market'], str(r['order']['exchange_order_id']), r['fill']['exchange_trade_id']): r for r in rows}
-                    if len(local) != len(rows) or local.keys() != {key for key, _ in selected}:
-                        raise RecoveryBlocked('recovery_unrecorded_or_duplicate_venue_fill')
-                    for key, raw in selected:
-                        row = local[key]; fill, order, journal = row['fill'], row['order'], row['journal']
-                        if (raw.get('instId') != fill['symbol'] + ('-SWAP' if name == 'okx_perpetual' else '')
-                                or raw.get('side') != fill['trade_type'].lower()
-                                or raw.get('clOrdId') not in (None, '', order['id']) or order['creation_pending']):
-                            raise RecoveryBlocked('recovery_order_identity_unproven')
-                        if name == 'okx_perpetual':
-                            leg = 'long' if (fill['trade_type'] == 'BUY') == (fill['position'] == 'OPEN') else 'short'
-                            if fill['position'] not in ('OPEN', 'CLOSE') or raw.get('posSide') != leg:
-                                raise RecoveryBlocked('recovery_position_scope_ambiguous')
-                        tracked = SimpleNamespace(client_order_id=order['id'], trading_pair=fill['symbol'], trade_type=TradeType[fill['trade_type']])
-                        trade = (reader.connector._trade_update_from_fill(tracked, raw) if name == 'okx'
-                                 else reader.connector._parse_trade_update(raw, tracked))
-                        if (decimal(fill['amount']) <= 0 or decimal(fill['price']) <= 0
-                                or trade.fill_base_amount != fill['amount'] or trade.fill_price != fill['price']):
-                            raise RecoveryBlocked('recovery_fill_mismatch')
-                        if not MarketsRecorder._same_trade_fee(fill['trade_fee'], trade.fee.to_json()):
-                            raise RecoveryBlocked('recovery_original_fee_mismatch')
-                        fee = -decimal(raw['fee'])
-                        if raw['feeCcy'] == 'USDT':
-                            expected_fee = fee
-                        elif name == 'okx' and raw['feeCcy'] == fill['symbol'].removesuffix('-USDT'):
-                            expected_fee = fee * decimal(fill['price'])
-                        else:
-                            raise RecoveryBlocked('recovery_fee_basis_unsupported')
-                        if expected_fee != decimal(fill['trade_fee_in_quote']):
-                            raise RecoveryBlocked('recovery_original_fee_mismatch')
-                        if (any(str(journal.get(k)) != str(fill[k]) for k in ('market', 'symbol', 'trade_type', 'exchange_trade_id', 'timestamp'))
-                                or any(decimal(journal.get(k)) != decimal(fill[k]) for k in ('amount', 'price', 'trade_fee_in_quote'))
-                                or not MarketsRecorder._same_trade_fee(fill['trade_fee'], journal.get('trade_fee'))):
-                            raise RecoveryBlocked('recovery_financial_data_invalid')
-                        # Event-clock timestamps are retained as metadata. Native
-                        # identity/economics and complete journal coverage prove fills.
-                        digest.update(json.dumps([key, str(raw['billId']), raw], sort_keys=True, default=str).encode() + b'\n')
+                    for _, _, encoded in checked_trades(reader, name, selected, rows):
+                        digest.update(encoded)
                 if found or len(page) < PAGE_SIZE:
                     if target is not None and not found:
                         raise RecoveryBlocked('recovery_exchange_scope_incomplete')

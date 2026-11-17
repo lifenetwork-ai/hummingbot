@@ -3024,6 +3024,145 @@
         "title": "FundingSyncStatus",
         "type": "object"
       },
+      "HaltCauseOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "automatic_recovery_expected": {
+            "title": "Automatic Recovery Expected",
+            "type": "boolean"
+          },
+          "category": {
+            "enum": [
+              "technical",
+              "risk",
+              "shutdown",
+              "unknown"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "cleanup_incomplete": {
+            "title": "Cleanup Incomplete",
+            "type": "boolean"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Component"
+          },
+          "current_reason_code": {
+            "title": "Current Reason Code",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "evidence_source": {
+            "enum": [
+              "persisted",
+              "legacy_reason",
+              "unavailable"
+            ],
+            "title": "Evidence Source",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Occurred At"
+          },
+          "reason_code": {
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Revision"
+          },
+          "runtime_reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Runtime Reason Code"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Task"
+          },
+          "task_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "completed",
+                  "failed",
+                  "cancelled",
+                  "stalled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Task State"
+          }
+        },
+        "required": [
+          "reason_code",
+          "current_reason_code",
+          "category",
+          "label",
+          "detail",
+          "evidence_source",
+          "automatic_recovery_expected",
+          "cleanup_incomplete"
+        ],
+        "title": "HaltCause",
+        "type": "object"
+      },
       "InitialPositionConfigOutput": {
         "description": "Configuration for an initial position that the controller should consider.\nThis is used when the user already has assets in their account and wants\nthe controller to manage them.",
         "properties": {
@@ -5092,6 +5231,2029 @@
         "title": "OrdersPage",
         "type": "object"
       },
+      "OverviewAccountScopeOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "account_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Account Ids",
+            "type": "array"
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "enum": [
+                  "live",
+                  "demo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment"
+          },
+          "identity_verified": {
+            "default": false,
+            "title": "Identity Verified",
+            "type": "boolean"
+          },
+          "site": {
+            "anyOf": [
+              {
+                "enum": [
+                  "www",
+                  "app",
+                  "my"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Site"
+          }
+        },
+        "required": [
+          "account_ids",
+          "environment"
+        ],
+        "title": "OverviewAccountScope",
+        "type": "object"
+      },
+      "OverviewCapitalAllocatedOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "life": {
+            "title": "Life",
+            "type": "string"
+          },
+          "source": {
+            "const": "session_configuration",
+            "title": "Source",
+            "type": "string"
+          },
+          "usdt": {
+            "title": "Usdt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "usdt",
+          "life",
+          "source"
+        ],
+        "title": "OverviewCapitalAllocated",
+        "type": "object"
+      },
+      "OverviewCoverageMinuteOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "eligibility_unknown_seconds": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Eligibility Unknown Seconds",
+            "type": "number"
+          },
+          "eligible_seconds": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Eligible Seconds",
+            "type": "number"
+          },
+          "minute_ts": {
+            "format": "date-time",
+            "title": "Minute Ts",
+            "type": "string"
+          },
+          "observed_seconds": {
+            "minimum": 0,
+            "title": "Observed Seconds",
+            "type": "number"
+          },
+          "restricted_seconds": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Restricted Seconds",
+            "type": "number"
+          },
+          "restriction_seconds": {
+            "additionalProperties": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "propertyNames": {
+              "enum": [
+                "balance",
+                "inventory",
+                "bootstrap",
+                "guard",
+                "policy"
+              ]
+            },
+            "title": "Restriction Seconds",
+            "type": "object"
+          },
+          "two_sided_eligible_seconds": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Two Sided Eligible Seconds",
+            "type": "number"
+          },
+          "two_sided_seconds": {
+            "minimum": 0,
+            "title": "Two Sided Seconds",
+            "type": "number"
+          },
+          "unknown_seconds": {
+            "minimum": 0,
+            "title": "Unknown Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "minute_ts",
+          "observed_seconds",
+          "unknown_seconds",
+          "two_sided_seconds"
+        ],
+        "title": "OverviewCoverageMinute",
+        "type": "object"
+      },
+      "OverviewDepthLevelOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "ask_usdt": {
+            "title": "Ask Usdt",
+            "type": "string"
+          },
+          "bid_usdt": {
+            "title": "Bid Usdt",
+            "type": "string"
+          },
+          "offset_bps": {
+            "exclusiveMinimum": 0,
+            "title": "Offset Bps",
+            "type": "number"
+          }
+        },
+        "required": [
+          "offset_bps",
+          "bid_usdt",
+          "ask_usdt"
+        ],
+        "title": "OverviewDepthLevel",
+        "type": "object"
+      },
+      "OverviewDepthOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "const": "own_working_orders",
+            "title": "Basis",
+            "type": "string"
+          },
+          "levels": {
+            "description": "Cumulative remaining own order notional within offset_bps of mid.",
+            "items": {
+              "$ref": "#/components/schemas/OverviewDepthLevelOutput"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "reference_mid": {
+            "title": "Reference Mid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "basis",
+          "reference_mid",
+          "levels"
+        ],
+        "title": "OverviewDepth",
+        "type": "object"
+      },
+      "OverviewHoldBenchmarkOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "baseline_at": {
+            "format": "date-time",
+            "title": "Baseline At",
+            "type": "string"
+          },
+          "basis": {
+            "const": "initial_spot_assets",
+            "title": "Basis",
+            "type": "string"
+          },
+          "hold_pnl_usdt": {
+            "title": "Hold Pnl Usdt",
+            "type": "string"
+          },
+          "initial_life": {
+            "title": "Initial Life",
+            "type": "string"
+          },
+          "initial_usdt": {
+            "title": "Initial Usdt",
+            "type": "string"
+          },
+          "outperform_usdt": {
+            "description": "session_pnl_usdt minus hold_pnl_usdt.",
+            "title": "Outperform Usdt",
+            "type": "string"
+          },
+          "session_pnl_usdt": {
+            "title": "Session Pnl Usdt",
+            "type": "string"
+          },
+          "transfer_treatment": {
+            "const": "excluded_from_both",
+            "title": "Transfer Treatment",
+            "type": "string"
+          },
+          "valuation": {
+            "$ref": "#/components/schemas/OverviewValuationOutput"
+          }
+        },
+        "required": [
+          "basis",
+          "baseline_at",
+          "initial_life",
+          "initial_usdt",
+          "session_pnl_usdt",
+          "hold_pnl_usdt",
+          "outperform_usdt",
+          "valuation",
+          "transfer_treatment"
+        ],
+        "title": "OverviewHoldBenchmark",
+        "type": "object"
+      },
+      "OverviewInventoryLimitOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "pattern": "^[A-Z0-9][A-Z0-9._]{0,31}$",
+            "title": "Asset",
+            "type": "string"
+          },
+          "controller_id": {
+            "title": "Controller Id",
+            "type": "string"
+          },
+          "gross_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Gross Limit"
+          },
+          "inventory_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null if policy defines no absolute quantity limit.",
+            "title": "Inventory Limit"
+          },
+          "long_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Long Limit"
+          },
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "short_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Short Limit"
+          }
+        },
+        "required": [
+          "controller_id",
+          "market",
+          "pair",
+          "asset",
+          "inventory_limit"
+        ],
+        "title": "OverviewInventoryLimit",
+        "type": "object"
+      },
+      "OverviewMarketDataOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewRollingCoverage_Output"
+          },
+          "depth": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewDepth_Output"
+          },
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "post_fill_recovery": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewPostFillRecovery_Output"
+          },
+          "slippage_estimate": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewSlippage_Output"
+          }
+        },
+        "required": [
+          "market",
+          "connector",
+          "pair",
+          "depth",
+          "coverage",
+          "slippage_estimate",
+          "post_fill_recovery"
+        ],
+        "title": "OverviewMarketData",
+        "type": "object"
+      },
+      "OverviewMarketFeesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "total_usdt": {
+            "title": "Total Usdt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "market",
+          "total_usdt"
+        ],
+        "title": "OverviewMarketFees",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewCapitalAllocated_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewCapitalAllocatedOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewCapitalAllocated]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewDepth_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewDepthOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewDepth]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewHoldBenchmark_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewHoldBenchmarkOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewHoldBenchmark]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewPortfolio_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewPortfolioOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewPortfolio]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewPostFillRecovery_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewPostFillRecoveryOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewPostFillRecovery]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewRollingCoverage_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewRollingCoverageOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewRollingCoverage]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewSessionDelta_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewSessionDeltaOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewSessionDelta]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewSessionFees_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewSessionFeesOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewSessionFees]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewSlippage_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewSlippageOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewSlippage]",
+        "type": "object"
+      },
+      "OverviewObservation_list_OverviewInventoryLimit__Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OverviewInventoryLimitOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[list[OverviewInventoryLimit]]",
+        "type": "object"
+      },
+      "OverviewObservation_list_OverviewReferencePrice__Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OverviewReferencePriceOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[list[OverviewReferencePrice]]",
+        "type": "object"
+      },
+      "OverviewObservation_list_OverviewReservedBalance__Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OverviewReservedBalanceOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[list[OverviewReservedBalance]]",
+        "type": "object"
+      },
+      "OverviewObservation_list_OverviewRiskRule__Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OverviewRiskRuleOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[list[OverviewRiskRule]]",
+        "type": "object"
+      },
+      "OverviewPortfolioOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "life_usdt": {
+            "title": "Life Usdt",
+            "type": "string"
+          },
+          "other_assets_usdt": {
+            "title": "Other Assets Usdt",
+            "type": "string"
+          },
+          "total_usdt": {
+            "description": "Account equity; include perp unrealized PnL once, do not double count margin.",
+            "title": "Total Usdt",
+            "type": "string"
+          },
+          "usdt": {
+            "description": "USDT equity component, not available cash.",
+            "title": "Usdt",
+            "type": "string"
+          },
+          "valuation": {
+            "$ref": "#/components/schemas/OverviewValuationOutput"
+          }
+        },
+        "required": [
+          "total_usdt",
+          "life_usdt",
+          "usdt",
+          "other_assets_usdt",
+          "valuation"
+        ],
+        "title": "OverviewPortfolio",
+        "type": "object"
+      },
+      "OverviewPostFillRecoveryOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "const": "fill_to_acknowledged_two_sided_quotes",
+            "title": "Basis",
+            "type": "string"
+          },
+          "history_complete": {
+            "title": "History Complete",
+            "type": "boolean"
+          },
+          "measurement": {
+            "const": "sampled_upper_bound",
+            "default": "sampled_upper_bound",
+            "title": "Measurement",
+            "type": "string"
+          },
+          "p50_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50 Seconds"
+          },
+          "p95_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95 Seconds"
+          },
+          "pending_count": {
+            "minimum": 0,
+            "title": "Pending Count",
+            "type": "integer"
+          },
+          "recovered_count": {
+            "minimum": 0,
+            "title": "Recovered Count",
+            "type": "integer"
+          },
+          "window_end": {
+            "format": "date-time",
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_start": {
+            "format": "date-time",
+            "title": "Window Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "basis",
+          "window_start",
+          "window_end",
+          "recovered_count",
+          "pending_count",
+          "history_complete",
+          "p50_seconds",
+          "p95_seconds"
+        ],
+        "title": "OverviewPostFillRecovery",
+        "type": "object"
+      },
+      "OverviewReferencePriceOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor_at": {
+            "format": "date-time",
+            "title": "Anchor At",
+            "type": "string"
+          },
+          "anchor_price": {
+            "title": "Anchor Price",
+            "type": "string"
+          },
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "controller_id": {
+            "title": "Controller Id",
+            "type": "string"
+          },
+          "last_price": {
+            "description": "Current fresh reference midpoint, not last traded price.",
+            "title": "Last Price",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "price_basis": {
+            "const": "mid",
+            "default": "mid",
+            "title": "Price Basis",
+            "type": "string"
+          },
+          "price_observed_at": {
+            "format": "date-time",
+            "title": "Price Observed At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "controller_id",
+          "connector",
+          "pair",
+          "anchor_price",
+          "last_price",
+          "price_observed_at",
+          "anchor_at"
+        ],
+        "title": "OverviewReferencePrice",
+        "type": "object"
+      },
+      "OverviewReservedBalanceOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "title": "Asset",
+            "type": "string"
+          },
+          "free": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free"
+          },
+          "reserved_for_open_orders": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exchange-confirmed reservation, not equity minus free.",
+            "title": "Reserved For Open Orders"
+          }
+        },
+        "required": [
+          "asset",
+          "free",
+          "reserved_for_open_orders"
+        ],
+        "title": "OverviewReservedBalance",
+        "type": "object"
+      },
+      "OverviewRiskRuleOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "controller_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Controller Id"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "lower_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lower Limit"
+          },
+          "market": {
+            "anyOf": [
+              {
+                "enum": [
+                  "spot",
+                  "perpetual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "violated",
+              "disabled",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "unit": {
+            "pattern": "^(?:[A-Z0-9][A-Z0-9._]{0,31}|fraction|seconds|bps)$",
+            "title": "Unit",
+            "type": "string"
+          },
+          "upper_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upper Limit"
+          }
+        },
+        "required": [
+          "rule_id",
+          "controller_id",
+          "market",
+          "unit",
+          "lower_limit",
+          "upper_limit",
+          "current",
+          "status"
+        ],
+        "title": "OverviewRiskRule",
+        "type": "object"
+      },
+      "OverviewRollingCoverageOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "conditional_eligible_fraction": {
+            "anyOf": [
+              {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Conditional Eligible Fraction"
+          },
+          "conservative_eligible_fraction": {
+            "anyOf": [
+              {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Conservative Eligible Fraction"
+          },
+          "elapsed_seconds": {
+            "minimum": 0,
+            "title": "Elapsed Seconds",
+            "type": "number"
+          },
+          "eligibility_unknown_seconds": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Eligibility Unknown Seconds",
+            "type": "number"
+          },
+          "eligible_seconds": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Eligible Seconds",
+            "type": "number"
+          },
+          "full_window": {
+            "title": "Full Window",
+            "type": "boolean"
+          },
+          "measurement": {
+            "const": "sampled_interval_lower_bound",
+            "default": "sampled_interval_lower_bound",
+            "title": "Measurement",
+            "type": "string"
+          },
+          "measurement_ready": {
+            "default": false,
+            "title": "Measurement Ready",
+            "type": "boolean"
+          },
+          "measurement_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "eligibility_history_unavailable",
+            "title": "Measurement Reason"
+          },
+          "observed_seconds": {
+            "minimum": 0,
+            "title": "Observed Seconds",
+            "type": "number"
+          },
+          "per_minute": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OverviewCoverageMinuteOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Minute"
+          },
+          "restricted_seconds": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Restricted Seconds",
+            "type": "number"
+          },
+          "restriction_seconds": {
+            "additionalProperties": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "propertyNames": {
+              "enum": [
+                "balance",
+                "inventory",
+                "bootstrap",
+                "guard",
+                "policy"
+              ]
+            },
+            "title": "Restriction Seconds",
+            "type": "object"
+          },
+          "rolling_30m_fraction": {
+            "anyOf": [
+              {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "two_sided_seconds / elapsed_seconds; unknown remains in denominator.",
+            "title": "Rolling 30M Fraction"
+          },
+          "target_fraction": {
+            "anyOf": [
+              {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Fraction"
+          },
+          "two_sided_eligible_seconds": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Two Sided Eligible Seconds",
+            "type": "number"
+          },
+          "two_sided_seconds": {
+            "minimum": 0,
+            "title": "Two Sided Seconds",
+            "type": "number"
+          },
+          "unknown_seconds": {
+            "minimum": 0,
+            "title": "Unknown Seconds",
+            "type": "number"
+          },
+          "window_end": {
+            "format": "date-time",
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_seconds": {
+            "const": 1800,
+            "title": "Window Seconds",
+            "type": "integer"
+          },
+          "window_start": {
+            "format": "date-time",
+            "title": "Window Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "window_seconds",
+          "window_start",
+          "window_end",
+          "elapsed_seconds",
+          "observed_seconds",
+          "unknown_seconds",
+          "two_sided_seconds",
+          "rolling_30m_fraction",
+          "target_fraction",
+          "full_window",
+          "per_minute"
+        ],
+        "title": "OverviewRollingCoverage",
+        "type": "object"
+      },
+      "OverviewSessionDeltaOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "adjusted_for_transfers": {
+            "title": "Adjusted For Transfers",
+            "type": "boolean"
+          },
+          "baseline_at": {
+            "format": "date-time",
+            "title": "Baseline At",
+            "type": "string"
+          },
+          "baseline_total_usdt": {
+            "title": "Baseline Total Usdt",
+            "type": "string"
+          },
+          "net_transfers_usdt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Net external inflows valued at transfer time; null when incomplete.",
+            "title": "Net Transfers Usdt"
+          },
+          "pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Percentage points: 0.82 means 0.82%; delta / baseline * 100; null if baseline <= 0.",
+            "title": "Pct"
+          },
+          "through_at": {
+            "format": "date-time",
+            "title": "Through At",
+            "type": "string"
+          },
+          "usdt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "End equity minus baseline minus net inflows; null if transfers unknown.",
+            "title": "Usdt"
+          }
+        },
+        "required": [
+          "baseline_at",
+          "baseline_total_usdt",
+          "net_transfers_usdt",
+          "adjusted_for_transfers",
+          "usdt",
+          "pct",
+          "through_at"
+        ],
+        "title": "OverviewSessionDelta",
+        "type": "object"
+      },
+      "OverviewSessionFeesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "backfill_processed_fill_count": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Backfill Processed Fill Count"
+          },
+          "by_market": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OverviewMarketFeesOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By Market"
+          },
+          "caught_up_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caught Up At"
+          },
+          "conversion_basis": {
+            "const": "at_fill",
+            "title": "Conversion Basis",
+            "type": "string"
+          },
+          "history_complete": {
+            "title": "History Complete",
+            "type": "boolean"
+          },
+          "processed_fill_count": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Processed Fill Count"
+          },
+          "processing_projection_version": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Processing Projection Version"
+          },
+          "processing_state": {
+            "default": "ready",
+            "enum": [
+              "ready",
+              "catching_up"
+            ],
+            "title": "Processing State",
+            "type": "string"
+          },
+          "reported_projection_version": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reported Projection Version"
+          },
+          "through_at": {
+            "format": "date-time",
+            "title": "Through At",
+            "type": "string"
+          },
+          "total_usdt": {
+            "description": "Signed cost: positive paid, negative rebate; converted at fill time.",
+            "title": "Total Usdt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "total_usdt",
+          "by_market",
+          "conversion_basis",
+          "history_complete",
+          "through_at"
+        ],
+        "title": "OverviewSessionFees",
+        "type": "object"
+      },
+      "OverviewSessionOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "benchmark_hold": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewHoldBenchmark_Output"
+          },
+          "capital_allocated": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewCapitalAllocated_Output"
+          },
+          "delta": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewSessionDelta_Output"
+          },
+          "fees": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewSessionFees_Output"
+          }
+        },
+        "required": [
+          "capital_allocated",
+          "fees",
+          "delta",
+          "benchmark_hold"
+        ],
+        "title": "OverviewSession",
+        "type": "object"
+      },
+      "OverviewSlippageEstimateOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_slippage_bps": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Slippage Bps"
+          },
+          "notional_usdt": {
+            "title": "Notional Usdt",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "sufficient_depth": {
+            "title": "Sufficient Depth",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "side",
+          "notional_usdt",
+          "expected_slippage_bps",
+          "sufficient_depth"
+        ],
+        "title": "OverviewSlippageEstimate",
+        "type": "object"
+      },
+      "OverviewSlippageOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "const": "exchange_order_book",
+            "title": "Basis",
+            "type": "string"
+          },
+          "estimates": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewSlippageEstimateOutput"
+            },
+            "title": "Estimates",
+            "type": "array"
+          },
+          "notional_basis": {
+            "const": "reference_mid",
+            "default": "reference_mid",
+            "title": "Notional Basis",
+            "type": "string"
+          },
+          "own_orders_excluded": {
+            "const": true,
+            "default": true,
+            "title": "Own Orders Excluded",
+            "type": "boolean"
+          },
+          "reference_mid": {
+            "title": "Reference Mid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "basis",
+          "reference_mid",
+          "estimates"
+        ],
+        "title": "OverviewSlippage",
+        "type": "object"
+      },
+      "OverviewSupplementOutput": {
+        "additionalProperties": false,
+        "description": "Account/session observations only; never changes quote, sizing or risk enforcement.",
+        "properties": {
+          "account_scope": {
+            "$ref": "#/components/schemas/OverviewAccountScopeOutput"
+          },
+          "balances": {
+            "$ref": "#/components/schemas/OverviewObservation_list_OverviewReservedBalance__Output"
+          },
+          "contract_version": {
+            "const": 1,
+            "title": "Contract Version",
+            "type": "integer"
+          },
+          "inventory_limits": {
+            "$ref": "#/components/schemas/OverviewObservation_list_OverviewInventoryLimit__Output"
+          },
+          "markets": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewMarketDataOutput"
+            },
+            "title": "Markets",
+            "type": "array"
+          },
+          "portfolio": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewPortfolio_Output"
+          },
+          "references": {
+            "$ref": "#/components/schemas/OverviewObservation_list_OverviewReferencePrice__Output"
+          },
+          "risk_rules": {
+            "$ref": "#/components/schemas/OverviewObservation_list_OverviewRiskRule__Output"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "session": {
+            "$ref": "#/components/schemas/OverviewSessionOutput"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "session_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Started At"
+          }
+        },
+        "required": [
+          "contract_version",
+          "server_time",
+          "account_scope",
+          "session_id",
+          "session_started_at",
+          "session",
+          "portfolio",
+          "risk_rules",
+          "markets",
+          "balances",
+          "inventory_limits",
+          "references"
+        ],
+        "title": "OverviewSupplement",
+        "type": "object"
+      },
+      "OverviewValuationOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "const": "USDT",
+            "title": "Currency",
+            "type": "string"
+          },
+          "prices": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewValuationPriceOutput"
+            },
+            "title": "Prices",
+            "type": "array"
+          },
+          "valuation_mark": {
+            "enum": [
+              "mid",
+              "mark"
+            ],
+            "title": "Valuation Mark",
+            "type": "string"
+          },
+          "valued_at": {
+            "format": "date-time",
+            "title": "Valued At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "valuation_mark",
+          "valued_at",
+          "prices"
+        ],
+        "title": "OverviewValuation",
+        "type": "object"
+      },
+      "OverviewValuationPriceOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "title": "Asset",
+            "type": "string"
+          },
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "price_usdt": {
+            "title": "Price Usdt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "observed_at",
+          "asset",
+          "pair",
+          "connector",
+          "price_usdt"
+        ],
+        "title": "OverviewValuationPrice",
+        "type": "object"
+      },
       "PerformanceMarketOutput": {
         "additionalProperties": false,
         "properties": {
@@ -7074,6 +9236,17 @@
             "title": "Blockers",
             "type": "array"
           },
+          "cause": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HaltCauseOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "check_available": {
             "title": "Check Available",
             "type": "boolean"
@@ -7238,6 +9411,17 @@
       "RecoverySummaryOutput": {
         "additionalProperties": false,
         "properties": {
+          "cause": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HaltCauseOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "check_available": {
             "default": false,
             "title": "Check Available",
@@ -8725,6 +10909,18 @@
               }
             ],
             "default": null
+          },
+          "overview": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewSupplementOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional account/session reporting observations. Null if projection is unavailable; individual missing metrics remain null. Never controls trading."
           },
           "owner_available": {
             "title": "Owner Available",

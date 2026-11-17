@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import re
 import time
 import uuid
 import weakref
@@ -10,7 +11,9 @@ from datetime import datetime
 from decimal import Decimal
 from urllib.parse import urlparse
 
+from psycopg2 import Error as PostgreSQLError
 from sqlalchemy import select, text, update
+from sqlalchemy.exc import DBAPIError
 
 from hummingbot.core.engine_diagnostics import active_shutdown_stages, trace_runtime
 from hummingbot.core.order_submission_guard import (
@@ -20,6 +23,7 @@ from hummingbot.core.order_submission_guard import (
     SubmissionBlocked,
 )
 from hummingbot.core.startup_order_reconciliation import UntrackedOpenOrders, reconcile_open_order_visibility
+from hummingbot.core.submission_admission import SubmissionAdmission
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import BotStateStore
 from hummingbot.model.db_migration.postgres.locks import OWNER_KEY, OWNER_NAMESPACE
@@ -70,7 +74,10 @@ def _ownership_read(connection):
 
 
 class OwnershipLost(SubmissionBlocked):
-    pass
+    def __init__(self, message, *, reason_code='ownership_check_failed', diagnostic=None):
+        super().__init__(message)
+        self.reason_code = reason_code
+        self.diagnostic = dict(reason_code=reason_code, **(diagnostic or {}))
 
 
 class BotOwnership:
@@ -97,7 +104,7 @@ class BotOwnership:
         self.unsent_rejections = weakref.WeakValueDictionary()
         self.expired_rejections = weakref.WeakValueDictionary()
         self.submission_tasks = set()
-        self.submission_admission = asyncio.Lock()
+        self.submission_admission = SubmissionAdmission()
         self.terminal_tasks = set()
         self.transport_tasks = {}
         self.account_lock = asyncio.Lock()
@@ -160,6 +167,7 @@ class BotOwnership:
                     if recovery.get('halt_kind') == 'shutdown_pending':
                         recovery.pop('halt', None)
                         recovery.pop('halt_kind', None)
+                        recovery.pop('halt_diagnostic', None)
                     recovery['automatic_recovery'] = dict(phase='bootstrapping_recovery', reason_code='owner_handover',
                                                           operator_required=False, started_at=time.time(), cold_recovery_supported=True)
                 elif not recovery.get('halt'):
@@ -199,9 +207,11 @@ class BotOwnership:
         """Fresh proof on the physical owner session; writes need no state JSON."""
         connection = self.connection
         if self.lost or connection is None or connection.closed or connection.invalidated:
+            code = ('ownership_already_lost' if self.lost else 'ownership_session_unavailable' if connection is None else
+                    'ownership_connection_closed' if connection.closed else 'ownership_connection_invalidated')
             self.lost = True
             self.allow_new_orders = False
-            raise OwnershipLost("The bot ownership session is unavailable.")
+            raise OwnershipLost("The bot ownership session is unavailable.", reason_code=code)
         try:
             # Only this internal write-fence path omits the state payload. The
             # observer and submission gates always retain their complete fresh
@@ -221,11 +231,21 @@ class BotOwnership:
                        "namespace": OWNER_NAMESPACE, "key": OWNER_KEY}).mappings().first()
                 connection.commit()
             if not row or row["backend_pid"] != self.backend_pid:
-                raise OwnershipLost("The bot ownership lock/generation no longer matches.")
-        except Exception:
+                raise OwnershipLost("The bot ownership lock/generation no longer matches.", reason_code='ownership_identity_mismatch')
+        except OwnershipLost:
             self.lost = True
             self.allow_new_orders = False
-            raise OwnershipLost("The bot ownership session failed; submissions are closed.") from None
+            raise
+        except Exception as error:
+            self.lost = True
+            self.allow_new_orders = False
+            code = 'ownership_database_error' if isinstance(error, (DBAPIError, PostgreSQLError)) else 'ownership_check_failed'
+            sqlstate = getattr(getattr(error, 'orig', error), 'pgcode', None)
+            diagnostic = dict(connection_invalidated=getattr(error, 'connection_invalidated', False) is True)
+            if isinstance(sqlstate, str) and re.fullmatch(r'[0-9A-Z]{5}', sqlstate):
+                diagnostic['sqlstate'] = sqlstate
+            raise OwnershipLost("The bot ownership session failed; submissions are closed.",
+                                reason_code=code, diagnostic=diagnostic) from None
         return dict(row)
 
     def check_owner(self, *, new_risk=False, allow_setup=False):
@@ -278,10 +298,12 @@ class BotOwnership:
                                     .values(recovery_state=recovery))
         return True
 
-    def require_recovery(self, reason):
+    def require_recovery(self, reason, *, runtime_reason=None, component=None, task=None, task_state=None):
         self.allow_new_orders = False
         try:
-            self._mutate_recovery(lambda state: state.update(halt=True, halt_kind='manual', reason=reason))
+            from hummingbot.core.halt_diagnostics import record_halt
+            self._mutate_recovery(lambda state: record_halt(state, reason, runtime_reason_code=runtime_reason,
+                                                            component=component, task=task, task_state=task_state))
         except Exception:
             self.lost = True
 
@@ -583,15 +605,15 @@ class BotOwnership:
             return await self._authorize_rest(request)
         from hummingbot.core.order_submission_guard import active_guard
 
-        # Share admission's loop-turn discipline after throttling/authentication
-        # too. Never hold this slot during network I/O, and never yield between
+        # Bound final-send priority while preserving the shared loop-turn slot.
+        # Never hold this slot during network I/O, and never yield between
         # the final fresh authority/durable send checks and returning permission.
         task = asyncio.current_task()
         temporary = task is not None and task not in self.submission_tasks
         if temporary:
             self.submission_tasks.add(task)
         try:
-            async with self.submission_admission:
+            async with self.submission_admission.final_send():
                 await asyncio.sleep(0)
                 if active_guard() is not self:
                     raise SubmissionBlocked('Trading owner changed before final send authorization.')
@@ -1005,7 +1027,9 @@ class BotOwnership:
                 self.spot_outflow.reason_code = "spot_outflow_fill_invalid"
 
     @staticmethod
-    async def _refresh_orders(connector, orders, *, limiter=None, terminal_guard=None):
+    async def _refresh_orders(connector, orders, *, limiter=None, terminal_guard=None, local_rejection=None):
+        from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
+
         # Failed maker attempts remain part of terminal checkpoint proof. Read
         # every order, but do not serialize their network latency across the
         # unchanged shutdown deadline. A fixed worker bound avoids one task per
@@ -1016,10 +1040,23 @@ class BotOwnership:
         async def refresh():
             for order in pending:
                 async with limiter:
+                    if local_rejection is not None and local_rejection(order):
+                        continue
                     if terminal_guard is not None and await asyncio.wait_for(
                             terminal_guard.refresh_canceled_order(connector, order), timeout=10):
                         continue  # Strong status/fills/status proof already applied native fills and terminal state.
-                    status = await asyncio.wait_for(connector._request_order_status(order), timeout=5)
+                    if local_rejection is not None and local_rejection(order):
+                        continue
+                    try:
+                        status = await asyncio.wait_for(connector._request_order_status(order), timeout=5)
+                    except OKXOrderNotFoundError:
+                        # The create coroutine may reject this exact object at
+                        # the final send gate while the status GET is awaiting
+                        # a response. Only positive, terminal no-send evidence
+                        # can replace readback; not-found alone proves nothing.
+                        if local_rejection is not None and local_rejection(order):
+                            continue
+                        raise
                     if status.exchange_order_id:
                         order.update_exchange_order_id(status.exchange_order_id)
                     fills = await asyncio.wait_for(connector._all_trade_updates_for_order(order), timeout=5)
@@ -1184,6 +1221,11 @@ class BotOwnership:
         execution_before_stop = {order.client_order_id: order.executed_amount_base
                                  for _, orders in tracked for order in orders}
 
+        def local_rejection(order):
+            return (order.is_done and (self.unsent_rejections.get(order.client_order_id) is order
+                                       or self.expired_rejections.get(order.client_order_id) is order)
+                    and not order.exchange_order_id and order.client_order_id not in self.sent_intents)
+
         async def read_terminal_orders():
             # Share the existing three read slots across connectors. A delayed
             # Spot tail must not prevent all Perpetual proof from even starting.
@@ -1200,19 +1242,18 @@ class BotOwnership:
                     # failed, never-transported order cannot exist remotely;
                     # asking OKX for it yields an empty not-found response.
                     # Sent/uncertain failures still require exchange readback.
-                    if (order.is_done and (self.unsent_rejections.get(order.client_order_id) is order
-                                           or self.expired_rejections.get(order.client_order_id) is order) and not order.exchange_order_id
-                            and order.client_order_id not in self.sent_intents):
+                    if local_rejection(order):
                         continue
                     remote_orders.append(order)
                 if remote_orders:
                     await self._refresh_orders(connector, remote_orders, limiter=limiter,
-                                               terminal_guard=self.spot_outflow)
+                                               terminal_guard=self.spot_outflow, local_rejection=local_rejection)
                 while any(not order.is_done and order.client_order_id not in deferred for order in orders):
                     self.check_owner()
                     await asyncio.sleep(0.1)
                     await self._refresh_orders(connector, [order for order in orders
-                                                           if not order.is_done and order.client_order_id not in deferred], limiter=limiter)
+                                                           if not order.is_done and order.client_order_id not in deferred],
+                                               limiter=limiter, local_rejection=local_rejection)
 
             refreshes = [asyncio.create_task(refresh_connector(connector, orders)) for connector, orders in tracked]
             try:
@@ -1311,6 +1352,7 @@ class BotOwnership:
             state["runtime_active"] = False
             if not was_halted and not state.get("reason"):
                 state.pop("halt", None)
+                state.pop('halt_diagnostic', None)
                 if state.get('halt_kind') == 'shutdown_pending':
                     state.pop('halt_kind', None)
                 if deferred:

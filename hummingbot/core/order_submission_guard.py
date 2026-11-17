@@ -60,6 +60,10 @@ class SpotOutflowBlocked(MarketReadinessBlocked):
     """The current cash BUY cannot fit within its unchanged outflow cap."""
 
 
+class SpotOutflowPending(MarketReadinessBlocked):
+    """Cash BUY waits for bounded clock catch-up; partial risk is unavailable."""
+
+
 class QuoteRefreshRequired(SubmissionBlocked):
     """The fresh pre-transport spread check rejected a configured entry quote."""
 
@@ -70,6 +74,7 @@ def submission_block_log_context(error_type):
         "SessionSubmissionBlocked": (logging.INFO, "session_submission_closed"),
         "MarketReadinessBlocked": (logging.WARNING, "market_not_ready"),
         "SpotOutflowBlocked": (logging.WARNING, "spot_outflow_limit"),
+        "SpotOutflowPending": (logging.WARNING, "spot_outflow_projection_catching_up"),
         "QuoteRefreshRequired": (logging.WARNING, "spread_policy_quote_rejected"),
         "SubmissionBlocked": (logging.ERROR, "submission_safety_blocked"),
         "OwnershipLost": (logging.ERROR, "ownership_lost"),

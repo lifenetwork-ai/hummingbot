@@ -280,6 +280,15 @@ class ClientOrderTracker:
         )
 
         if tracked_order:
+            if order_update.new_state == OrderState.PENDING_CANCEL and tracked_order.is_done:
+                # A local cancel ACK may be queued before the create failure
+                # or private terminal update is applied. Recheck here, where
+                # updates are consumed, so that ACK cannot reopen the identity.
+                # Exchange creation and deduplicated trade updates still follow
+                # their normal paths, including fills arriving after failure.
+                if tracked_order.exchange_order_id is None and order_update.exchange_order_id is not None:
+                    tracked_order.update_exchange_order_id(order_update.exchange_order_id)
+                return
             if (getattr(tracked_order, '_managed_terminal_proved', False) is True
                     and tracked_order.current_state in (OrderState.CANCELED, OrderState.FILLED)
                     and order_update.new_state not in (OrderState.CANCELED, OrderState.FILLED, OrderState.FAILED)):
