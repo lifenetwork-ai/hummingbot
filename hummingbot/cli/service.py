@@ -11,6 +11,7 @@ import os
 import signal
 import threading
 import time
+from copy import deepcopy
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -983,9 +984,13 @@ class ServiceHost:
             self.availability.fail("overview", "overview_observation_unavailable", error)
 
     def _prepare_status_publication(self, version):
-        # Connector/strategy state is loop-owned. Only the detached JSON payload
+        # Connector/strategy state is loop-owned. Only the detached snapshot
         # and immutable ownership identity may cross to the database worker.
-        status = json.loads(json.dumps(self.snapshot(), default=str))
+        from hummingbot.core.mm_liquidity import copy_liquidity_checkpoint
+        snapshot = self.snapshot()
+        status = deepcopy({key: value for key, value in snapshot.items() if key != 'mm_liquidity'})
+        if 'mm_liquidity' in snapshot:
+            status['mm_liquidity'] = copy_liquidity_checkpoint(snapshot['mm_liquidity'])
         now = time.monotonic()
         try:
             zone_name = status.get("reporting_timezone", "Asia/Ho_Chi_Minh")
@@ -1006,6 +1011,13 @@ class ServiceHost:
         fields = dict(owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation,
                       version=version, status=status, revision=self.revision, save_balances=due)
         return fields, now, signature, due
+
+    def _write_status_publication(self, fields):
+        # Normalize only the detached payload on the existing publication worker.
+        # Keep the actual written dictionary in context: publish annotates it
+        # with optional daily-snapshot errors used by the loop's retry cadence.
+        fields['status'] = json.loads(json.dumps(fields['status'], default=str))
+        return self.owner.store.publish(**fields)
 
     def _complete_status_publication(self, published, context):
         fields, now, signature, due = context
@@ -1054,7 +1066,7 @@ class ServiceHost:
                 return
             context = self._prepare_status_publication(version)
             self._publication_context = context
-            self._publication_task = asyncio.create_task(asyncio.to_thread(self.owner.store.publish, **context[0]))
+            self._publication_task = asyncio.create_task(asyncio.to_thread(self._write_status_publication, context[0]))
             self._publication_task.add_done_callback(self._publication_finished)
             await self._drain_publication()
 

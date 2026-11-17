@@ -1,5 +1,9 @@
 # Admin Overview reporting qualification
 
+Latest scoped connected result (2026-11-17): technical recovery and continuous
+Demo restart pass on revision164/`a153807bf`; see the final section. This does
+not replace the broader reporting/resource/soak qualifications below.
+
 Updated 2026-11-17. Contract, coverage, durable fees and the publication-read
 optimization are implemented. The encoding-before-lock artifact passes all 989
 PG cases, 4,033 native tests +16 subtests, scoped packaged lifecycle, the full
@@ -1399,3 +1403,83 @@ six overlapping that regression scope. No deadline, pool, page cap, financial
 proof or risk policy is relaxed. Connected recovery is still open until a new
 artifact passes; this is not a new MM/soak availability pass. Evidence:
 `build/recovery-finalization-lock-20261117`.
+
+### Revision164 — large-history API recovery and continuous Demo restored
+
+Actual CI image `sha256:0fe5c423dd05423a09b6ca737da27d800934b958bf7a93a64ed86c34b270b0a0`
+is independently matched to commit `a153807bfe55248f815c91bea930d8a21eef32af` on
+`hummingbot-demo-00164-b8b`, Ready100%. The parallel manual build finishes later
+with another manifest; its guarded deploy detects the already deployed CI image
+and makes no service mutation. Source is now synchronized with origin/dev.
+
+New Check `4fddec02-0d52-40e6-892a-f6265ec2ef6e` completes292 native pages/two
+14,519-fill scans and grants review. Reset
+`e951b861-8828-45ba-b703-bc8e23d35fca` independently completes the same proof and
+clears technical HALT within the unchanged five-minute review window, leaving
+stoppedcontrol94. No position repair or direct financial/HALT maintenance is used.
+The retained owner/generation556 is unchanged across Check/Reset and the final
+running observation. Proof scratch rows are removed; baseline anchor advances
+to journal88427 through the ordinary audited transaction.
+
+Before Start,55,876 orders/15,169 fills/3 full position rows, protected risk state
+and pinned catalogue match their pre-maintenance values. Only the expected
+journal-owner marker tracks553->556. CPU2/memory1GiB, env/credentials, original
+min1/max1 scaling,2500/5000 drawdown policy and its peaks remain preserved.
+Audit actor is the configured Basic admin; no Google impersonation or new
+Google-login acceptance is claimed.
+
+Explicit Start succeeds atcontrol95, session
+`4f1a91bd-5751-496c-a951-aac40cc872ee`, both/fixedfollow_market/until_stopped
+with no expiry. Startup/live/ready200; clock/strategy/recorder active, no HALT.
+More than3 minutes of bounded post-Start observation pass. Final counts55,923
+orders/15,172 fills include47 new order records and3 new Spot fills. Current
+working quotes are Spot2BUY+2SELL and Perpetual2SELL CLOSE; perpetual BUY is
+inventory_limit blocked. This is not perpetual two-sided liquidity qualification.
+
+The captured164 critical-event query shows no service failure, restart or
+recovery blocker during the workflow. Two startup probe requests time out at
+approximately301ms; final owner/engine remain healthy, without a restart/HALT.
+The captured query has no recovery INFO rows, so it does not establish their
+exact recovery duration. Prior performance failures and broader release gates
+remain open; no new load/soak/production pass is claimed. Proxy55479 and local
+disposable PG/image are cleaned up. Evidence:
+`build/recovery-finalization-lock-20261117`.
+
+### Revision164 probe investigation — local remediation, connected measurement open
+
+The follow-up bounded query (100 latest WARNING rows, not an exhaustive warning
+count) contains23 paired loop-stall samples. Main-thread stacks show10 in
+liquidity checkpoint deepcopy,7 in status JSON encode/decode,5 in synchronous
+financial/owner DB waits and1 in socket processing. The largest paired heartbeat
+gap in this sample is543.44ms. Eleven probe requests in the captured window time
+out around301ms. Stack samples locate work during a gap; they do not prove its
+entire duration or one cause for every timeout. In particular, an asynchronous
+order.submit span exceeding1s is not itself evidence of blocking the loop.
+
+The copy cost is bounded retained history, not unbounded growth: two30-minute
+coverage windows are copied/encoded each observer cycle. A local RED test proves
+JSON normalization executes on the loop. The fix keeps native snapshot capture
+and detachment on the loop, copies numeric bucket rows without recursive
+deepcopy dispatch, and normalizes JSON on the existing single publication
+worker before the unchanged DB writer. Complete history, Decimal formatting,
+daily-error retry annotations, physical-write draining and authority fences are
+preserved; live snapshot mutations cannot change a queued publication.
+
+Native observer/publication/recovery scope79 passes and disposable PostgreSQL17
+passes, including full restart-checkpoint persistence through ServiceHost.
+One existing timed publication test also fails on HEAD during cold connector
+imports; its fixture now loads that module before starting the worker handshake,
+without changing the handshake timeout or production code for that issue.
+
+Local30-repeat microbenchmark over234,752 bytes/two complete coverage windows:
+median observer copy12.635->4.746ms; publication preparation10.691->4.161ms.
+These isolate local copy/preparation cost and exclude DB, worker JSON and Cloud
+Run scheduling. They are not production latency or availability qualification.
+The remaining synchronous DB waits are not modified by this patch; worker JSON
+can still contend for Python's GIL. A fixed-image connected window is required
+after deployment before claiming fewer probes or closing any performance gate.
+
+At13:35UTC/20:35VN, the API still reports revision164 running, control95
+acknowledged95, owner available and no HALT. Investigation performs no service,
+financial, credential or policy mutation. Evidence:
+`build/demo-status-20261117-1315`, `build/probe-observer-copy-20261117`.

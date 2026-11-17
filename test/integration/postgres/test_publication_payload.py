@@ -1,8 +1,10 @@
 """The reporting DB boundary must not transfer private checkpoint histories."""
+import asyncio
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from decimal import Decimal
 from test.integration.postgres.test_ownership import owned as _owned
 
 import pytest
@@ -37,6 +39,30 @@ def prepare(engine, status):
     with engine.begin() as connection:
         connection.execute(update(BotState).values(status=status))
     return store
+
+
+def test_service_publication_worker_retains_full_restart_checkpoint(owned):
+    from unittest.mock import MagicMock
+
+    from hummingbot.cli.service import ServiceHost
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+
+    status = large_status()
+    status['mm_liquidity']['markets'] = {'spot': {'best_bid': Decimal('123.4500')}}
+    expected = json.loads(json.dumps(status, default=str))
+    host = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
+                       asyncio.Event(), MagicMock())
+    host.owner = owned.owner
+    host.snapshot = lambda: status
+    owned.loop.run_until_complete(host.publish_status(1))
+
+    stored = owned.store.read()
+    assert stored['acknowledged_version'] == 1
+    assert stored['status']['mm_liquidity'] == expected['mm_liquidity']
+    assert stored['status']['mm_overview'] == expected['mm_overview']
+    # Normalization/DB metadata cannot mutate the engine's resident snapshot.
+    assert status['mm_liquidity']['markets']['spot']['best_bid'] == Decimal('123.4500')
+    assert 'mm_guard_observation' not in status
 
 
 def test_publication_excludes_private_history_before_driver_json_decode(pg_engine):

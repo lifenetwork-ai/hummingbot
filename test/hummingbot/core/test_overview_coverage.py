@@ -84,6 +84,35 @@ def test_restart_restores_history_but_does_not_credit_across_restart_gap():
     assert result['unknown_seconds'] == 8
 
 
+def test_full_window_checkpoint_is_detached_from_later_samples_and_restart():
+    from copy import deepcopy
+
+    observer = LiquidityObserver()
+    # A full rolling window, including a partially credited edge bucket.
+    observer_sample(observer, at=1000, mono=0)
+    for index in range(1, 1801):
+        observer_sample(observer, at=1000 + index, mono=index)
+    frame = observer_sample(observer, at=2800.5, mono=1800.5)
+    original = deepcopy(frame)
+    before = rolling_coverage(frame, 'spot', now=2800.5)
+    assert before['full_window'] and before['observed_seconds'] > 1799
+    observer_sample(observer, at=2800.75, mono=1800.75)
+    assert frame == original
+
+    # Mutating an already delivered checkpoint cannot rewrite resident history.
+    frame['_coverage_buckets']['spot']['2800'][2] = 999
+    frame['markets']['spot']['two_sided_seconds'] = 0
+    assert observer.frame['_coverage_buckets']['spot']['2800'][2] == .75
+    assert observer.frame['markets']['spot']['two_sided_seconds'] > 1800
+
+    restarted = LiquidityObserver(original)
+    original['_coverage_buckets']['spot'].clear()
+    restored = observer_sample(restarted, at=2801, mono=0)
+    after = rolling_coverage(restored, 'spot', now=2801)
+    assert after['observed_seconds'] > 1798
+    assert after['unknown_seconds'] >= .5  # Never credit the restart gap.
+
+
 def test_legacy_checkpoint_never_reconstructs_history_from_cumulative_totals():
     legacy = {
         'session_id': 'session', 'started_at': 0, 'ended_at': None,

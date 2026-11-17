@@ -16,6 +16,25 @@ COVERAGE_WINDOW_SECONDS = 1800
 COVERAGE_HISTORY_LIMIT = 1800
 
 
+def copy_liquidity_checkpoint(frame):
+    """Detach retained history without generic deepcopy dispatch for every number.
+
+    Bucket rows contain only numbers. Copy each row and its containing maps,
+    preserving independent snapshots even when the current second is extended.
+    Unrecognized/legacy values retain deepcopy's defensive behavior.
+    """
+    if not isinstance(frame, dict) or not isinstance(frame.get('_coverage_buckets'), dict):
+        return deepcopy(frame)
+    result = deepcopy({key: value for key, value in frame.items() if key != '_coverage_buckets'})
+    result['_coverage_buckets'] = {
+        market: {second: row.copy() if type(row) is list and all(type(v) in (int, float) for v in row)
+                 else deepcopy(row) for second, row in buckets.items()}
+        if type(buckets) is dict else deepcopy(buckets)
+        for market, buckets in frame['_coverage_buckets'].items()
+    }
+    return result
+
+
 def _valid_intervals(history, *, ceiling):
     if not isinstance(history, list) or len(history) > COVERAGE_HISTORY_LIMIT:
         return []
@@ -157,7 +176,7 @@ def own_quotes(connector, pair, *, max_orders):
 
 class LiquidityObserver:
     def __init__(self, checkpoint=None):
-        self.frame = deepcopy(checkpoint) if isinstance(checkpoint, dict) else None
+        self.frame = copy_liquidity_checkpoint(checkpoint) if isinstance(checkpoint, dict) else None
         self.previous = None
         self.previous_monotonic = None
         self.previous_owner = None
@@ -280,7 +299,7 @@ class LiquidityObserver:
         self.previous_monotonic = monotonic_now
         self.previous_owner = owner_generation
         self.previous_wall = now if self.previous_wall is None or now > self.previous_wall else None
-        return deepcopy(self.frame)
+        return copy_liquidity_checkpoint(self.frame)
 
 
 def capture_liquidity(host):
