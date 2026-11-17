@@ -28,6 +28,8 @@ export function OperatorAttentionBanner({
   className,
 }: OperatorAttentionBannerProps) {
   const isHalted = recovery?.halted === true
+  const isRecoveryWaiting = isHalted && recovery?.next_action === 'wait'
+  const cause = isHalted && !isRecoveryWaiting ? recovery?.cause : null
   const isStale = observation !== undefined && observation !== 'fresh'
 
   // If neither recovery nor operator is provided, nothing to display
@@ -40,20 +42,20 @@ export function OperatorAttentionBanner({
   const isNeedsAttention = operatorState === 'needs_attention'
   const isWaiting = operatorState === 'waiting'
 
-  const variant: 'error' | 'warning' | 'info' | 'success' = isHalted || isUnavailable
+  const variant: 'error' | 'warning' | 'info' | 'success' = (isHalted && !isRecoveryWaiting) || isUnavailable
     ? 'error'
-    : isNeedsAttention
+    : isNeedsAttention || isRecoveryWaiting
       ? 'warning'
       : isWaiting
         ? 'info'
         : 'info'
 
-  const title = isHalted
-    ? 'System is in EMERGENCY HALT state'
+  const title = isHalted && !isRecoveryWaiting
+    ? (cause?.label || 'Trading halted')
     : (operator?.label || (isWaiting ? 'Waiting for operational conditions' : isNeedsAttention ? 'Operational warning requires attention' : 'Operational status'))
 
-  const rawDetail = isHalted
-    ? (recovery?.detail || operator?.detail || 'Backend reports HALT; inspect root cause and recovery prerequisites.')
+  const rawDetail = isHalted && !isRecoveryWaiting
+    ? (cause?.detail || recovery?.detail || operator?.detail || 'Backend reports HALT; inspect root cause and recovery prerequisites.')
     : (operator?.detail || 'System state confirmed by controller.')
   const detail = localizeSystemMessage(rawDetail)
 
@@ -69,6 +71,16 @@ export function OperatorAttentionBanner({
         description={
           <div className="space-y-1.5">
             <p className="text-sm">{detail}</p>
+            {cause && (
+              <p className="text-xs opacity-90">
+                Reason: {cause.reason_code}
+                {cause.component ? ` · ${cause.component}` : ''}
+                {cause.revision ? ` · ${cause.revision}` : ''}
+                {' · '}{cause.occurred_at
+                  ? <time dateTime={cause.occurred_at}>{cause.occurred_at}</time>
+                  : 'Event time unavailable'}
+              </p>
+            )}
             {isStale && (
               <p className="text-xs text-amber-500 font-medium">
                 Observation data is not current (stale/unknown/session mismatch) · do not use as definitive conclusion.

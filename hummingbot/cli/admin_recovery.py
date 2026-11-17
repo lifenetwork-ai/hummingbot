@@ -5,8 +5,9 @@ from aiohttp import web
 from pydantic import Field
 
 from hummingbot.cli.admin_errors import request_id
-from hummingbot.cli.admin_models import APIModel, UTCDateTime
+from hummingbot.cli.admin_models import APIModel, HaltCause, UTCDateTime
 from hummingbot.cli.api_documentation import api_operation
+from hummingbot.core.halt_diagnostics import halt_cause
 from hummingbot.core.recovery import recovery_blockers
 from hummingbot.core.recovery_messages import RECOVERY_MESSAGES
 from hummingbot.model.bot_state_store import ControlConflict
@@ -78,6 +79,7 @@ class RecoveryOverview(APIModel):
     reset_available: bool
     blockers: List[RecoveryBlocker]
     operation: Optional[RecoveryOperation] = None
+    cause: Optional[HaltCause] = None
 
 
 def blocker(code):
@@ -129,6 +131,7 @@ class AdminRecoveryAPI:
                      and row['expected_version'] == state['control_version']
                      and store._same_owner(state, row['result']['_private']) and not codes)
         model = RecoveryOverview(halted=bool((state['recovery_state'] or {}).get('halt')),
+                                 cause=halt_cause(state['recovery_state'] or {}),
                                  control_version=state['control_version'], check_available=not any(code in HARD_BLOCKERS for code in codes), reset_available=reset,
                                  blockers=[blocker(code) for code in sorted(set(codes))], operation=operation)
         return web.json_response(model.model_dump(mode='json'))

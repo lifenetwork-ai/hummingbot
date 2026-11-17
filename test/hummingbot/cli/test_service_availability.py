@@ -154,6 +154,9 @@ async def test_failed_controller_task_halts_instead_of_waiting_forever(monkeypat
     monkeypatch.setattr("hummingbot.core.order_submission_guard.install_guard", lambda owner: None)
     await item.observe_once()
     item.owner.require_recovery.assert_called_once()
+    evidence = item.owner.require_recovery.call_args.kwargs
+    assert evidence['runtime_reason'] == 'controller_task_stopped'
+    assert evidence['component'] == 'controller' and evidence['task'] == '_control_loop_task'
     item.stop_core.assert_awaited_once()
     assert item.phase == "halted"
     assert item.availability.snapshot()["incidents"][0]["operator_action_required"]

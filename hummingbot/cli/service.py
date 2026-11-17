@@ -352,6 +352,26 @@ class ServiceHost:
         return (not self.stop.is_set() and getattr(self.owner, "shutdown_requested", False) is not True
                 and self.runtime_problem() is None)
 
+    def runtime_failure_context(self):
+        """Fixed component/task identities only; never exception text or locals."""
+        core = self.hb.trading_core
+        candidates = [('clock', '_clock_task', getattr(core, '_clock_task', None))]
+        for name, connector in core.connector_manager.connectors.items():
+            if name in ('okx', 'okx_perpetual'):
+                candidates.extend((name, key, getattr(connector, key, None)) for key in (
+                    '_status_polling_task', '_user_stream_tracker_task', '_user_stream_event_listener_task',
+                    '_trading_rules_polling_task'))
+        strategy = core.strategy
+        candidates.append(('strategy', 'listen_to_executor_actions_task', getattr(strategy, 'listen_to_executor_actions_task', None)))
+        for identity, controller in getattr(strategy, 'controllers', {}).items():
+            if not controller.config.manual_kill_switch and identity not in getattr(strategy, 'drawdown_exited_controllers', []):
+                candidates.append(('controller', '_control_loop_task', getattr(controller, '_control_loop_task', None)))
+        for component, key, task in candidates:
+            if isinstance(task, asyncio.Task) and task.done():
+                state = 'cancelled' if task.cancelled() else 'failed' if task.exception() is not None else 'completed'
+                return dict(component=component, task=key, task_state=state)
+        return {}
+
     async def confirmed_runtime_problem(self):
         problem = self.runtime_problem()
         if problem != "controller_task_stalled":
@@ -855,7 +875,8 @@ class ServiceHost:
             problem = await self.confirmed_runtime_problem()
             if problem is not None:
                 self.availability.fail("runtime", problem, operator=True)
-                self.owner.require_recovery("A required runtime task failed; inspect service availability status.")
+                self.owner.require_recovery("A required runtime task failed; inspect service availability status.",
+                                            runtime_reason=problem, **self.runtime_failure_context())
                 self.running, self.phase, self.error = False, "halted", problem
                 if not await self.stop_core():
                     raise RuntimeError("Failed runtime-task cleanup did not complete.")
@@ -1303,7 +1324,11 @@ async def run_service(*, settings=None, bind_host='0.0.0.0', admin_settings=None
                   "critical_persistence_failure" if isinstance(error, SQLAlchemyError) else failure_reason(error))
         logging.getLogger(__name__).error("Service stopped reason=%s type=%s", reason, type(error).__name__,
                                           extra={"event": "service_failed", "reason_code": reason,
-                                                 "error_type": type(error).__name__})
+                                                 "error_type": type(error).__name__,
+                                                 **({'ownership_reason_code': error.reason_code,
+                                                     **{key: value for key, value in error.diagnostic.items()
+                                                        if key in ('sqlstate', 'connection_invalidated')}}
+                                                    if isinstance(error, OwnershipLost) else {})})
         from hummingbot.cli.service_processes import failure_exit_code
         code = failure_exit_code(error)
     finally:

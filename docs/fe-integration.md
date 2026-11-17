@@ -1523,6 +1523,29 @@ expiry rejection atomically with retirement of its intent and saved tracker. Fin
 
 ### Reviewed manual recovery
 
+`GET /status.recovery.cause` and admin-only `GET /recovery.cause` explain a
+durable HALT with the same safe projection. The nullable object contains
+`reason_code`, `current_reason_code`, `category`, `label`, `detail`,
+`occurred_at`, `revision`, `evidence_source`, `automatic_recovery_expected` and
+`cleanup_incomplete`. Known runtime failures can also identify
+`runtime_reason_code`, `component`, `task` and `task_state`.
+
+Display the returned cause label/detail instead of assigning every HALT an
+“EMERGENCY” label. The initial persisted cause survives later cleanup failures;
+`current_reason_code` reflects the reason currently used for recovery eligibility.
+Unknown legacy times/revisions stay null; never substitute response/server time
+or the current revision as the incident origin. `evidence_source=legacy_reason`
+means only the known old reason was recovered, not its original task or time.
+`halt_reason_unknown` requests review without exposing raw saved exception text.
+For a temporary shutdown fence with `next_action=wait`, continue to show the
+operator's shutdown/progress guidance. The cause is explanatory: blockers,
+freshness, permissions and reviewed confirmation still govern Check/Recover.
+
+The supported technical stop `runtime_task_failed` permits a stopped recovery
+check; it does not certify that a task was repaired or authorize Start. Recovery
+still verifies credentials, orders, fills, positions, owner and unchanged risk
+checkpoints. A separate Start after recovery uses the deployed task implementation.
+
 A valid drawdown breach is a `recovery_risk_stop`, not proof of checkpoint
 corruption. Show the risk-review guidance and keep Recover disabled: this API
 does not reset risk limits, PnL peaks or stop latches. A malformed drawdown

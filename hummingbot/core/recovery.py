@@ -11,6 +11,8 @@ MAX_ORDERS = 5000
 PROOF_TTL_SECONDS = 300
 RECOVERY_TIMEOUT_SECONDS = 120
 TECHNICAL_HALTS = frozenset({
+    'A required runtime task failed; inspect service availability status.',
+    'Trading/recorder health requires reconciliation.',
     'Strategy initialization/reconciliation failed; inspect sanitized logs.',
     'A previous process has unresolved exchange effects; reconcile and verify it is stopped.',
     'Exchange reconciliation did not complete; new risk remains blocked.',

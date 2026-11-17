@@ -1855,6 +1855,61 @@ export interface components {
              */
             state: "not_configured" | "waiting" | "backfilling" | "observed" | "unavailable";
         };
+        /** HaltCause */
+        HaltCauseOutput: {
+            /** Automatic Recovery Expected */
+            automatic_recovery_expected: boolean;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "technical" | "risk" | "shutdown" | "unknown";
+            /** Cleanup Incomplete */
+            cleanup_incomplete: boolean;
+            /**
+             * Component
+             * @default null
+             */
+            component: string | null;
+            /** Current Reason Code */
+            current_reason_code: string;
+            /** Detail */
+            detail: string;
+            /**
+             * Evidence Source
+             * @enum {string}
+             */
+            evidence_source: "persisted" | "legacy_reason" | "unavailable";
+            /** Label */
+            label: string;
+            /**
+             * Occurred At
+             * @default null
+             */
+            occurred_at: string | null;
+            /** Reason Code */
+            reason_code: string;
+            /**
+             * Revision
+             * @default null
+             */
+            revision: string | null;
+            /**
+             * Runtime Reason Code
+             * @default null
+             */
+            runtime_reason_code: string | null;
+            /**
+             * Task
+             * @default null
+             */
+            task: string | null;
+            /**
+             * Task State
+             * @default null
+             */
+            task_state: ("completed" | "failed" | "cancelled" | "stalled") | null;
+        };
         /**
          * InitialPositionConfig
          * @description Configuration for an initial position that the controller should consider.
@@ -4245,6 +4300,8 @@ export interface components {
         RecoveryOverviewOutput: {
             /** Blockers */
             blockers: components["schemas"]["RecoveryBlockerOutput"][];
+            /** @default null */
+            cause: components["schemas"]["HaltCauseOutput"] | null;
             /** Check Available */
             check_available: boolean;
             /** Control Version */
@@ -4308,6 +4365,8 @@ export interface components {
         };
         /** RecoverySummary */
         RecoverySummaryOutput: {
+            /** @default null */
+            cause: components["schemas"]["HaltCauseOutput"] | null;
             /**
              * Check Available
              * @default false

@@ -121,3 +121,22 @@ async def test_unicode_confirmation_is_validation_error_without_storage_call():
                                  headers={'Idempotency-Key': 'reset'})
         assert result.status == 422
         store.request.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_legacy_runtime_task_halt_explains_cause_and_can_only_check_after_stop():
+    async with client() as (http, store):
+        state = store.state.read.return_value
+        state['recovery_state'] = dict(halt=True, halt_kind='manual',
+                                       reason='A required runtime task failed; inspect service availability status.')
+        response = await http.get(ADMIN_PREFIX + '/recovery')
+        value = await response.json()
+        assert value['cause']['reason_code'] == 'runtime_task_failed'
+        assert value['cause']['occurred_at'] is None
+        assert value['check_available'] and not value['reset_available']
+        assert not value['blockers']
+        state['desired_state'] = 'running'
+        value = await (await http.get(ADMIN_PREFIX + '/recovery')).json()
+        assert not value['check_available']
+        assert 'recovery_stop_required' in [b['code'] for b in value['blockers']]
+        store.request.assert_not_called()

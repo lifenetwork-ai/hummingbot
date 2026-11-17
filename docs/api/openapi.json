@@ -3024,6 +3024,145 @@
         "title": "FundingSyncStatus",
         "type": "object"
       },
+      "HaltCauseOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "automatic_recovery_expected": {
+            "title": "Automatic Recovery Expected",
+            "type": "boolean"
+          },
+          "category": {
+            "enum": [
+              "technical",
+              "risk",
+              "shutdown",
+              "unknown"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "cleanup_incomplete": {
+            "title": "Cleanup Incomplete",
+            "type": "boolean"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Component"
+          },
+          "current_reason_code": {
+            "title": "Current Reason Code",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "evidence_source": {
+            "enum": [
+              "persisted",
+              "legacy_reason",
+              "unavailable"
+            ],
+            "title": "Evidence Source",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Occurred At"
+          },
+          "reason_code": {
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Revision"
+          },
+          "runtime_reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Runtime Reason Code"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Task"
+          },
+          "task_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "completed",
+                  "failed",
+                  "cancelled",
+                  "stalled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Task State"
+          }
+        },
+        "required": [
+          "reason_code",
+          "current_reason_code",
+          "category",
+          "label",
+          "detail",
+          "evidence_source",
+          "automatic_recovery_expected",
+          "cleanup_incomplete"
+        ],
+        "title": "HaltCause",
+        "type": "object"
+      },
       "InitialPositionConfigOutput": {
         "description": "Configuration for an initial position that the controller should consider.\nThis is used when the user already has assets in their account and wants\nthe controller to manage them.",
         "properties": {
@@ -9097,6 +9236,17 @@
             "title": "Blockers",
             "type": "array"
           },
+          "cause": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HaltCauseOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "check_available": {
             "title": "Check Available",
             "type": "boolean"
@@ -9261,6 +9411,17 @@
       "RecoverySummaryOutput": {
         "additionalProperties": false,
         "properties": {
+          "cause": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HaltCauseOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "check_available": {
             "default": false,
             "title": "Check Available",

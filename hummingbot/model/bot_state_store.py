@@ -29,11 +29,13 @@ class BotStateStore:
         # but not private recovery details or the full archived catalogue.
         # Strip checkpoint histories in PostgreSQL, before network transfer and
         # driver JSON decoding. Owner/restart reads still use the full row.
+        from hummingbot.core.halt_diagnostics import publication_halt_fields
         columns = ("bot_id, desired_state, control_version, acknowledged_version, owner_uuid, owner_generation, "
                    "heartbeat, CASE WHEN jsonb_typeof(status->'mm_liquidity')='object' THEN "
                    "jsonb_set(status, '{mm_liquidity}', (status->'mm_liquidity') - "
                    "ARRAY['_coverage_history', '_coverage_buckets', '_overview_recovery']) ELSE status END AS status, "
                    "revision, jsonb_build_object('halted', recovery_state->'halt' = 'true'::jsonb, "
+                   + publication_halt_fields() +
                    "'shutdown_pending', COALESCE(recovery_state->'halt' = 'true'::jsonb "
                    "AND recovery_state->>'halt_kind'='shutdown_pending' "
                    "AND COALESCE(recovery_state->>'reason', '')='', false), "

@@ -1,5 +1,10 @@
 # Plans and remaining verification
 
+The [HALT diagnostics and reconnect plan](MM_HALT_DIAGNOSTICS_TDD_PLAN.md)
+tracks the revision158 OKX user-stream reconnect failure, safe persisted cause
+metadata and API/banner explanations. The current Demo HALT predates revision159;
+readiness and recovery qualification remain separate from a successful rollout.
+
 The [Admin Overview reporting TDD plan](ADMIN_OVERVIEW_REPORTING_TDD_PLAN.md)
 tracks PR #2 contract corrections, eligible rolling coverage, reporting isolation
 and session fees beyond 10,000 fills. Implementation and local checks are recorded

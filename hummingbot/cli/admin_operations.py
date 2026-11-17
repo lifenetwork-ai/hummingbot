@@ -3,6 +3,7 @@ import time
 from copy import deepcopy
 
 from hummingbot.connector.okx_environment import OKXEnvironment
+from hummingbot.core.halt_diagnostics import halt_cause
 from hummingbot.core.mm_liquidity import liquidity_view
 
 
@@ -30,6 +31,7 @@ def operator_view(row, process):
     checkpoint_reason = checkpoint_incident["scope"] + "_invalid" if checkpoint_incident else None
     recovery = row.get("recovery_summary") or {}
     halted = bool(recovery.get("halted")) or snapshot.get("phase") == "halted"
+    cause = halt_cause({**recovery, 'halted': halted})
     pending = bool(recovery.get("pending_mutations"))
     connection_pending = bool(recovery.get("credential_operation_pending"))
     recovery_pending = bool(recovery.get("recovery_operation_pending"))
@@ -84,6 +86,8 @@ def operator_view(row, process):
                                       'New orders are fenced while shutdown completes. Wait for the next owner to verify recovery; no manual reset is required at this stage.', 'wait')
     elif halted or pending:
         state, label, detail, next_action = "needs_attention", "Technical review needed", "Trading cannot restart until the cause is resolved.", "contact_support"
+        if cause:
+            label, detail = cause['label'], cause['detail']
     elif mismatch:
         state, label, detail, next_action = "needs_attention", "Deployment review needed", "The responding service and trading owner use different environments.", "contact_support"
     elif automatic_attention:
@@ -162,11 +166,11 @@ def operator_view(row, process):
                                  reason_code="owner_unavailable" if not available else "session_transition" if not matches else
                                  "observation_stale" if observation_old else None),
                 operator=dict(state=state, label=label, detail=detail, next_action=next_action), actions=actions,
-                recovery=dict(halted=halted, pending_mutations=pending, next_action="wait" if recovery_pending or shutdown_pending else
+                recovery=dict(halted=halted, cause=cause, pending_mutations=pending, next_action="wait" if recovery_pending or shutdown_pending else
                               "contact_support" if halted or pending or checkpoint_reason or automatic_attention else "wait" if automatic_pending else "none",
                               detail="Saved risk information needs technical review." if checkpoint_reason else
                               'Shutdown is protected by a temporary fence. Wait for owner recovery; do not reset the fence.' if shutdown_pending else
-                              "Contact support before restarting trading." if halted or pending or automatic_attention else
+                              cause['detail'] if cause else "Contact support before restarting trading." if halted or pending or automatic_attention else
                               'Exchange order reconciliation is in progress. New submissions are paused.' if automatic_pending else 'No recovery block is recorded.'),
                 session_configuration_url=f"/api/v1/admin/sessions/{session['id']}/configuration" if session.get("id") else None,
                 markets=markets, drawdown=drawdown)

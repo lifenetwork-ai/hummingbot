@@ -281,13 +281,16 @@ class RecoveryStore:
                     else:
                         anchor = self._bind_runtime_baseline(session, state, row, snapshot, verification=verification)
                     verification = {**verification, 'recovery_anchor': anchor}
+            from hummingbot.core.halt_diagnostics import halt_cause
+            recovered_cause = halt_cause(state['recovery_state'])
             recovery = deepcopy(state['recovery_state'])
-            for key in ('halt', 'halt_kind', 'reason', 'shutdown_incomplete', 'automatic_recovery'):
+            for key in ('halt', 'halt_kind', 'halt_diagnostic', 'reason', 'shutdown_incomplete', 'automatic_recovery'):
                 recovery.pop(key, None)
             recovery['runtime_active'] = False
             state['recovery_state'] = recovery
             result = dict(stage='recovered', can_recover=False, blockers=[], repaired_positions=plan,
-                          verification=verification, trading_state='stopped', _private=row['result']['_private'])
+                          verification=verification, trading_state='stopped', halt_cause=recovered_cause,
+                          _private=row['result']['_private'])
             self._finish(connection, state, row, result, actor, control_version=state['control_version'] + 1)
             owner.check_owner()  # Fresh physical authority before committing all writes together.
             return True
@@ -342,6 +345,7 @@ class RecoveryStore:
             status='succeeded', result=result, updated_at=state['database_now']))
         self.access.audit(connection, actor=actor, action=row['action'] + '_completed',
                           outcome='blocked' if result.get('blockers') else 'succeeded', operation_id=row['id'],
+                          reason_code=(result.get('halt_cause') or {}).get('reason_code'),
                           request_id=row['result']['_private']['request_id'])
 
     def _fail(self, connection, state, row, code):

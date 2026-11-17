@@ -1145,3 +1145,102 @@ Raw pair, asset hashes, host samples, matched-call summaries and final validatio
 are in `build/overview-cancel-timeline-20261117`. Test containers and the scoped
 sleep assertion are gone. Frozen runtime hashes remain unchanged; no commit,
 push or deployment occurs in this scope.
+
+### Cloud Run post-deploy observation, 2026-11-17
+
+At 09:01:44 UTC (16:01 ICT), `hummingbot-demo-00159-ptg` is Ready and serves
+100% traffic at 2 CPU /1GiB. Registry config confirms commit
+`dc8f0aa692ef0eac0ebf4446181cf48ca5a887af`, which includes `5e3c4180e`, in image
+`sha256:17c43394c7cea3f98e75cfd9a6076b6fc5a64a056730c3a19577a01763ca7e84`.
+This confirms deployment, not MM acceptance.
+
+The API/owner are fresh on revision159, control92 is acknowledged, `/startup`
+and `/live` return200, but `/ready` returns503 `halted`. Status reports
+`desired_state=running`, `running=false`, `error=RecoveryRequired`. There are no
+running market controllers to validate native submit/cancel latency. Drawdown
+and outflow observations correctly remain stale/not-running rather than proof
+of available risk headroom.
+
+The HALT predates this rollout: revision158 logs `ownership_lost` and incomplete
+cleanup at 2026-11-16 11:06:53 UTC, followed by durable-HALT bootstrap refusal at
+11:07:23 UTC. Later owner losses/restarts also retain that refusal. Revision159
+logs the same refusal at 2026-11-17 08:58:28 UTC. This establishes an inherited
+stop, not the root cause of the original ownership loss. A startup slow-stage
+warning records `service.observe` at3,930.706ms with heartbeat gap26.913ms; wall
+duration alone does not prove continuous main-loop blocking.
+
+The refreshed revision159 warning query also retains one engine heartbeat stall
+of300.114ms at08:59:42.862 UTC and recovery at08:59:42.910 UTC. No child-restart
+event is present in that query. Its ERROR entry is the observer's `/ready`503
+request, not an additional application exception. These short observations
+are not proof of sustained availability or successful MM execution.
+
+Read-only Recovery status currently blocks with `recovery_reason_unsupported`
+and `recovery_stop_required`. Its displayed old operation is a failed scope-limit
+check from November12, not a new check performed in this review. No Stop, Check,
+Recover, Start, database maintenance, key, risk or deployment change is made.
+Resolve and verify the durable recovery state before measuring MM on this image.
+Raw API, registry and timestamped log evidence is retained in
+`build/cloudrun-review-20261117-r159`.
+
+### HALT origin correction and reconnect TDD, 2026-11-17
+
+A subsequent SELECT-only read through the existing Cloud SQL proxy establishes
+the actual persisted manual reason: `A required runtime task failed; inspect
+service availability status.` `runtime_active=false`, with no pending mutations
+or current incomplete-shutdown flag. Thus the earlier ownership-only explanation
+was incomplete: ownership losses happened after the original HALT.
+
+The originating revision158 log contains the complete failure chain on November16:
+08:16:43 UTC WebSocket1006 and repeated private-stream handshake502; at08:16:53.995,
+`ValueError: list.remove(x): x not in list` escapes the perpetual stream's finally
+block; at08:16:54.157, the required-task guard reports `connector_task_stopped`.
+The stored generic task-failure string was absent from `TECHNICAL_HALTS`, explaining
+the later `recovery_reason_unsupported`. Neither the log nor the old DB row records
+the original HALT time in structured metadata; no timestamp is fabricated for it.
+
+RED reproduces a successfully established stream failing, followed by failed
+reconnect attempts: the loop retained the previous assistant, then removed that
+already-removed assistant again. GREEN resets the assistant for each attempt;
+repeated handshake failures keep retrying at the original cadence, a later stream
+delivers messages, and cancellation cleans up without the double removal. A
+genuinely stopped required task still closes admission and requires recovery.
+
+New stops retain a bounded original `halt_diagnostic` with allowlisted reason,
+runtime task identity/state, event time and revision. Later reasons continue to
+control recovery/risk eligibility; they do not erase the original diagnostic.
+Status and Recovery expose the same safe `cause`, separating original and current
+reason, cleanup state and unavailable legacy evidence. Publication transfers only
+known reason strings and bounded selected metadata, not arbitrary errors or large
+checkpoint JSON. Ownership failures now distinguish closed/invalidated/missing
+sessions, lock/generation mismatch and database errors; fixed codes and SQLSTATE
+reach structured logs without raw SQL/DSNs/exception text. No lost owner obtains
+a new write path or reconnect permission.
+
+The task-failure/trading-health technical reasons can enter a stopped recovery
+check; preview, exchange/ledger proof, confirmation, risk latches and separate
+Start remain required. This is not an automatic reset of the current Demo.
+The banner consumes the new safe cause and known time/revision, retains unknown
+legacy time and uses operator progress for temporary shutdown fences. OpenAPI
+and generated dashboard types are updated together.
+
+The reviewed reset atomically removes active cause metadata while retaining the
+normalized origin in the completed operation/audit. Verified clean shutdown and
+handover also remove current metadata, so a later shutdown cannot reuse an old
+HALT explanation. A private/unrecognized reason with a shutdown-kind flag stays
+unknown and cannot claim automatic recovery.
+
+Validation: native Cloud Run regression4,101 passed +16 subtests; the final
+recovery/ownership/publication PostgreSQL subset88 passed, following an earlier
+five-module93-case run and targeted3-case SQL fault checks (overlapping counts).
+Frontend632 pass with coverage; lint, typecheck, production build, backend schema
+and generated-type checks pass. Changed-file hooks and `git diff --check` pass.
+The initial RED failures and formatting/type-fixture corrections remain in raw
+logs; none are presented as passing runs. No new browser E2E is added under the
+dashboard's temporary E2E policy. The build retains the existing large-chunk
+warning; it is not a failed build.
+
+Evidence and RED/GREEN logs: `build/halt-diagnostics-20261117`. The proxy was closed
+after SELECT-only inspection. Current Demo HALT, credentials, risk limits and
+trading controls are unchanged. Deploy the repaired image before attempting the
+reviewed live recovery flow; current-image MM latency/soak remains unqualified.

@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import re
 import time
 import uuid
 import weakref
@@ -10,7 +11,9 @@ from datetime import datetime
 from decimal import Decimal
 from urllib.parse import urlparse
 
+from psycopg2 import Error as PostgreSQLError
 from sqlalchemy import select, text, update
+from sqlalchemy.exc import DBAPIError
 
 from hummingbot.core.engine_diagnostics import active_shutdown_stages, trace_runtime
 from hummingbot.core.order_submission_guard import (
@@ -71,7 +74,10 @@ def _ownership_read(connection):
 
 
 class OwnershipLost(SubmissionBlocked):
-    pass
+    def __init__(self, message, *, reason_code='ownership_check_failed', diagnostic=None):
+        super().__init__(message)
+        self.reason_code = reason_code
+        self.diagnostic = dict(reason_code=reason_code, **(diagnostic or {}))
 
 
 class BotOwnership:
@@ -161,6 +167,7 @@ class BotOwnership:
                     if recovery.get('halt_kind') == 'shutdown_pending':
                         recovery.pop('halt', None)
                         recovery.pop('halt_kind', None)
+                        recovery.pop('halt_diagnostic', None)
                     recovery['automatic_recovery'] = dict(phase='bootstrapping_recovery', reason_code='owner_handover',
                                                           operator_required=False, started_at=time.time(), cold_recovery_supported=True)
                 elif not recovery.get('halt'):
@@ -200,9 +207,11 @@ class BotOwnership:
         """Fresh proof on the physical owner session; writes need no state JSON."""
         connection = self.connection
         if self.lost or connection is None or connection.closed or connection.invalidated:
+            code = ('ownership_already_lost' if self.lost else 'ownership_session_unavailable' if connection is None else
+                    'ownership_connection_closed' if connection.closed else 'ownership_connection_invalidated')
             self.lost = True
             self.allow_new_orders = False
-            raise OwnershipLost("The bot ownership session is unavailable.")
+            raise OwnershipLost("The bot ownership session is unavailable.", reason_code=code)
         try:
             # Only this internal write-fence path omits the state payload. The
             # observer and submission gates always retain their complete fresh
@@ -222,11 +231,21 @@ class BotOwnership:
                        "namespace": OWNER_NAMESPACE, "key": OWNER_KEY}).mappings().first()
                 connection.commit()
             if not row or row["backend_pid"] != self.backend_pid:
-                raise OwnershipLost("The bot ownership lock/generation no longer matches.")
-        except Exception:
+                raise OwnershipLost("The bot ownership lock/generation no longer matches.", reason_code='ownership_identity_mismatch')
+        except OwnershipLost:
             self.lost = True
             self.allow_new_orders = False
-            raise OwnershipLost("The bot ownership session failed; submissions are closed.") from None
+            raise
+        except Exception as error:
+            self.lost = True
+            self.allow_new_orders = False
+            code = 'ownership_database_error' if isinstance(error, (DBAPIError, PostgreSQLError)) else 'ownership_check_failed'
+            sqlstate = getattr(getattr(error, 'orig', error), 'pgcode', None)
+            diagnostic = dict(connection_invalidated=getattr(error, 'connection_invalidated', False) is True)
+            if isinstance(sqlstate, str) and re.fullmatch(r'[0-9A-Z]{5}', sqlstate):
+                diagnostic['sqlstate'] = sqlstate
+            raise OwnershipLost("The bot ownership session failed; submissions are closed.",
+                                reason_code=code, diagnostic=diagnostic) from None
         return dict(row)
 
     def check_owner(self, *, new_risk=False, allow_setup=False):
@@ -279,10 +298,12 @@ class BotOwnership:
                                     .values(recovery_state=recovery))
         return True
 
-    def require_recovery(self, reason):
+    def require_recovery(self, reason, *, runtime_reason=None, component=None, task=None, task_state=None):
         self.allow_new_orders = False
         try:
-            self._mutate_recovery(lambda state: state.update(halt=True, halt_kind='manual', reason=reason))
+            from hummingbot.core.halt_diagnostics import record_halt
+            self._mutate_recovery(lambda state: record_halt(state, reason, runtime_reason_code=runtime_reason,
+                                                            component=component, task=task, task_state=task_state))
         except Exception:
             self.lost = True
 
@@ -1331,6 +1352,7 @@ class BotOwnership:
             state["runtime_active"] = False
             if not was_halted and not state.get("reason"):
                 state.pop("halt", None)
+                state.pop('halt_diagnostic', None)
                 if state.get('halt_kind') == 'shutdown_pending':
                     state.pop('halt_kind', None)
                 if deferred:

@@ -475,6 +475,23 @@ class ObservationStatus(APIModel):
     reason_code: Optional[str] = None
 
 
+class HaltCause(APIModel):
+    reason_code: str
+    current_reason_code: str
+    category: Literal['technical', 'risk', 'shutdown', 'unknown']
+    label: str
+    detail: str
+    occurred_at: Optional[UTCDateTime] = None
+    revision: Optional[str] = None
+    evidence_source: Literal['persisted', 'legacy_reason', 'unavailable']
+    automatic_recovery_expected: bool
+    cleanup_incomplete: bool
+    runtime_reason_code: Optional[str] = None
+    component: Optional[str] = None
+    task: Optional[str] = None
+    task_state: Optional[Literal['completed', 'failed', 'cancelled', 'stalled']] = None
+
+
 class RecoverySummary(APIModel):
     halted: bool
     pending_mutations: bool
@@ -483,6 +500,7 @@ class RecoverySummary(APIModel):
     reset_available: bool = False
     check_available: bool = False
     status_url: str = "/api/v1/admin/recovery"
+    cause: Optional[HaltCause] = None
 
 
 class AutomaticRecoveryStatus(APIModel):
