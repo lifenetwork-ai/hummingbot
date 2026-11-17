@@ -1244,3 +1244,43 @@ Evidence and RED/GREEN logs: `build/halt-diagnostics-20261117`. The proxy was cl
 after SELECT-only inspection. Current Demo HALT, credentials, risk limits and
 trading controls are unchanged. Deploy the repaired image before attempting the
 reviewed live recovery flow; current-image MM latency/soak remains unqualified.
+
+### Revision160: deployed fix verified, resolved rejection blocks recovery
+
+Registry config confirms exact `e926ee46c` on `hummingbot-demo-00160-zh5`, image
+`sha256:24b37fb9589a68edc915e88baceabe20d0a1bb14211cf29567d731e6dd83f51f`,
+Ready with100% traffic. Both cause APIs now explain the old runtime-task HALT;
+legacy event time/revision remain null, and `recovery_reason_unsupported` is gone.
+Startup/live succeed while ready remains503. A heartbeat stall313ms self-recovers
+in the short pre-check observation; this is not a completed MM qualification.
+
+The authorized recovery workflow issues one audited Stop with the configured
+Basic admin actor. Control93 is acknowledged and the bot is stopped; a fresh
+Check `9f03df17-bb6a-4b06-af80-2187a89723c8` fails `recovery_scope_limit`. The
+initial helper conservatively exits on a stale transition observation after
+Stop; the continuation verifies fresh owner/acknowledgment before Check and does
+not issue another Stop. No Reset/Start or manual database mutation is performed.
+
+SELECT-only inspection finds55,876 orders/15,169 fills, matching checkpoint
+financial/binding/environment hashes, a reviewed anchor, zero pending intents,
+zero unapplied journals and zero nonterminal trackers. The apparent unresolved
+work is one November13 submission attempt in `rejected`, paired with
+`OrderFailure`, `creation_pending=false` and no exchange ID. The recorder already
+treats this as a durably retired create, but checkpoint recovery accepted only
+the literal attempt state `terminal`. That mismatch disables the checkpoint path
+and falls back to the capped lifetime replay.
+
+The PostgreSQL RED case reproduces this exact classification error; ten negative
+controls already pass. The follow-up source accepts a rejected attempt only with
+the matching nonpending failure row, no venue ID and no fills. Prepared, possibly
+sent, uncertain, acknowledged, unknown, missing-order and contradictory rejection
+cases still disable the checkpoint path. Existing anchor/account/hash/journal/
+tracker/exchange proof gates and history limits remain unchanged. A SELECT-only
+candidate snapshot on the unmodified Demo DB selects `verified_checkpoint` and
+14,519 journaled suffix fills; it does not verify their venue proof or clear HALT.
+
+Affected PostgreSQL59 and native93 pass. This narrow follow-up is not deployed
+or committed yet. The previous broad local checks retain their own source scope;
+no new load/soak or live MM pass is claimed. The current Demo remains stopped,
+HALTed atcontrol93. Raw image/API/SQL/TDD evidence is retained in
+`build/halt-recovery-postdeploy-20261117`.

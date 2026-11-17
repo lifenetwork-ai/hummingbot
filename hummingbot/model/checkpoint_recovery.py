@@ -7,7 +7,7 @@ import hashlib
 import json
 import re
 
-from sqlalchemy import and_, exists, func, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from hummingbot.model.admin_access import AdminAuditEvent
@@ -82,6 +82,21 @@ def reviewed_anchor(connection, state, checkpoint):
                 journal_watermark=0, prefix_unjournaled_fills=details['verified_fills'], venue_heads=None)
 
 
+def unresolved_attempts(connection):
+    # The recorder durably retires rejected creates as `rejected`, including
+    # positive venue-expiry rejections and locally unsent failures. They are
+    # resolved only with the corresponding failure row and no fill/venue ID.
+    # Unknown states or contradictory evidence still require reconciliation.
+    failed_order = exists(select(Order.id).where(
+        Order.id == SubmissionAttempt.order_id, Order.creation_pending.is_(False),
+        Order.last_status == 'OrderFailure', Order.exchange_order_id.is_(None))).correlate(SubmissionAttempt)
+    fills = exists(select(TradeFill.order_id).where(
+        TradeFill.order_id == SubmissionAttempt.order_id)).correlate(SubmissionAttempt)
+    return bool(connection.scalar(select(exists().where(or_(
+        SubmissionAttempt.state.notin_(('terminal', 'rejected')),
+        and_(SubmissionAttempt.state == 'rejected', or_(~failed_order, fills)))))))
+
+
 def snapshot(connection, state, positions, bindings):
     if state.get('config_type') != 'mm-session' or not state.get('config_file_path'):
         return None
@@ -99,7 +114,7 @@ def snapshot(connection, state, positions, bindings):
         if anchor is None or not 0 <= anchor['journal_watermark'] <= checkpoint.watermark:
             return None
         if (connection.scalar(select(exists().where(Order.creation_pending.is_(True))))
-                or connection.scalar(select(exists().where(SubmissionAttempt.state != 'terminal')))
+                or unresolved_attempts(connection)
                 or connection.scalar(select(exists().where(RuntimeJournal.applied.is_(False))))):
             return None
         unjournaled = connection.scalar(select(func.count()).select_from(TradeFill).where(

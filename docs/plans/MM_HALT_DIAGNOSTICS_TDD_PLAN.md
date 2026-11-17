@@ -41,5 +41,30 @@ Legacy/unrecognized reason plus a shutdown-kind flag cannot imply automatic
 recovery. No performance qualification or Cloud recovery is inferred from these
 local results.
 
+## Revision160 connected recovery follow-up
+
+Revision160 deploys exact commit `e926ee46c`; both cause APIs return
+`runtime_task_failed` with unknown legacy time, and `recovery_reason_unsupported`
+is gone. An audited Stop changes control92->93 and is acknowledged. The new
+Check returns `recovery_scope_limit`; no Reset or Start is issued.
+
+- [x] Trace the actual blocker with SELECT-only inspection:55,876 orders,
+  15,169 fills, matching financial/binding/environment hashes and reviewed anchor,
+  no pending intents/unapplied journal/nonterminal trackers. One old attempt is
+  `rejected` with `OrderFailure`, no venue ID and no pending create.
+- [x] RED reproduces rejecting this resolved attempt, falling back to lifetime
+  history and hitting the caps. GREEN admits only a coherent rejected create
+  with no fill/venue ID; unknown/live states and inconsistent rows remain blocked.
+- [x] A read-only candidate snapshot selects `verified_checkpoint` on the
+  unchanged Demo ledger, covering14,519 journaled suffix fills. This is local DB
+  eligibility, not exchange verification or permission to reset HALT.
+- [x] Affected PostgreSQL59 and native93 pass; preserve original RED1/control10.
+- [ ] Commit/deploy the follow-up, then repeat the real Check/reviewed Reset/Start
+  workflow. Demo remains stopped and HALTed atcontrol93; no manual DB repair.
+
+Evidence: `build/halt-recovery-postdeploy-20261117`. The API commands use the
+configured Basic admin identity and retain ordinary audit records. This is not a
+new Google-login acceptance. No credentials, risk limits or ledger rows are edited.
+
 Raw evidence: `build/halt-diagnostics-20261117`. The current production image
 does not include these edits. Keep prior resource failures and release gates.
