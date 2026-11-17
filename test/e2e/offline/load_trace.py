@@ -62,8 +62,8 @@ class FullGCProbe:
                                     collected=info['collected']))
 
 
-class DeferredCancelTrace:
-    """Queue slow cancel markers for watchdog capture outside producer locks."""
+class DeferredOrderTrace:
+    """Queue slow submit/cancel markers for capture outside producer locks."""
 
     def __init__(self, *, limit=128, minimum_ms=100):
         self.pending = deque(maxlen=limit)
@@ -71,12 +71,13 @@ class DeferredCancelTrace:
         self.dropped_events = 0
 
     def observe(self, row):
-        if (row.get('operation') != 'order.cancel' or row.get('phase') != 'end'
+        if (row.get('operation') not in ('order.cancel', 'order.submit') or row.get('phase') != 'end'
                 or row.get('duration_ms', 0) < self.minimum_ms):
             return
         if len(self.pending) == self.pending.maxlen:
             self.dropped_events += 1
-        self.pending.append(dict(kind='cancel_tail_trigger', **{key: row[key] for key in
+        kind = 'cancel_tail_trigger' if row['operation'] == 'order.cancel' else 'submit_tail_trigger'
+        self.pending.append(dict(kind=kind, **{key: row[key] for key in
                                  ('at_ns', 'start_ns', 'duration_ms', 'event_id', 'order_id', 'connector')}))
 
     def drain(self, sink):
@@ -182,6 +183,14 @@ def instrument_async(owner, name, operation, tracer):
         finally:
             tracer.end(span, error=error)
     setattr(owner, name, measured)
+
+
+def instrument_submit_stages(tracer, connectors, authority, throttle):
+    """Keep queue/authorization SQL children under their native submit span."""
+    instrument_async(throttle, 'acquire', 'order.throttle_wait', tracer)
+    instrument_async(authority, 'authorize_rest', 'ownership.authorize_rest', tracer)
+    for connector in connectors:
+        instrument_async(connector, '_place_order', 'order.submit.' + connector.__name__, tracer)
 
 
 def instrument_admin_queue(owner, samples, totals, tracer):

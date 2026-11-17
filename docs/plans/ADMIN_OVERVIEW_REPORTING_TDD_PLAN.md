@@ -1,16 +1,25 @@
 # Admin Overview reporting — TDD remediation
 
-Updated 2026-11-16 local. Status: contract/coverage/fees implemented; a bounded
+Updated 2026-11-17 local. Status: contract/coverage/fees implemented; a bounded
 writer-read follow-up passed functional regression but fails resource load. An
 encoding/authority-lock follow-up has full native and PostgreSQL GREEN.
-Resource qualification remains open for failed warmup latency and one paired
-cancel-p99 comparison. The final full 60-minute soak and all six fault windows pass.
+Resource qualification remains open for the retained warmup/cancel failures and
+the latest paired submit-p99 failure. The historical full 60-minute soak and all
+six fault windows pass; the new local requalification stops after its first pair.
+
+Current source adds bounded final-send priority and cooperative outflow clock
+catch-up. The new 1,134-file artifact passes 4,074 native tests +16 subtests and
+95 focused checks, all 250 affected PG cases and scoped packaged lifecycle.
+Its first resource pair fails only cancel p99; remaining pairs and canonical
+soak are not started. New-image real-SQL reporting isolation also passes.
+The preceding priority artifact retains a failed tick-gap/cancel pair. Historical
+artifact passes do not qualify this combined source.
 
 Implementation is on `codex/overview-reporting-tdd`; PR #2 is merged into the
 working tree; qualification measurements were collected before commit. A/B/D and
 focused isolation tests are implemented.
-Final native regression passes 4,033 tests +16 subtests; FE lint/typecheck/610 tests/
-build and all 989 cases across 115 PG modules pass on the latest source. The
+The preceding encoding artifact passes 4,033 native tests +16 subtests, FE
+lint/typecheck/610 tests/build and all 989 cases across 115 PG modules. The
 earlier writer-source run retains two stale SQL test matcher failures and their
 explicit passing follow-ups. After the publication-read change, all 115 affected
 PG cases in 27 modules also pass.
@@ -568,3 +577,297 @@ All 41 power observations report AC. Host CPU sampling includes busy editor/
 browser processes; this remains a nonexclusive local diagnostic environment.
 Stop the bounded experiment with no production change. C and connected Demo
 acceptance remain open; this passing partial warmup supersedes no failed gate.
+
+### Local requalification after operator idle confirmation — 2026-11-17
+
+The operator confirms heavy tasks have stopped and the machine is ready. AC is
+verified. Preserve all historical failed/diagnostic runs; write distinct artifacts.
+
+- [x] Verify frozen baseline/candidate image digests and candidate production files, and Docker VM
+  resources. Record source/fixture hashes and host power/process CPU samples.
+  No concurrent test/build jobs, CPU injection, policy changes or new image builds.
+- [x] Execute the fixed pair schedule with predeclared early stop: up to three
+  complete sequential baseline/candidate pairs, 120 seconds
+  per window, 2 CPU /1,024MiB, identical 100,000-row history, normalized healthy
+  depth, security/defense workload and bounded incident/MM/GC diagnostics. Keep
+  unchanged absolute gates and empirical p99 margin max(10% baseline, 10ms).
+  Preserve all sample counts. Stop at the first failed pair to inspect evidence;
+  missing/setup/fixture/power-interrupted scopes do not count as passes. No
+  replacement pair or margin adjustment after a failure.
+- [ ] Only if all three pairs pass, execute the unchanged candidate canonical
+  warmup/mixed/burst/3,600-second Random soak and six faults at 2 CPU /2GiB,
+  preserving failed windows and checking independent fills/fees/positions,
+  process/owner continuity, reporting isolation and memory retention. A partial
+  component pass cannot qualify the full release.
+  Keep bounded incident/GC capture enabled on this new canonical run; MM activity
+  remains probe-only. Record the diagnostic overhead instead of hiding it.
+- [x] Record the result and resource caveats. Operator idle confirmation and
+  process CPU samples do not turn a shared laptop into an exclusive CPU worker;
+  retain any contention and do not infer its absence from AC or a passing run.
+
+Only pair one completes: baseline `20261117-102533-c94415` and candidate
+`20261117-102935-b045a0`. Both pass absolute budgets and have 120 exact fills,
+matching positions/funding, no error/restart logs and peak cgroup memory below
+1GiB. Read p95/p99 is 49.77/102.15ms versus 132.59/214.39ms. Tick, tick gap and
+cancel comparisons pass. Submit p99 fails: 292.489 ->331.789ms, +39.299ms against
+the unchanged 29.249ms margin. Native submit sample counts are 16/26; both p99
+values are empirical maxima. Keep the failure; pairs two/three and canonical
+load/soak are not started, as predeclared.
+
+The worst candidate submit reaches simulator acceptance after 305.200ms, then
+returns another 26.589ms later. No causal incident stacks cover that interval.
+Inspection finds a test-harness gap: only slow cancels trigger deferred capture.
+One new RED/GREEN case now retains a slow submit's preceding authorization/SQL
+context without producer-lock reentry or argument disclosure. The test wrapper
+uses a shared bounded submit/cancel queue and traces authorize_rest, with no
+trading behavior changes. Diagnostic regression: 85 passed. This improvement
+follows measurement and is not evidence of the old delay's cause or a passing
+replacement pair. No production latency fix has been established; C stays open.
+
+### Submit-path attribution — predeclared 2026-11-17
+
+- [x] Before measurement, test stage instrumentation using the real throttler
+  with its lock held. Waiting remains waiting; release consumes one original
+  rate-limit entry; nested authorization/SQL spans retain their native submit
+  parent, result identity and private-argument exclusion. One RED/GREEN case;
+  86 nearby diagnostic tests pass. Only test assets change.
+- [x] Execute exactly one candidate-only 120-second diagnostic probe with the
+  same frozen image, 2 CPU /1GiB, 100,000 history rows, normalized book and
+  security/defense fixture as the failed pair. Retain bounded MM/GC/incident
+  capture, with native submit, throttle acquire and authorization spans. Observe
+  AC/host CPU; no concurrent tests, CPU injection or replacement qualification.
+- [x] Decompose retained slow submits using shared-kernel venue acceptance,
+  throttle/authorization intervals and nested SQL. Distinguish queued time from
+  synchronous work and unobserved intervals. If a specific production fault is
+  demonstrated, reproduce it with a failing test before fixing it; otherwise
+  keep C open and stop this bounded diagnostic with no production patch.
+
+Result `20261117-111638-75a09d`: read p95/p99 132.87/237.87ms, no absolute
+violations, 120 exact fills and matching positions/funding, no error/restart logs.
+Of 22 native submit observations, 17 are >=100ms and all 17 have matched retained
+native submit spans. Worst call: 306.714ms; venue acceptance at 263.552ms, return
+43.163ms later. Authorization occupies 261.679ms; the entire pre-authorization
+segment, including throttle, is bounded by 1.064ms. Its first traced owner read
+starts 252.682ms into authorization, leaving 8.997ms to authorization return.
+No captured GC or full-GC event overlaps the slow call; the loop keeps progressing.
+Source queues both admission and final-send on submission_admission and yields
+one loop turn inside that slot. Queue/turn scheduling is the supported explanation
+for this new event; lock waiting and ready-task scheduling are not individually
+measured. Retained SQL is incomplete because bounded child selection evicts nine
+children from the root, so its 2.789ms sum is not total DB time. No production
+fault is proven and no production path changes. Keep the earlier paired failure
+and C open; this candidate-only diagnostic is not a passing replacement pair.
+
+### Bounded final-send priority experiment — predeclared 2026-11-17
+
+The operator authorizes testing a scheduling optimization. This is an experiment,
+not evidence that the existing shared FIFO violates trading authority.
+
+- [x] RED: twelve orders offered together, with equal admission/final proof work.
+  Measure enqueue-to-venue acceptance as well as native-place time. Require
+  earlier mean/first acceptance and non-regressing last acceptance, rather than
+  merely moving a wait outside the native timer.
+- [x] Keep one shared slot and FIFO within each class. Permit at most two final
+  sends before a waiting admission. Preserve a loop turn per gate, fresh checks,
+  cancellation/guard replacement, and release before network I/O. Test canceled
+  queued and already-granted waiters, exceptions and continuous send backlog.
+- [x] Compare fresh, equal real-PG twelve-order native bursts using FIFO and the
+  candidate, three independent fixture pairs with equal SQL work/delay. Preserve
+  end-to-end first/mean/last acceptance, query counts and callback progress.
+- [x] Whole-path component evidence improves and authority regressions pass.
+  Retain the optimization as an unqualified experiment; affected native/PG
+  regression and a distinct frozen artifact are complete. Resource qualification
+  below still fails; this does not approve release. Keep every old failure.
+
+The logical burst is RED with FIFO first acceptance at work-unit 13 on both
+sides; the bounded-priority candidate improves first/mean acceptance by the
+asserted bound with no later last acceptance and identical proof-work count.
+Three fresh native/PG pairs retain 396 SQL statements and twelve physical
+send/ACK records per side. Mean enqueue-to-accept improves by approximately
+26–33%; first acceptance is earlier and last acceptance is not later in all
+three observed pairs. These are controlled component timings with a 2ms SQL
+delay, not Cloud Run or exchange latency qualification.
+
+Focused native checks pass (35 finally, including canceled-all handoff and
+no-yield-after-final-proof races). The full Cloud Run native regression passes
+4,051 tests +16 subtests before those two test-only cases are added. Focused PG is 44 passed; ownership/
+new priority safety initially has 75 passed and one new-fixture failure because
+legacy Start correctly rejects armed spot_outflow. The version-race fixture is
+corrected to simulate an independent MM version writer; all eight new PG cases
+then pass, including Stop/version after the first prioritized send. Full PG
+regression passes all 997 tests across 116 modules in seven fresh process groups.
+The separate candidate image matches all 1,134 runtime files. Scoped packaged
+lifecycle and isolation pass; resource qualification below fails.
+
+### Priority-artifact resource qualification — predeclared 2026-11-17
+
+- [x] Finish packaged shutdown proof, managed credential lifecycle and
+  upgrade/rollback using the new immutable candidate and the previous encoding
+  artifact. This is scoped lifecycle coverage, not the complete release suite.
+- [x] Run at most three sequential baseline/candidate pairs, each 120 seconds,
+  2 CPU /1GiB, 100,000 history rows, healthy two-level external book with
+  100,000 BASE depth, security/enhancements/volatility defense enabled. Use the
+  original baseline manifest `102dbda3…`, not the previous Overview candidate.
+  Candidate manifest is `2850a961…`. Preserve 500/1,000ms read p95/p99 budgets
+  and p99 regression margin max(10% baseline, 10ms) for tick, tick gap, native
+  submit and cancel. No replacement pairs; stop at the first failed pair.
+- [ ] If all three pairs pass, run the canonical warmup (300s), mixed (900s),
+  burst (90s), Random soak (3,600s) and six faults at 2 CPU /2GiB with keep-going.
+  Retain independent ledger checks, bounded incident/GC capture and all failures.
+  MM activity remains probe-only. No simultaneous builds/tests or CPU injection.
+- [x] Exercise real-SQL Overview timeout isolation on this new image at 1GiB,
+  using the retained candidate resource fixture, with two injected server waits.
+  Observe durable fill progress, owner/process continuity and stale fee state.
+- [x] Record AC and host process CPU throughout measurements; shared-host
+  contention is a limitation even with operator idle confirmation. Retain the
+  old warmup/cancel/submit failures separately; new results never replace them.
+
+Raw scope: `build/overview-admission-scheduling-20261117/qualification`.
+No Cloud Run change, production secret, risk policy or automatic commit/deploy.
+
+Results: packaged shutdown proof `20261117-122221-c94b58`, managed lifecycle
+`20261117-122334-1dc5bc` and upgrade/rollback `20261117-122929-ca3303` all pass.
+The first resource pair (`20261117-123136-0c8d02` /
+`20261117-123534-68d4b5`) passes absolute read budgets with 120 exact fills per
+side, matching positions and peak memory below 1GiB. However, tick-gap p99
+1,013.906 ->1,129.261ms and cancel p99 40.802 ->111.973ms exceed unchanged
+margins. Submit p99 improves 272.785 ->204.643ms; tick p99 is unchanged
+5.011 ->5.022ms. Native submit/cancel samples are 21/25 per side; these are
+empirical cohort observations, not identical order-cohort comparisons. Keep
+this pair failed. Remaining pairs and canonical load/soak are not started.
+
+Exact-window follow-up retains the worst 1,278.911ms tick gap overlapping
+`SpotOutflowProjection.advance`: 271.689ms wall /269.928ms thread CPU inside
+`service.observe_once`. This is the largest gap, not the second-largest p99
+sample of 1,129.261ms. No captured >=10ms GC overlaps either slow cancel.
+The two cancels take 111.973/103.200ms; venue decomposition is respectively
+76.914/69.846ms before request, 0.014625/0.008334ms simulator processing,
+and 35.045/33.345ms after terminal until native return. Incident mode captures
+the markers and sampled SQL context, but native cancel spans require full trace;
+the exact cause of those waits is unproven. Do not relax the gate or risk guard.
+
+Real-SQL Overview isolation `20261117-124133-5824aa` passes at 1GiB with two
+SQLSTATE 57014 timeouts, a durable fill witnessed during the wait, 120 exact
+venue/recorder fills, unchanged engine PID/owner/session, no HALT and clean Stop.
+Fees keep a last usable value marked stale then recover. This is server-wait
+isolation, not CPU-heavy SQL or Cloud Run qualification. C remains open.
+
+Open follow-ups are distinct: bound bulk outflow expiry without weakening its
+financial proof; capture exact native cancel/authorization timing if pursuing
+that tail; then qualify a final image with the original margins. No additional
+production changes are justified solely by an overlapping sample.
+
+### Cooperative outflow clock catch-up — predeclared 2026-11-17
+
+- [x] Reproduce bulk-expiry event-loop starvation through the actual service
+  observer with 4,096 and 100,000 fills. Require callback progress before all
+  expiry work completes, rather than a machine-specific millisecond assertion.
+- [x] Bound each owner-loop advance to 512 heap/fill work items; preserve
+  timestamp/key order and Decimal operation order. Keep the unlimited reference
+  API for offline comparisons. Retain queued committed fills with detached
+  payloads and replay in order after due work; do not expose partial risk as
+  permission. BUY waits explicitly while catch-up is incomplete; SELL/cancel
+  and Stop callbacks retain progress. Do not move mutable risk state to threads.
+- [x] Test exact settled totals/fees/reservations, future timestamps, pending-fill
+  replay/mutation/overflow, cancellation, and control/owner changes between
+  batches. Resume safely without resetting checkpoints or risk limits.
+- [x] Run affected native/PG regressions and freeze a distinct artifact. Execute
+  one 120-second full-trace candidate diagnostic for native cancel attribution;
+  it is not a replacement resource pair. Then run a new fixed resource scope
+  with original baseline/margins and preserve failures; canonical only if all
+  three pairs pass. No real Cloud Run or automatic commit/deploy.
+
+The cooperative-expiry source fingerprint is
+`24645f512022fccf084ad53af45c6cf1e913648630d4fad7a19ac3b28e7dac19`
+(1,134 runtime files). Its predeclared artifact scope is distinct from the failed
+priority pair: scoped shutdown/managed lifecycle/upgrade; exactly one 120-second
+full-trace candidate diagnostic at 2 CPU /1GiB for cancel attribution; then at
+most three original-baseline/candidate pairs, 120 seconds each, with 100,000
+history rows, two-level 100,000 BASE book, security/enhancements/defense and
+bounded MM/GC/incident capture. Keep read p95/p99 <=500/1,000ms and relative
+p99 margin max(10% baseline, 10ms) for tick, tick gap, native submit and cancel.
+Stop at the first failed pair. Only three passing pairs permit the canonical
+300s/900s/90s/3,600s warmup/mixed/burst/Random soak and six faults at 2 CPU /2GiB.
+Retain fresh Overview real-SQL isolation at 1GiB separately. No CPU injection,
+concurrent tests/builds during measured windows, replacement pairs or relaxed
+thresholds. AC/host samples remain mandatory and shared-host caveats remain.
+Raw evidence: `build/overview-outflow-expiry-20261117`.
+
+The cooperative artifact's first pair fails only cancel p99 (38.846 ->66.429ms),
+with tick/gap/submit passing. Keep the failed pair and stop remaining pairs/soak.
+Predeclare one additional candidate-only 120-second full-trace diagnostic at the
+same 2 CPU /1GiB/history/book/security workload, with capture threshold lowered
+from 100ms to 25ms in a detached test asset. Preserve the original and injected
+asset hashes and actual threshold in raw evidence. No business runtime overlay,
+new resource pass, guard change or replacement pair is implied. This scope is
+needed because the 66ms failure falls below the prior trace threshold.
+
+
+Cooperative result: all 4,074 native tests +16 subtests, 95 focused checks, all
+250 affected PostgreSQL tests and the three scoped packaged scenarios pass.
+The first resource pair passes absolute budgets and tick/tick-gap/submit
+comparisons, with 120 exact fills and matching positions per side. Cancel p99
+fails 38.846 ->66.429ms (+27.583ms against 10ms); keep the pair failed and do not
+start remaining pairs/canonical. Full-trace 100ms captures no native cancel
+root/child. The separate 25ms diagnostic keeps eight roots; the largest is
+42.766ms with 0.071ms throttle, 1.307ms authorization and 40.965ms after
+authorization until native return, zero dropped children. It does not reconstruct
+the failed 66.429ms sample or split transport from loop scheduling. No speculative
+cancel/authority patch is made. C and connected Demo remain open. SQL isolation
+`20261117-142129-f55b59` on this exact image passes at 1GiB: two real timeouts,
+a durable fill during the fault, 120 exact fills, matching positions, unchanged
+engine PID/owner/session, no HALT and clean Stop. C remains open for cancel p99;
+no commit, deployment, risk limit or real environment is changed.
+
+### Same-pair cancel timeline — predeclared 2026-11-17
+
+- [x] RED/GREEN the actual aiohttp pipeline: terminal callback before REST ACK,
+  identical request/body/headers, return/exception/cancellation preservation,
+  concurrent context separation and sink failure. Keep HTTP header-preparation
+  hooks separate from actual transport-enqueue intervals.
+- [x] Record every native cancel attempt and transport/body/callback boundary in
+  a dedicated bounded 8MiB/256-queue fixture stream, independent of the 100ms
+  incident threshold. Independently retain received/terminal/response-ready/EOF
+  at the venue with a bounded request sequence. No correlation header is sent.
+- [x] Refuse ambiguous or missing joins. Callback completion is distinct from
+  native REST return; response headers may precede server EOF. Preserve overlap
+  bounds and signed observations instead of inventing zero/negative network time.
+- [x] Execute exactly one sequential original-baseline/cooperative-candidate
+  diagnostic pair: 120s each, 2 CPU /1GiB, 100k history, the original two-level
+  100k BASE/security/defense workload, MM/GC/incident capture and the same new
+  timeline assets on both sides. Record all asset hashes and AC/host observations.
+  Keep the previous failed 38.846 ->66.429ms cancel pair failed. This one paired
+  diagnostic cannot replace it or qualify a release, regardless of its result.
+- [x] Decompose matched slow calls in that same measured pair, including venue
+  and callback observation. Only a demonstrated production fault warrants a new
+  RED reproduction/fix; preserve owner/Stop/version checks and all thresholds.
+
+Business runtime remains the frozen cooperative artifact, fingerprint
+`24645f512022fccf084ad53af45c6cf1e913648630d4fad7a19ac3b28e7dac19`.
+Only offline fixture/analysis tests change in this scope. Raw evidence:
+`build/overview-cancel-timeline-20261117`. No automatic commit/deploy/Cloud change.
+
+Result: diagnostic baseline `20261117-151138-68179e` passes absolute budgets;
+candidate `20261117-151535-02881d` fails read p95/p99 and all four relative
+comparisons. Cancel p99 is 31.310 ->339.461ms. Preserve both this failure and the
+earlier 38.846 ->66.429ms failure; no replacement pairs or canonical soak run.
+The 192 nearby diagnostic/web-assistant tests pass. All 1,134 frozen business
+runtime hashes remain unchanged.
+
+The largest candidate cancel matches one unique venue request: terminal observed
+in 0.063ms, response ready another 0.590ms later, then 326.738ms until client
+headers are recorded. Connection return ->caller resumption is only 0.038ms.
+The headers marker follows client coroutine resumption; this interval still
+combines transport/I/O dispatch/scheduling and cannot prove pure network time.
+A recorder checkpoint is sampled during the interval, but its completed trace
+is not retained in the 100ms-threshold capture; no exact blocking duration is established.
+The overlapping async observe span has 11 dropped children and inclusive CPU,
+so it cannot attribute the entire delay to one function. No fresh throttling
+counter increase occurs between the two bracketing CPU samples. Host samples
+show concurrent Go/clang/VS Code CPU activity despite prior idle confirmation.
+This supports a shared-host caveat, not a unique causal diagnosis.
+
+No demonstrated production fault warrants a speculative patch in this scope.
+The diagnostic capture/decomposition is complete; resource gate C, canonical
+soak and connected Demo qualification remain open. A controlled resource pair
+still needs a quiet host or independent worker before qualification continues.

@@ -587,6 +587,10 @@ class Exchange:
             return self.ok([{"clOrdId": client_id, "ordId": order["ordId"], "sCode": "0", "sMsg": ""}])
         if path in ("/api/v5/trade/cancel-order", "/api/v5/trade/cancel-batch-orders"):
             received_ns = time.monotonic_ns()
+            activity = self.quote_activity
+            identities = tuple(item['clOrdId'] for item in (data if isinstance(data, list) else [data])
+                               if isinstance(item, dict) and isinstance(item.get('clOrdId'), str))
+            cancel_request_id = activity.cancel_request(identities, received_ns) if activity else None
             if self.cancel_delay_seconds:
                 await asyncio.sleep(self.cancel_delay_seconds)
             result = []
@@ -594,6 +598,8 @@ class Exchange:
                 order = self.orders.get(item["clOrdId"])
                 if order is None:
                     result.append({"clOrdId": item["clOrdId"], "ordId": "", "sCode": "51400", "sMsg": "Order does not exist"})
+                    if activity:
+                        activity.cancel_stage(cancel_request_id, (item['clOrdId'],), 'not_found')
                     continue
                 spec = self.fill_on_cancel.pop(order['clOrdId'], None)
                 was_live = order['state'] in ('live', 'partially_filled')
@@ -607,9 +613,24 @@ class Exchange:
                         self.cancel_pending_visibility.setdefault(order['clOrdId'], self.cancel_pending_visibility_reads)
                     if self.quote_activity and was_live:
                         self.quote_activity.terminal(order['clOrdId'], 'canceled', request_ns=received_ns)
+                if activity:
+                    activity.cancel_stage(cancel_request_id, (order['clOrdId'],), 'terminal_observed', state=order['state'])
                 await self.broadcast(self.event(order))
                 result.append({"clOrdId": order["clOrdId"], "ordId": order["ordId"], "sCode": "0", "sMsg": ""})
-            return self.ok(result)
+            response = self.ok(result)
+            if activity:
+                activity.cancel_stage(cancel_request_id, identities, 'response_ready')
+                original_eof, reported = response.write_eof, False
+
+                async def written(data=b''):
+                    nonlocal reported
+                    result = await original_eof(data)
+                    if not reported:
+                        activity.cancel_stage(cancel_request_id, identities, 'response_eof')
+                        reported = True
+                    return result
+                response.write_eof = written
+            return response
         # The existing default rate source uses a non-trading Gate.IO connector.
         # Its public shape is simulated too; the isolated network prevents fallback.
         if path == "/api/v4/spot/time":

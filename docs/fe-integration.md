@@ -805,6 +805,14 @@ PnL is `null`; known peaks and confirmed breach remain visible. This metric
 includes reported trade fees and excludes funding; it is not account equity.
 See [managed MM drawdown](life-mm-controls.md#drawdown) for configuration and bound policy.
 
+A bounded clock catch-up reports `reason_code=spot_outflow_projection_catching_up`,
+`ready=false`, `stale=true`, `buy_allowed=false`, and null recorded/reserved/
+remaining quote values. Show “Updating spending window”; this is a transient
+BUY wait, not a breached cap or HALT. SELL/cancel remain available. A queued
+managed maker BUY uses typed `SpotOutflowPending`, retires without consuming
+exchange retries, and returns through fresh controller admission after catch-up.
+No partial totals authorize a new BUY.
+
 Optional `status.spot_outflow` exposes the bound rolling spot USDT policy,
 committed/reserved/remaining capacity, original non-USDT fees and BUY-only
 coverage/denial reasons. Capacity loss does not stop funded SELL or perpetual

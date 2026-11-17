@@ -83,6 +83,7 @@ test-cloudrun-regression:
 		test/hummingbot/core/test_overview_market_observations.py \
 		test/hummingbot/core/test_overview_recovery.py \
 		test/hummingbot/core/test_submission_admission_fairness.py \
+		test/hummingbot/core/test_submission_send_priority.py \
 		test/hummingbot/core/test_strategy_startup_read_fairness.py \
 		test/hummingbot/connector/test_managed_pending_polling.py \
 		test/hummingbot/core/test_recovery.py test/hummingbot/core/test_recovery_exchange.py \
@@ -124,6 +125,7 @@ test-cloudrun-regression:
 		test/hummingbot/core/test_reconciliation_cancellation.py \
 		test/hummingbot/core/data_type/test_order_book_tracker.py \
 		test/hummingbot/core/test_spot_outflow.py \
+		test/hummingbot/core/test_spot_outflow_cooperative.py \
 		test/hummingbot/core/test_spot_outflow_fairness.py \
 		test/hummingbot/core/test_spot_terminal_proof.py \
 		test/hummingbot/core/test_spot_outflow_future.py \

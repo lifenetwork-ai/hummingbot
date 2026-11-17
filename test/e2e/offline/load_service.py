@@ -22,14 +22,15 @@ from aiohttp import web
 from load_incidents import IncidentBuffer, capture_limit
 from load_process_metrics import MetricsExporter, collect_requested
 from load_trace import (
-    DeferredCancelTrace,
     DeferredGCTrace,
+    DeferredOrderTrace,
     FullGCProbe,
     TraceRecorder,
     TraceSink,
     backend_pid,
     instrument_admin_queue,
     instrument_async,
+    instrument_submit_stages,
     instrument_sync,
     runtime_trace_sink,
     sample_heartbeat,
@@ -147,7 +148,7 @@ loop_beat_ns = time.monotonic_ns()
 watchdog_stop = threading.Event()
 gc_trace = DeferredGCTrace() if tracer else None
 full_gc_probe = FullGCProbe() if os.environ.get('HBOT_LOAD_GC_DIAGNOSTICS') == '1' else None
-cancel_trace = DeferredCancelTrace() if os.environ.get('HBOT_MM_ACTIVITY_DIAGNOSTICS') == '1' else None
+order_trace = DeferredOrderTrace() if os.environ.get('HBOT_MM_ACTIVITY_DIAGNOSTICS') == '1' else None
 metrics_exporter = MetricsExporter(Path('/tmp/load-metrics-api.json' if process_role == 'api' else '/tmp/load-metrics.json'))
 if trace_sink:
     atexit.register(trace_sink.close)
@@ -167,6 +168,7 @@ def emit_trace(record):
 
 mm_activity = None
 mm_activity_sink = None
+cancel_timeline = cancel_timeline_sink = None
 if os.environ.get('HBOT_MM_ACTIVITY_DIAGNOSTICS') == '1' and process_role == 'engine':
     from load_mm_activity import (
         ActivityRecorder,
@@ -191,7 +193,7 @@ if os.environ.get('HBOT_MM_ACTIVITY_DIAGNOSTICS') == '1' and process_role == 'en
     def emit_mm_activity(record):
         emit_trace(record)
         mm_activity_sink.emit({**record, 'capturing_role': process_role, 'capturing_pid': os.getpid()})
-        cancel_trace.observe(record)
+        order_trace.observe(record)
 
     mm_activity = ActivityRecorder(emit_mm_activity)
     instrument_cycle(StrategyV2Base, 'tick', 'strategy.tick', mm_activity,
@@ -236,7 +238,9 @@ def save_incident_summary():
     temporary.write_text(json.dumps({**incidents.summary(), 'at': time.time(), 'process_id': os.getpid(),
                                      'sink': incident_sink.summary(), 'dropped_spans': tracer.dropped_spans,
                                      'gc_trace': gc_trace.summary(),
-                                     'cancel_trace': cancel_trace.summary() if cancel_trace is not None else None}))
+                                     'cancel_timeline': cancel_timeline.summary() if cancel_timeline is not None else None,
+                                     'cancel_timeline_sink': cancel_timeline_sink.summary() if cancel_timeline_sink is not None else None,
+                                     'order_trace': order_trace.summary() if order_trace is not None else None}))
     temporary.replace(destination)
 
 
@@ -415,6 +419,9 @@ async def probe(host):
             if mm_activity is not None:
                 data['mm_activity'] = mm_activity.summary()
                 data['mm_activity_sink'] = mm_activity_sink.summary()
+            if cancel_timeline is not None:
+                data['cancel_timeline'] = cancel_timeline.summary()
+                data['cancel_timeline_sink'] = cancel_timeline_sink.summary()
             if tracer:
                 data["trace"] = {**(trace_sink.summary() if trace_sink else incident_sink.summary()),
                                  "dropped_spans": tracer.dropped_spans, "slow_trace_threshold_ms": tracer.slow_ms,
@@ -455,8 +462,8 @@ def watchdog(loop_thread_id):
     trigger_path = Path('/tmp/load-incident-trigger.json')
     while not watchdog_stop.wait(.05):
         gc_trace.drain(emit_trace)
-        if cancel_trace is not None and incidents is not None:
-            cancel_trace.drain(incidents.trigger)
+        if order_trace is not None and incidents is not None:
+            order_trace.drain(incidents.trigger)
         now = time.monotonic_ns()
         cpu = Path("/sys/fs/cgroup/cpu.stat")
         if incidents:
@@ -515,12 +522,31 @@ def watchdog(loop_thread_id):
         emit_trace(record)
 
 
-if trace_sink and process_role == 'engine':
+if tracer and process_role == 'engine':
     from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
     from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
+    from hummingbot.core.api_throttler.async_request_context_base import AsyncRequestContextBase
 
+    instrument_submit_stages(tracer, (OkxExchange, OkxPerpetualDerivative), BotOwnership, AsyncRequestContextBase)
+
+if trace_sink and process_role == 'engine':
     for connector in (OkxExchange, OkxPerpetualDerivative):
         instrument_async(connector, '_place_cancel', 'order.cancel.' + connector.__name__, tracer)
+
+if mm_activity is not None:
+    from load_mm_activity import instrument_cancel_timeline
+
+    from hummingbot.connector.client_order_tracker import ClientOrderTracker
+    from hummingbot.core.web_assistant.connections.data_types import RESTResponse
+    from hummingbot.core.web_assistant.connections.rest_connection import RESTConnection
+    from hummingbot.core.web_assistant.rest_assistant import RESTAssistant
+
+    cancel_timeline_sink = TraceSink(Path(incident_directory) / 'cancel-timeline.jsonl',
+                                     max_bytes=8 * 1024**2, queue_limit=256, append=True)
+    cancel_timeline = instrument_cancel_timeline(
+        cancel_timeline_sink.emit, connectors=(OkxExchange, OkxPerpetualDerivative),
+        connection=RESTConnection, assistant=RESTAssistant, response=RESTResponse,
+        tracker=ClientOrderTracker, authority=BotOwnership)
 
 
 if tracer:
@@ -580,6 +606,10 @@ def instrument_run(original):
             if mm_activity_sink:
                 mm_activity_sink.close()
                 (Path(incident_directory) / 'mm-activity-summary.json').write_text(json.dumps(mm_activity_sink.summary()))
+            if cancel_timeline_sink:
+                cancel_timeline_sink.close()
+                (Path(incident_directory) / 'cancel-timeline-summary.json').write_text(json.dumps(
+                    dict(recorder=cancel_timeline.summary(), sink=cancel_timeline_sink.summary())))
     return run
 
 

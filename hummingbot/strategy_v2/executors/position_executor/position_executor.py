@@ -837,7 +837,7 @@ class PositionExecutor(ExecutorBase):
             # only the controller may build a replacement from current policy.
             reprice = (event.error_type == "QuoteRefreshRequired" and self.config.use_configured_entry_price
                        and self.status == RunnableStatus.RUNNING)
-            outflow_wait = (event.error_type == "SpotOutflowBlocked" and self.config.mm_session_id is not None
+            outflow_wait = (event.error_type in ("SpotOutflowBlocked", "SpotOutflowPending") and self.config.mm_session_id is not None
                             and self.config.connector_name == 'okx' and self.config.side == TradeType.BUY
                             and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
             if reprice or (outflow_wait or session_closed) and self.status == RunnableStatus.RUNNING:
@@ -873,7 +873,7 @@ class PositionExecutor(ExecutorBase):
             self.logger().error(f"{role} order failed {event.order_id}. Retrying {self._current_retries}/{self._max_retries}")
             return
         level, reason = context
-        if event.error_type in ('QuoteRefreshRequired', 'SpotOutflowBlocked'):
+        if event.error_type in ('QuoteRefreshRequired', 'SpotOutflowBlocked', 'SpotOutflowPending'):
             # The connector owns the bounded operational warning; executor
             # retirement and its per-order diagnostic remain intact.
             level = logging.DEBUG

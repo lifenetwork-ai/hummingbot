@@ -20,6 +20,7 @@ from hummingbot.core.order_submission_guard import (
     SubmissionBlocked,
 )
 from hummingbot.core.startup_order_reconciliation import UntrackedOpenOrders, reconcile_open_order_visibility
+from hummingbot.core.submission_admission import SubmissionAdmission
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import BotStateStore
 from hummingbot.model.db_migration.postgres.locks import OWNER_KEY, OWNER_NAMESPACE
@@ -97,7 +98,7 @@ class BotOwnership:
         self.unsent_rejections = weakref.WeakValueDictionary()
         self.expired_rejections = weakref.WeakValueDictionary()
         self.submission_tasks = set()
-        self.submission_admission = asyncio.Lock()
+        self.submission_admission = SubmissionAdmission()
         self.terminal_tasks = set()
         self.transport_tasks = {}
         self.account_lock = asyncio.Lock()
@@ -583,15 +584,15 @@ class BotOwnership:
             return await self._authorize_rest(request)
         from hummingbot.core.order_submission_guard import active_guard
 
-        # Share admission's loop-turn discipline after throttling/authentication
-        # too. Never hold this slot during network I/O, and never yield between
+        # Bound final-send priority while preserving the shared loop-turn slot.
+        # Never hold this slot during network I/O, and never yield between
         # the final fresh authority/durable send checks and returning permission.
         task = asyncio.current_task()
         temporary = task is not None and task not in self.submission_tasks
         if temporary:
             self.submission_tasks.add(task)
         try:
-            async with self.submission_admission:
+            async with self.submission_admission.final_send():
                 await asyncio.sleep(0)
                 if active_guard() is not self:
                     raise SubmissionBlocked('Trading owner changed before final send authorization.')

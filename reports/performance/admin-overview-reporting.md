@@ -1,12 +1,20 @@
 # Admin Overview reporting qualification
 
-Updated 2026-11-16. Contract, coverage, durable fees and the publication-read
+Updated 2026-11-17. Contract, coverage, durable fees and the publication-read
 optimization are implemented. The encoding-before-lock artifact passes all 989
 PG cases, 4,033 native tests +16 subtests, scoped packaged lifecycle, the full
 60-minute soak, six fault windows and real-SQL isolation. Resource gate C still
-fails warmup read latency and one paired cancel-p99 comparison. All earlier
-failures and interrupted runs remain retained. This report does not approve
+retains warmup/cancel failures, plus a new local paired submit-p99 failure that
+stops requalification before the remaining pairs and soak. All earlier failures
+and interrupted runs remain retained. This report does not approve
 deployment or close connected Demo acceptance.
+
+Current source adds bounded final-send priority and cooperative outflow clock
+catch-up. The new 1,134-file artifact passes 4,074 native tests +16 subtests and
+95 focused safety checks, all 250 affected PostgreSQL cases and the three
+scoped packaged lifecycle checks. Its first resource pair fails only cancel p99; remaining pairs and canonical
+soak are not started. New-image real-SQL reporting isolation also passes. The preceding priority artifact retains a failed tick-gap/cancel
+pair. Older artifact passes do not qualify this latest combined source.
 
 Scope: the four follow-ups in [the approved plan](../../docs/plans/ADMIN_OVERVIEW_REPORTING_TDD_PLAN.md),
 based on PR #2 `c17c938670dd0ea1543467e6b38db20d5331a970` and dev `0f99cd28e`.
@@ -771,3 +779,369 @@ The three previously added GC timing regression cases and the 84-case diagnostic
 regression remain the validation of the test-only timing change. C remains open:
 this successful partial warmup does not replace the failed healthy warmup,
 paired cancel gate, or the separate connected Demo acceptance.
+
+### Local requalification with operator-confirmed idle host — 2026-11-17
+
+After the operator confirms heavy tasks are stopped, a fixed schedule attempts
+up to three sequential 120-second baseline/candidate pairs at 2 CPU /1GiB,
+followed by the canonical load/soak only if all pairs pass. Fixtures, normalized
+book, 100,000 history rows, security/defense, rates and all margins remain fixed.
+Bounded incident/MM/GC capture is identical on both sides. Image digests and
+1,133 candidate production file hashes match the frozen artifacts. New evidence
+is under `build/overview-local-requalification-20261117`; no old result is replaced.
+
+Pair one completes and fails the submit comparison, triggering the predeclared
+stop. Pairs two/three and canonical load/soak are **not run**.
+
+| Metric | Baseline | Candidate | Result |
+| --- | --- | --- | --- |
+| Read p95/p99 | 49.77 /102.15ms | 132.59 /214.39ms | Absolute budgets pass |
+| Tick p99, 120 samples each | 4.922ms | 5.468ms | Pass |
+| Tick-start gap p99, 119 samples each | 1,028.751ms | 1,019.392ms | Pass |
+| Native submit p99, 16/26 samples | 292.489ms | 331.789ms | **Fail**: +39.299ms; allowed +29.249ms |
+| Native cancel p99, 24/26 samples | 45.756ms | 41.298ms | Pass |
+
+Baseline: `build/mm-load/20261117-102533-c94415`; candidate:
+`build/mm-load/20261117-102935-b045a0`. Both retain 120 venue /120 recorder fills,
+matching positions, two funding bills and three daily snapshots, with no error,
+restart or ownership-loss lines. Peak cgroup memory is 780,230,656/780,308,480B,
+below the unchanged 1GiB limit. Shared-host process/power observations remain
+retained; all 52 power observations report AC. Operator idle confirmation is not
+a claim of exclusive CPU allocation.
+
+The largest baseline submit is Spot: 230.539ms before simulator acceptance and
+61.950ms after it. The largest candidate submit is Perpetual: 305.200ms before
+acceptance and 26.589ms after. Submit cohorts differ: baseline has nine Spot /
+seven Perpetual observations, candidate fourteen /twelve. With these counts,
+the declared empirical p99 is the maximum on each side. This limits causal and
+statistical interpretation; it does not waive the failed gate or change its
+quantile, duration or margin.
+
+Neither role's bounded incident file retains causal context within two seconds
+of the worst submit intervals. Slow-cancel capture added earlier does not trigger
+on a slow submit. A new RED test demonstrates this diagnostic gap. The wrapper
+now uses one bounded deferred submit/cancel queue, drains capture outside producer
+locks and wraps async `authorize_rest` so future retained traces can include its
+nested SQL. The regression verifies that a slow submit preserves preceding
+authorization/SQL context, return value, parent linkage and private-argument
+exclusion; all 85 nearby diagnostic tests pass. The capture change is made
+**after** the measured pair and does not establish its cause or fix its latency.
+
+No production patch is justified from the retained submit decomposition alone.
+C remains open, and this stopped scope cannot qualify the release or the
+separate connected Demo gate.
+
+### Submit-path attribution — 2026-11-17
+
+One candidate-only 120-second diagnostic reuses the failed pair's frozen image,
+2 CPU /1GiB, 100,000-row history, normalized healthy book and security/defense
+workload. It adds test-only native-submit/throttle-acquire spans to the previously
+added authorization/SQL capture. A real-throttler lock-barrier RED/GREEN test
+verifies waiting, one original rate-limit entry after release, result identity,
+span parentage and private-argument exclusion; 86 diagnostic tests pass before
+measurement. No production source, rate limit, admission policy or guard changes.
+
+Evidence: `build/mm-load/20261117-111638-75a09d`; driver/stage decomposition:
+`build/overview-submit-attribution-20261117`. Read p95/p99 is 132.87/237.87ms,
+with no absolute violations or unexpected HTTP errors. There are 120 venue /
+120 recorder fills, matching positions, two funding bills and three snapshots.
+Measured runtime remains running; retained bot logs have no error, ownership loss
+or restart lines. Peak cgroup memory is 781,213,696B, below 1GiB.
+
+Of 22 native submit samples, 17 are >=100ms; all 17 have matched retained submit
+spans and corresponding deferred capture markers. The largest call is Perpetual:
+
+| Boundary or interval | Time |
+| --- | --- |
+| Native call duration | 306.714ms |
+| Native trace start to authorization start, including throttle | 1.064ms |
+| Authorization duration, including queue/loop scheduling | 261.679ms |
+| Authorization start to first traced owner check | 252.682ms |
+| First traced owner check to authorization return | 8.997ms |
+| Native call start to simulator acceptance | 263.552ms |
+| Simulator acceptance to native return | 43.163ms |
+
+The throttle span is too short to survive bounded longest-child selection for
+this root, but the enclosing pre-authorization segment bounds all throttle time
+to approximately 1.064ms. It cannot explain this call's hundreds of milliseconds.
+The root evicts nine short children; the retained SQL sum of 2.789ms includes
+post-response receipt work and is only a lower bound, not total DB time.
+
+The traced first owner read occurs near authorization's end. Source inspection
+shows `admit_order` and final `authorize_rest` share `submission_admission`, with
+an explicit loop-turn yield before their synchronous DB gates. CPU samples show
+other submit/authorization operations outstanding while the loop runs DB work;
+there is no captured GC or full-GC event overlapping this call. Taken together,
+this supports admission queue/turn scheduling as the dominant pre-send delay in
+this new event. The trace does not independently split lock-acquire waiting from
+ready-task scheduling, and does not reconstruct the old 331.789ms event.
+
+The authorization span's 199.326ms thread CPU is inclusive of other work on the
+same event-loop thread during awaits, not exclusive CPU for this order. Do not
+attribute that entire CPU interval to its owner check or SQL queries.
+
+The bounded diagnosis ends without a production patch: a shared queue is not by
+itself evidence of a logic fault. Future scheduling optimization would also need
+admission-to-venue latency, queue fairness and fresh Stop/version/ownership-fence
+validation. The failed paired submit gate remains failed; this single candidate
+probe is not a replacement comparison or release qualification. C stays open.
+
+### Bounded final-send scheduling experiment — 2026-11-17
+
+An operator-authorized implementation experiment gives ready final-send checks bounded
+preference within the existing single admission slot: at most two sends before
+a waiting new admission, FIFO within each class. Fresh Stop/version/ownership
+checks and the existing loop turn remain; the slot is released before network
+I/O. It does not bypass a guard or alter API/risk configuration.
+
+The twelve-order logical burst is RED under the old FIFO and GREEN with bounded
+priority. Three fresh real-PG native bursts per side retain 396 SQL statements
+and twelve send/ACK records per burst with an identical 2ms injected SQL delay.
+First enqueue-to-venue acceptance improves from 1,191–1,230ms to 185–212ms;
+mean improves 26–33%, and last acceptance is not later in any observed pair.
+This measures the whole path rather than moving a wait outside the native timer.
+It is controlled component evidence, not exchange/Cloud Run qualification.
+
+Validation: 4,051 native tests +16 subtests, 35 final focused checks (including
+two test-only races added after the full native run), and all 997 PostgreSQL
+tests across 116 modules. One new version-race fixture initially failed because
+legacy Start correctly rejected armed spot_outflow; it now simulates an
+independent control-version writer, and Stop/version fencing after the first
+send both pass. Original failure logs are retained.
+
+Candidate manifest `2850a961a049f02fc5d08c74a547379dbd405ad426c06620b46029d731182acd`
+matches all 1,134 frozen runtime files, source fingerprint
+`74a057e83a39edde9b191b449423f04de54257089ed6e2546746c5b523e2df7e`.
+Packaged shutdown proof, managed lifecycle and upgrade/rollback pass. These
+three scopes do not represent the entire packaged release suite. Evidence:
+`build/overview-admission-scheduling-20261117`.
+
+### Priority artifact: resource gate remains failed
+
+The fixed scope stops after its first pair, as predeclared. Baseline
+`20261117-123136-0c8d02` and candidate `20261117-123534-68d4b5` each run
+120 seconds at 2 CPU /1GiB, 100,000 history rows and identical normalized
+healthy-book/security/defense fixtures. Both pass absolute budgets, retain
+120/120 independent fills and matching positions, and peak below 1GiB. Read
+p95/p99 is 52.95/237.91ms versus 136.17/214.86ms.
+
+| Engine observation, empirical p99 | Baseline | Candidate | Gate |
+| --- | --- | --- | --- |
+| Tick duration | 5.011ms | 5.022ms | Pass |
+| Tick start gap | 1,013.906ms | 1,129.261ms | **Fail**, +115.356ms exceeds 101.391ms |
+| Native submit | 272.785ms | 204.643ms | Pass, approximately 25% lower |
+| Native cancel | 40.802ms | 111.973ms | **Fail**, +71.171ms exceeds 10ms |
+
+Tick durations have 120 samples and gaps 119 per side; native submit/cancel
+have 21/25 samples. Submit/cancel p99 values are empirical maxima with different
+cohorts, not a universal speedup or an identical order-cohort comparison. AC
+remains connected; host CPU observations are retained. A shared laptop is not
+an exclusive worker. No replacement pair, remaining two pairs or canonical
+load/soak is run after this failure. The old failures remain unchanged.
+
+The largest candidate tick gap, 1,278.911ms, overlaps a bulk outflow expiry in
+`SpotOutflowProjection.advance`: 271.689ms wall /269.928ms thread CPU within
+`service.observe_once`. It is distinct from the second-largest gap used as p99.
+This establishes CPU-heavy expiry in this observed interval, not a unique cause
+of earlier delays or proof that the new scheduling change causes the gap.
+
+The two native cancels above 100ms decompose to 76.914/69.846ms before the
+request reaches the simulator, 0.014625/0.008334ms simulator request-to-terminal,
+and 35.045/33.345ms from terminal to native return. No captured >=10ms GC
+interval overlaps them. Incident markers and sampled owner/SQL context survive,
+but native cancel spans are only enabled in full-trace mode; these records
+cannot identify the exact wait or reconstruct unobserved SQL time. No speculative
+production patch or weaker guard is applied. Raw decomposition:
+`qualification/failure-decomposition.json`.
+
+New-image real-SQL Overview isolation `20261117-124133-5824aa` passes at 1GiB:
+two server waits end in SQLSTATE 57014, one durable fill is witnessed during
+the wait, final venue/recorder counts are 120/120, positions match, engine
+PID/owner/session remain unchanged, no HALT occurs, and Stop is clean. Fee
+observations preserve a last usable value explicitly marked stale and recover
+afterward. This verifies server-wait isolation; it does not model CPU-heavy SQL
+or qualify Cloud Run.
+
+The scheduling experiment improves controlled enqueue-to-venue acceptance and
+this paired submit metric, with functional safety regression GREEN. **C remains
+open** for tick-gap/cancel latency. The next distinct work is bulk-expiry
+bounding with unchanged risk proof and exact cancel-path tracing, followed by
+new artifact qualification. No commit, push, deployment or connected Demo change
+is performed in this scope.
+
+### Cooperative outflow clock catch-up — implementation evidence
+
+The service observer RED case schedules a callback during expiry and finds that
+it runs only after all 4,096/100,000 fills finish. The new path processes at most
+512 heap/replayed-fill work items per synchronous advance, yields on the owner
+loop, and rechecks owner/control version. No mutable risk state moves to a
+worker thread. Final-send stays synchronous and never grants partial permission.
+
+Incomplete catch-up is a BUY-only wait: `ready=false`, `stale=true`, decimal
+recorded/reserved/remaining values are null, and the reason is
+`spot_outflow_projection_catching_up`. `SpotOutflowPending` retires an unsent
+managed maker BUY without consuming venue retries; fresh controller admission
+is required after catch-up. SELL/cancel remain under their existing gates.
+Committed arrivals are detached and bounded, then replayed in FIFO order after
+the current clock's due work. Invalid deferred data preserves a BUY failure
+instead of escaping as a service exception. Capacity or binding/clock failures
+are not relabelled as a normal catch-up wait.
+
+Two intermediate-design counterexamples are reproduced and fixed before this
+artifact: a malformed deferred timestamp escaping replay, and skipping a prior
+clock when resuming at a later target. The latter changes a deliberate large/
+tiny Decimal reference by 2.34; finishing the prior clock and queued arrivals
+before moving forward preserves the original operation order and reference
+value. These are local TDD findings in the new cooperative design, not claims
+that the earlier atomic expiry had those bugs.
+
+The final focused 95 tests cover exact totals/fees/reservations, future and
+half-open boundaries, detached duplicate arrivals, bounded overflow, callback
+progress, cancellation, Stop/control/ownership interruption, stale clocks,
+executor scope, prior fills and genuine failure classification. Full native
+regression is 4,074 passed +16 subtests. Earlier staged suite failures and new-PG
+fixture mistakes remain in raw logs; they are not silently replaced or counted
+as final GREEN. All changed-file hooks pass before freezing.
+
+Candidate source fingerprint:
+`24645f512022fccf084ad53af45c6cf1e913648630d4fad7a19ac3b28e7dac19`;
+manifest `39a4a0b1b28e9b3b415be370a4b5e52cad3fdb3cd2a4cb54b68de905eba69f99`.
+All 1,134 runtime hashes match workspace and image. Raw evidence:
+`build/overview-outflow-expiry-20261117`. All 250 cases across the 20 affected PostgreSQL modules pass on the frozen
+source, including the corrected new fixtures. Packaged shutdown proof, managed
+lifecycle and upgrade/rollback also pass. Full-trace cancel diagnosis and the fixed resource scope are recorded below; C
+remains open and no deployment is approved by this implementation evidence.
+
+### Cooperative artifact: tick-gap gate passes, cancel gate stays open
+
+The fixed scope stops after pair one: original baseline
+`20261117-140521-319b96` and candidate `20261117-140917-d95fb2`. Each window
+runs 120 seconds at 2 CPU /1GiB with the declared 100,000-row/security/healthy
+book workload. Both pass absolute budgets, retain 120/120 independent fills,
+matching positions/funding and peak cgroup memory below 1GiB (779,096,064B /
+777,576,448B). Read p95/p99 is 51.87/211.26ms versus 134.11/251.43ms.
+
+| Empirical engine p99 | Baseline | Candidate | Gate |
+| --- | --- | --- | --- |
+| Tick duration | 9.914ms | 4.396ms | Pass |
+| Tick start gap | 1,016.266ms | 1,021.213ms | Pass |
+| Native submit | 318.922ms | 123.704ms | Pass |
+| Native cancel | 38.846ms | 66.429ms | **Fail**, +27.583ms exceeds 10ms |
+
+Each side retains 120 ticks, 119 gaps and 24 native cancels; native submits are
+18/21. These are same-host empirical cohorts, not identical physical orders or
+proof of a causal percentage speedup from expiry alone. The earlier warmup,
+submit, tick-gap and cancel failures remain retained. No replacement pair,
+remaining two pairs or canonical load/soak is run after this failed comparison.
+AC and host observations remain in the scope directory.
+
+The first full-trace diagnostic `20261117-135942-249d2d` passes absolute budgets
+with read p95/p99 134.49/364.85ms and 120 exact fills. It retains no native cancel
+root/child at the ordinary 100ms threshold. Its bounded per-role metric samples
+report advance max 14.559ms and CPU max 14.565ms; these metrics cover retained
+lifetime/rebuild samples, not an exact-window owner-loop batch distribution or
+total catch-up CPU. The deterministic service tests establish the 512-item
+progress boundary; resource tick-gap observations remain the relevant gate.
+
+Because 66ms falls below that trace threshold, one separately predeclared
+candidate-only diagnostic lowers capture to 25ms in a detached test asset:
+`20261117-141509-6b3d2a`. The business runtime/image is unchanged. Both original
+and injected asset hashes, actual threshold and `acceptance_qualified=false`
+are retained in `diagnostic-capture-override.json` and the result. The window
+passes absolute budgets, read p95/p99 133.79/271.02ms, and exact 120-fill ledger.
+It is not a replacement comparison or a new qualification pass.
+
+Eight native cancel roots survive capture; the largest retained root is
+42.766ms with zero dropped children. Throttle is 0.071ms, authorization 1.307ms
+(including 0.602ms SQL), and authorization-end to native-return is 40.965ms.
+Most of this observed call therefore follows the authority check. The capture
+does not split transport time from event-loop scheduling or reconstruct the
+failed paired 66.429ms event. Async-span thread CPU includes other work on the
+same loop during awaits. Do not treat it as exclusive cancel CPU or remove a
+fresh owner check based on this observation. No additional production cancel
+patch is justified from these two diagnostic windows.
+
+The scoped outflow fix, exact accounting and authority regression are GREEN.
+**Resource gate C remains open for cancel p99**, and current-artifact full
+soak/connected Demo acceptance remains unqualified. Detailed raw summaries are
+`cancel-diagnostic/summary.json`, `cancel-diagnostic-low/summary.json` and
+`qualification/paired-comparison.json` under the cooperative evidence directory.
+
+
+Final cooperative-image Overview SQL isolation `20261117-142129-f55b59` passes
+at 1GiB: two real SQLSTATE 57014 server waits, one durable fill witnessed during
+the fault, final exact 120/120 venue/recorder fills, matching positions, unchanged
+engine PID/owner/session, no HALT, no unexpected error logs and clean Stop. Fees
+retain a usable value marked stale and later recover. This is server-wait
+isolation, not CPU-heavy SQL or Cloud Run qualification. No additional native
+regression is needed after documentation-only changes; final frozen runtime
+hashes are verified again before ending the scope. No commit/push/deploy occurs.
+
+### Same-pair cancel attribution: delay localized, qualification still fails
+
+One predeclared diagnostic pair uses the same new bounded offline timeline
+assets on both original baseline and frozen cooperative candidate. Business
+runtime remains fingerprint `24645f512022fccf084ad53af45c6cf1e913648630d4fad7a19ac3b28e7dac19`.
+There is no production patch, image rebuild, guard relaxation or Cloud change.
+Actual aiohttp pipeline/terminal-callback tests first reproduce missing markers;
+the final 192 nearby diagnostic and web-assistant tests pass, as do file hooks.
+
+| Diagnostic pair | Baseline `20261117-151138-68179e` | Candidate `20261117-151535-02881d` |
+| --- | --- | --- |
+| Read p95 /p99 | 50.223 /193.761ms | **10,668.465 /12,299.482ms** |
+| Native cancel p99 | 31.310ms | **339.461ms** |
+| Native calls /unique venue matches | 27 /23 | 26 /26 |
+| Exact venue /recorder fills | 120 /120 | 120 /120 |
+
+Both retain matching positions, two identified funding bills and three daily
+snapshots. The candidate fails absolute read budgets and all four relative
+comparisons. This pair is diagnostic only (`acceptance_qualified=false`), and
+does not replace or erase the earlier failed cancel comparison. No remaining
+qualification pairs or canonical soak are started. Four baseline calls lack a
+venue join and remain partial; they are not assigned invented venue timings.
+Timeline streams report no sink/metadata errors, drops or malformed records.
+Maximum outer marker difference from the existing native timer is 0.105ms /
+0.267ms; this is timer-envelope difference, not a bound on all observer overhead.
+
+The largest candidate cancel is call `31:37:445624351618`, a single Spot request.
+Its native timer is 339.461ms; the outer timeline is 339.728ms. Matched stages:
+
+| Stage | Observed duration |
+| --- | --- |
+| Pre-transport | 10.660ms (including 8.048ms authorization) |
+| Transport enqueue ->venue received | bounds [1.111, 1.207]ms |
+| Venue received ->terminal observed | 0.063ms |
+| Terminal observed ->response ready | 0.590ms |
+| Response ready ->client headers marker | **326.738ms** |
+| Connection returned ->caller resumed | 0.038ms |
+| JSON read/decode | 0.082ms |
+| Terminal observed ->tracker callback completed | 556.052ms |
+
+Native REST return and tracker callback completion are separate observations.
+The headers marker runs after the request coroutine resumes; it is not kernel
+packet-arrival time. The 326.738ms therefore includes transport and client
+I/O dispatch/task scheduling, and cannot be labelled pure network delay. The
+venue response EOF ->headers interval is 326.527ms. Callback latency also does
+not establish when the durable ledger committed.
+
+Two engine samples bracket this call. The later sample observes the synchronous
+fill recorder in `save_market_states`, reading three tracked IDs plus unresolved
+identities. Its completed span is not retained in the existing 100ms-threshold capture,
+so a stack alone does not prove its duration or a defective query. The overlapping
+437.424ms async `service.observe_once` root has 11 dropped children; its 330.776ms
+thread CPU includes unrelated main-loop work during awaits. Do not assign that
+CPU to status publication alone. The bracketing cgroup throttled counters do not
+increase, and no retained GC pause overlaps this exact cancel.
+
+Host samples during the candidate show Go up to 169.9%, VS Code renderers up to
+151% and clang at 85% CPU, with AC connected. These jobs were not launched by
+the measurement driver. This is evidence of concurrent host activity, not proof
+that it uniquely caused the regression; baseline/candidate also run different
+business code. The current evidence localizes the wait but does not justify a
+specific production fix. Keep C open and use a quiet host or independent worker
+for the next controlled resource qualification, preserving these failures.
+
+Raw pair, asset hashes, host samples, matched-call summaries and final validation
+are in `build/overview-cancel-timeline-20261117`. Test containers and the scoped
+sleep assertion are gone. Frozen runtime hashes remain unchanged; no commit,
+push or deployment occurs in this scope.
