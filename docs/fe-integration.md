@@ -387,6 +387,18 @@ also describes the effective request. Neither is a secret or a field for an
 operator to type. Put hashes, revision IDs and technical diagnostics in Details.
 Configured process/owner environment identity is not exchange-account verification.
 
+### Spot inventory skew percentage bands
+
+`markets[].inventory_skew` also exposes `target_base_pct`, `range_mode`
+(`order_size` or `portfolio_pct`) and the effective `inventory_range_pct`
+half-width. Fractions use 0..1: target `0.5` plus half-width `0.02` describes
+48–52%, not 49–51%. The effective range is null when skew cannot be evaluated;
+older observations can omit all three fields. Preserve the parent freshness/
+session-match state and separate these sizing observations from actual side
+admission. Catalogue/pinned configuration contains either `inventory_range_pct`
+or legacy `inventory_range_multiplier`; do not display a percentage as a multiplier
+or substitute the current catalogue for a session's pinned policy.
+
 ### Display assets and metadata caching
 
 Use `markets[]` in `GET /api/v1/admin/status` as the active observed market context: `market`,

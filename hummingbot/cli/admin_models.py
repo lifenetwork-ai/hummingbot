@@ -285,6 +285,9 @@ class InventorySkewStatus(APIModel):
     reason_code: Optional[str]
     scope: Literal["account_cash"] = Field(description="Observed spot cash inventory; not an isolated campaign wallet.")
     base_pct: Optional[Decimal]
+    target_base_pct: Optional[Decimal] = Field(default=None, description='Target base fraction of observed base+quote account cash value; null in older observations.')
+    range_mode: Optional[Literal['order_size', 'portfolio_pct']] = Field(default=None, description='Range calculation policy; null in older observations.')
+    inventory_range_pct: Optional[Decimal] = Field(default=None, description='Effective half-width as a fraction of observed cash value, capped at 0.5 like upstream. Null when skew cannot be evaluated; not a claim that orders can be admitted.')
     valuation_price: Optional[Decimal]
     base_cash: Optional[Decimal]
     cash_quote: Optional[Decimal]

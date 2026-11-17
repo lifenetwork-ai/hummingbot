@@ -1991,9 +1991,14 @@ export interface components {
             enabled: boolean;
             /**
              * Inventory Range Multiplier
-             * @default 1
+             * @description Legacy range in multiples of total unskewed base order size; defaults to 1 when neither range is supplied. Omitted in percentage mode.
              */
-            inventory_range_multiplier: string;
+            inventory_range_multiplier?: string;
+            /**
+             * Inventory Range Pct
+             * @description Half-width as a fraction of observed base+quote cash value: 0.02 is two percentage points. Omit for legacy order-size multiplier mode; the two modes are mutually exclusive.
+             */
+            inventory_range_pct?: string | null;
             /**
              * Target Base Pct
              * @default 0.5
@@ -2019,6 +2024,18 @@ export interface components {
              * Format: date-time
              */
             evaluated_at: string;
+            /**
+             * Inventory Range Pct
+             * @description Effective half-width as a fraction of observed cash value, capped at 0.5 like upstream. Null when skew cannot be evaluated; not a claim that orders can be admitted.
+             * @default null
+             */
+            inventory_range_pct: string | null;
+            /**
+             * Range Mode
+             * @description Range calculation policy; null in older observations.
+             * @default null
+             */
+            range_mode: ("order_size" | "portfolio_pct") | null;
             /** Reason Code */
             reason_code: string | null;
             /**
@@ -2034,6 +2051,12 @@ export interface components {
              * @enum {string}
              */
             state: "active" | "neutral";
+            /**
+             * Target Base Pct
+             * @description Target base fraction of observed base+quote account cash value; null in older observations.
+             * @default null
+             */
+            target_base_pct: string | null;
             /** Valuation Price */
             valuation_price: string | null;
         };

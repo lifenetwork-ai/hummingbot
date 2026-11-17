@@ -524,6 +524,8 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                         raise ValueError("account_balance_unavailable")
         self._inventory_status = dict(state="neutral", reason_code="inventory_skew_unavailable",
                                       scope="account_cash", base_pct=None, valuation_price=None, cash_quote=None, base_cash=None,
+                                      range_mode="portfolio_pct" if self.config.inventory_skew.inventory_range_pct is not None else "order_size",
+                                      target_base_pct=self.config.inventory_skew.target_base_pct, inventory_range_pct=None,
                                       buy_multiplier=Decimal("1"), sell_multiplier=Decimal("1"), budget_scale=Decimal("1"),
                                       balance_observed_at=None, evaluated_at=now)
         try:
@@ -538,14 +540,19 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
             price = self._inventory_valuation_price(guard_status)
             levels = [(self.get_trade_type_from_level_id(level), *self._baseline_price_and_amount(level))
                       for level in self.get_not_active_levels_ids([])]
-            base_range = sum((amount for _, _, amount in levels), Decimal("0")) * self.config.inventory_skew.inventory_range_multiplier
+            portfolio_value = base * price + quote
+            if self.config.inventory_skew.inventory_range_pct is not None:
+                base_range = portfolio_value * self.config.inventory_skew.inventory_range_pct / price
+            else:
+                base_range = sum((amount for _, _, amount in levels), Decimal("0")) * self.config.inventory_skew.inventory_range_multiplier
             buy, sell = inventory_skew_ratios(base, quote, price, self.config.inventory_skew.target_base_pct, base_range)
             proposed = sum((p * amount * (buy if side == TradeType.BUY else sell) for side, p, amount in levels), Decimal("0"))
             with localcontext() as context:
                 context.rounding = ROUND_DOWN
                 scale = min(Decimal("1"), self._quote_budget() / proposed) if proposed > 0 else Decimal("1")
             self._inventory_factors = (buy, sell, scale)
-            self._inventory_status.update(state="active", reason_code=None, base_pct=base * price / (base * price + quote),
+            self._inventory_status.update(state="active", reason_code=None, base_pct=base * price / portfolio_value,
+                                          inventory_range_pct=min(base_range * price / portfolio_value, Decimal('.5')),
                                           valuation_price=price, cash_quote=quote, base_cash=base, buy_multiplier=buy, sell_multiplier=sell,
                                           budget_scale=scale, balance_observed_at=min(stamps))
         except Exception:

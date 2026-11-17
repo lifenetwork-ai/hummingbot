@@ -3,8 +3,22 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { ConfigurationReadOnlyView } from './ConfigurationReadOnlyView'
 import { completionConfiguration } from '../../test/mocks/completionFixtures'
+import { marketConfig } from '../../test/mocks/marketConfig'
 
 describe('ConfigurationReadOnlyView', () => {
+  it('shows the selected percentage or legacy range without conflating their units', () => {
+    const snapshot = completionConfiguration.pinned!
+    const markets = [{ market: 'spot', value: { ...marketConfig,
+      inventory_skew: { enabled: true, target_base_pct: '0.5', inventory_range_pct: '0.02' } } }]
+    const { rerender } = render(<ConfigurationReadOnlyView model={{ ...completionConfiguration, pinned: { ...snapshot, markets } }} />)
+    expect(screen.getAllByText('Target base: 50.0% · Band half-width: ±2.0 percentage points').length).toBeGreaterThan(0)
+    const legacy = [{ market: 'spot', value: { ...marketConfig,
+      inventory_skew: { enabled: true, target_base_pct: '0.5', inventory_range_multiplier: '1' } } }]
+    rerender(<ConfigurationReadOnlyView model={{ ...completionConfiguration, pinned: { ...snapshot, markets: legacy } }} />)
+    expect(screen.getAllByText('Target base: 50.0% · Order-size range multiplier: 1').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Band half-width/)).not.toBeInTheDocument()
+  })
+
   it('renders pinned session configuration and current catalogue from completionConfiguration', () => {
     render(<ConfigurationReadOnlyView model={completionConfiguration} />)
 

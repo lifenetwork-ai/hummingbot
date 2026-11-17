@@ -201,6 +201,36 @@ the process continues and the fee floor remains enabled. A strict guard with no
 qualified two-sided depth waits for recovery. Inventory skew can suppress a side.
 Fee coverage of proposals does not guarantee realized profit.
 
+Spot inventory skew supports two mutually exclusive range policies:
+
+```yaml
+inventory_skew:
+  enabled: true
+  target_base_pct: "0.5"
+  inventory_range_pct: "0.02"
+```
+
+The Demo preset uses this percentage policy: target 50%, half-width two
+percentage points, hence a 48–52% BTC band. `0.02` is a fraction of the observed
+BTC+USDT account **cash value**, not 2% of the target or quote budget. It excludes
+unrelated assets and perpetual equity; it does not isolate a campaign wallet.
+Inside the band, the existing upstream interpolation continuously adjusts BUY/
+SELL quantities (50.19% BTC gives approximately 0.905/1.095). At/below 48% it
+suppresses SELL; at/above 52% it suppresses BUY. The same outside-market valuation,
+mandatory balance checks, min lots, total/active quote budget, outflow and inventory
+caps still apply. A positive multiplier does not prove that an order can be sent.
+
+Omitting `inventory_range_pct` keeps legacy `inventory_range_multiplier` mode,
+whose range depends on the total unskewed order size. Supplying both fields is
+rejected, as are zero/nonfinite percentages or a band extending outside 0–100%.
+Legacy catalogue/session serialization and hashes remain unchanged. New percentage
+snapshots omit the inactive multiplier so cold restore can revalidate them.
+
+This YAML change affects the deployed catalogue after rebuilding. An existing
+session keeps its pinned catalogue; apply the new policy through a separately
+reviewed Switch/Start using the new catalogue hash. Deployment alone does not
+rewrite a running session's skew, position, risk limits or credentials.
+
 `max_global_drawdown_quote` / `max_controller_drawdown_quote` enable their limits
 when positive and disable them when null. `spot_outflow` enables its spending
 policy when populated and disables it when null, subject to existing durable

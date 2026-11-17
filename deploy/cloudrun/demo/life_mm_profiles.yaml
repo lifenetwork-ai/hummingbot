@@ -61,7 +61,8 @@ markets:
     inventory_skew:
       enabled: true
       target_base_pct: "0.5"
-      inventory_range_multiplier: "1"
+      # Fraction of BTC+USDT cash value: 0.02 gives a 48–52% band.
+      inventory_range_pct: "0.02"
     # BTC already has outside depth: strict mode; no listing bootstrap here.
     quote_guards:
       enabled: true

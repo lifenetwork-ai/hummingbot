@@ -17,7 +17,7 @@ import { Badge } from '../../shared/components/Badge'
 import { CopyableId } from '../../shared/components/CopyableId'
 import { Surface } from '../../shared/components/Surface'
 import { cn } from '../../shared/utils/cn'
-import { formatSpread, formatSpreadList, formatTechnicalNumber } from '../../shared/utils/formatters'
+import { formatPercentage, formatSpread, formatSpreadList, formatTechnicalNumber } from '../../shared/utils/formatters'
 
 export interface ConfigurationReadOnlyViewProps {
   model?: ConfigurationReviewModel | null
@@ -312,7 +312,9 @@ function SnapshotDisplay({
                   <div className="rounded bg-app-surface-muted/40 p-2 text-[10px] text-app-muted space-y-0.5">
                     <span className="font-semibold text-app-text block">Inventory Skew Policy:</span>
                     <p>
-                      Target base pct: {formatTechnicalNumber(value.inventory_skew.target_base_pct)} · Range multiplier: {formatTechnicalNumber(value.inventory_skew.inventory_range_multiplier)}
+                      Target base: {formatPercentage(value.inventory_skew.target_base_pct)} · {value.inventory_skew.inventory_range_pct != null
+                        ? `Band half-width: ±${formatPercentage(value.inventory_skew.inventory_range_pct).replace(/%$/, '')} percentage points`
+                        : `Order-size range multiplier: ${formatTechnicalNumber(value.inventory_skew.inventory_range_multiplier)}`}
                     </p>
                   </div>
                 )}

@@ -15,7 +15,7 @@ export const completionStatus: ReadResponse<'getRuntimeStatus'> = { ...contextSt
     step_index: 2, step_expires_at: '2026-11-11T00:02:00Z', config_hash: 'config-pinned', anchors: {},
     request: { duration_mode: 'until_stopped', duration_seconds: null, selection: 'random', market_mode: 'both', profile_id: null, profile_ids: ['follow_market'], references: null, step_duration_seconds: 120 } },
   markets: [{ market: 'spot', connector: 'okx', pair: 'LIFE-USDT', base_asset: 'LIFE', quote_asset: 'USDT', admitted: false, ready: false, reason: 'inventory_restricted', inventory_reduction: null, reference_price: '0.1', quote_guard: null, spread_policy: null,
-    inventory_skew: { state: 'active', scope: 'account_cash', balance_observed_at: observedAt, evaluated_at: observedAt, base_cash: '0.000000001', cash_quote: '2.500001', base_pct: null, buy_multiplier: '0.1', sell_multiplier: '1', budget_scale: '0.5', valuation_price: '0.1', reason_code: 'inventory_restricted' } }],
+    inventory_skew: { state: 'active', scope: 'account_cash', target_base_pct: null, range_mode: null, inventory_range_pct: null, balance_observed_at: observedAt, evaluated_at: observedAt, base_cash: '0.000000001', cash_quote: '2.500001', base_pct: null, buy_multiplier: '0.1', sell_multiplier: '1', budget_scale: '0.5', valuation_price: '0.1', reason_code: 'inventory_restricted' } }],
 }
 completionStatus.observed_session = completionStatus.session
 const balances: ReadResponse<'getBalances'> = { accounts: [], owner_available: false, server_time: observedAt, scope: 'account' }

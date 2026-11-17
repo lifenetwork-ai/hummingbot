@@ -3372,10 +3372,23 @@
             "type": "boolean"
           },
           "inventory_range_multiplier": {
-            "default": "1",
+            "description": "Legacy range in multiples of total unskewed base order size; defaults to 1 when neither range is supplied. Omitted in percentage mode.",
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Inventory Range Multiplier",
             "type": "string"
+          },
+          "inventory_range_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Half-width as a fraction of observed base+quote cash value: 0.02 is two percentage points. Omit for legacy order-size multiplier mode; the two modes are mutually exclusive.",
+            "title": "Inventory Range Pct"
           },
           "target_base_pct": {
             "default": "0.5",
@@ -3453,6 +3466,37 @@
             "title": "Evaluated At",
             "type": "string"
           },
+          "inventory_range_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Effective half-width as a fraction of observed cash value, capped at 0.5 like upstream. Null when skew cannot be evaluated; not a claim that orders can be admitted.",
+            "title": "Inventory Range Pct"
+          },
+          "range_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "order_size",
+                  "portfolio_pct"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Range calculation policy; null in older observations.",
+            "title": "Range Mode"
+          },
           "reason_code": {
             "anyOf": [
               {
@@ -3482,6 +3526,20 @@
             ],
             "title": "State",
             "type": "string"
+          },
+          "target_base_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Target base fraction of observed base+quote account cash value; null in older observations.",
+            "title": "Target Base Pct"
           },
           "valuation_price": {
             "anyOf": [
