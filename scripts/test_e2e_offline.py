@@ -154,6 +154,11 @@ class Harness:
                     "HBOT_OKX_PASSPHRASE": "offline-pass", "HBOT_OFFLINE_HTTP_ORIGIN": "http://exchange:8080"}
         self.metrics = {}
         self.env["OKX_TRADING_ENV"] = trading_environment
+        if trading_environment == "live":
+            # Positive dual-market fixtures need the complete reviewed ENV
+            # bundle. Negative cases explicitly remove the targeted bundle.
+            for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
+                self.env["HBOT_OKX_PERPETUAL_" + field] = value
         if trading_environment == "demo":
             for prefix in ("HBOT_OKX_DEMO_", "HBOT_OKX_PERPETUAL_DEMO_"):
                 for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):

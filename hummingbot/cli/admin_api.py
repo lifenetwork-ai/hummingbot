@@ -61,8 +61,11 @@ from hummingbot.cli.admin_models import (
     StatusResponse,
 )
 from hummingbot.cli.admin_operations import operator_view, process_identity
+from hummingbot.cli.admin_overview import build_overview
+from hummingbot.cli.admin_overview_models import OverviewObservation, OverviewSessionFees
 from hummingbot.cli.admin_recovery import AdminRecoveryAPI
 from hummingbot.cli.api_documentation import api_operation
+from hummingbot.cli.overview_fee_cache import OverviewFeeCache
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.connector.credential_adapters import CredentialAdapterError
 from hummingbot.core.admin_identity import AccessDenied, Principal
@@ -178,6 +181,7 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
         self._reference_provider = None
         self._daily_cache = DailyStatisticsCache(settings.statistics_cache_ttl_seconds)
         self._daily_flights = {}
+        self._overview_fees = OverviewFeeCache()
         self._daily_closing = False
         # Reserve independent operations/heavy slots within the existing
         # two-worker bound; reports cannot consume every operational slot.
@@ -186,6 +190,7 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
 
     def register(self, app):
         app.middlewares.append(admin_errors)
+        app.on_startup.append(self.start_overview_reporting)
         app.on_cleanup.append(self.close)
         app[ADMIN_ACCESS_KEY] = self
         if self.settings.enabled and self.settings.google_auth_enabled:
@@ -199,6 +204,20 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
                 app.router.add_get(ADMIN_PREFIX + path, getattr(self, name))
             else:
                 app.router.add_route(method, ADMIN_PREFIX + path, getattr(self, name))
+
+    async def start_overview_reporting(self, app):
+        if self.settings.enabled:
+            self._overview_fees.watch(self._overview_reporting_row, self._query_overview_fees)
+
+    async def _overview_reporting_row(self):
+        from sqlalchemy.engine import Engine
+        if self.host is None or self.host.store is None or not isinstance(self.storage().engine, Engine):
+            return None
+        return await self.run_database(self.host.store.read, publication=True)
+
+    async def _query_overview_fees(self, **scope):
+        from hummingbot.model.overview_fees import session_fees
+        return await self.run_database(session_fees, self.storage().engine, heavy=True, **scope)
 
     async def run_database(self, function, /, *args, heavy=False, **kwargs):
         return await self._run_database(False, function, *args, heavy=heavy, **kwargs)
@@ -237,6 +256,7 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
                     await connector.stop_network()
         finally:
             self._daily_closing = True
+            await self._overview_fees.close()
             tasks = tuple(self._daily_flights.values())
             for task in tasks:
                 task.cancel()
@@ -422,6 +442,14 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
                                time_remaining_seconds=remaining, error=snapshot.get("error"),
                                funding_sync=({**snapshot["funding_sync"], **({"state": "unavailable", "stale": True, "error": "owner_unavailable"} if not owner_available else {})}
                                              if snapshot.get("funding_sync") else None))
+        try:
+            model.overview = build_overview(row)
+            if model.overview is not None:
+                fees = await self._overview_fees.read(row, model.overview, self._query_overview_fees)
+                model.overview.session.fees = OverviewObservation[OverviewSessionFees].model_validate(fees)
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
+            # Optional projection failure cannot conceal the control/status view.
+            model.overview = None
         actor = request.get('admin_principal')
         if model.recovery and model.recovery.halted and actor and actor.allows('admin'):
             pending = bool((row.get('recovery_summary') or {}).get('recovery_operation_pending'))

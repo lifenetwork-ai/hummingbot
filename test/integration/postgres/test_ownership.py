@@ -859,6 +859,89 @@ def test_shutdown_skips_only_proven_unsent_failed_creates(owned, transport_attem
     assert owned.owner._refresh_orders.await_count == int(transport_attempted or replace_order)
 
 
+@pytest.mark.parametrize("proof", ["unsent", "sent", "exchange_id", "different_object", "not_terminal", "no_proof", "read_failure"])
+def test_shutdown_rechecks_local_rejection_after_terminal_request_has_started(owned, proof):
+    from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
+
+    core = reconciliation_core(owned)
+    order = intent(owned)
+    retained = []
+    tracker = SimpleNamespace(process_trade_update=MagicMock(), process_order_update=AsyncMock())
+    owned.market._order_tracker = tracker
+    owned.market._all_trade_updates_for_order = AsyncMock(return_value=[])
+
+    async def status(requested):
+        # The reader selected a pending create, then yielded to its create
+        # coroutine. The final send gate rejected it while the GET was in flight.
+        await asyncio.sleep(0)
+        if proof == "sent":
+            owned.owner.sent_intents.add(order.client_order_id)
+        if proof == "exchange_id":
+            order.update_exchange_order_id("remote-1")
+        owned.owner.order_failed(owned.market, order)
+        order.current_state = OrderState.FAILED
+        if proof == "different_object":
+            retained.append(InFlightOrder.from_json(order.to_json()))
+            owned.owner.unsent_rejections[order.client_order_id] = retained[-1]
+        if proof == "not_terminal":
+            order.current_state = OrderState.PENDING_CREATE
+        if proof == "no_proof":
+            owned.owner.unsent_rejections.pop(order.client_order_id)
+        if proof == "read_failure":
+            raise OSError("status read failed")
+        raise OKXOrderNotFoundError("OKX order does not exist (51603).")
+
+    owned.market._request_order_status = AsyncMock(side_effect=status)
+
+    async def shutdown(**kwargs):
+        await core.after_order_cancellation()
+        return True
+
+    core.shutdown = AsyncMock(side_effect=shutdown)
+    if proof == "unsent":
+        assert owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
+        recovery = owned.store.read()["recovery_state"]
+        assert not recovery.get("halt") and not recovery["runtime_active"]
+    else:
+        expected = OSError if proof == "read_failure" else OKXOrderNotFoundError
+        with pytest.raises(expected):
+            owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
+        assert owned.store.read()["recovery_state"]["shutdown_incomplete"]
+    owned.market._request_order_status.assert_awaited_once_with(order)
+    owned.market._all_trade_updates_for_order.assert_not_awaited()
+    tracker.process_order_update.assert_not_awaited()
+
+
+def test_shutdown_keeps_unsent_terminal_proof_when_a_local_cancel_ack_is_queued(owned):
+    from hummingbot.connector.client_order_tracker import ClientOrderTracker
+    from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
+    from hummingbot.core.data_type.in_flight_order import OrderUpdate
+
+    core = reconciliation_core(owned)
+    order = intent(owned)
+    tracker = ClientOrderTracker(owned.market)
+    tracker.start_tracking_order(order)
+    owned.market._order_tracker = tracker
+    owned.owner.order_failed(owned.market, order)
+    owned.loop.run_until_complete(asyncio.gather(
+        tracker.process_order_update(OrderUpdate(trading_pair=order.trading_pair, update_timestamp=1700000001,
+                                                 new_state=OrderState.FAILED, client_order_id=order.client_order_id)),
+        tracker.process_order_update(OrderUpdate(trading_pair=order.trading_pair, update_timestamp=1700000002,
+                                                 new_state=OrderState.PENDING_CANCEL, client_order_id=order.client_order_id))))
+    owned.market._request_order_status = AsyncMock(side_effect=OKXOrderNotFoundError('51603'))
+
+    async def shutdown(**kwargs):
+        await core.after_order_cancellation()
+        return True
+
+    core.shutdown = AsyncMock(side_effect=shutdown)
+    assert owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
+    assert order.current_state == OrderState.FAILED
+    owned.market._request_order_status.assert_not_awaited()
+    recovery = owned.store.read()['recovery_state']
+    assert not recovery.get('halt') and not recovery['runtime_active']
+
+
 def test_fill_during_v2_shutdown_requires_position_reconciliation(owned):
     core = reconciliation_core(owned)
     core.strategy.executor_orchestrator = object()

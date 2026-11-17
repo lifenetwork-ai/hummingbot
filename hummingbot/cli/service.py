@@ -88,6 +88,8 @@ class ServiceHost:
         self.halt_requested = False
         self.mm_session = None
         self.mm_liquidity_state = None
+        self.mm_overview_state = None
+        self.overview_recovery_observer = None
         self.liquidity_observer = None
         self.mm_readiness_reason = None
         self.outflow_task = None
@@ -629,6 +631,7 @@ class ServiceHost:
                 "spot_outflow": observations["spot_outflow"],
                 "mm_session": self.mm_session.model_dump(mode="json", exclude={"catalogue"}) if self.mm_session else None,
                 "mm_liquidity": self.mm_liquidity_state,
+                "mm_overview": getattr(self, "mm_overview_state", None),
                 "mm_markets": [{"market": "spot" if controller.config.connector_name == "okx" else "perpetual",
                                 "connector": controller.config.connector_name, "pair": controller.config.trading_pair,
                                 "ready": bool(controller.processed_data.get("ready")), "admitted": controller.session_admitted,
@@ -690,6 +693,7 @@ class ServiceHost:
             return
         if await self.observe_credential_operation(row):
             self.mm_liquidity_state = self.liquidity_observer = None
+            self.mm_overview_state = self.overview_recovery_observer = None
             await self.publish_status(row["control_version"])
             return
         guard = getattr(self.owner, "spot_outflow", None)
@@ -703,7 +707,8 @@ class ServiceHost:
         if hasattr(guard, "projection") and guard.projection is not None:
             from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
             if isinstance(guard, SpotOutflowGuard):
-                guard.projection.advance(int(row["database_now"] * 1000))
+                if await guard.advance(int(row["database_now"] * 1000)):
+                    row = self.owner.check_owner()  # Stop/version may change between catch-up batches.
         from hummingbot.core.mm_drawdown import checkpoint_drawdown_status
         if getattr(self.hb.trading_core, "strategy", None) is None:
             if not self.observations.capture_checkpoint(
@@ -905,7 +910,9 @@ class ServiceHost:
             self.availability.clear("liquidity")
         except Exception as error:
             self.mm_liquidity_state = self.liquidity_observer = None
+            self.mm_overview_state = self.overview_recovery_observer = None
             self.availability.fail("liquidity", "liquidity_observation_unavailable", error)
+        self.capture_overview_observation()
         await self.publish_status(version)
         await self.poll_reconciliation()
         self.poll_funding()
@@ -942,6 +949,17 @@ class ServiceHost:
                 self.next_outflow_poll = time.monotonic() + self.availability.fail(
                     "spot_outflow", "spot_outflow_observation_unavailable", error, retry=True)
         self.outflow_task = asyncio.create_task(observe())
+
+    def capture_overview_observation(self):
+        # Optional reporting cannot change admission, order state or lifecycle.
+        from hummingbot.cli.overview_capture import capture_overview
+        try:
+            self.mm_overview_state = capture_overview(self)
+            self.availability.clear("overview")
+        except Exception as error:
+            self.mm_overview_state = None
+            self.overview_recovery_observer = None
+            self.availability.fail("overview", "overview_observation_unavailable", error)
 
     def _prepare_status_publication(self, version):
         # Connector/strategy state is loop-owned. Only the detached JSON payload

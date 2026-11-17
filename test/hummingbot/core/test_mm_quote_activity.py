@@ -125,7 +125,8 @@ def test_one_sided_quotes_are_not_a_total_absence_alarm_and_reads_do_not_mutate_
 
 
 @pytest.mark.asyncio
-async def test_capture_connects_actual_controller_reasons_to_fresh_liquidity_without_new_io(monkeypatch):
+@pytest.mark.parametrize('managed_generation,expected_restricted', [(1, 6), (2, 0)])
+async def test_capture_connects_actual_controller_reasons_to_fresh_liquidity_without_new_io(monkeypatch, managed_generation, expected_restricted):
     from decimal import Decimal
     from test.hummingbot.strategy_v2.controllers.test_life_mm import configuration, make_controller
     from types import SimpleNamespace
@@ -133,7 +134,8 @@ async def test_capture_connects_actual_controller_reasons_to_fresh_liquidity_wit
 
     import hummingbot.core.mm_liquidity as liquidity
 
-    controller, _ = make_controller(configuration())
+    controller, _ = make_controller(configuration(mm_session_id='session', mm_generation=managed_generation))
+    controller.admit_session('session', managed_generation)
     source = controller.market_data_provider.get_connector_with_fallback.return_value
     source.get_available_balance.side_effect = lambda asset: Decimal('0')
     source._user_stream_tracker.last_recv_time = 1000
@@ -156,5 +158,10 @@ async def test_capture_connects_actual_controller_reasons_to_fresh_liquidity_wit
     assert activity['warning_active'] and activity['no_quote_seconds'] == 6
     assert activity['sides']['BUY']['reason_codes'] == ['insufficient_quote_balance']
     assert activity['sides']['SELL']['reason_codes'] == ['insufficient_base_balance']
+    coverage = liquidity.rolling_coverage(result, 'spot', now=1006)
+    assert coverage['restricted_seconds'] == expected_restricted
+    assert coverage['restriction_seconds']['balance'] == expected_restricted
+    assert 'slo_scope_valid' not in result['markets']['spot']
+    assert 'session_admitted' not in result['markets']['spot']
     owner.store.read.assert_called_once()
     source._api_request.assert_not_called()

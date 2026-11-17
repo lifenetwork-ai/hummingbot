@@ -17,6 +17,15 @@ def capture_reporting(core, previous):
             result[key] = result[key].copy()
     connectors = core.connector_manager.connectors
     result["active_connectors"] = sorted(connectors)
+    result["active_account_bindings"] = {
+        name: dict(account_id=getattr(connector, "account_uid", None),
+                   environment=getattr(connector, "trading_environment", None))
+        for name, connector in connectors.items() if name in ("okx", "okx_perpetual")
+    }
+    for name, binding in result['active_account_bindings'].items():
+        site = getattr(getattr(connectors[name], 'okx_environment', None), 'site', None)
+        if site in ('www', 'app', 'my'):
+            binding['site'] = site
     result["ready_controller_ids"] = []
     accounts = {(row["account_id"], row["environment"]):
                 {**row, "balances": [dict(balance) for balance in row["balances"]]}

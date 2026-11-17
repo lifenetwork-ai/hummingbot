@@ -84,7 +84,8 @@ async def test_matching_message_without_the_typed_outflow_denial_keeps_existing_
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('change', ['unmanaged', 'perpetual', 'sell', 'nonmaker'])
-async def test_typed_outflow_wait_is_limited_to_managed_spot_maker_buys(monkeypatch, change):
+@pytest.mark.parametrize('error_type', ['SpotOutflowBlocked', 'SpotOutflowPending'])
+async def test_typed_outflow_wait_is_limited_to_managed_spot_maker_buys(monkeypatch, change, error_type):
     state = await setup_lifecycle(monkeypatch, 'okx', TradeType.BUY, mm_session_id='session', mm_generation=1)
     config = state.executor.config
     updates = {'mm_session_id': None} if change == 'unmanaged' else (
@@ -93,13 +94,14 @@ async def test_typed_outflow_wait_is_limited_to_managed_spot_maker_buys(monkeypa
                 'triple_barrier_config': config.triple_barrier_config.model_copy(update={'open_order_type': OrderType.LIMIT})}))
     state.executor.config = config.model_copy(update=updates)
     state.executor.process_order_failed_event(None, state.connector, MarketOrderFailureEvent(
-        1000, state.order.client_order_id, OrderType.LIMIT_MAKER, 'spot_outflow_limit', 'SpotOutflowBlocked'))
+        1000, state.order.client_order_id, OrderType.LIMIT_MAKER, 'spot_outflow_limit', error_type))
     assert state.executor.status == RunnableStatus.RUNNING and state.executor._current_retries == 1
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('stopping', [False, True])
-async def test_outflow_denial_preserves_prior_fills_pending_orders_and_existing_stop(monkeypatch, stopping):
+@pytest.mark.parametrize('error_type', ['SpotOutflowBlocked', 'SpotOutflowPending'])
+async def test_outflow_denial_preserves_prior_fills_pending_orders_and_existing_stop(monkeypatch, stopping, error_type):
     state = await setup_lifecycle(monkeypatch, 'okx', TradeType.BUY, mm_session_id='session', mm_generation=1)
     executor, order = state.executor, state.order
     assert native_fill(order, 'prior-fill', '100')
@@ -115,7 +117,7 @@ async def test_outflow_denial_preserves_prior_fills_pending_orders_and_existing_
     if stopping:
         executor.early_stop(keep_position=False)
     executor.process_order_failed_event(None, state.connector, MarketOrderFailureEvent(
-        1001, 'queued-retry', OrderType.LIMIT_MAKER, 'spot_outflow_limit', 'SpotOutflowBlocked'))
+        1001, 'queued-retry', OrderType.LIMIT_MAKER, 'spot_outflow_limit', error_type))
     assert executor._current_retries == executor._max_retries
     executor.evaluate_max_retries()
     assert executor.status == RunnableStatus.SHUTTING_DOWN

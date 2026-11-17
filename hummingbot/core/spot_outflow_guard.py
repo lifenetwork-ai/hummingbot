@@ -12,8 +12,15 @@ from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketEvent, OrderFilledEvent
-from hummingbot.core.order_submission_guard import SpotOutflowBlocked, SubmissionBlocked
-from hummingbot.core.spot_outflow import MAX_FILLS, ZERO, SpotOutflowConfig, SpotOutflowPolicy, SpotOutflowProjection
+from hummingbot.core.order_submission_guard import SpotOutflowBlocked, SpotOutflowPending, SubmissionBlocked
+from hummingbot.core.spot_outflow import (
+    ADVANCE_BATCH,
+    MAX_FILLS,
+    ZERO,
+    SpotOutflowConfig,
+    SpotOutflowPolicy,
+    SpotOutflowProjection,
+)
 from hummingbot.model.order import Order
 from hummingbot.model.trade_fill import TradeFill
 
@@ -108,6 +115,28 @@ class SpotOutflowGuard:
                     break
         return projection
 
+    async def advance(self, now_ms):
+        """Catch up on the owner loop; partial projections never authorize BUY."""
+        projection, version = self.projection, self.owner.version
+        if projection is not None and (not isinstance(now_ms, int) or now_ms < projection.now_ms):
+            projection.advance(now_ms, max_work=ADVANCE_BATCH)
+            return False
+        target = projection.now_ms if projection is not None and projection.catching_up() else now_ms
+        yielded = False
+        while projection is not None and self.projection is projection:
+            projection.advance(target, max_work=ADVANCE_BATCH)
+            if projection.clock_failure or (not projection.catching_up() and target >= now_ms):
+                break
+            await asyncio.sleep(0)
+            yielded = True
+            row = self.owner.check_owner()
+            if row['control_version'] != version or (row['recovery_state'] or {}).get('halt'):
+                break
+            # Finish the prior clock (and its queued arrivals) before moving
+            # forward. Decimal rounding must not reorder arrivals and expiry.
+            target = projection.now_ms if projection.catching_up() else max(now_ms, projection.now_ms)
+        return yielded
+
     def fill_committed(self, row):
         if row["market"] != "okx" or row["symbol"] != self.policy["trading_pair"]:
             return
@@ -157,14 +186,20 @@ class SpotOutflowGuard:
             raise SubmissionBlocked(self.reason_code)
         if connector.name != "okx" or order.trade_type != TradeType.BUY:
             return
-        if self.projection is not None:
-            self.projection.advance(int(row["database_now"] * 1000))
+        now_ms = int(row['database_now'] * 1000)
+        if self.projection is not None and (not self.projection.catching_up() or now_ms < self.projection.now_ms):
+            self.projection.advance(now_ms, max_work=ADVANCE_BATCH)
         self._mark_terminal_orders()
         try:
             if order.trading_pair != self.policy["trading_pair"] or order.order_type != OrderType.LIMIT_MAKER:
                 raise ValueError("spot_outflow_order_scope_unavailable")
             if self.projection is None or self.reason_code:
                 raise ValueError(self.reason_code or "spot_outflow_initializing")
+            if self.projection.catching_up():
+                if self.projection.failure or self.projection.clock_failure:
+                    raise ValueError(self.projection.reason())
+                self.last_buy_denial = 'spot_outflow_projection_catching_up'
+                raise SpotOutflowPending(self.last_buy_denial)
             if self.terminal_pending:
                 raise ValueError("spot_outflow_reconciling")
             flat = self._flat_fee(connector, order)
@@ -413,7 +448,8 @@ class SpotOutflowGuard:
         reason = self.reason_code or value.get("reason_code") or ("spot_outflow_reconciling" if self.terminal_pending else None)
         return {**value, "ready": value["ready"] and reason is None, "reason_code": reason,
                 "binding": self.binding, "policy": self.policy, "last_buy_denial": self.last_buy_denial,
-                "pending_terminal_orders": len(self.terminal_pending), "stale": self.projection is None,
+                "pending_terminal_orders": len(self.terminal_pending),
+                "stale": self.projection is None or self.projection.catching_up(),
                 "observed_at": self.projection.now_ms / 1000 if self.projection is not None else None,
                 "buy_allowed": value["ready"] and reason is None and (value["remaining_quote"] or ZERO) > 0}
 
