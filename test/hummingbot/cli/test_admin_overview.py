@@ -20,7 +20,7 @@ def row():
                 desired_state='running', mm_session=session,
                 status=dict(running=True, mm_session=session.copy(),
                             reporting=dict(active_connectors=['okx'], active_account_bindings={
-                                'okx': dict(account_id='17', environment='demo')}, accounts=[dict(
+                                'okx': dict(account_id='17', environment='demo', site='www')}, accounts=[dict(
                                     account_id='17', environment='demo', identity_verified=True, balances=balances)]),
                             mm_overview=dict(session_id='session', generation=0, observed_at=1001, markets=[],
                                              references=observation([]), inventory_limits=observation([]),
@@ -39,7 +39,7 @@ def test_portfolio_uses_account_equity_once_and_preserves_decimal_money():
     assert result['portfolio']['value']['usdt'] == '100'
     assert result['portfolio']['value']['life_usdt'] == '20'
     assert result['portfolio']['value']['valuation']['valuation_mark'] == 'mid'
-    assert result['account_scope'] == dict(account_ids=['17'], environment='demo', identity_verified=True)
+    assert result['account_scope'] == dict(account_ids=['17'], environment='demo', identity_verified=True, site='www')
     assert result['balances']['value'][0]['reserved_for_open_orders'] is None
     assert {item['asset']: item['free'] for item in result['balances']['value']} == {'LIFE': '8', 'USDT': '80'}
     assert source == before

@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,7 +24,7 @@ from hummingbot.cli.admin_daily_cache import (
     retryable_statement_timeout,
     transient_reporting_error,
 )
-from hummingbot.cli.admin_database import AdminDatabaseExecutor, DatabaseBusy
+from hummingbot.cli.admin_database import AdminDatabaseExecutor, DatabaseBusy, DatabaseWorkTiming
 from hummingbot.cli.admin_errors import error_response, request_id, validation_fields
 from hummingbot.cli.admin_models import (
     COMMAND_REQUEST,
@@ -78,6 +79,7 @@ ADMIN_IDENTITY_KEY = web.AppKey("admin_identity", object)
 ADMIN_ACCESS_KEY = web.AppKey("admin_access_api", object)
 # Match the existing default page size; bulk pages share the aggregate lane.
 OPERATIONAL_HISTORY_LIMIT = 100
+_STATUS_READ_TIMING = contextvars.ContextVar('admin_status_read_timing', default=None)
 ADMIN_ENDPOINTS = (("GET", "/profiles", "profiles"), ("GET", "/status", "status"),
                    ("POST", "/commands", "commands"), ("GET", "/commands/{command_id}", "command"),
                    ("GET", "/openapi.json", "openapi"), ("GET", "/docs", "docs"),
@@ -164,6 +166,9 @@ async def admin_errors(request, handler):
 
 
 class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
+    STATUS_READ_SECONDS = 5.0
+    STATUS_SLOW_SECONDS = .5
+
     def __init__(self, host, settings, *, store=None, catalogue=None):
         self.host = host
         self.settings = settings
@@ -185,6 +190,7 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
 
     def register(self, app):
         app.middlewares.append(admin_errors)
+        app.on_startup.append(self.start_overview_reporting)
         app.on_cleanup.append(self.close)
         app[ADMIN_ACCESS_KEY] = self
         if self.settings.enabled and self.settings.google_auth_enabled:
@@ -199,6 +205,20 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
             else:
                 app.router.add_route(method, ADMIN_PREFIX + path, getattr(self, name))
 
+    async def start_overview_reporting(self, app):
+        if self.settings.enabled:
+            self._overview_fees.watch(self._overview_reporting_row, self._query_overview_fees)
+
+    async def _overview_reporting_row(self):
+        from sqlalchemy.engine import Engine
+        if self.host is None or self.host.store is None or not isinstance(self.storage().engine, Engine):
+            return None
+        return await self.run_database(self.host.store.read, publication=True)
+
+    async def _query_overview_fees(self, **scope):
+        from hummingbot.model.overview_fees import session_fees
+        return await self.run_database(session_fees, self.storage().engine, heavy=True, **scope)
+
     async def run_database(self, function, /, *args, heavy=False, **kwargs):
         return await self._run_database(False, function, *args, heavy=heavy, **kwargs)
 
@@ -209,9 +229,23 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
         # Preserve tracing/query context just as asyncio.to_thread does. Canceling
         # an awaiter cannot release a worker that is still using a connection.
         call = functools.partial(contextvars.copy_context().run, function, *args, **kwargs)
+        _timing = _STATUS_READ_TIMING.get()
+        if _timing is not None:
+            work = call
+
+            def call():
+                _timing.mark('started')
+                try:
+                    return work()
+                finally:
+                    _timing.mark('finished')
+
+            _timing.mark('queued')
         try:
             result = self._database_executor.submit(call, control=control, heavy=heavy)
         except DatabaseBusy:
+            if _timing is not None:
+                _timing.mark('rejected')
             raise APIUnavailable('Admin database capacity is busy') from None
         return await result
 
@@ -317,8 +351,59 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
 
     @api_operation(operation_id="getRuntimeStatus", summary="Read requested and observed bot state", tag="Runtime", response_model=StatusResponse)
     async def status(self, request):
+        # Bound queue + worker + optional recovery lookup. Timeout cancels the
+        # awaiter, never the physical DB worker or its connection reservation.
+        started, timing, response = time.monotonic(), DatabaseWorkTiming(), None
+        reason = 'completed'
+        client_id = request.headers.get('X-Request-ID', '')
+        client_hash = (hashlib.sha256(client_id.encode()).hexdigest()[:16]
+                       if re.fullmatch('[0-9a-f]{32}', client_id) else None)
+        try:
+            async with asyncio.timeout(self.STATUS_READ_SECONDS):
+                response = await self._status_response(request, timing)
+            if response.status >= 500:
+                reason = 'unavailable'
+        except asyncio.TimeoutError:
+            reason = 'status_read_timeout'
+            service = (ServiceStatus.model_validate(self.host.service_status())
+                       if self.host is not None and hasattr(self.host, 'service_status') else None)
+            response = error_response(request, 'unavailable', status=503, service=service)
+        except asyncio.CancelledError:
+            reason = 'cancelled'
+            raise
+        except Exception:
+            reason = 'failed'
+            raise
+        finally:
+            try:
+                self._status_read_timing(request, response, started, timing, reason, client_hash)
+            except Exception:
+                pass  # Diagnostic/header failures cannot change the response or cancellation.
+        return response
+
+    def _status_read_timing(self, request, response, started, timing, reason, client_hash):
+        elapsed = (time.monotonic() - started) * 1000
+        fields = timing.snapshot()
+        if reason != 'completed' or client_hash or elapsed >= self.STATUS_SLOW_SECONDS * 1000:
+            level = (logging.WARNING if reason in ('status_read_timeout', 'unavailable', 'failed')
+                     or elapsed >= self.STATUS_SLOW_SECONDS * 1000 else logging.INFO)
+            logging.getLogger(__name__).log(
+                level, 'Admin status read reason=%s request_id=%s client_request_hash=%s elapsed_ms=%.3f '
+                'database_phase=%s queue_ms=%.3f worker_ms=%s', reason, request_id(request), client_hash,
+                elapsed, fields['database_phase'], fields['queue_ms'], fields['worker_ms'],
+                extra=dict(event='admin_status_read', scope='reporting', reason_code=reason,
+                           request_id=request_id(request), client_request_hash=client_hash,
+                           elapsed_ms=elapsed, **fields))
+        if response is not None:
+            metrics = f"status;dur={elapsed:.3f}, db_queue;dur={fields['queue_ms']:.3f}"
+            if fields['worker_ms'] is not None:
+                metrics += f", db_run;dur={fields['worker_ms']:.3f};desc=\"{fields['database_phase']}\""
+            response.headers['Server-Timing'] = metrics
+
+    async def _status_response(self, request, timing):
         if self.host is None or self.host.store is None:
             raise APIUnavailable("Control store is not ready")
+        token = _STATUS_READ_TIMING.set(timing)
         try:
             row = await self.run_database(self.host.store.read, publication=True)
         except (SQLAlchemyError, asyncio.TimeoutError):
@@ -326,6 +411,8 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
                 raise APIUnavailable("Control store is unavailable") from None
             service = ServiceStatus.model_validate(self.host.service_status())
             return error_response(request, "unavailable", status=503, service=service)
+        finally:
+            _STATUS_READ_TIMING.reset(token)
         if row is None:
             raise APIUnavailable("Bot identity is not ready")
         snapshot = row.get("status") or {}
@@ -358,12 +445,7 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
         try:
             model.overview = build_overview(row)
             if model.overview is not None:
-                from hummingbot.model.overview_fees import session_fees
-
-                async def query_fees(**scope):
-                    return await self.run_database(session_fees, self.storage().engine, heavy=True, **scope)
-
-                fees = await self._overview_fees.read(row, model.overview, query_fees)
+                fees = await self._overview_fees.read(row, model.overview, self._query_overview_fees)
                 model.overview.session.fees = OverviewObservation[OverviewSessionFees].model_validate(fees)
         except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
             # Optional projection failure cannot conceal the control/status view.
@@ -801,7 +883,7 @@ def admin_middleware(settings, *, identity=None):
         response.headers["X-Request-ID"] = request_id(request)
         if origin:
             response.headers["Access-Control-Allow-Origin"] = "*" if wildcard else origin
-            response.headers["Access-Control-Expose-Headers"] = "X-Request-ID, Retry-After"
+            response.headers["Access-Control-Expose-Headers"] = "X-Request-ID, Retry-After, Server-Timing"
             if not wildcard:
                 response.headers["Access-Control-Allow-Credentials"] = "true"
             response.headers["Vary"] = ", ".join(filter(None, (response.headers.get("Vary"), "Origin")))

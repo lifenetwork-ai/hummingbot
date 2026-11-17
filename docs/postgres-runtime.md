@@ -435,6 +435,23 @@ expired idle readers. This is an idle-session limit, not a change to active SQL,
 the existing2-second statement budget or3-second response deadline. Takeover
 still retains unresolved-effect HALT and requires normal recovery review.
 
+Opt-in engine diagnostics now include `db.ping`: native pool validation runs
+before SQLAlchemy cursor events, so its time is distinct from `db.sql`.
+Instrumentation preserves the native ping/reconnect result and exports no SQL,
+parameters or connection credentials. It does not disable `pool_pre_ping`, relax
+the owner/write fence or change SQL/I/O budgets.
+
+The authenticated admin status handler bounds its queue/read/recovery lookup
+to5 s. Expiry returns503 `unavailable` with qualified process diagnostics; a
+running DB call keeps its physical worker slot until actual completion, and
+expired work still in the admission queue is skipped. Optional `Server-Timing`
+and safe request correlation distinguish primary queue/run time from HTTP
+header/body wait. Authentication and transit are outside the handler budget.
+These are reporting observations, not proof that the trading owner stopped.
+The operator collector can opt into `read_observed_json` with
+`collect_quote_observation(..., read_with_timing=True)`; keep the existing10 s
+client budget, unknown-as-failure classification and original failed evidence.
+
 A recorder rollback latches that manager unhealthy and blocks subsequent ORM
 flushes/bulk writes, including tracking snapshots. A failed fill cannot be followed
 by a committed snapshot claiming it was recorded. Exit and reconcile from durable

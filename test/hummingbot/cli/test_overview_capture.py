@@ -89,3 +89,13 @@ def test_account_bindings_are_current_and_unknown_identity_never_reuses_prior_sc
     core.connector_manager.connectors['okx'].account_uid = None
     assert capture_reporting(core, captured)['active_account_bindings']['okx']['account_id'] is None
     assert old['active_account_bindings']['okx']['account_id'] == 'old'
+
+
+def test_account_scope_retains_raw_uid_and_the_actual_connector_site():
+    from hummingbot.cli.admin_observations import capture_reporting
+
+    core = SimpleNamespace(strategy=None, connector_manager=SimpleNamespace(connectors={
+        'okx': SimpleNamespace(account_uid='17', trading_environment='demo',
+                               okx_environment=SimpleNamespace(site='my'), account_balance_observations={})}))
+    captured = capture_reporting(core, {})
+    assert captured['active_account_bindings']['okx'] == dict(account_id='17', environment='demo', site='my')

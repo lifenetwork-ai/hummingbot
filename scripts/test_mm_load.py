@@ -263,6 +263,7 @@ def main():
                     volatility_defense=args.volatility_defense, enforce_post_only=args.enforce_post_only,
                     perpetual_reduction=args.perpetual_reduction,
                     external_book_levels=args.external_book_levels,
+                    external_book_base_quantity='100000' if args.external_book_levels == 2 else None,
                     operations_reads_per_second=3 if args.operations else 0,
                     tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap, inventory_skew=args.inventory_skew,
                     gc_diagnostics=args.gc_diagnostics,
@@ -382,13 +383,13 @@ def main():
                 if args.enforce_post_only:
                     harness.control(enforce_post_only=True)
                 if args.external_book_levels == 2:
-                    # Keep the original best prices, quantities and guard policy.
-                    # A distinct next-tick L2 is independent of our maker L1 and
-                    # its conservative 30s terminal-history quantity bound.
-                    harness.control(book_overrides={instrument: dict(
-                        bids=[['.099', '100000'], ['.098999', '100000']],
-                        asks=[['.101', '100000'], ['.101001', '100000']])
-                        for instrument in ('LIFE-USDT', 'LIFE-USDT-SWAP')})
+                    from scripts.mm_load_preparation import external_book_levels
+
+                    # Declare equal base-token depth, then use the actual
+                    # instrument contract value for SWAP wire quantities.
+                    # Prices, native guards and workload budgets stay intact.
+                    fixtures = json.loads((assets / 'fixtures.json').read_text())
+                    harness.control(book_overrides=external_book_levels(fixtures, base_quantity='100000'))
                 if args.mm_activity:
                     harness.control(mm_activity=True)
                     harness.env['HBOT_MM_ACTIVITY_DIAGNOSTICS'] = '1'
@@ -482,6 +483,10 @@ def main():
                 expected_quotes = 12 if args.volatility_defense else 8
                 poll(lambda: len([order for order in harness.ledger()["orders"] if order["state"] == "live"]) == expected_quotes,
                      description=f'{expected_quotes} working load quotes')
+                # A recovered child restart during Start/Switch/Stop is not a
+                # healthy baseline for the window that happens to follow it.
+                from scripts.mm_load_preparation import _no_unexpected_restart
+                _no_unexpected_restart(bot)
                 if args.enhancements:
                     evidence["active_outflow_initial"] = (harness.state()["status"].get("spot_outflow") or {})
                     assert evidence["active_outflow_initial"].get("fill_count", 0) >= args.history_rows // 2

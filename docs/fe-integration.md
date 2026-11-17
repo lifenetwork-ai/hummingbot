@@ -442,6 +442,16 @@ last observation and **Stop orders**. Use the identity fields described below;
 show unknown/mismatch explicitly rather than inferring the environment from a URL.
 Shared balances appear once; spot and perpetual have separate quote/exposure cards.
 
+`GET /status` can also return the optional `overview` reporting supplement. Use
+the generated DTOs and [Overview reporting contract](overview-reporting.md).
+Inventory units follow the pair's base asset; monetary values are plain decimal
+strings, including tiny fees. Rolling total-time coverage and eligible coverage
+have different denominators: render eligibility-unknown and restrictions, consult
+`measurement_ready`, and use the conservative eligible fraction for the approved
+target. A zero eligible denominator is unqualified. Fee `processing_state=ready`
+means catch-up finished a source sweep; it does not override `history_complete=false`.
+Missing/stale reporting must not disable independent status/control views or Stop.
+
 An overview wireframe (not a shipped UI):
 
 ```text
@@ -492,6 +502,17 @@ fabricated owner/control version or accept commands without durable storage.
 Ordinary status uses the owner's stored observation, marked stale when that owner
 is unavailable. A reporting projection failure marks prior account/position/PnL
 observations stale even while the trading owner remains healthy.
+
+The authenticated `/status` handler has a five-second read budget covering DB
+queue/work and the optional recovery lookup. Expiry returns the existing503
+`unavailable` envelope; it does not terminate the physical DB worker or imply
+that the trading engine stopped. Authentication and network transit have their
+own timing, outside this handler budget. Keep failed observations stale.
+Optional `Server-Timing` headers expose handler duration (`status`) and primary
+read queue/worker durations (`db_queue`, `db_run`) in milliseconds. A `running`
+description denotes work still executing after response timeout. These values
+are diagnostics, not readiness or order-outcome evidence; body/API contracts
+and server-generated `X-Request-ID` retain their existing meanings.
 
 Do not derive one green “Running” badge from HTTP 200, `/live`, `running`, a command
 receipt or one market's `ready` field alone.
@@ -606,6 +627,15 @@ active executors and cooldown. `spot_outflow_blocked` is a guard denial, not pro
 that the spending ceiling was reached: inspect `/status.spot_outflow`, including
 coverage, pending terminal orders and the last BUY denial, for its specific cause.
 
+A fresh pre-intent/pre-transport outflow-cap denial is typed `SpotOutflowBlocked`:
+the connector logs WARNING and the executor keeps its per-order DEBUG reason.
+An unsent managed Spot maker BUY retires through normal hold/shutdown bookkeeping
+instead of immediately spending its retry budget on new client IDs. The
+controller waits for its ordinary outflow preview to permit a fresh proposal;
+SELL and perpetual admission retain their existing gates. This neither resets
+the cap nor proves that an accepted/uncertain order was cancelled. Binding,
+fee/projection failures and changed original terms remain safety errors.
+
 Proposal diagnostics expire after five seconds. Their original UTC
 `proposal_observed_at` stays visible; an outdated or absent diagnosis becomes
 `quote_reason_unavailable` instead of repeating an old balance denial as current.
@@ -627,6 +657,9 @@ expandable technical-details panel for maintainers.
 
 Local pending creation does not prove that transport started or OKX accepted an
 order. A pending executor report does not identify a particular failed task.
+After a report failure, previous exposure/report values may remain visible,
+but controller readiness stays closed until a successful native report publish.
+Pending/working state alone does not prove that financial persistence succeeded.
 `unknown` is retained when there is no reliable stage evidence; do not invent a
 root cause. Working/idle/unavailable sides have no active diagnosis. Gaps, owner/
 generation changes, restart, invalid samples, stage/reason changes and observed
@@ -771,6 +804,14 @@ peaks, observed PnL/drawdown and readiness/HALT reason. Stopped or stale current
 PnL is `null`; known peaks and confirmed breach remain visible. This metric
 includes reported trade fees and excludes funding; it is not account equity.
 See [managed MM drawdown](life-mm-controls.md#drawdown) for configuration and bound policy.
+
+A bounded clock catch-up reports `reason_code=spot_outflow_projection_catching_up`,
+`ready=false`, `stale=true`, `buy_allowed=false`, and null recorded/reserved/
+remaining quote values. Show “Updating spending window”; this is a transient
+BUY wait, not a breached cap or HALT. SELL/cancel remain available. A queued
+managed maker BUY uses typed `SpotOutflowPending`, retires without consuming
+exchange retries, and returns through fresh controller admission after catch-up.
+No partial totals authorize a new BUY.
 
 Optional `status.spot_outflow` exposes the bound rolling spot USDT policy,
 committed/reserved/remaining capacity, original non-USDT fees and BUY-only
@@ -1481,6 +1522,11 @@ correlation. `automatic_recovery_order_rejected` records an exact durable venue
 expiry rejection atomically with retirement of its intent and saved tracker. Financial proof/context stays private; no secret is returned.
 
 ### Reviewed manual recovery
+
+A valid drawdown breach is a `recovery_risk_stop`, not proof of checkpoint
+corruption. Show the risk-review guidance and keep Recover disabled: this API
+does not reset risk limits, PnL peaks or stop latches. A malformed drawdown
+checkpoint still reports `recovery_checkpoint_invalid` and blocks recovery.
 
 | Endpoint under `/api/v1/admin` | Purpose |
 | --- | --- |

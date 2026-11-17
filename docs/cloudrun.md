@@ -269,10 +269,37 @@ cancellation, native terminal proof/callbacks, executor termination, financial
 checkpoint and fresh ownership reads. SQL cursor round trips exclude checkout
 and COMMIT; the enclosing checkpoint/owner stage retains that additional time.
 Network waits can emit a slow-stage record with a healthy heartbeat. There is
-one loop capture per30s plus its recovery, and one slow-stage capture per30s.
+one WARNING loop capture per30s plus its recovery, and one slow-stage capture per30s.
 Each packet is capped at24KB, with96 recent events,32 active spans,8 slow spans
 and at most4 thread stacks of12 frames. Active-span overflow is counted;
 the recent-event ring overwrites its oldest entries.
+
+Additional INFO `engine_loop_sample` / `engine_loop_sample_recovered` events
+retain stacks from separate stalls suppressed by the WARNING budget. Sampling
+is limited to once per5s and once per sampled heartbeat; it does not change the
+heartbeat or supervisor deadline. Samples are still observations, not proof of
+one blocking operation or complete coverage of every probe.
+
+INFO `order_submission_stages` batches retain completed submission phases in a
+separate64-entry ring, published by the watchdog at most once per2s. SQL churn
+cannot evict these entries. Completion sequence and `dropped_since_previous`
+make overflow/retry visible, including parents that finish after their children.
+`order.admission` includes queueing, scheduling and native pre-intent checks;
+`order.intent` covers the durable intent; `order.place` includes preparation,
+final authority/receipt work and HTTP through ACK dispatch; `order.created`
+covers recorder publication. These nested/overlapping stages are not additive
+or pure wire latency. A placement return alone does not prove Created was
+published; private WS can publish before a REST return. IDs remain hashed and
+no batch is logged from the trading writer or while holding its diagnostic lock.
+
+Project sink exclusions can discard these INFO events and correlated successful
+`Admin status read` records after the service emits them. Check Log Router when
+headers carry timing but successful server logs are missing. Exempt only the
+bot's stdout/stderr from a below-WARNING exclusion, preserving request-log and
+other-service filters. Changing an exclusion needs
+[`logging.exclusions.update`](https://cloud.google.com/logging/docs/reference/v2/rest/v2/projects.exclusions/patch);
+updating it through `gcloud logging sinks update` instead needs `logging.sinks.update`.
+There is no service env setting that overrides a project sink exclusion.
 
 Shutdown additionally uses fixed stages `shutdown.total`, `shutdown.core`,
 `shutdown.strategy`, `shutdown.hold`, `shutdown.cancel`, `shutdown.proof_before`

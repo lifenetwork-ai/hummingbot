@@ -1,5 +1,6 @@
 """Bounded, test-only causal traces. Never records SQL parameters or frame locals."""
 import contextvars
+import functools
 import hashlib
 import heapq
 import inspect
@@ -61,6 +62,37 @@ class FullGCProbe:
                                     collected=info['collected']))
 
 
+class DeferredOrderTrace:
+    """Queue slow submit/cancel markers for capture outside producer locks."""
+
+    def __init__(self, *, limit=128, minimum_ms=100):
+        self.pending = deque(maxlen=limit)
+        self.minimum_ms = minimum_ms
+        self.dropped_events = 0
+
+    def observe(self, row):
+        if (row.get('operation') not in ('order.cancel', 'order.submit') or row.get('phase') != 'end'
+                or row.get('duration_ms', 0) < self.minimum_ms):
+            return
+        if len(self.pending) == self.pending.maxlen:
+            self.dropped_events += 1
+        kind = 'cancel_tail_trigger' if row['operation'] == 'order.cancel' else 'submit_tail_trigger'
+        self.pending.append(dict(kind=kind, **{key: row[key] for key in
+                                 ('at_ns', 'start_ns', 'duration_ms', 'event_id', 'order_id', 'connector')}))
+
+    def drain(self, sink):
+        while self.pending:
+            try:
+                event = self.pending.popleft()
+            except IndexError:
+                break
+            sink(event)
+
+    def summary(self):
+        return dict(pending_events=len(self.pending), max_events=self.pending.maxlen,
+                    dropped_events=self.dropped_events)
+
+
 class DeferredGCTrace:
     """GC callbacks may interrupt any recorder lock: never emit from the callback.
 
@@ -77,14 +109,15 @@ class DeferredGCTrace:
     def __call__(self, phase, info):
         key = threading.get_ident(), info['generation']
         if phase == 'start':
-            self.started[key] = time.monotonic_ns()
+            self.started[key] = time.monotonic_ns(), time.thread_time_ns()
         elif key in self.started:
-            started = self.started.pop(key)
+            started, cpu = self.started.pop(key)
             duration = (time.monotonic_ns() - started) / 1e6
             if duration >= self.minimum_ms:
                 if len(self.pending) == self.pending.maxlen:
                     self.dropped_events += 1
                 self.pending.append(dict(kind='gc', at=time.time(), start_ns=started, duration_ms=duration,
+                                         thread_cpu_ms=(time.thread_time_ns() - cpu) / 1e6,
                                          thread_id=key[0], generation=key[1], collected=info['collected']))
 
     def drain(self, sink):
@@ -132,6 +165,32 @@ def instrument_sync(owner, name, key, samples, totals, tracer, attributes=None, 
                 else:
                     tracer.end(span, error=error, **details)
     setattr(owner, name, classmethod(measured) if isinstance(descriptor, classmethod) else measured)
+
+
+def instrument_async(owner, name, operation, tracer):
+    """Trace an async operation and its SQL children without copying arguments."""
+    original = getattr(owner, name)
+
+    @functools.wraps(original)
+    async def measured(*args, **kwargs):
+        span = tracer.begin(operation)
+        error = None
+        try:
+            return await original(*args, **kwargs)
+        except BaseException as exception:
+            error = type(exception).__name__
+            raise
+        finally:
+            tracer.end(span, error=error)
+    setattr(owner, name, measured)
+
+
+def instrument_submit_stages(tracer, connectors, authority, throttle):
+    """Keep queue/authorization SQL children under their native submit span."""
+    instrument_async(throttle, 'acquire', 'order.throttle_wait', tracer)
+    instrument_async(authority, 'authorize_rest', 'ownership.authorize_rest', tracer)
+    for connector in connectors:
+        instrument_async(connector, '_place_order', 'order.submit.' + connector.__name__, tracer)
 
 
 def instrument_admin_queue(owner, samples, totals, tracer):

@@ -115,6 +115,7 @@ class Exchange:
         self.cancel_delay_seconds = 0
         self.account_mutation_delay_seconds = 0
         self.account_read_delay_seconds = 0
+        self.terminal_read_delay_seconds = 0
         self.cancel_pending_visibility = {}
         self.cancel_pending_visibility_served = 0
         self.cancel_pending_visibility_reads = 0
@@ -481,6 +482,9 @@ class Exchange:
                     self.cancel_pending_visibility_served += 1
             return self.ok(rows)
         if path == "/api/v5/trade/fills":
+            if self.terminal_read_delay_seconds:
+                order = next((row for row in self.orders.values() if row['ordId'] == request.query.get('ordId')), None)
+                await self._delay_terminal_read(order, observed)
             for identity in self.withhold_fills_for:
                 if not request.query.get('ordId') or self.orders[identity]['ordId'] == request.query['ordId']:
                     self.withheld_fill_reads[identity] = self.withheld_fill_reads.get(identity, 0) + 1
@@ -489,6 +493,7 @@ class Exchange:
                             and (not request.query.get("ordId") or fill["ordId"] == request.query["ordId"])])
         if path == "/api/v5/trade/order" and method == "GET":
             order = self.orders.get(request.query.get("clOrdId"))
+            await self._delay_terminal_read(order, observed)
             if order is None:
                 return web.json_response({"code": "51603", "msg": "order absent", "data": []})
             identity = order['clOrdId']
@@ -582,6 +587,10 @@ class Exchange:
             return self.ok([{"clOrdId": client_id, "ordId": order["ordId"], "sCode": "0", "sMsg": ""}])
         if path in ("/api/v5/trade/cancel-order", "/api/v5/trade/cancel-batch-orders"):
             received_ns = time.monotonic_ns()
+            activity = self.quote_activity
+            identities = tuple(item['clOrdId'] for item in (data if isinstance(data, list) else [data])
+                               if isinstance(item, dict) and isinstance(item.get('clOrdId'), str))
+            cancel_request_id = activity.cancel_request(identities, received_ns) if activity else None
             if self.cancel_delay_seconds:
                 await asyncio.sleep(self.cancel_delay_seconds)
             result = []
@@ -589,6 +598,8 @@ class Exchange:
                 order = self.orders.get(item["clOrdId"])
                 if order is None:
                     result.append({"clOrdId": item["clOrdId"], "ordId": "", "sCode": "51400", "sMsg": "Order does not exist"})
+                    if activity:
+                        activity.cancel_stage(cancel_request_id, (item['clOrdId'],), 'not_found')
                     continue
                 spec = self.fill_on_cancel.pop(order['clOrdId'], None)
                 was_live = order['state'] in ('live', 'partially_filled')
@@ -602,9 +613,24 @@ class Exchange:
                         self.cancel_pending_visibility.setdefault(order['clOrdId'], self.cancel_pending_visibility_reads)
                     if self.quote_activity and was_live:
                         self.quote_activity.terminal(order['clOrdId'], 'canceled', request_ns=received_ns)
+                if activity:
+                    activity.cancel_stage(cancel_request_id, (order['clOrdId'],), 'terminal_observed', state=order['state'])
                 await self.broadcast(self.event(order))
                 result.append({"clOrdId": order["clOrdId"], "ordId": order["ordId"], "sCode": "0", "sMsg": ""})
-            return self.ok(result)
+            response = self.ok(result)
+            if activity:
+                activity.cancel_stage(cancel_request_id, identities, 'response_ready')
+                original_eof, reported = response.write_eof, False
+
+                async def written(data=b''):
+                    nonlocal reported
+                    result = await original_eof(data)
+                    if not reported:
+                        activity.cancel_stage(cancel_request_id, identities, 'response_eof')
+                        reported = True
+                    return result
+                response.write_eof = written
+            return response
         # The existing default rate source uses a non-trading Gate.IO connector.
         # Its public shape is simulated too; the isolated network prevents fallback.
         if path == "/api/v4/spot/time":
@@ -615,6 +641,13 @@ class Exchange:
             return web.json_response([{"id": "BTC_USDT", "base": "BTC", "quote": "USDT", "trade_status": "tradable"}])
         self.unknown.append({"method": method, "path": path})
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
+
+    async def _delay_terminal_read(self, order, observed):
+        if (self.terminal_read_delay_seconds and order is not None and order['state'] == 'canceled'
+                and order['side'] == 'buy' and not order['instId'].endswith('-SWAP')):
+            observed['injected_terminal_read_delay_s'] = self.terminal_read_delay_seconds
+            observed['terminal_read_client_id'] = order['clOrdId']
+            await asyncio.sleep(self.terminal_read_delay_seconds)
 
     async def control(self, data):
         for name in ('suppress_terminal_ws_for', 'withhold_fills_for'):
@@ -705,6 +738,10 @@ class Exchange:
             delay = float(data['account_read_delay_seconds'])
             assert 0 <= delay <= 40
             self.account_read_delay_seconds = delay
+        if 'terminal_read_delay_seconds' in data:
+            delay = float(data['terminal_read_delay_seconds'])
+            assert 0 <= delay <= 2
+            self.terminal_read_delay_seconds = delay
         if 'cancel_pending_visibility_reads' in data:
             count = data['cancel_pending_visibility_reads']
             if type(count) is not int or not 0 <= count <= 5:

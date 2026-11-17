@@ -20,6 +20,7 @@ from hummingbot.core.order_submission_guard import (
     SubmissionBlocked,
 )
 from hummingbot.core.startup_order_reconciliation import UntrackedOpenOrders, reconcile_open_order_visibility
+from hummingbot.core.submission_admission import SubmissionAdmission
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import BotStateStore
 from hummingbot.model.db_migration.postgres.locks import OWNER_KEY, OWNER_NAMESPACE
@@ -97,6 +98,7 @@ class BotOwnership:
         self.unsent_rejections = weakref.WeakValueDictionary()
         self.expired_rejections = weakref.WeakValueDictionary()
         self.submission_tasks = set()
+        self.submission_admission = SubmissionAdmission()
         self.terminal_tasks = set()
         self.transport_tasks = {}
         self.account_lock = asyncio.Lock()
@@ -239,6 +241,14 @@ class BotOwnership:
                          or (row["recovery_state"] or {}).get("halt")
                          or (row["recovery_state"] or {}).get("pending_mutations")):
             recovery = row["recovery_state"] or {}
+            if (not self.allow_new_orders and row["config_file_path"] == self.config_file_path
+                    and recovery.get('halt') is True and recovery.get('halt_kind') == 'shutdown_pending'
+                    and recovery.get('shutdown_incomplete') is True
+                    and not recovery.get('reason') and not recovery.get('pending_mutations')):
+                # A recoverable profile shutdown persists this fence before its
+                # first async drain. Queued entries must retire, not spend their
+                # exchange retry budget. The fence itself remains authoritative.
+                raise SessionSubmissionBlocked("Strategy shutdown is in progress; new order submissions are closed.")
             if (not recovery.get("halt") and not recovery.get("pending_mutations")
                     and row["config_file_path"] == self.config_file_path):
                 if row["desired_state"] != "running":
@@ -308,11 +318,39 @@ class BotOwnership:
                 self.require_recovery("An order submission has an unresolved outcome; no automatic resubmission is allowed.")
                 raise SubmissionBlocked("Unresolved order submission requires reconciliation.")
 
+    def _track_submission_task(self):
+        try:
+            task = asyncio.current_task()
+        except RuntimeError:
+            task = None
+        if task is not None and task not in self.submission_tasks:
+            self.submission_tasks.add(task)
+            task.add_done_callback(self.submission_tasks.discard)
+
+    @trace_runtime('order.admission', order_parameter='order')
+    async def admit_order(self, connector, order):
+        """Yield between synchronous admissions without moving the writer off-loop."""
+        from hummingbot.core.order_submission_guard import active_guard
+
+        # Shutdown must also drain tasks waiting before any durable intent exists.
+        self._track_submission_task()
+        async with self.submission_admission:
+            # An uncontended Lock acquire does not yield. Hold it through one
+            # loop turn so a burst across connectors cannot run all DB gates in
+            # a single ready batch. No transaction or network call is held here.
+            await asyncio.sleep(0)
+            if active_guard() is not self:
+                raise SubmissionBlocked("Trading owner changed before order admission.")
+            self.before_order(connector, order)
+
     def before_order(self, connector, order):
         from hummingbot.core.cleanup_authority import current_cleanup_scope, validate_close
         from hummingbot.core.order_submission_guard import current_session_scope
         cleanup = current_cleanup_scope()
         row = self.check_owner(new_risk=cleanup is None)
+        if (connector.in_flight_orders.get(order.client_order_id) is not order
+                or not order.is_pending_create):
+            raise SessionSubmissionBlocked("The native order was retired before submission admission.")
         if cleanup is not None:
             validate_close(self, row, connector, order, cleanup)
         if cleanup is None and self.runtime_ready_check is not None and not self.runtime_ready_check():
@@ -351,13 +389,7 @@ class BotOwnership:
         if cleanup is not None:
             self.cleanup_intents[order.client_order_id] = cleanup
         recorder.record_order_intent(connector, order)
-        try:
-            task = asyncio.current_task()
-        except RuntimeError:
-            task = None
-        if task is not None:
-            self.submission_tasks.add(task)
-            task.add_done_callback(self.submission_tasks.discard)
+        self._track_submission_task()
 
     def order_failed(self, connector, order, exception=None):
         from hummingbot.connector.okx_order_status import OKXExpiredOrderRejection
@@ -477,9 +509,14 @@ class BotOwnership:
         # A lost COMMIT reply is ambiguous even though this coroutine will not
         # deliberately invoke transport after the exception.
         with self.connection.begin():
-            row = self.connection.execute(select(SubmissionAttempt).where(
-                SubmissionAttempt.order_id == client_id).with_for_update()).mappings().one()
-            if (row['state'] != 'prepared' or row['context']['owner_uuid'] != self.owner_uuid
+            # UPDATE takes the row lock and returns its immutable context in one
+            # round trip. Validation still runs before COMMIT/transport; a bad
+            # context or payload rolls the transition back, never granting send.
+            row = self.connection.execute(update(SubmissionAttempt).where(
+                SubmissionAttempt.order_id == client_id, SubmissionAttempt.state == 'prepared').values(
+                state='possibly_sent', payload_hash=digest(data), deadline_ms=deadline).returning(
+                SubmissionAttempt.context)).mappings().one_or_none()
+            if (row is None or row['context']['owner_uuid'] != self.owner_uuid
                     or row['context']['generation'] != self.generation):
                 raise SubmissionBlocked('Submission attempt was already sent or belongs to another owner.')
             self._validate_close_transport(row['context'], client_id, data)
@@ -491,8 +528,6 @@ class BotOwnership:
                 if not key or expected != row['context']['credential_fingerprint']:
                     raise SubmissionBlocked('Authenticated transport identity does not match its recorded account scope.')
             self.sent_intents.add(client_id)
-            self.connection.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == client_id).values(
-                state='possibly_sent', payload_hash=digest(data), deadline_ms=deadline))
 
     def _validate_close_transport(self, context, identity, data):
         """Bind a managed close to its immutable intent at the existing SQL gate."""
@@ -545,6 +580,31 @@ class BotOwnership:
         session.info["ownership_fenced_transaction"] = session.get_transaction()
 
     async def authorize_rest(self, request):
+        if urlparse(request.url).path != ORDER_PATH:
+            return await self._authorize_rest(request)
+        from hummingbot.core.order_submission_guard import active_guard
+
+        # Bound final-send priority while preserving the shared loop-turn slot.
+        # Never hold this slot during network I/O, and never yield between
+        # the final fresh authority/durable send checks and returning permission.
+        task = asyncio.current_task()
+        temporary = task is not None and task not in self.submission_tasks
+        if temporary:
+            self.submission_tasks.add(task)
+        try:
+            async with self.submission_admission.final_send():
+                await asyncio.sleep(0)
+                if active_guard() is not self:
+                    raise SubmissionBlocked('Trading owner changed before final send authorization.')
+                return await self._authorize_rest(request)
+        finally:
+            # Native create tasks retain their original lifetime tracking. A
+            # direct REST caller may be the long-lived service loop; retain it
+            # only while queued here, then transport_started/finished owns I/O.
+            if temporary:
+                self.submission_tasks.discard(task)
+
+    async def _authorize_rest(self, request):
         path = urlparse(request.url).path
         try:
             data = json.loads(getattr(request, "data", None) or "{}") if path == ORDER_PATH else {}
@@ -583,6 +643,13 @@ class BotOwnership:
             client_id = data.get("clOrdId")
             connector, order = next(((connector, connector.in_flight_orders[client_id])
                                      for connector in self.connectors.values() if client_id in connector.in_flight_orders), (None, None))
+            if (client_id in self.active_intents and client_id not in self.sent_intents
+                    and (order is None or not order.is_pending_create and not order.exchange_order_id)):
+                # The tracked order can retire during throttle/final admission.
+                # This process has not crossed its durable send boundary. Let
+                # the native create handler reject that intent before the
+                # global unresolved-intent check can misclassify it as sent.
+                raise SessionSubmissionBlocked('The native order was retired before final send authorization.')
             self._check_mm_authority(row, self.intent_scopes.get(client_id), connector=connector, order=order)
             from hummingbot.connector.markets_recorder import MarketsRecorder
             recorder = MarketsRecorder._shared_instance
@@ -939,7 +1006,9 @@ class BotOwnership:
                 self.spot_outflow.reason_code = "spot_outflow_fill_invalid"
 
     @staticmethod
-    async def _refresh_orders(connector, orders, *, limiter=None):
+    async def _refresh_orders(connector, orders, *, limiter=None, terminal_guard=None, local_rejection=None):
+        from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
+
         # Failed maker attempts remain part of terminal checkpoint proof. Read
         # every order, but do not serialize their network latency across the
         # unchanged shutdown deadline. A fixed worker bound avoids one task per
@@ -950,7 +1019,23 @@ class BotOwnership:
         async def refresh():
             for order in pending:
                 async with limiter:
-                    status = await asyncio.wait_for(connector._request_order_status(order), timeout=5)
+                    if local_rejection is not None and local_rejection(order):
+                        continue
+                    if terminal_guard is not None and await asyncio.wait_for(
+                            terminal_guard.refresh_canceled_order(connector, order), timeout=10):
+                        continue  # Strong status/fills/status proof already applied native fills and terminal state.
+                    if local_rejection is not None and local_rejection(order):
+                        continue
+                    try:
+                        status = await asyncio.wait_for(connector._request_order_status(order), timeout=5)
+                    except OKXOrderNotFoundError:
+                        # The create coroutine may reject this exact object at
+                        # the final send gate while the status GET is awaiting
+                        # a response. Only positive, terminal no-send evidence
+                        # can replace readback; not-found alone proves nothing.
+                        if local_rejection is not None and local_rejection(order):
+                            continue
+                        raise
                     if status.exchange_order_id:
                         order.update_exchange_order_id(status.exchange_order_id)
                     fills = await asyncio.wait_for(connector._all_trade_updates_for_order(order), timeout=5)
@@ -1115,6 +1200,11 @@ class BotOwnership:
         execution_before_stop = {order.client_order_id: order.executed_amount_base
                                  for _, orders in tracked for order in orders}
 
+        def local_rejection(order):
+            return (order.is_done and (self.unsent_rejections.get(order.client_order_id) is order
+                                       or self.expired_rejections.get(order.client_order_id) is order)
+                    and not order.exchange_order_id and order.client_order_id not in self.sent_intents)
+
         async def read_terminal_orders():
             # Share the existing three read slots across connectors. A delayed
             # Spot tail must not prevent all Perpetual proof from even starting.
@@ -1131,18 +1221,18 @@ class BotOwnership:
                     # failed, never-transported order cannot exist remotely;
                     # asking OKX for it yields an empty not-found response.
                     # Sent/uncertain failures still require exchange readback.
-                    if (order.is_done and (self.unsent_rejections.get(order.client_order_id) is order
-                                           or self.expired_rejections.get(order.client_order_id) is order) and not order.exchange_order_id
-                            and order.client_order_id not in self.sent_intents):
+                    if local_rejection(order):
                         continue
                     remote_orders.append(order)
                 if remote_orders:
-                    await self._refresh_orders(connector, remote_orders, limiter=limiter)
+                    await self._refresh_orders(connector, remote_orders, limiter=limiter,
+                                               terminal_guard=self.spot_outflow, local_rejection=local_rejection)
                 while any(not order.is_done and order.client_order_id not in deferred for order in orders):
                     self.check_owner()
                     await asyncio.sleep(0.1)
                     await self._refresh_orders(connector, [order for order in orders
-                                                           if not order.is_done and order.client_order_id not in deferred], limiter=limiter)
+                                                           if not order.is_done and order.client_order_id not in deferred],
+                                               limiter=limiter, local_rejection=local_rejection)
 
             refreshes = [asyncio.create_task(refresh_connector(connector, orders)) for connector, orders in tracked]
             try:

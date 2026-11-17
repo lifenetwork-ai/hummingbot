@@ -513,7 +513,9 @@ class TradingCore:
         await self.initialize_markets(markets_list)
 
         # Create strategy instance (config is always present)
-        self.strategy = v2_strategy_class(self.markets, config)
+        factory = getattr(v2_strategy_class, 'create_with_async_history', None)
+        self.strategy = (await factory(self.markets, config) if factory is not None
+                         else v2_strategy_class(self.markets, config))
 
     async def _initialize_regular_strategy(self):
         """Initialize a regular strategy using starter file."""

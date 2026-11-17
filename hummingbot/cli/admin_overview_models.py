@@ -7,10 +7,12 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Generic, Literal, Optional, TypeVar
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, PlainSerializer
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, PlainSerializer, model_validator
 
 Market = Literal['spot', 'perpetual']
-Money = Annotated[Decimal, Field(allow_inf_nan=False)]
+Money = Annotated[Decimal, Field(allow_inf_nan=False),
+                  PlainSerializer(lambda value: format(value, 'f'), return_type=str, when_used='json')]
+Asset = Annotated[str, Field(pattern=r'^[A-Z0-9][A-Z0-9._]{0,31}$')]
 Fraction = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
 Seconds = Annotated[float, Field(ge=0, allow_inf_nan=False)]
 UTCDateTime = Annotated[AwareDatetime, PlainSerializer(lambda value: value.astimezone(timezone.utc), return_type=datetime, when_used='json')]
@@ -60,6 +62,12 @@ class OverviewSessionFees(OverviewModel):
     conversion_basis: Literal['at_fill']
     history_complete: bool
     through_at: UTCDateTime
+    processing_state: Literal['ready', 'catching_up'] = 'ready'
+    processed_fill_count: Optional[Annotated[int, Field(ge=0)]] = None
+    caught_up_at: Optional[UTCDateTime] = None
+    reported_projection_version: Optional[Annotated[int, Field(ge=1)]] = None
+    processing_projection_version: Optional[Annotated[int, Field(ge=1)]] = None
+    backfill_processed_fill_count: Optional[Annotated[int, Field(ge=0)]] = None
 
 
 class OverviewPortfolio(OverviewModel):
@@ -96,7 +104,7 @@ class OverviewRiskRule(OverviewModel):
     rule_id: str
     controller_id: Optional[str]
     market: Optional[Market]
-    unit: Literal['USDT', 'LIFE', 'fraction', 'seconds', 'bps']
+    unit: Annotated[str, Field(pattern=r'^(?:[A-Z0-9][A-Z0-9._]{0,31}|fraction|seconds|bps)$')]
     lower_limit: Optional[Money]
     upper_limit: Optional[Money]
     current: Optional[Money]
@@ -115,14 +123,23 @@ class OverviewDepth(OverviewModel):
     levels: list[OverviewDepthLevel] = Field(description='Cumulative remaining own order notional within offset_bps of mid.')
 
 
-class OverviewCoverageMinute(OverviewModel):
+class OverviewCoverageEligibility(OverviewModel):
+    eligible_seconds: Seconds = 0
+    two_sided_eligible_seconds: Seconds = 0
+    restricted_seconds: Seconds = 0
+    restriction_seconds: dict[Literal['balance', 'inventory', 'bootstrap', 'guard', 'policy'], Seconds] = Field(default_factory=dict)
+    eligibility_unknown_seconds: Seconds = 0
+
+
+class OverviewCoverageMinute(OverviewCoverageEligibility):
     minute_ts: UTCDateTime
     observed_seconds: Seconds
     unknown_seconds: Seconds
     two_sided_seconds: Seconds
 
 
-class OverviewRollingCoverage(OverviewModel):
+class OverviewRollingCoverage(OverviewCoverageEligibility):
+    measurement: Literal['sampled_interval_lower_bound'] = 'sampled_interval_lower_bound'
     window_seconds: Literal[1800]
     window_start: UTCDateTime
     window_end: UTCDateTime
@@ -134,6 +151,10 @@ class OverviewRollingCoverage(OverviewModel):
     target_fraction: Optional[Fraction]
     full_window: bool
     per_minute: Optional[list[OverviewCoverageMinute]]
+    conditional_eligible_fraction: Optional[Fraction] = None
+    conservative_eligible_fraction: Optional[Fraction] = None
+    measurement_ready: bool = False
+    measurement_reason: Optional[str] = 'eligibility_history_unavailable'
 
 
 class OverviewSlippageEstimate(OverviewModel):
@@ -161,11 +182,18 @@ class OverviewInventoryLimit(OverviewModel):
     controller_id: str
     market: Market
     pair: str
-    asset: Literal['LIFE']
+    asset: Asset
     long_limit: Optional[Money] = None
     short_limit: Optional[Money] = None
     gross_limit: Optional[Money] = None
     inventory_limit: Optional[Money] = Field(description='Null if policy defines no absolute quantity limit.')
+
+    @model_validator(mode='after')
+    def asset_matches_pair(self):
+        parts = self.pair.split('-')
+        if len(parts) != 2 or parts[0] != self.asset or not parts[1]:
+            raise ValueError('Inventory asset does not match its trading pair')
+        return self
 
 
 class OverviewReferencePrice(OverviewModel):
@@ -205,6 +233,7 @@ class OverviewAccountScope(OverviewModel):
     account_ids: list[str]
     environment: Optional[Literal['live', 'demo']]
     identity_verified: bool = False
+    site: Optional[Literal['www', 'app', 'my']] = None
 
 
 class OverviewSession(OverviewModel):

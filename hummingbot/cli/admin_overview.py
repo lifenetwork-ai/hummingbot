@@ -78,6 +78,7 @@ def _account_scope(reporting):
     if not isinstance(bindings, dict) or not bindings:
         return OverviewAccountScope(account_ids=[], environment=None, identity_verified=False), []
     identities = set()
+    sites = set()
     for connector, binding in bindings.items():
         if connector not in ('okx', 'okx_perpetual') or not isinstance(binding, dict):
             continue
@@ -85,15 +86,20 @@ def _account_scope(reporting):
         if not isinstance(uid, str) or not uid or environment not in ('live', 'demo'):
             return OverviewAccountScope(account_ids=[], environment=None, identity_verified=False), []
         identities.add((uid, environment))
+        site = binding.get('site')
+        if site not in (None, 'www', 'app', 'my'):
+            return OverviewAccountScope(account_ids=[], environment=None, identity_verified=False), []
+        sites.add(site)
     # Both connectors share one account in managed MM. Never sum across a
     # credential rotation or silently mix a live and demo account.
-    if len(identities) != 1:
+    if len(identities) != 1 or len(sites) > 1:
         return OverviewAccountScope(account_ids=[], environment=None, identity_verified=False), []
     uid, environment = identities.pop()
     accounts = [item for item in reporting.get('accounts', [])
                 if item.get('account_id') == uid and item.get('environment') == environment]
     verified = len(accounts) == 1 and accounts[0].get('identity_verified') is True
-    return OverviewAccountScope(account_ids=[uid], environment=environment, identity_verified=verified), accounts
+    return OverviewAccountScope(account_ids=[uid], environment=environment, identity_verified=verified,
+                                site=next(iter(sites), None)), accounts
 
 
 def _portfolio(accounts, prices, *, now, reason):
@@ -232,6 +238,11 @@ def _risk_rules(snapshot, *, now, live, runtime_live=False, session=None):
             if not isinstance(item, dict):
                 complete = False
                 continue
+            try:
+                item = OverviewInventoryLimit.model_validate(item).model_dump()
+            except (ValidationError, TypeError, ValueError):
+                complete = False
+                continue
             required = ('inventory_limit',) if item.get('market') == 'spot' else ('long_limit', 'short_limit', 'gross_limit')
             if any(item.get(field) is None for field in required):
                 complete = False
@@ -241,7 +252,7 @@ def _risk_rules(snapshot, *, now, live, runtime_live=False, session=None):
                         continue
                     limit = _number(item[field])
                     rules.append(dict(rule_id='inventory_base' if field == 'inventory_limit' else 'inventory_' + field.removesuffix('_limit'), controller_id=item['controller_id'],
-                                      market=item['market'], unit='LIFE', lower_limit=None, upper_limit=limit,
+                                      market=item['market'], unit=item['asset'], lower_limit=None, upper_limit=limit,
                                       current=None, status='unknown'))
                 except (KeyError, TypeError, ValueError, ArithmeticError):
                     complete = False

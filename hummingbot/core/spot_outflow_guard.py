@@ -9,10 +9,18 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 
 from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketEvent, OrderFilledEvent
-from hummingbot.core.order_submission_guard import SubmissionBlocked
-from hummingbot.core.spot_outflow import MAX_FILLS, ZERO, SpotOutflowConfig, SpotOutflowPolicy, SpotOutflowProjection
+from hummingbot.core.order_submission_guard import SpotOutflowBlocked, SpotOutflowPending, SubmissionBlocked
+from hummingbot.core.spot_outflow import (
+    ADVANCE_BATCH,
+    MAX_FILLS,
+    ZERO,
+    SpotOutflowConfig,
+    SpotOutflowPolicy,
+    SpotOutflowProjection,
+)
 from hummingbot.model.order import Order
 from hummingbot.model.trade_fill import TradeFill
 
@@ -107,6 +115,28 @@ class SpotOutflowGuard:
                     break
         return projection
 
+    async def advance(self, now_ms):
+        """Catch up on the owner loop; partial projections never authorize BUY."""
+        projection, version = self.projection, self.owner.version
+        if projection is not None and (not isinstance(now_ms, int) or now_ms < projection.now_ms):
+            projection.advance(now_ms, max_work=ADVANCE_BATCH)
+            return False
+        target = projection.now_ms if projection is not None and projection.catching_up() else now_ms
+        yielded = False
+        while projection is not None and self.projection is projection:
+            projection.advance(target, max_work=ADVANCE_BATCH)
+            if projection.clock_failure or (not projection.catching_up() and target >= now_ms):
+                break
+            await asyncio.sleep(0)
+            yielded = True
+            row = self.owner.check_owner()
+            if row['control_version'] != version or (row['recovery_state'] or {}).get('halt'):
+                break
+            # Finish the prior clock (and its queued arrivals) before moving
+            # forward. Decimal rounding must not reorder arrivals and expiry.
+            target = projection.now_ms if projection.catching_up() else max(now_ms, projection.now_ms)
+        return yielded
+
     def fill_committed(self, row):
         if row["market"] != "okx" or row["symbol"] != self.policy["trading_pair"]:
             return
@@ -156,19 +186,35 @@ class SpotOutflowGuard:
             raise SubmissionBlocked(self.reason_code)
         if connector.name != "okx" or order.trade_type != TradeType.BUY:
             return
-        if self.projection is not None:
-            self.projection.advance(int(row["database_now"] * 1000))
+        now_ms = int(row['database_now'] * 1000)
+        if self.projection is not None and (not self.projection.catching_up() or now_ms < self.projection.now_ms):
+            self.projection.advance(now_ms, max_work=ADVANCE_BATCH)
         self._mark_terminal_orders()
         try:
             if order.trading_pair != self.policy["trading_pair"] or order.order_type != OrderType.LIMIT_MAKER:
                 raise ValueError("spot_outflow_order_scope_unavailable")
             if self.projection is None or self.reason_code:
                 raise ValueError(self.reason_code or "spot_outflow_initializing")
+            if self.projection.catching_up():
+                if self.projection.failure or self.projection.clock_failure:
+                    raise ValueError(self.projection.reason())
+                self.last_buy_denial = 'spot_outflow_projection_catching_up'
+                raise SpotOutflowPending(self.last_buy_denial)
             if self.terminal_pending:
                 raise ValueError("spot_outflow_reconciling")
             flat = self._flat_fee(connector, order)
+            amount, price = Decimal(order.amount), Decimal(order.price)
+            if any(not value.is_finite() or value <= ZERO for value in (amount, price)):
+                raise ValueError("spot_outflow_order_terms_unavailable")
+            existing = self.projection.reservations.get(order.client_order_id)
+            if existing is not None and (existing.amount, existing.price, existing.flat_fee) != (amount, price, flat):
+                raise ValueError("spot_outflow_order_terms_changed")
             if not self.projection.reserve(order, flat):
-                raise ValueError(self.projection.reason() or "spot_outflow_limit")
+                reason = self.projection.reason()
+                if reason:
+                    raise ValueError(reason)
+                self.last_buy_denial = "spot_outflow_limit"
+                raise SpotOutflowBlocked(self.last_buy_denial)
         except (ValueError, TypeError, ArithmeticError) as error:
             self.last_buy_denial = str(error)
             raise SubmissionBlocked(self.last_buy_denial) from None
@@ -241,10 +287,7 @@ class SpotOutflowGuard:
             except (ValueError, OSError, asyncio.TimeoutError, KeyError, ArithmeticError) as error:
                 self._terminal_failure(client_id, type(error).__name__)
                 continue  # Retain the reservation and explicit BUY-only wait.
-            self.terminal_pending.pop(client_id, None)
-            self.orders.pop(client_id, None)
-            self.terminal_stages.pop(client_id, None)
-            self.terminal_failures.pop(client_id, None)
+            self._forget_terminal_order(client_id)
         if all_orders and set(self.terminal_pending) - set(deferred):
             raise SubmissionBlocked("spot_outflow terminal fill reconciliation is incomplete")
 
@@ -262,6 +305,40 @@ class SpotOutflowGuard:
         recorder.sql_manager.assert_persistence_healthy()
         self.projection.confirm_terminal(client_id, order.amount)
         return True
+
+    async def refresh_canceled_order(self, connector, order):
+        """One fresh strong proof can serve shutdown and this cash reservation.
+
+        Only an exact retained Spot BUY with a venue ID is supported. A cancel
+        ACK may still be queued locally; the fresh venue proof, not that local
+        state, establishes termination. No proof crosses checkpoint phases.
+        """
+        retained = self.orders.get(order.client_order_id)
+        if (connector.name != 'okx' or order.trade_type != TradeType.BUY or not order.exchange_order_id
+                or order.current_state not in (OrderState.CANCELED, OrderState.PENDING_CANCEL,
+                                               OrderState.OPEN, OrderState.PARTIALLY_FILLED)
+                or retained is None or retained[0] is not connector or retained[1] is not order):
+            return False
+        self._check_terminal_identity(connector, order)
+        self.mark_terminal_pending(order.client_order_id)
+        if not await self._confirm(order.client_order_id, apply_terminal=True):
+            return False  # Stale/nonterminal venue data retains the native polling path.
+        self._forget_terminal_order(order.client_order_id)
+        return True
+
+    def _check_terminal_identity(self, connector, order):
+        self.owner.check_owner()
+        retained = self.orders.get(order.client_order_id, (None, None))
+        if not self._identity_matches() or retained[0] is not connector or retained[1] is not order:
+            raise SubmissionBlocked('spot_outflow terminal order/account identity changed')
+
+    def _forget_terminal_order(self, client_id):
+        # Projection reservations are retired only by confirm_terminal/advance,
+        # including committed fills whose exchange timestamp is still future.
+        self.terminal_pending.pop(client_id, None)
+        self.orders.pop(client_id, None)
+        self.terminal_stages.pop(client_id, None)
+        self.terminal_failures.pop(client_id, None)
 
     def _terminal_failure(self, client_id, error_type):
         if client_id not in self.terminal_pending:
@@ -285,7 +362,7 @@ class SpotOutflowGuard:
                 return 'spot_outflow_terminal_' + failure[0]
         return None
 
-    async def _confirm(self, client_id):
+    async def _confirm(self, client_id, *, apply_terminal=False):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         connector, order = self.orders[client_id]
         self.terminal_stages[client_id] = 'order_read'
@@ -335,6 +412,8 @@ class SpotOutflowGuard:
         if (str(final.get("code")) != "0" or len(final.get("data", [])) != 1
                 or any(final["data"][0].get(key) != first.get(key) for key in keys)):
             raise ValueError("Order changed during terminal proof")
+        if apply_terminal:
+            self._check_terminal_identity(connector, order)
         self.terminal_stages[client_id] = 'recording'
         recorder = MarketsRecorder._shared_instance
         recorder._did_create_order(MarketEvent.BuyOrderCreated.value, connector, BuyOrderCreatedEvent(
@@ -350,6 +429,14 @@ class SpotOutflowGuard:
                 amount=fill.fill_base_amount, trade_fee=fill.fee, exchange_trade_id=fill.trade_id,
                 leverage=order.leverage, position=order.position.value))
         recorder.sql_manager.assert_persistence_healthy()
+        if apply_terminal:
+            # Keep native fill-before-terminal ordering. The converter is the
+            # connector's normal polling converter; it performs no second GET.
+            await connector._order_tracker.process_order_update(
+                connector._order_update_from_data(order, final['data'][0]))
+            self._check_terminal_identity(connector, order)
+            if order.executed_amount_base != total:
+                raise ValueError('Native terminal fill quantity does not match the proof')
         self.projection.confirm_terminal(client_id, total)
         return True
 
@@ -361,7 +448,8 @@ class SpotOutflowGuard:
         reason = self.reason_code or value.get("reason_code") or ("spot_outflow_reconciling" if self.terminal_pending else None)
         return {**value, "ready": value["ready"] and reason is None, "reason_code": reason,
                 "binding": self.binding, "policy": self.policy, "last_buy_denial": self.last_buy_denial,
-                "pending_terminal_orders": len(self.terminal_pending), "stale": self.projection is None,
+                "pending_terminal_orders": len(self.terminal_pending),
+                "stale": self.projection is None or self.projection.catching_up(),
                 "observed_at": self.projection.now_ms / 1000 if self.projection is not None else None,
                 "buy_allowed": value["ready"] and reason is None and (value["remaining_quote"] or ZERO) > 0}
 

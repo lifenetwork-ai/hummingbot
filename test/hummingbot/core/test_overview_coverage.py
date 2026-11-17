@@ -48,9 +48,10 @@ def test_full_window_exactly_clips_old_interval_at_rolling_edge():
     assert result['rolling_30m_fraction'] == 1 / 1800
     assert result['target_fraction'] == 0.9
     assert result['full_window'] is True
-    assert result['per_minute'][0] == {
+    assert {key: result['per_minute'][0][key] for key in ('minute_ts', 'observed_seconds', 'unknown_seconds', 'two_sided_seconds')} == {
         'minute_ts': 960, 'observed_seconds': 20, 'unknown_seconds': 0, 'two_sided_seconds': 1,
     }
+    assert result['per_minute'][0]['eligibility_unknown_seconds'] == 20
 
 
 def test_invalid_observation_leaves_explicit_unknown_interval():
@@ -148,9 +149,12 @@ def test_high_frequency_history_is_bounded_and_corrupt_history_is_unknown():
     for index in range(1802):
         frame = observer_sample(observer, at=1000 + index / 1000, mono=index / 1000,
                                 quote_id=index // 2)
-    assert len(frame['_coverage_history']['spot']) == 1800
+    assert len(frame['_coverage_buckets']['spot']) <= 1801
+    observed = rolling_coverage(frame, 'spot', now=1001.801)
+    assert abs(observed['observed_seconds'] - 1.801) < 1e-7
 
-    corrupt = {**frame, '_coverage_history': {'spot': [{'start': 1, 'end': float('nan'), 'two_sided': True}]}}
+    corrupt = {**frame, '_coverage_history': {'spot': [{'start': 1, 'end': float('nan'), 'two_sided': True}]},
+               '_coverage_buckets': {'spot': {'1': [float('nan')]}}}
     result = rolling_coverage(corrupt, 'spot', now=2801.801)
     assert result['observed_seconds'] == 0
     assert result['unknown_seconds'] == result['elapsed_seconds']

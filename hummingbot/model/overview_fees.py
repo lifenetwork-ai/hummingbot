@@ -1,13 +1,5 @@
-"""Conservative, read-only session fee projection from attributed recorder fills."""
-from datetime import datetime, timezone
+"""Conservative session fee conversion and bounded durable reporting projection."""
 from decimal import Decimal, InvalidOperation
-
-from sqlalchemy import and_, select, text
-
-from hummingbot.model.runtime_journal import SubmissionAttempt
-from hummingbot.model.trade_fill import TradeFill
-
-ROW_LIMIT = 10_000
 
 
 def _decimal(value):
@@ -78,83 +70,14 @@ def aggregate_fees(rows):
                 unconverted_count=unconverted, history_complete=False)
 
 
-def _observation(value, *, observed_at, reason):
-    return dict(value=value, observed_at=observed_at, stale=False, unavailable_reason=reason)
-
-
-def _iso_utc(value):
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
-
-
 def session_fees(engine, *, bot_id, session_id, account_ids, environment, start_ms, end_ms):
-    """Read fees tied to this bot/session and captured account bindings.
-
-    All generations for the session ID are included. Unknown/legacy conversions
-    and incomplete recorder coverage stay visible; they never make a complete
-    fee total. The source query has a statement deadline and a hard row cap.
-    """
+    """Apply one reporting batch without an overall session-history row cap."""
     if (not isinstance(bot_id, str) or not bot_id or not isinstance(session_id, str) or not session_id
             or environment not in ('live', 'demo') or not isinstance(account_ids, (list, tuple))
             or not account_ids or any(not isinstance(value, str) or not value for value in account_ids)
             or type(start_ms) is not int or type(end_ms) is not int or start_ms < 0 or end_ms <= start_ms):
         raise ValueError('Invalid session fee scope')
-    accounts = set(account_ids)
-    observed_at = datetime.now(timezone.utc)
-    with engine.connect().execution_options(isolation_level='REPEATABLE READ') as connection, connection.begin():
-        connection.exec_driver_sql('SET TRANSACTION READ ONLY')
-        connection.exec_driver_sql("SET LOCAL statement_timeout = '1500ms'")
-        connection.exec_driver_sql("SET LOCAL lock_timeout = '250ms'")
-        connection.exec_driver_sql('SET LOCAL jit = off')
-        connection.exec_driver_sql('SET LOCAL max_parallel_workers_per_gather = 0')
-        observed_at = connection.execute(text('SELECT clock_timestamp()')).scalar_one()
-        session_scope = SubmissionAttempt.context['session']
-        matching_session = and_(
-            SubmissionAttempt.context['bot_id'].astext == bot_id,
-            session_scope[0].astext == session_id,
-        )
-        statement = (select(
-            TradeFill.timestamp, TradeFill.market, TradeFill.quote_asset, TradeFill.base_asset,
-            TradeFill.trade_fee, TradeFill.trade_fee_in_quote, SubmissionAttempt.context,
-        ).join(SubmissionAttempt, SubmissionAttempt.order_id == TradeFill.order_id)
-            .where(TradeFill.timestamp >= start_ms, TradeFill.timestamp < end_ms, matching_session)
-            .order_by(TradeFill.timestamp, TradeFill.market, TradeFill.order_id, TradeFill.exchange_trade_id)
-            .limit(ROW_LIMIT + 1))
-        rows = connection.execute(statement).mappings().all()
-    if len(rows) > ROW_LIMIT:
-        return _observation(None, observed_at=observed_at,
-                            reason='session_fee_row_limit_exceeded')
-    attributed, unattributed = [], 0
-    for row in rows:
-        context = row['context']
-        bindings = context.get('bindings') if isinstance(context, dict) else None
-        matched = isinstance(bindings, list) and any(
-            isinstance(binding, dict)
-            and binding.get('connector') == row['market']
-            and binding.get('account_id') in accounts
-            and binding.get('environment') == environment
-            for binding in bindings
-        )
-        if not matched:
-            unattributed += 1
-            continue
-        attributed.append(row)
-    if not attributed:
-        reason = 'session_fee_binding_unavailable' if rows or unattributed else 'session_fee_history_unavailable'
-        return _observation(None, observed_at=observed_at, reason=reason)
-    totals = aggregate_fees(attributed)
-    if totals['converted_count'] == 0:
-        return _observation(None, observed_at=observed_at, reason='session_fee_conversion_unavailable')
-    reason = 'session_fee_history_incomplete'
-    if totals['unconverted_count']:
-        reason = 'session_fee_conversion_incomplete'
-    elif unattributed:
-        reason = 'session_fee_binding_incomplete'
-    through = datetime.fromtimestamp(end_ms / 1000, timezone.utc)
-    value = dict(
-        total_usdt=totals['total_usdt'],
-        by_market=[dict(market=market, total_usdt=amount) for market, amount in sorted(totals['by_market'].items())],
-        conversion_basis='at_fill', history_complete=False, through_at=_iso_utc(through),
-    )
-    return _observation(value, observed_at=observed_at, reason=reason)
+    from hummingbot.model.overview_fee_projection import project_session_fees
+
+    return project_session_fees(engine, bot_id=bot_id, session_id=session_id, account_ids=account_ids,
+                                environment=environment, start_ms=start_ms, end_ms=end_ms)

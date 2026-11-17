@@ -490,6 +490,7 @@ class ExchangePyBase(ExchangeBase, ABC):
                 **kwargs,
             )
 
+    @trace_runtime('order.place', order_parameter='order')
     async def _place_order_and_process_update(self, order: InFlightOrder, **kwargs) -> str:
         exchange_order_id, update_timestamp = await self._place_order(
             order_id=order.client_order_id,

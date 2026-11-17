@@ -1,5 +1,11 @@
 # Backend Overview reporting — verification
 
+Historical 2026-11-14 baseline evidence follows. The later implementation adds
+reporting migration 022 and remediation work; current scope/results are in the
+[2026-11-16 qualification report](../performance/admin-overview-reporting.md).
+Its resource gate C remains open, so the PASS entries below do not approve the
+new artifact for deployment.
+
 Validated on 2026-11-14 in `codex/backend-overview-reporting`, based on `origin/dev` at `8b46a1cee`. Runtime: Python 3.12.16, Node 22.23.5 (CI major version), disposable PostgreSQL 16 and local Chromium.
 
 ## Scope

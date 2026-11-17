@@ -40,7 +40,8 @@ def test_publication_lock_timeout_has_blocker_and_cannot_acknowledge(pg_engine):
             while time.monotonic() < deadline and not future.done():
                 # A new transaction avoids caching pg_stat_activity snapshots.
                 observed = witness.execute(text("""SELECT wait_event_type, wait_event FROM pg_stat_activity
-                    WHERE :pid = ANY(pg_blocking_pids(pid)) AND query LIKE 'SELECT bot_state.status%%'"""),
+                    WHERE :pid = ANY(pg_blocking_pids(pid))
+                      AND query LIKE '%%bot_state%%' AND query LIKE '%%FOR UPDATE%%'"""),
                                            {"pid": pid}).first()
                 witness.commit()
                 if observed:

@@ -707,7 +707,8 @@ class ServiceHost:
         if hasattr(guard, "projection") and guard.projection is not None:
             from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
             if isinstance(guard, SpotOutflowGuard):
-                guard.projection.advance(int(row["database_now"] * 1000))
+                if await guard.advance(int(row["database_now"] * 1000)):
+                    row = self.owner.check_owner()  # Stop/version may change between catch-up batches.
         from hummingbot.core.mm_drawdown import checkpoint_drawdown_status
         if getattr(self.hb.trading_core, "strategy", None) is None:
             if not self.observations.capture_checkpoint(

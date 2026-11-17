@@ -2670,6 +2670,11 @@ export interface components {
              * @default false
              */
             identity_verified: boolean;
+            /**
+             * Site
+             * @default null
+             */
+            site: ("www" | "app" | "my") | null;
         };
         /** OverviewCapitalAllocated */
         OverviewCapitalAllocatedOutput: {
@@ -2686,12 +2691,36 @@ export interface components {
         /** OverviewCoverageMinute */
         OverviewCoverageMinuteOutput: {
             /**
+             * Eligibility Unknown Seconds
+             * @default 0
+             */
+            eligibility_unknown_seconds: number;
+            /**
+             * Eligible Seconds
+             * @default 0
+             */
+            eligible_seconds: number;
+            /**
              * Minute Ts
              * Format: date-time
              */
             minute_ts: string;
             /** Observed Seconds */
             observed_seconds: number;
+            /**
+             * Restricted Seconds
+             * @default 0
+             */
+            restricted_seconds: number;
+            /** Restriction Seconds */
+            restriction_seconds?: {
+                [key: string]: number;
+            };
+            /**
+             * Two Sided Eligible Seconds
+             * @default 0
+             */
+            two_sided_eligible_seconds: number;
             /** Two Sided Seconds */
             two_sided_seconds: number;
             /** Unknown Seconds */
@@ -2755,11 +2784,8 @@ export interface components {
         };
         /** OverviewInventoryLimit */
         OverviewInventoryLimitOutput: {
-            /**
-             * Asset
-             * @constant
-             */
-            asset: "LIFE";
+            /** Asset */
+            asset: string;
             /** Controller Id */
             controller_id: string;
             /**
@@ -3063,24 +3089,66 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "violated" | "disabled" | "unknown";
-            /**
-             * Unit
-             * @enum {string}
-             */
-            unit: "USDT" | "LIFE" | "fraction" | "seconds" | "bps";
+            /** Unit */
+            unit: string;
             /** Upper Limit */
             upper_limit: string | null;
         };
         /** OverviewRollingCoverage */
         OverviewRollingCoverageOutput: {
+            /**
+             * Conditional Eligible Fraction
+             * @default null
+             */
+            conditional_eligible_fraction: number | null;
+            /**
+             * Conservative Eligible Fraction
+             * @default null
+             */
+            conservative_eligible_fraction: number | null;
             /** Elapsed Seconds */
             elapsed_seconds: number;
+            /**
+             * Eligibility Unknown Seconds
+             * @default 0
+             */
+            eligibility_unknown_seconds: number;
+            /**
+             * Eligible Seconds
+             * @default 0
+             */
+            eligible_seconds: number;
             /** Full Window */
             full_window: boolean;
+            /**
+             * Measurement
+             * @default sampled_interval_lower_bound
+             * @constant
+             */
+            measurement: "sampled_interval_lower_bound";
+            /**
+             * Measurement Ready
+             * @default false
+             */
+            measurement_ready: boolean;
+            /**
+             * Measurement Reason
+             * @default eligibility_history_unavailable
+             */
+            measurement_reason: string | null;
             /** Observed Seconds */
             observed_seconds: number;
             /** Per Minute */
             per_minute: components["schemas"]["OverviewCoverageMinuteOutput"][] | null;
+            /**
+             * Restricted Seconds
+             * @default 0
+             */
+            restricted_seconds: number;
+            /** Restriction Seconds */
+            restriction_seconds?: {
+                [key: string]: number;
+            };
             /**
              * Rolling 30M Fraction
              * @description two_sided_seconds / elapsed_seconds; unknown remains in denominator.
@@ -3088,6 +3156,11 @@ export interface components {
             rolling_30m_fraction: number | null;
             /** Target Fraction */
             target_fraction: number | null;
+            /**
+             * Two Sided Eligible Seconds
+             * @default 0
+             */
+            two_sided_eligible_seconds: number;
             /** Two Sided Seconds */
             two_sided_seconds: number;
             /** Unknown Seconds */
@@ -3142,8 +3215,18 @@ export interface components {
         };
         /** OverviewSessionFees */
         OverviewSessionFeesOutput: {
+            /**
+             * Backfill Processed Fill Count
+             * @default null
+             */
+            backfill_processed_fill_count: number | null;
             /** By Market */
             by_market: components["schemas"]["OverviewMarketFeesOutput"][] | null;
+            /**
+             * Caught Up At
+             * @default null
+             */
+            caught_up_at: string | null;
             /**
              * Conversion Basis
              * @constant
@@ -3151,6 +3234,27 @@ export interface components {
             conversion_basis: "at_fill";
             /** History Complete */
             history_complete: boolean;
+            /**
+             * Processed Fill Count
+             * @default null
+             */
+            processed_fill_count: number | null;
+            /**
+             * Processing Projection Version
+             * @default null
+             */
+            processing_projection_version: number | null;
+            /**
+             * Processing State
+             * @default ready
+             * @enum {string}
+             */
+            processing_state: "ready" | "catching_up";
+            /**
+             * Reported Projection Version
+             * @default null
+             */
+            reported_projection_version: number | null;
             /**
              * Through At
              * Format: date-time

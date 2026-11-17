@@ -1,6 +1,8 @@
 import asyncio
 import os
+from contextvars import copy_context
 from decimal import Decimal
+from threading import Event
 from typing import Dict, List, Optional
 
 from pydantic import Field, model_validator
@@ -61,12 +63,50 @@ class V2WithControllers(StrategyV2Base):
     """
     performance_report_interval: int = 1
 
-    def __init__(self, connectors: Dict[str, ConnectorBase], config: V2WithControllersConfig):
+    @classmethod
+    async def create_with_async_history(cls, connectors, config):
+        """Read managed history before constructing any native strategy/tasks."""
+        if not config.mm_drawdown_scope:
+            return cls(connectors, config)
+        from hummingbot.connector.markets_recorder import MarketsRecorder
+        from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
+        recorder = MarketsRecorder.get_instance()
+        recorder.sql_manager.assert_persistence_healthy()
+        identities = tuple(config.mm_drawdown_scope)
+        cancelled = Event()
+        job = asyncio.get_running_loop().run_in_executor(
+            None, copy_context().run, ExecutorOrchestrator.read_startup_performance, recorder, identities, None, cancelled)
+        try:
+            snapshot = await asyncio.shield(job)
+        except asyncio.CancelledError:
+            # Do not detach an open streaming cursor during Stop/SIGTERM.
+            cancelled.set()
+            while not job.done():
+                try:
+                    await asyncio.shield(job)
+                except asyncio.CancelledError:
+                    continue
+                except BaseException:
+                    break
+            if job.done() and not job.cancelled():
+                job.exception()
+            raise
+        if MarketsRecorder.get_instance() is not recorder:
+            raise RuntimeError('Startup history recorder changed')
+        recorder.sql_manager.assert_persistence_healthy()
+        if tuple(config.mm_drawdown_scope) != identities:
+            raise ValueError('Startup performance controller scope changed')
+        # Physical owner/control/credential checks still run on the loop in
+        # before_strategy_start before the strategy is added to the clock.
+        return cls(connectors, config, startup_performance=snapshot)
+
+    def __init__(self, connectors: Dict[str, ConnectorBase], config: V2WithControllersConfig, *, startup_performance=None):
         if config.mm_drawdown_scope or config.mm_spot_outflow_policy or config.mm_bootstrap_policies:
             from hummingbot.client.config.runtime_config import postgres_requested
             if not postgres_requested():
                 raise ValueError("Managed MM drawdown requires PostgreSQL service ownership")
-        super().__init__(connectors, config)
+        history = {} if startup_performance is None else {'startup_performance': startup_performance}
+        super().__init__(connectors, config, **history)
         self.config = config
         self.max_pnl_by_controller = {}
         self.max_global_pnl = Decimal("0")

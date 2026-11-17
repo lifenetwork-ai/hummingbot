@@ -41,15 +41,19 @@ async def test_persisted_quote_warning_is_read_only_and_stale_owner_revokes_it(p
             mm_session=row['mm_session'], status=json.loads(json.dumps(row['status'], default=str))))
     settings = AdminSettings(True, 'operator', 'test-password', basic_auth_enabled=True)
     app = web.Application(middlewares=[admin_middleware(settings)])
-    AdminAPI(SimpleNamespace(store=store, revision='test'), settings, catalogue=catalogue).register(app)
+    api = AdminAPI(SimpleNamespace(store=store, revision='test'), settings, catalogue=catalogue)
+    api.register(app)
+    # Isolate this endpoint query-count check from periodic fee discovery;
+    # reporting discovery/control progress has its own real-SQL integration test.
+    monkeypatch.setattr(api._overview_fees, 'watch', lambda *args: None)
     with pg_engine.connect() as connection:
         before = connection.execute(select(BotState)).mappings().one()
     async with TestClient(TestServer(app), headers={'Authorization': BasicAuth('operator', 'test-password').encode()}) as client:
         for path in ('/status', '/statistics/liquidity'):
             statements = []
 
-            def count(*args):
-                statements.append(1)
+            def count(connection, cursor, statement, *args):
+                statements.append(statement)
             event.listen(pg_engine, 'before_cursor_execute', count)
             try:
                 response = await client.get(ADMIN_PREFIX + path)

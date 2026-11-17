@@ -14,9 +14,11 @@ from hummingbot.core.order_submission_guard import SubmissionBlocked
 
 def service(monkeypatch):
     from hummingbot.connector.markets_recorder import MarketsRecorder
+    from hummingbot.core import order_submission_guard as gates
     item = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
                        asyncio.Event(), MagicMock())
     owner = BotOwnership(MagicMock(), 'hummingbot')
+    monkeypatch.setattr(gates, 'active_guard', lambda: owner)
     row = dict(bot_id='hummingbot', owner_uuid=owner.owner_uuid, owner_generation=1, backend_pid=31,
                desired_state='running', control_version=1, config_file_path='controller.yml',
                config_type='controller', recovery_state={})

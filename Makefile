@@ -69,12 +69,22 @@ test-cloudrun-regression:
 	$(PYTHON) -m pytest -q test/hummingbot/client/test_performance.py
 	$(PYTHON) -m pytest -q test/hummingbot/cli test/hummingbot/model test/hummingbot/client/test_runner.py \
 		test/hummingbot/connector/test_markets_recorder.py \
+		test/hummingbot/connector/test_client_order_tracker.py \
+		test/hummingbot/connector/test_terminal_cancel_ack.py \
+		test/hummingbot/connector/test_held_fill_proof_reads.py \
 		test/hummingbot/connector/test_trade_fee_replay.py \
 		test/hummingbot/connector/test_recorder_history_retention.py \
 		test/hummingbot/connector/exchange/okx test/hummingbot/connector/derivative/okx_perpetual \
 		test/hummingbot/core/test_trading_core.py test/hummingbot/core/test_engine_diagnostics.py test/hummingbot/core/web_assistant \
 		test/hummingbot/core/test_ownership_order_refresh.py \
 		test/hummingbot/core/test_terminal_read_fairness.py \
+		test/hummingbot/core/test_overview_coverage.py \
+		test/hummingbot/core/test_overview_eligibility.py \
+		test/hummingbot/core/test_overview_market_observations.py \
+		test/hummingbot/core/test_overview_recovery.py \
+		test/hummingbot/core/test_submission_admission_fairness.py \
+		test/hummingbot/core/test_submission_send_priority.py \
+		test/hummingbot/core/test_strategy_startup_read_fairness.py \
 		test/hummingbot/connector/test_managed_pending_polling.py \
 		test/hummingbot/core/test_recovery.py test/hummingbot/core/test_recovery_exchange.py \
 		test/hummingbot/core/test_checkpoint_recovery.py \
@@ -95,7 +105,9 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/executors/test_reduction_cost_basis.py \
 		test/hummingbot/strategy_v2/executors/test_managed_quote_wakeup.py \
 		test/hummingbot/strategy_v2/executors/test_managed_entry_wakeup.py \
+		test/hummingbot/strategy_v2/executors/test_entry_account_progress.py \
 		test/hummingbot/strategy_v2/executors/test_managed_terminal_publication.py \
+		test/hummingbot/strategy_v2/executors/test_action_report_barrier.py \
 		test/hummingbot/strategy_v2/executors/test_executor_identity.py \
 		test/hummingbot/strategy_v2/executors/order_executor \
 		test/hummingbot/strategy_v2/test_runnable_base.py \
@@ -113,6 +125,7 @@ test-cloudrun-regression:
 		test/hummingbot/core/test_reconciliation_cancellation.py \
 		test/hummingbot/core/data_type/test_order_book_tracker.py \
 		test/hummingbot/core/test_spot_outflow.py \
+		test/hummingbot/core/test_spot_outflow_cooperative.py \
 		test/hummingbot/core/test_spot_outflow_fairness.py \
 		test/hummingbot/core/test_spot_terminal_proof.py \
 		test/hummingbot/core/test_spot_outflow_future.py \
@@ -133,9 +146,12 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/controllers/test_quote_withdrawal_lifecycle.py \
 		test/hummingbot/strategy_v2/controllers/test_spread_rejection_lifecycle.py \
 		test/hummingbot/strategy_v2/controllers/test_filled_entry_handoff.py \
+		test/hummingbot/strategy_v2/controllers/test_quote_progress_replay.py \
+		test/hummingbot/strategy_v2/controllers/test_quote_native_ack_replay.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_refresh_continuity.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_diagnostics.py \
 		test/hummingbot/strategy_v2/controllers/test_life_mm_spread.py \
+		test/hummingbot/strategy_v2/controllers/test_indicator_preparation.py \
 		test/hummingbot/strategy_v2/controllers/test_volatility_defense.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_guard.py \
 		test/hummingbot/strategy_v2/controllers/test_listing_bootstrap.py \

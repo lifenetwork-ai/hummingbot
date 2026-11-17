@@ -141,3 +141,21 @@ async def test_empty_readback_has_no_requests():
     connector._all_trade_updates_for_order = AsyncMock()
     await BotOwnership._refresh_orders(connector, [])
     connector._request_order_status.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_local_rejection_is_rechecked_after_waiting_for_a_read_slot():
+    orders, connector = fixture_orders(1)
+    proven = set()
+    limiter = asyncio.Semaphore(0)
+    connector._request_order_status = AsyncMock()
+    connector._all_trade_updates_for_order = AsyncMock()
+    task = asyncio.create_task(BotOwnership._refresh_orders(
+        connector, orders, limiter=limiter, local_rejection=lambda order: order.client_order_id in proven))
+    await asyncio.sleep(0)
+    proven.add(orders[0].client_order_id)
+    limiter.release()
+    await asyncio.wait_for(task, 1)
+    connector._request_order_status.assert_not_awaited()
+    connector._all_trade_updates_for_order.assert_not_awaited()
+    connector._order_tracker.process_order_update.assert_not_awaited()
