@@ -92,6 +92,8 @@ def operation_response(row):
     stage = report.get('stage', 'queued')
     labels = {'queued': ('Recovery queued', 'Wait for the trading service to check this request.'),
               'checking_exchange': ('Checking recovery', 'Checking saved history against the exchange. Trading remains stopped.'),
+              'checking_exchange_segment': ('Checking recovery in batches', 'Verification is incomplete. More exchange history is being checked; trading remains stopped.'),
+              'waiting_for_exchange': ('Waiting for exchange verification', 'The exchange read will be retried from saved progress. Trading remains stopped.'),
               'revalidating': ('Recovering', 'Rechecking the reviewed plan before applying verified repairs.'),
               'review_required': ('Ready for review', 'Review the proposed repairs, then confirm recovery. Trading will stay stopped.'),
               'blocked': ('Recovery blocked', 'Resolve the listed reasons before running a new recovery check.'),

@@ -398,11 +398,23 @@ For a clean financial checkpoint with a reviewed audit/receipt anchor, recovery
 verifies the complete venue/journal suffix rather than loading lifetime history
 into the 5,000-order/2,000-fill repair window. It preserves financial rows and
 remaining cost basis. Reset advances the anchor atomically with its audit/receipt;
-no schema migration or deployment env change is required. Snapshot and final
+additive migration023 supplies temporary per-operation fill identities for
+resumable verification; no deployment env change is required. Snapshot and final
 ledger hashing run on the recovery worker in batches; physical owner checks stay
 on their owning loop. Finalization locks the proof tables while the core is
 stopped and rejects intervening changes. The suffix remains bounded by exchange
-retention, page budget and the existing 120-second operation timeout.
+retention and bounded verification jobs. Each job reads at most100 history pages
+of100 fills and yields after90 seconds within the unchanged120-second deadline.
+Cursor, fixed venue cutoff/heads and digest advance atomically with per-pass
+identity deduplication. The same owner can resume a canceled worker from its last
+committed page; owner/control/account/ledger/risk changes invalidate the proof.
+Both complete scans must agree, with fresh open-order and exposure checks before
+finalization. Partial progress never authorizes Reset. Limits are250,000 suffix
+fills per scan and30 minutes for each Check or Reset proof. GET/DB-evidence read
+failures retry at most five consecutive times, with2–30s backoff; financial Reset
+finalization is never automatically repeated. Scratch identities are removed in
+the success/failure transaction. The existing five-minute review-token expiry is
+unchanged, including its final Reset check; an expired review requires a new Check.
 
 This is bounded recovery for a dedicated managed OKX account, not a generic
 force reset. Risk stops, unknown baselines, missing evidence and unsupported

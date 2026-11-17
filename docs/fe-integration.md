@@ -1617,11 +1617,34 @@ cross/hedge USDT perpetual, and at most 100 unambiguous existing position rows.
   not an unverified exchange account. Successful Reset records an auditable new
   anchor in the same transaction as the receipt and technical HALT removal.
 
-The checkpoint route permits at most 100 pages of 100 fills per connector and an
-anchor younger than 89 days. Older suffixes use the official
+The checkpoint route resumes the same operation across bounded jobs: at most100
+history pages of100 fills per job, yielding by90 seconds within its120-second
+deadline. It permits250,000 suffix fills per scan, two complete matching scans,
+a30-minute proof lifetime and an anchor younger than89 days. Older suffixes use the official
 [OKX historical fills endpoint](https://www.okx.com/docs-v5/en/#order-book-trading-trade-get-transaction-details-last-3-months);
-missing/repeated cursors, unavailable pages, unknown venue fills or page-budget
-exhaustion remain blocked. No pagination cap is silently treated as completion.
+missing/repeated cursors, unknown venue fills and incomplete/changed evidence
+remain blocked. Reaching a job budget saves progress and resumes; it never means
+completion. GET/evidence DB failures retry up to five consecutive times with
+bounded backoff; financial finalization is never blindly retried.
+
+Poll the existing operation ID throughout `status=applying`:
+
+- `stage=checking_exchange_segment`: `verification.verified=false` and
+  `verification.progress={scan, scans_required:2, pages_checked, fills_checked,
+  expected_fills, complete:false}`. Pages are cumulative; fills are for the current
+  scan, so the fill counter resets when the second scan begins.
+- `stage=waiting_for_exchange`: safe `verification.retry_count` and
+  `next_retry_at` explain the retry. Keep polling the same ID.
+- Both stages keep `can_recover=false`, `confirmation_token=null`,
+  `expires_at=null`, and trading stopped. Do not render a confirmation action or
+  treat saved progress as successful recovery. Native IDs, cursors and private
+  digests are never returned in pending progress.
+
+Only full proof produces `review_required`; the existing five-minute confirmation
+TTL starts then and remains enforced at final Reset commit. Reset performs its
+own fresh two-pass proof; a long or interrupted Reset can expire the review and
+require a new Check. Owner/control/account/ledger/risk drift also requires a new
+Check. Migration023 adds temporary proof identity rows; no env toggle is needed.
 It streams the local ledger fingerprint in batches on the recovery DB worker;
 local hash work still grows with ledger size. Physical ownership is checked on
 its owning event loop, including immediately before commit. Cancellation drains
@@ -1647,5 +1670,5 @@ maintenance; the new route cannot certify missing evidence.
 `valuation_basis=reconstructed_average_entry_not_live_pnl`: it is reconstruction
 at the average entry, not a current market valuation or a claim that losses were
 recovered. Use the existing fresh valuation panels for live PnL. Do not relabel
-risk stops as recoverable technical incidents. The total exchange-check budget
-is 120 seconds, with bounded GET requests and no background trading admission.
+risk stops as recoverable technical incidents. Each worker job retains its
+120-second timeout, with bounded GET requests and no background trading admission.

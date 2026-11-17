@@ -1284,3 +1284,69 @@ or committed yet. The previous broad local checks retain their own source scope;
 no new load/soak or live MM pass is claimed. The current Demo remains stopped,
 HALTed atcontrol93. Raw image/API/SQL/TDD evidence is retained in
 `build/halt-recovery-postdeploy-20261117`.
+
+### Revision161: checkpoint path restored, native-history proof still blocked
+
+The registry config confirms exact `aae12bda3` on
+`hummingbot-demo-00161-svn`, image
+`sha256:27f1e6a2e1a93a44c367866fba2cf433d87d9a8cb9f8788b0ddd71595d277a23`.
+Cloud Run is Ready with100% traffic; API and owner agree on Demo/revision161.
+Control93 is still acknowledged stopped, with the inherited runtime-task HALT.
+Both cause APIs keep the recognized legacy explanation and unknown original time.
+
+One new Check `e18bffeb-584c-4924-8842-1ac49a90ef34` progresses to
+`checking_exchange`, confirming the local rejection-classification fix removed
+the old `recovery_scope_limit`. It then fails
+`recovery_exchange_scope_incomplete`. The configured Basic admin actor is used;
+no duplicate Stop, Reset, Start, credential or risk change is issued.
+
+A SELECT-only count over the reviewed anchor's journal suffix finds12,674 Spot
+and1,845 perpetual fills. At100 fills/page, Spot needs at least127 pages, exceeding
+the current100-page per-connector verifier bound. This is a sufficient capacity
+blocker to complete proof even with perfect pagination. The current API does not
+report the exact failed page/cursor, so an earlier pagination defect cannot be
+excluded from the observed failure code alone. Do not label venue history missing
+or corrupt, or replace full proof with an empty open-order list.
+
+The correct follow-up is bounded resumable proof with frozen ledger/venue scope,
+complete identity/economic/fee coverage and two agreeing scans plus exposure
+checks. Retain the per-job page/time budgets; partial progress cannot authorize
+Reset. No code/limit workaround is applied in this review. The local source tests
+and old release/resource failures retain their own scopes.
+
+The short check-window logs include one293.815ms heartbeat stall/recovery and the
+expected blocked-recovery warning; no child-restart or new service-failed event
+is observed in that captured query. Startup/live200 and ready503 are consistent
+with the inherited HALT, not MM readiness. Evidence:
+`build/halt-recovery-r161-20261117`. Connected recovery and trading acceptance
+remain open; the temporary read-only SQL proxy is closed after inspection.
+
+### Segmented recovery source qualification (local only)
+
+The approved follow-up now uses bounded resumable checkpoint proof rather than
+increasing a single job's limits. Migration023 stores per-operation/per-pass native
+fill identities; each page atomically advances its cursor and digest with those
+identities. The saved fingerprint binds ledger/account/owner/control/risk scope.
+Two complete matching scans and fresh account/open-order/exposure/head checks are
+required. Each job keeps100 history pages/120s, yielding at90s; the complete proof
+is capped at250,000 suffix fills per scan and30 minutes. Partial receipts expose
+safe progress only, without Reset permission or confirmation. Bounded read retry
+does not retry uncertain financial finalization.
+
+Native157 tests pass. PostgreSQL regression68 pass; a separate physical-owner
+rollback and supervised API/restart set3 pass; final authority/expiry fences7 pass
+(three overlap the regression set). The10,001-fill PG scenario spans at least
+three jobs for Check and another three for fresh Reset, preserving ledger hashes,
+positions and cost basis. Worker interruption RED exposed a last-page/next-pass
+gap in the new implementation; the saved boundary now resumes correctly. Duplicate
+IDs/bills, bad economics/fees, late venue changes, timeout/commit acknowledgement
+loss, stale scope, revoked actor and expired proof/confirmation remain blocked.
+Scratch identities are removed atomically on terminal success or failure.
+
+The existing five-minute preview expiry remains enforced at final Reset. Slow
+proof can still expire that review and require a new Check; the larger proof
+ceilings do not promise completion within every review window. API/operations
+docs describe pending stages, retry progress, migration023 and this limitation.
+Evidence: `build/recovery-segmented-20261117`. These source edits are not deployed;
+no Cloud/financial mutation, connected recovery pass, MM pass or new soak result
+is claimed. Last connected observation remains revision161, stopped/HALTcontrol93.

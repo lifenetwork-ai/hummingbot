@@ -59,6 +59,25 @@ async def test_admin_check_returns_safe_accepted_receipt_and_forwards_identity()
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('stage', ['checking_exchange_segment', 'waiting_for_exchange'])
+async def test_pending_segment_exposes_only_safe_progress_and_keeps_recover_disabled(stage):
+    async with client() as (http, store):
+        store.get.return_value['result'].update(
+            stage=stage, can_recover=False, confirmation_token=None, expires_at=None,
+            verification=dict(verified=False, scope='verified_checkpoint', progress=dict(
+                scan=1, scans_required=2, pages_checked=100, fills_checked=10000, expected_fills=12674, complete=False)))
+        store.get.return_value['result']['_private']['proof'] = dict(cursor='CANARY-private-cursor')
+        response = await http.get(ADMIN_PREFIX + '/recovery/operations/op')
+        assert response.status == 200
+        value = await response.json()
+        assert value['stage'] == stage and not value['can_recover']
+        assert value['confirmation_token'] is None and value['expires_at'] is None
+        assert value['verification']['progress']['fills_checked'] == 10000
+        assert 'CANARY' not in str(value) and '_private' not in str(value)
+        assert 'stopped' in value['detail']
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('payload', [{'expected_version': True}, {'expected_version': -1}, {'expected_version': 0, 'force': True},
                                      {'expected_version': 0, 'positions': []}])
 async def test_reset_does_not_accept_bypass_or_financial_override_fields(payload):

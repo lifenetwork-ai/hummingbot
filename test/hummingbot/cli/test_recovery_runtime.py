@@ -275,3 +275,38 @@ async def test_cancelled_bulk_finalization_drains_without_clearing_halt(monkeypa
     finally:
         release.set()
         await instance.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['partial', 'timeout', 'network', 'commit_ack', 'invalid_evidence', 'final_commit'])
+async def test_segmented_worker_retries_only_read_evidence_and_never_financial_finalization(monkeypatch, fault):
+    from sqlalchemy.exc import OperationalError
+    instance, store = coordinator(monkeypatch, action='recovery_reset')
+    store.snapshot.return_value['mode'] = 'verified_checkpoint'
+    cases = dict(timeout=TimeoutError(), network=OSError('CANARY-secret'),
+                 commit_ack=OperationalError('CANARY', {}, Exception()),
+                 invalid_evidence=RecoveryBlocked('recovery_fill_mismatch'))
+    verifier = AsyncMock(return_value=None if fault == 'partial' else {'verified': True})
+    if fault in cases:
+        verifier.side_effect = cases[fault]
+    if fault == 'final_commit':
+        store.finish_reset.side_effect = OperationalError('CANARY', {}, Exception())
+    monkeypatch.setattr(module, 'verify_segment', verifier)
+    try:
+        await instance.run('op')
+        if fault in ('timeout', 'network', 'commit_ack'):
+            store.defer_proof.assert_called_once()
+            store.fail.assert_not_called()
+        elif fault == 'partial':
+            store.defer_proof.assert_not_called()
+            store.fail.assert_not_called()
+        else:
+            store.defer_proof.assert_not_called()
+            store.fail.assert_called_once()
+        if fault != 'final_commit':
+            store.finish_reset.assert_not_called()
+        assert instance.host.halt_requested and not instance.host.running
+        assert not instance.host.owner.allow_new_orders
+        assert 'CANARY' not in str(instance.host.log.mock_calls)
+    finally:
+        await instance.close()
