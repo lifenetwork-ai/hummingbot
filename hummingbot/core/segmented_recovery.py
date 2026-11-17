@@ -7,7 +7,7 @@ from copy import deepcopy
 from hummingbot.connector.credential_adapters import OKXCredentialAdapter
 from hummingbot.connector.okx_environment import OKXEnvironment
 from hummingbot.core.bot_ownership import BotOwnership
-from hummingbot.core.checkpoint_recovery import checked_trades, position_scope, venue_id
+from hummingbot.core.checkpoint_recovery import checked_trades, checkpoint_history_route, position_scope, venue_id
 from hummingbot.core.recovery import RecoveryBlocked, decimal, fingerprint
 
 PAGE_SIZE = 100
@@ -78,7 +78,7 @@ async def verify_segment(snapshot, readers, lookup, progress, save, *, page_budg
     since = anchor['verified_at_ms']
     if not 0 <= end - since < 89 * 86400000:
         raise RecoveryBlocked('recovery_history_window_exceeded')
-    route = '/api/v5/trade/fills' if end - since < 2 * 86400000 else '/api/v5/trade/fills-history'
+    route = checkpoint_history_route(anchor, end)
     environment = OKXEnvironment.load()
     rows = [r for r in snapshot['bindings'] if r['state'] == 'active']
     active = {r['connector']: r for r in rows}

@@ -45,7 +45,8 @@ implied by local implementation. The five current Demo orders remain untouched.
 - [x] Verify metadata batch rollback and immutable receipt/context preservation.
 - [x] Update API/OpenAPI, generated client types, operator and FE docs.
 - [x] Run focused PostgreSQL/native recovery regressions and relevant hooks.
-- [ ] Connected acceptance after an explicitly deployed image; stays open locally.
+- [ ] Connected Check → reviewed Reset acceptance; revision168 Check is blocked
+  by the aged native-head history issue described below. No Reset was sent.
 
 ## Local qualification
 
@@ -72,3 +73,45 @@ recognizes exactly the five current Demo orders. It confirms stopped control96
 and retained HALT; it is not connected execution of the new API. The SQL proxy
 and disposable test containers are closed. No extra metadata repair, deployment,
 Reset or Start occurs in this task. Evidence: `build/recovery-terminal-api-20261117`.
+
+## Connected follow-up, 2026-11-18
+
+Revision `hummingbot-demo-00168-4lc` is Ready with100% traffic and the exact
+`3b9d40bff` image (`sha256:2734fe0cc856349f08cc88f10a09028725ac9ee6df31ca243adc27cc147bf0fe`).
+Its OpenAPI exposes the new metadata preview/confirmation fields. The owner is
+fresh on that revision, stopped control/ack96 with the original retained HALT.
+
+Check `47404c4e-59a1-4f67-a342-56cc307e9457` verifies the81-fill Spot suffix,
+then blocks with `recovery_exchange_scope_incomplete`. Native GET diagnosis
+finds the quiet Perpetual anchor absent from `/trade/fills`, but present in
+`/trade/fills-history`: its last fill is from2026-11-12, although the anchor was
+reviewed on2026-11-17. Choosing the endpoint from the review age incorrectly
+assumes its saved native heads are equally recent. The
+[OKX endpoint contract](https://www.okx.com/docs-v5/) gives recent fills a
+three-day window and archived fills a three-month window.
+
+TDD reproduces the error before the fix in both single-job and segmented proof.
+The local fix uses the archive whenever proving a non-null native head, with
+the same route through both scans and resumed jobs. Missing anchors, unrecorded
+fills, changed heads and existing proof/owner/ledger fences still block. No
+schema, env, limits or database maintenance change is needed. Native regression
+179 passes, including active Spot plus quiet Perpetual and empty suffix cases;
+all affected pre-commit checks pass. A separate local execution of the fixed
+verifier against actual Demo data passes both81-fill scans, positive status/
+fills/status proof for the five canceled zero-fill orders, and the final account
+head/open-order/exposure recheck. Every DB transaction is READ ONLY and progress
+is kept only in memory: this does not complete a connected API Reset.
+This follow-up is not deployed; the connected gate remains open. Keep Demo
+stopped; after deployment run a fresh Check and review the exact five orders
+before Reset. Do not reuse the failed operation or start trading.
+
+Evidence: `build/recovery-terminal-postdeploy-20261118` (private native reads,
+before/after read-only comparisons, failing Check receipt and RED/GREEN tests).
+Read-only hashes/row comparisons confirm the failed Check preserves all five
+orders/attempts/trackers,56,473 orders,15,250 fills,3 positions, order-status
+count183,308, financial checkpoint and risk. `/startup` and `/live` return200;
+`/ready` returns503 for the intentionally stopped/halted bot. Sampled application
+logs include the expected recovery blocker and slow-stage diagnostics, including
+a1.026s observation and a recovered approximately218ms owner-read loop stall.
+These are not successful trading or load acceptance; no new restart or HALT
+transition is observed in the sampled revision window.

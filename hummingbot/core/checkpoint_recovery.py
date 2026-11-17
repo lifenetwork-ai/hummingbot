@@ -15,6 +15,16 @@ PAGE_SIZE = 100
 MAX_PAGES = 100
 
 
+def checkpoint_history_route(anchor, now_ms):
+    # A recent verification does not date its saved native heads. A quiet
+    # market may still have its last fill outside the three-day endpoint.
+    # Use the archive consistently for both scans when proving an ID anchor;
+    # an absent archive anchor still blocks rather than implying coverage.
+    has_head = any(head is not None for head in (anchor.get('venue_heads') or {}).values())
+    return ('/api/v5/trade/fills-history' if has_head or now_ms - anchor['verified_at_ms'] >= 2 * 86400000
+            else '/api/v5/trade/fills')
+
+
 def venue_id(raw, field):
     value = raw.get(field)
     if (type(value) not in (str, int) or not 1 <= len(str(value)) <= 64
@@ -92,7 +102,7 @@ async def verify_checkpoint_exchange(snapshot, readers, lookup):
     since = anchor['verified_at_ms']
     if not 0 <= now - since < 89 * 86400000:
         raise RecoveryBlocked('recovery_history_window_exceeded')
-    path = '/api/v5/trade/fills' if now - since < 2 * 86400000 else '/api/v5/trade/fills-history'
+    path = checkpoint_history_route(anchor, now)
     environment = OKXEnvironment.load()
     active_rows = [row for row in snapshot['bindings'] if row['state'] == 'active']
     active = {row['connector']: row for row in active_rows}

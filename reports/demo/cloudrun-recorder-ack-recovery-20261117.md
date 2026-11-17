@@ -166,3 +166,26 @@ The API artifact is not deployed or connected-qualified. The current dashboard
 does not yet render/review this order list and deliberately sends false; use
 the new API/Swagger confirmation contract after explicit review. See
 [implementation scope and remaining gate](../../docs/plans/RECOVERY_TERMINAL_METADATA_TDD_PLAN.md).
+
+## Revision168 connected attempt: old native head outside recent fills
+
+On2026-11-18 local time, CI deploys `3b9d40bff` as
+`hummingbot-demo-00168-4lc`, Ready/100% traffic. The new OpenAPI fields are
+present; owner/control remain fresh and stopped96. Check
+`47404c4e-59a1-4f67-a342-56cc307e9457` checks81 Spot fills, then blocks with
+`recovery_exchange_scope_incomplete` before any metadata/HALT repair.
+
+The saved Perpetual head is a2026-11-12 fill. The anchor's2026-11-17 review
+date makes the old selector use the three-day fills endpoint. Direct GET-only
+comparison returns0 recent Perpetual fills, while archived history positively
+contains the exact saved head. This is an endpoint-selection bug, not proof
+that the five metadata orders are missing or filled. The local TDD fix selects
+archive history for ID anchors in both verifier paths;179 regression tests pass.
+The fixed verifier also passes a GET-only/READ ONLY run against actual Demo:
+both81-fill scans, all five positive cancellation/zero-fill proofs and the final
+account-head/open-order/exposure recheck. Proof progress stays in memory; this
+does not mutate the ledger or replace connected API qualification. Full row/hash
+comparison confirms the failed deployed Check leaves the five orders/attempts/
+trackers, financial checkpoint, fills/positions and risk unchanged.
+The connected Reset gate remains open until that fix is deployed and a fresh
+Check/review succeeds. No Reset, Start or supplemental SQL maintenance is sent.
