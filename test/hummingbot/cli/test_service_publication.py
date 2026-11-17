@@ -13,9 +13,9 @@ from hummingbot.client.config.runtime_config import RuntimeSettings
 
 
 def host(monkeypatch):
-    # Production bootstraps connectors before observing. Do not spend the DB
-    # worker handshake deadline importing the connector catalogue on a cold run.
-    importlib.import_module('hummingbot.cli.overview_capture')
+    # Production installs API models before observing. Do not spend the DB
+    # worker handshake deadline importing their connector catalogue on a cold run.
+    importlib.import_module('hummingbot.cli.admin_models')
     item = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
                        asyncio.Event(), MagicMock())
     item.hb = SimpleNamespace(trading_core=SimpleNamespace(strategy=None, connector_manager=SimpleNamespace(connectors={})))

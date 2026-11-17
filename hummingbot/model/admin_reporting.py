@@ -22,7 +22,7 @@ def day_range(start_day, end_day, reporting_timezone, now=None):
 
 
 def save_daily_balances(connection, accounts, reporting_timezone):
-    """Called only inside a successful owner-fenced status transaction."""
+    """Speculative rows commit only with the caller's fresh owner-fenced status."""
     zone = ZoneInfo(reporting_timezone)
     table = DailyBalanceSnapshot.__table__
     rows = []

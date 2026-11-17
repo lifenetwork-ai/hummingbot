@@ -148,7 +148,14 @@ def test_guard_writeback_does_not_decode_private_previous_checkpoint(owned, writ
         with ThreadPoolExecutor(max_workers=writers) as pool:
             futures = [pool.submit(BotStateStore(reader, 'hummingbot').publish,
                                    **args, status=deepcopy(new)) for _ in range(writers)]
-            assert all(future.result(timeout=10) for future in futures)
+            published = [future.result(timeout=10) for future in futures]
+            assert any(published)
+            # Concurrent optimistic publications may lose their final basis or
+            # yield to a locked row. Retry the skipped observation after both
+            # transactions finish; duplicate guard history must still be absent.
+            for committed in published:
+                if not committed:
+                    assert BotStateStore(reader, 'hummingbot').publish(**args, status=deepcopy(new))
         after = events()
         assert len(after) == len(before) + 1
         assert after[-1]['market'] == 'spot'

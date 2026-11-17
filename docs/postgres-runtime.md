@@ -489,6 +489,27 @@ recorder failures and critical commit errors remain fail-closed. Prior reporting
 observations lose freshness if their projection fails. Reconciliation claiming
 runs as one background task so an optional read cannot occupy the owner loop.
 
+Status publication prepares receipt, daily-balance and guard-history changes
+speculatively in one transaction before taking its final BotState row lock.
+The final `FOR UPDATE SKIP LOCKED` rereads owner/generation/control and compares
+the session, desired state, HALT and guard basis. A busy row or changed basis rolls
+back every speculative write and leaves heartbeat/acknowledgement unchanged;
+the existing observer can try again next cycle. Financial recorder fencing is
+unchanged. Foreign-key locks from guard inserts remain compatible with that
+recorder fence; guard inserts run after slower receipt/balance work.
+
+This shortens publication's exclusive critical section; it does not make the
+database lock-free. The final update/commit still holds the row, and
+[`SKIP LOCKED` applies to row locks, not all table locks](https://www.postgresql.org/docs/14/sql-select.html#SQL-FOR-UPDATE-SHARE).
+Critical connection/commit failures and financial rollbacks remain fatal.
+
+Background funding pages also stage bill IO before the final nonwaiting owner
+fence. Bill identity is checked after concurrent insert conflicts resolve. The
+final fence rechecks the physical owner session/generation; contention or lost
+authority rolls back both bills and cursor. Only the `funding_sync` JSON branch
+is replaced in SQL, preserving concurrently committed risk state without
+decoding/rewriting the full checkpoint in Python while holding its lock.
+
 LIFE controller initialization retries explicitly read-only mode discovery,
 reference metadata and book acquisition. Attempts have a 30-second deadline;
 backoff starts around one second and doubles up to a thirty-second delay with

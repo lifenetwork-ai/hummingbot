@@ -1,6 +1,8 @@
 """Exact exchange bill identities alongside the unchanged upstream event table."""
-from sqlalchemy import BigInteger, Column, Index, Text, exists, select, text, tuple_, update
-from sqlalchemy.dialects.postgresql import insert
+import json
+
+from sqlalchemy import BigInteger, Column, Index, Text, bindparam, cast, exists, func, select, text, tuple_, update
+from sqlalchemy.dialects.postgresql import JSONB, insert
 
 from hummingbot.model import HummingbotBase
 from hummingbot.model.bot_state import BotState
@@ -68,24 +70,36 @@ class FundingBillStore:
             normalized[key] = row
         from hummingbot.core.bot_ownership import OWNER_KEY, OWNER_NAMESPACE
         table = FundingBill.__table__
+        serialize = self.engine.dialect._json_serializer or json.dumps
+        prepared_checkpoint = serialize(checkpoint)
         with self.engine.begin() as c:
             held = exists(select(1).select_from(text("pg_locks")).where(text(
                 "locktype='advisory' AND granted AND pid=:owner_pid AND classid=:namespace AND objid=:owner_key AND objsubid=2")))
-            query = select(BotState.recovery_state).where(
+            query = select(BotState.bot_id).where(
                 BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
-                BotState.owner_generation == generation, held).with_for_update()
-            state = c.execute(query, {"owner_pid": self.owner_backend_pid,
-                                      "namespace": OWNER_NAMESPACE, "owner_key": OWNER_KEY}).first()
+                BotState.owner_generation == generation, held)
+            authority = {"owner_pid": self.owner_backend_pid, "namespace": OWNER_NAMESPACE, "owner_key": OWNER_KEY}
+            state = c.execute(query, authority).first()
             if state is None or not owner_uuid:
                 raise ControlConflict("Funding observation owner changed")
             if normalized:
+                # Do bill IO before locking the recorder's authority row. Check
+                # identities after ON CONFLICT resolves concurrent inserts, so
+                # a competing different bill cannot be silently accepted.
+                c.execute(insert(table).values(list(normalized.values())).on_conflict_do_nothing())
                 existing = c.execute(select(table).where(tuple_(table.c.account_id, table.c.environment,
-                                                                table.c.bill_id).in_(list(normalized)))).mappings()
+                                                                table.c.bill_id).in_(list(normalized)))).mappings().all()
+                if len(existing) != len(normalized):
+                    raise ValueError("Funding bill coverage changed")
                 for old in existing:
                     key = tuple(old[k] for k in ("account_id", "environment", "bill_id"))
                     if any(old[k] != value for k, value in normalized[key].items()):
                         raise ValueError("Funding bill identity conflict")
-                c.execute(insert(table).values(list(normalized.values())).on_conflict_do_nothing())
-            recovery = {**(state[0] or {}), "funding_sync": checkpoint}
-            c.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(recovery_state=recovery))
+            # A busy or replaced owner cannot commit speculative bills/cursor.
+            # No wait queue is inserted ahead of financial FOR SHARE readers.
+            if c.execute(query.with_for_update(skip_locked=True), authority).first() is None:
+                raise ControlConflict("Funding checkpoint authority changed or is busy", code='funding_checkpoint_deferred')
+            value = cast(bindparam('funding_checkpoint_json', prepared_checkpoint), JSONB)
+            c.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(
+                recovery_state=func.jsonb_set(BotState.recovery_state, text("'{funding_sync}'"), value)))
         return checkpoint

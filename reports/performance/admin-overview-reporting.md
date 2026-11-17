@@ -4,6 +4,12 @@ Latest scoped connected result (2026-11-17): technical recovery and continuous
 Demo restart pass on revision164/`a153807bf`; see the final section. This does
 not replace the broader reporting/resource/soak qualifications below.
 
+Latest runtime observation: revision166 enters a new technical HALT at14:31:30UTC
+after its bounded probe observation. Recorder ownership fencing hits a1s
+BotState row-lock timeout; cleanup fails and the engine restarts. It remains
+HALTed; no recovery mutation is submitted. The historical recovery completion
+above is not a statement that the current bot is running. See the final section.
+
 Updated 2026-11-17. Contract, coverage, durable fees and the publication-read
 optimization are implemented. The encoding-before-lock artifact passes all 989
 PG cases, 4,033 native tests +16 subtests, scoped packaged lifecycle, the full
@@ -1483,3 +1489,113 @@ At13:35UTC/20:35VN, the API still reports revision164 running, control95
 acknowledged95, owner available and no HALT. Investigation performs no service,
 financial, credential or policy mutation. Evidence:
 `build/demo-status-20261117-1315`, `build/probe-observer-copy-20261117`.
+
+### Revisions165/166 — probe follow-up and subsequent recorder HALT
+
+CI deploys exact `6e7b2b071` on revision165, digest
+`sha256:36dcc19082857bc14332da5eb1a69905063293ea20973d578e3b6b6402bf99e0`.
+The initial observation is interrupted after245s by revision166. Its actual
+image `sha256:e795d15b39aebd98b9d9741ccf5ccf1a2a62c441c46d3edb5bb0172fa48b33b4`
+is matched to merge commit `12c2137b0207b4a05c9306d2437c948e1122bcb1`.
+Git ancestry proves it contains6e7; all87 changed paths relative to6e7 are under
+dashboard, with identical backend code. No service/financial/policy mutation is
+made by this monitoring task. The interrupted165 window is not pooled with166.
+
+Fixed revision166 wall window:14:00:37.231475–14:30:37.835988UTC, control95 and
+the same session. There are57 API samples,12 new Spot fill records and0 Perpetual
+fills. Live/ready are200 in all57 samples; startup is200 in56 and503 in1. The
+observer pauses for123s to inspect that failed sample; that interval remains
+unknown, not healthy/quoting. The original window is resumed without discarding
+the failure or resetting its clock. This is not a clean uninterrupted health gate.
+
+The full bounded log query returns89 rows below its1000 limit:42 paired
+rate-limited loop-stall/recovery observations,4 failed child probes and1 HTTP
+startup503. The comparable revision164 baseline30-minute log query returns65
+rows:27 paired stalls and11 child-probe failures. Maximum paired heartbeat gap
+543.44->482.46ms, median433.75->358.50ms; probe requests11->4. Stall-event count
+increases27->42. Market/traffic conditions are not a controlled A/B workload, so
+these observations do not establish a general availability/performance pass.
+
+Main-thread stack grouping includes both the old deepcopy and the new copy
+helper:23/42 current stacks still show checkpoint copying,3 synchronous DB,
+15 other frames and1 rate-oracle JSON decode. No current sampled JSON frame is
+status normalization. The startup503 request takes301.679ms and coincides with
+a300.834ms child timeout and a368.67ms paired heartbeat gap; its stack samples
+the numeric-row type-check generator in copy_liquidity_checkpoint. A sampled
+frame does not attribute the complete gap or establish the lock holder below.
+The new copy helper therefore remains a measured follow-up, despite its local
+microbenchmark improvement. Runtime traces within the window retain one process
+and advance strategy.tick by1772 completions and order.created by182 stage
+completions; stage counters are not asserted to be unique exchange orders.
+
+At14:31:30.210UTC, immediately after that fixed window, a new failure occurs in
+MarketsRecorder._did_create_order during save_market_states/autoflush. The
+ownership fence SELECTs BotState.owner_generation FOR SHARE and receives
+PostgreSQL55P03/LockNotAvailable: lock_timeout1s on bot_state. The transaction
+rolls back, SQLConnectionManager latches persistence unhealthy, and the host
+persists trading_health_failed at14:31:30.806. Cleanup fails with the same
+persistence block; engine exits1 and supervisor schedules restart at14:31:32.213.
+The replacement correctly withholds bootstrap under durable HALT.
+
+The latest API confirms halted/runningfalse, cleanup_incompletetrue, current
+revision166, and recovery_stop_required. Startup/live200, ready503. No drawdown
+breach is reported. The timeout location is proven; the transaction retaining
+the conflicting lock is not captured. Do not attribute it uniquely to the
+publication worker or weaken the fence/timeout on that basis. No reset, Start,
+direct DB repair or risk-policy change is performed. The final runtime incident
+supersedes the end-of-window running observation; release remains unqualified.
+
+Evidence: `build/probe-postdeploy-20261117`, including the interrupted165
+attempt,166 image/source comparison, retained failed sample/gap, full window
+queries, post-window incident/traceback and persisted recovery cause.
+
+### Local TDD remediation — publication/funding priority for financial recording
+
+Eight controlled RED cases on the original writer paths reproduce optional
+background work blocking the real recorder create-ACK fence, publication joining
+the exclusive-lock wait queue, funding page contention, owner loss mid-page and
+a concurrent risk update. These prove mechanisms and code faults; the captured
+Cloud Run evidence still does not identify its historical blocking transaction.
+
+BotStateStore publication now prepares receipt/balance/history writes in one
+speculative transaction without holding the exclusive authority row. Guard
+history runs last to limit its implicit foreign-key KEY SHARE lifetime. A fresh
+FOR UPDATE SKIP LOCKED fence compares owner/generation/control, desired state,
+session, guard basis and HALT. Contention or drift rolls back all staged writes,
+leaves heartbeat/acknowledgement unchanged and lets the normal observer retry.
+An old running snapshot is also rejected if HALT precedes worker entry; a truthful
+HALT snapshot remains publishable. No financial recorder fence is weakened.
+
+Large session JSON is decoded once before locking; prepared SQL comparisons and
+an ID-only final SELECT/UPDATE RETURNING avoid rereading that archive under the
+lock. Additional RED tests caught the large-read regression and both HALT races
+while developing this change. Stop/owner/guard/session/HALT drift tests verify
+that speculative balances and receipt changes never escape a rejected publish.
+
+FundingBillStore stages bill IO before a fresh nonwaiting physical-owner fence.
+It checks bill identity after concurrent ON CONFLICT inserts resolve, rejecting
+different content for an existing ID. Lost/busy authority rolls back both bills
+and cursor. The final SQL updates only funding_sync, preserving concurrent risk
+state and avoiding Python decoding/encoding of the full locked recovery JSON.
+Tests include exact concurrent conflicting bills and a700KB protected checkpoint.
+
+Qualification: initial broad PostgreSQL212 pass; after final HALT safeguards,
+publication/funding/HALT scope100 pass and native57 pass. These are overlapping
+scopes, not369 distinct tests. Hooks pass. Five stale read-projection assertions
+were independently reproduced failing on committed HEAD, then aligned with the
+existing allowlisted HALT-metadata contract. A cold timed native fixture now
+imports API models before its worker handshake; its unchanged timeout no longer
+measures connector-catalogue import time.
+
+No new dependency, migration, env, exchange mutation or risk-policy change.
+Commit/connection failures and genuine financial rollbacks remain fatal; this
+does not eliminate every possible database wait. The optimized checkpoint copy
+still has measured loop cost and is a separate remaining follow-up. No new load,
+soak or production pass is claimed. Disposable test containers are removed.
+
+The patch is local and not deployed. Demo remains revision166/HALT, control95;
+no Stop/Reset/Start or direct ledger maintenance was issued during remediation.
+After deployment, ordinary audited recovery needs fresh exchange verification
+before Start. Observe beyond the prior31-minute failure point. Evidence:
+`build/publication-financial-priority-20261117`, including original RED outputs,
+baseline assertion failures, final regressions and hooks.

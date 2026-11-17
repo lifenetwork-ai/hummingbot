@@ -1,8 +1,7 @@
-"""Distinguish publication lock waits from statement timeouts on real PostgreSQL.
+"""Publication yields to row locks; unrelated statement failures remain distinct.
 
 These are controlled mechanisms, not attribution of the historical startup exit.
 """
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -27,37 +26,21 @@ def publish(store):
                          status={"running": False}, save_balances=False)
 
 
-def test_publication_lock_timeout_has_blocker_and_cannot_acknowledge(pg_engine):
+def test_publication_busy_authority_yields_without_acknowledging(pg_engine):
     store = publication_store(pg_engine)
     before = store.read()
-    with pg_engine.connect() as blocker, pg_engine.connect() as witness, ThreadPoolExecutor(max_workers=1) as executor:
+    with pg_engine.connect() as blocker, ThreadPoolExecutor(max_workers=1) as executor:
         transaction = blocker.begin()
-        pid = blocker.execute(text("SELECT pg_backend_pid() FROM bot_state FOR UPDATE")).scalar_one()
+        blocker.execute(text("SELECT bot_id FROM bot_state FOR UPDATE")).all()
         try:
             future = executor.submit(publish, store)
-            observed = None
-            deadline = time.monotonic() + 3
-            while time.monotonic() < deadline and not future.done():
-                # A new transaction avoids caching pg_stat_activity snapshots.
-                observed = witness.execute(text("""SELECT wait_event_type, wait_event FROM pg_stat_activity
-                    WHERE :pid = ANY(pg_blocking_pids(pid))
-                      AND query LIKE '%%bot_state%%' AND query LIKE '%%FOR UPDATE%%'"""),
-                                           {"pid": pid}).first()
-                witness.commit()
-                if observed:
-                    break
-                time.sleep(.01)
-            assert observed is not None and observed.wait_event_type == "Lock"
-            with pytest.raises(OperationalError) as error:
-                future.result(timeout=4)
-            assert error.value.orig.pgcode == "55P03"  # lock_timeout=1s, not statement_timeout=2s
-            assert not error.value.connection_invalidated
+            assert future.result(timeout=3) is False
         finally:
             transaction.rollback()
     after = store.read()
     assert (after["acknowledged_version"], after["heartbeat"], after["status"]) == (
         before["acknowledged_version"], before["heartbeat"], before["status"])
-    assert publish(store)  # A later healthy invocation may publish; no retry was hidden in the failed call.
+    assert publish(store)  # The next observer cycle retries; no timeout/heartbeat is fabricated.
     assert store.read()["acknowledged_version"] == 1
 
 

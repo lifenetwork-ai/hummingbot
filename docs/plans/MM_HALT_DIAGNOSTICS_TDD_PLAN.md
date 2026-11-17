@@ -6,9 +6,38 @@ proofs. No blanket HALT reset, risk change or implicit trading restart.
 
 Latest connected result: revision164 on exact `a153807bf` completes the large
 checkpoint Check/Reset API flow and explicit Start. Control95 is acknowledged
-running, no HALT, startup/live/ready200. This closes technical recovery on this
+running, no HALT, startup/live/ready200 at that workflow's final sample. This closes technical recovery on this
 Demo artifact; the broader load/soak and production release gates retain their
 existing scopes and failures. Detailed connected receipts are recorded below.
+
+Latest runtime follow-up: revision166 retains the probe optimization after a
+dashboard-only merge, but enters a new technical HALT at2026-11-17 14:31:30UTC.
+A recorder ownership-fence `FOR SHARE` on BotState times out after1s; persistence
+becomes unhealthy, cleanup fails and the engine restarts. The lock holder is not
+identified by the captured evidence. No new Stop/Reset/Start or DB repair is
+submitted. Recovery currently requires Stop. Reproduction/lock-holder attribution
+and a fresh qualified recovery remain open; see the final report section.
+
+Local remediation completed: four controlled PostgreSQL cases reproduce
+publication starving the real recorder ACK/fence. Publication now performs
+speculative reporting work before a fresh nonwaiting authority fence and rolls
+it all back on contention or changed basis. Financial fencing and deadlines are
+unchanged; there is no new migration/env. Broad PostgreSQL212 passed before the
+final HALT safeguards; final publication/funding/HALT scope100 and native57 pass.
+These scopes overlap. Hooks pass. The final fence also rejects HALT changes and
+old running snapshots captured before HALT, while allowing HALT diagnostics.
+This removes demonstrated contention paths; it does not identify the exact
+historical blocking transaction or qualify the deployed artifact.
+
+The background funding writer has the same controlled lock footprint. Four
+additional RED cases cover delayed bill IO vs recorder ACK, a busy financial
+fence, physical owner loss during a page and a concurrent risk checkpoint.
+Its local fix stages bills before a fresh nonwaiting physical-owner fence,
+validates concurrent duplicate identities and updates only funding_sync in SQL.
+Bills/cursor remain atomic; no critical financial error is retried or hidden.
+Both background writers now keep large JSON reads/encoding outside the final
+authority lock. The deployed revision166 remains HALTed; commit/deployment and
+fresh audited Stop/Check/Recover/Start qualification are still open.
 
 Read-only Demo evidence contradicts the initial ownership-only attribution:
 the stored manual reason is `A required runtime task failed; inspect service

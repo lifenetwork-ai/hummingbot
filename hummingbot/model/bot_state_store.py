@@ -129,12 +129,24 @@ class BotStateStore:
 
     def publish(self, *, owner_uuid: str, owner_generation: int, version: int, status: dict,
                 revision: Optional[str] = None, save_balances: bool = True) -> bool:
-        """An old process/command cannot acknowledge newer control intent."""
+        """Atomically publish only fresh authority; yield to financial writers.
+
+        Optional projections run before the authority row is locked. Their
+        writes remain speculative until a fresh, nonwaiting fence commits the
+        status and receipt together. False also means contention: keep the old
+        heartbeat and let the existing observer retry on its next cycle.
+        """
+        from sqlalchemy.exc import DataError, IntegrityError
+
+        from hummingbot.model.admin_reporting import save_daily_balances
+        from hummingbot.model.admin_store import AdminStore
+        from hummingbot.model.mm_event import record_guards
+
         status.pop("daily_snapshot_error", None)
         status.pop("mm_history_error", None)
         # JSON adaptation may be expensive for a complete restart checkpoint.
         # Do it before taking the authority row lock used by financial writers
-        # and Stop. Guard/error metadata is resolved atomically under that lock.
+        # and Stop. Guard/error metadata is validated under the final row lock.
         serialize = self.engine.dialect._json_serializer or json.dumps
         prepared_status = serialize(status)
 
@@ -144,7 +156,7 @@ class BotStateStore:
             return cast(bindparam("prepared_status_json", prepared_status), JSONB).op("||")(
                 cast(bindparam("publication_status_metadata", serialize(metadata)), JSONB))
 
-        with self.engine.begin() as connection:
+        with self.engine.connect() as connection, connection.begin() as transaction:
             # Guard history needs its previous observation, not private telemetry
             # histories. Keep malformed legacy status behavior and the full
             # session, row lock and authority predicates; the new snapshot below
@@ -153,37 +165,36 @@ class BotStateStore:
                                  func.jsonb_build_object('mm_guard_observation',
                                                          BotState.status['mm_guard_observation'])),
                                 else_=BotState.status).label('status')
-            previous = connection.execute(select(guard_status, BotState.mm_session).where(
+            authority = (
                 BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
                 BotState.owner_generation == owner_generation, BotState.control_version == version,
-                BotState.acknowledged_version <= version).with_for_update()).mappings().first()
-            if previous is None:
+                BotState.acknowledged_version <= version)
+            halt_basis = BotState.recovery_state['halt']
+            statement = select(guard_status, BotState.mm_session, BotState.desired_state,
+                               halt_basis.label('halt_basis')).where(*authority)
+            previous = connection.execute(statement).mappings().first()
+            if previous is None or (previous['halt_basis'] is True and status.get('running') is True):
                 return False
-            from sqlalchemy.exc import DataError, IntegrityError
 
-            from hummingbot.model.mm_event import record_guards
+            def same_json(column, value, name):
+                # Driver None represents both SQL NULL and JSON null. The
+                # optimistic basis treats those like the detached Python read.
+                if value is None:
+                    return column.is_(None) | (column == cast(text("'null'"), JSONB))
+                return column.is_not_distinct_from(cast(bindparam(name, serialize(value)), JSONB))
+
+            # Encode comparisons before history can acquire an implicit FK lock.
+            # The final fence returns no large JSON while holding authority.
+            fence = select(BotState.bot_id).where(
+                *authority,
+                BotState.desired_state == previous['desired_state'],
+                same_json(halt_basis, previous['halt_basis'], 'publication_halt_basis'),
+                same_json(BotState.mm_session, previous['mm_session'], 'publication_session_basis'),
+                same_json(guard_status, previous['status'], 'publication_guard_basis'))
+            # Receipt and balance SQL may wait on their own tables. Never hold
+            # the row needed by the recorder's FOR SHARE while doing that work.
+            AdminStore.record_observation(connection, self.bot_id, version, status, previous)
             try:
-                record_guards(connection, self.bot_id, previous["mm_session"], previous["status"] or {}, status, version)
-            except (ValueError, TypeError, KeyError, AttributeError, OverflowError, DataError, IntegrityError, OperationalError) as error:
-                if isinstance(error, OperationalError) and not _optional_statement_timeout(error):
-                    raise
-                status["mm_guard_observation"] = (previous["status"] or {}).get("mm_guard_observation")
-                status["mm_history_error"] = "guard_history_unavailable"
-            result = connection.execute(update(BotState).where(
-                BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
-                BotState.owner_generation == owner_generation, BotState.control_version == version,
-                BotState.acknowledged_version <= version,
-            ).values(acknowledged_version=version, heartbeat=text("clock_timestamp()"), status=status_value(),
-                     revision=revision).returning(BotState.mm_session, BotState.desired_state)).mappings().first()
-            if result is None:
-                return False
-            from hummingbot.model.admin_store import AdminStore
-            AdminStore.record_observation(connection, self.bot_id, version, status, result)
-            from hummingbot.model.admin_reporting import save_daily_balances
-            try:
-                # A malformed optional observation must not roll back ownership,
-                # heartbeat or a truthful command outcome. Connection/commit
-                # failures remain fatal and are deliberately not caught here.
                 if save_balances and not status.get("reporting_unavailable"):
                     with connection.begin_nested():
                         save_daily_balances(connection, (status.get("reporting") or {}).get("accounts", []),
@@ -192,7 +203,34 @@ class BotStateStore:
                 if isinstance(error, OperationalError) and not _optional_statement_timeout(error):
                     raise
                 status["daily_snapshot_error"] = type(error).__name__
-                connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(status=status_value()))
+
+            # History inserts may take an implicit FK KEY SHARE on BotState.
+            # Keep them after the slower reporting work; that lock remains
+            # compatible with the recorder's financial FOR SHARE fence.
+            try:
+                record_guards(connection, self.bot_id, previous["mm_session"], previous["status"] or {}, status, version)
+            except (ValueError, TypeError, KeyError, AttributeError, OverflowError, DataError, IntegrityError, OperationalError) as error:
+                if isinstance(error, OperationalError) and not _optional_statement_timeout(error):
+                    raise
+                status["mm_guard_observation"] = (previous["status"] or {}).get("mm_guard_observation")
+                status["mm_history_error"] = "guard_history_unavailable"
+
+            # SKIP LOCKED avoids joining an exclusive-lock wait queue in front
+            # of compatible financial readers. Recheck both authority and the
+            # optimistic guard/session basis after all speculative work.
+            current = connection.execute(fence.with_for_update(skip_locked=True)).first()
+            if current is None:
+                transaction.rollback()
+                return False
+            result = connection.execute(update(BotState).where(
+                BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
+                BotState.owner_generation == owner_generation, BotState.control_version == version,
+                BotState.acknowledged_version <= version,
+            ).values(acknowledged_version=version, heartbeat=text("clock_timestamp()"), status=status_value(),
+                     revision=revision).returning(BotState.bot_id)).first()
+            if result is None:
+                transaction.rollback()
+                return False
             return True
 
     def request_mm_session(self, *, action, expected_version, catalogue=None, request=None,
