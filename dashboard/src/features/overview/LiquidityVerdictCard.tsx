@@ -93,7 +93,6 @@ function MarketVerdict({ market, mode }: { market: LiquidityMarketView; mode: De
   const maxNotional = Math.max(bidNum, askNum, 1)
 
   const elapsed = Math.max(w.elapsedSeconds, 1)
-  const seg = (v: number) => `${Math.min(100, (v / elapsed) * 100)}%`
   const unobserved = Math.max(0, w.elapsedSeconds - w.eligibleSeconds - w.notEligibleSeconds - w.unknownSeconds)
   const { slots: minuteSlots, hasDiscreteHistory } = buildMinuteSlots(w)
 

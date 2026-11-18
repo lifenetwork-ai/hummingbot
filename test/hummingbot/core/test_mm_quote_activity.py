@@ -6,8 +6,9 @@ from hummingbot.core.mm_liquidity import LiquidityObserver, liquidity_view, own_
 
 
 @pytest.mark.parametrize('reason', ['reduction_basis_unavailable', 'reduction_reserved', 'reduction_dust',
-                                    'reduction_fee_unavailable', 'reduction_price_not_profitable'])
-def test_reduction_wait_is_visible_without_counting_a_proposal_as_working(reason):
+                                    'reduction_fee_unavailable', 'reduction_price_not_profitable',
+                                    'uncertain_order_risk_paused'])
+def test_controller_wait_is_visible_without_counting_a_proposal_as_working(reason):
     value = observation(empty=True, reasons={'BUY': [reason], 'SELL': [reason]})
     result = sample(LiquidityObserver(), 1000, value)
     assert result['state'] == 'no_quotes'

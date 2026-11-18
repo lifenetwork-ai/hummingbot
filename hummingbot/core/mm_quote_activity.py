@@ -9,6 +9,7 @@ REASONS = {
     'insufficient_base_balance': 'Available token balance does not cover the proposed sell. Check balances and open-order reservations.',
     'inventory_limit': 'The configured exposure or inventory limit blocks new orders. Review exposure and managed limits.',
     'spot_outflow_blocked': 'The spending guard did not approve this BUY. Check the spending-policy status.',
+    'uncertain_order_risk_paused': 'This side is paused while the bot verifies an unresolved exchange order.',
     'allocation_limit': 'The configured quote allocation is already reserved.',
     'order_size_rejected': 'The rounded order did not pass size or allocation checks.',
     'quote_price_rejected': 'The proposed price does not pass the configured price checks.',

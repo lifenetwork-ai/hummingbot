@@ -352,3 +352,37 @@ that client order ID. The scans are saved in the ignored
 `current-native-proof-private.json` evidence file. There is still no positive
 terminal evidence for the live incident. The runtime changes were tested
 locally. No production data or order state was changed.
+
+### Proposed Demo recovery for the outstanding BUY on revision 176
+
+The read-only preflight checked the active OKX Demo account and verified both
+the credential fingerprint and the durable account bindings for
+`93027a12dac34fBCBBCUT919ab9bae18`. The journal stores uncertain HTTP 429 /
+OKX 50013 with a transport deadline of 15:59:23.767 ICT on 18 November.
+PostgreSQL has one pending order, one pending tracker entry, one PendingBuy
+status, zero target fills and no exchange order ID for this target.
+
+Two scans of the Spot BTC-USDT account from 15:58:18 on 18 November through
+01:19:20 on 19 November returned zero open orders, 51603 for the exact ID and
+no target entry among 1,586 historical orders per scan. All 118 venue fills
+matched the DB in each pass by client order ID, trade ID, side, amount and
+price. The fill reconciliation tests for financial effects in this window.
+The order history and exact-ID lookup supply no positive terminal status.
+
+An operator can review the following scoped maintenance. Use Stop and drain
+the writer. Take a recovery snapshot, refresh the exact native and DB evidence,
+then obtain the ownership advisory fence. Abort on changed bindings, an ACK,
+a target fill, another unsettled intent, an unrelated recovery operation or a
+risk stop. In one transaction mark exactly this pending order locally failed,
+close its submission attempt as rejected after operator review, remove its
+zero-fill tracker entry, and append one audit entry. Preserve the original
+receipt, order history, fills, positions and risk checkpoints. Restore the
+service and use Start only after verifying the cleared obligation. Verify the
+active owner, pending count, readiness and working orders on allowed sides.
+
+The three metadata edits passed rehearsal on disposable PostgreSQL with the
+captured rows. ACK drift, receipt drift and reapplication were rejected.
+The service drain, audit insertion and production start remain pending review.
+Private evidence is in `recovery-preflight-176-private.json` and
+`rehearsal-176-private.json` under the ignored postdeploy evidence directory.
+The live database was queried read-only.

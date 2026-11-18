@@ -2,13 +2,11 @@ import { cn } from '../../shared/utils/cn'
 import { Badge } from '../../shared/components/Badge'
 import { Surface } from '../../shared/components/Surface'
 import { SessionCountdownRing } from './SessionCountdownRing'
-import { BackendGapChip } from './BackendGapChip'
-import { formatQuantityForDisplay, formatUsdtForDisplay } from './formatNumbers'
 import type { GuardsSummary, MandateView } from './supplement'
 
 /**
- * Vùng 2 — Nhiệm vụ hiện tại: profile, market, thời hạn, vốn phân bổ, guards tóm tắt.
- * Vốn phân bổ từ supplement; profile là nút mở ProfileExplorerDialog.
+ * Vùng 2 — Nhiệm vụ hiện tại: profile, market, thời hạn và tóm tắt guards.
+ * Profile là nút mở ProfileExplorerDialog.
  * Chi tiết risk limits (limit → current) chỉ hiển thị ở dialog Capital Protection để tránh trùng lặp.
  */
 export function MandateBar({
@@ -65,25 +63,6 @@ export function MandateBar({
           <dt className="text-[10px] font-medium uppercase tracking-wider text-app-muted">Market</dt>
           <dd className="mt-0.5 font-mono font-bold text-app-text">{m.marketMode}</dd>
         </div>
-        {/* <div>
-          <dt className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-app-muted">
-            Allocated capital
-            {!m.capitalAllocated.available && (
-              <BackendGapChip detail={m.capitalAllocated.reason ?? 'Allocated capital not provided yet (OverviewSupplement.session.capital_allocated).'} />
-            )}
-            {m.capitalAllocated.available && m.capitalAllocated.stale && <Badge tone="warning" className="text-[9px]">STALE</Badge>}
-          </dt>
-          <dd className="mt-0.5 font-mono font-bold text-app-text">
-            {m.capitalAllocated.available ? (
-              <>
-                {formatUsdtForDisplay(m.capitalAllocated.value.usdt) ?? '—'} USDT
-                <span className="block text-[10px] font-normal text-app-muted">{formatQuantityForDisplay(m.capitalAllocated.value.life) ?? '—'} LIFE</span>
-              </>
-            ) : (
-              '—'
-            )}
-          </dd>
-        </div> */}
       </dl>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-app-border/50 pt-3">
