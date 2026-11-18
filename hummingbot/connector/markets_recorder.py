@@ -681,9 +681,7 @@ class MarketsRecorder:
         from hummingbot.core.cleanup_authority import current_cleanup_scope
         cleanup = current_cleanup_scope()
         base, quote = order.trading_pair.split("-")
-        with self._sql_manager.get_new_session() as session, session.begin():
-            if session.get(Order, order.client_order_id) is not None:
-                raise RuntimeError("Client order identity already exists; reconcile instead of resubmitting.")
+        with self._sql_manager.order_intent_transaction(order.client_order_id) as session:
             timestamp = int(order.creation_timestamp * 1000)
             price = order.price if order.price is not None and order.price.is_finite() else Decimal("0")
             record = Order(id=order.client_order_id, config_file_path=self._config_file_path,

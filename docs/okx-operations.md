@@ -490,6 +490,14 @@ ownership/session/control/credentials/readiness. Unknown/not-found stays paused;
 the worker never resubmits an uncertain POST. Known cancel transport failures use
 the same proof path; an ACK of the cancel request is not terminal evidence.
 
+`intent_admission_busy` is an expected WARNING before any order transport:
+the initial recorder ownership lock is busy and its read-only transaction has
+rolled back successfully. The unsent identity is retired normally and local
+cash/bootstrap reservations are released; new admissions wait 500 ms and must
+pass current authority, market and budget checks again. This exception does
+not apply to fills, terminal effects, lost commit responses or failed rollback.
+A persisted HALT from an earlier incident still needs normal verified recovery.
+
 Cold recovery requires migration021 and a verified account/financial baseline.
 Empty ledgers can establish it at normal startup; an existing ledger requires
 reviewed cutover/recovery. A successor restores only outstanding effects and new

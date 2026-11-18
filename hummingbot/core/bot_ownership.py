@@ -18,6 +18,7 @@ from sqlalchemy.exc import DBAPIError
 from hummingbot.core.engine_diagnostics import active_shutdown_stages, trace_runtime
 from hummingbot.core.order_submission_guard import (
     SUPPORTED_CONNECTORS,
+    IntentAdmissionBusy,
     MarketReadinessBlocked,
     SessionSubmissionBlocked,
     SubmissionBlocked,
@@ -97,6 +98,7 @@ class BotOwnership:
         self.version = None
         self.config_file_path = None
         self.connectors = {}
+        self._intent_admission_retry_at = 0.
         self.active_intents = set()
         self.sent_intents = set()
         # Proof follows the actual rejected order object, including references
@@ -369,6 +371,8 @@ class BotOwnership:
         from hummingbot.core.order_submission_guard import current_session_scope
         cleanup = current_cleanup_scope()
         row = self.check_owner(new_risk=cleanup is None)
+        if time.monotonic() < self._intent_admission_retry_at:
+            raise IntentAdmissionBusy('Intent admission is backing off after ownership-row contention.')
         if (connector.in_flight_orders.get(order.client_order_id) is not order
                 or not order.is_pending_create):
             raise SessionSubmissionBlocked("The native order was retired before submission admission.")
@@ -409,7 +413,14 @@ class BotOwnership:
         self.intent_scopes[order.client_order_id] = scope
         if cleanup is not None:
             self.cleanup_intents[order.client_order_id] = cleanup
-        recorder.record_order_intent(connector, order)
+        try:
+            recorder.record_order_intent(connector, order)
+        except IntentAdmissionBusy:
+            # The prewrite fence and completed rollback prove no durable intent
+            # or transport exists. Never perform another fenced write to reject it.
+            self._release_unsent_admission(order.client_order_id)
+            self._intent_admission_retry_at = time.monotonic() + .5
+            raise
         self._track_submission_task()
 
     def order_failed(self, connector, order, exception=None):
@@ -588,14 +599,14 @@ class BotOwnership:
         else:
             self.transport_tasks.pop(task, None)
 
-    def fence_session(self, session):
+    def fence_session(self, session, *, nowait=False):
         self._read_owner(identity_only=True)
         transaction = session.get_transaction()
         if transaction is not None and session.info.get("ownership_fenced_transaction") is transaction:
             return
         row = session.connection().execute(select(BotState.owner_generation).where(
             BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
-            BotState.owner_generation == self.generation).with_for_update(read=True)).first()
+            BotState.owner_generation == self.generation).with_for_update(read=True, nowait=nowait)).first()
         if not row:
             raise OwnershipLost("A stale process cannot write trading/recovery state.")
         session.info["ownership_fenced_transaction"] = session.get_transaction()

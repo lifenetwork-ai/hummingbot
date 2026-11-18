@@ -82,6 +82,7 @@ def test_shutdown_fence_does_not_hide_different_config_or_lost_owner():
 @pytest.mark.parametrize('error_type,level', [
     ('SessionSubmissionBlocked', logging.INFO),
     ('MarketReadinessBlocked', logging.WARNING),
+    ('IntentAdmissionBusy', logging.WARNING),
     ('SpotOutflowBlocked', logging.WARNING),
     ('QuoteRefreshRequired', logging.WARNING),
     ('SubmissionBlocked', logging.ERROR),
@@ -109,6 +110,7 @@ def test_connector_block_logs_reason_without_network_advice(caplog, error_type, 
 ])
 @pytest.mark.parametrize('kind,level', [
     ('SessionSubmissionBlocked', logging.INFO), ('MarketReadinessBlocked', logging.WARNING),
+    ('IntentAdmissionBusy', logging.WARNING),
     # Connector owns the bounded warning; executor keeps its per-order DEBUG
     # diagnostic and unchanged failure bookkeeping.
     ('QuoteRefreshRequired', logging.DEBUG),
@@ -130,7 +132,7 @@ def test_executor_classifies_logs_without_changing_failure_bookkeeping(caplog, s
     records = [r for r in caplog.records if r.name == logger.name]
     assert len(records) == 1 and records[0].levelno == level
     assert role in records[0].getMessage()
-    if kind in ('SessionSubmissionBlocked', 'MarketReadinessBlocked', 'QuoteRefreshRequired', 'SubmissionBlocked', 'OwnershipLost'):
+    if kind in ('SessionSubmissionBlocked', 'MarketReadinessBlocked', 'IntentAdmissionBusy', 'QuoteRefreshRequired', 'SubmissionBlocked', 'OwnershipLost'):
         assert records[0].event == 'order_submission_blocked'
         assert 'test admission reason' in records[0].getMessage()
         assert 'Retrying' not in records[0].getMessage()

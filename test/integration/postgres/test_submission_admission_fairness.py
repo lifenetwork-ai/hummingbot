@@ -258,3 +258,30 @@ def test_fresh_burst_callback_and_completion_work(native, legacy):
         assert db.query(Order).count() == db.query(SubmissionAttempt).count() == 8
         assert not db.query(Order).filter(Order.creation_pending.is_(True)).count()
     report('fresh_burst_predecessor' if legacy else 'fresh_burst_candidate', timing)
+
+
+def test_native_intent_contention_releases_cash_and_recovers_without_a_post_replay(native):
+    async def create(identity):
+        with session_order_scope(native.session.id, native.session.generation):
+            await native.market._create_order(TradeType.BUY, identity, 'LIFE-USDT',
+                                              Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10'))
+        await asyncio.sleep(.02)
+
+    with native.engine.begin() as blocker:
+        blocker.exec_driver_sql('SELECT bot_id FROM bot_state FOR UPDATE').all()
+        native.loop.run_until_complete(create('busy-native'))
+    assert native.transport.call.await_count == 0
+    assert native.manager.persistence_healthy
+    assert not native.owner.active_intents and not native.owner.sent_intents
+    assert native.owner.spot_outflow.status()['reserved_quote'] == 0
+    assert 'busy-native' not in native.market.in_flight_orders
+    with native.manager.get_new_session() as session:
+        assert session.query(Order).count() == session.query(SubmissionAttempt).count() == 0
+    assert not native.store.read()['recovery_state'].get('halt')
+    native.owner._intent_admission_retry_at = 0
+    native.loop.run_until_complete(create('fresh-after-busy'))
+    assert native.transport.call.await_count == 1
+    with native.manager.get_new_session() as session:
+        assert session.query(Order).count() == session.query(SubmissionAttempt).count() == 1
+        assert session.query(SubmissionAttempt).one().state == 'acknowledged'
+    assert native.manager.persistence_healthy and not native.store.read()['recovery_state'].get('halt')

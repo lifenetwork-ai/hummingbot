@@ -87,6 +87,17 @@ establishment retains its 5s budget, and bootstrap keeps its existing total budg
 The driver wait callback is process-wide; another coroutine integration cannot
 replace it. COPY and large-object operations are not supported on managed engines.
 
+A new order intent checks its ownership row with `FOR SHARE NOWAIT` before
+staging writes. A PostgreSQL `55P03` from that initial fence is temporary only
+when the identity was absent and the same transaction's DBAPI rollback is
+confirmed, with no connection invalidation and a previously healthy recorder.
+It releases only that unsent local admission, reports `intent_admission_busy`,
+and backs off new admissions for 500 ms before fresh gates run again. It does
+not retry an old POST, clear an existing HALT or change any risk limit. Errors
+after that fence, unconfirmed rollback/COMMIT outcomes and ownership loss retain
+the persistence latch and normal recovery requirement. An already-unhealthy
+recorder cannot be reopened by this exception. No new environment setting is used.
+
 Pool connections open on demand; the setting is a ceiling, not a preallocation.
 Size the database budget for the sum of all process/engine ceilings, including
 separate migration engines and old/new revisions during deployment overlap, and

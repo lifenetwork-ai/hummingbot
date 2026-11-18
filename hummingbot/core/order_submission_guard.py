@@ -56,6 +56,10 @@ class MarketReadinessBlocked(SubmissionBlocked):
     """Required market/data/exposure readiness currently prevents submission."""
 
 
+class IntentAdmissionBusy(MarketReadinessBlocked):
+    """Initial ownership fence contended, with a confirmed unsent rollback."""
+
+
 class SpotOutflowBlocked(MarketReadinessBlocked):
     """The current cash BUY cannot fit within its unchanged outflow cap."""
 
@@ -73,6 +77,7 @@ def submission_block_log_context(error_type):
     return {
         "SessionSubmissionBlocked": (logging.INFO, "session_submission_closed"),
         "MarketReadinessBlocked": (logging.WARNING, "market_not_ready"),
+        "IntentAdmissionBusy": (logging.WARNING, "intent_admission_busy"),
         "SpotOutflowBlocked": (logging.WARNING, "spot_outflow_limit"),
         "SpotOutflowPending": (logging.WARNING, "spot_outflow_projection_catching_up"),
         "QuoteRefreshRequired": (logging.WARNING, "spread_policy_quote_rejected"),

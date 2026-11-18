@@ -89,3 +89,32 @@ No Stop, Recover, Start, manual SQL, environment or risk-policy mutation is sent
 during this read-only check. Deployment and incident evidence is retained under
 `build/overview-postdeploy-20261118`; technical HALT recovery and running
 qualification remain open.
+
+## Local TDD remedy for prewrite intent contention
+
+The ownership-row conflict is reproduced on disposable PostgreSQL: the old path
+raises `LockNotAvailable`, poisons persistence and cannot continue admission.
+The correction checks duplicate identity and acquires the initial `FOR SHARE`
+fence with `NOWAIT` before staging any intent writes. Only that fence's `55P03`,
+with the same transaction's confirmed DBAPI rollback, healthy connection and
+previously healthy recorder, becomes temporary `IntentAdmissionBusy` readiness.
+It releases only unsent local admission/reservations and backs off 500 ms before
+fresh admission checks. It never replays a POST or resets an unhealthy latch.
+
+The native OKX connector with fake HTTP and real PostgreSQL proves zero transport
+calls and zero durable orders/attempts on contention, released cash reservation,
+then one acknowledged send for a fresh identity after the lock clears. Duplicate
+identity, post-fence write errors, lost/invalidated connection and failed rollback
+remain fatal. COMMIT request loss and response loss retain closed send gates for
+both possible durable outcomes.
+
+Validation runs pass: 142 unit tests (plus five subtests), 134 PostgreSQL recorder/
+ownership regressions, 24 focused admission/native lifecycle tests, and 14 focused
+fault/protocol tests on the final implementation. These suites overlap and their
+counts must not be added. Hooks and generated OpenAPI consistency pass. No new
+environment flag or risk threshold is introduced.
+
+This is local implementation evidence. It neither identifies the transaction
+that held the historical lock nor changes the current Cloud Run HALT. Deployment,
+verified recovery and connected running/coverage qualification remain separate.
+Detailed RED/GREEN/fault receipts: `build/intent-contention-20261118`.

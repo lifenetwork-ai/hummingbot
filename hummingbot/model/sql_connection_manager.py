@@ -119,6 +119,7 @@ class SQLConnectionManager(TransactionBase):
         if use_postgres:
             # PubSub logs listener exceptions. Latch persistence failure independently
             # so a service send gate cannot miss a recorder/commit exception.
+            # Only a proven prewrite intent-lock rollback is exempt.
             event.listen(self._session_cls, "after_soft_rollback", self._record_rollback)
             event.listen(self._session_cls, "before_flush", self._fence_flush)
             event.listen(self._session_cls, "do_orm_execute", self._fence_bulk_write)
@@ -147,7 +148,14 @@ class SQLConnectionManager(TransactionBase):
         return self._session_cls()
 
     def _record_rollback(self, session, previous_transaction) -> None:
+        from hummingbot.model.intent_admission import confirmed_unsent_rollback
+        if confirmed_unsent_rollback(session, previous_transaction):
+            return
         self.persistence_healthy = False
+
+    def order_intent_transaction(self, order_id):
+        from hummingbot.model.intent_admission import order_intent_transaction
+        return order_intent_transaction(self, order_id)
 
     def assert_persistence_healthy(self) -> None:
         if not self.persistence_healthy:
