@@ -10,6 +10,7 @@ from typing import Optional, Tuple
 from hummingbot.connector.okx_reduction_fee import FEE_POLL_SECONDS, FeeObservation, read_reduction_fee
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PositionSide, PriceType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder
+from hummingbot.core.order_submission_guard import recovery_side_permitted
 from hummingbot.strategy_v2.executors.data_types import ExecutorConfigBase
 from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
@@ -352,6 +353,9 @@ class PerpetualReductionMixin:
 
     def _create_reduction_actions(self):
         self._reset_quote_diagnostics()
+        if not recovery_side_permitted(self.config.connector_name, TradeType.SELL):
+            self._quote_reason('uncertain_order_risk_paused')
+            return []
         if self._control_error or not self._session_admitted or not self.processed_data.get('ready') or not self.market_data_provider.ready:
             self._quote_reason(self._quote_readiness_reason() or 'readiness_unavailable')
             return []

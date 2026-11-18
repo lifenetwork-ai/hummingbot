@@ -91,6 +91,7 @@ class BotOwnership:
         self.connection = None
         self.backend_pid = None
         self.lost = False
+        self._ownership_failure = None
         self.allow_new_orders = False
         self.scoped_recovery_enabled = scoped_recovery
         self.shutdown_requested = False
@@ -172,8 +173,16 @@ class BotOwnership:
                         recovery.pop('halt', None)
                         recovery.pop('halt_kind', None)
                         recovery.pop('halt_diagnostic', None)
+                    prior = recovery.get('automatic_recovery') or {}
+                    started_at = time.time()
+                    if pending and prior.get('phase') in (
+                            'reconciling', 'bootstrapping_recovery', 'waiting_for_readiness', 'settled_stopped'):
+                        previous_start = prior.get('started_at')
+                        if type(previous_start) in (int, float) and 0 < previous_start <= started_at:
+                            started_at = previous_start
                     recovery['automatic_recovery'] = dict(phase='bootstrapping_recovery', reason_code='owner_handover',
-                                                          operator_required=False, started_at=time.time(), cold_recovery_supported=True)
+                                                          operator_required=time.time() - started_at >= 300,
+                                                          started_at=started_at, cold_recovery_supported=True)
                 elif not recovery.get('halt'):
                     recovery.update(halt=True, reason="A previous process has unresolved exchange effects; reconcile and verify it is stopped.")
             self.generation = row["owner_generation"] + 1
@@ -213,9 +222,7 @@ class BotOwnership:
         if self.lost or connection is None or connection.closed or connection.invalidated:
             code = ('ownership_already_lost' if self.lost else 'ownership_session_unavailable' if connection is None else
                     'ownership_connection_closed' if connection.closed else 'ownership_connection_invalidated')
-            self.lost = True
-            self.allow_new_orders = False
-            raise OwnershipLost("The bot ownership session is unavailable.", reason_code=code)
+            raise self._lose_ownership("The bot ownership session is unavailable.", code)
         try:
             # Only this internal write-fence path omits the state payload. The
             # observer and submission gates always retain their complete fresh
@@ -236,21 +243,30 @@ class BotOwnership:
                 connection.commit()
             if not row or row["backend_pid"] != self.backend_pid:
                 raise OwnershipLost("The bot ownership lock/generation no longer matches.", reason_code='ownership_identity_mismatch')
-        except OwnershipLost:
-            self.lost = True
-            self.allow_new_orders = False
-            raise
+        except OwnershipLost as error:
+            raise self._lose_ownership(str(error), error.reason_code) from None
         except Exception as error:
-            self.lost = True
-            self.allow_new_orders = False
-            code = 'ownership_database_error' if isinstance(error, (DBAPIError, PostgreSQLError)) else 'ownership_check_failed'
-            sqlstate = getattr(getattr(error, 'orig', error), 'pgcode', None)
-            diagnostic = dict(connection_invalidated=getattr(error, 'connection_invalidated', False) is True)
-            if isinstance(sqlstate, str) and re.fullmatch(r'[0-9A-Z]{5}', sqlstate):
-                diagnostic['sqlstate'] = sqlstate
-            raise OwnershipLost("The bot ownership session failed; submissions are closed.",
-                                reason_code=code, diagnostic=diagnostic) from None
+            raise self._owner_error(error) from None
         return dict(row)
+
+    def _lose_ownership(self, message, code, **diagnostic):
+        self.lost = True
+        self.allow_new_orders = False
+        if self._ownership_failure is None:
+            if self.backend_pid is not None:
+                diagnostic['ownership_backend_pid'] = self.backend_pid
+            self._ownership_failure = message, code, diagnostic
+        message, code, diagnostic = self._ownership_failure
+        return OwnershipLost(message, reason_code=code, diagnostic=diagnostic)
+
+    def _owner_error(self, error):
+        code = 'ownership_database_error' if isinstance(error, (DBAPIError, PostgreSQLError)) else 'ownership_check_failed'
+        sqlstate = getattr(getattr(error, 'orig', error), 'pgcode', None)
+        diagnostic = dict(connection_invalidated=getattr(error, 'connection_invalidated', False) is True
+                          or (self.connection is not None and self.connection.invalidated))
+        if isinstance(sqlstate, str) and re.fullmatch(r'[0-9A-Z]{5}', sqlstate):
+            diagnostic['sqlstate'] = sqlstate
+        return self._lose_ownership("The bot ownership session failed; submissions are closed.", code, **diagnostic)
 
     def check_owner(self, *, new_risk=False, allow_setup=False):
         if new_risk:
@@ -308,8 +324,8 @@ class BotOwnership:
             from hummingbot.core.halt_diagnostics import record_halt
             self._mutate_recovery(lambda state: record_halt(state, reason, runtime_reason_code=runtime_reason,
                                                             component=component, task=task, task_state=task_state))
-        except Exception:
-            self.lost = True
+        except Exception as error:
+            self._owner_error(error)
 
     def _check_intents(self, recorder, *, admitting=False):
         from hummingbot.core.automatic_recovery import MAX_ATTEMPTS
@@ -1041,9 +1057,11 @@ class BotOwnership:
         if row.get('config_type') == 'mm-session':
             self.automatic_recovery.status['cold_recovery_supported'] = bool(core.markets_recorder.ensure_runtime_checkpoint())
         if automatic_bootstrap:
-            self.automatic_recovery.status.update(phase='reconciling' if self.automatic_recovery.isolated else 'idle',
-                                                  reason_code='order_outcome_unknown' if self.automatic_recovery.isolated else None,
-                                                  operator_required=False)
+            status = self.automatic_recovery.status
+            isolated = self.automatic_recovery.isolated
+            operator_required = isolated and time.time() - status.get('started_at', time.time()) >= 300
+            status.update(phase='reconciling' if isolated else 'idle', reason_code='order_outcome_unknown' if isolated else None,
+                          operator_required=operator_required)
             self.automatic_recovery.bootstrap_orders.clear()
 
             def recovered(state):

@@ -52,6 +52,7 @@ OKX_ORDER_BOOK_PATH = '/api/v5/market/books'
 # Auth required
 OKX_PLACE_ORDER_PATH = "/api/v5/trade/order"
 OKX_ORDER_DETAILS_PATH = '/api/v5/trade/order'
+OKX_ORDER_HISTORY_PATH = '/api/v5/trade/orders-history'
 OKX_ORDER_CANCEL_PATH = '/api/v5/trade/cancel-order'
 OKX_BATCH_ORDER_CANCEL_PATH = '/api/v5/trade/cancel-batch-orders'
 OKX_BALANCE_PATH = '/api/v5/account/balance'
@@ -102,6 +103,7 @@ RATE_LIMITS = [
     RateLimit(limit_id=OKX_ORDER_BOOK_PATH, limit=20, time_interval=2),
     RateLimit(limit_id=OKX_PLACE_ORDER_PATH, limit=20, time_interval=2),
     RateLimit(limit_id=OKX_ORDER_DETAILS_PATH, limit=20, time_interval=2),
+    RateLimit(limit_id=OKX_ORDER_HISTORY_PATH, limit=40, time_interval=2),
     RateLimit(limit_id=OKX_ORDER_CANCEL_PATH, limit=20, time_interval=2),
     RateLimit(limit_id=OKX_BATCH_ORDER_CANCEL_PATH, limit=300, time_interval=2),
     RateLimit(limit_id=OKX_BALANCE_PATH, limit=10, time_interval=2),

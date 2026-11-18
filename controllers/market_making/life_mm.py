@@ -946,11 +946,6 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
 
     def create_actions_proposal(self):
         if self.reduction_enabled:
-            from hummingbot.core.order_submission_guard import recovery_side_permitted
-            if not recovery_side_permitted(self.config.connector_name, TradeType.SELL):
-                self._reset_quote_diagnostics()
-                self._quote_reason('uncertain_order_risk_paused')
-                return []
             return self._create_reduction_actions()
         return self._create_actions_proposal()
 

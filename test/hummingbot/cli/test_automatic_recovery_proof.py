@@ -33,6 +33,44 @@ def venue(perpetual):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('case', ['filled', 'canceled', 'absent', 'duplicate', 'wrong_price', 'incomplete_fills', 'changed'])
+async def test_unknown_spot_send_requires_positive_terminal_history_and_fills(case):
+    from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
+
+    connector, order, status, fill = venue(False)
+    row = dict(status, cTime='1700000000000', tdMode='cash')
+    second = dict(row)
+    if case == 'canceled':
+        row.update(state='canceled', accFillSz='0')
+        second = dict(row)
+        connector._request_order_fills.return_value = {'code': '0', 'data': []}
+        connector._request_order_fills.side_effect = None
+    elif case == 'wrong_price':
+        row['px'] = '101'
+    elif case == 'incomplete_fills':
+        fill['fillSz'] = '.04'
+    elif case == 'changed':
+        second.update(state='canceled')
+    rows = [] if case == 'absent' else [row, row] if case == 'duplicate' else [row]
+    connector._request_order_update.side_effect = OKXOrderNotFoundError('51603')
+    connector._request_recovery_order_history = AsyncMock(side_effect=[{'code': '0', 'data': rows},
+                                                                       {'code': '0', 'data': [second]}])
+    if case in ('filled', 'canceled'):
+        proof, trades = await read_order_proof(connector, order, spot_history=True)
+        assert proof.new_state == (OrderState.CANCELED if case == 'canceled' else OrderState.FILLED)
+        assert proof.exchange_order_id == 'venue'
+        assert len(trades) == (0 if case == 'canceled' else 1)
+        assert connector._request_recovery_order_history.await_count == 2
+    else:
+        with pytest.raises((IOError if case in ('absent', 'incomplete_fills', 'changed') else SubmissionBlocked)):
+            await read_order_proof(connector, order, spot_history=True)
+        if case in ('absent', 'duplicate', 'wrong_price'):
+            connector._request_order_fills.assert_not_awaited()
+            assert order.exchange_order_id is None
+    assert not order.order_fills
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('perpetual', [False, True])
 async def test_full_proof_keeps_contract_quantity_and_original_fee_exact(perpetual):
     connector, order, _, _ = venue(perpetual)

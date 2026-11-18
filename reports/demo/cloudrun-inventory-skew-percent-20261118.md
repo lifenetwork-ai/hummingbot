@@ -238,3 +238,117 @@ implementation is local and is not part of that deployed image. No new cloud
 mutation, environment flag, risk change or migration is performed for this
 follow-up. Deployment, a single-image 30-minute window and release soak remain
 open for the new source.
+
+## Revision 174 observation and later status — 19 November follow-up
+
+Cloud Build `89bdb6d0-cd08-4e2c-bfe5-287d63e7f4f2` deploys
+`5350c50fa8bf8f276882cb95a2899790145fcc01` as `00174-jzc`.
+The resolved OCI configuration matches the commit; image digest
+`sha256:6baa20f543c603e836a9d5ceb63818872b698e1b8a0bd8c28067b7b6668913d5`.
+Traffic reaches 100%; the owner and API both identify 174 by 11:43:33 local
+on 18 November. The existing continuous session resumes at control/ack 102,
+with an unchanged catalogue and no Stop/Reset/Start or manual SQL from this run.
+
+The retained window is **incomplete**: 137 samples span 11:43:38–12:06:18 local,
+22 minutes 40 seconds. Every retained sample is running/no HALT, with zero read
+errors and all three sampled health endpoints returning 200. The process was
+interrupted before its 30-minute completion marker; no completed 30-minute or
+soak result is claimed. At the 20-minute log read, 14 bounded intent-contention
+warnings are retained, with no legacy retry burst, ERROR or scheduled restart.
+Nine internal probe timeouts and 31 loop-stall/recovery pairs remain in that
+bounded log read, maximum heartbeat gap 522.98 ms. These latency findings are
+not closed by successful sampled API health. INFO recovery-log coverage is
+insufficient to count recovery events from logs alone.
+
+At approximately 00:30 local on 19 November, the current service is instead
+revision `00175-sf6`, commit `b1c573726ed7ba89f6bc1a9761fb27f09b02d504`,
+with 100% traffic. A different `follow_token`/AVAX-reference continuous session
+is observed at control/ack 103. No operator/session/configuration change is
+overwritten by this follow-up.
+
+The current state is **not normal trading** despite `halted=false`:
+`reconciling_orders`, one quarantined uncertain Spot BUY, zero observed working
+quotes in both markets, and `/ready` 503. API liveness/startup are 200 and owner
+observations are fresh. The order is
+`93027a12dac34fBCBBCUT919ab9bae18`, 0.00046433 BTC at 64,634.5 USDT.
+Its only recorded status is PendingBuy from 15:59:18 local on 18 November,
+with no exchange ID and zero recorded fills. The original error at 15:59:19
+is POST HTTP 429 with OKX `50013` (system busy), followed by uncertain-outcome
+reconciliation. Repeated native `51603` is not proof of non-admission or a
+terminal cancellation. The automatic recovery view reports
+`order_not_found_inconclusive` and `operator_required=true`.
+
+A separate engine event at 00:19:31 local on 19 November records
+`ownership_lost`, incomplete cleanup and a scheduled child restart. The captured
+service failure message does not establish the underlying reason the ownership
+session failed. The restarted engine remains in reconciliation. No new reset,
+intent rejection, database maintenance or risk-limit change is performed;
+uncertain-order resolution and the ownership-loss cause remain open.
+
+Private evidence is retained in `build/admission-cooldown-postdeploy-20261118`,
+including the interrupted samples, current API snapshots, exact order detail,
+original POST failure and later restart logs. A new observation must use the
+current image/session and begin after verified recovery; it cannot extend the
+interrupted revision 174 window across this gap.
+
+### Follow-up on order admission and ownership, 00:41 ICT
+
+Revision 175 still reported control/ack 103, one isolated BUY and zero working
+quotes on both markets. The active recovery policy reserved 30.0357467749080
+USDT and allowed only funded Spot sells. The Spot SELL diagnostic in this
+sample was `order_size_rejected`. The order status alone cannot establish which
+of the size checks failed. Perpetual SELL showed submission pending.
+
+The close-first controller has two proposal entry points. In a local replay
+using the existing reduction-controller fixture with a long position and
+active isolated recovery, `create_actions_proposal()` returned no actions.
+Under the same conditions `determine_executor_actions()`, which the running
+controller calls, returned both a BUY and a SELL create action. Its reduction
+branch directly calls `_create_reduction_actions()` and skips the recovery-side
+filter. Cloud Run recorded eight distinct Perpetual SELL IDs blocked by
+`uncertain_order_risk_paused` between 00:19:28.691 and 00:19:30.089. These
+were local submission blocks. This replay does not establish what caused the
+database connections to reset.
+
+Engine restarts occurred at 00:19:31 and 00:38:15 on the same revision. Cloud
+SQL recorded eight “Connection reset by peer” messages for the Demo database
+in each incident window. The first group began within 30 ms of the first
+application ownership error in both cases. The connector logged the generic
+`ownership_lost` and the later service-level log recorded
+`ownership_already_lost`. These records do not identify the original physical
+owner connection by PostgreSQL backend PID or which component initiated the
+reset. The restart also restarted the operator escalation timer for the same
+unresolved order.
+
+The proposed regression test should exercise the controller tick with Spot
+and Perpetual enabled, an ambiguous BUY and repeated not-found reads. It
+should assert zero forbidden create actions and duplicate POSTs, allow a
+funded and correctly sized Spot SELL, and preserve cancellation and late-fill
+processing. A separate connection-loss test should preserve the first owner
+failure diagnostic, the original incident age and the reservation across
+takeover. Recovery of the current order needs account-bound order and fill
+evidence. An incomplete history or an ambiguous outcome must retain the
+reservation.
+
+### Local remediation and exchange evidence
+
+Both reduction proposal entry points now check recovery before reserving a
+Perpetual level. The controller tick regression also checks that a funded Spot
+SELL remains eligible and that Perpetual CLOSE proposals resume after recovery.
+Ownership loss retains the first safe reason, PostgreSQL SQLSTATE when present,
+connection invalidation and the old backend PID. A successor carries forward
+the escalation timer when a pending creation still needs proof.
+
+Scoped recovery can now consult a bounded, authenticated OKX Spot order-history
+page after a 51603 detail response. It verifies a matching terminal order both
+around the fill read and against the original durable identity and account
+binding before applying the proof. An empty page keeps the reservation. The
+existing admin status includes the pending order ID for operator drill-down.
+
+Two read-only scans of the bound OKX Demo account returned zero Spot open
+orders and 51603 for `93027a12dac34fBCBBCUT919ab9bae18`. Each scan read
+199 historical orders and 118 fills in the scoped interval. Neither contained
+that client order ID. The scans are saved in the ignored
+`current-native-proof-private.json` evidence file. There is still no positive
+terminal evidence for the live incident. The runtime changes were tested
+locally. No production data or order state was changed.

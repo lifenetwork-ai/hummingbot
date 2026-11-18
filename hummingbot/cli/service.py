@@ -1339,7 +1339,7 @@ async def run_service(*, settings=None, bind_host='0.0.0.0', admin_settings=None
                                                  "error_type": type(error).__name__,
                                                  **({'ownership_reason_code': error.reason_code,
                                                      **{key: value for key, value in error.diagnostic.items()
-                                                        if key in ('sqlstate', 'connection_invalidated')}}
+                                                        if key in ('sqlstate', 'connection_invalidated', 'ownership_backend_pid')}}
                                                     if isinstance(error, OwnershipLost) else {})})
         from hummingbot.cli.service_processes import failure_exit_code
         code = failure_exit_code(error)

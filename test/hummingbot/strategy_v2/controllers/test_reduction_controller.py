@@ -21,6 +21,29 @@ from hummingbot.strategy_v2.utils.perpetual_reduction_runtime import ExecutorQuo
 D = Decimal
 
 
+@pytest.mark.asyncio
+async def test_controller_tick_respects_scoped_recovery_without_leaking_queued_levels(monkeypatch):
+    from hummingbot.core import order_submission_guard
+
+    recovery = SimpleNamespace(active=True, isolated=True)
+    owner = SimpleNamespace(scoped_recovery_enabled=True, automatic_recovery=recovery)
+    monkeypatch.setattr(order_submission_guard, '_guard', owner)
+    monkeypatch.setattr(order_submission_guard, 'postgres_requested', lambda: True)
+
+    controller, _, _ = maker('1', '0')
+    assert controller.determine_executor_actions() == []
+    assert not controller._reduction_queued
+    assert controller.quote_diagnostics['reasons'] == {
+        'BUY': ['uncertain_order_risk_paused'], 'SELL': ['uncertain_order_risk_paused']}
+    spot, _ = make_controller(configuration())
+    await spot.update_processed_data()
+    spot_actions = spot.determine_executor_actions()
+    assert spot_actions and all(action.executor_config.side == TradeType.SELL for action in spot_actions)
+    recovery.active = False
+    assert any(effect(action.executor_config) == PositionAction.CLOSE
+               for action in controller.determine_executor_actions())
+
+
 def maker(long='0', short='0', *, levels=1, **updates):
     values = dict(id='maker', connector_name='okx_perpetual', trading_pair='BTC-USDT', initial_anchor='100',
                   min_price='1', max_price='1000', total_amount_quote='100',

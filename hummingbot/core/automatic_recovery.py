@@ -81,14 +81,42 @@ def decode_order_evidence(connector, order, actual):
     return state, filled
 
 
-async def read_order_proof(connector, order):
+async def _spot_terminal_history(connector, order):
+    response = await connector._request_recovery_order_history(order)
+    rows = response.get('data')
+    if (str(response.get('code')) != '0' or not isinstance(rows, list) or len(rows) > PAGE_SIZE
+            or any(not isinstance(row, dict) for row in rows)):
+        raise IOError('recovery_order_history_unavailable')
+    matches = [row for row in rows if row.get('clOrdId') == order.client_order_id]
+    if not matches:
+        raise OKXOrderNotFoundError('No positive order evidence in the bounded OKX history read')
+    if len(matches) != 1:
+        raise SubmissionBlocked('recovery_order_identity_mismatch')
+    actual = matches[0]
+    if (actual.get('tdMode') != 'cash' or actual.get('state') not in ('filled', 'canceled')
+            or abs(int(actual['cTime']) - int(order.creation_timestamp * 1000)) > 60000
+            or int(actual['uTime']) < int(actual['cTime'])):
+        raise SubmissionBlocked('recovery_order_identity_mismatch')
+    return actual
+
+
+async def read_order_proof(connector, order, *, spot_history=False):
     """Use native authenticated reads/parsers; validate identity and full fills."""
+    history_used = False
+
     async def status():
-        actual = order_status_data(await connector._request_order_update(order))
+        nonlocal history_used
+        try:
+            actual = order_status_data(await connector._request_order_update(order))
+        except OKXOrderNotFoundError:
+            if not spot_history or connector.name != 'okx':
+                raise
+            actual = await _spot_terminal_history(connector, order)
+            history_used = True
         state, filled = decode_order_evidence(connector, order, actual)
         return actual, state, filled
 
-    first, _, _ = await status()
+    first, first_state, first_filled = await status()
     # The identity is positive evidence; the tracker still receives state only
     # after complete trade proof. This also enables the native fills endpoint.
     order.update_exchange_order_id(str(first['ordId']))
@@ -125,6 +153,8 @@ async def read_order_proof(connector, order):
     else:
         raise SubmissionBlocked('recovery_fill_scope_limit')
     last, state, filled = await status()
+    if history_used and (first_state, first_filled) != (state, filled):
+        raise IOError('recovery_order_history_changed')
     if str(first['ordId']) != str(last['ordId']) or sum((t.fill_base_amount for t in observed.values()), Decimal(0)) != filled:
         raise IOError('recovery_fill_coverage_incomplete')
     return (OrderUpdate(order.trading_pair, int(last['uTime']) / 1000, state,
@@ -216,7 +246,8 @@ class AutomaticOrderRecovery:
         self.quarantined = {attempt['order_id']: attempt for attempt in pending}
         self.attempt_retry = {identity: retry for identity, retry in self.attempt_retry.items() if identity in self.quarantined}
         self.status.update(isolated=True, quarantined_orders=len(self.quarantined), admission_mode='funded_spot_sell',
-                           reserved_base={key: str(value) for key, value in holds.items()}, reserved_quote_worst_case=str(quote))
+                           reserved_base={key: str(value) for key, value in holds.items()}, reserved_quote_worst_case=str(quote),
+                           order_id=pending[0]['order_id'])
         return True
 
     def authorize_isolated_order(self, connector, order, *, payload=None):
@@ -409,7 +440,8 @@ class AutomaticOrderRecovery:
         self.owner._mutate_recovery(settled)
 
     async def _merge(self, core, connector, attempt, order):
-        status, trades = await asyncio.wait_for(read_order_proof(connector, order), timeout=10)
+        spot_history = self.isolated and attempt['state'] == 'uncertain'
+        status, trades = await asyncio.wait_for(read_order_proof(connector, order, spot_history=spot_history), timeout=10)
         self.owner.check_owner()
         if (attempt['context'].get('environment') != environment_identity()
                 or attempt['context']['credential_fingerprint'] != credential_fingerprint(connector)
@@ -781,14 +813,14 @@ class AutomaticOrderRecovery:
             elif self.owner.mm_ready_check is not None and not self.owner.mm_ready_check():
                 raise SubmissionBlocked('recovery_readiness_pending')
             self.owner._check_intents(core.markets_recorder)
+            identity = self.status.pop('order_id', None) or 'runtime'
             self.status.update(phase='idle', reason_code=None, operator_required=False)
 
             def resume(state):
                 if state.get('halt') or state.get('pending_mutations'):
                     raise SessionSubmissionBlocked('Current safety state blocks resume')
                 state.update(automatic_recovery=dict(self.status))
-                self._audit('automatic_recovery_resumed', self.status.get('order_id', 'runtime'),
-                            'succeeded', 'current_authority_verified')
+                self._audit('automatic_recovery_resumed', identity, 'succeeded', 'current_authority_verified')
 
             if self.owner._mutate_recovery(resume, expected_version=self.owner.version):
                 self.owner.allow_new_orders = True

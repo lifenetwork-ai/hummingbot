@@ -56,7 +56,8 @@ def test_not_found_keeps_isolation_and_positive_proofs_never_resend(managed_nati
     context, exchange, recorder, transport = managed_native
     isolate(context, exchange, recorder)
     recovery = context.owner.automatic_recovery
-    with patch.object(exchange, '_request_order_update', AsyncMock(side_effect=OKXOrderNotFoundError('51603'))):
+    with patch.object(exchange, '_request_order_update', AsyncMock(side_effect=OKXOrderNotFoundError('51603'))), \
+            patch.object(exchange, '_request_recovery_order_history', AsyncMock(return_value={'code': '0', 'data': []})):
         context.loop.run_until_complete(recovery.step(SimpleNamespace(markets_recorder=recorder,
                                                                       trade_fill_db=context.manager), force=True))
     assert recovery.isolated and recovery.active and context.owner.allow_new_orders
@@ -64,6 +65,35 @@ def test_not_found_keeps_isolation_and_positive_proofs_never_resend(managed_nati
     assert recovery.next_poll > time.monotonic()
     assert transport.call.await_count == 1
     assert exchange.in_flight_orders['auto-order'].exchange_order_id is None
+
+
+def test_positive_spot_history_replay_settles_only_the_matching_attempt(managed_native):
+    from hummingbot.model.order import Order
+    from hummingbot.model.runtime_journal import SubmissionAttempt
+    from hummingbot.model.trade_fill import TradeFill
+
+    context, exchange, recorder, transport = managed_native
+    isolate(context, exchange, recorder)
+    recovery = context.owner.automatic_recovery
+    order = exchange.in_flight_orders['auto-order']
+    stamp = str(int(order.creation_timestamp * 1000))
+    history = dict(clOrdId='auto-order', ordId='venue-auto', instId='BTC-USDT', side='buy',
+                   ordType='post_only', px='100', sz='.1', tdMode='cash', state='filled', accFillSz='.1',
+                   cTime=stamp, uTime=stamp)
+    fill = dict(tradeId='fill-auto', ordId='venue-auto', instId='BTC-USDT', side='buy',
+                fillSz='.1', fillPx='100', fee='-.01', feeCcy='USDT', ts=stamp)
+    core = SimpleNamespace(markets_recorder=recorder, trade_fill_db=context.manager)
+    with patch.object(exchange, '_request_order_update', AsyncMock(side_effect=OKXOrderNotFoundError('51603'))), \
+            patch.object(exchange, '_request_recovery_order_history', AsyncMock(return_value={'code': '0', 'data': [history]})), \
+            patch.object(exchange, '_request_order_fills', AsyncMock(return_value={'code': '0', 'data': [fill]})):
+        context.loop.run_until_complete(recovery.step(core, force=True))
+        context.loop.run_until_complete(recovery.step(core, force=True))
+    with context.manager.get_new_session() as db:
+        assert db.get(SubmissionAttempt, 'auto-order').state == 'terminal'
+        assert not db.get(Order, 'auto-order').creation_pending
+        assert db.query(TradeFill).count() == 1
+    assert not recovery.isolated
+    assert transport.call.await_count == 1
 
 
 def test_stop_and_persistence_failure_never_become_scoped_authority(managed_native):
@@ -84,14 +114,22 @@ def test_stop_and_persistence_failure_never_become_scoped_authority(managed_nati
 def test_cold_restore_returns_with_unknown_reservation_instead_of_waiting_forever(managed_native):
     import asyncio
 
-    from hummingbot.core.bot_ownership import BotOwnership
+    from hummingbot.core.bot_ownership import BotOwnership, OwnershipLost
     from hummingbot.core.order_submission_guard import install_guard
     from hummingbot.model.order import Order
     from hummingbot.model.runtime_journal import SubmissionAttempt
 
     context, exchange, recorder, transport = managed_native
     isolate(context, exchange, recorder)
-    context.owner.release()
+    started = time.time() - 360
+    context.owner._mutate_recovery(lambda state: state['automatic_recovery'].update(started_at=started))
+    with context.engine.begin() as db:
+        db.execute(text('SELECT pg_terminate_backend(:pid)'), {'pid': context.owner.backend_pid})
+    with pytest.raises(OwnershipLost) as first:
+        context.owner.check_owner()
+    with pytest.raises(OwnershipLost) as later:
+        context.owner.check_owner()
+    assert later.value.reason_code == first.value.reason_code == 'ownership_database_error'
     successor = BotOwnership(context.engine, 'hummingbot', scoped_recovery=True)
     assert successor.try_acquire()
     try:
@@ -99,9 +137,15 @@ def test_cold_restore_returns_with_unknown_reservation_instead_of_waiting_foreve
         successor.prepare(1, 'test.yml')
         successor.connectors = {'okx': exchange}
         core = SimpleNamespace(markets_recorder=recorder, trade_fill_db=context.manager)
-        with patch.object(exchange, '_request_order_update', AsyncMock(side_effect=OKXOrderNotFoundError('51603'))):
+        with patch.object(exchange, '_request_order_update', AsyncMock(side_effect=OKXOrderNotFoundError('51603'))), \
+                patch.object(exchange, '_request_recovery_order_history', AsyncMock(return_value={'code': '0', 'data': []})):
             context.loop.run_until_complete(asyncio.wait_for(successor.automatic_recovery.restore(core), .5))
+            context.loop.run_until_complete(successor.automatic_recovery.step(core, force=True))
         assert successor.automatic_recovery.isolated
+        status = successor.automatic_recovery.status
+        assert status['started_at'] <= started
+        assert status['operator_required'] and status['order_id'] == 'auto-order'
+        assert status['reserved_quote_worst_case'] == context.owner.automatic_recovery.status['reserved_quote_worst_case']
         assert not context.store.read()['recovery_state'].get('halt')
         # Returning from restore is not terminal proof or permission to repeat POST.
         with context.manager.get_new_session() as db:
