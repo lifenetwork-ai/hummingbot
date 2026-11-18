@@ -9555,6 +9555,19 @@
             "minimum": 0,
             "title": "Expected Version",
             "type": "integer"
+          },
+          "uncertain_order_id": {
+            "anyOf": [
+              {
+                "pattern": "^[a-zA-Z0-9]{1,32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.",
+            "title": "Uncertain Order Id"
           }
         },
         "required": [
@@ -9641,6 +9654,16 @@
             "title": "Proposed Order Changes",
             "type": "array"
           },
+          "proposed_uncertain_order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecoveryUncertainOrderRepairOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "repaired_orders": {
             "items": {
               "$ref": "#/components/schemas/RecoveryOrderRepairOutput"
@@ -9654,6 +9677,16 @@
             },
             "title": "Repaired Positions",
             "type": "array"
+          },
+          "repaired_uncertain_order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecoveryUncertainOrderRepairOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "stage": {
             "title": "Stage",
@@ -9981,7 +10014,7 @@
           },
           "confirm_order_changes": {
             "default": false,
-            "description": "Must be true after explicitly reviewing nonempty proposed_order_changes. Omit/false cannot authorize order metadata repair.",
+            "description": "Must be true after explicitly reviewing proposed_order_changes or proposed_uncertain_order.",
             "title": "Confirm Order Changes",
             "type": "boolean"
           },
@@ -9994,6 +10027,19 @@
             "minimum": 0,
             "title": "Expected Version",
             "type": "integer"
+          },
+          "uncertain_order_id": {
+            "anyOf": [
+              {
+                "pattern": "^[a-zA-Z0-9]{1,32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.",
+            "title": "Uncertain Order Id"
           }
         },
         "required": [
@@ -10063,6 +10109,72 @@
           "detail"
         ],
         "title": "RecoverySummary",
+        "type": "object"
+      },
+      "RecoveryUncertainOrderRepairOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "const": "OrderFailure",
+            "title": "After",
+            "type": "string"
+          },
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "before": {
+            "const": "PendingBuy",
+            "title": "Before",
+            "type": "string"
+          },
+          "connector": {
+            "const": "okx",
+            "title": "Connector",
+            "type": "string"
+          },
+          "deadline_ms": {
+            "description": "Original authenticated request deadline in epoch milliseconds.",
+            "minimum": 0,
+            "title": "Deadline Ms",
+            "type": "integer"
+          },
+          "evidence": {
+            "const": "expired_submission_and_reconciled_exchange",
+            "title": "Evidence",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "side": {
+            "const": "BUY",
+            "title": "Side",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "connector",
+          "pair",
+          "side",
+          "amount",
+          "price",
+          "deadline_ms",
+          "before",
+          "after",
+          "evidence"
+        ],
+        "title": "RecoveryUncertainOrderRepair",
         "type": "object"
       },
       "ReferenceAnchorsOutput": {
@@ -19998,6 +20110,26 @@
     "/api/v1/admin/recovery": {
       "get": {
         "operationId": "getRecovery",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "uncertain_order_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-zA-Z0-9]{1,32}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.",
+              "title": "Uncertain Order Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

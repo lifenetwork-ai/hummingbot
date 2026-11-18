@@ -4406,6 +4406,11 @@ export interface components {
         RecoveryCheckRequest: {
             /** Expected Version */
             expected_version: number;
+            /**
+             * Uncertain Order Id
+             * @description Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.
+             */
+            uncertain_order_id?: string | null;
         };
         /** RecoveryOperation */
         RecoveryOperationOutput: {
@@ -4443,10 +4448,12 @@ export interface components {
             proposed_changes?: components["schemas"]["RecoveryPositionRepairOutput"][];
             /** Proposed Order Changes */
             proposed_order_changes?: components["schemas"]["RecoveryOrderRepairOutput"][];
+            proposed_uncertain_order?: components["schemas"]["RecoveryUncertainOrderRepairOutput"] | null;
             /** Repaired Orders */
             repaired_orders?: components["schemas"]["RecoveryOrderRepairOutput"][];
             /** Repaired Positions */
             repaired_positions?: components["schemas"]["RecoveryPositionRepairOutput"][];
+            repaired_uncertain_order?: components["schemas"]["RecoveryUncertainOrderRepairOutput"] | null;
             /** Stage */
             stage: string;
             /**
@@ -4589,7 +4596,7 @@ export interface components {
             check_id: string;
             /**
              * Confirm Order Changes
-             * @description Must be true after explicitly reviewing nonempty proposed_order_changes. Omit/false cannot authorize order metadata repair.
+             * @description Must be true after explicitly reviewing proposed_order_changes or proposed_uncertain_order.
              * @default false
              */
             confirm_order_changes: boolean;
@@ -4597,6 +4604,11 @@ export interface components {
             confirmation_token: string;
             /** Expected Version */
             expected_version: number;
+            /**
+             * Uncertain Order Id
+             * @description Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.
+             */
+            uncertain_order_id?: string | null;
         };
         /** RecoverySummary */
         RecoverySummaryOutput: {
@@ -4628,6 +4640,47 @@ export interface components {
              * @default /api/v1/admin/recovery
              */
             status_url: string;
+        };
+        /** RecoveryUncertainOrderRepair */
+        RecoveryUncertainOrderRepairOutput: {
+            /**
+             * After
+             * @constant
+             */
+            after: "OrderFailure";
+            /** Amount */
+            amount: string;
+            /**
+             * Before
+             * @constant
+             */
+            before: "PendingBuy";
+            /**
+             * Connector
+             * @constant
+             */
+            connector: "okx";
+            /**
+             * Deadline Ms
+             * @description Original authenticated request deadline in epoch milliseconds.
+             */
+            deadline_ms: number;
+            /**
+             * Evidence
+             * @constant
+             */
+            evidence: "expired_submission_and_reconciled_exchange";
+            /** Id */
+            id: string;
+            /** Pair */
+            pair: string;
+            /** Price */
+            price: string;
+            /**
+             * Side
+             * @constant
+             */
+            side: "BUY";
         };
         /** ReferenceAnchors */
         ReferenceAnchorsOutput: {
@@ -9945,7 +9998,9 @@ export interface operations {
     };
     getRecovery: {
         parameters: {
-            query?: never;
+            query?: {
+                uncertain_order_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;

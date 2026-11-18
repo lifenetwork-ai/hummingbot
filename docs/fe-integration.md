@@ -1503,7 +1503,7 @@ production-account acceptance remain external delivery work.
 
 Recovery is available only to `admin` (`GET /access/me` exposes
 `permissions.manage_recovery`). It does not alter YAML or risk limits. When
-`halted=false`, hide manual Check/Recover and inspect `automatic_recovery`
+`halted=false`, hide the HALT recovery controls and inspect `automatic_recovery`
 before showing **No recovery needed**; `recovery_not_halted` is an availability reason, not a new
 service fault. Stop the session first and wait for its control version to be
 acknowledged before checking an existing HALT. Recovery never
@@ -1520,9 +1520,40 @@ proof that the request had no effect. Supported PostgreSQL MM maker entries use
 the automatic flow below. A replacement engine with durable manual HALT
 keeps its owner/control API alive without constructing a new strategy: startup
 and live may be200 while ready remains503. This does not mean trading resumed.
-After Stop, Check returns `recovery_pending_intents` before position replay or
-credential loading when a pending send exists. Keep Recover disabled and show
-the supplied technical-review action; no force/reset or automatic Start.
+After Stop, a generic HALT Check returns `recovery_pending_intents` before
+position replay or credential loading when a pending send exists. An admin can
+request a review for a specific uncertain Spot BUY using the flow below.
+
+### Review one uncertain Spot BUY
+
+Wait for Stop to be acknowledged. Use the exact client order ID from
+`automatic_recovery.order_id` or Orders. Read
+`GET /recovery?uncertain_order_id=<client-order-id>` for the scoped availability
+and latest reviewed operation. Use the returned control version and pass the
+same `uncertain_order_id` to Check and Reset.
+
+1. Send `POST /recovery/check` with an `Idempotency-Key` and
+   `{"expected_version":16,"uncertain_order_id":"<client-order-id>"}`.
+2. Poll `GET /recovery/operations/{id}`. When `stage=review_required` and
+   `can_recover=true`, show `proposed_uncertain_order` to the admin. The preview
+   describes a local `PendingBuy` to `OrderFailure` transition based on the
+   expired submission and reconciled exchange history.
+3. After explicit review, send `POST /recovery/reset` with a new key and the
+   original control version, the same order ID, the Check operation
+   `check_id`, the returned `confirmation_token`, and
+   `confirm_order_changes=true`.
+4. Poll for `status=succeeded` and `stage=recovered`. Verify the exact ID in
+   `repaired_uncertain_order`. Start is a separate operation.
+
+This scope is for one managed OKX cash post-only BUY with an expired
+authenticated request deadline and a durable 50013 response. The service
+requires a reviewed financial checkpoint predating the send, waits through a
+60-second settlement grace period, and limits the attempt age to less than
+six days. Check and Reset each verify open orders, journaled fills, exposure,
+the exchange order history and the exact order ID. Existing or conflicting
+evidence, incomplete pages, different credentials, active runtime work and
+risk stops block the operation. Operators can use Swagger to review and
+confirm this scope.
 
 ### Automatic order reconciliation
 
