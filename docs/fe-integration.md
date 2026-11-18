@@ -105,7 +105,8 @@ by `cleanup_operation_id`; a child `succeeded/cleanup_completed` confirms comple
 of its root, not removal of every companion key. Follow the root for final status.
 
 Connection labels are Connected, Not configured, Checking connection, Disconnecting,
-Action required, Disconnected and Status unavailable. Environment source instead
+Action required, Disconnected, Connection failed (saved key failed to load; check its
+`reason_code`/`detail` before re-entering the key) and Status unavailable. Environment source instead
 shows Managed by deployment. Connected means a fresh owner loaded the current key;
 it does not mean MM is running. Disconnected confirms this bot's cleanup/removal at
 that time; it makes no claim about future manual exchange activity. For technical

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BarChart, Calendar, Clock, Globe } from 'lucide-react'
 import { useReportingController } from '../features/reporting/useReportingController'
+import { REPORTING_PRESETS, reportingRangeForPreset, type ReportingPreset } from '../features/reporting/rangePresets'
 import { ControllerPerformanceView } from '../features/statistics/ControllerPerformanceView'
 import { DailyBalancesChart } from '../features/statistics/DailyBalancesChart'
 import { DailyFundingChart } from '../features/statistics/DailyFundingChart'
@@ -9,12 +10,20 @@ import { DailyVolumeChart } from '../features/statistics/DailyVolumeChart'
 import { Badge } from '../shared/components/Badge'
 import { SectionLabel } from '../shared/components/SectionLabel'
 import { MotionPage } from '../shared/motion/MotionPage'
+import { cn } from '../shared/utils/cn'
 
 export function DailyStatisticsPage() {
-  // Leave an omitted range to the server's reporting-timezone default.
+  // Default preset (7 days) sends no range so the server's reporting-timezone default stays authoritative.
+  const [preset, setPreset] = useState<ReportingPreset>(7)
   const [fromDay, setFromDay] = useState('')
   const [toDay, setToDay] = useState('')
-  const report = useReportingController({ ...(fromDay ? { from: fromDay } : {}), ...(toDay ? { to: toDay } : {}) }, { includePerformance: true })
+  // Presets above seven days are computed in the server's reporting timezone once observed.
+  const [reportingTimezone, setReportingTimezone] = useState<string | null>(null)
+  const customRange = { ...(fromDay ? { from: fromDay } : {}), ...(toDay ? { to: toDay } : {}) }
+  const report = useReportingController(reportingRangeForPreset(preset, customRange, reportingTimezone), { includePerformance: true })
+  if (report.reportingTimezone !== null && report.reportingTimezone !== reportingTimezone) {
+    setReportingTimezone(report.reportingTimezone)
+  }
   const data = report.daily.data
   const balances = data?.balances ?? []
   const isStale = report.presentation === 'updating'
@@ -67,13 +76,45 @@ export function DailyStatisticsPage() {
               <span>Time range:</span>
             </span>
 
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Quick range presets">
+              {REPORTING_PRESETS.map(({ days, label }) => (
+                <button
+                  key={days}
+                  type="button"
+                  aria-pressed={preset === days}
+                  onClick={() => { setPreset(days); setFromDay(''); setToDay('') }}
+                  className={cn(
+                    'rounded-button border px-2 py-0.5 text-[11px] transition-colors',
+                    preset === days
+                      ? 'border-app-action bg-app-action/10 font-semibold text-app-action'
+                      : 'border-app-border bg-app-surface text-app-muted hover:border-app-action/50 hover:text-app-text',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                type="button"
+                aria-pressed={preset === 'custom'}
+                onClick={() => setPreset('custom')}
+                className={cn(
+                  'rounded-button border px-2 py-0.5 text-[11px] transition-colors',
+                  preset === 'custom'
+                    ? 'border-app-action bg-app-action/10 font-semibold text-app-action'
+                    : 'border-app-border bg-app-surface text-app-muted hover:border-app-action/50 hover:text-app-text',
+                )}
+              >
+                Custom
+              </button>
+            </div>
+
             <div className="flex items-center gap-2">
               <label htmlFor="from-day" className="text-app-muted">From day (Inclusive):</label>
               <input
                 id="from-day"
                 type="date"
                 value={fromDay}
-                onChange={(e) => setFromDay(e.target.value)}
+                onChange={(e) => { setFromDay(e.target.value); setPreset('custom') }}
                 className="rounded-button border border-app-border bg-app-surface px-2.5 py-1 text-xs text-app-text focus:border-app-action focus:outline-none"
               />
             </div>
@@ -84,7 +125,7 @@ export function DailyStatisticsPage() {
                 id="to-day"
                 type="date"
                 value={toDay}
-                onChange={(e) => setToDay(e.target.value)}
+                onChange={(e) => { setToDay(e.target.value); setPreset('custom') }}
                 className="rounded-button border border-app-border bg-app-surface px-2.5 py-1 text-xs text-app-text focus:border-app-action focus:outline-none"
               />
             </div>

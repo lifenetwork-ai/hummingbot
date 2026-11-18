@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import { Badge } from '../../shared/components/Badge'
 import { Surface } from '../../shared/components/Surface'
@@ -6,20 +5,127 @@ import { cn } from '../../shared/utils/cn'
 import { formatAssetAmount } from '../../shared/utils/formatters'
 import { BackendGapChip } from './BackendGapChip'
 import { parseAmount } from './parseAmount'
-import { formatPriceForDisplay, formatUsdtForDisplay } from './formatNumbers'
+import { formatPriceForDisplay, formatQuantityForDisplay, formatRiskValueForDisplay, formatUsdtForDisplay } from './formatNumbers'
 import type { DetailMode } from './LiquidityVerdictCard'
 import type { CapitalRiskView, MandateLimitRow } from './supplement'
 
+function formatRuleIdLabel(ruleId: string): string {
+  const map: Record<string, string> = {
+    drawdown_global: 'Global Drawdown',
+    drawdown_controller: 'Controller Drawdown',
+    spot_outflow: 'Spot Outflow',
+    quote_deviation: 'Quote Deviation',
+    inventory_base: 'Base Inventory',
+    inventory_long: 'Long Position Limit',
+    inventory_short: 'Short Position Limit',
+    inventory_gross: 'Gross Position Limit',
+  }
+  if (map[ruleId]) return map[ruleId]
+  return ruleId
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
+/** Danh sách rule limit → current — dùng trong dialog Capital Protection (nguồn duy nhất sau khi gộp nút). */
+export function RiskLimitsList({ limits }: { limits: MandateLimitRow[] }) {
+  if (limits.length === 0) return <p className="text-xs text-app-muted">No risk rules data</p>
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {limits.map((limit, idx) => {
+        const curNum = parseAmount(limit.current)
+        const limNum = parseAmount(limit.limit)
+        const hasRatio = curNum !== null && limNum !== null && limNum > 0
+        const ratio = hasRatio ? Math.min(1, Math.max(0, curNum / limNum)) : 0
+        const pct = hasRatio ? (ratio * 100).toFixed(1) : null
+        const isDanger = limit.status === 'violated' || (hasRatio && ratio >= 0.95)
+        const isWarn = !isDanger && hasRatio && ratio >= 0.7
+
+        return (
+          <div
+            key={`${limit.ruleId}-${idx}`}
+            className={cn(
+              'rounded-md border p-2 transition-colors',
+              isDanger
+                ? 'border-app-danger/40 bg-app-danger/10'
+                : isWarn
+                  ? 'border-app-warning/40 bg-app-warning/10'
+                  : 'border-app-border/40 bg-app-surface/50'
+            )}
+          >
+            <div className="flex items-center justify-between gap-1.5">
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold text-app-text">
+                  {formatRuleIdLabel(limit.ruleId)}
+                </p>
+                <p className="truncate font-mono text-[10px] text-app-muted">
+                  {limit.ruleId}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                {pct !== null ? (
+                  <span
+                    className={cn(
+                      'inline-block rounded px-1.5 py-0.2 font-mono text-[10px] font-bold',
+                      isDanger
+                        ? 'bg-app-danger/20 text-app-danger'
+                        : isWarn
+                          ? 'bg-app-warning/20 text-app-warning'
+                          : 'bg-app-surface-muted text-app-muted'
+                    )}
+                  >
+                    {pct}%
+                  </span>
+                ) : (
+                  <span className="font-mono text-[10px] text-app-muted">—</span>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-1.5 flex items-baseline justify-between gap-2 font-mono text-[11px]">
+              <span className={cn('font-bold', isDanger ? 'text-app-danger' : isWarn ? 'text-app-warning' : 'text-app-text')}>
+                {formatRiskValueForDisplay(limit.current, limit.unit)}
+              </span>
+              <span className="text-[10px] text-app-muted">
+                / {formatRiskValueForDisplay(limit.limit, limit.unit)} {limit.unit}
+              </span>
+            </div>
+
+            {/* Mini Progress Bar */}
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-pill bg-app-border/30">
+              <div
+                className={cn(
+                  'h-full rounded-pill transition-all duration-300',
+                  isDanger
+                    ? 'bg-app-danger'
+                    : isWarn
+                      ? 'bg-app-warning'
+                      : hasRatio
+                        ? 'bg-app-success'
+                        : 'bg-transparent'
+                )}
+                style={{ width: hasRatio ? `${Math.max(2, ratio * 100)}%` : '0%' }}
+              />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 /**
- * Q5 — "Vốn đang được dùng thế nào, chi phí phát sinh ở đâu, rủi ro còn trong giới hạn không?"
- * Portfolio/fees/benchmark từ supplement; thiếu → chip "chưa có dữ liệu" (không hiện số giả).
+ * Vùng 4 — Vốn và rủi ro: tồn kho/vị thế, guards tóm tắt.
+ * "Vốn khả dụng / dành cho lệnh" hiện xem qua dialog chi tiết (Account balances)
+ * cho đến khi backend cung cấp reserved_for_open_orders thật thì dựng lại tóm tắt.
+ * Portfolio/fees từ supplement; thiếu → chip "chưa có dữ liệu" (không hiện số giả).
+ * Hold benchmark ngoài phase — xem backlog, không placeholder thường trực.
  */
-export function CapitalRiskCard({ view, mode, riskLimits = [], onOpenRiskGuards }: { view: CapitalRiskView; mode: DetailMode; riskLimits?: MandateLimitRow[]; onOpenRiskGuards?: () => void }) {
+export function CapitalRiskCard({ view, mode, onOpenRiskGuards }: { view: CapitalRiskView; mode: DetailMode; onOpenRiskGuards?: () => void }) {
   const c = view
-  const [rulesOpen, setRulesOpen] = useState(false)
 
   return (
-    <div id="capital-risk-card" className="grid scroll-mt-24 grid-cols-1 gap-3 lg:grid-cols-3">
+    <div id="capital-risk-card" className="grid scroll-mt-24 grid-cols-1 gap-3 lg:grid-cols-2">
       {/* Vị thế & tồn kho */}
       <Surface className="p-4">
         <h3 className="text-xs font-bold uppercase tracking-wider text-app-muted">Positions &amp; inventory</h3>
@@ -43,8 +149,8 @@ export function CapitalRiskCard({ view, mode, riskLimits = [], onOpenRiskGuards 
           return (
             <div key={`${p.market}-${p.pair}-${p.side}`} className="mt-2 text-xs">
               <div className="flex items-baseline justify-between gap-2">
-                <span className="font-semibold text-app-text">{p.market} · <span className={p.side === 'LONG' ? 'text-emerald-500' : 'text-rose-500'}>{p.side}</span></span>
-                <span className="font-mono text-base font-bold text-app-text">{amountDisplay ?? '—'}</span>
+                <span className="font-semibold text-app-text">{p.market} · <span className={p.side === 'LONG' ? 'text-app-success' : 'text-app-danger'}>{p.side}</span></span>
+                <span className="font-mono text-base font-bold text-app-text">{amountDisplay ?? '—'} {p.pair.split('-')[0]}</span>
               </div>
               <div className="mt-1.5 space-y-0.5 font-mono text-[10px] text-app-muted">
                 <p>
@@ -52,12 +158,12 @@ export function CapitalRiskCard({ view, mode, riskLimits = [], onOpenRiskGuards 
                   {markNum !== null && <> → mark <span className="text-app-text">{markNum}</span></>}
                 </p>
                 <p>
-                  PnL <span className={cn('font-bold', (parseAmount(p.pnlUsdt) ?? 0) >= 0 ? 'text-emerald-500' : 'text-app-danger')}>{pnlDisplay ?? '—'}</span>
+                  PnL <span className={cn('font-bold', (parseAmount(p.pnlUsdt) ?? 0) >= 0 ? 'text-app-success' : 'text-app-danger')}>{pnlDisplay ?? '—'}</span>
                   {' '}· margin <span className="text-app-text">{marginDisplay ?? '—'}</span>
                 </p>
                 <p>
                   liquidation {liqDisplay !== null ? `~${liqDisplay}` : '—'}
-                  {liqDistPct !== null && <span className="text-amber-400"> ({liqDistPct.toFixed(1)}% from entry)</span>}
+                  {liqDistPct !== null && <span className="text-app-warning"> ({liqDistPct.toFixed(1)}% from entry)</span>}
                 </p>
               </div>
               {/* Mức dùng hạn mức tồn kho */}
@@ -81,39 +187,6 @@ export function CapitalRiskCard({ view, mode, riskLimits = [], onOpenRiskGuards 
             </div>
           )
         })}
-      </Surface>
-
-      {/* Vốn */}
-      <Surface className="p-4">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-app-muted">Free &amp; order-reserved capital</h3>
-        {c.balances.length === 0 ? (
-          <p className="mt-2 flex items-center gap-1.5 text-xs text-app-muted">
-            Balance breakdown <BackendGapChip detail="Reserved balances data unavailable (OverviewSupplement.balances)." />
-          </p>
-        ) : (
-          <ul className="mt-2 space-y-2 text-xs">
-            {c.balances.map((b) => (
-              <li key={b.asset}>
-                <div className="flex items-baseline justify-between">
-                  <span className="font-semibold text-app-text">{b.asset}</span>
-                  <span className="font-mono font-bold tabular-nums text-app-text">{b.free ?? '—'}</span>
-                </div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-app-muted">
-                  <span>reserved for orders</span>
-                  <div className="h-1.5 w-16 overflow-hidden rounded-pill bg-app-surface-muted" aria-hidden="true">
-                    <div
-                      className="h-full bg-app-action/70"
-                      style={{
-                        width: `${((parseAmount(b.reservedForOrders) ?? 0) / Math.max((parseAmount(b.free) ?? 0) + (parseAmount(b.reservedForOrders) ?? 0), 1)) * 100}%`,
-                      }}
-                    />
-                  </div>
-                  <span className="font-mono">{b.reservedForOrders ?? '—'}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
         <div className="mt-3 space-y-1.5 border-t border-app-border/40 pt-2 text-[10px] text-app-muted">
           <p className="flex items-center justify-between gap-1.5">
             <span className="flex items-center gap-1.5">
@@ -122,22 +195,7 @@ export function CapitalRiskCard({ view, mode, riskLimits = [], onOpenRiskGuards 
                 : 'Session fees'}
               {!c.fees.available && <BackendGapChip detail={c.fees.reason ?? 'Aggregate session fees unavailable (OverviewSupplement.session.fees).'} />}
             </span>
-            <span className="font-mono font-bold text-app-text">{c.fees.available ? `${c.fees.value.total_usdt} USDT` : '—'}</span>
-          </p>
-          <p className="flex items-center justify-between gap-1.5">
-            <span className="flex items-center gap-1.5">
-              {c.holdBenchmark.available && c.holdBenchmark.stale ? 'Session vs hold (stale)' : 'Session vs hold'}
-              {!c.holdBenchmark.available && <BackendGapChip detail={c.holdBenchmark.reason ?? 'Hold benchmark unavailable (OverviewSupplement.session.benchmark_hold).'} />}
-            </span>
-            <span className="font-mono font-bold text-app-text">
-              {c.holdBenchmark.available ? (
-                <>
-                  {c.holdBenchmark.value.session_pnl_usdt} <span className="text-app-muted">vs</span> {c.holdBenchmark.value.hold_pnl_usdt}
-                </>
-              ) : (
-                '—'
-              )}
-            </span>
+            <span className="font-mono font-bold text-app-text">{c.fees.available ? `${formatUsdtForDisplay(c.fees.value.total_usdt) ?? '—'} USDT` : '—'}</span>
           </p>
         </div>
       </Surface>
@@ -151,38 +209,15 @@ export function CapitalRiskCard({ view, mode, riskLimits = [], onOpenRiskGuards 
           </Badge>
         </div>
         <p className="mt-2 text-xs leading-relaxed text-app-text">{c.guardsSummary.headline}</p>
-        <p className="mt-1 font-mono text-[10px] text-app-muted">{c.guardsSummary.violationCount} breaches · {c.guardsSummary.unknownCount ?? 0} unverified / {c.guardsSummary.totalCount} limits</p>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
+        <p className="mt-1 font-mono text-[10px] text-app-muted">{c.guardsSummary.violationCount}/{c.guardsSummary.totalCount} limits touched</p>
+        {onOpenRiskGuards && (
           <button
             type="button"
-            onClick={() => setRulesOpen((v) => !v)}
-          aria-expanded={rulesOpen}
-          className="mt-2 inline-flex min-h-[28px] items-center gap-1 text-[11px] font-semibold text-app-action hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action"
-        >
-            {rulesOpen ? 'Hide rule details' : 'View rule details'} <ArrowUpRight size={12} className={cn('transition-transform', rulesOpen && 'rotate-90')} />
+            onClick={onOpenRiskGuards}
+            className="mt-2 inline-flex min-h-[28px] items-center gap-1 text-[11px] font-semibold text-app-action hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action"
+          >
+            Rule &amp; policy details <ArrowUpRight size={12} />
           </button>
-          {onOpenRiskGuards && (
-            <button
-              type="button"
-              onClick={onOpenRiskGuards}
-              className="inline-flex min-h-[28px] items-center gap-1 text-[11px] font-semibold text-app-action hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action"
-            >
-              Per-policy details <ArrowUpRight size={12} />
-            </button>
-          )}
-        </div>
-        {rulesOpen && (
-          <ul className="mt-2 space-y-1 border-t border-app-border/40 pt-2 text-[10px]">
-            {riskLimits.length === 0 && <li className="text-app-muted">No risk rules data</li>}
-            {riskLimits.map((limit) => (
-              <li key={`${limit.ruleId}:${limit.controllerId ?? 'global'}:${limit.market ?? 'all'}`} title={limit.unavailableReason ?? undefined} className="flex items-baseline justify-between gap-2">
-                <span className="text-app-muted">{limit.market ? `${limit.market === 'spot' ? 'Spot' : 'Perp'} · ` : ''}{limit.ruleId}</span>
-                <span className={cn('font-mono', limit.status === 'violated' ? 'font-bold text-app-danger' : 'text-app-text')}>
-                  {formatAssetAmount(limit.current, limit.unit)} <span className="text-app-muted">/ {formatAssetAmount(limit.limit, limit.unit)}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
         )}
         {mode === 'operator' && c.positions.length === 0 && (
           <p className="mt-2 text-[10px] text-app-muted">Mark/liquidation appear once positions are observed.</p>

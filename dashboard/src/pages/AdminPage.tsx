@@ -134,6 +134,14 @@ export function AdminPage(): ReactElement {
   const auditItems = audit.data?.pages.flatMap((page) => page.items) ?? []
   const accountItems = accounts.accounts.data?.pages.flatMap((page) => page.items) ?? []
 
+  // CTA availability rule (docs/UX_MOTION.md): the disconnect dialog opens even while locked, so the lock reason stays readable.
+  const disconnectLockReason = (() => {
+    if (!disconnectSlot) return null
+    const slot = connections.slots.find((item) => item.exchange === disconnectSlot.exchange && item.connector === disconnectSlot.connector)
+    const decision = slot?.decisions.disconnect
+    return decision && !decision.allowed ? decision.detail || decision.reasonCode || null : null
+  })()
+
   return (
     <MotionPage>
       <div className="mx-auto w-full max-w-[1536px] px-4 pb-16 pt-4 sm:px-6 sm:pt-6 md:px-8 lg:px-10">
@@ -259,6 +267,7 @@ export function AdminPage(): ReactElement {
           connector={disconnectSlot?.connector}
           isSubmitting={connections.mutations.disconnect.isPending}
           error={disconnectError}
+          lockReason={disconnectLockReason}
           onConfirmDisconnect={confirmDisconnect}
         />
       </div>

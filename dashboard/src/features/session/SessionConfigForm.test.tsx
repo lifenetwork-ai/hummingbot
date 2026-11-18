@@ -36,6 +36,26 @@ describe('SessionConfigForm inline feedback integration', () => {
     },
   } as unknown as import('../../core/api/schema').components['schemas']['ProfilesResponseOutput']
 
+  it('numbers the configuration steps and marks the selected option as pressed', () => {
+    render(
+      <SessionConfigForm
+        initialAction="start"
+        actionAvailability={defaultActionAvailability}
+        profilesData={sampleProfilesData}
+        onSubmitReview={vi.fn()}
+      />,
+    )
+
+    // Step numbering guides the eye: Market Mode (1), Profile Selection (2), Duration Mode (3)
+    expect(screen.getByText('1')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(screen.getByText('3')).toBeInTheDocument()
+
+    // The active choice is clearly flagged via aria-pressed
+    expect(screen.getByRole('button', { name: 'Spot' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Fixed Profile' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('initializes an untouched duration selection from the catalogue default', () => {
     render(
       <SessionConfigForm

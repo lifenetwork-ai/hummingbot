@@ -39,6 +39,7 @@ const activityRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: '/activity',
   component: ActivityPage,
+  validateSearch: (search: Record<string, unknown>): { tab?: 'reconciliation' | 'events' | 'commands' | 'audit' } => ({ tab: search.tab === 'reconciliation' || search.tab === 'events' || search.tab === 'commands' || search.tab === 'audit' ? search.tab : undefined }),
 })
 
 const statisticsRoute = createRoute({

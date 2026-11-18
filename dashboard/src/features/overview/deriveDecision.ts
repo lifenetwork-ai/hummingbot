@@ -1,29 +1,23 @@
 /**
- * Suy diễn đánh giá phiên (Q6) từ liquidity + capital/risk — hàm thuần, không state.
- * Verdict luôn khớp các block Q3–Q5 phía trên vì cùng nguồn dữ liệu.
+ * Tổng hợp vấn đề và mức đủ dữ liệu cho vùng 5 (Đánh giá & hành động) — hàm thuần, không state.
+ * Tham chiếu kết quả từ các vùng trên mà không lặp lại nguyên xi số liệu KPI (spread bps, coverage %)
+ * theo UI-STRUCTURE-PLAN mục 3.2 quy tắc 2 ("Summary tham chiếu kết quả và hành động, không dựng bảng chấm điểm trùng").
  */
 import { parseAmount } from './parseAmount'
 import type { CapitalRiskView, LiquidityMarketView } from './supplement'
 
-export type DecisionVerdict = 'met' | 'partial' | 'not_met' | 'unknown'
+export type DecisionIssueKind = 'problem' | 'data_gap'
 
-export interface DecisionRow {
-  goal: string
-  verdict: DecisionVerdict
-  note: string
+export interface DecisionIssue {
+  area: string
+  detail: string
+  kind: DecisionIssueKind
 }
 
 export interface DecisionSummary {
-  overall: 'met' | 'attention' | 'not_met'
-  rows: DecisionRow[]
-}
-
-function rollVerdicts(verdicts: DecisionVerdict[]): DecisionVerdict {
-  if (verdicts.length === 0) return 'unknown'
-  if (verdicts.includes('not_met')) return 'not_met'
-  if (verdicts.includes('partial')) return 'partial'
-  if (verdicts.includes('unknown')) return 'unknown'
-  return 'met'
+  issues: DecisionIssue[]
+  dataGapCount: number
+  hasProblems: boolean
 }
 
 function marketLabel(market: string) {
@@ -31,97 +25,72 @@ function marketLabel(market: string) {
 }
 
 export function deriveDecision(liquidity: LiquidityMarketView[], capital: CapitalRiskView): DecisionSummary {
-  const rows: DecisionRow[] = []
+  const issues: DecisionIssue[] = []
 
-  // Mục tiêu 1 — giao dịch thuận lợi: spread thực vs target từng market
-  const spreadNotes = liquidity.map((m) => {
-    const known = m.spreadActualBps !== null && m.spreadTargetBps !== null
-    const met = known && m.spreadActualBps! <= m.spreadTargetBps!
-    return {
-      met, known,
-      note: `${marketLabel(m.market)} ${m.spreadActualBps ?? '—'}/${m.spreadTargetBps ?? '—'} bps`,
+  // Vùng thanh khoản — tổng hợp mức đạt mandate ở cấp vận hành; không lặp lại nguyên xi
+  // các metric số học (bps spread, % coverage) đã có tại KPI strip và LiquidityVerdictCard
+  const unmetMandateMarkets: string[] = []
+  for (const m of liquidity) {
+    const spreadExceeded =
+      m.spreadActualBps !== null && m.spreadTargetBps !== null && m.spreadActualBps > m.spreadTargetBps
+
+    const coverageKnown =
+      m.coverageFraction !== null &&
+      m.coverageTargetFraction !== null &&
+      m.rollingCoverageAvailable &&
+      m.measurementReady &&
+      m.eligibleSeconds > 0 &&
+      m.fullWindow === true
+
+    const coverageFailed = coverageKnown && (m.coverageFraction ?? 0) < (m.coverageTargetFraction ?? 0)
+
+    if (spreadExceeded || coverageFailed) {
+      unmetMandateMarkets.push(marketLabel(m.market))
     }
-  })
-  rows.push({
-    goal: 'Trade facilitation',
-    verdict: rollVerdicts(spreadNotes.map((s) => (!s.known ? 'unknown' : s.met ? 'met' : 'not_met'))),
-    note:
-      spreadNotes.map((s) => s.note).join(' · ') +
-      (spreadNotes.some((s) => s.known && !s.met) ? ' — wider than planned width' : ''),
-  })
 
-  // Mục tiêu 2 — duy trì thanh khoản: coverage vs target + two-sided hiện tại
-  const covNotes = liquidity.map((m) => {
-    const fraction = m.coverageFraction
-    const target = m.coverageTargetFraction
-    const known = fraction !== null && target !== null && m.rollingCoverageAvailable && m.measurementReady && m.eligibleSeconds > 0 && m.fullWindow === true
-    const met = known && fraction >= target
-    return {
-      known,
-      met,
-      note: `${marketLabel(m.market)} ${m.coverageFraction !== null ? `${(m.coverageFraction * 100).toFixed(1)}%` : '—'} / ${m.coverageTargetFraction === null ? '—' : `${Math.round(m.coverageTargetFraction * 100)}%`}`,
+    if (!m.twoSided) {
+      issues.push({
+        area: `${marketLabel(m.market)} quoting`,
+        detail: 'one-sided market — missing bid or ask side',
+        kind: 'problem',
+      })
     }
-  })
-  const oneSided = liquidity.some((m) => !m.twoSided)
-  rows.push({
-    goal: 'Liquidity maintained',
-    verdict: rollVerdicts([
-      ...covNotes.map((c) => (!c.known ? 'unknown' : c.met ? 'met' : 'not_met')),
-      oneSided ? ('partial' as DecisionVerdict) : ('met' as DecisionVerdict),
-    ]),
-    note: covNotes.map((c) => c.note).join(' · ') + (oneSided ? ' · one-sided market' : ''),
-  })
+  }
 
-  // Mục tiêu 3 — vốn & chi phí hợp lý: phí trong phiên (signed: dương = đã trả)
-  const fees = capital.fees.available && !capital.fees.stale && capital.fees.value.processing_state === 'ready' && capital.fees.value.history_complete
-    ? capital.fees.value.total_usdt : null
-  rows.push({
-    goal: 'Capital & costs reasonable',
-    verdict: fees === null ? 'unknown' : 'met',
-    note:
-      fees === null
-        ? 'Session fees data unavailable'
-        : `Session fees ${fees} USDT`,
-  })
+  if (unmetMandateMarkets.length > 0) {
+    const marketText = unmetMandateMarkets.length > 1 ? `${unmetMandateMarkets.join(' and ')} markets` : `${unmetMandateMarkets[0]} market`
+    issues.push({
+      area: 'Liquidity mandate',
+      detail: `${marketText} below target mandate — consider adjusting configuration`,
+      kind: 'problem',
+    })
+  }
 
-  // Mục tiêu 4 — rủi ro trong giới hạn: guards + tồn kho vs hạn mức
+  // Vùng vốn & rủi ro — guards + tồn kho vs hạn mức
   const inventoryBreaches = capital.positions.filter((p) => {
     const amount = parseAmount(p.amount)
     const limit = parseAmount(p.inventoryLimit)
-    return amount !== null && limit !== null && amount / limit > 1
+    return amount !== null && limit !== null && limit > 0 && amount / limit > 1
   })
-  rows.push({
-    goal: 'Risk within limits',
-    verdict: inventoryBreaches.length > 0 || capital.guardsSummary.status === 'stop'
-      ? 'not_met'
-      : capital.guardsSummary.status === 'attention' || !capital.guardsSummary.available
-        ? 'partial'
-        : 'met',
-    note:
-      inventoryBreaches.length > 0
-        ? 'Inventory above limit'
-        : capital.guardsSummary.available
-          ? capital.guardsSummary.headline
-          : capital.guardsSummary.headline,
-  })
+  if (inventoryBreaches.length > 0) {
+    issues.push({
+      area: 'Inventory',
+      detail: `${inventoryBreaches.length} position${inventoryBreaches.length > 1 ? 's' : ''} above limit`,
+      kind: 'problem',
+    })
+  }
+  if (capital.guardsSummary.status === 'stop' || capital.guardsSummary.status === 'attention') {
+    issues.push({ area: 'Risk guards', detail: capital.guardsSummary.headline, kind: 'problem' })
+  } else if (!capital.guardsSummary.available) {
+    issues.push({ area: 'Risk guards', detail: capital.guardsSummary.headline, kind: 'data_gap' })
+  }
 
-  // Mục tiêu 5 — hiệu quả vs benchmark hold
-  const bench = capital.holdBenchmark.available && !capital.holdBenchmark.stale ? capital.holdBenchmark.value : null
-  const outperform = bench !== null ? parseAmount(bench.outperform_usdt) : null
-  rows.push({
-    goal: 'Performance understood',
-    verdict: outperform === null ? 'unknown' : outperform > 0 ? 'met' : outperform < 0 ? 'not_met' : 'met',
-    note:
-      bench === null || outperform === null
-        ? 'Hold benchmark data unavailable'
-        : `Session ${bench.session_pnl_usdt} vs hold ${bench.hold_pnl_usdt} USDT (${outperform >= 0 ? 'beats' : 'behind'} benchmark by ${Math.abs(outperform).toFixed(2)})`,
-  })
+  // Mức đủ dữ liệu — phí trong phiên (đã hiển thị chi tiết ở vùng vốn & rủi ro)
+  const feesKnown = capital.fees.available && !capital.fees.stale && capital.fees.value.processing_state === 'ready' && capital.fees.value.history_complete
+  if (!feesKnown) {
+    issues.push({ area: 'Session fees', detail: 'aggregate not ready for this session yet', kind: 'data_gap' })
+  }
 
-  const overall = rows.some((r) => r.verdict === 'not_met')
-    ? 'not_met'
-    : rows.some((r) => r.verdict === 'partial' || r.verdict === 'unknown')
-      ? 'attention'
-      : 'met'
-
-  return { overall, rows }
+  const dataGapCount = issues.filter((issue) => issue.kind === 'data_gap').length
+  return { issues, dataGapCount, hasProblems: issues.some((issue) => issue.kind === 'problem') }
 }

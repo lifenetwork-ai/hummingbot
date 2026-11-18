@@ -95,7 +95,7 @@ describe('Overview completed model integration', () => {
       http.get(`${pageApiUrl}/statistics/liquidity`, () => HttpResponse.json(completionOverview.liquidity.data)))
     render(<HomePage />, { wrapper: pageWrapper() })
     expect(await screen.findByText('#2')).toBeInTheDocument()
-    // Question-axis layout: mandate → KPI (target/actual) → liquidity → capital/risk → verdict
+    // Zone layout: mandate → KPI (target/actual) → liquidity → capital/risk → assessment
     expect(screen.getByText('Assigned mandate')).toBeInTheDocument()
     expect(screen.getByText('Eligible coverage (two-sided)')).toBeInTheDocument()
     // Missing eligible rolling evidence remains explicit on the KPI strip
@@ -104,7 +104,7 @@ describe('Overview completed model integration', () => {
     expect(screen.queryByText('Safe')).not.toBeInTheDocument()
     // Guards show no rule on the page — only inside the dialog
     expect(screen.queryByText(/Rule 1 · Quote Guard/)).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /per-policy details/i }))
+    fireEvent.click(screen.getByRole('button', { name: /rule & policy details/i }))
     expect(screen.getByRole('dialog', { name: 'Capital Protection' })).toBeInTheDocument()
     expect(screen.getByText(/Rule 1 · Quote Guard — spot \(LIFE-USDT\)/)).toBeInTheDocument()
     expect(screen.getByText('Rule 2 · Drawdown')).toBeInTheDocument()

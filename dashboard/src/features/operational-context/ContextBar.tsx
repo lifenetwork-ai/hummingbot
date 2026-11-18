@@ -79,8 +79,8 @@ function getStatusIndicator(context: OperationalContextModel) {
   }
   if (observationState === 'stale' || balances.phase === 'error') {
     return {
-      dotColor: 'bg-amber-500',
-      pingColor: 'bg-amber-400',
+      dotColor: 'bg-app-warning',
+      pingColor: 'bg-app-warning',
       ping: false,
       label: balances.phase === 'error' ? 'Account error' : 'Stale data',
       tone: 'warning' as const,
@@ -96,8 +96,8 @@ function getStatusIndicator(context: OperationalContextModel) {
     }
   }
   return {
-    dotColor: 'bg-emerald-500',
-    pingColor: 'bg-emerald-400',
+    dotColor: 'bg-app-success',
+    pingColor: 'bg-app-success',
     ping: true,
     label: 'Connected',
     tone: 'success' as const,

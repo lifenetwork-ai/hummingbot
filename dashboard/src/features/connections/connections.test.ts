@@ -51,6 +51,13 @@ describe('Connections workflow logic', () => {
     expect(validateCredentialBundle(catalogue.data!.exchanges[0].fields, { api_key: 'secret' })).toEqual([])
   })
 
+  it('surfaces a failed load as connection failed instead of an endless checking state', () => {
+    const failedStatus = { ...status, data: { ...status.data!, slots: [{ ...slot, status: 'failed', reason_code: 'exchange_credentials_rejected', detail: 'The saved connection could not be loaded.' }] } }
+    expect(deriveCredentialSlot(identity, catalogue, failedStatus, runtime(), 'okx', 'spot').connectionState).toBe('failed')
+    // A later verified connected observation overrides the historical failure.
+    expect(deriveCredentialSlot(identity, catalogue, status, runtime(), 'okx', 'spot').connectionState).toBe('connected')
+  })
+
   it.each(['catalogue', 'status'] as const)('blocks cleanup mutations when %s credentials are deployment-managed', (source) => {
     const externalCatalogue = source === 'catalogue'
       ? { ...catalogue, data: { ...catalogue.data!, source: 'environment' as const } } : catalogue

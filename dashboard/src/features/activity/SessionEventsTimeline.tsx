@@ -2,7 +2,7 @@ import { Activity, ChevronRight, Clock } from 'lucide-react'
 import type { components } from '../../core/api/schema'
 import type { EventFilters } from '../history/filters'
 import { Badge } from '../../shared/components/Badge'
-import { Button } from '../../shared/components/Button'
+import { CursorPagination } from '../../shared/components/CursorPagination'
 import { Surface } from '../../shared/components/Surface'
 import { HistoryFiltersBar } from './HistoryFiltersBar'
 
@@ -14,9 +14,6 @@ export interface SessionEventsTimelineProps {
   onFilterChange?: (filters: EventFilters) => void
   hasMore?: boolean
   onLoadMore?: () => void
-  sessions?: Pick<components['schemas']['SessionSummaryOutput'], 'id' | 'profile_id' | 'status'>[]
-  selectedSessionId?: string
-  onSelectSession?: (id: string | undefined) => void
 }
 
 export function SessionEventsTimeline({
@@ -27,9 +24,6 @@ export function SessionEventsTimeline({
   validationErrors,
   hasMore,
   onLoadMore,
-  sessions,
-  selectedSessionId,
-  onSelectSession,
 }: SessionEventsTimelineProps) {
   return (
     <Surface className="p-5 md:p-6 space-y-4">
@@ -51,9 +45,6 @@ export function SessionEventsTimeline({
           mode="events"
           filters={filters}
           onChange={onFilterChange} validationErrors={validationErrors}
-          sessions={sessions}
-          selectedSessionId={selectedSessionId}
-          onSelectSession={onSelectSession}
         />
       )}
 
@@ -91,9 +82,15 @@ export function SessionEventsTimeline({
                   </p>
                 )}
                 {ev.payload && typeof ev.payload === 'object' && Object.keys(ev.payload).length > 0 && (
-                  <p className="mt-1 text-app-muted text-[11px] leading-relaxed font-mono">
-                    {JSON.stringify(ev.payload)}
-                  </p>
+                  <details className="group mt-1">
+                    <summary className="inline-flex cursor-pointer select-none list-none items-center gap-1 text-[10px] font-mono text-app-muted transition-colors hover:text-app-text [&::-webkit-details-marker]:hidden">
+                      <ChevronRight size={11} className="transition-transform group-open:rotate-90" />
+                      <span>payload ({Object.keys(ev.payload).length} keys)</span>
+                    </summary>
+                    <pre className="mt-1 max-h-64 max-w-full overflow-auto rounded-card border border-app-border/60 bg-app-surface px-3 py-2 text-[11px] leading-relaxed font-mono text-app-muted whitespace-pre-wrap break-all">
+                      {JSON.stringify(ev.payload, null, 2)}
+                    </pre>
+                  </details>
                 )}
               </li>
             ))}
@@ -102,19 +99,12 @@ export function SessionEventsTimeline({
       </div>
 
       {/* Pagination */}
-      {hasMore && onLoadMore && (
-        <div className="flex justify-center pt-2">
-          <Button
-            variant="secondary"
-            onClick={onLoadMore}
-            disabled={isLoading}
-            className="h-8 px-4 text-xs gap-1"
-          >
-            <span>{isLoading ? 'Loading more…' : 'Load more events'}</span>
-            <ChevronRight size={14} />
-          </Button>
-        </div>
-      )}
+      <CursorPagination
+        itemLabel="event"
+        hasMore={hasMore}
+        isLoading={isLoading}
+        onLoadMore={onLoadMore}
+      />
     </Surface>
   )
 }

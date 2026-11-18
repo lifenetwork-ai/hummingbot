@@ -8,14 +8,30 @@ Dashboard giúp người vận hành biết bot đang làm gì, nhận ra chênh
 
 [Bàn giao logic cho UI](LOGIC-HANDOFF.md) cung cấp bản đồ nguồn dữ liệu, trạng thái và các tình huống đầu tiên để đối chiếu với cấu trúc component UI.
 
-Nguồn quyết định:
+## Quyền quyết định của từng nguồn
 
-- [Frontend requirements](../../docs/frontend-requirements.md): nhu cầu và kết quả nghiệp vụ.
-- [FE integration](../../docs/fe-integration.md): ngữ nghĩa dữ liệu, điều kiện thao tác và vòng đời operation.
-- [OpenAPI](../../docs/api/openapi.json): endpoint, payload và DTO; [API foundation](API.md): adapter/hooks hiện có.
-- [Architecture](ARCHITECTURE.md), [Design system](DESIGN_SYSTEM.md), [Feedback](FEEDBACK.md): cấu trúc và quy tắc giao diện.
+Dashboard sở hữu yêu cầu sản phẩm, UI/UX và cách tích hợp. Quyền quyết định phân theo loại quyết định:
 
-Nếu các nguồn mâu thuẫn, ghi rõ điểm mâu thuẫn và xử lý trước phần triển khai bị ảnh hưởng. Không tự tạo endpoint, trạng thái hoặc dữ liệu để lấp khoảng thiếu.
+| Loại quyết định | Nguồn sở hữu | Phạm vi |
+|---|---|---|
+| Mục tiêu sản phẩm | [Overview](../../docs/overview.md) | Giá trị và quyết định điều hành cần hỗ trợ |
+| Phạm vi hiện tại | [Frontend requirements](../../docs/frontend-requirements.md) | Ưu tiên, kết quả nghiệm thu và phần ngoài phase |
+| Cấu trúc và UX | [UI structure plan](UI-STRUCTURE-PLAN.md) | Bố cục, thứ tự thông tin, điều hướng, chính/phụ và responsive |
+| Ngữ nghĩa tích hợp | [FE integration](../../docs/fe-integration.md) | Ý nghĩa dữ liệu, freshness, điều kiện thao tác và vòng đời operation |
+| Contract API | [OpenAPI](../../docs/api/openapi.json) | Endpoint, payload, field và kiểu dữ liệu |
+| Visual và tương tác chung | [Design system](DESIGN_SYSTEM.md), [UX motion](UX_MOTION.md), [Feedback](FEEDBACK.md) | Tokens, component, motion, accessibility và feedback |
+| Kiến trúc và phối hợp | [Architecture](ARCHITECTURE.md), tài liệu này, [AGENTS](../AGENTS.md) | Ranh giới code, sở hữu, bàn giao và kiểm chứng |
+
+[DESIGN](../DESIGN.md) sở hữu thiết kế authentication và shared feedback; cấu trúc toàn dashboard theo UI structure plan. [Review Overview](OVERVIEW-REVIEW.md) là bản ghi lịch sử, không tự cấp quyền triển khai đề xuất.
+
+### Tiếp nhận thay đổi backend
+
+- `fe-integration.md` là đầu vào phía backend. Wireframe, card và cách chia màn hình trong đó là tham khảo; dashboard đánh giá theo thiết kế đã duyệt trước khi áp dụng. Không cần sửa tài liệu backend để quyết định bố cục dashboard.
+- Đối chiếu tài liệu, OpenAPI và implementation. Code hiện tại là bằng chứng triển khai, không tự trở thành yêu cầu thiết kế. Sai lệch cùng một hành vi phải được ghi rõ và giải quyết trước phần phụ thuộc; không tự tạo endpoint, trạng thái hoặc dữ liệu.
+- Thay đổi tương thích được tích hợp trong phạm vi hiện có, giữ bố cục/workflow đã duyệt. Field hoặc trạng thái mới không mặc định tạo card, banner hay chỉ số mới.
+- Breaking change gồm đổi/xóa field hoặc endpoint, đổi ý nghĩa dữ liệu, quyền, điều kiện thao tác hoặc vòng đời operation khiến hành vi hiện tại không còn đúng. Báo người dùng contract cũ/mới, nguồn bằng chứng, màn hình/hành vi bị ảnh hưởng và phương án trước khi sửa phần bị ảnh hưởng; tiếp tục phần độc lập an toàn.
+- Yêu cầu UI mới từ backend làm đổi bố cục, ưu tiên thông tin hoặc workflow phải được người dùng review và duyệt trước khi áp dụng. Chỉ báo tác động, không tự mở rộng phạm vi để đáp ứng đề xuất backend.
+- Metric tổng hợp hoặc ước tính chỉ được đưa vào sản phẩm sau khi chốt định nghĩa, nguồn, đơn vị, coverage và giới hạn. Đề xuất trong review lịch sử chưa phải metric chính thức.
 
 ## Hai phần trách nhiệm
 
@@ -74,6 +90,11 @@ Người logic:
 Người tích hợp:
 File mỗi bên sở hữu:
 Nguồn contract / điểm còn thiếu:
+Phiên bản contract đối chiếu: commit hoặc checksum, endpoint/field, thay đổi cũ → mới:
+Thiết kế áp dụng: tài liệu/mục và quyết định đã duyệt:
+Lý do thay đổi / màn hình và hành vi bị ảnh hưởng:
+Phần UI được phép đổi / phần giữ nguyên:
+Breaking change hoặc yêu cầu UI mới / quyết định của người dùng:
 Interface TypeScript / props / callbacks:
 Fixture cases và expected output:
 Điều kiện được thao tác / lý do bị chặn:

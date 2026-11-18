@@ -1,8 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { HistoryFiltersBar } from './HistoryFiltersBar'
-import type { AuditFilters, CommandFilters, EventFilters } from '../history/filters'
-import type { components } from '../../core/api/schema'
+import type { AuditFilters, CommandFilters } from '../history/filters'
 
 describe('HistoryFiltersBar', () => {
   describe('mode: commands', () => {
@@ -30,56 +29,74 @@ describe('HistoryFiltersBar', () => {
       })
     })
 
-    it('displays validation error when limit is invalid and resets filters on click', () => {
+    it('selects limit via the limit select', () => {
+      const onChange = vi.fn()
+      render(
+        <HistoryFiltersBar
+          mode="commands"
+          filters={{}}
+          onChange={onChange}
+        />,
+      )
+
+      const limitSelect = screen.getByLabelText(/Limit/i)
+      fireEvent.change(limitSelect, { target: { value: '50' } })
+      expect(onChange).toHaveBeenCalledWith({ limit: 50 })
+    })
+
+    it('shows the active-filter count on the reset button and resets on click', () => {
       const onChange = vi.fn()
       render(
         <HistoryFiltersBar
           mode="commands"
           filters={{ limit: 999 }}
-          onChange={onChange}
           validationErrors={{ limit: 'Limit cannot exceed 500' }}
+          onChange={onChange}
         />,
       )
 
       expect(screen.getByText('Limit cannot exceed 500')).toBeInTheDocument()
 
-      const resetBtn = screen.getByRole('button', { name: /Reset filters/i })
+      const resetBtn = screen.getByRole('button', { name: /Reset/i })
       fireEvent.click(resetBtn)
-      expect(onChange).toHaveBeenCalledWith({})
+      expect(onChange).toHaveBeenCalledWith({ limit: 10 })
+    })
+
+    it('displays the active count badge when narrowing filters are set', () => {
+      render(
+        <HistoryFiltersBar
+          mode="commands"
+          filters={{ action: 'start', status: 'succeeded', limit: 50 }}
+          onChange={vi.fn()}
+        />,
+      )
+
+      expect(screen.getByText('2 active')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Reset (2)' })).toBeInTheDocument()
     })
   })
 
   describe('mode: events', () => {
-    it('renders event filters, allows selecting session, and updates filters', () => {
+    it('filters by event type and source selects', () => {
       const onChange = vi.fn()
-      const onSelectSession = vi.fn()
-      const filters: EventFilters = {}
 
       render(
         <HistoryFiltersBar
           mode="events"
-          filters={filters}
+          filters={{}}
           onChange={onChange}
-          sessions={[
-            {
-              id: 'sess-12345678-abcd',
-              profile_id: 'pure_market_making',
-            } as unknown as components['schemas']['SessionStateOutput'],
-          ]}
-          selectedSessionId="sess-12345678-abcd"
-          onSelectSession={onSelectSession}
         />,
       )
 
       expect(screen.getByText('Events Filter')).toBeInTheDocument()
 
-      const eventTypeInput = screen.getByPlaceholderText('e.g. state_changed, step_expired…')
-      fireEvent.change(eventTypeInput, { target: { value: 'state_changed' } })
-      expect(onChange).toHaveBeenCalledWith({ event_type: 'state_changed' })
+      const eventTypeSelect = screen.getByLabelText(/Event Type/i)
+      fireEvent.change(eventTypeSelect, { target: { value: 'session_created' } })
+      expect(onChange).toHaveBeenCalledWith({ event_type: 'session_created' })
 
-      const select = screen.getByLabelText(/Select session to track/i)
-      fireEvent.change(select, { target: { value: '' } })
-      expect(onSelectSession).toHaveBeenCalledWith(undefined)
+      const sourceSelect = screen.getByLabelText(/Source/i)
+      fireEvent.change(sourceSelect, { target: { value: 'observer' } })
+      expect(onChange).toHaveBeenCalledWith({ source: 'observer' })
     })
   })
 
@@ -100,6 +117,9 @@ describe('HistoryFiltersBar', () => {
       expect(screen.getByText('Audit Filter')).toBeInTheDocument()
       expect(screen.getByText('Invalid UTC format')).toBeInTheDocument()
 
+      // Advanced filters are collapsed by default; expand them first
+      fireEvent.click(screen.getByRole('button', { name: /More filters/i }))
+
       const opInput = screen.getByPlaceholderText('Filter by operation_id…')
       fireEvent.change(opInput, { target: { value: 'op-999' } })
 
@@ -108,12 +128,43 @@ describe('HistoryFiltersBar', () => {
         operation_id: 'op-999',
       })
 
-      const resetBtn = screen.getByRole('button', { name: /Reset filters/i })
+      const resetBtn = screen.getByRole('button', { name: /Reset/i })
       fireEvent.click(resetBtn)
-      expect(onChange).toHaveBeenCalledWith({})
+      expect(onChange).toHaveBeenCalledWith({ limit: 10 })
     })
 
-    it('supports quick date/time presets and clearing date/time range', () => {
+    it('auto-opens advanced filters when one is already set', () => {
+      render(
+        <HistoryFiltersBar
+          mode="audit"
+          filters={{ exchange: 'okx' }}
+          onChange={vi.fn()}
+        />,
+      )
+
+      expect(screen.getByLabelText(/Exchange/i)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Hide filters/i })).toBeInTheDocument()
+    })
+
+    it('shows the advanced-filter count on the disclosure toggle while collapsed', () => {
+      render(
+        <HistoryFiltersBar
+          mode="audit"
+          filters={{ environment: 'live', target_id: 't-1' }}
+          onChange={vi.fn()}
+        />,
+      )
+
+      // Auto-opened because advanced filters are set; collapse and check the badge survives
+      const toggle = screen.getByRole('button', { name: /Hide filters/i })
+      expect(screen.getByText('2')).toBeInTheDocument()
+      fireEvent.click(toggle)
+      expect(screen.getByRole('button', { name: /More filters \(2\)|More filters/i })).toBeInTheDocument()
+      expect(screen.getByText('2')).toBeInTheDocument()
+      expect(screen.queryByLabelText(/Environment/i)).not.toBeInTheDocument()
+    })
+
+    it('applies quick time presets, highlights the active segment, and clears via All time', () => {
       const onChange = vi.fn()
       const { rerender } = render(
         <HistoryFiltersBar
@@ -123,7 +174,10 @@ describe('HistoryFiltersBar', () => {
         />,
       )
 
-      const preset1h = screen.getByRole('button', { name: 'Last 1h' })
+      // "All time" is the default with no range set
+      expect(screen.getByRole('button', { name: 'All time' }).getAttribute('aria-pressed')).toBe('true')
+
+      const preset1h = screen.getByRole('button', { name: '1h' })
       fireEvent.click(preset1h)
 
       expect(onChange).toHaveBeenCalledTimes(1)
@@ -131,7 +185,18 @@ describe('HistoryFiltersBar', () => {
       expect(lastCall.from_time).toBeDefined()
       expect(lastCall.to_time).toBeDefined()
 
-      // When from_time / to_time is present, "Clear time range" appears
+      // The clicked preset is highlighted when the filters match it
+      rerender(
+        <HistoryFiltersBar
+          mode="audit"
+          filters={lastCall}
+          onChange={onChange}
+        />,
+      )
+      expect(screen.getByRole('button', { name: '1h' }).getAttribute('aria-pressed')).toBe('true')
+      expect(screen.getByRole('button', { name: 'All time' }).getAttribute('aria-pressed')).toBe('false')
+
+      // A fixed range that matches no preset reads as custom
       rerender(
         <HistoryFiltersBar
           mode="audit"
@@ -139,9 +204,10 @@ describe('HistoryFiltersBar', () => {
           onChange={onChange}
         />,
       )
+      expect(screen.getByText('Custom range')).toBeInTheDocument()
 
-      const clearTimeBtn = screen.getByRole('button', { name: 'Clear time range' })
-      fireEvent.click(clearTimeBtn)
+      // "All time" clears the range
+      fireEvent.click(screen.getByRole('button', { name: 'All time' }))
       expect(onChange).toHaveBeenCalledWith({})
     })
 
@@ -157,8 +223,8 @@ describe('HistoryFiltersBar', () => {
         />,
       )
 
-      // Select action
-      const actionSelect = screen.getByLabelText(/Action/i)
+      // Select action (primary)
+      const actionSelect = screen.getByLabelText(/^Action/i)
       fireEvent.change(actionSelect, { target: { value: 'login' } })
       expect(onChange).toHaveBeenCalledWith({ action: 'login' })
 
@@ -166,27 +232,26 @@ describe('HistoryFiltersBar', () => {
       fireEvent.change(actionSelect, { target: { value: 'automatic_recovery_order_rejected' } })
       expect(onChange).toHaveBeenCalledWith({ action: 'automatic_recovery_order_rejected' })
 
-      // Select outcome
+      // Select outcome (primary)
       const outcomeSelect = screen.getByLabelText(/Outcome/i)
       fireEvent.change(outcomeSelect, { target: { value: 'succeeded' } })
       expect(onChange).toHaveBeenCalledWith({ outcome: 'succeeded' })
 
-      // Select environment
+      // Advanced filters
+      fireEvent.click(screen.getByRole('button', { name: /More filters/i }))
+
       const envSelect = screen.getByLabelText(/Environment/i)
       fireEvent.change(envSelect, { target: { value: 'live' } })
       expect(onChange).toHaveBeenCalledWith({ environment: 'live' })
 
-      // Select exchange
       const exSelect = screen.getByLabelText(/Exchange/i)
       fireEvent.change(exSelect, { target: { value: 'okx' } })
       expect(onChange).toHaveBeenCalledWith({ exchange: 'okx' })
 
-      // Select connector
       const connSelect = screen.getByLabelText(/Connector/i)
       fireEvent.change(connSelect, { target: { value: 'spot' } })
       expect(onChange).toHaveBeenCalledWith({ connector: 'spot' })
 
-      // Select limit
       const limitSelect = screen.getByLabelText(/Limit/i)
       fireEvent.change(limitSelect, { target: { value: '50' } })
       expect(onChange).toHaveBeenCalledWith({ limit: 50 })
@@ -209,22 +274,19 @@ describe('HistoryFiltersBar', () => {
       )
 
       // Actor Select exists
-      const actorSelect = screen.getByLabelText(/Actor ID/i)
+      const actorSelect = screen.getByLabelText(/^Actor$/)
       fireEvent.change(actorSelect, { target: { value: 'usr-123' } })
       expect(onChange).toHaveBeenCalledWith({ actor_id: 'usr-123' })
 
-      // Click "Enter ID manually"
-      const toggleManualBtn = screen.getByRole('button', { name: 'Enter ID manually' })
-      fireEvent.click(toggleManualBtn)
+      // Switch to manual input via the icon toggle
+      fireEvent.click(screen.getByRole('button', { name: 'Switch to manual actor ID input' }))
 
-      // Now manual input exists
       const actorInput = screen.getByPlaceholderText('Filter by actor_id…')
       expect(actorInput).toBeInTheDocument()
 
-      // Click "Select from list" to return to select
-      const toggleSelectBtn = screen.getByRole('button', { name: 'Select from list' })
-      fireEvent.click(toggleSelectBtn)
-      expect(screen.getByLabelText(/Actor ID/i)).toBeInTheDocument()
+      // Switch back to the list select
+      fireEvent.click(screen.getByRole('button', { name: 'Switch to actor list select' }))
+      expect(screen.getByLabelText(/^Actor$/)).toBeInTheDocument()
     })
   })
 })

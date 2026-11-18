@@ -57,10 +57,10 @@ export function DailyFundingChart({ series, isLoading }: DailyFundingChartProps)
         </div>
         <div className="flex items-center gap-3 text-[11px] text-app-muted">
           <span className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> Net income (+)
+            <span className="h-2.5 w-2.5 rounded-sm bg-app-success" /> Net income (+)
           </span>
           <span className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-sm bg-rose-500" /> Net paid (-)
+            <span className="h-2.5 w-2.5 rounded-sm bg-app-danger" /> Net paid (-)
           </span>
           <span>· Unit: USDT</span>
         </div>
@@ -132,21 +132,21 @@ export function DailyFundingChart({ series, isLoading }: DailyFundingChartProps)
                           <div className="mt-1.5 space-y-1 font-mono text-[11px]">
                             <div className="flex justify-between items-center text-app-muted">
                               <span className="flex items-center gap-1.5">
-                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                <span className="h-2 w-2 rounded-full bg-app-success" />
                                 Received:
                               </span>
-                              <span className="font-semibold text-emerald-500">{formatUsdt(d.funding_received)}</span>
+                              <span className="font-semibold text-app-success">{formatUsdt(d.funding_received)}</span>
                             </div>
                             <div className="flex justify-between items-center text-app-muted">
                               <span className="flex items-center gap-1.5">
-                                <span className="h-2 w-2 rounded-full bg-rose-500" />
+                                <span className="h-2 w-2 rounded-full bg-app-danger" />
                                 Paid:
                               </span>
-                              <span className="font-semibold text-rose-500">{formatUsdt(d.funding_paid)}</span>
+                              <span className="font-semibold text-app-danger">{formatUsdt(d.funding_paid)}</span>
                             </div>
                             <div className="flex justify-between items-center border-t border-app-border/40 pt-1 text-app-text font-bold">
                               <span className="font-medium text-app-muted">Net:</span>
-                              <span className={cn(net >= 0 ? 'text-emerald-500' : 'text-app-danger')}>
+                              <span className={cn(net >= 0 ? 'text-app-success' : 'text-app-danger')}>
                                 {d.funding_net !== null && net > 0 ? '+' : ''}{formatUsdt(d.funding_net)}
                               </span>
                             </div>
@@ -158,8 +158,8 @@ export function DailyFundingChart({ series, isLoading }: DailyFundingChartProps)
                         {net > 0 && (
                           <div
                             className={cn(
-                              'w-full bg-emerald-500 hover:bg-emerald-600 rounded-t-md transition-all duration-200 flex items-center justify-center overflow-hidden border border-emerald-400/40 shadow-xs',
-                              isActive ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-app-surface scale-[1.03]' : '',
+                              'w-full bg-app-success hover:bg-app-success/90 rounded-t-md transition-all duration-200 flex items-center justify-center overflow-hidden border border-app-success/40 shadow-xs',
+                              isActive ? 'ring-2 ring-app-success ring-offset-2 ring-offset-app-surface scale-[1.03]' : '',
                             )}
                             style={{ height: `${Math.max(14, magnitudePct)}%` }}
                             title={`Net received: +${formatUsdt(d.funding_net)}`}
@@ -178,8 +178,8 @@ export function DailyFundingChart({ series, isLoading }: DailyFundingChartProps)
                         {net < 0 && (
                           <div
                             className={cn(
-                              'w-full bg-rose-500 hover:bg-rose-600 rounded-b-md transition-all duration-200 flex items-center justify-center overflow-hidden border border-rose-400/40 shadow-xs',
-                              isActive ? 'ring-2 ring-rose-500 ring-offset-2 ring-offset-app-surface scale-[1.03]' : '',
+                              'w-full bg-app-danger hover:bg-app-danger/90 rounded-b-md transition-all duration-200 flex items-center justify-center overflow-hidden border border-app-danger/40 shadow-xs',
+                              isActive ? 'ring-2 ring-app-danger ring-offset-2 ring-offset-app-surface scale-[1.03]' : '',
                             )}
                             style={{ height: `${Math.max(14, magnitudePct)}%` }}
                             title={`Net paid: ${formatUsdt(d.funding_net)}`}
@@ -219,18 +219,18 @@ export function DailyFundingChart({ series, isLoading }: DailyFundingChartProps)
                 </div>
                 <div className="flex flex-wrap items-center gap-3 sm:gap-6 font-mono text-xs">
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    <span className="h-2 w-2 rounded-full bg-app-success" />
                     <span className="text-app-muted">Received:</span>
-                    <span className="font-bold text-emerald-500">{formatUsdt(activeDayData?.funding_received)}</span>
+                    <span className="font-bold text-app-success">{formatUsdt(activeDayData?.funding_received)}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-rose-500" />
+                    <span className="h-2 w-2 rounded-full bg-app-danger" />
                     <span className="text-app-muted">Paid:</span>
-                    <span className="font-bold text-rose-500">{formatUsdt(activeDayData?.funding_paid)}</span>
+                    <span className="font-bold text-app-danger">{formatUsdt(activeDayData?.funding_paid)}</span>
                   </div>
                   <div className="flex items-center gap-1.5 border-l border-app-border pl-3 sm:pl-6">
                     <span className="text-app-muted">Net:</span>
-                    <span className={cn('font-bold', activeNet >= 0 ? 'text-emerald-500' : 'text-app-danger')}>
+                    <span className={cn('font-bold', activeNet >= 0 ? 'text-app-success' : 'text-app-danger')}>
                       {activeDayData?.funding_net && activeNet > 0 ? '+' : ''}{formatUsdt(activeDayData?.funding_net)}
                     </span>
                   </div>
@@ -268,9 +268,9 @@ export function DailyFundingChart({ series, isLoading }: DailyFundingChartProps)
                             )}
                           >
                             <td className="p-2.5 font-bold text-app-text">{d.day}</td>
-                            <td className="p-2.5 text-emerald-500 font-medium">{formatUsdt(d.funding_received)}</td>
-                            <td className="p-2.5 text-rose-500 font-medium">{formatUsdt(d.funding_paid)}</td>
-                            <td className={cn('p-2.5 font-bold', net >= 0 ? 'text-emerald-500' : 'text-app-danger')}>
+                            <td className="p-2.5 text-app-success font-medium">{formatUsdt(d.funding_received)}</td>
+                            <td className="p-2.5 text-app-danger font-medium">{formatUsdt(d.funding_paid)}</td>
+                            <td className={cn('p-2.5 font-bold', net >= 0 ? 'text-app-success' : 'text-app-danger')}>
                               {d.funding_net !== null && net > 0 ? '+' : ''}{formatUsdt(d.funding_net)}
                             </td>
                           </tr>

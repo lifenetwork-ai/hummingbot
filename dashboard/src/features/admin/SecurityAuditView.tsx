@@ -1,9 +1,9 @@
-import { ChevronRight, FileSearch, FileText } from 'lucide-react'
+import { FileSearch, FileText } from 'lucide-react'
 import type { components } from '../../core/api/schema'
 import type { AuditFilters } from '../history/filters'
 import { Badge } from '../../shared/components/Badge'
-import { Button } from '../../shared/components/Button'
 import { CopyableId } from '../../shared/components/CopyableId'
+import { CursorPagination } from '../../shared/components/CursorPagination'
 import { Surface } from '../../shared/components/Surface'
 import { HistoryFiltersBar } from '../activity/HistoryFiltersBar'
 
@@ -159,14 +159,15 @@ export function SecurityAuditView({
         </p>
       )}
 
-      {hasMore && onLoadMore && (
-        <div className="mt-4 flex justify-center">
-          <Button variant="secondary" onClick={onLoadMore} disabled={isLoading} className="h-8 px-3 text-xs gap-1">
-            <span>{isLoading ? 'Loading...' : 'Load more logs'}</span>
-            <ChevronRight size={14} />
-          </Button>
-        </div>
-      )}
+      <div className="mt-4">
+        <CursorPagination
+          itemLabel="log"
+          pluralLabel="logs"
+          hasMore={hasMore}
+          isLoading={isLoading}
+          onLoadMore={onLoadMore}
+        />
+      </div>
     </Surface>
   )
 }

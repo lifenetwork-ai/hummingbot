@@ -41,7 +41,7 @@ function metMarket(overrides: Partial<LiquidityMarketView> = {}): LiquidityMarke
 
 const baseCapital: CapitalRiskView = {
   positions: [],
-  netPosition: { pair: 'LIFE-USDT', side: 'FLAT', amount: '0', pnlUsdt: null, observed: true },
+  netPosition: { pair: 'LIFE-USDT', side: 'FLAT', amount: '0', inventoryLimit: null, pnlUsdt: null, observed: true },
   portfolio: { available: false, reason: null },
   sessionDelta: { available: false, reason: null },
   fees: { available: false, reason: null },
@@ -51,68 +51,44 @@ const baseCapital: CapitalRiskView = {
 }
 
 describe('deriveDecision', () => {
-  it('keeps missing actual or planned spreads unknown', () => {
-    for (const values of [{ spreadActualBps: null }, { spreadTargetBps: null }]) {
-      const row = deriveDecision([metMarket(values)], baseCapital).rows[0]
-      expect(row.verdict).toBe('unknown')
-      expect(row.note).not.toContain('above')
-    }
-  })
-  it('marks liquidity rows met when all markets meet spread & coverage targets', () => {
+  it('reports no problems when all markets meet spread & coverage targets (fees unknown is a data gap, not a problem)', () => {
     const d = deriveDecision([metMarket(), metMarket({ market: 'perpetual' })], baseCapital)
-    expect(d.rows.find((r) => r.goal === 'Trade facilitation')?.verdict).toBe('met')
-    expect(d.rows.find((r) => r.goal === 'Liquidity maintained')?.verdict).toBe('met')
+    expect(d.hasProblems).toBe(false)
+    expect(d.issues.filter((issue) => issue.kind === 'problem')).toEqual([])
+    expect(d.dataGapCount).toBe(1) // session fees
   })
 
-  it('marks spread not_met when a market exceeds target spread', () => {
+  it('flags a market that exceeds its spread target', () => {
     const d = deriveDecision(
       [metMarket(), metMarket({ market: 'perpetual', spreadActualBps: 62, spreadTargetBps: 35 })],
       baseCapital,
     )
-    expect(d.rows.find((r) => r.goal === 'Trade facilitation')?.verdict).toBe('not_met')
-    expect(d.overall).toBe('not_met')
+    const mandate = d.issues.find((issue) => issue.area === 'Liquidity mandate')
+    expect(mandate?.kind).toBe('problem')
+    expect(mandate?.detail).toContain('Perp market below target mandate')
+    expect(d.hasProblems).toBe(true)
   })
 
-  it('treats one-sided market as partial coverage', () => {
+  it('flags a one-sided market', () => {
     const d = deriveDecision([metMarket({ twoSided: false })], baseCapital)
-    expect(d.rows.find((r) => r.goal === 'Liquidity maintained')?.verdict).toBe('partial')
-    expect(d.overall).toBe('attention')
+    const quoting = d.issues.find((issue) => issue.area === 'Spot quoting')
+    expect(quoting?.kind).toBe('problem')
+    expect(quoting?.detail).toContain('one-sided')
   })
 
-  it('reports unknown for fees and benchmark when unavailable', () => {
+  it('reports fees as a data gap when unavailable', () => {
     const d = deriveDecision([metMarket()], baseCapital)
-    expect(d.rows.find((r) => r.goal === 'Capital & costs reasonable')?.verdict).toBe('unknown')
-    expect(d.rows.find((r) => r.goal === 'Performance understood')?.verdict).toBe('unknown')
-  })
-
-  it('compares session PnL against hold benchmark when present', () => {
-    const d = deriveDecision([metMarket()], {
-      ...baseCapital,
-      holdBenchmark: { available: true, stale: false, observedAt: null, value: { baseline_at: '', basis: 'initial_spot_assets', hold_pnl_usdt: '+610.00', initial_life: '0', initial_usdt: '0', outperform_usdt: '+430.80', session_pnl_usdt: '+1040.80', transfer_treatment: 'excluded_from_both', valuation: { currency: 'USDT', prices: [], valuation_mark: 'mid', valued_at: '' } } },
-    })
-    const row = d.rows.find((r) => r.goal === 'Performance understood')
-    expect(row?.verdict).toBe('met')
-    expect(row?.note).toContain('beats benchmark')
-  })
-
-  it('does not treat stale benchmark values as a current performance result', () => {
-    const d = deriveDecision([metMarket()], {
-      ...baseCapital,
-      holdBenchmark: { available: true, stale: true, observedAt: null, value: {
-        baseline_at: '', basis: 'initial_spot_assets', hold_pnl_usdt: '1', initial_life: '0', initial_usdt: '0',
-        outperform_usdt: '1', session_pnl_usdt: '2', transfer_treatment: 'excluded_from_both',
-        valuation: { currency: 'USDT', prices: [], valuation_mark: 'mid', valued_at: '' },
-      } },
-    })
-    expect(d.rows.find((r) => r.goal === 'Performance understood')?.verdict).toBe('unknown')
+    expect(d.issues.find((issue) => issue.area === 'Session fees')?.kind).toBe('data_gap')
   })
 
   it('uses conservative eligible coverage instead of total-time coverage for the target', () => {
     const d = deriveDecision([metMarket({ coverageFraction: 0.98, totalTimeCoverageFraction: 0.999 })], baseCapital)
-    expect(d.rows.find((r) => r.goal === 'Liquidity maintained')?.verdict).toBe('not_met')
+    const mandate = d.issues.find((issue) => issue.area === 'Liquidity mandate')
+    expect(mandate?.kind).toBe('problem')
+    expect(mandate?.detail).toContain('Spot market below target mandate')
   })
 
-  it('flags inventory breach as not_met risk', () => {
+  it('flags inventory breach as a problem', () => {
     const d = deriveDecision([metMarket()], {
       ...baseCapital,
       positions: [{
@@ -120,7 +96,18 @@ describe('deriveDecision', () => {
         entry: '0.0412', pnlUsdt: null, marginUsdt: null, liqPrice: null, inventoryLimit: '600000',
       }],
     })
-    expect(d.rows.find((r) => r.goal === 'Risk within limits')?.verdict).toBe('not_met')
+    expect(d.issues.find((issue) => issue.area === 'Inventory')?.kind).toBe('problem')
+  })
+
+  it('summarizes guard status as problem (attention/stop) or data gap (unavailable)', () => {
+    const attention = deriveDecision([metMarket()], { ...baseCapital, guardsSummary: { status: 'attention', headline: 'Drawdown approaching limit', violationCount: 1, totalCount: 8, available: true } })
+    expect(attention.issues.find((issue) => issue.area === 'Risk guards')?.kind).toBe('problem')
+
+    const stop = deriveDecision([metMarket()], { ...baseCapital, guardsSummary: { status: 'stop', headline: 'Drawdown limit hit', violationCount: 2, totalCount: 8, available: true } })
+    expect(stop.issues.find((issue) => issue.area === 'Risk guards')?.kind).toBe('problem')
+
+    const unavailable = deriveDecision([metMarket()], { ...baseCapital, guardsSummary: { status: 'ok', headline: 'Guards data unavailable', violationCount: 0, totalCount: 0, available: false } })
+    expect(unavailable.issues.find((issue) => issue.area === 'Risk guards')?.kind).toBe('data_gap')
   })
 })
 
@@ -129,7 +116,7 @@ describe('supplement completeness gates', () => {
     { stale: false, history_complete: false, processing_state: 'ready' as const },
     { stale: false, history_complete: true, processing_state: 'catching_up' as const },
     { stale: true, history_complete: true, processing_state: 'ready' as const },
-  ])('never marks stale, catching-up, or incomplete fees as met: %j', (feeState) => {
+  ])('never treats stale, catching-up, or incomplete fees as sufficient data: %j', (feeState) => {
     const capital: CapitalRiskView = {
       ...baseCapital,
       fees: { available: true, stale: feeState.stale, observedAt: null, value: {
@@ -138,7 +125,7 @@ describe('supplement completeness gates', () => {
         processing_projection_version: null, processing_state: feeState.processing_state, reported_projection_version: null,
       } },
     }
-    expect(deriveDecision([metMarket()], capital).rows.find((r) => r.goal === 'Capital & costs reasonable')?.verdict).toBe('unknown')
+    expect(deriveDecision([metMarket()], capital).issues.find((issue) => issue.area === 'Session fees')?.kind).toBe('data_gap')
   })
 
   it.each([
@@ -147,8 +134,9 @@ describe('supplement completeness gates', () => {
     { rollingCoverageAvailable: false },
     { measurementReady: false },
     { eligibleSeconds: 0 },
-  ])('does not turn missing rolling SLA evidence into success: %j', (missing) => {
+  ])('does not turn missing rolling SLA evidence into a problem or success: %j', (missing) => {
     const decision = deriveDecision([metMarket(missing)], baseCapital)
-    expect(decision.rows.find((r) => r.goal === 'Liquidity maintained')?.verdict).toBe('unknown')
+    expect(decision.hasProblems).toBe(false)
+    expect(decision.issues.find((issue) => issue.area === 'Liquidity mandate')).toBeUndefined()
   })
 })

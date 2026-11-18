@@ -2,6 +2,17 @@
 
 > Tổng hợp buổi review ngày 2026-11-13. Phạm vi: thiết kế thông tin (information architecture) của trang tổng quan (`src/pages/HomePage.tsx` + `src/features/overview/`), đối chiếu với sáu câu hỏi sản phẩm trong [docs/overview.md](../../docs/overview.md). Không bàn code logic.
 
+## Trạng thái tài liệu
+
+Bản ghi review lịch sử ngày 2026-11-13. Thiết kế hiện hành theo
+[UI structure plan](UI-STRUCTURE-PLAN.md); phạm vi phase theo
+[Frontend requirements](../../docs/frontend-requirements.md), quyền quyết định theo
+[Coordination](COORDINATION.md). Các mô tả “hiện tại”, khoảng trống backend và nguồn
+DTO dưới đây chỉ phản ánh thời điểm review, cần kiểm chứng lại trước khi sử dụng.
+Các đề xuất tổng hợp phí, ước tính phục hồi hoặc thêm metric chưa phải yêu cầu đã
+duyệt. Không dùng bản ghi này để khôi phục layout cũ hoặc bắt buộc hiển thị
+placeholder cho chức năng ngoài phase.
+
 ## 1. Kết luận chính
 
 Cảm giác "chưa có trọng tâm, chưa rạch ròi, còn trùng lặp" là chính xác. Nguyên nhân gốc:
@@ -70,6 +81,7 @@ Nguyên tắc: **mỗi vùng màn hình = một câu hỏi; mỗi chỉ số hi�
 | **Độ sâu theo khoảng giá (depth ladder)** | Chỉ có `bid_notional`/`ask_notional` gộp + số lệnh mỗi phía; không chia theo khoảng cách giá (±0.5%, ±1%...). overview.md yêu cầu "độ sâu riêng mỗi phía tại các khoảng giá". |
 | **Benchmark giữ nguyên tài sản ban đầu** | `getPerformance` chỉ có scope `controller_lifetime_and_active_exposure`; không có series hold/benchmark. LOGIC-HANDOFF đợt 6 cũng ghi "không dựng benchmark hay OHLCV từ fills". |
 | **Rolling 30 phút SLA + lịch sử từng phút** | Chỉ có counter tích lũy cả phiên (`elapsed_seconds`, `eligible_seconds`, `unknown_seconds`, `two_sided_fraction_of_elapsed`). UI đã ghi đúng "rolling SLA unavailable". |
+| **Vốn dành cho lệnh (reserved for open orders)** | DTO `OverviewSupplement.balances` có trường `reserved_for_open_orders` nhưng backend chưa tính/cung cấp giá trị thật. Gỡ surface "Free & order-reserved capital" khỏi `CapitalRiskCard` để tránh tạo khối "no data" thường trực; vốn khả dụng hiện xem qua dialog Account balances (Available cash/equity) cho đến khi backend cung cấp reserved thật thì dựng lại tóm tắt. |
 
 ### 5.2. Có ở nguồn khác, không nằm trên endpoint Overview
 

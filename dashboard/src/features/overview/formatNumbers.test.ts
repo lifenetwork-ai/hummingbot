@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatPriceForDisplay, formatUsdtForDisplay } from './formatNumbers'
+import { formatPriceForDisplay, formatQuantityForDisplay, formatRiskValueForDisplay, formatUsdtForDisplay } from './formatNumbers'
 
 describe('formatPriceForDisplay', () => {
   it('rounds long decimal prices to 5 significant digits with thousand separators', () => {
@@ -43,5 +43,35 @@ describe('formatUsdtForDisplay', () => {
 
   it('returns null for missing values', () => {
     expect(formatUsdtForDisplay(null)).toBeNull()
+  })
+
+  it('keeps tiny non-zero fee values visible instead of rounding to 0.00', () => {
+    expect(formatUsdtForDisplay('0.000000001')).toBe('0.000000001')
+    expect(formatUsdtForDisplay('0.0000123456')).toBe('0.000012346')
+    expect(formatUsdtForDisplay('0')).toBe('0.00')
+    expect(formatUsdtForDisplay('0.004')).toBe('0.004')
+  })
+})
+
+describe('formatQuantityForDisplay', () => {
+  it('keeps small fractional amounts instead of rounding to 0', () => {
+    expect(formatQuantityForDisplay('0.0498')).toBe('0.0498')
+    expect(formatQuantityForDisplay('0.049800000000000001')).toBe('0.0498')
+  })
+})
+
+describe('formatRiskValueForDisplay', () => {
+  it('formats USDT values with 2 decimals like other USDT figures', () => {
+    expect(formatRiskValueForDisplay('1225.614492738332', 'USDT')).toBe('1,225.61')
+    expect(formatRiskValueForDisplay('-1366.2051217303832', 'USDT')).toBe('-1,366.21')
+  })
+
+  it('formats non-USDT units with 5 significant digits', () => {
+    expect(formatRiskValueForDisplay('0.04980000000001', 'BTC')).toBe('0.0498')
+  })
+
+  it('returns em dash for missing values regardless of unit', () => {
+    expect(formatRiskValueForDisplay(null, 'USDT')).toBe('—')
+    expect(formatRiskValueForDisplay(undefined, 'BTC')).toBe('—')
   })
 })

@@ -131,26 +131,26 @@ describe('HomePage (Overview)', () => {
 
     render(<HomePage />)
 
-    // Q1 — mandate bar
+    // Vùng 2 — mandate bar
     expect(screen.getByText('Assigned mandate')).toBeInTheDocument()
 
     // KPI strip — target/actual pairs
     expect(screen.getByText('Own spread vs planned width')).toBeInTheDocument()
     expect(screen.getByText('Eligible coverage (two-sided)')).toBeInTheDocument()
     expect(screen.getByText('Net position & PnL')).toBeInTheDocument()
-    expect(screen.getByText('Total assets')).toBeInTheDocument()
+    expect(screen.getByText('Trading balances')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'View balances →' }))
     expect(screen.getByRole('dialog', { name: 'Account balances' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    // Q3+Q4 — liquidity verdict per market; Q5 — capital & risk; Q6 — decision
+    // Vùng 3 — liquidity verdict per market; vùng 4 — capital & risk; vùng 5 — assessment & actions
     expect(screen.getByText('LIFE-USDT')).toBeInTheDocument()
     expect(screen.getByText('Positions & inventory')).toBeInTheDocument()
-    expect(screen.getByText('Session verdict & action')).toBeInTheDocument()
+    expect(screen.getByText('Assessment & actions')).toBeInTheDocument()
 
     // Risk guards dialog: opens only on purpose — no rule is shown on the page itself
     expect(screen.queryByText('Rule 1 · Drawdown')).not.toBeInTheDocument()
-    const riskGuardsButton = screen.getByRole('button', { name: /per-policy details/i })
+    const riskGuardsButton = screen.getByRole('button', { name: /rule & policy details/i })
     riskGuardsButton.focus()
     fireEvent.click(riskGuardsButton)
     expect(screen.getByRole('dialog', { name: 'Capital Protection' })).toBeInTheDocument()

@@ -43,7 +43,7 @@ describe('history completion controller', () => {
     expect(calls.at(-1)?.searchParams.get('actor_id')).toBe('actor-1')
     expect(calls.at(-1)?.searchParams.get('operation_id')).toBe('op-1')
   })
-  it('reads selected historical pinned configuration without inventing an operation type from event payloads', async () => {
+  it('tracks the current session for events and pinned configuration', async () => {
     const paths: string[] = []
     server.use(http.get(`${pageApiUrl}/sessions/:id/events`, ({ params }) => { paths.push(`events:${params.id}`); return HttpResponse.json({ items: [], next_cursor: null }) }),
       http.get(`${pageApiUrl}/sessions/:id/configuration`, ({ params }) => {
@@ -52,11 +52,8 @@ describe('history completion controller', () => {
       }))
     const { result } = renderHook(() => useHistoryController({ active: 'events', currentSessionId: 'current-session' }), { wrapper: pageWrapper() })
     await waitFor(() => expect(result.current.pinned.data?.session_id).toBe('current-session'))
-    await act(async () => { result.current.selectSession('past-session') })
-    await waitFor(() => expect(result.current.pinned.data?.session_id).toBe('past-session'))
     expect(result.current.pinned.data?.catalogue_hash).toBe('historical-catalogue')
-    expect(paths).toContain('events:past-session')
-    expect(() => result.current.selectSession(' ')).toThrow('invalid_session_id')
+    expect(paths).toContain('events:current-session')
   })
   it('keeps reads and inspection disabled without the read permission', async () => {
     const { result } = renderHook(() => useHistoryController({ active: 'commands' }), { wrapper: pageWrapper({}) })

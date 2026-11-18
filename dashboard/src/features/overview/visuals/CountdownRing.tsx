@@ -86,14 +86,14 @@ export function CountdownRing({
       <svg viewBox="0 0 44 44" className="h-full w-full -rotate-90">
         <circle
           cx="22" cy="22" r={radius}
-          className={attention ? 'text-amber-400/30' : 'text-app-border'}
+          className={attention ? 'text-app-warning/30' : 'text-app-border'}
           stroke="currentColor" strokeWidth="4" fill="transparent"
         />
         <circle
           cx="22" cy="22" r={radius}
           className={cn(
             'transition-[stroke-dashoffset] duration-1000 ease-linear',
-            unavailable ? 'text-app-muted' : attention ? 'text-amber-400' : 'text-app-action',
+            unavailable ? 'text-app-muted' : attention ? 'text-app-warning' : 'text-app-action',
           )}
           stroke="currentColor" strokeWidth="4" fill="transparent"
           strokeDasharray={circumference}

@@ -75,7 +75,6 @@ it('does not claim guards stable before any observation', () => {
   expect(deriveCapitalRisk(model, null).guardsSummary.status).toBe('attention')
 })
 
-
 it('preserves controller scope, pinned quote budget and separate USD equity', () => {
   const data = supplement()
   data.risk_rules.value![0].controller_id = 'spot-controller'
@@ -86,4 +85,102 @@ it('preserves controller scope, pinned quote budget and separate USD equity', ()
   expect(deriveCapitalRisk(model, data).accountEquity).toMatchObject({ available: true, value: { total_usd: '12345.67', currency: 'USD' } })
   data.account_equity.stale = true
   expect(deriveCapitalRisk(model, data).accountEquity).toMatchObject({ available: false })
+})
+
+describe('supplement display formatting', () => {
+  it('formats the guards headline instead of echoing raw backend decimals', () => {
+    const data = supplement()
+    data.risk_rules.value![0].status = 'violated'
+    data.risk_rules.value![0].current = '1225.61449273833200000000007'
+    data.risk_rules.value![0].upper_limit = '5000'
+    expect(deriveCapitalRisk(model, data).guardsSummary.headline)
+      .toBe('drawdown_global: current 1,225.61 / limit 5,000.00 (USDT)')
+  })
+
+  it('keeps fractional net position amounts instead of rounding them to 0', () => {
+    const withPositions = deriveOverview({
+      status: loading,
+      liquidity: loading,
+      balances: loading,
+      positions: {
+        phase: 'ready',
+        data: {
+          owner_available: true,
+          server_time: '2026-11-13T00:00:00Z',
+          markets: [{
+            market: 'perpetual',
+            connector: 'okx_perpetual',
+            coverage: 'observed',
+            source: 'okx_account_positions',
+            observed_at: '2026-11-13T00:00:00Z',
+            stale: false,
+            items: [{
+              side: 'LONG',
+              amount: '0.0498',
+              pair: 'BTC-USDT',
+              unrealized_pnl: '-398.14',
+              entry_price: '72900',
+              leverage: '1',
+              liquidation_price: null,
+              margin: null,
+              margin_mode: null,
+              observed_at: '2026-11-13T00:00:00Z',
+              stale: false,
+            }],
+          }],
+        },
+        error: null,
+        refreshing: false,
+      },
+    })
+    expect(deriveCapitalRisk(withPositions, null).netPosition).toMatchObject({ side: 'LONG', amount: '0.04980000 BTC', inventoryLimit: null, pnlUsdt: '-398.14' })
+  })
+
+  it('picks the perpetual side limit (long/short) for positions and net position, not the spot-only inventory_limit', () => {
+    const data = supplement()
+    data.inventory_limits = { observed_at: '2026-11-13T00:00:00Z', stale: false, unavailable_reason: null, value: [
+      { controller_id: 'life-mm', market: 'perpetual', pair: 'BTC-USDT', asset: 'BTC',
+        inventory_limit: null, long_limit: '0.08', short_limit: '0.06', gross_limit: '0.12',
+        exposure_basis: null, exposure_observed_at: null, long_exposure: null, short_exposure: null },
+    ] }
+    const withPositions = deriveOverview({
+      status: loading,
+      liquidity: loading,
+      balances: loading,
+      positions: {
+        phase: 'ready',
+        data: {
+          owner_available: true,
+          server_time: '2026-11-13T00:00:00Z',
+          markets: [{
+            market: 'perpetual',
+            connector: 'okx_perpetual',
+            coverage: 'observed',
+            source: 'okx_account_positions',
+            observed_at: '2026-11-13T00:00:00Z',
+            stale: false,
+            items: [
+              {
+                side: 'LONG', amount: '0.0498', pair: 'BTC-USDT', unrealized_pnl: '-398.14',
+                entry_price: '72900', leverage: '1', liquidation_price: null,
+                margin: null, margin_mode: null, observed_at: '2026-11-13T00:00:00Z', stale: false,
+              },
+              {
+                side: 'SHORT', amount: '0.02', pair: 'BTC-USDT', unrealized_pnl: '50',
+                entry_price: '73000', leverage: '1', liquidation_price: null,
+                margin: null, margin_mode: null, observed_at: '2026-11-13T00:00:00Z', stale: false,
+              },
+            ],
+          }],
+        },
+        error: null,
+        refreshing: false,
+      },
+    })
+    const capital = deriveCapitalRisk(withPositions, data)
+    expect(capital.positions[0]).toMatchObject({ side: 'LONG', inventoryLimit: '0.08' })
+    expect(capital.positions[1]).toMatchObject({ side: 'SHORT', inventoryLimit: '0.06' })
+    // net = 0.0498 - 0.02 = 0.0298 LONG → dùng long_limit
+    expect(capital.netPosition).toMatchObject({ side: 'LONG', amount: '0.02980000 BTC', inventoryLimit: '0.08' })
+  })
 })

@@ -1,14 +1,33 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupPageApi, pageApiUrl, pageWrapper } from '../test/operationalTest'
 import { completionStatus } from '../test/mocks/completionFixtures'
+import { contextStatus } from '../test/mocks/contextFixtures'
 import { pageProfiles } from '../test/operationalTest'
 import { commandReceipt, reconciliationReceipt } from '../test/mocks/receiptFixtures'
 import { server } from '../test/mocks/server'
 import { ActivityPage } from './ActivityPage'
+
+const navigate = vi.fn()
+let searchTab: string | undefined
+vi.mock('@tanstack/react-router', () => ({ useSearch: () => ({ tab: searchTab }), useNavigate: () => navigate }))
+
 setupPageApi()
 describe('ActivityPage integrated controller', () => {
+  it('derives the active tab from URL search and syncs clicks to it', async () => {
+    searchTab = 'events'
+    try {
+      render(<ActivityPage />, { wrapper: pageWrapper() })
+      fireEvent.click(screen.getByRole('button', { name: /Commands/ }))
+      expect(navigate).toHaveBeenCalledWith({ to: '/activity', search: { tab: 'commands' } })
+      navigate.mockClear()
+      fireEvent.click(screen.getByRole('button', { name: /Session Events/ }))
+      expect(navigate).toHaveBeenCalledWith({ to: '/activity', search: { tab: 'events' } })
+    } finally {
+      searchTab = undefined
+    }
+  })
   it('follows a specific check and retains mismatch after receipt success', async () => {
     let writes = 0
     server.use(http.post(`${pageApiUrl}/reconciliation/check`, () => { writes++; return HttpResponse.json({ ...reconciliationReceipt, id: 'check-specific', status: 'accepted' }, { status: 202 }) }),
@@ -32,6 +51,8 @@ describe('ActivityPage integrated controller', () => {
     const reads: URL[] = []
     let writes = 0
     server.use(
+      // The events tab always tracks the current session now; give the status fixture one.
+      http.get(`${pageApiUrl}/status`, () => HttpResponse.json({ ...contextStatus, observed_session: { id: 'past-session' } })),
       http.get(`${pageApiUrl}/commands`, ({ request }) => { reads.push(new URL(request.url)); return HttpResponse.json({ items: [{ ...commandReceipt, id: 'historical-command', status: 'failed', session_id: 'past-session' }], next_cursor: null }) }),
       http.get(`${pageApiUrl}/commands/:id`, ({ params }) => HttpResponse.json({ ...commandReceipt, id: params.id, status: 'failed', session_id: 'past-session' })),
       http.get(`${pageApiUrl}/audit`, ({ request }) => { reads.push(new URL(request.url)); return HttpResponse.json({ items: [], next_cursor: null }) }),
@@ -43,7 +64,7 @@ describe('ActivityPage integrated controller', () => {
     fireEvent.click(screen.getByRole('button', { name: /Commands/ }))
     const status = await screen.findByLabelText('Status')
     fireEvent.change(status, { target: { value: 'failed' } })
-    await waitFor(() => expect(reads.some((url) => url.pathname.endsWith('/commands') && url.searchParams.get('status') === 'failed')).toBe(true))
+    await waitFor(() => expect(reads.some((url) => url.pathname.endsWith('/commands') && url.searchParams.get('status') === 'failed' && url.searchParams.get('limit') === '10')).toBe(true))
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect' }))
     const dialog = await screen.findByRole('dialog', { name: /Receipt Inspection/ })
     expect(await within(dialog).findByText('failed')).toBeInTheDocument()
@@ -51,8 +72,6 @@ describe('ActivityPage integrated controller', () => {
     await waitFor(() => expect(reads.some((url) => url.pathname.endsWith('/audit') && url.searchParams.get('operation_id') === 'historical-command')).toBe(true))
     expect(screen.getByRole('button', { name: 'Audit / Actor Lookup' })).toHaveFocus()
     fireEvent.click(screen.getByRole('button', { name: /Session Events/ }))
-    const sessions = await screen.findByLabelText('Select session to track')
-    fireEvent.change(sessions, { target: { value: 'past-session' } })
     expect(await screen.findByTitle('historical-config')).toBeInTheDocument()
     expect(screen.getByText(/Profile context: at_creation/)).toBeInTheDocument()
     expect(writes).toBe(0)

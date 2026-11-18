@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Activity, Clock, GitCompare, Terminal } from 'lucide-react'
 import { notify } from '../core/feedback/notify'
 import { useAdminQuery } from '../core/api/hooks'
@@ -19,7 +20,15 @@ export type ActivityTab = 'reconciliation' | 'events' | 'commands' | 'audit'
 
 export function ActivityPage() {
   const { status } = useOperationalContext()
-  const [activeTab, setActiveTab] = useState<ActivityTab>('reconciliation')
+  const search = useSearch({ strict: false })
+  const navigate = useNavigate()
+  const initialTab: ActivityTab = search.tab === 'events' || search.tab === 'commands' || search.tab === 'audit' ? search.tab : 'reconciliation'
+  const [activeTab, setActiveTab] = useState<ActivityTab>(initialTab)
+  useEffect(() => { setActiveTab(initialTab) }, [initialTab])
+  const selectTab = (tab: ActivityTab) => {
+    setActiveTab(tab)
+    void navigate({ to: '/activity', search: { tab } })
+  }
 
   const currentSessionId = status.data?.observed_session?.id || status.data?.session?.id || ''
 
@@ -32,7 +41,7 @@ export function ActivityPage() {
   const history = useHistoryController({ active: activeTab === 'reconciliation' ? 'none' : activeTab, currentSessionId: currentSessionId || undefined })
   const eventsQuery = history.events
   const commandsQuery = history.commands
-  const auditForOperation = (id: string) => { focusAudit.current = true; history.auditForOperation(id); history.closeInspection(); setActiveTab('audit') }
+  const auditForOperation = (id: string) => { focusAudit.current = true; history.auditForOperation(id); history.closeInspection(); selectTab('audit') }
   const handleRequestCheck = async (retry = false) => {
     setCheckError(null)
     notify.loading('Submitting reconciliation request...', { id: 'recon-check' })
@@ -80,7 +89,7 @@ export function ActivityPage() {
           <nav className="flex space-x-2" aria-label="Activity logs tabs">
             <button
               type="button"
-              onClick={() => setActiveTab('reconciliation')}
+              onClick={() => selectTab('reconciliation')}
               className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-bold transition-colors ${
                 activeTab === 'reconciliation'
                   ? 'border-app-action text-app-action'
@@ -93,7 +102,7 @@ export function ActivityPage() {
 
             <button
               type="button"
-              onClick={() => setActiveTab('events')}
+              onClick={() => selectTab('events')}
               className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-bold transition-colors ${
                 activeTab === 'events'
                   ? 'border-app-action text-app-action'
@@ -106,7 +115,7 @@ export function ActivityPage() {
 
             <button
               type="button"
-              onClick={() => setActiveTab('commands')}
+              onClick={() => selectTab('commands')}
               className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-bold transition-colors ${
                 activeTab === 'commands'
                   ? 'border-app-action text-app-action'
@@ -116,7 +125,7 @@ export function ActivityPage() {
               <Terminal size={14} />
               <span>Commands</span>
             </button>
-            {history.audit.access.allowed && <button type="button" ref={auditTabRef} onClick={() => setActiveTab('audit')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-bold ${activeTab === 'audit' ? 'border-app-action text-app-action' : 'border-transparent text-app-muted'}`}>Audit / Actor Lookup</button>}
+            {history.audit.access.allowed && <button type="button" ref={auditTabRef} onClick={() => selectTab('audit')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-bold ${activeTab === 'audit' ? 'border-app-action text-app-action' : 'border-transparent text-app-muted'}`}>Audit / Actor Lookup</button>}
           </nav>
         </div>
 
@@ -143,9 +152,6 @@ export function ActivityPage() {
             filters={history.filters.events}
             onFilterChange={history.changeEvents}
             validationErrors={history.validation.events.errors}
-            sessions={history.sessions.data?.pages.flatMap((page) => page.items)}
-            selectedSessionId={history.sessionId}
-            onSelectSession={history.selectSession}
             hasMore={eventsQuery.hasNextPage}
             onLoadMore={() => { void history.loadMoreEvents() }}
           />
@@ -169,8 +175,7 @@ export function ActivityPage() {
           />
         )}
         {activeTab === 'events' && <>
-          {history.sessions.hasNextPage && <Button variant="secondary" disabled={history.sessions.isFetchingNextPage} onClick={() => { void history.sessions.fetchNextPage() }}>Load more sessions</Button>}
-          <PinnedSessionDetailView sessionId={history.sessionId} pinnedConfig={history.pinned.data} isLoading={history.pinned.isLoading} error={history.pinned.error?.message} />
+          <PinnedSessionDetailView className="mt-6" sessionId={history.sessionId} pinnedConfig={history.pinned.data} isLoading={history.pinned.isLoading} error={history.pinned.error?.message} />
         </>}
         {activeTab === 'audit' && <SecurityAuditView entries={history.audit.data?.pages.flatMap((page) => page.items)} filters={history.filters.audit} onFilterChange={history.changeAudit} validationErrors={history.validation.audit.errors} isLoading={history.audit.isLoading} error={history.audit.error?.message} hasMore={history.audit.hasNextPage} onLoadMore={() => { void history.loadMoreAudit() }} onInspectOperation={history.auditForOperation} />}
 

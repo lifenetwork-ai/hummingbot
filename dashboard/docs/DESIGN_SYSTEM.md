@@ -42,7 +42,7 @@ Change tokens in `_config.ts`, then run `pnpm run theme:generate`. Do not edit g
 ## UI components
 
 `Button`, `Surface`, `SectionLabel`, `Input`, `Badge`, `Dialog`, `EmptyState`,
-`AnimatedProgress`, `BrandLogo`, `MotionPage`.
+`AnimatedProgress`, `BrandLogo`, `MotionPage`, `CursorPagination`.
 
 See `/ui-kit` when running the app for a living preview.
 

@@ -184,7 +184,7 @@ export function OperationalDiagnosticsCard({ diagnostics, processDiagnostics, cl
                 <div key={side} className="rounded-card border border-app-border/70 bg-app-surface-muted/20 p-2 text-[11px]">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-bold text-app-text">{side}</span>
-                    <span className={evidence.effect === 'CLOSE' ? 'font-semibold text-emerald-500' : 'font-semibold text-app-muted'}>
+                    <span className={evidence.effect === 'CLOSE' ? 'font-semibold text-app-success' : 'font-semibold text-app-muted'}>
                       {evidence.effect ?? 'effect unknown'}{evidence.effect ? ` · ${evidence.target_leg}` : ''}
                     </span>
                   </div>

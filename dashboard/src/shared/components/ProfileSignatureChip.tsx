@@ -36,7 +36,7 @@ export function ProfileSignatureChip({
         isRandom
           ? 'border border-purple-500/40 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20'
           : isTight
-            ? 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+            ? 'border border-app-success/40 bg-app-success/10 text-app-success hover:bg-app-success/20'
             : isWide
               ? 'border border-sky-500/40 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20'
               : 'border border-app-action/40 bg-app-action/10 text-app-action hover:bg-app-action/20',
@@ -46,7 +46,7 @@ export function ProfileSignatureChip({
       {isRandom ? (
         <Shuffle size={size === 'sm' ? 12 : 14} className="shrink-0 text-purple-400" />
       ) : isTight ? (
-        <SlidersHorizontal size={size === 'sm' ? 12 : 14} className="shrink-0 text-emerald-400" />
+        <SlidersHorizontal size={size === 'sm' ? 12 : 14} className="shrink-0 text-app-success" />
       ) : (
         <Cpu size={size === 'sm' ? 12 : 14} className="shrink-0" />
       )}

@@ -1,5 +1,5 @@
 import { transferableAbortController } from 'node:util'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { ApiProvider } from '../core/api/ApiProvider'
@@ -97,7 +97,7 @@ describe('OperationalShell receipt lifecycle', () => {
       http.get(`${baseUrl}/commands/:id`, ({ params }) => HttpResponse.json({ ...commandReceipt, id: params.id, status: 'succeeded', session_id: 'current-session' })))
     render(<ApiProvider session={{ baseUrl, principalId: contextPrincipal.id, cacheIdentity: 'shell:stop' }}><OperationalProvider><OperationalShell /></OperationalProvider></ApiProvider>)
     await screen.findByText('bot-a')
-    act(() => { window.dispatchEvent(new CustomEvent('open-stop-dialog')) })
+    fireEvent.click(screen.getByRole('button', { name: 'Emergency stop' }))
     const confirm = await screen.findByRole('button', { name: 'Confirm stop bot now' })
     await waitFor(() => expect(confirm).toBeEnabled())
     fireEvent.click(confirm)

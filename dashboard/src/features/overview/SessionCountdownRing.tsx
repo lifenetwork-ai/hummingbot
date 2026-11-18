@@ -66,7 +66,7 @@ export function SessionCountdownRing({ remainingSeconds, totalSeconds, observedA
         <circle cx="34" cy="34" r={radius} className="text-app-border" stroke="currentColor" strokeWidth="5" fill="transparent" />
         <circle
           cx="34" cy="34" r={radius}
-          className={cn('transition-[stroke-dashoffset] duration-1000 ease-linear', low ? 'text-amber-400' : 'text-app-action')}
+          className={cn('transition-[stroke-dashoffset] duration-1000 ease-linear', low ? 'text-app-warning' : 'text-app-action')}
           stroke="currentColor" strokeWidth="5" fill="transparent"
           strokeDasharray={circumference}
           strokeDashoffset={dashOffset}
@@ -74,7 +74,7 @@ export function SessionCountdownRing({ remainingSeconds, totalSeconds, observedA
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className={cn('font-mono font-bold tabular-nums', low ? 'text-amber-400' : 'text-app-text')} style={{ fontSize: center.length > 5 ? 12 : 14 }}>
+        <span className={cn('font-mono font-bold tabular-nums', low ? 'text-app-warning' : 'text-app-text')} style={{ fontSize: center.length > 5 ? 12 : 14 }}>
           {center}
         </span>
       </div>

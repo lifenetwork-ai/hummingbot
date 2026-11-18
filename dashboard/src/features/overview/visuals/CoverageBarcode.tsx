@@ -14,8 +14,8 @@ export interface CoverageBarcodeProps {
 }
 
 const STATE_STYLE: Record<Exclude<CoverageMinuteState, 'down'> | 'down', string> = {
-  two_sided: 'bg-emerald-500',
-  one_sided: 'bg-amber-400',
+  two_sided: 'bg-app-success',
+  one_sided: 'bg-app-warning',
   down: 'bg-app-border',
 }
 

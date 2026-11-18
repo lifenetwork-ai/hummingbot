@@ -1,7 +1,7 @@
 # Kế hoạch cấu trúc màn hình và cây component — LIFE MM Dashboard
 > **Tài liệu đối ứng cho:** [`docs/LOGIC-HANDOFF.md`](LOGIC-HANDOFF.md)
 > **Tuân thủ quy ước:** [`docs/COORDINATION.md`](COORDINATION.md), [`dashboard/TODO.md`](../TODO.md), [`docs/frontend-requirements.md`](../../docs/frontend-requirements.md), [`docs/fe-integration.md`](../../docs/fe-integration.md)
-> **Phiên bản:** 1.4.0 (Bổ sung cấu trúc Overview theo trục câu hỏi — mục 3.2)
+> **Phiên bản:** 1.5.0 (Cấu trúc Overview và quyền quyết định thiết kế)
 
 ---
 
@@ -30,7 +30,7 @@ Dashboard được thiết kế để người vận hành (Operator) trả lờ
 1. **Bot đang thực hiện nhiệm vụ gì?**
    *Profile nào đang chạy (Fixed hay Random)? Thị trường nào (Spot, Perp hay cả hai)? Thời hạn còn bao lâu (hay Until stopped)? Cấu hình ghim (pinned configuration) hiện tại là gì?*
 2. **Tình trạng thực tế có đáp ứng nhiệm vụ không?**
-   *Thực tế trên sàn có đủ working orders 2 phía BUY và SELL không? Giá, khối lượng còn lại, own spread, own notional? Tỷ lệ đáp ứng mục tiêu (sampled two-sided coverage 30m $\ge 99\%$, hoặc trạng thái "chưa đủ thời gian đánh giá")? Vốn khả dụng và vị thế held exposure?*
+   *Thực tế trên sàn có đủ working orders 2 phía BUY và SELL không? Giá, khối lượng còn lại, own spread, own notional? Tỷ lệ đáp ứng policy coverage được duyệt, đúng cửa sổ đo và điều kiện đủ dữ liệu? Vốn khả dụng và vị thế held exposure?*
 3. **Nếu có vấn đề, nguyên nhân và hành động tiếp theo là gì?**
    *Vấn đề là gì? Phía/thị trường nào bị ảnh hưởng? Lý do có bằng chứng (thiếu số dư, lệch tồn kho, chạm quote guard, tạm dừng biến động)? Hành động tiếp theo rõ ràng (chờ, nạp vốn thủ công, chuyển profile, hay liên hệ kỹ thuật)?*
 4. **Sau can thiệp hoặc Stop, kết quả và tài sản/vị thế còn lại ra sao?**
@@ -97,68 +97,64 @@ flowchart TD
 
 ---
 
-### 3.2. Cấu trúc trang Overview theo trục câu hỏi (phiên bản 1.4.0)
+### 3.2. Cấu trúc Overview chuẩn
 
-Review chi tiết tại [`OVERVIEW-REVIEW.md`](OVERVIEW-REVIEW.md). Tổ chức lại Overview theo **câu hỏi của Foundation** ([`docs/overview.md`](../../docs/overview.md)) thay vì theo nguồn dữ liệu; mỗi chỉ số hiển thị theo cặp **target / actual / gap**:
+Phạm vi hiện tại theo [Frontend requirements](../../docs/frontend-requirements.md).
+[Review lịch sử](OVERVIEW-REVIEW.md) là đầu vào tham khảo, không thay thế thiết kế này.
+Cấu trúc mô tả yêu cầu, không xác nhận code hoặc browser đã nghiệm thu.
 
-```text
-Q1. Nhiệm vụ được giao     Profile · Markets · Thời hạn · Vốn phân bổ · Giới hạn rủi ro (tóm tắt, không giấu trong dialog)
-Q3+Q4. Thanh khoản         Verdict theo market: spread (vs target) · depth 2 phía · two-sided · coverage % (vs 99%) — MỘT chỗ duy nhất
-                           └ sub-panel "vì sao chưa đạt": composition + diagnosis + quoting absent
-Q5. Vốn & rủi ro            Tồn kho/vị thế · vốn còn & dành cho lệnh · phí trong phiên · guards status (bản tóm tắt điều hành)
-Q6. Đánh giá & hành động    Tổng hợp phiên: đạt % · chi phí · rủi ro → Continue / Adjust / Stop (link sang Statistics/Session)
-```
+`Operational context` là footer dùng chung trong `OperationalShell`; Stop là điều
+khiển toàn workspace, nổi phía trên footer. Giữ nguyên vị trí hiện tại, không dựng
+lại khối ngữ cảnh hoặc Stop trong Overview. Ngữ cảnh gồm bot/account, Demo/Live,
+trạng thái dịch vụ/phiên và thời điểm quan sát theo nguồn logic bàn giao.
 
-Quy tắc áp dụng cho toàn bộ trang:
+| Thứ tự | Vùng Overview | Nội dung chính |
+|---|---|---|
+| 1 | Vấn đề cần xử lý, khi có | Ảnh hưởng, nguyên nhân có bằng chứng và hành động tiếp theo; gồm lỗi nguồn, sự cố và recovery cần can thiệp |
+| 2 | Nhiệm vụ hiện tại | Market, profile, thời hạn, vốn phân bổ và giới hạn rủi ro chính; requested và observed riêng |
+| 3 | Thanh khoản và mức đạt mục tiêu | Spot/Perpetual riêng; working bid/ask, spread so target, giá trị lệnh từng phía và coverage đúng phạm vi |
+| 4 | Vốn và rủi ro | Tồn kho, LONG/SHORT và giới hạn đang chặn; số dư và vốn khả dụng xem qua dialog chi tiết (Account balances) cho đến khi backend cung cấp reserved_for_open_orders thật |
+| 5 | Đánh giá và hành động | Tổng hợp vấn đề, mức đủ dữ liệu và link tới session, điều tra hoặc báo cáo phù hợp |
 
-1. **Một verdict duy nhất cho coverage** — tổng hợp ở Q3+Q4; không lặp headline ở card composition.
-2. **Target lấy từ cấu hình phiên** (spread policy, coverage target); không dùng ngưỡng cứng làm target hiển thị.
-3. **Risk guards có bản tóm tắt điều hành trên trang** (Đang ổn / Cần can thiệp / Dừng an toàn); dialog chỉ giữ chi tiết kỹ thuật.
-4. **Freshness xử lý tập trung một chỗ** — một trạng thái quan sát chung đầu trang; dữ liệu cấp dưới chỉ hiển thị `—` có nhãn.
-5. **Dữ liệu backend chưa cung cấp** hiển thị tường minh "chưa có dữ liệu" (trượt giá, depth ladder, hold benchmark, rolling SLA) — xem danh mục tại [OVERVIEW-REVIEW mục 5](OVERVIEW-REVIEW.md#5-khoảng-trống-dữ-liệu-backend).
+Quy tắc:
 
-Đã triển khai chính thức: HomePage (`src/pages/HomePage.tsx`) dùng bố cục theo trục câu hỏi với dữ liệu thật từ supplement `status.overview` (`OverviewSupplementOutput`, map tại `src/features/overview/supplement.ts`). Prototype `/overview-preview` và mock data đã bị xóa; dữ liệu backend chưa cung cấp hiển thị chip "chưa có dữ liệu" (`BackendGapChip`).
+1. Dịch vụ đang chạy không chứng minh nhiệm vụ thanh khoản đạt. Chỉ kết luận trong phạm vi thực sự đo được, không suy own quotes thành chất lượng toàn thị trường.
+2. Một vị trí kết luận chính cho mỗi metric; coverage không có headline verdict lặp ở KPI, composition và summary. Summary tham chiếu kết quả và hành động, không dựng bảng chấm điểm trùng.
+3. Actual/target/gap chỉ hiện khi có nguồn và định nghĩa phù hợp. Phân biệt cấu hình phiên với policy vận hành được duyệt; không giả định mọi target nằm trong session DTO. Xem mục 5.4 cho coverage.
+4. Có tóm tắt freshness chung nhưng giữ trạng thái từng nguồn độc lập. Vùng lỗi/cũ ghi nhãn tại nơi bị ảnh hưởng; giữ last-good data cùng timestamp khi phù hợp. Không biến lỗi reporting thành lỗi toàn bot hoặc vô hiệu Stop hợp lệ. Tránh badge lặp ở từng ô.
+5. Tóm tắt risk guards và giới hạn chính cần cho vận hành hiện trên trang; mã lỗi, IDs, generations, retry trace và chi tiết policy nằm trong Details. Nguyên nhân và hành động cần thiết không bị giấu.
+6. Chỉ hiển thị khoảng thiếu dữ liệu cần cho quyết định trong phase hiện tại. Loading, empty, stale, error, unknown và zero phân biệt rõ. Slippage, depth ladder, hold benchmark hoặc metric tương lai chưa thuộc phase không có placeholder thường trực; đưa vào backlog.
+7. Đánh giá không tự khuyến nghị chiến lược hoặc suy verdict từ việc dữ liệu có sẵn. Hành động dựa trên trạng thái, policy và capability đã bàn giao. Metric mới cần chốt định nghĩa và coverage với logic.
+8. **Vùng 4 (Vốn và rủi ro):** Dialog Account balances là nguồn duy nhất về số dư (cash, available cash, equity, available equity). Không dựng surface "Free & order-reserved capital" khi backend chưa cung cấp `reserved_for_open_orders` thực tế để tránh tạo khối "no data" thường trực trên trang. "Vốn khả dụng / dành cho lệnh" hiện xem qua dialog chi tiết cho đến khi backend cung cấp reserved thật thì dựng lại tóm tắt trên `CapitalRiskCard`.
 
 ## 4. Cây component cấp chức năng & Bố cục Responsive
 
-### 4.1. Thứ tự ưu tiên thị giác & Bố cục Desktop / Mobile
+### 4.1. Desktop và mobile
 
-#### A. Trên Desktop ($\ge 1024\text{px}$)
-* **Top Bar cố định:** Header trải ngang với logo, nhận diện môi trường, trạng thái phiên, user badge và nút **Stop Orders** màu nổi bật ở góc phải.
-* **Layout 2 cột song song cho thị trường:**
-  - Cột trái: Spot Liquidity (Working bid/ask, spread, notional, order count).
-  - Cột phải: Perpetual Liquidity (Working bid/ask, spread, notional, order count).
-* **Khối Tài sản & Rủi ro:** Đặt ngay dưới Working Orders, phân tách Shared Cash/Equity với Perpetual Positions (không cộng trùng ví).
-
-#### B. Trên Mobile / Tablet nhỏ ($< 1024\text{px}$)
-* **Header tinh gọn:** Rút gọn text nhãn (chỉ hiện icon + badge), nút Stop chuyển thành action nổi bật dễ chạm (touch target $\ge 44\text{px}$). Menu điều hướng đưa vào Mobile Hamburger drawer.
-* **Thứ tự ưu tiên ngăn xếp (Single-Column Priority Stack):**
-  1. `OperatorAttentionBanner`: Luôn ở trên cùng nếu có cảnh báo cần xử lý.
-  2. `SessionSummaryCard`: Trạng thái phiên & countdown thời gian.
-  3. `WorkingOrdersSection`: Xếp chồng Spot trước, Perp sau.
-  4. `OperatingTargetsCard`: Tỷ lệ coverage.
-  5. `SharedBalancesCard` & `HeldPositionsCard`: Số dư và vị thế.
-  6. `RiskGuardsCard`: Giới hạn rủi ro.
+- Desktop: giữ thứ tự năm vùng mục 3.2; Spot và Perpetual có thể cạnh nhau trong vùng thanh khoản. Không thêm top bar ngữ cảnh hoặc Stop riêng cho Overview.
+- Mobile: cùng thứ tự nghiệp vụ, Spot trước Perpetual; giữ Operational context ở footer và Stop dùng chung dễ truy cập, không che nội dung/focus. Touch target tối thiểu 44px.
+- Bảng tài chính hiển thị các trường cần so sánh thành cột; cho cuộn ngang trên mobile khi cần. Chi tiết kỹ thuật mở bằng Details/dialog; không dùng dialog thay cho bản tóm tắt điều hành.
+- Tên component tại mục 4.2 là trách nhiệm chức năng, không bắt buộc mỗi tên thành một card. Tái sử dụng hoặc ghép khối hiện có theo kiến trúc; không tạo layout theo nguồn API.
 
 ### 4.2. Bảng component cấp chức năng
 
 | Khối Component | Câu hỏi cần trả lời | Dữ liệu hiển thị | Quyền thao tác | TODO liên quan | Trạng thái tái sử dụng |
 | :--- | :--- | :--- | :---: | :--- | :--- |
-| **`ContextBar`** (trong OperationalShell) | Tôi đang ở bot/môi trường nào? Tài khoản và người dùng nào? Dữ liệu mới đến đâu? | Bot/account/môi trường đã xác minh theo model; identity/role/permissions; freshness và mismatch | Chỉ trình bày context. StopControl thuộc workflow riêng và nhận capability từ logic | T-02, T-03, T-04 | **Tạo trong feature UI**, đọc consumer hook/props; `AppShell` vẫn là root shell public. |
-| **`OperatorAttentionBanner`** | Hệ thống có vấn đề gì khẩn cấp không? Tôi cần làm gì ngay bây giờ? | Tiêu đề cảnh báo, phía/thị trường bị ảnh hưởng, nguyên nhân có bằng chứng (`operator.label/detail`), hướng xử lý (`next_action`). | Viewer xem / Operator & Admin can thiệp | T-06, T-08, T-15 | **Tạo mới**, dùng [`Banner.tsx`](../src/shared/components/Banner.tsx). |
-| **`SessionSummaryCard`** | Bot được giao nhiệm vụ gì? Còn chạy bao lâu? Cấu hình đang ghim là gì? | Profile đang chạy (Fixed/Random), Thị trường (Spot/Perp/Both), Countdown thời gian còn lại (hoặc nhãn `Until stopped`), Requested vs Observed state. | Bấm chuyển cấu hình (dẫn sang `/session`) | T-05, T-10, T-11 | **Tạo mới**, dùng [`Surface.tsx`](../src/shared/components/Surface.tsx). |
-| **`WorkingOrdersSection`** | Bot có đang đặt lệnh mua/bán thực tế trên sàn không? Giá và lượng bao nhiêu? | Cột Spot và Perp riêng: Giá Bid/Ask, Volume còn lại, Own notional, Own spread, Lệnh pending đặt/hủy, Nguyên nhân nếu thiếu lệnh (`diagnosis`). | Mở `OrderDetailDrawer` | T-07, T-08 | **Tạo mới**, dùng [`Badge.tsx`](../src/shared/components/Badge.tsx). |
-| **`OperatingTargetsCard`** | Tỷ lệ cung cấp thanh khoản có đạt chuẩn $\ge 99\%$ không? | % Sampled two-sided coverage 30m, Tổng thời gian phiên, Thời gian bị giới hạn (restricted), Thời gian không xác định (unknown), Cảnh báo vắng lệnh > 20s / 60s, **Trạng thái "Chưa đủ thời gian đánh giá"** khi phiên mới chạy < 30 phút. | Chỉ quan sát | T-09 | **Tạo mới**. |
-| **`SharedBalancesCard`** | Tài sản thực tế còn bao nhiêu? Allocation khác số dư thế nào? | Cash, Available Cash, Equity, Available Equity cho USDT và LIFE. Phân tách rõ ràng, không cộng trùng ví Spot/Perp. | Hướng dẫn ngoài app | T-16 | **Tạo mới**. |
-| **`HeldPositionsCard`** | Vị thế Perpetual còn giữ là gì? Rủi ro thanh lý ra sao? | Chiều vị thế (LONG / SHORT riêng), Ký quỹ (Margin), Giá thanh lý ước tính, PnL tạm tính kèm nhãn nguồn tính. | Xem chi tiết | T-16, T-14 | **Tạo mới**. |
-| **`RiskGuardsCard`** | Có giới hạn rủi ro nào đang bị chạm hay chuẩn bị kích hoạt không? | Trạng thái Quote guard (độ lệch giá), Drawdown controller hiện tại vs Limit trần, Hạn mức Spot Outflow còn lại. | Xem chi tiết policy | T-17 | **Tạo mới**. |
-| **`SessionConfigForm` & `DiffReview`** | Tôi muốn đổi phiên: Đổi được gì? Cấu hình mới khác gì cấu hình cũ? | Form chọn Market, Profile/Random, Duration mode. Bảng so sánh 2 cột: Cấu hình ghim hiện tại vs Cấu hình đề xuất mới. Managed settings chỉ đọc. | Operator / Admin | T-11, T-12, T-13 | **Tạo mới**, dùng [`Input.tsx`](../src/shared/components/Input.tsx), [`Button.tsx`](../src/shared/components/Button.tsx). |
-| **`StopConfirmationDialog`** | Dừng bot sẽ tác động gì tới tài sản? Lệnh và vị thế ra sao? | Session ID, thị trường ảnh hưởng, thông điệp cam kết rõ ràng: **"Stop MM; positions remain open"**. Trạng thái pending cancel. | Operator / Admin | T-14, T-15 | **Tạo mới**, dùng [`Dialog.tsx`](../src/shared/components/Dialog.tsx). |
-| **`OrdersAndFillsView` & `Drawer`** | Quá khứ bot đã đặt và khớp những gì? Có lệnh nào bị kẹt không? | Bộ lọc thị trường/thời gian. Danh sách Orders có cursor pagination (`recorded_remaining_amount`). Danh sách Fills. Drawer chi tiết timeline. | Tất cả | T-26 | **Tạo mới**. |
-| **`ReconciliationPanel`** | Dữ liệu bot ghi nhận có khớp với thực tế trên sàn OKX không? | Trạng thái: `not_checked`, `checking`, `matched`, `mismatch`, `incomplete`. Bảng kê sai lệch (nếu có). Thời điểm check. | Operator / Admin (Check) | T-18 | **Tạo mới**. |
-| **`ManagedCredentialsView` & `DisconnectDialog`** | Kết nối sàn có an toàn không? Gỡ kết nối thì xử lý thế nào? | Trạng thái slot OKX, nguồn cấu hình (`environment` hay `postgres_kms`), credential version. Form nhập key mới. Modal xác nhận Disconnect. | **Operator & Admin** (theo quyền `manage_credentials` & availability) | T-19, T-20, T-21 | **Tạo mới**, tuân thủ Disconnect UX. |
-| **`AdminRecoveryView`** | Bot bị HALT kỹ thuật, làm sao phục hồi an toàn? | Trạng thái HALT, Blocker list, Bảng preview Before/After, Verification counts, Thời hạn hiệu lực token (5 phút). | **Chỉ Admin** (`manage_recovery`) | T-22, T-23, T-24, T-25 | **Tạo mới**. |
-| **`AccountsManagementView`** | Ai có quyền vào hệ thống? Làm sao thêm người mới mà không mất quyền Admin? | Bảng danh sách Google accounts, Role (`read`, `write`, `admin`), trạng thái bound/active, cảnh báo bảo vệ Last bound Admin. | **Chỉ Admin** | T-28 | **Tạo mới**. |
+| **`ContextBar`** (trong OperationalShell) | Tôi đang ở bot/môi trường nào? Tài khoản và người dùng nào? Dữ liệu mới đến đâu? | Bot/account/môi trường đã xác minh theo model; identity/role/permissions; freshness và mismatch | Chỉ trình bày context. StopControl thuộc workflow riêng và nhận capability từ logic | T-02, T-03, T-04 | Tái sử dụng ContextBar trong feature UI, đọc consumer hook/props; `AppShell` vẫn là root shell public. |
+| **`OperatorAttentionBanner`** | Hệ thống có vấn đề gì khẩn cấp không? Tôi cần làm gì ngay bây giờ? | Tiêu đề cảnh báo, phía/thị trường bị ảnh hưởng, nguyên nhân có bằng chứng (`operator.label/detail`), hướng xử lý (`next_action`). | Viewer xem / Operator & Admin can thiệp | T-06, T-08, T-15 | Tái sử dụng/mở rộng sau kiểm kê, dùng [`Banner.tsx`](../src/shared/components/Banner.tsx). |
+| **`SessionSummaryCard`** | Bot được giao nhiệm vụ gì? Còn chạy bao lâu? Cấu hình đang ghim là gì? | Profile đang chạy (Fixed/Random), Thị trường (Spot/Perp/Both), Countdown thời gian còn lại (hoặc nhãn `Until stopped`), Requested vs Observed state. | Bấm chuyển cấu hình (dẫn sang `/session`) | T-05, T-10, T-11 | Tái sử dụng/mở rộng sau kiểm kê, dùng [`Surface.tsx`](../src/shared/components/Surface.tsx). |
+| **`WorkingOrdersSection`** | Bot có đang đặt lệnh mua/bán thực tế trên sàn không? Giá và lượng bao nhiêu? | Cột Spot và Perp riêng: Giá Bid/Ask, Volume còn lại, Own notional, Own spread, Lệnh pending đặt/hủy, Nguyên nhân nếu thiếu lệnh (`diagnosis`). | Mở `OrderDetailDrawer` | T-07, T-08 | Tái sử dụng/mở rộng sau kiểm kê, dùng [`Badge.tsx`](../src/shared/components/Badge.tsx). |
+| **Coverage trong vùng thanh khoản** | Có đủ bằng chứng đạt policy không? | Target và nguồn, cửa sổ đo, eligible/total, unknown/restricted, readiness; chi tiết composition nằm dưới verdict duy nhất. Xem mục 5.4. | Chỉ quan sát | T-09 | Tái sử dụng khối phù hợp; không dựng card verdict riêng. |
+| **`SharedBalancesCard`** (qua dialog Account balances) | Tài sản thực tế còn bao nhiêu? Allocation khác số dư thế nào? | Cash, Available Cash, Equity, Available Equity cho USDT và LIFE. Phân tách rõ ràng, không cộng trùng ví Spot/Perp. Hiện xem qua dialog chi tiết (tile Trading balances → View balances) là nguồn duy nhất về số dư; không dựng card "Free & order-reserved capital" thường trực khi backend chưa có `reserved_for_open_orders` thật. | Xem qua dialog chi tiết | T-16 | Tái sử dụng qua `AccountBalancesPanel` dialog. |
+| **`HeldPositionsCard`** | Vị thế Perpetual còn giữ là gì? Rủi ro thanh lý ra sao? | Chiều vị thế (LONG / SHORT riêng), Ký quỹ (Margin), Giá thanh lý ước tính, PnL tạm tính kèm nhãn nguồn tính. | Xem chi tiết | T-16, T-14 | Tái sử dụng/mở rộng sau kiểm kê. |
+| **`RiskGuardsCard`** | Có giới hạn rủi ro nào đang bị chạm hay chuẩn bị kích hoạt không? | Trạng thái Quote guard (độ lệch giá), Drawdown controller hiện tại vs Limit trần, Hạn mức Spot Outflow còn lại. | Xem chi tiết policy | T-17 | Tái sử dụng/mở rộng sau kiểm kê. |
+| **`SessionConfigForm` & `DiffReview`** | Tôi muốn đổi phiên: Đổi được gì? Cấu hình mới khác gì cấu hình cũ? | Form chọn Market, Profile/Random, Duration mode. Bảng so sánh 2 cột: Cấu hình ghim hiện tại vs Cấu hình đề xuất mới. Managed settings chỉ đọc. | Operator / Admin | T-11, T-12, T-13 | Tái sử dụng/mở rộng sau kiểm kê, dùng [`Input.tsx`](../src/shared/components/Input.tsx), [`Button.tsx`](../src/shared/components/Button.tsx). |
+| **`StopConfirmationDialog`** | Dừng bot sẽ tác động gì tới tài sản? Lệnh và vị thế ra sao? | Session ID, thị trường ảnh hưởng, thông điệp cam kết rõ ràng: **"Stop MM; positions remain open"**. Trạng thái pending cancel. | Operator / Admin | T-14, T-15 | Tái sử dụng/mở rộng sau kiểm kê, dùng [`Dialog.tsx`](../src/shared/components/Dialog.tsx). |
+| **`OrdersAndFillsView` & `Drawer`** | Quá khứ bot đã đặt và khớp những gì? Có lệnh nào bị kẹt không? | Bộ lọc thị trường/thời gian. Danh sách Orders có cursor pagination (`recorded_remaining_amount`). Danh sách Fills. Drawer chi tiết timeline. | Tất cả | T-26 | Tái sử dụng/mở rộng sau kiểm kê. |
+| **`ReconciliationPanel`** | Dữ liệu bot ghi nhận có khớp với thực tế trên sàn OKX không? | Trạng thái: `not_checked`, `checking`, `matched`, `mismatch`, `incomplete`. Bảng kê sai lệch (nếu có). Thời điểm check. | Operator / Admin (Check) | T-18 | Tái sử dụng/mở rộng sau kiểm kê. |
+| **`ManagedCredentialsView` & `DisconnectDialog`** | Kết nối sàn có an toàn không? Gỡ kết nối thì xử lý thế nào? | Trạng thái slot OKX, nguồn cấu hình (`environment` hay `postgres_kms`), credential version. Form nhập key mới. Modal xác nhận Disconnect. | **Operator & Admin** (theo quyền `manage_credentials` & availability) | T-19, T-20, T-21 | Tái sử dụng/mở rộng sau kiểm kê, tuân thủ Disconnect UX. |
+| **`AdminRecoveryView`** | Bot bị HALT kỹ thuật, làm sao phục hồi an toàn? | Trạng thái HALT, Blocker list, Bảng preview Before/After, Verification counts, Thời hạn hiệu lực token (5 phút). | **Chỉ Admin** (`manage_recovery`) | T-22, T-23, T-24, T-25 | Tái sử dụng/mở rộng sau kiểm kê. |
+| **`AccountsManagementView`** | Ai có quyền vào hệ thống? Làm sao thêm người mới mà không mất quyền Admin? | Bảng danh sách Google accounts, Role (`read`, `write`, `admin`), trạng thái bound/active, cảnh báo bảo vệ Last bound Admin. | **Chỉ Admin** | T-28 | Tái sử dụng/mở rộng sau kiểm kê. |
 
 ---
 
@@ -197,14 +193,21 @@ UI nhận chuỗi Decimal string từ logic và format hiển thị thân thiệ
 | **Số lượng lệnh / Fills** | `12` | `12` | Số nguyên không có phần thập phân. |
 | **Dữ liệu chưa có / Missing** | `null` / `undefined` | `—` hoặc `Chưa có` | **Tuyệt đối không hiển thị thành `0` hay `0.00`**. |
 
-### 5.4. Trạng thái tỷ lệ thanh khoản (Coverage Target)
-Khối `OperatingTargetsCard` hỗ trợ 3 trạng thái rõ ràng:
-1. **Đạt chỉ tiêu:** $\ge 99.0\%$ sampled two-sided coverage trên cửa sổ 30 phút.
-2. **Dưới chỉ tiêu:** $< 99.0\%$, hiển thị cảnh báo và bóc tách thời gian vắng lệnh (*unexpected absence*).
-3. **Chưa đủ thời gian đánh giá:** Khi phiên giao dịch mới khởi chạy chưa đủ 30 phút hoặc số mẫu quan sát chưa đủ để đưa ra kết luận thống kê tin cậy (tránh vội vàng kết luận đạt/không đạt từ mẫu quan sát quá ngắn).
+### 5.4. Coverage: policy, nguồn và cửa sổ đo
+
+Policy vận hành ban đầu là ít nhất 99% sampled two-sided availability trong 30 phút,
+theo từng market và eligible conditions tại frontend requirements. Đây là policy
+được duyệt, không mặc định là field cấu hình phiên; target hiển thị phải có nguồn.
+Logic bàn giao target, basis, cửa sổ đo, measurement readiness và completeness.
+Không thêm target cứng hoặc phép suy diễn eligibility tại View.
+
+- **Đạt / dưới mục tiêu:** chỉ khi có actual và target cùng basis, dữ liệu đủ mới, cửa sổ yêu cầu đầy đủ, measurement ready và eligible denominator lớn hơn zero.
+- **Chưa đủ dữ liệu để đánh giá:** thiếu target/actual, cửa sổ hoặc samples chưa đủ, stale/unknown, denominator bằng zero hoặc backend chưa hỗ trợ cửa sổ yêu cầu.
+- Counter tích lũy cả phiên không được gắn nhãn rolling 30 phút. Phiên chạy đủ 30 phút chưa tự chứng minh cửa sổ rolling đủ dữ liệu. Hiển thị total-session coverage cạnh eligible coverage và unknown/restricted theo contract, không tính unknown là thành công.
+- Không suy verdict chất lượng toàn thị trường từ sampled own working orders. Một vị trí verdict chính trong vùng thanh khoản; phần đánh giá cuối trang không lặp headline coverage.
 
 ### 5.5. Khả dụng & Hành vi Bàn phím (Keyboard & Focus Accessibility)
-* **Nút Stop Orders:** Nằm ở vị trí đầu tiên trong chuỗi tab navigation khẩn cấp; viền focus (`:focus-visible`) sắc nét với độ tương phản cao; hỗ trợ phím Enter/Space để kích hoạt ngay.
+* **Nút Stop Orders:** Giữ điều khiển toàn workspace ở vị trí hiện tại; dễ tiếp cận qua bàn phím với thứ tự focus hợp lý, không tự thêm tabindex dương; viền focus (`:focus-visible`) sắc nét với độ tương phản cao; hỗ trợ phím Enter/Space để kích hoạt ngay.
 * **Hộp thoại xác nhận (Dialogs / Modals):**
   - Áp dụng focus trap (người dùng nhấn `Tab` chỉ xoay vòng bên trong modal).
   - Tự động focus vào nút an toàn nhất (ví dụ nút "Hủy bỏ") khi mở hộp thoại.
@@ -260,7 +263,7 @@ Các tên component dưới đây là khối chức năng dự kiến; có thể
 ### 7.3. Đợt 2 — Overview, vốn và rủi ro (T-05–10, T-16–17)
 
 - **Kết quả:** trả lời bot được giao gì, đang cung cấp lệnh thế nào, chênh lệch/nguyên nhân nào có bằng chứng và vốn/rủi ro còn lại.
-- **UI trên `/`:** `OperatorAttentionBanner`, `SessionSummaryCard`, `WorkingOrdersSection`, `OperatingTargetsCard`, `SharedBalancesCard`, `HeldPositionsCard`, `RiskGuardsCard`; bố cục tại mục 4. Hiển thị market/side riêng; market không hoạt động có trạng thái rõ ràng. Link tới session, orders và activity; route chưa triển khai không được thành link chết.
+- **UI trên `/`:** năm vùng theo mục 3.2 và responsive mục 4.1; các component tại mục 4.2 được tái sử dụng/ghép theo trách nhiệm, không tạo card coverage riêng hoặc lặp ngữ cảnh/Stop. Hiển thị market/side riêng; market không hoạt động có trạng thái rõ ràng. Link tới session, orders và activity; route chưa triển khai không được thành link chết.
 - **Logic bàn giao:** requested/observed session, pinned configuration, own quotes/pending/diagnosis, coverage từng market và vốn/risk có basis/đơn vị/timestamp theo LOGIC-HANDOFF. Số nhỏ cần xem được giá trị chính xác; không biến thành zero do format.
 - **Trạng thái/tương tác:** loading, empty, ready, lỗi và last-good stale từng nguồn; running/no_quotes, one-sided, unavailable/idle; đủ/chưa đủ cửa sổ coverage, eligible bằng 0 và unknown/restricted. Refresh từng nguồn và mở chi tiết; không tự restart/nới guard/nạp vốn.
 - **Tích hợp/phụ thuộc:** context và quyền Đợt 1; reuse query/cache/polling. Thao tác điều khiển thật nối tại Đợt 3; không giả lập runtime để làm đầy màn hình.

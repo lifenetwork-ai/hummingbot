@@ -28,13 +28,6 @@ export function OperationalShell() {
     }
   }, [trackedReceipts, selectedReceipt])
 
-  // Global listener for the Stop Orders button in header
-  useEffect(() => {
-    const handleOpenStop = () => setStopDialogOpen(true)
-    window.addEventListener('open-stop-dialog', handleOpenStop)
-    return () => window.removeEventListener('open-stop-dialog', handleOpenStop)
-  }, [])
-
   const handleStopConfirm = async () => {
     setStopError(null)
     notify.loading('Submitting stop command...', { id: 'shell-stop' })
@@ -64,14 +57,15 @@ export function OperationalShell() {
       <Outlet />
 
       {/* Single global emergency stop — floating above the ContextBar, visible from any page.
-          Solid red circle with a power-off icon, like the stop/shutdown button on everyday devices. */}
+          Solid red circle with a power-off icon, like the stop/shutdown button on everyday devices.
+          Luôn bấm được (CTA availability, UX_MOTION): lock reason và trạng thái submitting
+          hiển thị bên trong StopConfirmationDialog, không giấu sau nút disabled. */}
       <button
         type="button"
         onClick={() => setStopDialogOpen(true)}
         aria-label="Emergency stop"
-        disabled={!context.actions.stop.allowed || stopControl.stopping}
-        title={context.actions.stop.detail}
-        className="fixed bottom-14 right-4 z-40 grid h-14 w-14 place-items-center rounded-full bg-app-danger text-white shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-danger focus-visible:ring-offset-2 active:scale-95 disabled:pointer-events-none disabled:opacity-40 sm:right-6"
+        aria-haspopup="dialog"
+        className="fixed bottom-14 right-4 z-40 grid h-14 w-14 place-items-center rounded-full bg-app-danger text-white shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-danger focus-visible:ring-offset-2 active:scale-95 sm:right-6"
       >
         <Power size={26} strokeWidth={2.5} className="shrink-0" />
       </button>

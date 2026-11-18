@@ -8,7 +8,7 @@ describe('SessionEventsTimeline', () => {
     {
       id: 1,
       session_id: 'sess-123',
-      event_type: 'profile_switched',
+      event_type: 'step_changed',
       source: 'random_cycle_timer',
       new_profile: 'conservative_spread',
       payload: { note: 'Switched profile successfully on random cycle' },
@@ -20,7 +20,7 @@ describe('SessionEventsTimeline', () => {
     render(<SessionEventsTimeline events={sampleEvents} />)
 
     expect(screen.getByText('Session Events Timeline')).toBeInTheDocument()
-    expect(screen.getByText('profile_switched')).toBeInTheDocument()
+    expect(screen.getByText('step_changed')).toBeInTheDocument()
     expect(screen.getByText('source: random_cycle_timer')).toBeInTheDocument()
     expect(screen.getByText('conservative_spread')).toBeInTheDocument()
     expect(
@@ -43,12 +43,33 @@ describe('SessionEventsTimeline', () => {
     render(
       <SessionEventsTimeline
         events={sampleEvents}
-        filters={{ event_type: 'profile_switched' }}
+        filters={{ event_type: 'step_changed' }}
         onFilterChange={onFilterChange}
       />,
     )
 
     expect(screen.getByText('Events Filter')).toBeInTheDocument()
+  })
+
+  it('renders payload collapsed by default and expands on toggle', () => {
+    const longEvents = [
+      {
+        ...sampleEvents[0],
+        event_type: 'session_created',
+        payload: { configuration: { catalogue: 'x'.repeat(500), request: 'y'.repeat(500) } },
+      },
+    ] as unknown as components['schemas']['MMEventViewOutput'][]
+    render(<SessionEventsTimeline events={longEvents} />)
+
+    const summary = screen.getByText(/payload \(1 keys\)/i)
+    const details = summary.closest('details')
+    expect(details).not.toBeNull()
+    expect(details).not.toHaveAttribute('open')
+
+    fireEvent.click(summary)
+    expect(details).toHaveAttribute('open')
+    const block = screen.getByText(/"configuration"/, { exact: false }).closest('pre')
+    expect(block).toHaveClass('whitespace-pre-wrap', 'break-all', 'overflow-auto')
   })
 
   it('triggers onLoadMore when pagination button is clicked', () => {

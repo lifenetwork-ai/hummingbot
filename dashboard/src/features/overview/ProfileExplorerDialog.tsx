@@ -39,6 +39,13 @@ function formatPct(value: number, digits = 1): string {
   return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(digits)}%`
 }
 
+function formatDisplayPrice(v: number): string {
+  if (Math.abs(v) >= 10_000) {
+    return v.toLocaleString('en-US', { maximumFractionDigits: 2 })
+  }
+  return v.toPrecision(4)
+}
+
 /** One diverging bar: contribution left (negative) or right (positive) of a centre axis. */
 function ContributionBar({ contribution, label }: { contribution: number; label: string }) {
   const clamped = Math.max(-BAR_SCALE, Math.min(BAR_SCALE, contribution))
@@ -53,7 +60,7 @@ function ContributionBar({ contribution, label }: { contribution: number; label:
       <span
         className={cn(
           'absolute inset-y-0 rounded-pill transition-all duration-200',
-          contribution >= 0 ? 'bg-app-action' : 'bg-amber-400',
+          contribution >= 0 ? 'bg-app-action' : 'bg-app-warning',
         )}
         style={contribution >= 0 ? { left: '50%', width } : { right: '50%', width }}
         aria-hidden="true"
@@ -68,7 +75,7 @@ function ContributionBar({ contribution, label }: { contribution: number; label:
  * bid/ask at the band edges (± spread). Slider changes move the anchor & mid live.
  */
 function PriceMap({ anchorLife, move, target, spreadBps }: { anchorLife: number | null; move: number; target: number | null; spreadBps: number | null }) {
-  const fmt = (v: number) => v.toPrecision(4)
+  const fmt = formatDisplayPrice
   const bid = target !== null && spreadBps !== null ? target * (1 - spreadBps / 10_000) : null
   const ask = target !== null && spreadBps !== null ? target * (1 + spreadBps / 10_000) : null
   // Anchor sits left of the mid when the move is positive; clamped inside the axis.
@@ -103,8 +110,8 @@ function PriceMap({ anchorLife, move, target, spreadBps }: { anchorLife: number 
 
         {/* hàng 4 — dải quote + vạch anchor đứt nét + vạch giữa */}
         <div className="absolute left-[18%] right-[18%] top-[72px] h-10">
-          <div className="absolute inset-y-0 left-0 w-1/2 rounded-l-card border border-emerald-500/40 bg-emerald-500/15" />
-          <div className="absolute inset-y-0 right-0 w-1/2 rounded-r-card border border-rose-500/40 bg-rose-500/15" />
+          <div className="absolute inset-y-0 left-0 w-1/2 rounded-l-card border border-app-success/40 bg-app-success/15" />
+          <div className="absolute inset-y-0 right-0 w-1/2 rounded-r-card border border-app-danger/40 bg-app-danger/15" />
           <div className="absolute left-1/2 top-0 bottom-0 w-px bg-app-text/70" aria-hidden="true" />
           {anchorLife != null && (
             <div
@@ -116,10 +123,10 @@ function PriceMap({ anchorLife, move, target, spreadBps }: { anchorLife: number 
         </div>
 
         {/* hàng 5 — bid / ask tại hai mép dải */}
-        <span className="absolute top-[118px] -translate-x-1/2 whitespace-nowrap font-mono text-xs font-bold text-emerald-500" style={{ left: '18%' }}>
+        <span className="absolute top-[118px] -translate-x-1/2 whitespace-nowrap font-mono text-xs font-bold text-app-success" style={{ left: '18%' }}>
           {bid !== null ? fmt(bid) : '—'}<span className="ml-1 text-[9px] font-normal uppercase tracking-wider text-app-muted">bid</span>
         </span>
-        <span className="absolute top-[118px] translate-x-1/2 whitespace-nowrap font-mono text-xs font-bold text-rose-500" style={{ right: '18%' }}>
+        <span className="absolute top-[118px] translate-x-1/2 whitespace-nowrap font-mono text-xs font-bold text-app-danger" style={{ right: '18%' }}>
           <span className="mr-1 text-[9px] font-normal uppercase tracking-wider text-app-muted">ask</span>{ask !== null ? fmt(ask) : '—'}
         </span>
 
@@ -143,15 +150,15 @@ function HowItWorksDetails({ scenarioBody }: { scenarioBody?: string }) {
       <ol className="mt-1.5 space-y-1.5 text-xs leading-relaxed text-app-muted" data-testid="profile-explorer-steps">
         <li className="flex gap-2">
           <span className="font-mono font-bold text-app-action">1</span>
-          <span><span className="font-semibold text-app-text">Session start:</span> the bot records the anchor — the traded pair mid and every reference pair's price at that moment.</span>
+          <span><span className="font-semibold text-app-text">Anchor capture:</span> At profile start (or step rotation), the bot captures the baseline anchor — the outside traded pair mid (excluding own orders) and each reference pair's mid price.</span>
         </li>
         <li className="flex gap-2">
           <span className="font-mono font-bold text-app-action">2</span>
-          <span><span className="font-semibold text-app-text">Every refresh:</span> it measures how far each reference pair moved since the anchor (Δᵢ) and sums them weighted (Σ wᵢ × Δᵢ) into one weighted move.</span>
+          <span><span className="font-semibold text-app-text">Every refresh:</span> It measures how far each reference pair moved since its anchor (Δᵢ = Pᵢ/Pᵢ₀ − 1) and calculates the weighted move (Σ wᵢ × Δᵢ).</span>
         </li>
         <li className="flex gap-2">
           <span className="font-mono font-bold text-app-action">3</span>
-          <span><span className="font-semibold text-app-text">Pricing:</span> target mid = anchor × (1 + weighted move). Quotes are then placed around the target — the profile decides <em>where the centre is</em>, the spread decides <em>how wide around it</em>.</span>
+          <span><span className="font-semibold text-app-text">Target &amp; Quotes:</span> Target mid = anchor × (1 + weighted move). Quote levels (bids/asks) are deployed around this target according to spread &amp; volatility policy, protected by deviation guards.</span>
         </li>
       </ol>
     </details>
@@ -179,7 +186,7 @@ export function ProfileExplorerDialog({ open, onClose, activeProfileId, anchorLi
       open={open}
       onClose={onClose}
       title="How this profile prices the traded pair"
-      description="A profile answers one question: where is the centre that quotes hug? target mid = session anchor × (1 + Σ weightᵢ × pair moveᵢ) — the spread policy then places quotes around it."
+      description="A profile answers one question: where is the centre that quotes hug? target mid = baseline anchor × (1 + Σ weightᵢ × pair moveᵢ) — multi-level quotes and spread policies then deploy around it."
       className={cn('max-w-xl', className)}
     >
       <div className="flex flex-col gap-4">
@@ -216,6 +223,9 @@ export function ProfileExplorerDialog({ open, onClose, activeProfileId, anchorLi
             <p className="text-sm font-semibold text-app-text">{copy?.title}</p>
 
             <PriceMap anchorLife={anchorLife ?? null} move={move} target={target} spreadBps={spreadBps} />
+            <p className="text-center text-[10px] text-app-muted">
+              Visual model shows a simplified single-level symmetric band. Live execution places multi-level orders with dynamic volatility spreads and inventory skewing.
+            </p>
 
             {references.length === 0 ? (
               <p className="rounded-card bg-app-surface-muted px-3 py-2 text-xs text-app-muted" data-testid="profile-explorer-no-references">
@@ -273,12 +283,12 @@ export function ProfileExplorerDialog({ open, onClose, activeProfileId, anchorLi
                 Weighted move <span className="ml-1 font-mono text-sm font-bold tabular-nums text-app-text" data-testid="profile-explorer-move">{formatPct(move)}</span>
               </span>
               <span className="text-[10px] font-medium uppercase tracking-wider text-app-muted">
-                Target mid <span className="ml-1 font-mono text-sm font-bold tabular-nums text-app-text" data-testid="profile-explorer-target">{target !== null ? target.toPrecision(4) : `anchor ${formatPct(move)}`}</span>
+                Target mid <span className="ml-1 font-mono text-sm font-bold tabular-nums text-app-text" data-testid="profile-explorer-target">{target !== null ? formatDisplayPrice(target) : `anchor ${formatPct(move)}`}</span>
               </span>
               <span className="flex w-full items-start gap-1 text-[11px] leading-relaxed text-app-muted">
                 <Flame size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
                 {anchorLife != null
-                  ? `Anchor ${anchorLife} from the running session's recorded anchors.`
+                  ? `Anchor ${anchorLife} from active session's recorded anchors (captured at session start or step rotation).`
                   : 'No running session anchor — start a session to see absolute prices; the weighted move is scenario math only.'}
               </span>
             </div>

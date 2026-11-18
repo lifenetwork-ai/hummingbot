@@ -58,6 +58,26 @@ function installReads() {
 afterEach(() => { canManage = true; staleRuntime = false; recoveryActive = false })
 
 describe('Connections controller', () => {
+  it.each(['catalogue', 'status'] as const)('never posts retry or repair when %s is deployment-managed', async (source) => {
+    installReads()
+    server.use(source === 'catalogue'
+      ? http.get(`${baseUrl}/credentials`, () => HttpResponse.json({ ...catalogueData, source: 'environment' }))
+      : http.get(`${baseUrl}/credentials/okx`, () => HttpResponse.json({ ...statusData, source: 'environment' })))
+    const writes = vi.fn()
+    server.use(
+      http.post(`${baseUrl}/credentials/operations/root-1/retry`, () => { writes(); return HttpResponse.json({}) }),
+      http.post(`${baseUrl}/credentials/okx/spot/cleanup-credentials`, () => { writes(); return HttpResponse.json({}) }),
+    )
+    const { result } = renderHook(useConnectionsController, { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.slots[0]?.decisions.retry.reasonCode).toBe('managed_source_required'))
+    expect(result.current.slots[0]?.decisions.repair.allowed).toBe(false)
+    const input = { exchange: 'okx', connector: 'spot', idempotencyKey: 'externally-managed' }
+    expect(() => result.current.retryCleanup(input)).toThrow('managed by deployment')
+    expect(() => result.current.repairCleanupKey({ ...input, values: { api_key: 'a', secret_key: 'b', passphrase: 'c' } })).toThrow('managed by deployment')
+    expect(writes).not.toHaveBeenCalled()
+    expect(result.current.decisionLocks).toEqual([])
+  })
+
   it('maps uncertain cleanup from the root receipt without removing credentials or posting a retry', async () => {
     installReads()
     const posts = vi.fn()

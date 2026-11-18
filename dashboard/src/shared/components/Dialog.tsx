@@ -102,6 +102,7 @@ export function Dialog({
         aria-describedby={description ? descriptionId : undefined}
         className={cn(
           'relative z-10 w-full max-w-lg rounded-card border border-app-border bg-app-surface p-6 shadow-card md:p-7',
+          placement === 'center' && 'max-h-[calc(100dvh-2rem)] overflow-y-auto',
           placement === 'right' && 'min-h-0 h-full max-h-dvh max-w-xl overflow-y-auto rounded-none border-y-0 border-r-0 p-4 shadow-2xl sm:p-6',
           className,
         )}

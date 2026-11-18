@@ -1,4 +1,8 @@
 import type { ReadInput } from '../../core/api/admin'
+/** Default page size for cursor-paginated history lists; small pages keep the first paint cheap. */
+export const DEFAULT_HISTORY_PAGE_SIZE = 10
+/** Event types recorded by the bot (see backend `mm_event.py`); bounded, so they can be a select. */
+export const EVENT_TYPES = ['session_created', 'session_switched', 'session_replaced', 'stop_requested', 'session_stopped', 'session_expired', 'step_started', 'step_changed', 'guard_changed'] as const
 export type CommandFilters = Omit<NonNullable<ReadInput<'listCommands'>['query']>, 'cursor'>
 export type EventFilters = Omit<NonNullable<ReadInput<'getSessionEvents'>['query']>, 'cursor'>
 export type AuditFilters = Omit<NonNullable<ReadInput<'getAdminAudit'>['query']>, 'cursor'>

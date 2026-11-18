@@ -13,7 +13,7 @@ describe('ProfileSignatureChip', () => {
     const chip = screen.getByTestId('profile-signature-chip')
     expect(chip).toBeInTheDocument()
     expect(chip).toHaveTextContent('fixed_tight')
-    expect(chip.className).toContain('emerald')
+    expect(chip.className).toContain('app-success')
   })
 
   it('renders random profile with purple signature styling', () => {

@@ -81,7 +81,7 @@ export function AutomaticRecoveryCard({ presentation, className }: { presentatio
       </div>
 
       {observation !== 'fresh' && (
-        <p className="mt-2 text-xs font-medium text-amber-500">
+        <p className="mt-2 text-xs font-medium text-app-warning">
           {observation === 'stale'
             ? 'This recovery status is not current (stale) — treat it as the last known state, not a live conclusion.'
             : 'Recovery status is unknown — no status observation is available yet.'}

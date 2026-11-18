@@ -62,10 +62,10 @@ export function DailyVolumeChart({ series, isLoading }: DailyVolumeChartProps) {
         </div>
         <div className="flex items-center gap-3 text-[11px] text-app-muted">
           <span className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> Buy Volume
+            <span className="h-2.5 w-2.5 rounded-sm bg-app-success" /> Buy Volume
           </span>
           <span className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-sm bg-rose-500" /> Sell Volume
+            <span className="h-2.5 w-2.5 rounded-sm bg-app-danger" /> Sell Volume
           </span>
           <span>· Unit: USDT</span>
         </div>
@@ -141,10 +141,10 @@ export function DailyVolumeChart({ series, isLoading }: DailyVolumeChartProps) {
                           <div className="mt-1.5 space-y-1 font-mono text-[11px]">
                             <div className="flex justify-between items-center text-app-muted">
                               <span className="flex items-center gap-1.5">
-                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                <span className="h-2 w-2 rounded-full bg-app-success" />
                                 Buy:
                               </span>
-                              <span className="font-semibold text-emerald-500">
+                              <span className="font-semibold text-app-success">
                                 {formatUsdt(val.rawBuy)}
                                 {val.total > 0 && (
                                   <span className="text-[10px] text-app-muted font-normal ml-1">
@@ -155,10 +155,10 @@ export function DailyVolumeChart({ series, isLoading }: DailyVolumeChartProps) {
                             </div>
                             <div className="flex justify-between items-center text-app-muted">
                               <span className="flex items-center gap-1.5">
-                                <span className="h-2 w-2 rounded-full bg-rose-500" />
+                                <span className="h-2 w-2 rounded-full bg-app-danger" />
                                 Sell:
                               </span>
-                              <span className="font-semibold text-rose-500">
+                              <span className="font-semibold text-app-danger">
                                 {formatUsdt(val.rawSell)}
                                 {val.total > 0 && (
                                   <span className="text-[10px] text-app-muted font-normal ml-1">
@@ -196,7 +196,7 @@ export function DailyVolumeChart({ series, isLoading }: DailyVolumeChartProps) {
                         {/* Sell Segment (Top, Rose) */}
                         {val.sell > 0 && (
                           <div
-                            className="w-full bg-rose-500 hover:bg-rose-600 transition-colors flex items-center justify-center overflow-hidden"
+                            className="w-full bg-app-danger hover:bg-app-danger/90 transition-colors flex items-center justify-center overflow-hidden"
                             style={{ height: `${sellHeightPct}%` }}
                             title={`Sell: ${formatUsdt(val.rawSell)}`}
                           >
@@ -211,7 +211,7 @@ export function DailyVolumeChart({ series, isLoading }: DailyVolumeChartProps) {
                         {/* Buy Segment (Bottom, Emerald) */}
                         {val.buy > 0 && (
                           <div
-                            className="w-full bg-emerald-500 hover:bg-emerald-600 transition-colors flex items-center justify-center overflow-hidden"
+                            className="w-full bg-app-success hover:bg-app-success/90 transition-colors flex items-center justify-center overflow-hidden"
                             style={{ height: `${buyHeightPct}%` }}
                             title={`Buy: ${formatUsdt(val.rawBuy)}`}
                           >
@@ -246,17 +246,17 @@ export function DailyVolumeChart({ series, isLoading }: DailyVolumeChartProps) {
                 </div>
                 <div className="flex flex-wrap items-center gap-3 sm:gap-6 font-mono text-xs">
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    <span className="h-2 w-2 rounded-full bg-app-success" />
                     <span className="text-app-muted">Buy:</span>
-                    <span className="font-bold text-emerald-500">{formatUsdt(activeData.rawBuy)}</span>
+                    <span className="font-bold text-app-success">{formatUsdt(activeData.rawBuy)}</span>
                     <span className="text-[10px] text-app-muted">
                       ({activeData.total > 0 ? ((activeData.buy / activeData.total) * 100).toFixed(1) : '—'}%)
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-rose-500" />
+                    <span className="h-2 w-2 rounded-full bg-app-danger" />
                     <span className="text-app-muted">Sell:</span>
-                    <span className="font-bold text-rose-500">{formatUsdt(activeData.rawSell)}</span>
+                    <span className="font-bold text-app-danger">{formatUsdt(activeData.rawSell)}</span>
                     <span className="text-[10px] text-app-muted">
                       ({activeData.total > 0 ? ((activeData.sell / activeData.total) * 100).toFixed(1) : '—'}%)
                     </span>
@@ -299,8 +299,8 @@ export function DailyVolumeChart({ series, isLoading }: DailyVolumeChartProps) {
                           )}
                         >
                           <td className="p-2.5 font-bold text-app-text">{day}</td>
-                          <td className="p-2.5 text-emerald-500 font-medium">{formatUsdt(val.rawBuy)}</td>
-                          <td className="p-2.5 text-rose-500 font-medium">{formatUsdt(val.rawSell)}</td>
+                          <td className="p-2.5 text-app-success font-medium">{formatUsdt(val.rawBuy)}</td>
+                          <td className="p-2.5 text-app-danger font-medium">{formatUsdt(val.rawSell)}</td>
                           <td className="p-2.5 font-bold text-app-text">{formatUsdt(val.rawTotal)}</td>
                           <td className="p-2.5 text-app-muted">
                             {val.total > 0

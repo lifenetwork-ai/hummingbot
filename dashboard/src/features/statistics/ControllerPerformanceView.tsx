@@ -54,7 +54,7 @@ function BigValue({ tone, children }: { tone?: 'default' | 'positive' | 'negativ
     <span
       className={cn(
         'font-mono text-xl font-bold tabular-nums sm:text-2xl',
-        tone === 'positive' ? 'text-emerald-500' : tone === 'negative' ? 'text-app-danger' : 'text-app-text',
+        tone === 'positive' ? 'text-app-success' : tone === 'negative' ? 'text-app-danger' : 'text-app-text',
       )}
     >
       {children}
@@ -80,11 +80,11 @@ function PnlSplitBar({ realized, unrealized, scale }: { realized: number; unreal
     >
       <span className="absolute inset-y-0 left-1/2 w-px bg-app-border" />
       <span
-        className={cn('absolute inset-y-0 rounded-pill', realized >= 0 ? 'left-1/2 bg-emerald-500' : 'right-1/2 bg-app-danger')}
+        className={cn('absolute inset-y-0 rounded-pill', realized >= 0 ? 'left-1/2 bg-app-success' : 'right-1/2 bg-app-danger')}
         style={{ width: width(realized) }}
       />
       <span
-        className={cn('absolute inset-y-0 rounded-pill opacity-60', unrealized >= 0 ? 'bg-emerald-500' : 'bg-app-danger')}
+        className={cn('absolute inset-y-0 rounded-pill opacity-60', unrealized >= 0 ? 'bg-app-success' : 'bg-app-danger')}
         style={{
           width: width(unrealized),
           ...(unrealized >= 0
@@ -115,7 +115,7 @@ function CloseTypeBar({ counts }: { counts: [string, number][] }) {
           key={type}
           className={cn(
             'h-full rounded-pill',
-            PROFIT_CLOSE_TYPES.has(type) ? 'bg-emerald-500' : LOSS_CLOSE_TYPES.has(type) ? 'bg-app-danger' : 'bg-app-muted/70',
+            PROFIT_CLOSE_TYPES.has(type) ? 'bg-app-success' : LOSS_CLOSE_TYPES.has(type) ? 'bg-app-danger' : 'bg-app-muted/70',
           )}
           style={{ width: `${(count / total) * 100}%` }}
         />
@@ -271,10 +271,10 @@ export function ControllerPerformanceView({ model, onRefresh, className }: Contr
                   <div>Global PnL (Quote / Pct)</div>
                   <div className="mt-1 flex items-center justify-end gap-2 font-normal text-[10px]">
                     <span className="flex items-center gap-1">
-                      <span className="inline-block h-1.5 w-3 rounded-pill bg-emerald-500" aria-hidden="true" />realized
+                      <span className="inline-block h-1.5 w-3 rounded-pill bg-app-success" aria-hidden="true" />realized
                     </span>
                     <span className="flex items-center gap-1">
-                      <span className="inline-block h-1.5 w-3 rounded-pill bg-emerald-500 opacity-60" aria-hidden="true" />unrealized
+                      <span className="inline-block h-1.5 w-3 rounded-pill bg-app-success opacity-60" aria-hidden="true" />unrealized
                     </span>
                     <span>(zero at center)</span>
                   </div>

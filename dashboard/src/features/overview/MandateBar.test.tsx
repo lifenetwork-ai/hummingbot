@@ -4,27 +4,18 @@ import { contextStatus } from '../../test/mocks/contextFixtures'
 import { deriveOverview } from './model'
 import { deriveCapitalRisk, deriveMandate } from './supplement'
 import { MandateBar } from './MandateBar'
+import type { OverviewSupplementSchemas } from './supplement-contract'
 
 type Status = typeof contextStatus
+type Supplement = OverviewSupplementSchemas['OverviewSupplementOutput']
 const loading = { phase: 'loading' as const, data: undefined, error: null, refreshing: false }
+const unknown = { value: null, stale: true, observed_at: null, unavailable_reason: 'unavailable' }
 function renderStatus(data: Status | undefined, failed = false) {
   const model = deriveOverview({ status: { phase: failed ? 'error' : data ? 'ready' : 'loading', data, error: null, refreshing: false }, liquidity: loading, positions: loading, balances: loading })
   return render(<MandateBar view={deriveMandate(model, null)} guards={deriveCapitalRisk(model, null).guardsSummary} />)
 }
 
 describe('mandate operational status', () => {
-  it('formats risk amounts by their backend unit and keeps missing exposure unknown', () => {
-    const model = deriveOverview({ status: { phase: 'ready', data: contextStatus, error: null, refreshing: false }, liquidity: loading, positions: loading, balances: loading })
-    const view = { ...deriveMandate(model, null), riskLimits: [
-      { ruleId: 'drawdown', current: '857.669896390764799999999996', limit: '2500', status: 'ok' as const, unit: 'USDT' },
-      { ruleId: 'inventory', current: null, limit: '0.05', status: 'unknown' as const, unit: 'BTC' },
-    ] }
-    render(<MandateBar view={view} guards={deriveCapitalRisk(model, null).guardsSummary} />)
-    expect(screen.getByText('857.67 USDT')).toBeInTheDocument()
-    expect(screen.getByText('0.05000000 BTC')).toBeInTheDocument()
-    expect(screen.queryByText(/857\.669896390/)).not.toBeInTheDocument()
-  })
-
   it.each(['running', 'starting', 'stopping', 'stopped', 'halted'])('renders runtime phase %s independently of requested state', (phase) => {
     renderStatus({ ...contextStatus, phase, running: phase === 'running' })
     expect(screen.getByText(phase.toUpperCase())).toBeInTheDocument()
@@ -54,13 +45,23 @@ describe('mandate operational status', () => {
   })
 })
 
-
-it('labels identical controller rules by market and does not count unknown as a breach', () => {
-  const model = deriveOverview({ status: loading, liquidity: loading, positions: loading, balances: loading })
-  const view = { ...deriveMandate(model, null), riskLimits: ['spot', 'perpetual'].map(market => ({ ruleId: 'drawdown_controller', market, controllerId: market, unit: 'USDT', limit: '2500', current: null, status: 'unknown' as const })) }
-  render(<MandateBar view={view} guards={{ status: 'attention', headline: 'Exposure unverified', violationCount: 0, unknownCount: 2, totalCount: 2, available: false }} />)
-  expect(screen.getByText(/Spot · drawdown_controller/)).toBeInTheDocument()
-  expect(screen.getByText(/Perp · drawdown_controller/)).toBeInTheDocument()
-  expect(screen.getByText('Guards: 0 breaches · 2 unverified / 2 limits')).toBeInTheDocument()
-  expect(screen.getByText(/allocated capital not configured/)).toBeInTheDocument()
+describe('mandate risk limits dedup', () => {
+  it('does not list per-rule risk limits — detail lives in the Q5 capital/risk card only', () => {
+    const model = deriveOverview({ status: loading, liquidity: loading, positions: loading, balances: loading })
+    const supplement: Supplement = {
+      contract_version: 1, server_time: '2026-11-13T00:00:00Z',
+      account_scope: { account_ids: ['17'], environment: 'demo', identity_verified: true, site: null },
+      session_id: 'session', session_started_at: null,
+      session: { capital_allocated: unknown, delta: unknown, benchmark_hold: unknown, fees: unknown },
+      portfolio: unknown, balances: unknown, inventory_limits: unknown, references: unknown, markets: [],
+      risk_rules: { observed_at: '2026-11-13T00:00:00Z', stale: false, unavailable_reason: null,
+        value: [{ controller_id: null, market: null, rule_id: 'drawdown_global', unit: 'USDT',
+          lower_limit: null, upper_limit: '5000', current: '1225.61', status: 'ok', unavailable_reason: null }] },
+    }
+    render(<MandateBar view={deriveMandate(model, supplement)} guards={deriveCapitalRisk(model, supplement).guardsSummary} />)
+    expect(screen.queryByText(/limit → current/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/drawdown_global/)).not.toBeInTheDocument()
+    // Guards summary một dòng vẫn còn làm tín hiệu nhanh.
+    expect(screen.getByText(/Guards:/)).toBeInTheDocument()
+  })
 })

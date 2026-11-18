@@ -1,14 +1,25 @@
+import { Info } from 'lucide-react'
 import { Surface } from '../../shared/components/Surface'
 import { cn } from '../../shared/utils/cn'
-import { formatAmount, formatUsdt } from '../../shared/utils/formatters'
+import { formatAmount } from '../../shared/utils/formatters'
+
 import { BackendGapChip } from './BackendGapChip'
+import { formatQuantityForDisplay, formatUsdtForDisplay } from './formatNumbers'
 import { parseAmount } from './parseAmount'
+import type { OverviewModel } from './model'
 import type { CapitalRiskView, LiquidityMarketView } from './supplement'
 
-function KpiTile({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
+function KpiTile({ label, tooltip, className, children }: { label: string; tooltip?: string; className?: string; children: React.ReactNode }) {
   return (
-    <Surface className={cn('min-w-0 p-3.5 sm:p-4', className)}>
-      <span className="text-[11px] font-medium uppercase tracking-wider text-app-muted">{label}</span>
+    <Surface className={cn('p-3.5 sm:p-4', className)}>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-app-muted">{label}</span>
+        {tooltip && (
+          <span className="cursor-help text-app-muted/70 hover:text-app-text" title={tooltip}>
+            <Info size={11} aria-hidden="true" />
+          </span>
+        )}
+      </div>
       <div className="mt-2">{children}</div>
     </Surface>
   )
@@ -18,8 +29,8 @@ function BigValue({ children, tone }: { children: React.ReactNode; tone?: 'defau
   return (
     <span
       className={cn(
-        'min-w-0 break-words font-mono text-xl font-bold tabular-nums sm:text-2xl',
-        tone === 'positive' ? 'text-emerald-500' : tone === 'negative' ? 'text-app-danger' : 'text-app-text',
+        'font-mono text-xl font-bold tabular-nums sm:text-2xl',
+        tone === 'positive' ? 'text-app-success' : tone === 'negative' ? 'text-app-danger' : 'text-app-text',
       )}
     >
       {children}
@@ -76,26 +87,59 @@ function scrollToAndFlash(id: string) {
 }
 
 /**
- * KPI strip — 4 tile số to, mỗi chỉ số có target cạnh actual (bố cục theo trục câu hỏi).
+ * KPI strip — 4 tile số to, mỗi chỉ số có target cạnh actual.
+ * Chỉ trình bày số liệu; verdict đạt/chưa đạt nằm duy nhất ở LiquidityVerdictCard
+ * (UI-STRUCTURE-PLAN mục 3.2 quy tắc 2 — KPI không lặp headline verdict).
  */
-export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liquidity: LiquidityMarketView[]; capital: CapitalRiskView; onViewBalances?: () => void }) {
+export function OverviewKpiStripV2({
+  liquidity,
+  capital,
+  accounts,
+  onViewBalances,
+}: {
+  liquidity: LiquidityMarketView[]
+  capital: CapitalRiskView
+  accounts?: OverviewModel['accounts']
+  onViewBalances?: () => void
+}) {
   const spreadsKnown = liquidity.length > 0 && liquidity.every(m => m.spreadActualBps !== null && m.spreadTargetBps !== null)
   const anySpreadExceeded = liquidity.some(m => m.spreadActualBps !== null && m.spreadTargetBps !== null && m.spreadActualBps > m.spreadTargetBps)
   const allSpreadsMet = anySpreadExceeded ? false : spreadsKnown ? true : undefined
   const spreadUnknownDetail = liquidity.length === 0 || liquidity.some(m => m.spreadActualBps === null)
     ? 'Spread unavailable — two working sides required' : 'Spread target unavailable'
-  const coverageKnown = liquidity.length > 0 && liquidity.every((m) => m.coverageTargetFraction !== null && m.coverageFraction !== null && m.rollingCoverageAvailable && m.measurementReady && m.eligibleSeconds > 0 && m.fullWindow === true)
-  const allCoverageMet = coverageKnown ? liquidity.every((m) => m.coverageTargetFraction !== null && (m.coverageFraction ?? 0) >= m.coverageTargetFraction) : undefined
+
   const rollingAny = liquidity.some((m) => m.rollingCoverageAvailable)
 
   const net = capital.netPosition
   const portfolio = capital.portfolio.available ? capital.portfolio.value : null
   const accountEquity = capital.accountEquity?.available ? capital.accountEquity.value : null
   const delta = capital.sessionDelta.available ? capital.sessionDelta.value : null
+  const pair = liquidity[0]?.pair ?? capital.netPosition.pair ?? 'LIFE-USDT'
+  const [baseSymbol = 'LIFE', quoteSymbol = 'USDT'] = pair.split('-')
+
+  const allAccountBalances = accounts?.[0]?.balances ?? accounts?.flatMap((a) => a.balances) ?? []
+  const usdtBal = allAccountBalances.find((b) => b.currency.toUpperCase() === quoteSymbol.toUpperCase())
+  const baseBal = allAccountBalances.find((b) => b.currency.toUpperCase() === baseSymbol.toUpperCase())
+
+  const usdtFallback = capital.balances.find((b) => b.asset.toUpperCase() === quoteSymbol.toUpperCase())
+  const baseFallback = capital.balances.find((b) => b.asset.toUpperCase() === baseSymbol.toUpperCase())
+
+  const usdtAvail = usdtBal?.available_cash ?? usdtFallback?.free ?? portfolio?.usdt ?? null
+  const usdtTotal = usdtBal?.cash_balance ?? (usdtFallback ? usdtFallback.free : null) ?? portfolio?.total_usdt ?? null
+
+  // Token cơ sở (LIFE): chỉ lấy số lượng từ balances/account snapshot,
+  // không fallback sang portfolio.life_usdt vì đó là giá trị định giá bằng USDT, không phải số lượng token.
+  const baseAvail = baseBal?.available_cash ?? baseFallback?.free ?? null
+  const baseTotal = baseBal?.cash_balance ?? (baseFallback ? baseFallback.free : null) ?? null
+
+  const isStale = Boolean((usdtBal && (usdtBal.stale || usdtBal.observation === 'stale')) || (baseBal && (baseBal.stale || baseBal.observation === 'stale')))
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <KpiTile label="Own spread vs planned width">
+      <KpiTile
+        label="Own spread vs planned width"
+        tooltip="Difference between best bid and best ask compared to session target. 1 bps = 0.01% (0.0001)."
+      >
         <div className="space-y-2.5">
           {liquidity.map((m) => {
             const met = m.spreadTargetBps !== null && m.spreadActualBps !== null ? m.spreadActualBps <= m.spreadTargetBps : undefined
@@ -103,23 +147,28 @@ export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liq
               <MetricRow
                 key={m.market}
                 label={m.market === 'spot' ? 'Spot' : 'Perp'}
-                target={`${m.spreadTargetBps === null ? '—' : formatAmount(String(m.spreadTargetBps), 2)} bps`}
+                target={m.spreadTargetBps !== null ? `${m.spreadTargetBps} bps` : '—'}
                 onClick={() => scrollToAndFlash(`market-card-${m.market}`)}
               >
-                <BigValue tone={met === undefined ? 'default' : met ? 'positive' : 'negative'}>{m.spreadActualBps === null ? '—' : formatAmount(String(m.spreadActualBps), 2)}</BigValue>
-                <span className="text-[10px] font-normal text-app-muted">bps</span>
+                <BigValue tone={met === undefined ? 'default' : met ? 'positive' : 'negative'}>
+                  {m.spreadActualBps ?? '—'}
+                </BigValue>
+                <span className="text-[10px] font-normal text-app-muted cursor-help" title="Basis points (1 bps = 0.01% = 0.0001)">bps</span>
               </MetricRow>
             )
           })}
-          <TargetLine met={allSpreadsMet}>{allSpreadsMet === undefined ? spreadUnknownDetail : allSpreadsMet ? 'Own spreads within planned width' : 'Own spreads wider than planned width'}</TargetLine>
+          <TargetLine met={allSpreadsMet}>
+            {allSpreadsMet === undefined ? spreadUnknownDetail : allSpreadsMet ? 'Own spreads within planned width' : 'Own spreads wider than planned width'}
+          </TargetLine>
         </div>
       </KpiTile>
 
-      <KpiTile label="Eligible coverage (two-sided)">
+      <KpiTile
+        label="Eligible coverage (two-sided)"
+        tooltip="Percentage of elapsed observation time the bot maintained active two-sided quotes within spread and depth targets."
+      >
         <div className="space-y-2.5">
           {liquidity.map((m) => {
-            const known = m.coverageTargetFraction !== null && m.coverageFraction !== null && m.rollingCoverageAvailable && m.measurementReady && m.eligibleSeconds > 0 && m.fullWindow === true
-            const met = known && m.coverageFraction! >= m.coverageTargetFraction!
             return (
               <MetricRow
                 key={m.market}
@@ -127,7 +176,7 @@ export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liq
                 target={m.coverageTargetFraction === null ? '—' : `${Math.round(m.coverageTargetFraction * 100)}%`}
                 onClick={() => scrollToAndFlash(`market-card-${m.market}`)}
               >
-                <BigValue tone={!known ? 'default' : met ? 'positive' : 'negative'}>
+                <BigValue>
                   {m.coverageFraction !== null ? `${(m.coverageFraction * 100).toFixed(1)}%` : '—'}
                 </BigValue>
               </MetricRow>
@@ -137,22 +186,29 @@ export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liq
             <TargetLine key={m.market}>{m.market === 'spot' ? 'Spot' : 'Perp'}: collecting {Math.floor(m.why.elapsedSeconds / 60)} / 30 min</TargetLine>
           ))}
           <div className="flex items-center gap-1.5">
-            <TargetLine met={allCoverageMet}>{rollingAny ? 'Eligible rolling 30m' : 'Eligible rolling coverage unavailable'}</TargetLine>
+            <TargetLine>{rollingAny ? 'Eligible rolling 30m' : 'Eligible rolling coverage unavailable'}</TargetLine>
             {!rollingAny && <BackendGapChip detail="Eligible rolling coverage data unavailable (status.overview.markets[].coverage)." />}
           </div>
         </div>
       </KpiTile>
 
-      <KpiTile label="Net position & PnL">
+      <KpiTile
+        label="Net position & PnL"
+        tooltip="Directional inventory exposure across perpetual positions and unrealized profit/loss."
+      >
         <div className="space-y-2.5">
-          <MetricRow stacked label={net.pair ?? 'Perp'} target="perpetual" onClick={() => scrollToAndFlash('capital-risk-card')}>
+          <MetricRow
+            label={net.pair ?? 'Perp'}
+            target={net.inventoryLimit === null ? '—' : `limit ${formatQuantityForDisplay(net.inventoryLimit) ?? net.inventoryLimit}`}
+            onClick={() => scrollToAndFlash('capital-risk-card')}
+          >
             <BigValue tone={net.side === 'LONG' ? 'positive' : net.side === 'SHORT' ? 'negative' : 'default'}>
               {!net.observed || net.amount === '—' ? '—' : net.side === 'FLAT' ? 'FLAT' : `${net.side} ${net.amount}`}
             </BigValue>
           </MetricRow>
           <div className="flex items-baseline gap-1.5 text-xs">
             <span className="text-app-muted">PnL:</span>
-            <span className={cn('font-mono font-bold tabular-nums', (parseAmount(net.pnlUsdt) ?? 0) >= 0 ? 'text-emerald-500' : 'text-app-danger')}>
+            <span className={cn('font-mono font-bold tabular-nums', (parseAmount(net.pnlUsdt) ?? 0) >= 0 ? 'text-app-success' : 'text-app-danger')}>
               {net.pnlUsdt !== null ? `${net.pnlUsdt} USDT` : '—'}
             </span>
           </div>
@@ -160,29 +216,70 @@ export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liq
         </div>
       </KpiTile>
 
-      <KpiTile label="Total assets">
+      <KpiTile
+        label="Trading balances"
+        tooltip="Available vs total cash balances across shared spot and perpetual accounts."
+      >
         <div className="space-y-2.5">
-          <div className="flex items-baseline justify-between gap-2">
-            <BigValue>{accountEquity ? `${formatAmount(accountEquity.total_usd, 2)} USD` : portfolio ? formatUsdt(portfolio.total_usdt) : '—'}</BigValue>
-            {delta?.pct != null && (
-              <span className={cn('font-mono text-xs font-bold', (parseAmount(delta.pct) ?? 0) >= 0 ? 'text-emerald-500' : 'text-app-danger')}>
-                {Number(delta.pct) >= 0 ? '+' : ''}{Number(delta.pct).toFixed(2)}%
-              </span>
-            )}
-          </div>
           {accountEquity ? (
-            <TargetLine>OKX account equity · includes position PnL</TargetLine>
-          ) : portfolio ? (
             <>
-              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-app-muted">
-                {(portfolio.assets ?? []).map(asset => <span key={asset.asset}>{asset.asset} <span className="font-mono text-app-text">{formatUsdt(asset.value_usdt)}</span></span>)}
+              <div className="flex items-baseline justify-between gap-2">
+                <BigValue>{`${formatAmount(accountEquity.total_usd, 2)} USD`}</BigValue>
+                {delta?.pct != null && (
+                  <span className={cn('font-mono text-xs font-bold', (parseAmount(delta.pct) ?? 0) >= 0 ? 'text-app-success' : 'text-app-danger')}>
+                    {Number(delta.pct) >= 0 ? '+' : ''}{Number(delta.pct).toFixed(2)}%
+                  </span>
+                )}
               </div>
-              <TargetLine>Valued at {portfolio.valuation.valuation_mark}{delta && !delta.adjusted_for_transfers && ' · transfers not adjusted'}</TargetLine>
+              <div className="flex items-center justify-between gap-1 text-xs">
+                <TargetLine>OKX account equity · includes position PnL</TargetLine>
+                {onViewBalances && (
+                  <button
+                    type="button"
+                    onClick={onViewBalances}
+                    className="min-h-11 rounded-button px-2 text-xs font-medium text-app-action hover:bg-app-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action"
+                  >
+                    View balances →
+                  </button>
+                )}
+              </div>
             </>
           ) : (
-            <TargetLine>Account valuation unavailable · check balances</TargetLine>
+            <>
+              <MetricRow
+                label={quoteSymbol}
+                target={`${formatUsdtForDisplay(usdtTotal) ?? '—'} total`}
+                onClick={onViewBalances}
+              >
+                <BigValue>{formatUsdtForDisplay(usdtAvail) ?? '—'}</BigValue>
+              </MetricRow>
+              <MetricRow
+                label={baseSymbol}
+                target={`${formatQuantityForDisplay(baseTotal) ?? '—'} total`}
+                onClick={onViewBalances}
+              >
+                <BigValue>{formatQuantityForDisplay(baseAvail) ?? '—'}</BigValue>
+              </MetricRow>
+              <div className="flex items-center justify-between gap-1 text-xs">
+                <TargetLine>
+                  {!portfolio
+                    ? 'Account valuation unavailable · check balances'
+                    : isStale
+                      ? 'Balances unverified / stale'
+                      : 'Spot & Perp shared balance'}
+                </TargetLine>
+                {onViewBalances && (
+                  <button
+                    type="button"
+                    onClick={onViewBalances}
+                    className="min-h-11 rounded-button px-2 text-xs font-medium text-app-action hover:bg-app-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action"
+                  >
+                    View balances →
+                  </button>
+                )}
+              </div>
+            </>
           )}
-          {onViewBalances && <button type="button" onClick={onViewBalances} className="min-h-11 rounded-button px-2 text-xs font-medium text-app-action hover:bg-app-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action">View balances →</button>}
         </div>
       </KpiTile>
     </div>

@@ -18,9 +18,9 @@ export interface ThresholdBarProps {
 
 function levelColor(level: ThresholdLevel): { bar: string; led: string } {
   switch (level) {
-    case 'ok': return { bar: 'bg-emerald-500', led: 'bg-emerald-500' }
-    case 'warn': return { bar: 'bg-amber-400', led: 'bg-amber-400' }
-    case 'breach': return { bar: 'bg-rose-500', led: 'bg-rose-500' }
+    case 'ok': return { bar: 'bg-app-success', led: 'bg-app-success' }
+    case 'warn': return { bar: 'bg-app-warning', led: 'bg-app-warning' }
+    case 'breach': return { bar: 'bg-app-danger', led: 'bg-app-danger' }
     default: return { bar: 'bg-app-border', led: 'bg-app-muted/60' }
   }
 }

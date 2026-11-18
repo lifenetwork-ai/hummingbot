@@ -126,8 +126,10 @@ describe('AdminPage integrated controllers', () => {
     render(<AdminPage />, { wrapper: pageWrapper({ read: true }) })
     fireEvent.click(screen.getByRole('button', { name: 'Security Audit' }))
     await waitFor(() => expect(requests).toHaveLength(1))
-    fireEvent.change(screen.getByLabelText('Actor ID (actor_id)'), { target: { value: 'actor-A' } })
-    fireEvent.change(screen.getByLabelText('Target ID (target_id)'), { target: { value: 'target-A' } })
+    fireEvent.change(screen.getByLabelText('Actor'), { target: { value: 'actor-A' } })
+    // Target/connector/environment live behind the advanced-filters disclosure
+    fireEvent.click(screen.getByRole('button', { name: /More filters/i }))
+    fireEvent.change(screen.getByLabelText('Target ID'), { target: { value: 'target-A' } })
     fireEvent.change(screen.getByLabelText('Connector'), { target: { value: 'okx_perpetual' } })
     fireEvent.change(screen.getByLabelText('Environment'), { target: { value: 'demo' } })
     await waitFor(() => expect(requests.some((url) => url.searchParams.get('actor_id') === 'actor-A' && url.searchParams.get('target_id') === 'target-A' && url.searchParams.get('connector') === 'okx_perpetual' && url.searchParams.get('environment') === 'demo')).toBe(true))

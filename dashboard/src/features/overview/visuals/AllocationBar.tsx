@@ -5,7 +5,7 @@ export interface AllocationSegment {
   /** Fraction 0..1 */
   fraction: number
   label: string
-  /** Segment color (e.g. 'bg-emerald-500') */
+  /** Segment color (e.g. 'bg-app-success') */
   colorClass: string
   /** Locked in order/margin — striped hatched pattern */
   hatched?: boolean

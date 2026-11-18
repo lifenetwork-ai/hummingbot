@@ -11,6 +11,7 @@ import type { OverviewModel } from './model'
 import { parseAmount } from './parseAmount'
 import { formatAmount, formatPairAmount, sumDecimalAmounts } from '../../shared/utils/formatters'
 import { summarizePositions } from './position-summary'
+import { formatRiskValueForDisplay } from './formatNumbers'
 
 type Supplement = OverviewSupplementSchemas['OverviewSupplementOutput']
 type RiskRule = OverviewSupplementSchemas['OverviewRiskRuleOutput']
@@ -71,6 +72,7 @@ export interface LiquidityWhy {
   unknownSeconds: number
   quotingAbsentSeconds: number | null
   diagnosis: string | null
+  perMinute?: OverviewSupplementSchemas['OverviewCoverageMinuteOutput'][] | null
 }
 
 export interface LiquidityMarketView {
@@ -127,6 +129,8 @@ export interface NetPositionView {
   pair: string | null
   side: 'LONG' | 'SHORT' | 'FLAT'
   amount: string
+  /** Hạn mức theo side của net position: perpetual trả long_limit/short_limit (inventory_limit chỉ có ở spot); null khi supplement chưa có. */
+  inventoryLimit: string | null
   pnlUsdt: string | null
   observed: boolean
 }
@@ -162,7 +166,7 @@ function guardsFromRules(rules: RiskRule[], complete: boolean): GuardsSummary {
   const unknown = active.filter((rule) => rule.status === 'unknown')
   const first = violated[0] ?? unknown[0]
   const headline = first
-    ? `${first.rule_id}: current ${first.current ?? '—'} / limit ${first.upper_limit ?? first.lower_limit ?? '—'} (${first.unit})`
+    ? `${first.rule_id}: current ${formatRiskValueForDisplay(first.current, first.unit)} / limit ${formatRiskValueForDisplay(first.upper_limit ?? first.lower_limit, first.unit)} (${first.unit})`
     : complete ? 'All limits are stable' : 'Risk limit data incomplete'
   return {
     status: active.some((r) => r.status === 'violated') ? 'stop' : unknown.length > 0 || !complete ? 'attention' : 'ok',
@@ -273,6 +277,7 @@ export function deriveLiquidity(model: OverviewModel, supp: Supplement | null): 
         unknownSeconds: rollingValue?.eligibility_unknown_seconds ?? market.coverageWindow.unknownSeconds,
         quotingAbsentSeconds: market.noQuoteSeconds,
         diagnosis: diagnosisSide?.diagnosis?.next_action ?? null,
+        perMinute: rollingValue?.per_minute ?? null,
       },
       depth: suppMarket ? observe(suppMarket.depth) : { available: false as const, reason: null },
       slippage: suppMarket ? observe(suppMarket.slippage_estimate) : { available: false as const, reason: null },
@@ -282,6 +287,9 @@ export function deriveLiquidity(model: OverviewModel, supp: Supplement | null): 
 
 export function deriveCapitalRisk(model: OverviewModel, supp: Supplement | null): CapitalRiskView {
   const inventoryLimits = new Map((supp?.inventory_limits.value ?? []).map((l) => [l.market, l]))
+  // Perpetual trả long/short/gross limit (inventory_limit chỉ có ở spot) — chọn theo side của vị thế.
+  const perpLimits = inventoryLimits.get('perpetual')
+  const perpLimitFor = (side: 'LONG' | 'SHORT') => (side === 'SHORT' ? perpLimits?.short_limit : perpLimits?.long_limit) ?? perpLimits?.inventory_limit ?? null
   const positions: CapitalPositionView[] = model.positionMarkets
     .filter((m) => m.market === 'perpetual' && m.coverage !== 'not_applicable')
     .flatMap((m) =>
@@ -294,7 +302,7 @@ export function deriveCapitalRisk(model: OverviewModel, supp: Supplement | null)
         pnlUsdt: p.unrealized_pnl ?? null,
         marginUsdt: p.margin ?? null,
         liqPrice: p.liquidation_price ?? null,
-        inventoryLimit: (p.side === 'LONG' ? inventoryLimits.get('perpetual')?.long_limit : inventoryLimits.get('perpetual')?.short_limit) ?? inventoryLimits.get('perpetual')?.inventory_limit ?? null,
+        inventoryLimit: perpLimitFor(p.side),
       })),
     )
 
@@ -310,6 +318,7 @@ export function deriveCapitalRisk(model: OverviewModel, supp: Supplement | null)
     netPosition: {
       pair: summary.pair,
       side: net === null || !/[1-9]/.test(net) ? 'FLAT' : net.startsWith('-') ? 'SHORT' : 'LONG',
+      inventoryLimit: perpLimitFor(net && net.startsWith('-') ? 'SHORT' : 'LONG'),
       amount: net === null ? '—' : summary.pair ? formatPairAmount(net.replace(/^-/, ''), summary.pair) : '0',
       pnlUsdt: pnlDisplay,
       observed: summary.observed && summary.sameInstrument,

@@ -133,7 +133,7 @@ class AdminCredentialsAPI:
                               operation_id=row["operation_id"] if row else None, observed_at=(state or {}).get("heartbeat") if fresh else None,
                               cleanup_operation_id=cleanup.get("id"), operation_version=cleanup.get("transition") if cleanup else None,
                               actions={"configure": dict(allowed=allowed, reason_code=reason_action,
-                                       detail="Configure or replace while trading is stopped." if allowed else "Check your permission and stop/connection state first."),
+                                       detail="Configure or replace while trading is stopped." if allowed else MESSAGES.get(reason_action, "Check your permission and stop/connection state first.")),
                                        "disconnect": dict(allowed=can_disconnect, reason_code=None if can_disconnect else "credential_operation_in_progress" if operation_pending else "credentials_not_configured" if writable else "insufficient_role" if not actor.allows("write") else "credentials_managed_externally",
                                                           detail="Stops trading, cancels bot orders, closes managed perpetual positions and removes only this saved key."),
                                        "retry_cleanup": dict(allowed=can_retry, reason_code=None if can_retry else "credential_operation_in_progress",

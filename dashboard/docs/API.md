@@ -269,7 +269,7 @@ separate evidence.
 
 ### Account balance details
 
-Overview’s **Total assets → View balances** opens a right side panel (full width
+Overview’s **Trading balances → View balances** opens a right side panel (full width
 on mobile) using the workspace’s shared `getBalances` query. Accounts retain their
 identity and environment. Each currency shows cash balance, available cash, equity and available equity
 in table columns, with horizontal scrolling on small screens. Observation time,

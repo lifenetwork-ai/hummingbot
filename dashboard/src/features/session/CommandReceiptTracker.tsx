@@ -77,10 +77,10 @@ export function CommandReceiptTracker({
   if (isSuccess && collapsed) {
     const duration = formatDuration(receipt?.created_at, receipt?.updated_at)
     return (
-      <Surface className="p-3.5 sm:p-4 border border-emerald-500/30 bg-emerald-500/5">
+      <Surface className="p-3.5 sm:p-4 border border-app-success/30 bg-app-success/5">
         <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-3 min-w-0">
-            <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+            <CheckCircle2 size={18} className="text-app-success shrink-0" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-bold text-app-text capitalize">
@@ -203,7 +203,7 @@ export function CommandReceiptTracker({
           <div className="flex items-center justify-between text-xs font-semibold text-app-text">
             <span className="flex items-center gap-1.5">
               {isSuccess ? (
-                <CheckCircle2 size={16} className="text-emerald-500" />
+                <CheckCircle2 size={16} className="text-app-success" />
               ) : isFailed ? (
                 <AlertCircle size={16} className="text-app-danger" />
               ) : (
@@ -230,7 +230,7 @@ export function CommandReceiptTracker({
             <div
               className={`h-full transition-all duration-500 ${
                 isSuccess
-                  ? 'w-full bg-emerald-500'
+                  ? 'w-full bg-app-success'
                   : isFailed
                     ? 'w-full bg-app-danger'
                     : isSuperseded
@@ -407,10 +407,10 @@ export function CommandReceiptTracker({
 
         {/* Message for Success */}
         {isSuccess && (
-          <div className="rounded-card border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs text-app-text flex items-start gap-3">
-            <CheckCircle2 size={18} className="text-emerald-500 mt-0.5 shrink-0" />
+          <div className="rounded-card border border-app-success/30 bg-app-success/10 p-4 text-xs text-app-text flex items-start gap-3">
+            <CheckCircle2 size={18} className="text-app-success mt-0.5 shrink-0" />
             <div>
-              <h4 className="font-bold text-emerald-500">Command successfully applied!</h4>
+              <h4 className="font-bold text-app-success">Command successfully applied!</h4>
               <p className="mt-1">
                 The receipt records the application result of a past operation. Current status, orders, and position observations should still be inspected; not proof of achieving liquidity goals.
               </p>

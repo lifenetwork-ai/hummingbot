@@ -92,7 +92,7 @@ export function OperatorAttentionBanner({
               </p>
             )}
             {isStale && (
-              <p className="text-xs text-amber-500 font-medium">
+              <p className="text-xs text-app-warning font-medium">
                 Observation data is not current (stale/unknown/session mismatch) · do not use as definitive conclusion.
               </p>
             )}

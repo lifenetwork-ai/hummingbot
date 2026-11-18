@@ -19,6 +19,11 @@ This file is the **instruction contract for work in this dashboard** for coding 
 5. `docs/TESTING.md` — tests, mocking and quality gates.
 6. `docs/DEVELOPMENT.md` — local development workflow.
 
+For dashboard feature work, also read `../docs/frontend-requirements.md`,
+`docs/COORDINATION.md` (source ownership and handoff), and
+`docs/UI-STRUCTURE-PLAN.md` (approved layout and UX). Read `DESIGN.md` for
+authentication/shared feedback, and backend integration/OpenAPI for the affected contract.
+
 When implementing a feature, inspect neighboring code and tests before editing; follow established conventions rather than inventing new patterns.
 
 ## 3. Guidance ownership
@@ -27,6 +32,14 @@ Keep repository conventions in this file and implementation details in the linke
 architecture, API, design and testing documents. Read the documents relevant to the
 task and inspect current code before editing. Reusable agent skills should describe
 methods rather than duplicate this repository's component names or business logic.
+
+Dashboard owns product UI/UX and integration choices. Follow the source ownership
+and backend change rules in [Coordination](docs/COORDINATION.md#quyền-quyết-định-của-từng-nguồn).
+Backend documentation and new fields do not authorize layout, information-priority
+or workflow changes. Report breaking changes and proposed UI impact to the user
+before changing affected behavior; keep approved design for compatible integration.
+Use the scoped handoff template in Coordination, with contract revision, approved
+design, allowed UI changes, file ownership, fixtures and acceptance criteria.
 
 ## 4. Architecture and ownership
 
@@ -59,11 +72,12 @@ Component boundaries follow [Architecture: Component composition](docs/ARCHITECT
 
 - Use semantic design tokens such as `bg-app-surface`, `text-app-text`, `text-app-action` rather than new literal hex values in application code.
 - The token source of truth is `src/theme/_config.ts`; after changing tokens run `pnpm run theme:generate`. Never hand-edit `src/theme/generated/tokens.css`.
-- Reuse `Button`, `Dialog`, `Input`, `Surface`, `Badge`, `EmptyState` and other existing shared components before creating new primitives.
+- Reuse `Button`, `Dialog`, `Input`, `Surface`, `Badge`, `EmptyState` and other existing shared components before creating new primitives. Cursor-paginated lists (`next_cursor` endpoints) must use the shared `CursorPagination` component with the default page size of 10 (see [UX & Motion: Cursor pagination](docs/UX_MOTION.md#cursor-pagination)).
 - Support both light and dark modes; avoid styling that works only in one mode.
 - Follow mobile-first/responsive layouts, appropriate focus order, visible focus states, keyboard interactions, meaningful labels, and native semantics.
 - For toast, banner and inline feedback work, read [System feedback](docs/FEEDBACK.md) before implementation. It defines the planned foundation; verify source availability before calling its API.
 - Respect `prefers-reduced-motion`. Keep animation purposeful and short; do not introduce perpetual animation without user value.
+- Follow the CTA availability rule in [UX & Motion: CTA availability and lock reasons](docs/UX_MOTION.md#cta-availability-and-lock-reasons): a visible CTA must either be clickable and perform its action, or expose why it is locked. Never hide a lock reason behind a control that the lock itself disables, and never silently omit an unavailable CTA without an explanation.
 - Keep user-facing copy compact and clear. Never create fabricated loading, success, financial, or backend data merely to make a screen look populated.
 - Note: preserving the original palette does **not** guarantee WCAG contrast compliance. Flag and verify contrast-sensitive changes rather than silently altering the brand palette.
 

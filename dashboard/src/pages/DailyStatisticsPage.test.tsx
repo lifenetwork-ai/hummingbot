@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw'
 import type { ReadResponse } from '../core/api/admin'
 import { setupPageApi, pageApiUrl, pageWrapper } from '../test/operationalTest'
 import { server } from '../test/mocks/server'
+import { validateReportingRange } from '../features/reporting/model'
 import { DailyStatisticsPage } from './DailyStatisticsPage'
 setupPageApi()
 export const daily: ReadResponse<'getDailyStatistics'> = {
@@ -37,6 +38,45 @@ describe('DailyStatisticsPage integrated reporting', () => {
     fireEvent.change(screen.getByLabelText('To day (Exclusive):'), { target: { value: '2026-11-10' } })
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('reversed_range'))
     expect(calls).toBe(1)
+  })
+  it('defaults to the 7-day preset without sending range parameters', async () => {
+    const urls: string[] = []
+    server.use(http.get(`${pageApiUrl}/statistics/daily`, ({ request }) => { urls.push(request.url); return HttpResponse.json(daily) }))
+    render(<DailyStatisticsPage />, { wrapper: pageWrapper() })
+    await screen.findByText('Reporting timezone: UTC')
+    expect(screen.getByRole('button', { name: 'Last 7 days' })).toHaveAttribute('aria-pressed', 'true')
+    expect(urls.length).toBeGreaterThan(0)
+    for (const url of urls) {
+      expect(new URL(url).searchParams.has('from')).toBe(false)
+      expect(new URL(url).searchParams.has('to')).toBe(false)
+    }
+  })
+  it('requests an exact 30-day window in the server reporting timezone when the 30-day preset is active', async () => {
+    const urls: string[] = []
+    server.use(http.get(`${pageApiUrl}/statistics/daily`, ({ request }) => { urls.push(request.url); return HttpResponse.json(daily) }))
+    render(<DailyStatisticsPage />, { wrapper: pageWrapper() })
+    await screen.findByText('Reporting timezone: UTC')
+    fireEvent.click(screen.getByRole('button', { name: 'Last 30 days' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Last 30 days' })).toHaveAttribute('aria-pressed', 'true'))
+    const withRange = urls.map((url) => new URL(url)).filter((url) => url.searchParams.has('from'))
+    expect(withRange.length).toBeGreaterThan(0)
+    const from = withRange.at(-1)!.searchParams.get('from')!
+    const to = withRange.at(-1)!.searchParams.get('to')!
+    const spanDays = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000
+    expect(spanDays).toBe(30)
+    expect(validateReportingRange({ from, to })).toEqual({ valid: true })
+  })
+  it('clears custom dates and returns to a preset when a preset chip is clicked', async () => {
+    server.use(http.get(`${pageApiUrl}/statistics/daily`, () => HttpResponse.json(daily)))
+    render(<DailyStatisticsPage />, { wrapper: pageWrapper() })
+    await screen.findByText('Reporting timezone: UTC')
+    const fromInput = screen.getByLabelText('From day (Inclusive):') as HTMLInputElement
+    fireEvent.change(fromInput, { target: { value: '2026-11-01' } })
+    expect(fromInput.value).toBe('2026-11-01')
+    expect(screen.getByRole('button', { name: 'Custom' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }))
+    expect(screen.getByRole('button', { name: 'Last 7 days' })).toHaveAttribute('aria-pressed', 'true')
+    expect(fromInput.value).toBe('')
   })
   it('keeps daily statistics available when the newly mounted controller performance source fails', async () => {
     server.use(http.get(`${pageApiUrl}/statistics/daily`, () => HttpResponse.json({ ...daily, freshness: 'fresh' })),

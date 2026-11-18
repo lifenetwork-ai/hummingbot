@@ -106,7 +106,7 @@ export function ReconciliationPanel({
       <div className="mt-4 rounded-card border border-app-border/80 bg-app-surface-muted/40 p-4">
         <div className="flex items-start gap-3">
           {state === 'matched' ? (
-            <CheckCircle2 size={18} className="text-emerald-500 mt-0.5 shrink-0" />
+            <CheckCircle2 size={18} className="text-app-success mt-0.5 shrink-0" />
           ) : state === 'mismatch' ? (
             <AlertCircle size={18} className="text-app-danger mt-0.5 shrink-0" />
           ) : (

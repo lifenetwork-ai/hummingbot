@@ -157,7 +157,7 @@ describe('persisted Google sign-in', () => {
   })
 
   it('keeps login usable when browser storage is blocked, without restoring an unverified token', async () => {
-    const storage = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
+    const storage = vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
     server.use(
       http.post(`${base}/access/login`, () => HttpResponse.json(identity)),
       http.get(`${base}/access/me`, () => HttpResponse.json(identity)),

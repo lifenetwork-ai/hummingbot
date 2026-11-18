@@ -65,7 +65,7 @@ describe('SecurityAuditView', () => {
     )
 
     expect(screen.getByText('Audit Filter')).toBeInTheDocument()
-    expect(screen.getByLabelText(/Actor/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Actor$/)).toBeInTheDocument()
     expect(screen.getByLabelText(/From Time \(UTC\)/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/To Time \(UTC\)/i)).toBeInTheDocument()
   })

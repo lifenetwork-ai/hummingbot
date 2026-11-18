@@ -46,12 +46,12 @@ function InlineDiffField({
     <div className={cn('text-[11px]', className)}>
       <span className="block text-[10px] text-app-muted">{label}:</span>
       {hasDiff ? (
-        <div className="mt-0.5 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5">
+        <div className="mt-0.5 rounded border border-app-warning/40 bg-app-warning/10 px-1.5 py-0.5">
           <span className="font-mono font-bold text-app-text">
             {value}
             {unit ? ` ${unit}` : ''}
           </span>
-          <span className="block text-[10px] text-amber-500 font-medium">
+          <span className="block text-[10px] text-app-warning font-medium">
             (New catalogue: {diffValue}{unit ? ` ${unit}` : ''})
           </span>
         </div>
@@ -524,7 +524,7 @@ function SideBySideDiffTable({
           className={cn(
             'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
             onlyDiffs
-              ? 'border-amber-500/50 bg-amber-500/10 text-amber-500'
+              ? 'border-app-warning/50 bg-app-warning/10 text-app-warning'
               : 'border-app-border bg-app-surface text-app-muted hover:text-app-text'
           )}
         >
@@ -552,7 +552,7 @@ function SideBySideDiffTable({
               </tr>
             ) : (
               displayedRows.map((row, idx) => (
-                <tr key={idx} className={row.isDiff ? 'bg-amber-500/5' : ''}>
+                <tr key={idx} className={row.isDiff ? 'bg-app-warning/5' : ''}>
                   <td className="p-3 font-medium text-app-text">
                     <span className="block text-[10px] text-app-muted">{row.group}</span>
                     <span>{row.name}</span>
@@ -623,12 +623,12 @@ export function ConfigurationReadOnlyView({
             >
               {isSync ? (
                 <>
-                  <CheckCircle2 size={13} className="text-emerald-500" />
+                  <CheckCircle2 size={13} className="text-app-success" />
                   <span>100% Synchronized with Catalogue</span>
                 </>
               ) : (
                 <>
-                  <AlertTriangle size={13} className="text-amber-500" />
+                  <AlertTriangle size={13} className="text-app-warning" />
                   <span>Version Mismatch vs Catalogue</span>
                 </>
               )}

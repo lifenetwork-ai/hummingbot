@@ -6,6 +6,15 @@ docs/DESIGN_SYSTEM.md, docs/UX_MOTION.md, docs/API.md, ../docs/fe-integration.md
 existing AppShell, shared Button and BrandLogo, backend access contract.
 No login screenshot baseline exists.
 
+## Scope and related design authority
+
+This document covers authentication and shared system feedback. The approved
+operational dashboard structure, content hierarchy and responsive behavior belong
+to [UI structure plan](docs/UI-STRUCTURE-PLAN.md). Product scope belongs to
+[Frontend requirements](../docs/frontend-requirements.md); source ownership and
+backend change review follow [Coordination](docs/COORDINATION.md).
+Backend wireframes are integration input, not automatic redesign instructions.
+
 ## Brand
 Preserve LifeAI typography, semantic tokens and light/dark themes. Calm operational
 interface; avoid marketing claims and fabricated observations.

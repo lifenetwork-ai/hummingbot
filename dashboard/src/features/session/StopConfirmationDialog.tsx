@@ -140,7 +140,7 @@ export function StopConfirmationDialog({
 
         {/* Success confirmation note */}
         {successNoticed && (
-          <div className="rounded-card border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-500 flex items-center gap-2">
+          <div className="rounded-card border border-app-success/30 bg-app-success/10 p-3 text-xs text-app-success flex items-center gap-2">
             <CheckCircle2 size={16} />
             <span>Stop receipt received; completion not yet verified. Track progress in the operational context bar.</span>
           </div>

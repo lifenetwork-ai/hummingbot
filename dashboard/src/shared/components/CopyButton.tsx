@@ -66,7 +66,7 @@ export function CopyButton({
       className={cn(
         'inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-app-action',
         copied
-          ? 'text-emerald-500 bg-emerald-500/10'
+          ? 'text-app-success bg-app-success/10'
           : 'text-app-muted hover:text-app-text hover:bg-app-surface-muted',
         className
       )}

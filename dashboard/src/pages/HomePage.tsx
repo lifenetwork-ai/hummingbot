@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useOverviewController } from '../features/overview/useOverviewController'
 import { useOperationalContext } from '../features/operational-context/useOperationalContext'
 import { AutomaticRecoveryCard } from '../features/overview/AutomaticRecoveryCard'
-import { CapitalRiskCard } from '../features/overview/CapitalRiskCard'
+import { CapitalRiskCard, RiskLimitsList } from '../features/overview/CapitalRiskCard'
 import { DataSourceErrorBanner } from '../features/overview/DataSourceErrorBanner'
 import { DecisionCard } from '../features/overview/DecisionCard'
 import { LiquidityVerdictCard, type DetailMode } from '../features/overview/LiquidityVerdictCard'
@@ -82,28 +82,28 @@ export function HomePage() {
         {/* Automatic order recovery + scoped trading + reserved capital/orders */}
         <AutomaticRecoveryCard presentation={model.recoveryPresentation} />
 
-        {/* Q1 — nhiệm vụ được giao */}
+        {/* Vùng 2 — nhiệm vụ hiện tại */}
         <MandateBar
           view={mandate}
           guards={capital.guardsSummary}
           onOpenProfileExplorer={() => setProfileExplorerOpen(true)}
         />
 
-        {/* KPI strip — số to tường minh + target cạnh actual */}
-        <OverviewKpiStripV2 liquidity={liquidityMarkets} capital={capital} onViewBalances={() => setBalancesOpen(true)} />
+        {/* KPI strip — số to tường minh + target cạnh actual; verdict nằm ở vùng thanh khoản */}
+        <OverviewKpiStripV2 liquidity={liquidityMarkets} capital={capital} accounts={model.accounts} onViewBalances={() => setBalancesOpen(true)} />
         <AccountBalancesPanel open={balancesOpen} onClose={closeBalances} source={balances} onRefresh={context.refreshBalances} />
 
-        {/* Q3+Q4 — thanh khoản: verdict theo market + vì sao chưa đạt */}
+        {/* Vùng 3 — thanh khoản và mức đạt mục tiêu: verdict theo market + vì sao chưa đạt */}
         <section aria-label="Liquidity and live orders on the exchange">
           <LiquidityVerdictCard markets={liquidityMarkets} mode={mode} />
         </section>
 
-        {/* Q5 — vốn & rủi ro */}
+        {/* Vùng 4 — vốn và rủi ro */}
         <section aria-label="Capital, balances and risk limits">
-          <CapitalRiskCard view={capital} mode={mode} riskLimits={mandate.riskLimits} onOpenRiskGuards={() => setRiskGuardsOpen(true)} />
+          <CapitalRiskCard view={capital} mode={mode} onOpenRiskGuards={() => setRiskGuardsOpen(true)} />
         </section>
 
-        {/* Q6 — đánh giá & hành động */}
+        {/* Vùng 5 — đánh giá & hành động: tổng hợp vấn đề + mức đủ dữ liệu, không chấm điểm lại */}
         <DecisionCard decision={decision} />
 
         {/* Service phase/incidents, perpetual reduction, Spot BUY terminal verification */}
@@ -125,6 +125,7 @@ export function HomePage() {
           positions={model.positionMarkets}
           observation={model.observation.risk}
           isLoading={status.phase === 'loading'}
+          ruleLimits={<RiskLimitsList limits={mandate.riskLimits} />}
         />
       </Dialog>
 

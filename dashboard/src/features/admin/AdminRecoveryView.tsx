@@ -65,7 +65,7 @@ export function AdminRecoveryView({
   if (hasAccess === false || checkDecision.reason === 'permission_required') {
     return (
       <Surface className="p-6 text-center">
-        <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-amber-500/10 text-amber-500">
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-app-warning/10 text-app-warning">
           <ShieldAlert size={24} />
         </div>
         <h3 className="mt-4 font-heavy text-lg font-bold text-app-text">
@@ -127,7 +127,7 @@ export function AdminRecoveryView({
   if (recoverySummary && !halted && !activeOperation && presentation.showNoRecoveryNeeded) {
     return (
       <Surface className="p-6 text-center">
-        <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-500/10 text-emerald-500">
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-app-success/10 text-app-success">
           <CheckCircle2 size={24} />
         </div>
         <h3 className="mt-4 font-heavy text-lg font-bold text-app-text">
@@ -209,16 +209,16 @@ export function AdminRecoveryView({
 
       {/* Observation not fresh while a HALT is reported */}
       {halted && presentation.observation !== 'fresh' && (
-        <p className="mt-4 text-xs font-medium text-amber-500">
+        <p className="mt-4 text-xs font-medium text-app-warning">
           Recovery observation is {presentation.observation === 'stale' ? 'stale' : 'unknown'} — this panel reflects the last known state, not a live conclusion.
         </p>
       )}
 
       {/* Recovered success banner */}
       {recovered && (
-        <div className="mt-5 rounded-card border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs text-app-text">
+        <div className="mt-5 rounded-card border border-app-success/30 bg-app-success/10 p-4 text-xs text-app-text">
           <div className="flex items-start gap-3">
-            <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-emerald-500" />
+            <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-app-success" />
             <div>
               <h4 className="font-bold text-sm">Recovery Succeeded</h4>
               <p className="mt-1 leading-relaxed">
@@ -231,11 +231,11 @@ export function AdminRecoveryView({
 
       {/* Check succeeded but can_recover=false notice */}
       {isCheckSucceededButCannotRecover && (
-        <div className="mt-5 rounded-card border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-app-text">
+        <div className="mt-5 rounded-card border border-app-warning/30 bg-app-warning/10 p-4 text-xs text-app-text">
           <div className="flex items-start gap-3">
-            <AlertOctagon size={20} className="mt-0.5 shrink-0 text-amber-500" />
+            <AlertOctagon size={20} className="mt-0.5 shrink-0 text-app-warning" />
             <div>
-              <h4 className="font-bold text-sm text-amber-500">Check completed but cannot recover (can_recover: false)</h4>
+              <h4 className="font-bold text-sm text-app-warning">Check completed but cannot recover (can_recover: false)</h4>
               <p className="mt-1 leading-relaxed">
                 Recovery check completed, but backend determined conditions are not met to proceed with Reset. Please review the blockers below before retrying.
               </p>
@@ -386,7 +386,7 @@ export function AdminRecoveryView({
 
       {stage === 'review_required' && comparisonItems.length === 0 && (
         verification.checkpointPreserved ? (
-          <div className="mt-4 rounded-card border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-app-text">
+          <div className="mt-4 rounded-card border border-app-success/30 bg-app-success/5 p-3 text-xs text-app-text">
             <h4 className="font-bold text-sm">No ledger changes proposed — this is expected on the checkpoint route</h4>
             <p className="mt-1 text-app-muted">
               The verified-checkpoint scope preserves financial rows, remaining cost basis and risk checkpoints. An empty

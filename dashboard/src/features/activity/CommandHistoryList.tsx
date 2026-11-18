@@ -1,10 +1,11 @@
-import { ChevronRight, FileSearch, Search, Terminal } from 'lucide-react'
+import { FileSearch, Search, Terminal } from 'lucide-react'
 import type { components } from '../../core/api/schema'
 import type { ReceiptReference } from '../../core/api/receipt-tracking'
 import type { AuditFilters, CommandFilters } from '../history/filters'
 import { Badge } from '../../shared/components/Badge'
 import { Button } from '../../shared/components/Button'
 import { CopyableId } from '../../shared/components/CopyableId'
+import { CursorPagination } from '../../shared/components/CursorPagination'
 import { Surface } from '../../shared/components/Surface'
 import { CommandInspectionModal } from './CommandInspectionModal'
 import { HistoryFiltersBar } from './HistoryFiltersBar'
@@ -188,20 +189,12 @@ export function CommandHistoryList({
         </table>
       </div>
 
-      {/* Pagination */}
-      {hasMore && onLoadMore && (
-        <div className="flex justify-center pt-2">
-          <Button
-            variant="secondary"
-            onClick={onLoadMore}
-            disabled={isLoading}
-            className="h-8 px-4 text-xs gap-1"
-          >
-            <span>{isLoading ? 'Loading more…' : 'Load more commands'}</span>
-            <ChevronRight size={14} />
-          </Button>
-        </div>
-      )}
+      <CursorPagination
+        itemLabel="command"
+        hasMore={hasMore}
+        isLoading={isLoading}
+        onLoadMore={onLoadMore}
+      />
 
       {/* Inspection Modal */}
       {selectedReceipt && onCloseInspection && (

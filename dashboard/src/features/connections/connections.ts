@@ -77,6 +77,7 @@ export function deriveCredentialSlot(identity: Identity | null, catalogue: Sourc
       : slot.cleanup_operation_id ? (slot.actions.retry_cleanup?.allowed ? 'action_required' as const : 'disconnecting' as const)
       : disconnected ? 'disconnected' as const
       : connected ? 'connected' as const
+      : slot.status === 'failed' ? 'failed' as const
       : slot.configured ? 'checking' as const : 'not_configured' as const,
     cleanup: cleanup && { ...cleanup, rootReceiptId: cleanup.id, ...deriveCleanupProgress(undefined) },
     // A zero/missing row count or child receipt is never enough to conclude root cleanup.

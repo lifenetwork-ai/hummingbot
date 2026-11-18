@@ -18,6 +18,26 @@ type Catalogue = ResponseBody<'listCredentialInputs'>
 type ValuesBySlot = Record<string, CredentialFormValues>
 const slotKey = (slot: Pick<CredentialSlot, 'exchange' | 'connector'>) => `${slot.exchange}:${slot.connector}`
 
+/** Operator-facing connection labels per docs/fe-integration.md "Disconnect UX"; raw enum stays out of the headline. */
+const connectionStateLabels: Record<CredentialSlot['connectionState'], { label: string; tone: 'neutral' | 'brand' | 'success' | 'danger' | 'warning' }> = {
+  connected: { label: 'Connected', tone: 'success' },
+  checking: { label: 'Checking connection', tone: 'neutral' },
+  unknown: { label: 'Checking connection', tone: 'neutral' },
+  not_configured: { label: 'Not configured', tone: 'neutral' },
+  disconnecting: { label: 'Disconnecting', tone: 'warning' },
+  action_required: { label: 'Action required', tone: 'warning' },
+  disconnected: { label: 'Disconnected', tone: 'neutral' },
+  failed: { label: 'Connection failed', tone: 'danger' },
+  unavailable: { label: 'Status unavailable', tone: 'danger' },
+}
+
+const formatUtc = (value: string | number) =>
+  `${new Date(value).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC`
+
+/** CTA availability rule (docs/UX_MOTION.md): lock reasons come from backend decisions, displayed verbatim. */
+const lockReasonText = (decision: CredentialSlot['decisions']['set']) =>
+  decision.detail || decision.reasonCode || 'refresh status to see the reason'
+
 export interface ManagedCredentialsViewProps {
   catalogue?: Catalogue
   slots: CredentialSlot[]
@@ -111,14 +131,25 @@ export function ManagedCredentialsView({ catalogue: _catalogue, slots, locks, ca
         const fields = slot.fields
         const values = forms[key] ?? {}
         const slotLocks = locks.filter((lock) => lock.exchange === slot.exchange && lock.connector === slot.connector)
-        const unknown = slotLocks.find((lock) => lock.state === 'unknown')
         const blocked = slotLocks.find((lock) => lock.state === 'pending' || lock.state === 'accepted')
         const cooling = slotLocks.some((lock) => lock.retryAt && now < lock.retryAt)
+        const retryWaitUntil = slotLocks.map((lock) => lock.retryAt ?? 0).filter((at) => at > now).sort((a, b) => a - b)[0]
         const source = slot.source ?? 'unknown'
+        const connectionLabel = slot.connectionState === 'disconnected' && !slot.disconnectedProof
+          ? { label: 'Waiting for removal verification', tone: 'neutral' as const }
+          : connectionStateLabels[slot.connectionState]
         const isConfigured = slot.slot?.configured === true
-        const isConnected = slot.connectionState === 'connected'
-        const showSetForm = canManage && fields.length > 0 && (openForms[key] || slot.decisions.set.allowed || slot.decisions.repair.allowed || unknown?.action === 'set' || unknown?.action === 'repair')
+        // The form must stay openable while a decision is locked, otherwise the lock reason
+        // (decisions.*.detail) is unreachable: the disabled submit button carries the lock, not the toggle.
+        const showSetForm = canManage && fields.length > 0
         const formAction = formActions[key] ?? 'set'
+        const formDecision = formAction === 'repair' ? slot.decisions.repair : slot.decisions.set
+        // Entry controls stay clickable while locked; each lock reason must be visible without any enabled click first.
+        const lockedActionHints: { name: string; reason: string }[] = []
+        if (fields.length > 0 && !slot.decisions.set.allowed) lockedActionHints.push({ name: 'Set credentials', reason: lockReasonText(slot.decisions.set) })
+        if (isConfigured && !slot.decisions.disconnect.allowed) lockedActionHints.push({ name: 'Disconnect', reason: lockReasonText(slot.decisions.disconnect) })
+        if (slot.cleanup && !slot.decisions.retry.allowed) lockedActionHints.push({ name: 'Retry cleanup', reason: lockReasonText(slot.decisions.retry) })
+        if (slot.cleanup && fields.length > 0 && !slot.decisions.repair.allowed) lockedActionHints.push({ name: 'Repair cleanup key', reason: lockReasonText(slot.decisions.repair) })
 
         return (
           <Surface key={key} className="p-5 md:p-6">
@@ -128,8 +159,8 @@ export function ManagedCredentialsView({ catalogue: _catalogue, slots, locks, ca
                 <p className="mt-1 text-xs text-app-muted">{slot.slot?.label ?? slot.descriptor?.site ?? 'Credential slot'}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Badge tone={isConnected ? 'success' : slot.connectionState === 'unavailable' ? 'danger' : 'neutral'} className="text-xs">{slot.connectionState}</Badge>
-                <Badge tone={source === 'postgres_kms' ? 'brand' : 'neutral'} className="text-xs">{source}</Badge>
+                <Badge tone={connectionLabel.tone} className="text-xs">{connectionLabel.label}</Badge>
+                <Badge tone={source === 'postgres_kms' ? 'brand' : 'neutral'} className="text-xs">{source === 'environment' ? 'Managed by deployment' : source}</Badge>
                 <Badge tone="neutral" className="text-xs">{slot.descriptor?.environment ?? 'environment unknown'}</Badge>
               </div>
             </div>
@@ -157,7 +188,7 @@ export function ManagedCredentialsView({ catalogue: _catalogue, slots, locks, ca
               <dl className="mt-2 grid gap-1 text-app-muted sm:grid-cols-2">
                 {Object.entries(slot.cleanup.finalProofs).map(([proof, complete]) => <div key={proof}>{proof}: {complete ? 'verified' : 'not verified'}</div>)}
               </dl>
-              {slot.cleanup.nextRetryAt && <p className="mt-2 text-app-muted">Next retry: {slot.cleanup.nextRetryAt}</p>}
+              {slot.cleanup.nextRetryAt && <p className="mt-2 text-app-muted">Next retry: {formatUtc(slot.cleanup.nextRetryAt)}</p>}
               {slot.disconnectedProof && <p role="status" className="mt-2 font-semibold text-app-success">Removal verified by the root operation and all final proofs.</p>}
               <details className="mt-2">
                 <summary className="cursor-pointer text-[11px] text-app-muted">Details</summary>
@@ -165,6 +196,7 @@ export function ManagedCredentialsView({ catalogue: _catalogue, slots, locks, ca
                   stage: {slot.cleanup.stage ?? '—'}
                   {slot.cleanup.blockedStage && <> · blocked_stage: {slot.cleanup.blockedStage}</>}
                   {slot.cleanup.reasonCode && <> · reason_code: {slot.cleanup.reasonCode}</>}
+                  {slot.cleanup.nextRetryAt && <> · next_retry_at: {slot.cleanup.nextRetryAt}</>}
                 </p>
               </details>
             </div>}
@@ -188,22 +220,43 @@ export function ManagedCredentialsView({ catalogue: _catalogue, slots, locks, ca
             </div>}
 
             {!canManage && <p className="mt-4 text-xs text-app-muted">manage_credentials permission is required.</p>}
+            {canManage && retryWaitUntil !== undefined && (
+              <p className="mt-2 text-xs text-app-muted" aria-live="polite">
+                Retry cleanup is paused until {new Date(retryWaitUntil).toLocaleTimeString('en-US')} (scheduled backend retry).
+              </p>
+            )}
             {canManage && <div className="mt-4 flex flex-wrap gap-2">
               {fields.length > 0 && <Button variant="primary" className="h-8 px-3 text-xs" disabled={isSubmitting || !showSetForm || blocked !== undefined} onClick={() => { setFormActions((previous) => ({ ...previous, [key]: 'set' })); setOpenForms((previous) => ({ ...previous, [key]: !previous[key] })) }}>
                 {openForms[key] ? 'Close input form' : `Set ${slot.exchange} credentials`}
               </Button>}
-              {isConfigured && <Button variant="danger" className="h-8 px-3 text-xs" disabled={isSubmitting || !slot.decisions.disconnect.allowed || Boolean(blocked)} onClick={() => onOpenDisconnect(slot.exchange, slot.connector)}>
+              {fields.length === 0 && (
+                <p className="w-full text-xs text-app-muted">
+                  {source === 'environment'
+                    ? 'Credentials come from deployment configuration (environment). To enter credentials here, the backend must run in postgres_kms mode with encryption configured.'
+                    : 'The backend advertised no input fields for this slot.'}
+                </p>
+              )}
+              {isConfigured && <Button variant="danger" className="h-8 px-3 text-xs" disabled={isSubmitting || Boolean(blocked)} onClick={() => onOpenDisconnect(slot.exchange, slot.connector)}>
                 <Unlink size={14} className="mr-1" /> Disconnect
               </Button>}
               {slot.cleanup && <>
                 <Button variant="secondary" className="h-8 px-3 text-xs" disabled={isSubmitting || cooling || !slot.decisions.retry.allowed || Boolean(blocked)} onClick={() => { void onRetryCleanup(slot.exchange, slot.connector, retryKeys[key] ?? crypto.randomUUID()).catch((error) => setErrors((previous) => ({ ...previous, [key]: error instanceof Error ? error.message : 'Cleanup retry failed.' }))) }}>Retry cleanup</Button>
-                {fields.length > 0 && <Button variant="secondary" className="h-8 px-3 text-xs" disabled={isSubmitting || !slot.decisions.repair.allowed || Boolean(blocked)} onClick={() => { setFormActions((previous) => ({ ...previous, [key]: 'repair' })); setOpenForms((previous) => ({ ...previous, [key]: true })) }}>Repair cleanup key</Button>}
+                {fields.length > 0 && <Button variant="secondary" className="h-8 px-3 text-xs" disabled={isSubmitting || Boolean(blocked)} onClick={() => { setFormActions((previous) => ({ ...previous, [key]: 'repair' })); setOpenForms((previous) => ({ ...previous, [key]: true })) }}>Repair cleanup key</Button>}
               </>}
             </div>}
+            {canManage && blocked === undefined && !openForms[key] && lockedActionHints.length > 0 && (
+              <div role="status" className="mt-2 space-y-1 text-xs text-app-warning">
+                {lockedActionHints.map((hint) => <p key={hint.name}>{hint.name} is locked: {hint.reason}. You can still review the flow; the confirm action stays disabled until the backend allows it.</p>)}
+              </div>
+            )}
 
             {showSetForm && openForms[key] && <form className="mt-4 space-y-4 rounded-card border border-app-action/30 bg-app-action/5 p-4" onSubmit={(event) => { event.preventDefault(); void submit(slot, formAction).catch(() => undefined) }}>
               <div><h4 className="text-xs font-bold text-app-text">{formAction === 'repair' ? 'Repair cleanup credentials' : 'Set credential bundle'}</h4>
-                {slot.decisions.set.detail && <p className="mt-1 text-xs text-app-muted">{slot.decisions.set.detail}</p>}
+                {!formDecision.allowed ? (
+                  <p role="status" className="mt-1 rounded-card border border-app-warning/30 bg-app-warning/10 p-2 text-xs text-app-text">
+                    Submitting is locked: {formDecision.detail || formDecision.reasonCode || 'refresh status to see the reason'}. Resolve this condition, then refresh status.
+                  </p>
+                ) : formDecision.detail && <p className="mt-1 text-xs text-app-muted">{formDecision.detail}</p>}
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {fields.map((field) => {
@@ -230,7 +283,7 @@ export function ManagedCredentialsView({ catalogue: _catalogue, slots, locks, ca
                 />
               )}
               <div className="flex flex-wrap justify-end gap-2">
-                <Button variant="secondary" type="button" className="h-8 px-3 text-xs" onClick={() => { clear(key); setOpenForms((previous) => ({ ...previous, [key]: false })); setRetryKeys((previous) => { const next = { ...previous }; delete next[key]; return next }) }}>Clear secret inputs</Button>
+                <Button variant="secondary" type="button" className="h-8 px-3 text-xs" onClick={() => { clear(key); setOpenForms((previous) => ({ ...previous, [key]: false })); setRetryKeys((previous) => { const next = { ...previous }; delete next[key]; return next }) }}>Close</Button>
                 <Button variant="primary" type="submit" disabled={isSubmitting || Boolean(blocked) || cooling || !(formAction === 'repair' ? slot.decisions.repair.allowed : slot.decisions.set.allowed)} className="h-8 px-3 text-xs">{isSubmitting ? <><Loader2 size={14} className="mr-1 animate-spin" />Submitting…</> : formAction === 'repair' ? 'Submit repair' : 'Submit set'}</Button>
               </div>
             </form>}

@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
+import { ArrowRight, Check } from 'lucide-react'
 import type { components } from '../../core/api/schema'
 import type { FormFeedbackModel } from '../../core/api/operation-feedback'
 import { Badge } from '../../shared/components/Badge'
@@ -7,7 +9,97 @@ import { CopyableId } from '../../shared/components/CopyableId'
 import { Input } from '../../shared/components/Input'
 import { Select } from '../../shared/components/Select'
 import { Surface } from '../../shared/components/Surface'
+import { cn } from '../../shared/utils/cn'
 import { FeedbackDetailsView } from './FeedbackDetailsView'
+
+/**
+ * Segmented track container for mutually exclusive option groups.
+ * Provides a recessed, unified trough that reinforces the mental model
+ * of a switch/selector rather than standalone action buttons.
+ */
+function SegmentedTrack({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      role="group"
+      className={cn(
+        'flex w-full items-center rounded-lg border border-app-border/70 bg-app-surface-muted/40 p-1 gap-1',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+/**
+ * Selectable choice option for segmented option groups (action, market,
+ * profile, duration). Uses neutral elevation and a crisp indicator rather
+ * than a heavy solid accent fill, preventing visual competition with the primary CTA.
+ */
+function ChoiceCard({
+  active,
+  disabled,
+  onClick,
+  children,
+}: {
+  active: boolean
+  disabled?: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  const reduceMotion = useReducedMotion()
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'group relative flex min-h-10 flex-1 items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-all duration-150',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action',
+        active
+          ? 'border border-app-border/80 bg-app-surface text-app-text font-semibold shadow-xs dark:border-white/10 dark:bg-[#252430]'
+          : 'border border-transparent text-app-muted hover:bg-app-surface/60 hover:text-app-text',
+        disabled && 'cursor-not-allowed opacity-40 hover:bg-transparent hover:text-app-muted',
+      )}
+    >
+      <span className="flex items-center justify-center gap-1.5 text-center">
+        {active && (
+          <motion.span
+            aria-hidden="true"
+            className="flex items-center justify-center text-app-action shrink-0"
+            initial={reduceMotion ? false : { scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', duration: 0.25, bounce: 0 }}
+          >
+            <Check size={13} strokeWidth={2.5} />
+          </motion.span>
+        )}
+        <span>{children}</span>
+      </span>
+    </button>
+  )
+}
+
+/** Section heading with an optional step number to guide the operator through the form top to bottom. */
+function StepHeading({ step, title }: { step?: number; title: string }) {
+  return (
+    <span className="mb-2 flex items-center gap-2 text-xs font-semibold text-app-text">
+      {step !== undefined && (
+        <span className="flex h-5 w-5 items-center justify-center rounded-pill bg-app-action/10 text-[10px] font-bold text-app-action">
+          {step}
+        </span>
+      )}
+      {title}
+    </span>
+  )
+}
 
 export interface SessionDraftConfig {
   marketMode: 'spot' | 'perpetual' | 'both' | null
@@ -132,25 +224,19 @@ export function SessionConfigForm({
 
       <form onSubmit={handleValidateAndSubmit} className="mt-5 space-y-5">
         <div>
-          <span className="mb-2 block text-xs font-semibold text-app-text">Session Action</span>
-          <div className="grid grid-cols-2 gap-2.5">
+          <StepHeading title="Session Action" />
+          <SegmentedTrack>
             {(['start', 'switch'] as const).map((intent) => (
-              <button
+              <ChoiceCard
                 key={intent}
-                type="button"
-                aria-pressed={action === intent}
+                active={action === intent}
                 disabled={!actionAvailability[intent].allowed}
                 onClick={() => { setAction(intent); setFieldErrors((current) => ({ ...current, action: '' })) }}
-                className={`rounded-card border p-3 text-xs font-semibold transition-all text-center disabled:cursor-not-allowed disabled:opacity-50 ${
-                  action === intent
-                    ? 'border-app-action bg-app-action/10 text-app-action ring-1 ring-app-action'
-                    : 'border-app-border bg-app-surface text-app-muted hover:text-app-text'
-                }`}
               >
                 {intent === 'start' ? 'Start new session' : 'Switch session'}
-              </button>
+              </ChoiceCard>
             ))}
-          </div>
+          </SegmentedTrack>
           {(!actionAvailability.start.allowed || !actionAvailability.switch.allowed) && (
             <p className="mt-1 text-[11px] text-app-muted">
               {!actionAvailability.start.allowed && actionAvailability.start.detail}
@@ -164,26 +250,14 @@ export function SessionConfigForm({
         </div>
         {/* 1. Market Mode */}
         <div>
-          <span className="block text-xs font-semibold text-app-text mb-2">
-            Market Mode
-          </span>
-          <div className="grid grid-cols-3 gap-2.5">
+          <StepHeading step={1} title="Market Mode" />
+          <SegmentedTrack>
             {marketModes.map((id) => (
-              <button
-                key={id}
-                type="button"
-                aria-pressed={marketMode === id}
-                onClick={() => setMarketMode(id)}
-                className={`rounded-card border p-3 text-xs font-semibold transition-all text-center ${
-                  marketMode === id
-                    ? 'border-app-action bg-app-action/10 text-app-action ring-1 ring-app-action'
-                    : 'border-app-border bg-app-surface text-app-muted hover:border-app-border/80 hover:text-app-text'
-                }`}
-              >
+              <ChoiceCard key={id} active={marketMode === id} onClick={() => setMarketMode(id)}>
                 {id === 'both' ? 'Both (Spot & Perp)' : id === 'spot' ? 'Spot' : 'Perpetual (Perp)'}
-              </button>
+              </ChoiceCard>
             ))}
-          </div>
+          </SegmentedTrack>
           {(fieldErrors.marketMode || validationErrors.marketMode || feedbackModel?.inlineErrors.marketMode?.length) && (
             <p className="mt-1 text-xs text-app-danger">{validationErrors.marketMode || fieldErrors.marketMode || feedbackModel?.inlineErrors.marketMode?.join(', ')}</p>
           )}
@@ -191,31 +265,30 @@ export function SessionConfigForm({
 
         {/* 2. Profile Selection */}
         <div>
-          <span className="block text-xs font-semibold text-app-text mb-2">Profile Selection</span>
-          <div className="grid grid-cols-2 gap-2.5">
-            <button type="button" aria-pressed={selection === 'fixed'} onClick={() => setSelection('fixed')}
-              className={`rounded-card border p-3 text-xs font-semibold ${selection === 'fixed' ? 'border-app-action bg-app-action/10 text-app-action ring-1 ring-app-action' : 'border-app-border bg-app-surface text-app-muted'}`}>
+          <StepHeading step={2} title="Profile Selection" />
+          <SegmentedTrack>
+            <ChoiceCard active={selection === 'fixed'} onClick={() => setSelection('fixed')}>
               Fixed Profile
-            </button>
-            <button type="button" aria-pressed={selection === 'random'} disabled={randomProfiles.length === 0} onClick={() => setSelection('random')}
-              className={`rounded-card border p-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${selection === 'random' ? 'border-app-action bg-app-action/10 text-app-action ring-1 ring-app-action' : 'border-app-border bg-app-surface text-app-muted'}`}>
+            </ChoiceCard>
+            <ChoiceCard active={selection === 'random'} disabled={randomProfiles.length === 0} onClick={() => setSelection('random')}>
               Random Selection
-            </button>
-          </div>
+            </ChoiceCard>
+          </SegmentedTrack>
           {selection === 'fixed' ? (
-            <Select
-              id="profile-select"
-              label="Profile in catalogue"
-              sizeVariant="md"
-              value={profileId ?? ''}
-              onChange={(e) => setProfileId(e.target.value || null)}
-              error={validationErrors.profileId || fieldErrors.profileId || feedbackModel?.inlineErrors.profileId?.[0]}
-              containerClassName="mt-3"
-              options={[
-                { value: '', label: 'Select profile' },
-                ...profileEntries.map((profile) => ({ value: profile, label: profile })),
-              ]}
-            />
+            <div className="mt-2.5 rounded-lg border border-app-border/60 bg-app-surface-muted/20 p-3">
+              <Select
+                id="profile-select"
+                label="Profile in catalogue"
+                sizeVariant="md"
+                value={profileId ?? ''}
+                onChange={(e) => setProfileId(e.target.value || null)}
+                error={validationErrors.profileId || fieldErrors.profileId || feedbackModel?.inlineErrors.profileId?.[0]}
+                options={[
+                  { value: '', label: 'Select profile' },
+                  ...profileEntries.map((profile) => ({ value: profile, label: profile })),
+                ]}
+              />
+            </div>
           ) : (
             <p className="mt-2 text-xs text-app-muted">Catalogue random pool: {randomProfiles.join(', ') || 'No profiles available'}</p>
           )}
@@ -226,25 +299,19 @@ export function SessionConfigForm({
 
         {/* 3. Duration Mode */}
         <div>
-          <span className="block text-xs font-semibold text-app-text mb-2">
-            Duration Mode
-          </span>
-          <div className="grid grid-cols-2 gap-2.5">
-            {durationModes.map((mode) => <button
-              type="button"
-              key={mode}
-              aria-pressed={durationMode === mode}
-              disabled={mode === 'until_stopped' && !catalogue?.allow_until_stopped}
-              onClick={() => setDurationMode(mode)}
-              className={`rounded-card border p-3 text-xs font-semibold transition-all text-center ${
-                durationMode === mode
-                  ? 'border-app-action bg-app-action/10 text-app-action ring-1 ring-app-action'
-                  : 'border-app-border bg-app-surface text-app-muted hover:border-app-border/80 hover:text-app-text'
-              }`}
-            >
-              {mode === 'timed' ? 'Timed' : 'Until manually stopped'}
-            </button>)}
-          </div>
+          <StepHeading step={3} title="Duration Mode" />
+          <SegmentedTrack>
+            {durationModes.map((mode) => (
+              <ChoiceCard
+                key={mode}
+                active={durationMode === mode}
+                disabled={mode === 'until_stopped' && !catalogue?.allow_until_stopped}
+                onClick={() => setDurationMode(mode)}
+              >
+                {mode === 'timed' ? 'Timed' : 'Until manually stopped'}
+              </ChoiceCard>
+            ))}
+          </SegmentedTrack>
           {(fieldErrors.durationMode || validationErrors.durationMode || feedbackModel?.inlineErrors.durationMode?.length) && (
             <p className="mt-1 text-xs text-app-danger">{validationErrors.durationMode || fieldErrors.durationMode || feedbackModel?.inlineErrors.durationMode?.join(', ')}</p>
           )}
@@ -254,8 +321,9 @@ export function SessionConfigForm({
         {durationMode === 'timed' && (
           <div>
             <div className="rounded-card border border-app-border p-3">
-              <label className="flex items-center gap-2 text-xs font-semibold text-app-text">
+              <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-app-text">
                 <input type="checkbox" checked={durationSeconds === null}
+                  className="size-4 cursor-pointer accent-app-action"
                   onChange={(event) => setDurationSeconds(event.target.checked ? null : defaultSeconds)} />
                 Use default duration from YAML ({defaultSeconds} seconds)
               </label>
@@ -291,9 +359,10 @@ export function SessionConfigForm({
           <Button
             type="submit"
             disabled={isLoading || isSubmitting || !actionAvailability[action].allowed || Boolean(operationBlockedReason)}
-            className="w-full font-bold"
+            className="w-full font-bold h-12 text-sm shadow-md shadow-app-action/20 hover:shadow-lg hover:shadow-app-action/30 flex items-center justify-center gap-2"
           >
-            Continue: Review Configuration Diff
+            <span>Continue: Review Configuration Diff</span>
+            <ArrowRight size={16} />
           </Button>
         </div>
       </form>

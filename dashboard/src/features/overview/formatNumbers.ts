@@ -24,6 +24,20 @@ export const formatQuantityForDisplay = formatPriceForDisplay
 export function formatUsdtForDisplay(value: string | null | undefined, signed = false): string | null {
   const n = parseAmount(value)
   if (n === null) return null
-  const formatted = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  // Giá trị nhỏ (vd phí 0.000000001) nếu giữ 2 số lẻ sẽ thành "0.00" —
+  // fallback sang 5 chữ số có nghĩa để không mất giá trị khác 0.
+  const formatted = n !== 0 && Math.abs(n) < 0.005
+    ? Math.abs(n).toLocaleString('en-US', { maximumSignificantDigits: 5 })
+    : Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return `${n < 0 ? '-' : signed ? '+' : ''}${formatted}`
+}
+
+/**
+ * Định dạng giá trị risk rule theo đơn vị: USDT làm tròn 2 chữ số thập phân,
+ * unit khác (BTC, LIFE…) dùng 5 chữ số có nghĩa. Trả về '—' khi thiếu dữ liệu.
+ */
+export function formatRiskValueForDisplay(value: string | null | undefined, unit: string | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  const formatted = unit?.toUpperCase() === 'USDT' ? formatUsdtForDisplay(value) : formatQuantityForDisplay(value)
+  return formatted ?? '—'
 }

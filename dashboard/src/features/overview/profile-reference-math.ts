@@ -9,15 +9,15 @@ export type ReferenceDelta = number
 export const SCENARIO_COPY: Record<MMProfile['scenario'], { title: string; body: string }> = {
   follow_market: {
     title: 'Tracks a weighted market basket',
-    body: 'The LIFE target mid replays the weighted percentage move of the whole reference basket since the session anchor, so LIFE follows the market average instead of one token.',
+    body: 'The LIFE target mid scales with the weighted percentage move of the reference basket since the baseline anchor. If the basket moves +2% on average, LIFE\'s pricing centre shifts +2%.',
   },
   sideways: {
     title: 'Holds the session anchor',
-    body: 'No reference pairs: the weighted sum is always zero, so the target mid stays at the session-start mid for the whole session. Quotes can additionally be clamped to a manual sideways range.',
+    body: 'No reference pairs: the weighted sum is always zero, so the target mid stays pinned to the baseline anchor for this profile step. Quotes can additionally be clamped to a manual sideways range.',
   },
   follow_token: {
     title: 'Mirrors exactly one token',
-    body: 'With a single reference at weight 1, the LIFE target mid copies that token\'s percentage move since the session anchor, like a derivative of the reference token.',
+    body: 'With a single reference at weight 1, the LIFE target mid copies that token\'s percentage move since the baseline anchor, mirroring its price action.',
   },
 }
 
