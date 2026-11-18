@@ -63,3 +63,38 @@ async def test_private_account_identity_is_cached_without_exposing_credentials(c
     assert getattr(connector, "account_uid", None) == "account-17"
     connector._api_get.assert_awaited_once()
     assert connector._api_get.call_args.kwargs["is_auth_required"]
+
+
+@pytest.mark.asyncio
+async def test_rest_balance_records_whole_account_usd_without_an_extra_request(connector):
+    connector.account_uid = 'account-17'
+    connector._api_get = connector._api_request = AsyncMock(return_value=dict(
+        code='0', data=[dict(totalEq='12345.12345678', details=[detail()])]))
+    await connector._update_balances()
+    assert connector.account_equity_observation['total_equity_usd'] == Decimal('12345.12345678')
+    assert connector.account_equity_observation['account_id'] == 'account-17'
+    connector._api_get.assert_awaited_once()
+    assert connector.get_balance('USDT') == Decimal('120')
+
+
+@pytest.mark.asyncio
+async def test_ws_balance_records_current_total_and_clears_absent_equity(connector):
+    import asyncio
+
+    async def apply(payload):
+        if isinstance(connector, OkxPerpetualDerivative):
+            connector._process_wallet_event_message(payload)
+        else:
+            async def stream():
+                yield dict(arg=dict(channel='account'), data=[payload])
+                raise asyncio.CancelledError
+            connector._iter_user_event_queue = stream
+            with pytest.raises(asyncio.CancelledError):
+                await connector._user_stream_event_listener()
+
+    connector.account_uid = 'account-17'
+    await apply(dict(totalEq='900.125', details=[detail()]))
+    assert connector.account_equity_observation['total_equity_usd'] == Decimal('900.125')
+    assert connector.get_balance('USDT') == Decimal('120')
+    await apply(dict(details=[detail()]))
+    assert connector.account_equity_observation is None

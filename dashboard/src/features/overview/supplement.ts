@@ -35,6 +35,9 @@ function observe<T>(o: { observed_at: string | null; stale: boolean; unavailable
 
 export interface MandateLimitRow {
   ruleId: string
+  controllerId?: string | null
+  market?: string | null
+  unavailableReason?: string | null
   current: string | null
   limit: string | null
   status: RiskRule['status']
@@ -54,6 +57,7 @@ export interface MandateView {
   operationalStatus: 'RUNNING' | 'STARTING' | 'STOPPING' | 'STOPPED' | 'HALTED' | 'UNKNOWN' | 'STALE'
   observedAt: string | null
   /** Vốn phân bổ — observation (backend: session_configuration) */
+  quoteBudget?: Observed<OverviewSupplementSchemas['OverviewQuoteBudgetOutput']>
   capitalAllocated: Observed<CapitalAllocated>
   riskLimits: MandateLimitRow[]
 }
@@ -130,6 +134,7 @@ export interface NetPositionView {
 export interface CapitalRiskView {
   positions: CapitalPositionView[]
   netPosition: NetPositionView
+  accountEquity?: Observed<OverviewSupplementSchemas['OverviewAccountEquityOutput']>
   portfolio: Observed<Portfolio>
   sessionDelta: Observed<SessionDelta>
   fees: Observed<SessionFees>
@@ -142,6 +147,8 @@ export interface GuardsSummary {
   status: 'ok' | 'attention' | 'stop'
   headline: string
   violationCount: number
+  unknownCount?: number
+  checkedCount?: number
   totalCount: number
   /** false khi supplement chưa implement (backend trả null) */
   available: boolean
@@ -151,45 +158,31 @@ export interface GuardsSummary {
 
 function guardsFromRules(rules: RiskRule[], complete: boolean): GuardsSummary {
   const active = rules.filter((rule) => rule.status !== 'disabled')
-  const violated = active.filter((rule) => rule.status === 'violated' || rule.status === 'unknown')
-  const first = violated[0]
+  const violated = active.filter((rule) => rule.status === 'violated')
+  const unknown = active.filter((rule) => rule.status === 'unknown')
+  const first = violated[0] ?? unknown[0]
   const headline = first
     ? `${first.rule_id}: current ${first.current ?? '—'} / limit ${first.upper_limit ?? first.lower_limit ?? '—'} (${first.unit})`
     : complete ? 'All limits are stable' : 'Risk limit data incomplete'
   return {
-    status: active.some((r) => r.status === 'violated') ? 'stop' : violated.length > 0 || !complete ? 'attention' : 'ok',
+    status: active.some((r) => r.status === 'violated') ? 'stop' : unknown.length > 0 || !complete ? 'attention' : 'ok',
     headline,
     violationCount: violated.length,
+    unknownCount: unknown.length,
+    checkedCount: active.length - unknown.length,
     totalCount: active.length,
     available: complete && active.length > 0,
   }
 }
 
 const EMPTY_GUARDS: GuardsSummary = {
-  status: 'ok',
+  status: 'attention',
   headline: 'Risk rules data unavailable (supplement not implemented)',
   violationCount: 0,
+  unknownCount: 0,
+  checkedCount: 0,
   totalCount: 0,
   available: false,
-}
-
-function fractionToBps(v: string | null | undefined): number | null {
-  const n = parseAmount(v ?? null)
-  return n !== null ? Math.round(n * 10_000) : null
-}
-
-/** Display convention: bps values are always whole numbers. */
-function roundBps(v: number | null): number | null {
-  return v !== null ? Math.round(v) : null
-}
-
-/** Spread target = spread cố định đầu tiên của policy (buy/sell lấy max cho an toàn). */
-function spreadTargetBps(policy: OverviewModel['risk']['marketPolicies'][number]['spreadPolicy']): number | null {
-  if (!policy || !policy.enabled) return null
-  const buy = policy.buy_spreads.length > 0 ? fractionToBps(policy.buy_spreads[0]) : null
-  const sell = policy.sell_spreads.length > 0 ? fractionToBps(policy.sell_spreads[0]) : null
-  const widest = Math.max(buy ?? 0, sell ?? 0)
-  return widest > 0 ? widest : (buy ?? sell ?? null)
 }
 
 /** Runtime evidence takes precedence over the requested session state. */
@@ -226,9 +219,13 @@ export function deriveMandate(model: OverviewModel, supp: Supplement | null): Ma
     running: model.task.runtime.running,
     operationalStatus: operationalStatus(model),
     observedAt: model.observation.status === 'fresh' || model.observation.status === 'stale' ? model.observation.observedAt : null,
+    quoteBudget: supp?.session.quote_budget ? observe(supp.session.quote_budget) : { available: false as const, reason: null },
     capitalAllocated: supp ? observe(supp.session.capital_allocated) : { available: false as const, reason: null },
     riskLimits: (supp?.risk_rules.value ?? []).map((rule) => ({
       ruleId: rule.rule_id,
+      controllerId: rule.controller_id,
+      market: rule.market,
+      unavailableReason: rule.unavailable_reason,
       current: rule.current,
       limit: rule.upper_limit ?? rule.lower_limit,
       status: rule.status,
@@ -246,13 +243,13 @@ export function deriveLiquidity(model: OverviewModel, supp: Supplement | null): 
     const buy = market.sides.find((s) => s.side === 'buy')
     const sell = market.sides.find((s) => s.side === 'sell')
     const diagnosisSide = [buy, sell].find((s) => s?.diagnosis?.next_action)
-    const policy = model.risk.marketPolicies.find((p) => p.market === market.market)
+    const spreadPlan = suppMarket?.spread_target ? observe(suppMarket.spread_target) : { available: false as const, reason: null }
     return {
       market: market.market,
       pair: market.sample.pair,
       twoSided: market.sample.two_sided,
-      spreadActualBps: roundBps(parseAmount(market.ownSpreadBps ?? null)),
-      spreadTargetBps: policy ? spreadTargetBps(policy.spreadPolicy) : null,
+      spreadActualBps: parseAmount(market.ownSpreadBps ?? null),
+      spreadTargetBps: spreadPlan.available ? parseAmount(spreadPlan.value.target_bps) : null,
       bestBid: buy?.price ?? null,
       bestAsk: sell?.price ?? null,
       bidNotional: buy?.notional ?? null,
@@ -297,7 +294,7 @@ export function deriveCapitalRisk(model: OverviewModel, supp: Supplement | null)
         pnlUsdt: p.unrealized_pnl ?? null,
         marginUsdt: p.margin ?? null,
         liqPrice: p.liquidation_price ?? null,
-        inventoryLimit: inventoryLimits.get('perpetual')?.inventory_limit ?? null,
+        inventoryLimit: (p.side === 'LONG' ? inventoryLimits.get('perpetual')?.long_limit : inventoryLimits.get('perpetual')?.short_limit) ?? inventoryLimits.get('perpetual')?.inventory_limit ?? null,
       })),
     )
 
@@ -317,6 +314,7 @@ export function deriveCapitalRisk(model: OverviewModel, supp: Supplement | null)
       pnlUsdt: pnlDisplay,
       observed: summary.observed && summary.sameInstrument,
     },
+    accountEquity: supp?.account_equity ? observe(supp.account_equity) : { available: false as const, reason: null },
     portfolio: supp ? observe(supp.portfolio) : { available: false as const, reason: null },
     sessionDelta: supp ? observe(supp.session.delta) : { available: false as const, reason: null },
     fees: supp ? observe(supp.session.fees, true) : { available: false as const, reason: null },

@@ -76,6 +76,31 @@ class OverviewPortfolio(OverviewModel):
     usdt: Money = Field(description='USDT equity component, not available cash.')
     other_assets_usdt: Money
     valuation: OverviewValuation
+    assets: list['OverviewPortfolioAsset'] = Field(default_factory=list)
+
+
+class OverviewPortfolioAsset(OverviewModel):
+    asset: Asset
+    equity: Money
+    value_usdt: Money
+
+
+class OverviewAccountEquity(OverviewModel):
+    total_usd: Money = Field(description='Whole-account totalEq from OKX, once; not USDT, free cash or allocated capital. Includes venue position PnL already.')
+    currency: Literal['USD'] = 'USD'
+    source: Literal['okx_account_balance_total_eq']
+
+
+class OverviewQuoteBudgetMarket(OverviewModel):
+    market: Market
+    budget_usdt: Money
+
+
+class OverviewQuoteBudget(OverviewModel):
+    total_usdt: Money
+    by_market: list[OverviewQuoteBudgetMarket]
+    source: Literal['pinned_session_catalogue']
+    basis: Literal['configured_working_orders_notional'] = 'configured_working_orders_notional'
 
 
 class OverviewSessionDelta(OverviewModel):
@@ -109,6 +134,7 @@ class OverviewRiskRule(OverviewModel):
     upper_limit: Optional[Money]
     current: Optional[Money]
     status: Literal['ok', 'violated', 'disabled', 'unknown']
+    unavailable_reason: Optional[str] = None
 
 
 class OverviewDepthLevel(OverviewModel):
@@ -187,6 +213,10 @@ class OverviewInventoryLimit(OverviewModel):
     short_limit: Optional[Money] = None
     gross_limit: Optional[Money] = None
     inventory_limit: Optional[Money] = Field(description='Null if policy defines no absolute quantity limit.')
+    long_exposure: Optional[Money] = None
+    short_exposure: Optional[Money] = None
+    exposure_observed_at: Optional[UTCDateTime] = None
+    exposure_basis: Optional[Literal['engine_cap_assessment']] = None
 
     @model_validator(mode='after')
     def asset_matches_pair(self):
@@ -227,6 +257,16 @@ class OverviewMarketData(OverviewModel):
     coverage: OverviewObservation[OverviewRollingCoverage]
     slippage_estimate: OverviewObservation[OverviewSlippage]
     post_fill_recovery: OverviewObservation[OverviewPostFillRecovery]
+    spread_target: OverviewObservation['OverviewSpreadTarget'] = Field(default_factory=lambda: OverviewObservation(
+        value=None, observed_at=None, stale=True, unavailable_reason='spread_plan_unavailable'))
+
+
+class OverviewSpreadTarget(OverviewModel):
+    target_bps: Money
+    buy_distance_bps: Money
+    sell_distance_bps: Money
+    basis: Literal['two_sided_primary_plan']
+    source: Literal['controller_spread_policy', 'controller_config']
 
 
 class OverviewAccountScope(OverviewModel):
@@ -238,6 +278,8 @@ class OverviewAccountScope(OverviewModel):
 
 class OverviewSession(OverviewModel):
     capital_allocated: OverviewObservation[OverviewCapitalAllocated]
+    quote_budget: OverviewObservation[OverviewQuoteBudget] = Field(default_factory=lambda: OverviewObservation(
+        value=None, observed_at=None, stale=True, unavailable_reason='quote_budget_unavailable'))
     fees: OverviewObservation[OverviewSessionFees]
     delta: OverviewObservation[OverviewSessionDelta]
     benchmark_hold: OverviewObservation[OverviewHoldBenchmark]
@@ -252,6 +294,8 @@ class OverviewSupplement(OverviewModel):
     session_started_at: Optional[UTCDateTime]
     session: OverviewSession
     portfolio: OverviewObservation[OverviewPortfolio]
+    account_equity: OverviewObservation[OverviewAccountEquity] = Field(default_factory=lambda: OverviewObservation(
+        value=None, observed_at=None, stale=True, unavailable_reason='account_equity_unavailable'))
     risk_rules: OverviewObservation[list[OverviewRiskRule]]
     markets: list[OverviewMarketData]
     balances: OverviewObservation[list[OverviewReservedBalance]]

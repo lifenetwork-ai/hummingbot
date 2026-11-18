@@ -52,7 +52,7 @@ describe('Overview completed model integration', () => {
     )
     render(<HomePage />, { wrapper: pageWrapper() })
     expect(await screen.findByText('Inventory restriction')).toBeInTheDocument()
-    expect(screen.getByText('Portfolio valuation unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Account valuation unavailable · check balances')).toBeInTheDocument()
     expect(screen.queryByText(/12,345\.67/)).not.toBeInTheDocument()
   })
 
@@ -143,7 +143,7 @@ describe('Overview completed model integration', () => {
     render(<HomePage />, { wrapper: pageWrapper() })
     expect(await screen.findByText('Positions: API error')).toBeInTheDocument()
     // Independent sources still render: the positions error must not hide the KPI strip
-    expect(screen.getByText('Spread vs target')).toBeInTheDocument()
+    expect(screen.getByText('Own spread vs planned width')).toBeInTheDocument()
     expect(screen.getByText('Net position & PnL')).toBeInTheDocument()
     fail = false
     fireEvent.click(screen.getByRole('button', { name: 'Retry positions' }))

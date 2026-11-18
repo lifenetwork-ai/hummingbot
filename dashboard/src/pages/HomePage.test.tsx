@@ -135,7 +135,7 @@ describe('HomePage (Overview)', () => {
     expect(screen.getByText('Assigned mandate')).toBeInTheDocument()
 
     // KPI strip — target/actual pairs
-    expect(screen.getByText('Spread vs target')).toBeInTheDocument()
+    expect(screen.getByText('Own spread vs planned width')).toBeInTheDocument()
     expect(screen.getByText('Eligible coverage (two-sided)')).toBeInTheDocument()
     expect(screen.getByText('Net position & PnL')).toBeInTheDocument()
     expect(screen.getByText('Total assets')).toBeInTheDocument()

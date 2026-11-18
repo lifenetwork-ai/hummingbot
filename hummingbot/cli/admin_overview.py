@@ -6,6 +6,7 @@ from decimal import Decimal
 from pydantic import ValidationError
 
 from hummingbot.cli.admin_overview_models import (
+    OverviewAccountEquity,
     OverviewAccountScope,
     OverviewCapitalAllocated,
     OverviewDepth,
@@ -15,6 +16,7 @@ from hummingbot.cli.admin_overview_models import (
     OverviewObservation,
     OverviewPortfolio,
     OverviewPostFillRecovery,
+    OverviewQuoteBudget,
     OverviewReferencePrice,
     OverviewReservedBalance,
     OverviewRiskRule,
@@ -23,6 +25,7 @@ from hummingbot.cli.admin_overview_models import (
     OverviewSessionDelta,
     OverviewSessionFees,
     OverviewSlippage,
+    OverviewSpreadTarget,
     OverviewSupplement,
 )
 from hummingbot.core.reporting import reporting_view
@@ -112,34 +115,78 @@ def _portfolio(accounts, prices, *, now, reason):
         amounts = {item['currency']: _number(item['equity']) for item in balances}
         if len(amounts) != len(balances) or 'USDT' not in amounts:
             return unavailable('balance_observation_unavailable')
-        other = {asset: amount for asset, amount in amounts.items() if asset not in ('USDT', 'LIFE') and amount != 0}
-        if other:
-            return unavailable('asset_valuation_unavailable')
-        if not isinstance(prices, dict) or prices.get('stale') or not _fresh(prices.get('observed_at'), now):
+        needed = {asset: amount for asset, amount in amounts.items() if asset != 'USDT' and amount != 0}
+        price_rows = prices.get('value') if isinstance(prices, dict) else None
+        if needed and (not isinstance(price_rows, list) or prices.get('stale') or not _fresh(prices.get('observed_at'), now)):
             return unavailable('valuation_price_unavailable')
-        life = amounts.get('LIFE', Decimal('0'))
-        price_rows = prices.get('value')
-        if not isinstance(price_rows, list):
-            return unavailable('valuation_price_unavailable')
-        candidates = [item for item in price_rows if item.get('asset') == 'LIFE' and item.get('connector') == 'okx'
-                      and item.get('pair') == 'LIFE-USDT' and _fresh(item.get('observed_at', prices.get('observed_at')), now)]
-        if life != 0 and len(candidates) != 1:
-            return unavailable('valuation_price_unavailable')
-        price = _number(candidates[0]['price_usdt']) if candidates else Decimal('1')
-        if price <= 0:
-            return unavailable('valuation_price_unavailable')
-        # USDT equity already includes the venue's perpetual unrealized PnL.
-        # Position PnL and collateral must never be added a second time.
-        life_usdt = life * price
-        valuation_prices = [{key: item[key] for key in ('asset', 'pair', 'connector', 'price_usdt', 'observed_at')} for item in candidates]
-        price_stamp = min((_epoch(item['observed_at']) for item in candidates), default=_epoch(prices['observed_at']))
-        stamp = min(price_stamp, *(_epoch(item['observed_at']) for item in balances))
-        return dict(value=dict(total_usdt=amounts['USDT'] + life_usdt, usdt=amounts['USDT'], life_usdt=life_usdt,
-                               other_assets_usdt='0', valuation=dict(currency='USDT', valuation_mark='mid',
-                                                                     valued_at=price_stamp, prices=valuation_prices)),
+        values, used = {}, []
+        for asset, amount in needed.items():
+            candidates = [item for item in price_rows if item.get('asset') == asset and item.get('connector') == 'okx'
+                          and item.get('pair') == asset + '-USDT']
+            if len(candidates) != 1:
+                return unavailable('valuation_price_unavailable' if asset == 'LIFE' else 'asset_valuation_unavailable')
+            candidate = candidates[0]
+            if not _fresh(candidate.get('observed_at'), now):
+                return unavailable('valuation_price_unavailable')
+            price = _number(candidate['price_usdt'])
+            if price <= 0:
+                return unavailable('valuation_price_unavailable')
+            values[asset] = amount * price
+            used.append({key: candidate[key] for key in ('asset', 'pair', 'connector', 'price_usdt', 'observed_at')})
+        # USDT equity already includes the venue's perpetual PnL; never add positions again.
+        stamp = min([_epoch(item['observed_at']) for item in balances] + [_epoch(item['observed_at']) for item in used])
+        life_usdt = values.get('LIFE', Decimal('0'))
+        return dict(value=dict(total_usdt=amounts['USDT'] + sum(values.values(), Decimal('0')),
+                               usdt=amounts['USDT'], life_usdt=life_usdt,
+                               other_assets_usdt=sum((value for asset, value in values.items() if asset != 'LIFE'), Decimal('0')),
+                               assets=[dict(asset=asset, equity=amount, value_usdt=amount if asset == 'USDT' else values.get(asset, Decimal('0')))
+                                       for asset, amount in sorted(amounts.items())],
+                               valuation=dict(currency='USDT', valuation_mark='mid', valued_at=stamp, prices=used)),
                     observed_at=stamp, stale=False, unavailable_reason=None)
     except (KeyError, ValueError, TypeError, ArithmeticError, IndexError):
         return unavailable('balance_observation_unavailable')
+
+
+def _account_equity(reporting, scope, *, now, reason):
+    if reason:
+        return unavailable(reason)
+    rows = reporting.get('account_equities') or []
+    candidates = []
+    for item in rows[:2] if isinstance(rows, list) else []:
+        try:
+            if (item.get('account_id') not in scope.account_ids or item.get('environment') != scope.environment
+                    or item.get('site') != scope.site or item.get('connector') not in ('okx', 'okx_perpetual')
+                    or item.get('source') != 'okx_account_balance_total_eq' or item.get('stale')
+                    or not _fresh(item.get('observed_at'), now, maximum=60)):
+                continue
+            candidates.append((_epoch(item['observed_at']), _number(item['total_equity_usd'])))
+        except (KeyError, TypeError, ValueError, ArithmeticError):
+            continue
+    if not candidates:
+        return unavailable('account_equity_unavailable')
+    stamp = max(at for at, _ in candidates)
+    totals = {value for at, value in candidates if at == stamp}
+    if len(totals) != 1:
+        return unavailable('account_equity_source_conflict')
+    return dict(value=dict(total_usd=totals.pop(), currency='USD', source='okx_account_balance_total_eq'),
+                observed_at=stamp, stale=False, unavailable_reason=None)
+
+
+def _quote_budget(session):
+    try:
+        mode = session['request']['market_mode']
+        if mode not in ('spot', 'perpetual', 'both'):
+            raise ValueError('unknown market scope')
+        markets = session['catalogue']['markets']
+        selected = ('spot', 'perpetual') if mode == 'both' else (mode,)
+        values = [dict(market=name, budget_usdt=_number(markets[name]['total_amount_quote'])) for name in selected]
+        if any(value['budget_usdt'] <= 0 for value in values):
+            raise ValueError('invalid budget')
+        return dict(value=dict(total_usdt=sum((v['budget_usdt'] for v in values), Decimal('0')), by_market=values,
+                               source='pinned_session_catalogue', basis='configured_working_orders_notional'),
+                    observed_at=session['started_at'], stale=False, unavailable_reason=None)
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        return unavailable('quote_budget_unavailable')
 
 
 def _balances(accounts, *, now, reason):
@@ -180,7 +227,8 @@ def _risk_rules(snapshot, *, now, live, runtime_live=False, session=None):
                                 or (controller is not None and drawdown.get('breached_controller_id') == controller)))
                 if latched:
                     status = 'violated'
-                rules.append(dict(rule_id=identity, controller_id=controller, market=None, unit='USDT',
+                market = next((name for name, cfg in (((session or {}).get('catalogue') or {}).get('markets') or {}).items() if cfg.get('id') == controller), None) if controller else None
+                rules.append(dict(rule_id=identity, controller_id=controller, market=market, unit='USDT',
                                   lower_limit=None, upper_limit=limit, current=current, status=status))
             except (ValueError, ArithmeticError):
                 continue
@@ -251,9 +299,21 @@ def _risk_rules(snapshot, *, now, live, runtime_live=False, session=None):
                     if item.get(field) is None:
                         continue
                     limit = _number(item[field])
+                    current = None
+                    if (runtime_live and item.get('exposure_basis') == 'engine_cap_assessment'
+                            and _fresh(item.get('exposure_observed_at'), now)):
+                        try:
+                            long, short = _number(item['long_exposure']), _number(item['short_exposure'])
+                            if min(long, short) >= 0:
+                                current = long + short if field == 'gross_limit' else short if field == 'short_limit' else long
+                        except (KeyError, TypeError, ValueError, ArithmeticError):
+                            pass
+                    if current is None:
+                        complete = False
                     rules.append(dict(rule_id='inventory_base' if field == 'inventory_limit' else 'inventory_' + field.removesuffix('_limit'), controller_id=item['controller_id'],
                                       market=item['market'], unit=item['asset'], lower_limit=None, upper_limit=limit,
-                                      current=None, status='unknown'))
+                                      current=current, status='unknown' if current is None else 'violated' if current > limit else 'ok',
+                                      unavailable_reason='exposure_observation_unavailable' if current is None else None))
                 except (KeyError, TypeError, ValueError, ArithmeticError):
                     complete = False
                     continue
@@ -282,16 +342,18 @@ def build_overview(row, *, fees=None):
     runtime_reason = reason or ('session_observation_mismatch' if not runtime_matches else None)
     if not runtime_reason and not _fresh(runtime.get('observed_at'), now):
         runtime_reason = 'owner_observation_unavailable'
+    reporting = {}
     try:
         view = reporting_view(row)
-        reporting = {**(snapshot.get('reporting') or {}), 'accounts': view['accounts']}
+        reporting = {**(snapshot.get('reporting') or {}), 'accounts': view['accounts'],
+                     'account_equities': view['account_equities']}
         scope, accounts = _account_scope(reporting)
     except (KeyError, ValueError, TypeError, ArithmeticError):
         scope, accounts = OverviewAccountScope(account_ids=[], environment=None, identity_verified=False), []
     account_reason = reason or (None if scope.identity_verified else 'account_identity_unavailable')
     portfolio = _portfolio(accounts, runtime.get('valuation_prices'), now=now, reason=account_reason or runtime_reason)
     markets = []
-    models = dict(depth=OverviewDepth, coverage=OverviewRollingCoverage,
+    models = dict(depth=OverviewDepth, coverage=OverviewRollingCoverage, spread_target=OverviewSpreadTarget,
                   slippage_estimate=OverviewSlippage, post_fill_recovery=OverviewPostFillRecovery)
     runtime_markets = runtime.get('markets')
     for item in runtime_markets[:2] if isinstance(runtime_markets, list) else []:
@@ -307,11 +369,14 @@ def build_overview(row, *, fees=None):
         session_id=session.get('id'), session_started_at=session.get('started_at'),
         session=OverviewSession(
             capital_allocated=OverviewObservation[OverviewCapitalAllocated](**unavailable('capital_mandate_not_configured')),
+            quote_budget=OverviewObservation[OverviewQuoteBudget](**_quote_budget(session)),
             fees=OverviewObservation[OverviewSessionFees].model_validate(fees or unavailable('session_fees_unavailable')),
             delta=OverviewObservation[OverviewSessionDelta](**unavailable('session_baseline_and_transfers_unavailable')),
             benchmark_hold=OverviewObservation[OverviewHoldBenchmark](**unavailable('initial_holdings_and_transfers_unavailable')),
         ),
         portfolio=OverviewObservation[OverviewPortfolio].model_validate(portfolio),
+        account_equity=OverviewObservation[OverviewAccountEquity](**_account_equity(
+            reporting, scope, now=now, reason=account_reason or runtime_reason)),
         balances=OverviewObservation[list[OverviewReservedBalance]].model_validate(_balances(accounts, now=now, reason=account_reason)),
         risk_rules=OverviewObservation[list[OverviewRiskRule]].model_validate(
             _risk_rules(snapshot, now=now, live=owner and matches, runtime_live=runtime_reason is None, session=session)),

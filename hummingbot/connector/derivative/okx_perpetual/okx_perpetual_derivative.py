@@ -414,6 +414,8 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         if self._trading_required:
             from hummingbot.connector.okx_account_observations import observe_account_identity
             await observe_account_identity(self)
+        from hummingbot.connector.okx_account_observations import record_account_equity
+        record_account_equity(self, wallet_balance['data'][0])
 
     def _update_balance_from_details(self, balance_details: Dict[str, Any]):
         equity_text = balance_details["eq"]
@@ -963,6 +965,8 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         Updates account balances.
         :param wallet_msg: The account balance update message payload
         """
+        from hummingbot.connector.okx_account_observations import record_account_equity
+        record_account_equity(self, wallet_msg)
         for balance_detail in wallet_msg["details"]:
             self._update_balance_from_details(balance_details=balance_detail)
 

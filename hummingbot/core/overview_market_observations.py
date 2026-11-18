@@ -123,8 +123,32 @@ def _market_observation(controller, now):
     ), qualified
 
 
+def _spread_target(controller, now):
+    """Expected primary BUY/SELL width, never a newly invented admission limit."""
+    try:
+        policy = (getattr(controller, 'processed_data', None) or {}).get('spread_policy')
+        if isinstance(policy, dict) and policy.get('enabled'):
+            if policy.get('stale') or policy.get('state') not in ('static', 'dynamic', 'static_fallback'):
+                raise ValueError('spread_plan_unavailable')
+            buy, sell = policy['buy_spreads'][0], policy['sell_spreads'][0]
+            source = 'controller_spread_policy'
+        else:
+            if getattr(getattr(controller.config, 'spread_policy', None), 'enabled', False):
+                raise ValueError('spread_plan_unavailable')
+            buy, sell = controller.config.buy_spreads[0], controller.config.sell_spreads[0]
+            source = 'controller_config'
+        buy, sell = Decimal(str(buy)), Decimal(str(sell))
+        if any(not v.is_finite() or not 0 <= v < 1 for v in (buy, sell)):
+            raise ValueError('spread_plan_unavailable')
+        width = (buy + sell) / (1 + (sell - buy) / 2) * 10000
+        return _observation(dict(target_bps=_decimal_string(width), buy_distance_bps=_decimal_string(buy * 10000),
+                                 sell_distance_bps=_decimal_string(sell * 10000), basis='two_sided_primary_plan', source=source), _stamp(now))
+    except (AttributeError, KeyError, IndexError, TypeError, ValueError, ArithmeticError):
+        return _unavailable(_stamp(now), 'spread_plan_unavailable')
+
+
 def _valuation_price(controller, now):
-    """Value LIFE from its configured existing spot reference book without own-depth."""
+    """Value the configured base from its existing spot reference book without own-depth."""
     config = controller.config
     provider = controller.market_data_provider
     connector_name = config.reference_connector
@@ -195,7 +219,7 @@ def _references(controllers, session, now):
     return requested
 
 
-def _inventory_limits(controllers):
+def _inventory_limits(controllers, session, now):
     limits = []
     for controller in controllers:
         config = controller.config
@@ -211,8 +235,17 @@ def _inventory_limits(controllers):
             return _decimal_string(value)
 
         spot_limit = encoded_limit("max_base_inventory") if market == "spot" else None
+        exposure = getattr(controller, '_risk_exposure_observation', None)
+        expected = (config.id, config.connector_name, config.trading_pair, session.id, session.generation)
+        known = (isinstance(exposure, tuple) and len(exposure) == 4 and exposure[1] == expected
+                 and type(exposure[0]) in (int, float) and math.isfinite(exposure[0]) and 0 <= now - exposure[0] <= 5
+                 and all(isinstance(v, Decimal) and v.is_finite() and v >= 0 for v in exposure[2:]))
         limits.append(dict(controller_id=config.id, market=market, pair=config.trading_pair,
                            asset=config.trading_pair.split("-")[0], inventory_limit=spot_limit,
+                           long_exposure=_decimal_string(exposure[2]) if known else None,
+                           short_exposure=_decimal_string(exposure[3]) if known else None,
+                           exposure_observed_at=_stamp(exposure[0]) if known else None,
+                           exposure_basis='engine_cap_assessment' if known else None,
                            long_limit=encoded_limit("max_long_base") if market == "perpetual" else None,
                            short_limit=encoded_limit("max_short_base") if market == "perpetual" else None,
                            gross_limit=encoded_limit("max_gross_base") if market == "perpetual" else None))
@@ -241,6 +274,7 @@ def capture_overview_markets(host, *, now=None):
                           depth=_unavailable(stamp, reason), coverage=_unavailable(stamp, "rolling_coverage_history_unavailable"),
                           slippage_estimate=_unavailable(stamp, reason),
                           post_fill_recovery=_unavailable(stamp, "post_fill_recovery_history_unavailable"))
+        market['spread_target'] = _spread_target(controller, now)
         markets.append(market)
     try:
         valuation_value = []
@@ -265,7 +299,7 @@ def capture_overview_markets(host, *, now=None):
         reason = str(error) if isinstance(error, ValueError) and str(error) else "reference_observation_unavailable"
         references = _unavailable(observed_at, reason)
     try:
-        inventory_value = _inventory_limits(controllers)
+        inventory_value = _inventory_limits(controllers, session, now)
         inventory_limits = _observation(inventory_value, observed_at)
     except Exception as error:
         reason = str(error) if isinstance(error, ValueError) and str(error) else "inventory_limit_unavailable"

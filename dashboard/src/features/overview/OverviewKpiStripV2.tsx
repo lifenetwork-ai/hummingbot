@@ -1,13 +1,13 @@
 import { Surface } from '../../shared/components/Surface'
 import { cn } from '../../shared/utils/cn'
-import { formatUsdt } from '../../shared/utils/formatters'
+import { formatAmount, formatUsdt } from '../../shared/utils/formatters'
 import { BackendGapChip } from './BackendGapChip'
 import { parseAmount } from './parseAmount'
 import type { CapitalRiskView, LiquidityMarketView } from './supplement'
 
 function KpiTile({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
-    <Surface className={cn('p-3.5 sm:p-4', className)}>
+    <Surface className={cn('min-w-0 p-3.5 sm:p-4', className)}>
       <span className="text-[11px] font-medium uppercase tracking-wider text-app-muted">{label}</span>
       <div className="mt-2">{children}</div>
     </Surface>
@@ -18,7 +18,7 @@ function BigValue({ children, tone }: { children: React.ReactNode; tone?: 'defau
   return (
     <span
       className={cn(
-        'font-mono text-xl font-bold tabular-nums sm:text-2xl',
+        'min-w-0 break-words font-mono text-xl font-bold tabular-nums sm:text-2xl',
         tone === 'positive' ? 'text-emerald-500' : tone === 'negative' ? 'text-app-danger' : 'text-app-text',
       )}
     >
@@ -36,7 +36,9 @@ function MetricRow({
   target,
   onClick,
   children,
+  stacked = false,
 }: {
+  stacked?: boolean
   label: string
   target: string
   onClick?: () => void
@@ -45,7 +47,7 @@ function MetricRow({
   const content = (
     <>
       <span className="min-w-0 shrink text-[11px] font-medium uppercase tracking-wider text-app-muted">{label}</span>
-      <span className="flex shrink-0 items-baseline gap-1.5 font-mono">
+      <span className="flex min-w-0 flex-wrap items-baseline gap-1.5 font-mono">
         {children}
         <span className="text-[10px] font-normal text-app-muted">/ {target}</span>
       </span>
@@ -55,7 +57,7 @@ function MetricRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-baseline justify-between gap-2 rounded px-0.5 text-left hover:bg-app-surface-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action"
+      className={cn('flex w-full min-w-0 flex-wrap items-baseline justify-between gap-2 rounded px-0.5 text-left hover:bg-app-surface-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action', stacked && 'flex-col items-start')}
       title={`View ${label.toLowerCase()} details`}
     >
       {content}
@@ -88,11 +90,12 @@ export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liq
 
   const net = capital.netPosition
   const portfolio = capital.portfolio.available ? capital.portfolio.value : null
+  const accountEquity = capital.accountEquity?.available ? capital.accountEquity.value : null
   const delta = capital.sessionDelta.available ? capital.sessionDelta.value : null
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <KpiTile label="Spread vs target">
+      <KpiTile label="Own spread vs planned width">
         <div className="space-y-2.5">
           {liquidity.map((m) => {
             const met = m.spreadTargetBps !== null && m.spreadActualBps !== null ? m.spreadActualBps <= m.spreadTargetBps : undefined
@@ -100,15 +103,15 @@ export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liq
               <MetricRow
                 key={m.market}
                 label={m.market === 'spot' ? 'Spot' : 'Perp'}
-                target={`${m.spreadTargetBps ?? '—'} bps`}
+                target={`${m.spreadTargetBps === null ? '—' : formatAmount(String(m.spreadTargetBps), 2)} bps`}
                 onClick={() => scrollToAndFlash(`market-card-${m.market}`)}
               >
-                <BigValue tone={met === undefined ? 'default' : met ? 'positive' : 'negative'}>{m.spreadActualBps ?? '—'}</BigValue>
+                <BigValue tone={met === undefined ? 'default' : met ? 'positive' : 'negative'}>{m.spreadActualBps === null ? '—' : formatAmount(String(m.spreadActualBps), 2)}</BigValue>
                 <span className="text-[10px] font-normal text-app-muted">bps</span>
               </MetricRow>
             )
           })}
-          <TargetLine met={allSpreadsMet}>{allSpreadsMet === undefined ? spreadUnknownDetail : allSpreadsMet ? 'All markets within spread target' : 'Some markets exceed spread target'}</TargetLine>
+          <TargetLine met={allSpreadsMet}>{allSpreadsMet === undefined ? spreadUnknownDetail : allSpreadsMet ? 'Own spreads within planned width' : 'Own spreads wider than planned width'}</TargetLine>
         </div>
       </KpiTile>
 
@@ -130,6 +133,9 @@ export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liq
               </MetricRow>
             )
           })}
+          {liquidity.filter(m => m.rollingCoverageAvailable && m.fullWindow === false).map(m => (
+            <TargetLine key={m.market}>{m.market === 'spot' ? 'Spot' : 'Perp'}: collecting {Math.floor(m.why.elapsedSeconds / 60)} / 30 min</TargetLine>
+          ))}
           <div className="flex items-center gap-1.5">
             <TargetLine met={allCoverageMet}>{rollingAny ? 'Eligible rolling 30m' : 'Eligible rolling coverage unavailable'}</TargetLine>
             {!rollingAny && <BackendGapChip detail="Eligible rolling coverage data unavailable (status.overview.markets[].coverage)." />}
@@ -139,7 +145,7 @@ export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liq
 
       <KpiTile label="Net position & PnL">
         <div className="space-y-2.5">
-          <MetricRow label={net.pair ?? 'Perp'} target="perpetual" onClick={() => scrollToAndFlash('capital-risk-card')}>
+          <MetricRow stacked label={net.pair ?? 'Perp'} target="perpetual" onClick={() => scrollToAndFlash('capital-risk-card')}>
             <BigValue tone={net.side === 'LONG' ? 'positive' : net.side === 'SHORT' ? 'negative' : 'default'}>
               {!net.observed || net.amount === '—' ? '—' : net.side === 'FLAT' ? 'FLAT' : `${net.side} ${net.amount}`}
             </BigValue>
@@ -157,31 +163,24 @@ export function OverviewKpiStripV2({ liquidity, capital, onViewBalances }: { liq
       <KpiTile label="Total assets">
         <div className="space-y-2.5">
           <div className="flex items-baseline justify-between gap-2">
-            <BigValue>{portfolio ? formatUsdt(portfolio.total_usdt) : '—'}</BigValue>
+            <BigValue>{accountEquity ? `${formatAmount(accountEquity.total_usd, 2)} USD` : portfolio ? formatUsdt(portfolio.total_usdt) : '—'}</BigValue>
             {delta?.pct != null && (
               <span className={cn('font-mono text-xs font-bold', (parseAmount(delta.pct) ?? 0) >= 0 ? 'text-emerald-500' : 'text-app-danger')}>
                 {Number(delta.pct) >= 0 ? '+' : ''}{Number(delta.pct).toFixed(2)}%
               </span>
             )}
           </div>
-          {portfolio ? (
+          {accountEquity ? (
+            <TargetLine>OKX account equity · includes position PnL</TargetLine>
+          ) : portfolio ? (
             <>
-              <div>
-                <div className="flex h-2 w-full overflow-hidden rounded-pill bg-app-surface-muted" aria-hidden="true">
-                  <div
-                    className="h-full bg-app-action"
-                    style={{ width: `${((parseAmount(portfolio.life_usdt) ?? 0) / Math.max(parseAmount(portfolio.total_usdt) ?? 1, 1)) * 100}%` }}
-                  />
-                </div>
-                <div className="mt-1 flex justify-between text-[10px] text-app-muted">
-                  <span>LIFE <span className="font-mono text-app-text">{formatUsdt(portfolio.life_usdt)}</span></span>
-                  <span>USDT <span className="font-mono text-app-text">{formatUsdt(portfolio.usdt)}</span></span>
-                </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-app-muted">
+                {(portfolio.assets ?? []).map(asset => <span key={asset.asset}>{asset.asset} <span className="font-mono text-app-text">{formatUsdt(asset.value_usdt)}</span></span>)}
               </div>
               <TargetLine>Valued at {portfolio.valuation.valuation_mark}{delta && !delta.adjusted_for_transfers && ' · transfers not adjusted'}</TargetLine>
             </>
           ) : (
-            <TargetLine>Portfolio valuation unavailable</TargetLine>
+            <TargetLine>Account valuation unavailable · check balances</TargetLine>
           )}
           {onViewBalances && <button type="button" onClick={onViewBalances} className="min-h-11 rounded-button px-2 text-xs font-medium text-app-action hover:bg-app-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action">View balances →</button>}
         </div>

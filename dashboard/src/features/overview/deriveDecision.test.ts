@@ -51,6 +51,13 @@ const baseCapital: CapitalRiskView = {
 }
 
 describe('deriveDecision', () => {
+  it('keeps missing actual or planned spreads unknown', () => {
+    for (const values of [{ spreadActualBps: null }, { spreadTargetBps: null }]) {
+      const row = deriveDecision([metMarket(values)], baseCapital).rows[0]
+      expect(row.verdict).toBe('unknown')
+      expect(row.note).not.toContain('above')
+    }
+  })
   it('marks liquidity rows met when all markets meet spread & coverage targets', () => {
     const d = deriveDecision([metMarket(), metMarket({ market: 'perpetual' })], baseCapital)
     expect(d.rows.find((r) => r.goal === 'Trade facilitation')?.verdict).toBe('met')

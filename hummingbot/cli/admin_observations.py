@@ -17,6 +17,9 @@ def capture_reporting(core, previous):
             result[key] = result[key].copy()
     connectors = core.connector_manager.connectors
     result["active_connectors"] = sorted(connectors)
+    result['account_equities'] = [dict(observation, connector=name) for name, connector in connectors.items()
+                                  if name in ('okx', 'okx_perpetual')
+                                  and isinstance(observation := getattr(connector, 'account_equity_observation', None), dict)]
     result["active_account_bindings"] = {
         name: dict(account_id=getattr(connector, "account_uid", None),
                    environment=getattr(connector, "trading_environment", None))

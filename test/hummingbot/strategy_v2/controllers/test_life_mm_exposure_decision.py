@@ -105,3 +105,19 @@ async def test_queue_await_does_not_keep_a_stale_snapshot_for_a_later_public_che
     finally:
         release.set()
         await asyncio.wait_for(task, 1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('name', ['okx', 'okx_perpetual'])
+async def test_reporting_cache_matches_cap_input_and_clears_failed_evaluation(name):
+    controller = await working_controller(name)
+    expected = controller._exposure()
+    stamp, identity, long, short = controller._risk_exposure_observation
+    assert (long, short) == expected
+    assert stamp == controller.market_data_provider.time()
+    assert identity == (controller.config.id, name, controller.config.trading_pair,
+                        controller.config.mm_session_id, controller.config.mm_generation)
+    with patch.object(controller, '_calculate_exposure', side_effect=RuntimeError('source unavailable')):
+        with pytest.raises(RuntimeError):
+            controller._exposure()
+    assert controller._risk_exposure_observation is None

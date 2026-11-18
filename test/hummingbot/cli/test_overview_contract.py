@@ -22,7 +22,7 @@ def test_overview_covers_all_requested_groups_and_serializes_money_as_strings():
         'risk_rules', 'markets', 'balances', 'inventory_limits', 'references',
     }
     assert set(schemas['OverviewSessionOutput']['properties']) == {
-        'capital_allocated', 'fees', 'delta', 'benchmark_hold',
+        'capital_allocated', 'fees', 'delta', 'benchmark_hold', 'quote_budget',
     }
     assert set(schemas['OverviewMarketDataOutput']['properties']) >= {
         'depth', 'coverage', 'slippage_estimate', 'post_fill_recovery',

@@ -890,6 +890,19 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         return [level for level in levels if level not in pending_levels]
 
     def _exposure(self):
+        # Publish the exact guard input, not a second reporting-time scan. The
+        # reduction source can reconcile queued entries, so collectors must not call it.
+        self._risk_exposure_observation = None
+        long, short = self._calculate_exposure()
+        now = self.market_data_provider.time()
+        if (isinstance(now, (int, float)) and not isinstance(now, bool) and math.isfinite(now)
+                and all(isinstance(v, Decimal) and v.is_finite() and v >= 0 for v in (long, short))):
+            identity = (self.config.id, self.config.connector_name, self.config.trading_pair,
+                        self.config.mm_session_id, self.config.mm_generation)
+            self._risk_exposure_observation = (now, identity, long, short)
+        return long, short
+
+    def _calculate_exposure(self):
         if self.reduction_enabled:
             return self._reduction_exposure()
         connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)

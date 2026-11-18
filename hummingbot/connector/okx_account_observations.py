@@ -58,3 +58,12 @@ def record_balance_details(connector, details):
     event = getattr(connector, 'account_balance_update_event', None)
     if isinstance(event, asyncio.Event):
         event.set()  # Progress only; consumers must independently validate cash/freshness.
+
+
+def record_account_equity(connector, payload):
+    """Read totalEq from the existing REST/WS payload; no requests or balance changes."""
+    value = optional_decimal(payload.get('totalEq'))
+    connector.account_equity_observation = None if value is None else dict(
+        total_equity_usd=value, observed_at=time.time(), account_id=getattr(connector, 'account_uid', None),
+        environment=getattr(connector, 'trading_environment', None),
+        site=getattr(getattr(connector, 'okx_environment', None), 'site', None), source='okx_account_balance_total_eq')

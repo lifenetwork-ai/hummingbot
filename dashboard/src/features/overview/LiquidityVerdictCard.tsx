@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react'
 import { Badge } from '../../shared/components/Badge'
 import { Surface } from '../../shared/components/Surface'
 import { cn } from '../../shared/utils/cn'
-import { formatDuration, formatPrice, formatUsdt } from '../../shared/utils/formatters'
+import { formatAmount, formatDuration, formatPrice, formatUsdt } from '../../shared/utils/formatters'
 import { BackendGapChip } from './BackendGapChip'
 import { parseAmount } from './parseAmount'
 import type { LiquidityMarketView } from './supplement'
@@ -59,11 +59,11 @@ function MarketVerdict({ market, mode }: { market: LiquidityMarketView; mode: De
         <div className="flex items-baseline justify-between gap-2 text-xs">
           <span className="font-mono text-base font-bold text-emerald-500">{market.bestBid ? formatPrice(market.bestBid) : '—'}</span>
           <span className="flex items-baseline gap-1.5 whitespace-nowrap">
-            <span className="text-[10px] uppercase tracking-wider text-app-muted">Own quotes</span>
-            <span className={cn('font-mono text-xs font-bold', spreadMet ? 'text-emerald-500' : 'text-rose-500')}>
-              {market.spreadActualBps ?? '—'} bps
+            <span className="text-[10px] uppercase tracking-wider text-app-muted">Own spread / plan</span>
+            <span className={cn('font-mono text-xs font-bold', market.spreadActualBps === null || market.spreadTargetBps === null ? 'text-app-muted' : spreadMet ? 'text-emerald-500' : 'text-rose-500')}>
+              {market.spreadActualBps === null ? '—' : formatAmount(String(market.spreadActualBps), 2)} bps
             </span>
-            <span className="text-[10px] text-app-muted">/ {market.spreadTargetBps ?? '—'}</span>
+            <span className="text-[10px] text-app-muted">/ {market.spreadTargetBps === null ? '—' : formatAmount(String(market.spreadTargetBps), 2)}</span>
           </span>
           <span className="font-mono text-base font-bold text-rose-500">{market.bestAsk ? formatPrice(market.bestAsk) : '—'}</span>
         </div>
@@ -71,7 +71,7 @@ function MarketVerdict({ market, mode }: { market: LiquidityMarketView; mode: De
         <div
           className="relative mt-1.5 flex h-9 w-full items-stretch rounded-card bg-app-surface-muted/30"
           role="img"
-          aria-label={`Ladder ${market.pair ?? market.market}: bid ${market.bestBid ?? '—'}, ask ${market.bestAsk ?? '—'}, spread ${market.spreadActualBps ?? '—'} bps (target ${market.spreadTargetBps ?? '—'} bps)`}
+          aria-label={`Ladder ${market.pair ?? market.market}: bid ${market.bestBid ?? '—'}, ask ${market.bestAsk ?? '—'}, spread ${market.spreadActualBps === null ? '—' : formatAmount(String(market.spreadActualBps), 2)} bps (target ${market.spreadTargetBps ?? '—'} bps)`}
         >
           <div className="flex w-1/2 justify-end">
             <div

@@ -3,9 +3,10 @@ import { ArrowUpRight } from 'lucide-react'
 import { Badge } from '../../shared/components/Badge'
 import { Surface } from '../../shared/components/Surface'
 import { cn } from '../../shared/utils/cn'
+import { formatAssetAmount } from '../../shared/utils/formatters'
 import { BackendGapChip } from './BackendGapChip'
 import { parseAmount } from './parseAmount'
-import { formatPriceForDisplay, formatQuantityForDisplay, formatUsdtForDisplay } from './formatNumbers'
+import { formatPriceForDisplay, formatUsdtForDisplay } from './formatNumbers'
 import type { DetailMode } from './LiquidityVerdictCard'
 import type { CapitalRiskView, MandateLimitRow } from './supplement'
 
@@ -34,8 +35,8 @@ export function CapitalRiskCard({ view, mode, riskLimits = [], onOpenRiskGuards 
           const liqDisplay = formatPriceForDisplay(p.liqPrice)
           const pnlDisplay = formatUsdtForDisplay(p.pnlUsdt, true)
           const marginDisplay = formatUsdtForDisplay(p.marginUsdt)
-          const amountDisplay = formatQuantityForDisplay(p.amount)
-          const limitDisplay = formatQuantityForDisplay(p.inventoryLimit)
+          const amountDisplay = formatAssetAmount(p.amount, p.pair.split('-')[0])
+          const limitDisplay = formatAssetAmount(p.inventoryLimit, p.pair.split('-')[0])
           const amountNum = parseAmount(p.amount) ?? 0
           const limitNum = parseAmount(p.inventoryLimit) ?? 0
           const inventoryPct = limitNum > 0 ? Math.min(100, (amountNum / limitNum) * 100) : null
@@ -43,7 +44,7 @@ export function CapitalRiskCard({ view, mode, riskLimits = [], onOpenRiskGuards 
             <div key={`${p.market}-${p.pair}-${p.side}`} className="mt-2 text-xs">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="font-semibold text-app-text">{p.market} · <span className={p.side === 'LONG' ? 'text-emerald-500' : 'text-rose-500'}>{p.side}</span></span>
-                <span className="font-mono text-base font-bold text-app-text">{amountDisplay ?? '—'} {p.pair.split('-')[0]}</span>
+                <span className="font-mono text-base font-bold text-app-text">{amountDisplay ?? '—'}</span>
               </div>
               <div className="mt-1.5 space-y-0.5 font-mono text-[10px] text-app-muted">
                 <p>
@@ -62,7 +63,7 @@ export function CapitalRiskCard({ view, mode, riskLimits = [], onOpenRiskGuards 
               {/* Mức dùng hạn mức tồn kho */}
               <div className="mt-2">
                 <div className="flex items-baseline justify-between text-[10px] text-app-muted">
-                  <span>Inventory / limit</span>
+                  <span>Position / side cap</span>
                   <span className="font-mono text-app-text">
                     {amountDisplay ?? '—'} / {limitDisplay ?? '—'}
                     {inventoryPct !== null ? ` (${Math.round(inventoryPct)}%)` : ''}
@@ -150,7 +151,7 @@ export function CapitalRiskCard({ view, mode, riskLimits = [], onOpenRiskGuards 
           </Badge>
         </div>
         <p className="mt-2 text-xs leading-relaxed text-app-text">{c.guardsSummary.headline}</p>
-        <p className="mt-1 font-mono text-[10px] text-app-muted">{c.guardsSummary.violationCount}/{c.guardsSummary.totalCount} limits touched</p>
+        <p className="mt-1 font-mono text-[10px] text-app-muted">{c.guardsSummary.violationCount} breaches · {c.guardsSummary.unknownCount ?? 0} unverified / {c.guardsSummary.totalCount} limits</p>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -174,10 +175,10 @@ export function CapitalRiskCard({ view, mode, riskLimits = [], onOpenRiskGuards 
           <ul className="mt-2 space-y-1 border-t border-app-border/40 pt-2 text-[10px]">
             {riskLimits.length === 0 && <li className="text-app-muted">No risk rules data</li>}
             {riskLimits.map((limit) => (
-              <li key={limit.ruleId} className="flex items-baseline justify-between gap-2">
-                <span className="text-app-muted">{limit.ruleId}</span>
+              <li key={`${limit.ruleId}:${limit.controllerId ?? 'global'}:${limit.market ?? 'all'}`} title={limit.unavailableReason ?? undefined} className="flex items-baseline justify-between gap-2">
+                <span className="text-app-muted">{limit.market ? `${limit.market === 'spot' ? 'Spot' : 'Perp'} · ` : ''}{limit.ruleId}</span>
                 <span className={cn('font-mono', limit.status === 'violated' ? 'font-bold text-app-danger' : 'text-app-text')}>
-                  {limit.current ?? '—'} <span className="text-app-muted">/ {limit.limit ?? '—'} {limit.unit}</span>
+                  {formatAssetAmount(limit.current, limit.unit)} <span className="text-app-muted">/ {formatAssetAmount(limit.limit, limit.unit)}</span>
                 </span>
               </li>
             ))}

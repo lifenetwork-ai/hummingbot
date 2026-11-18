@@ -5315,6 +5315,33 @@
         "title": "OrdersPage",
         "type": "object"
       },
+      "OverviewAccountEquityOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "const": "USD",
+            "default": "USD",
+            "title": "Currency",
+            "type": "string"
+          },
+          "source": {
+            "const": "okx_account_balance_total_eq",
+            "title": "Source",
+            "type": "string"
+          },
+          "total_usd": {
+            "description": "Whole-account totalEq from OKX, once; not USDT, free cash or allocated capital. Includes venue position PnL already.",
+            "title": "Total Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "total_usd",
+          "source"
+        ],
+        "title": "OverviewAccountEquity",
+        "type": "object"
+      },
       "OverviewAccountScopeOutput": {
         "additionalProperties": false,
         "properties": {
@@ -5592,6 +5619,32 @@
             "title": "Controller Id",
             "type": "string"
           },
+          "exposure_basis": {
+            "anyOf": [
+              {
+                "const": "engine_cap_assessment",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exposure Basis"
+          },
+          "exposure_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exposure Observed At"
+          },
           "gross_limit": {
             "anyOf": [
               {
@@ -5616,6 +5669,18 @@
             "description": "Null if policy defines no absolute quantity limit.",
             "title": "Inventory Limit"
           },
+          "long_exposure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Long Exposure"
+          },
           "long_limit": {
             "anyOf": [
               {
@@ -5639,6 +5704,18 @@
           "pair": {
             "title": "Pair",
             "type": "string"
+          },
+          "short_exposure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Short Exposure"
           },
           "short_limit": {
             "anyOf": [
@@ -5693,6 +5770,9 @@
           },
           "slippage_estimate": {
             "$ref": "#/components/schemas/OverviewObservation_OverviewSlippage_Output"
+          },
+          "spread_target": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewSpreadTarget_Output"
           }
         },
         "required": [
@@ -5728,6 +5808,56 @@
           "total_usdt"
         ],
         "title": "OverviewMarketFees",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewAccountEquity_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewAccountEquityOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewAccountEquity]",
         "type": "object"
       },
       "OverviewObservation_OverviewCapitalAllocated_Output": {
@@ -5980,6 +6110,56 @@
         "title": "OverviewObservation[OverviewPostFillRecovery]",
         "type": "object"
       },
+      "OverviewObservation_OverviewQuoteBudget_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewQuoteBudgetOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewQuoteBudget]",
+        "type": "object"
+      },
       "OverviewObservation_OverviewRollingCoverage_Output": {
         "additionalProperties": false,
         "properties": {
@@ -6178,6 +6358,56 @@
           "unavailable_reason"
         ],
         "title": "OverviewObservation[OverviewSlippage]",
+        "type": "object"
+      },
+      "OverviewObservation_OverviewSpreadTarget_Output": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewSpreadTargetOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "observed_at",
+          "stale",
+          "unavailable_reason"
+        ],
+        "title": "OverviewObservation[OverviewSpreadTarget]",
         "type": "object"
       },
       "OverviewObservation_list_OverviewInventoryLimit__Output": {
@@ -6396,9 +6626,41 @@
         "title": "OverviewObservation[list[OverviewRiskRule]]",
         "type": "object"
       },
+      "OverviewPortfolioAssetOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "pattern": "^[A-Z0-9][A-Z0-9._]{0,31}$",
+            "title": "Asset",
+            "type": "string"
+          },
+          "equity": {
+            "title": "Equity",
+            "type": "string"
+          },
+          "value_usdt": {
+            "title": "Value Usdt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset",
+          "equity",
+          "value_usdt"
+        ],
+        "title": "OverviewPortfolioAsset",
+        "type": "object"
+      },
       "OverviewPortfolioOutput": {
         "additionalProperties": false,
         "properties": {
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewPortfolioAssetOutput"
+            },
+            "title": "Assets",
+            "type": "array"
+          },
           "life_usdt": {
             "title": "Life Usdt",
             "type": "string"
@@ -6505,6 +6767,63 @@
           "p95_seconds"
         ],
         "title": "OverviewPostFillRecovery",
+        "type": "object"
+      },
+      "OverviewQuoteBudgetMarketOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "budget_usdt": {
+            "title": "Budget Usdt",
+            "type": "string"
+          },
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          }
+        },
+        "required": [
+          "market",
+          "budget_usdt"
+        ],
+        "title": "OverviewQuoteBudgetMarket",
+        "type": "object"
+      },
+      "OverviewQuoteBudgetOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "const": "configured_working_orders_notional",
+            "default": "configured_working_orders_notional",
+            "title": "Basis",
+            "type": "string"
+          },
+          "by_market": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewQuoteBudgetMarketOutput"
+            },
+            "title": "By Market",
+            "type": "array"
+          },
+          "source": {
+            "const": "pinned_session_catalogue",
+            "title": "Source",
+            "type": "string"
+          },
+          "total_usdt": {
+            "title": "Total Usdt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "total_usdt",
+          "by_market",
+          "source"
+        ],
+        "title": "OverviewQuoteBudget",
         "type": "object"
       },
       "OverviewReferencePriceOutput": {
@@ -6663,6 +6982,18 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Unavailable Reason"
           },
           "unit": {
             "pattern": "^(?:[A-Z0-9][A-Z0-9._]{0,31}|fraction|seconds|bps)$",
@@ -7091,6 +7422,9 @@
           },
           "fees": {
             "$ref": "#/components/schemas/OverviewObservation_OverviewSessionFees_Output"
+          },
+          "quote_budget": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewQuoteBudget_Output"
           }
         },
         "required": [
@@ -7182,10 +7516,52 @@
         "title": "OverviewSlippage",
         "type": "object"
       },
+      "OverviewSpreadTargetOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "const": "two_sided_primary_plan",
+            "title": "Basis",
+            "type": "string"
+          },
+          "buy_distance_bps": {
+            "title": "Buy Distance Bps",
+            "type": "string"
+          },
+          "sell_distance_bps": {
+            "title": "Sell Distance Bps",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "controller_spread_policy",
+              "controller_config"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "target_bps": {
+            "title": "Target Bps",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_bps",
+          "buy_distance_bps",
+          "sell_distance_bps",
+          "basis",
+          "source"
+        ],
+        "title": "OverviewSpreadTarget",
+        "type": "object"
+      },
       "OverviewSupplementOutput": {
         "additionalProperties": false,
         "description": "Account/session observations only; never changes quote, sizing or risk enforcement.",
         "properties": {
+          "account_equity": {
+            "$ref": "#/components/schemas/OverviewObservation_OverviewAccountEquity_Output"
+          },
           "account_scope": {
             "$ref": "#/components/schemas/OverviewAccountScopeOutput"
           },

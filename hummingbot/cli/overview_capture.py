@@ -63,7 +63,7 @@ def capture_overview(host, *, now=None, monotonic_now=None):
             market['slippage_estimate'] = _unknown('private_observation_unavailable', now)
         if synchronized:
             try:
-                market['coverage'] = dict(value=rolling_coverage(frame, name, now=now), observed_at=now,
+                market['coverage'] = dict(value=rolling_coverage(frame, name, now=now, target_fraction=.99), observed_at=now,
                                           stale=False, unavailable_reason=None)
             except (ValueError, TypeError, ArithmeticError):
                 market['coverage'] = _unknown('rolling_coverage_history_unavailable', now)

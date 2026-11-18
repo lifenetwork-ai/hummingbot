@@ -422,6 +422,30 @@ own spread is unavailable, not a measured spread-target violation. Missing
 portfolio valuation, capital mandate or risk exposure remains missing; quote
 budget is not a substitute for account capital.
 
+Overview reporting details (`status.overview`):
+
+- `markets[].spread_target` supplies the effective primary BUY/SELL planned
+  **two-sided** width in bps, with source and basis. Compare own bid–ask width
+  against that value, not against one side's configured offset. It is a pricing
+  reference, not a maximum-spread risk limit. Missing/stale plans remain unknown.
+- Coverage publishes the approved 99% eligible-time SLO. Until `full_window`
+  and `measurement_ready` are true with eligible time, show collecting progress
+  toward 30 minutes, never a qualified pass. Restricted/unknown time stays separate.
+- Risk rows retain `controller_id` and `market`; identify each row by all three
+  of rule/controller/market. Count `violated` and `unknown` separately. Inventory
+  currents use fresh `engine_cap_assessment` exposure, including pending opening
+  reservations; these are cap inputs, not merely settled positions. Missing
+  exposure has a reason and null current while the configured limit stays visible.
+- `session.quote_budget` is selected markets' configured order notional from the
+  pinned session catalogue. It is separate from `capital_allocated`, which stays
+  unavailable when no capital mandate exists.
+- `account_equity` is OKX whole-account `totalEq`, explicitly **USD**, from existing
+  REST/WS balance observations, bound to verified account/environment/site. Render
+  once across Spot/Perpetual and do not add position PnL again or label it USDT.
+  Inactive/older-than-60s/conflicting sources remain unavailable. The USDT-valued
+  `portfolio` remains separate; `assets[]` lists actual currencies with complete
+  fresh price coverage. Never relabel BTC as LIFE or present a partial total.
+
 Cache only static metadata: backend pair/asset parsing uses a bounded 128-entry
 cache of immutable tuples. It performs no venue/DB reads and caches no balances,
 readiness, account binding or trading rules. The FE reuses the existing shared

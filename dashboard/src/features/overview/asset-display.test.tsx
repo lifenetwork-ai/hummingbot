@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { completionOverview } from '../../test/mocks/completionFixtures'
+import type { OverviewSupplementSchemas } from './supplement-contract'
 import type { OverviewModel } from './model'
 import { deriveCapitalRisk, deriveLiquidity } from './supplement'
 import { OverviewKpiStripV2 } from './OverviewKpiStripV2'
@@ -32,7 +33,7 @@ describe('asset-aware overview', () => {
   it('does not call a missing own spread an exceeded target', () => {
     const liquidity = deriveLiquidity(completionOverview, null).map(market => ({ ...market, spreadActualBps: null, spreadTargetBps: 8 }))
     render(<OverviewKpiStripV2 capital={deriveCapitalRisk(completionOverview, null)} liquidity={liquidity} />)
-    expect(screen.queryByText('Some markets exceed spread target')).not.toBeInTheDocument()
+    expect(screen.queryByText('Own spreads wider than planned width')).not.toBeInTheDocument()
     expect(screen.getByText('Spread unavailable — two working sides required')).toBeInTheDocument()
   })
   it('distinguishes a missing spread target from a measured violation', () => {
@@ -40,9 +41,9 @@ describe('asset-aware overview', () => {
     const markets = deriveLiquidity(completionOverview, null)
     const { rerender } = render(<OverviewKpiStripV2 capital={capital} liquidity={markets.map(market => ({ ...market, spreadActualBps: 4, spreadTargetBps: null }))} />)
     expect(screen.getByText('Spread target unavailable')).toBeInTheDocument()
-    expect(screen.queryByText('Some markets exceed spread target')).not.toBeInTheDocument()
+    expect(screen.queryByText('Own spreads wider than planned width')).not.toBeInTheDocument()
     rerender(<OverviewKpiStripV2 capital={capital} liquidity={markets.map(market => ({ ...market, spreadActualBps: 12, spreadTargetBps: 8 }))} />)
-    expect(screen.getByText('Some markets exceed spread target')).toBeInTheDocument()
+    expect(screen.getByText('Own spreads wider than planned width')).toBeInTheDocument()
   })
   it('normalizes signed hedge legs and preserves tiny net exposure', () => {
     const markets = positions('BTC-USDT', '0.0498')
@@ -53,4 +54,27 @@ describe('asset-aware overview', () => {
       .toMatchObject({ side: 'LONG', amount: '0.00000001 BTC', observed: true })
   })
 
+})
+
+
+it('renders account equity as USD with an explicit source, never as USDT', () => {
+  const capital = { ...deriveCapitalRisk(completionOverview, null), accountEquity: { available: true as const, observedAt: '2026-11-18T00:00:00Z', stale: false, value: { total_usd: '12345.67', currency: 'USD' as const, source: 'okx_account_balance_total_eq' as const } } }
+  render(<OverviewKpiStripV2 capital={capital} liquidity={[]} />)
+  expect(screen.getByText('12,345.67 USD')).toBeInTheDocument()
+  expect(screen.getByText('OKX account equity · includes position PnL')).toBeInTheDocument()
+  expect(screen.queryByText('12,345.67 USDT')).not.toBeInTheDocument()
+})
+
+it('uses the BE two-sided spread plan and does not round before comparison', () => {
+  const unknown = { value: null, observed_at: null, stale: false, unavailable_reason: 'not_observed' }
+  const market: OverviewSupplementSchemas['OverviewMarketDataOutput'] = { market: 'spot', pair: 'LIFE-USDT', connector: 'okx', depth: unknown, coverage: unknown, slippage_estimate: unknown, post_fill_recovery: unknown, spread_target: { observed_at: '2026-11-18T00:00:00Z', stale: false, unavailable_reason: null, value: { target_bps: '16.01', buy_distance_bps: '8', sell_distance_bps: '8.01', basis: 'two_sided_primary_plan', source: 'controller_spread_policy' } } }
+  const data: OverviewSupplementSchemas['OverviewSupplementOutput'] = { contract_version: 1, server_time: '2026-11-18T00:00:00Z', session_id: null, session_started_at: null, account_scope: { account_ids: [], environment: null, site: null, identity_verified: false }, markets: [market], session: { capital_allocated: unknown, delta: unknown, fees: unknown, benchmark_hold: unknown }, portfolio: unknown, risk_rules: unknown, balances: unknown, inventory_limits: unknown, references: unknown }
+  const liquidity = deriveLiquidity({ ...completionOverview, markets: completionOverview.markets.map(m => ({ ...m, ownSpreadBps: '16.04' })) }, data)
+  expect(liquidity[0]).toMatchObject({ spreadTargetBps: 16.01, spreadActualBps: 16.04 })
+  const { rerender } = render(<OverviewKpiStripV2 capital={deriveCapitalRisk(completionOverview, null)} liquidity={liquidity} />)
+  expect(screen.getByText('Own spreads wider than planned width')).toBeInTheDocument()
+  market.spread_target!.stale = true
+  expect(deriveLiquidity(completionOverview, data)[0].spreadTargetBps).toBeNull()
+  rerender(<OverviewKpiStripV2 capital={deriveCapitalRisk(completionOverview, null)} liquidity={liquidity.map(m => ({ ...m, fullWindow: false, rollingCoverageAvailable: true, why: { ...m.why, elapsedSeconds: 845 } }))} />)
+  expect(screen.getByText('Spot: collecting 14 / 30 min')).toBeInTheDocument()
 })

@@ -1,9 +1,8 @@
 import { cn } from '../../shared/utils/cn'
-import { formatAssetAmount } from '../../shared/utils/formatters'
+import { formatAssetAmount, formatUsdt } from '../../shared/utils/formatters'
 import { Badge } from '../../shared/components/Badge'
 import { Surface } from '../../shared/components/Surface'
 import { SessionCountdownRing } from './SessionCountdownRing'
-import { BackendGapChip } from './BackendGapChip'
 import type { GuardsSummary, MandateView } from './supplement'
 
 /**
@@ -64,23 +63,13 @@ export function MandateBar({
           <dt className="text-[10px] font-medium uppercase tracking-wider text-app-muted">Market</dt>
           <dd className="mt-0.5 font-mono font-bold text-app-text">{m.marketMode}</dd>
         </div>
-        <div>
-          <dt className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-app-muted">
-            Allocated capital
-            {!m.capitalAllocated.available && (
-              <BackendGapChip detail={m.capitalAllocated.reason ?? 'Allocated capital not provided yet (OverviewSupplement.session.capital_allocated).'} />
-            )}
-            {m.capitalAllocated.available && m.capitalAllocated.stale && <Badge tone="warning" className="text-[9px]">STALE</Badge>}
-          </dt>
+        <div className="min-w-0">
+          <dt className="text-[10px] font-medium uppercase tracking-wider text-app-muted">Quote budget</dt>
           <dd className="mt-0.5 font-mono font-bold text-app-text">
-            {m.capitalAllocated.available ? (
-              <>
-                {m.capitalAllocated.value.usdt} USDT
-                <span className="block text-[10px] font-normal text-app-muted">{m.capitalAllocated.value.life} LIFE</span>
-              </>
-            ) : (
-              '—'
-            )}
+            {m.quoteBudget?.available ? formatUsdt(m.quoteBudget.value.total_usdt) : '—'}
+          </dd>
+          <dd className="mt-1 text-[10px] text-app-muted">
+            Configured order notional · allocated capital {m.capitalAllocated.available ? formatUsdt(m.capitalAllocated.value.usdt) : 'not configured'}
           </dd>
         </div>
         <div className="col-span-2 sm:col-span-3 lg:col-span-3">
@@ -88,8 +77,8 @@ export function MandateBar({
           <dd className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
             {m.riskLimits.length === 0 && <span className="text-[11px] text-app-muted">No risk rules data</span>}
             {m.riskLimits.map((limit) => (
-              <span key={limit.ruleId} className={cn('font-mono text-[11px]', limit.status === 'violated' ? 'font-bold text-app-danger' : limit.status === 'unknown' ? 'text-app-warning' : 'text-app-text')}>
-                {limit.ruleId}: <span className="text-app-muted" title={limit.limit ?? undefined}>{formatAssetAmount(limit.limit, limit.unit)}</span> → <span title={limit.current ?? undefined}>{formatAssetAmount(limit.current, limit.unit)}</span>
+              <span key={`${limit.ruleId}:${limit.controllerId ?? 'global'}:${limit.market ?? 'all'}`} title={limit.unavailableReason ?? limit.controllerId ?? undefined} className={cn('font-mono text-[11px]', limit.status === 'violated' ? 'font-bold text-app-danger' : limit.status === 'unknown' ? 'text-app-warning' : 'text-app-text')}>
+                {limit.market ? `${limit.market === 'spot' ? 'Spot' : 'Perp'} · ` : ''}{limit.ruleId}: <span className="text-app-muted" title={limit.limit ?? undefined}>{formatAssetAmount(limit.limit, limit.unit)}</span> → <span title={limit.current ?? undefined}>{formatAssetAmount(limit.current, limit.unit)}</span>
               </span>
             ))}
           </dd>
@@ -98,7 +87,7 @@ export function MandateBar({
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-app-border/50 pt-3">
         <span className={cn('text-[11px] font-semibold', guards.status === 'ok' ? 'text-app-success' : guards.status === 'attention' ? 'text-app-warning' : 'text-app-danger')}>
-          Guards: {guards.status === 'ok' ? 'Stable' : guards.status === 'attention' ? 'Watch' : 'Intervention needed'} ({guards.violationCount}/{guards.totalCount})
+          Guards: {guards.violationCount} breaches · {guards.unknownCount ?? 0} unverified / {guards.totalCount} limits
         </span>
       </div>
     </Surface>

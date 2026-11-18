@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { OverviewSupplementSchemas } from './supplement-contract'
 import { deriveOverview } from './model'
-import { deriveCapitalRisk } from './supplement'
+import { deriveCapitalRisk, deriveMandate } from './supplement'
 
 type Supplement = OverviewSupplementSchemas['OverviewSupplementOutput']
 const unknown = { value: null, stale: true, observed_at: null, unavailable_reason: 'unavailable' }
@@ -16,7 +16,7 @@ function supplement(): Supplement {
     portfolio: unknown, balances: unknown, inventory_limits: unknown, references: unknown, markets: [],
     risk_rules: { observed_at: '2026-11-13T00:00:00Z', stale: false, unavailable_reason: null,
       value: [{ controller_id: null, market: null, rule_id: 'drawdown_global', unit: 'USDT',
-        lower_limit: null, upper_limit: '50', current: '12', status: 'ok' }] },
+        lower_limit: null, upper_limit: '50', current: '12', status: 'ok', unavailable_reason: null }] },
   }
 }
 
@@ -63,4 +63,27 @@ describe('supplement risk completeness', () => {
     data.session.fees = { ...data.session.fees, stale: true, unavailable_reason: 'refreshing' }
     expect(deriveCapitalRisk(model, data).fees).toMatchObject({ available: true, stale: true })
   })
+})
+
+it('counts unknown guards separately from breaches', () => {
+  const data = supplement()
+  data.risk_rules.value!.push({ ...data.risk_rules.value![0], rule_id: 'inventory_long', controller_id: 'perp', market: 'perpetual', status: 'unknown', current: null })
+  expect(deriveCapitalRisk(model, data).guardsSummary).toMatchObject({ violationCount: 0, unknownCount: 1, checkedCount: 1, status: 'attention' })
+})
+
+it('does not claim guards stable before any observation', () => {
+  expect(deriveCapitalRisk(model, null).guardsSummary.status).toBe('attention')
+})
+
+
+it('preserves controller scope, pinned quote budget and separate USD equity', () => {
+  const data = supplement()
+  data.risk_rules.value![0].controller_id = 'spot-controller'
+  data.risk_rules.value![0].market = 'spot'
+  data.session.quote_budget = { value: { total_usdt: '200', by_market: [{ market: 'spot', budget_usdt: '100' }, { market: 'perpetual', budget_usdt: '100' }], source: 'pinned_session_catalogue', basis: 'configured_working_orders_notional' }, observed_at: data.server_time, stale: false, unavailable_reason: null }
+  data.account_equity = { value: { total_usd: '12345.67', currency: 'USD', source: 'okx_account_balance_total_eq' }, observed_at: data.server_time, stale: false, unavailable_reason: null }
+  expect(deriveMandate(model, data)).toMatchObject({ quoteBudget: { available: true, value: { total_usdt: '200' } }, capitalAllocated: { available: false }, riskLimits: [{ controllerId: 'spot-controller', market: 'spot' }] })
+  expect(deriveCapitalRisk(model, data).accountEquity).toMatchObject({ available: true, value: { total_usd: '12345.67', currency: 'USD' } })
+  data.account_equity.stale = true
+  expect(deriveCapitalRisk(model, data).accountEquity).toMatchObject({ available: false })
 })

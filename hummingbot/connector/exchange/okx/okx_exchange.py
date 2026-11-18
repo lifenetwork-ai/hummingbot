@@ -290,6 +290,8 @@ class OkxExchange(ExchangePyBase):
         if self._trading_required:
             from hummingbot.connector.okx_account_observations import observe_account_identity
             await observe_account_identity(self)
+        from hummingbot.connector.okx_account_observations import record_account_equity
+        record_account_equity(self, msg['data'][0])
 
     def _update_balance_from_details(self, balance_details: Dict[str, Any]):
         equity_text = balance_details["eq"]
@@ -456,6 +458,8 @@ class OkxExchange(ExchangePyBase):
 
                 elif channel == CONSTANTS.OKX_WS_ACCOUNT_CHANNEL:
                     for data in stream_message.get("data", []):
+                        from hummingbot.connector.okx_account_observations import record_account_equity
+                        record_account_equity(self, data)
                         for details in data.get("details", []):
                             self._update_balance_from_details(balance_details=details)
 

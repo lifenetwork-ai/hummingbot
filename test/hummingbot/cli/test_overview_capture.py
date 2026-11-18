@@ -30,7 +30,7 @@ def test_capture_combines_market_coverage_and_recovery_without_control_calls():
     market = result['markets'][0]
     assert market['coverage']['value']['observed_seconds'] == 2
     assert market['coverage']['value']['unknown_seconds'] == 8
-    assert market['coverage']['value']['target_fraction'] is None
+    assert market['coverage']['value']['target_fraction'] == .99
     assert market['post_fill_recovery']['value']['history_complete'] is False
     assert market['post_fill_recovery']['value']['p50_seconds'] is None
     assert result['valuation_prices']['value'][0]['price_usdt'] == '100.00'

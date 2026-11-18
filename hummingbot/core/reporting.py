@@ -27,4 +27,12 @@ def reporting_view(row):
     performance = list(reporting.get("performance", {}).values())
     for item in performance:
         item["stale"] = item["controller_id"] not in reporting.get("ready_controller_ids", []) or stale(item["observed_at"], item["connector"])
-    return dict(server_time=now, owner_available=available, accounts=accounts, positions=positions, performance=performance)
+    raw_equities = reporting.get('account_equities')
+    equities = [item for item in raw_equities[:2] if isinstance(item, dict)] if isinstance(raw_equities, list) else []
+    for item in equities:
+        try:
+            item['stale'] = stale(item.get('observed_at'), item.get('connector'))
+        except (TypeError, ValueError):
+            item['stale'] = True
+    return dict(server_time=now, owner_available=available, accounts=accounts, positions=positions,
+                performance=performance, account_equities=equities)

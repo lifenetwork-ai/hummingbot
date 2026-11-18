@@ -53,3 +53,14 @@ describe('mandate operational status', () => {
     expect(screen.queryByText('RUNNING')).not.toBeInTheDocument()
   })
 })
+
+
+it('labels identical controller rules by market and does not count unknown as a breach', () => {
+  const model = deriveOverview({ status: loading, liquidity: loading, positions: loading, balances: loading })
+  const view = { ...deriveMandate(model, null), riskLimits: ['spot', 'perpetual'].map(market => ({ ruleId: 'drawdown_controller', market, controllerId: market, unit: 'USDT', limit: '2500', current: null, status: 'unknown' as const })) }
+  render(<MandateBar view={view} guards={{ status: 'attention', headline: 'Exposure unverified', violationCount: 0, unknownCount: 2, totalCount: 2, available: false }} />)
+  expect(screen.getByText(/Spot · drawdown_controller/)).toBeInTheDocument()
+  expect(screen.getByText(/Perp · drawdown_controller/)).toBeInTheDocument()
+  expect(screen.getByText('Guards: 0 breaches · 2 unverified / 2 limits')).toBeInTheDocument()
+  expect(screen.getByText(/allocated capital not configured/)).toBeInTheDocument()
+})

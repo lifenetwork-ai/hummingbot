@@ -35,18 +35,19 @@ export function deriveDecision(liquidity: LiquidityMarketView[], capital: Capita
 
   // Mục tiêu 1 — giao dịch thuận lợi: spread thực vs target từng market
   const spreadNotes = liquidity.map((m) => {
-    const met = m.spreadActualBps !== null && m.spreadTargetBps !== null && m.spreadActualBps <= m.spreadTargetBps
+    const known = m.spreadActualBps !== null && m.spreadTargetBps !== null
+    const met = known && m.spreadActualBps! <= m.spreadTargetBps!
     return {
-      met,
+      met, known,
       note: `${marketLabel(m.market)} ${m.spreadActualBps ?? '—'}/${m.spreadTargetBps ?? '—'} bps`,
     }
   })
   rows.push({
     goal: 'Trade facilitation',
-    verdict: rollVerdicts(spreadNotes.map((s) => (s.met ? 'met' : 'not_met'))),
+    verdict: rollVerdicts(spreadNotes.map((s) => (!s.known ? 'unknown' : s.met ? 'met' : 'not_met'))),
     note:
       spreadNotes.map((s) => s.note).join(' · ') +
-      (spreadNotes.some((s) => !s.met && !s.note.includes('/— bps')) ? ' — above target' : ''),
+      (spreadNotes.some((s) => s.known && !s.met) ? ' — wider than planned width' : ''),
   })
 
   // Mục tiêu 2 — duy trì thanh khoản: coverage vs target + two-sided hiện tại

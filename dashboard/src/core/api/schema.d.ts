@@ -2749,6 +2749,25 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** OverviewAccountEquity */
+        OverviewAccountEquityOutput: {
+            /**
+             * Currency
+             * @default USD
+             * @constant
+             */
+            currency: "USD";
+            /**
+             * Source
+             * @constant
+             */
+            source: "okx_account_balance_total_eq";
+            /**
+             * Total Usd
+             * @description Whole-account totalEq from OKX, once; not USDT, free cash or allocated capital. Includes venue position PnL already.
+             */
+            total_usd: string;
+        };
         /** OverviewAccountScope */
         OverviewAccountScopeOutput: {
             /** Account Ids */
@@ -2879,6 +2898,16 @@ export interface components {
             /** Controller Id */
             controller_id: string;
             /**
+             * Exposure Basis
+             * @default null
+             */
+            exposure_basis: "engine_cap_assessment" | null;
+            /**
+             * Exposure Observed At
+             * @default null
+             */
+            exposure_observed_at: string | null;
+            /**
              * Gross Limit
              * @default null
              */
@@ -2888,6 +2917,11 @@ export interface components {
              * @description Null if policy defines no absolute quantity limit.
              */
             inventory_limit: string | null;
+            /**
+             * Long Exposure
+             * @default null
+             */
+            long_exposure: string | null;
             /**
              * Long Limit
              * @default null
@@ -2900,6 +2934,11 @@ export interface components {
             market: "spot" | "perpetual";
             /** Pair */
             pair: string;
+            /**
+             * Short Exposure
+             * @default null
+             */
+            short_exposure: string | null;
             /**
              * Short Limit
              * @default null
@@ -2921,6 +2960,7 @@ export interface components {
             pair: string;
             post_fill_recovery: components["schemas"]["OverviewObservation_OverviewPostFillRecovery_Output"];
             slippage_estimate: components["schemas"]["OverviewObservation_OverviewSlippage_Output"];
+            spread_target?: components["schemas"]["OverviewObservation_OverviewSpreadTarget_Output"];
         };
         /** OverviewMarketFees */
         OverviewMarketFeesOutput: {
@@ -2931,6 +2971,16 @@ export interface components {
             market: "spot" | "perpetual";
             /** Total Usdt */
             total_usdt: string;
+        };
+        /** OverviewObservation[OverviewAccountEquity] */
+        OverviewObservation_OverviewAccountEquity_Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            value: components["schemas"]["OverviewAccountEquityOutput"] | null;
         };
         /** OverviewObservation[OverviewCapitalAllocated] */
         OverviewObservation_OverviewCapitalAllocated_Output: {
@@ -2982,6 +3032,16 @@ export interface components {
             unavailable_reason: string | null;
             value: components["schemas"]["OverviewPostFillRecoveryOutput"] | null;
         };
+        /** OverviewObservation[OverviewQuoteBudget] */
+        OverviewObservation_OverviewQuoteBudget_Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            value: components["schemas"]["OverviewQuoteBudgetOutput"] | null;
+        };
         /** OverviewObservation[OverviewRollingCoverage] */
         OverviewObservation_OverviewRollingCoverage_Output: {
             /** Observed At */
@@ -3021,6 +3081,16 @@ export interface components {
             /** Unavailable Reason */
             unavailable_reason: string | null;
             value: components["schemas"]["OverviewSlippageOutput"] | null;
+        };
+        /** OverviewObservation[OverviewSpreadTarget] */
+        OverviewObservation_OverviewSpreadTarget_Output: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            value: components["schemas"]["OverviewSpreadTargetOutput"] | null;
         };
         /** OverviewObservation[list[OverviewInventoryLimit]] */
         OverviewObservation_list_OverviewInventoryLimit__Output: {
@@ -3066,8 +3136,19 @@ export interface components {
             /** Value */
             value: components["schemas"]["OverviewRiskRuleOutput"][] | null;
         };
+        /** OverviewPortfolioAsset */
+        OverviewPortfolioAssetOutput: {
+            /** Asset */
+            asset: string;
+            /** Equity */
+            equity: string;
+            /** Value Usdt */
+            value_usdt: string;
+        };
         /** OverviewPortfolio */
         OverviewPortfolioOutput: {
+            /** Assets */
+            assets?: components["schemas"]["OverviewPortfolioAssetOutput"][];
             /** Life Usdt */
             life_usdt: string;
             /** Other Assets Usdt */
@@ -3117,6 +3198,34 @@ export interface components {
              * Format: date-time
              */
             window_start: string;
+        };
+        /** OverviewQuoteBudgetMarket */
+        OverviewQuoteBudgetMarketOutput: {
+            /** Budget Usdt */
+            budget_usdt: string;
+            /**
+             * Market
+             * @enum {string}
+             */
+            market: "spot" | "perpetual";
+        };
+        /** OverviewQuoteBudget */
+        OverviewQuoteBudgetOutput: {
+            /**
+             * Basis
+             * @default configured_working_orders_notional
+             * @constant
+             */
+            basis: "configured_working_orders_notional";
+            /** By Market */
+            by_market: components["schemas"]["OverviewQuoteBudgetMarketOutput"][];
+            /**
+             * Source
+             * @constant
+             */
+            source: "pinned_session_catalogue";
+            /** Total Usdt */
+            total_usdt: string;
         };
         /** OverviewReferencePrice */
         OverviewReferencePriceOutput: {
@@ -3179,6 +3288,11 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "violated" | "disabled" | "unknown";
+            /**
+             * Unavailable Reason
+             * @default null
+             */
+            unavailable_reason: string | null;
             /** Unit */
             unit: string;
             /** Upper Limit */
@@ -3362,6 +3476,7 @@ export interface components {
             capital_allocated: components["schemas"]["OverviewObservation_OverviewCapitalAllocated_Output"];
             delta: components["schemas"]["OverviewObservation_OverviewSessionDelta_Output"];
             fees: components["schemas"]["OverviewObservation_OverviewSessionFees_Output"];
+            quote_budget?: components["schemas"]["OverviewObservation_OverviewQuoteBudget_Output"];
         };
         /** OverviewSlippageEstimate */
         OverviewSlippageEstimateOutput: {
@@ -3401,11 +3516,31 @@ export interface components {
             /** Reference Mid */
             reference_mid: string;
         };
+        /** OverviewSpreadTarget */
+        OverviewSpreadTargetOutput: {
+            /**
+             * Basis
+             * @constant
+             */
+            basis: "two_sided_primary_plan";
+            /** Buy Distance Bps */
+            buy_distance_bps: string;
+            /** Sell Distance Bps */
+            sell_distance_bps: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "controller_spread_policy" | "controller_config";
+            /** Target Bps */
+            target_bps: string;
+        };
         /**
          * OverviewSupplement
          * @description Account/session observations only; never changes quote, sizing or risk enforcement.
          */
         OverviewSupplementOutput: {
+            account_equity?: components["schemas"]["OverviewObservation_OverviewAccountEquity_Output"];
             account_scope: components["schemas"]["OverviewAccountScopeOutput"];
             balances: components["schemas"]["OverviewObservation_list_OverviewReservedBalance__Output"];
             /**
