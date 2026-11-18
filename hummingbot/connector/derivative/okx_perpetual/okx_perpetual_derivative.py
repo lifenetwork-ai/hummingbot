@@ -186,6 +186,9 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             domain=self._domain,
         )
 
+    def mark_price_observation(self, trading_pair):
+        return self._orderbook_ds.mark_price_observation(trading_pair)
+
     def _create_user_stream_data_source(self) -> UserStreamTrackerDataSource:
         return OkxPerpetualUserStreamDataSource(
             auth=self._auth,

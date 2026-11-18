@@ -2175,6 +2175,7 @@ export interface components {
              * @default null
              */
             mm_session_id: string | null;
+            perpetual_exposure_budget?: components["schemas"]["PerpetualExposureBudgetOutput"] | null;
             /** @default HEDGE */
             position_mode: components["schemas"]["PositionModeOutput"];
             /**
@@ -3722,6 +3723,22 @@ export interface components {
              * Format: date-time
              */
             server_time: string;
+        };
+        /** PerpetualExposureBudget */
+        PerpetualExposureBudgetOutput: {
+            /** Allocated Capital Quote */
+            allocated_capital_quote: string;
+            /** Max Gross Pct */
+            max_gross_pct: string;
+            /** Max Long Pct */
+            max_long_pct: string;
+            /**
+             * Max Mark Age Seconds
+             * @default 15
+             */
+            max_mark_age_seconds: number;
+            /** Max Short Pct */
+            max_short_pct: string;
         };
         /** PositionMarket */
         PositionMarketOutput: {

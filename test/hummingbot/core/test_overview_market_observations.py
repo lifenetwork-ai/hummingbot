@@ -191,6 +191,20 @@ def test_market_failure_isolated_and_reference_anchor_requires_current_generatio
     assert result['inventory_limits']['value'][1]['gross_limit'] == '1200'
 
 
+@pytest.mark.parametrize('effective,expected', [
+    ((Decimal('20'), Decimal('10'), Decimal('25')), ('20', '10', '25')),
+    (None, (None, None, None)),
+])
+def test_inventory_observation_uses_effective_caps_for_a_percentage_budget(effective, expected):
+    host, _, controllers = setup_host()
+    perpetual = controllers[1]
+    perpetual.config.perpetual_exposure_budget = True
+    perpetual.perpetual_opening_caps = lambda: effective
+    limits = capture_overview_markets(host, now=100)['inventory_limits']['value']
+    assert limits[0]['inventory_limit'] == '600'
+    assert tuple(limits[1][key] for key in ('long_limit', 'short_limit', 'gross_limit')) == expected
+
+
 def test_no_session_returns_explicit_unknown_observations():
     host, _, _ = setup_host(include_perp=False)
     host.mm_session = None

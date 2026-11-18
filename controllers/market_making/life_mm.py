@@ -22,7 +22,7 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.utils.inventory_skew import InventorySkewConfig, inventory_skew_ratios
 from hummingbot.strategy_v2.utils.listing_bootstrap import ListingBootstrap
 from hummingbot.strategy_v2.utils.mm_spread import SpreadPolicy, SpreadPolicyConfig, prepare_natr
-from hummingbot.strategy_v2.utils.perpetual_reduction import InventoryReductionConfig
+from hummingbot.strategy_v2.utils.perpetual_reduction import InventoryReductionConfig, PerpetualExposureBudget
 from hummingbot.strategy_v2.utils.perpetual_reduction_runtime import PerpetualReductionMixin, quote_price
 from hummingbot.strategy_v2.utils.quote_guard import (
     MarketObservation,
@@ -80,6 +80,7 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
     max_long_base: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
     max_short_base: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
     max_gross_base: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
+    perpetual_exposure_budget: Optional[PerpetualExposureBudget] = Field(default_factory=lambda: None)
     skip_rebalance: bool = True
     stop_loss: Optional[Decimal] = None
     take_profit: Optional[Decimal] = None
@@ -107,10 +108,14 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
             values.pop('quote_refresh_max_delay_seconds', None)
         if self.inventory_reduction.mode == 'disabled':
             values.pop('inventory_reduction', None)
+        if self.perpetual_exposure_budget is None:
+            values.pop('perpetual_exposure_budget', None)
         return values
 
     @model_validator(mode="after")
     def validate_mm_policy(self):
+        if self.perpetual_exposure_budget is not None and self.inventory_reduction.mode != 'close_first':
+            raise ValueError('Perpetual exposure budget requires close-first reduction')
         if self.inventory_reduction.mode == 'close_first' and (
                 self.connector_name != 'okx_perpetual' or not self.quote_guards.enabled
                 or not self.spread_policy.enabled or self.initial_positions):
@@ -177,9 +182,11 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
             raise ValueError("Use HEDGE; spot leverage must be 1")
         if self.connector_name == "okx" and self.max_base_inventory is None:
             raise ValueError("Spot requires max_base_inventory")
-        if self.connector_name == "okx_perpetual" and any(
-                cap is None for cap in (self.max_long_base, self.max_short_base, self.max_gross_base)):
-            raise ValueError("Perpetual requires long, short and gross exposure caps")
+        if self.connector_name == "okx_perpetual":
+            if self.max_gross_base is None:
+                raise ValueError("Perpetual requires max_gross_base")
+            if self.perpetual_exposure_budget is None and (self.max_long_base is None or self.max_short_base is None):
+                raise ValueError("Perpetual requires long, short and gross exposure caps in fixed mode")
         if not self.skip_rebalance or any(value is not None for value in (
                 self.stop_loss, self.take_profit, self.time_limit, self.trailing_stop)):
             raise ValueError("LIFE MM preserves positions; automatic rebalance and exit barriers must be disabled")
@@ -932,11 +939,13 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
             raise ValueError("Invalid account exposure")
         return long, short
 
-    def _within_caps(self, long, short):
+    def _within_caps(self, long, short, *, limits=None):
         if self.config.connector_name == "okx":
             return long <= self.config.max_base_inventory
-        return (long <= self.config.max_long_base and short <= self.config.max_short_base
-                and long + short <= self.config.max_gross_base)
+        long_cap, short_cap, gross_cap = limits or (
+            self.config.max_long_base, self.config.max_short_base, self.config.max_gross_base)
+        return ((long_cap is None or long <= long_cap) and (short_cap is None or short <= short_cap)
+                and long + short <= gross_cap)
 
     def exposure_within_caps(self):
         try:

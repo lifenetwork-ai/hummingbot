@@ -3793,6 +3793,16 @@
             "default": null,
             "title": "Mm Session Id"
           },
+          "perpetual_exposure_budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PerpetualExposureBudgetOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "position_mode": {
             "$ref": "#/components/schemas/PositionModeOutput",
             "default": "HEDGE"
@@ -7920,6 +7930,46 @@
           "owner_available"
         ],
         "title": "PerformanceResponse",
+        "type": "object"
+      },
+      "PerpetualExposureBudgetOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "allocated_capital_quote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Allocated Capital Quote",
+            "type": "string"
+          },
+          "max_gross_pct": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Gross Pct",
+            "type": "string"
+          },
+          "max_long_pct": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Long Pct",
+            "type": "string"
+          },
+          "max_mark_age_seconds": {
+            "default": 15,
+            "exclusiveMinimum": 0,
+            "maximum": 60,
+            "title": "Max Mark Age Seconds",
+            "type": "integer"
+          },
+          "max_short_pct": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Short Pct",
+            "type": "string"
+          }
+        },
+        "required": [
+          "allocated_capital_quote",
+          "max_long_pct",
+          "max_short_pct",
+          "max_gross_pct"
+        ],
+        "title": "PerpetualExposureBudget",
         "type": "object"
       },
       "PositionMarketOutput": {

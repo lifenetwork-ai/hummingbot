@@ -544,6 +544,8 @@ class OKXPerpetualAPIOrderBookDataSourceTests(IsolatedAsyncioWrapperTestCase):
 
         await self.mocking_assistant.run_until_all_aiohttp_messages_delivered(ws_connect_mock.return_value)
 
+        mark = result_subscribe_mark_price_info['data'][0]
+        self.assertEqual((Decimal(mark['markPx']), int(mark['ts'])), self.data_source.mark_price_observation(self.trading_pair))
         sent_subscription_messages = self.mocking_assistant.json_messages_sent_through_websocket(
             websocket_mock=ws_connect_mock.return_value
         )
@@ -909,6 +911,14 @@ class OKXPerpetualAPIOrderBookDataSourceTests(IsolatedAsyncioWrapperTestCase):
         self.assertEqual(expected_last_next_funding_utc_timestamp, msg.next_funding_utc_timestamp)
         self.assertEqual(expected_last_rate, msg.rate)
         self.assertEqual(expected_last_index_price, msg.index_price)
+        stamp = int(mark_price_event['data'][0]['ts'])
+        self.assertEqual((mark_price_update, stamp), self.data_source.mark_price_observation(self.trading_pair))
+        mark_price_event['data'][0].update(markPx='999', ts=str(stamp - 1))
+        await self.data_source._parse_mark_price_message(mark_price_event, msg_queue)
+        self.assertEqual((mark_price_update, stamp), self.data_source.mark_price_observation(self.trading_pair))
+        mark_price_event['data'][0].update(markPx='0.1001', ts=str(stamp))
+        await self.data_source._parse_mark_price_message(mark_price_event, msg_queue)
+        self.assertEqual((Decimal('0.1001'), stamp), self.data_source.mark_price_observation(self.trading_pair))
 
     async def test_listen_for_index_price_cancelled_when_listening(self):
         mock_queue = MagicMock()

@@ -51,10 +51,10 @@ inventory_reduction:
   price_mode: breakeven
 ```
 
-It is disabled by default and is not enabled in the deployment presets. BUY closes
-an owned SHORT before opening a LONG; SELL closes an owned LONG before opening a
-SHORT. Each side waits if its opposing inventory cannot be proven or priced
-safely. It never substitutes an opening or market order for an unavailable close.
+The BTC Demo preset enables this policy. BUY closes an owned SHORT before opening
+a LONG. SELL closes an owned LONG before opening a SHORT. Each side waits for
+verified opposing inventory and a supported closing price before it can reduce
+that inventory.
 
 The maker price must cover allocated **remaining opening trading fees** and a
 fresh authenticated closing-fee bound. Funding is accounted separately. This
@@ -89,6 +89,37 @@ reads cannot renew evidence; `reduction_position_unavailable` waits for verified
 data. Quote and transport checks do not perform that network read.
 See the [implementation and qualification checklist](plans/MM_PERPETUAL_REDUCTION_QUOTE_TDD_PLAN.md)
 before activation; local tests alone do not close Demo or release gates.
+
+### Optional perpetual caps based on allocated capital
+
+Under the perpetual market in `life_mm_profiles.yaml`, add this block to an
+enabled `close_first` policy. The values below illustrate the fraction syntax.
+
+```yaml
+max_gross_base: "0.1"
+perpetual_exposure_budget:
+  allocated_capital_quote: "10000"
+  max_long_pct: "0.50"
+  max_short_pct: "0.25"
+  max_gross_pct: "0.75"
+```
+
+`allocated_capital_quote` is the operator-selected USDT allocation pinned in
+the session. Each cap starts with allocation times its fraction divided by the
+latest OKX mark price. `max_gross_base` is the required gross BTC ceiling. In
+this mode, `max_long_base` and `max_short_base` are optional BTC ceilings for the
+individual legs. Gross adds both hedge legs and open-order reservations. Order
+sizes round down to exchange lots.
+The quote budget `total_amount_quote` continues to determine quote sizes before
+the exposure caps apply.
+
+Missing or expired mark data blocks and withdraws opening quotes. Verified
+closing quotes can continue under the existing breakeven and market guards.
+The default 15-second mark age accommodates the 10-second unchanged-price
+cadence of the [OKX mark price channel](https://www.okx.com/docs-v5/en/#public-data-websocket-mark-price-channel).
+Overview shows the effective cap when a fresh mark is available. Hard ceilings
+and the allocation remain visible in the pinned session configuration. Fixed BTC
+mode uses all three `max_*_base` values. A new session is needed after deployment.
 
 ## Explicit expired submission receipts
 
