@@ -19,6 +19,22 @@ def _optional_statement_timeout(error):
             and getattr(error.orig, "pgcode", None) in {"55P03", "57014"})
 
 
+def _overview_policy_projection():
+    """Bounded pinned fields for reporting; never transfer the archived catalogue."""
+    markets = []
+    for name in ('spot', 'perpetual'):
+        config = f"mm_session->'catalogue'->'markets'->'{name}'"
+        guard = f"{config}->'quote_guards'"
+        markets.append(
+            f"'{name}', CASE WHEN jsonb_typeof({config})='object' THEN jsonb_build_object("
+            f"'id', {config}->'id', 'total_amount_quote', {config}->'total_amount_quote', "
+            f"'quote_guards', jsonb_build_object('enabled', {guard}->'enabled', "
+            f"'mode', {guard}->'mode', 'max_deviation_bps', {guard}->'max_deviation_bps')) ELSE NULL END")
+    return ("jsonb_build_object('session_id', mm_session->'id', 'generation', mm_session->'generation', "
+            "'markets', jsonb_strip_nulls(jsonb_build_object(" + ', '.join(markets)
+            + "))) AS overview_session_policy")
+
+
 class BotStateStore:
     def __init__(self, engine: Engine, bot_id: str):
         self.engine = engine
@@ -45,7 +61,8 @@ class BotStateStore:
                    "NOT IN ('[]'::jsonb, '{}'::jsonb, 'null'::jsonb), "
                    "'automatic_recovery', recovery_state->'automatic_recovery') AS recovery_summary, "
                    "CASE WHEN jsonb_typeof(mm_session)='object' "
-                   "THEN mm_session - 'catalogue' ELSE mm_session END AS mm_session") if publication else "*"
+                   "THEN mm_session - 'catalogue' ELSE mm_session END AS mm_session, "
+                   + _overview_policy_projection()) if publication else "*"
         with self.engine.connect() as connection:
             row = connection.execute(text(f"""
                 SELECT {columns}, EXTRACT(EPOCH FROM (clock_timestamp() - heartbeat)) AS heartbeat_age_s,

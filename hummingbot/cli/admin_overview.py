@@ -322,6 +322,22 @@ def _risk_rules(snapshot, *, now, live, runtime_live=False, session=None):
                 stale=not live, unavailable_reason='risk_policy_unavailable' if not rules else None if complete else 'risk_policy_observation_incomplete')
 
 
+def _reporting_policy_session(row):
+    """Reattach only the reporting projection, scoped to this exact persisted session."""
+    session = row.get('mm_session') or {}
+    if isinstance(session.get('catalogue'), dict):
+        return session
+    policy = row.get('overview_session_policy')
+    if (isinstance(policy, dict) and isinstance(session.get('id'), str) and session['id']
+            and type(session.get('generation')) is int
+            and policy.get('session_id') == session['id'] and policy.get('generation') == session['generation']
+            and isinstance(policy.get('markets'), dict)):
+        # This deliberately incomplete catalogue is reporting-only. It never
+        # restores an MMSession, starts a controller or supplies command policy.
+        return {**session, 'catalogue': {'markets': policy['markets']}}
+    return session
+
+
 def build_overview(row, *, fees=None):
     """Project the exact row read by /status; no database/network/control work."""
     try:
@@ -332,6 +348,7 @@ def build_overview(row, *, fees=None):
         return None
     snapshot = row.get('status') or {}
     session = row.get('mm_session') or {}
+    policy_session = _reporting_policy_session(row)
     observed_session = snapshot.get('mm_session') or {}
     owner = bool(row.get('owner_uuid')) and _fresh(now - float(row['heartbeat_age_s']), now) if row.get('heartbeat_age_s') is not None else False
     matches = (session.get('id'), session.get('generation')) == (observed_session.get('id'), observed_session.get('generation'))
@@ -369,7 +386,7 @@ def build_overview(row, *, fees=None):
         session_id=session.get('id'), session_started_at=session.get('started_at'),
         session=OverviewSession(
             capital_allocated=OverviewObservation[OverviewCapitalAllocated](**unavailable('capital_mandate_not_configured')),
-            quote_budget=OverviewObservation[OverviewQuoteBudget](**_quote_budget(session)),
+            quote_budget=OverviewObservation[OverviewQuoteBudget](**_quote_budget(policy_session)),
             fees=OverviewObservation[OverviewSessionFees].model_validate(fees or unavailable('session_fees_unavailable')),
             delta=OverviewObservation[OverviewSessionDelta](**unavailable('session_baseline_and_transfers_unavailable')),
             benchmark_hold=OverviewObservation[OverviewHoldBenchmark](**unavailable('initial_holdings_and_transfers_unavailable')),
@@ -379,7 +396,7 @@ def build_overview(row, *, fees=None):
             reporting, scope, now=now, reason=account_reason or runtime_reason)),
         balances=OverviewObservation[list[OverviewReservedBalance]].model_validate(_balances(accounts, now=now, reason=account_reason)),
         risk_rules=OverviewObservation[list[OverviewRiskRule]].model_validate(
-            _risk_rules(snapshot, now=now, live=owner and matches, runtime_live=runtime_reason is None, session=session)),
+            _risk_rules(snapshot, now=now, live=owner and matches, runtime_live=runtime_reason is None, session=policy_session)),
         markets=markets,
         inventory_limits=_observation(list[OverviewInventoryLimit], runtime.get('inventory_limits'), now=now, reason=runtime_reason),
         references=_observation(list[OverviewReferencePrice], runtime.get('references'), now=now, reason=runtime_reason),

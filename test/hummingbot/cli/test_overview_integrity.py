@@ -171,3 +171,25 @@ def test_enabled_spread_policy_without_runtime_evidence_stays_unknown():
     controllers[0].config.buy_spreads = [.0008]
     controllers[0].config.sell_spreads = [.0008]
     assert capture_overview_markets(runtime, now=100)['markets'][0]['spread_target']['value'] is None
+
+
+@pytest.mark.parametrize('identity,generation', [('other', 0), ('session', 3)])
+def test_projected_budget_never_crosses_session_identity(identity, generation):
+    source = row()
+    source['mm_session']['request'] = {'market_mode': 'spot'}
+    source['overview_session_policy'] = dict(session_id=identity, generation=generation, markets={
+        'spot': dict(id='spot', total_amount_quote='200')})
+    assert build_overview(source).session.quote_budget.value is None
+
+
+def test_projected_budget_is_independent_of_runtime_health_and_never_mutates_session():
+    source = row()
+    source['heartbeat_age_s'] = 99
+    source['mm_session']['request'] = {'market_mode': 'spot'}
+    source['overview_session_policy'] = dict(session_id='session', generation=0, markets={
+        'spot': dict(id='spot', total_amount_quote='100')})
+    before = deepcopy(source)
+    result = build_overview(source)
+    assert result.session.quote_budget.value.total_usdt == 100
+    assert result.inventory_limits.value is None
+    assert source == before and 'catalogue' not in source['mm_session']

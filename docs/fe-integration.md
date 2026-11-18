@@ -437,7 +437,11 @@ Overview reporting details (`status.overview`):
   reservations; these are cap inputs, not merely settled positions. Missing
   exposure has a reason and null current while the configured limit stays visible.
 - `session.quote_budget` is selected markets' configured order notional from the
-  pinned session catalogue. It is separate from `capital_allocated`, which stays
+  pinned session catalogue. The `/status` DB projection retains only the bounded
+  policy fields needed for reporting, bound to that session ID/generation; it does
+  not reload the full archived catalogue or use today's YAML. Budget and labels
+  remain available while runtime observations are unavailable. It is separate
+  from `capital_allocated`, which stays
   unavailable when no capital mandate exists.
 - `account_equity` is OKX whole-account `totalEq`, explicitly **USD**, from existing
   REST/WS balance observations, bound to verified account/environment/site. Render
