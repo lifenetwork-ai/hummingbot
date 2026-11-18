@@ -492,11 +492,25 @@ the same proof path; an ACK of the cancel request is not terminal evidence.
 
 `intent_admission_busy` is an expected WARNING before any order transport:
 the initial recorder ownership lock is busy and its read-only transaction has
-rolled back successfully. The unsent identity is retired normally and local
-cash/bootstrap reservations are released; new admissions wait 500 ms and must
-pass current authority, market and budget checks again. This exception does
+rolled back successfully. Local cash/bootstrap reservations are released, while
+the native identity waits without consuming executor retries. Queued admissions
+share a 500 ms cooldown outside the send-check slot and must pass current owner,
+session, native-order, price and budget checks again. No failed-order event or
+replacement ID is created for the wait. A warning is emitted once per continuing
+30-second warning window; successful admission emits recovery INFO. This exception does
 not apply to fills, terminal effects, lost commit responses or failed rollback.
 A persisted HALT from an earlier incident still needs normal verified recovery.
+
+Public health responses from the API include `X-Hbot-Health-Source: api`.
+An engine-proxy failure also returns a `reason_code`: `engine_probe_timeout`,
+`engine_probe_connection_error`, `engine_probe_invalid_response`, or
+`engine_probe_http_status`. Correlate these with bounded
+`engine_health_proxy_unavailable` / `engine_health_proxy_recovered` logs, including
+elapsed milliseconds. Health status and the 300 ms proxy deadline are unchanged;
+an unavailable engine remains 503. `/live` stays independent of trading readiness.
+Capture status, response headers and body at the time of a failure: absence of
+the source header alone does not prove a Cloud Run failure. An earlier 503 with
+no captured JSON/source evidence cannot be retroactively assigned a cause.
 
 Cold recovery requires migration021 and a verified account/financial baseline.
 Empty ledgers can establish it at normal startup; an existing ledger requires

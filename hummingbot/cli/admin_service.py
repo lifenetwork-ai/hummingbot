@@ -4,7 +4,9 @@ import logging
 import os
 import time
 
-from aiohttp import ClientError, ClientSession, ClientTimeout, web
+from aiohttp import ClientError, ClientPayloadError, ClientSession, ClientTimeout, ContentTypeError, web
+
+from hummingbot.core.operational_warnings import OperationalWarnings
 
 
 class AdminService:
@@ -14,26 +16,60 @@ class AdminService:
         self.bootstrapped = False
         self.closed = False
         self.phase = 'api_initializing'
+        self._health_warnings = OperationalWarnings(maximum=2)
         self.revision = os.environ.get('K_REVISION') or os.environ.get('COMMIT_SHA') or 'local'
 
     async def engine_health(self, path):
+        started = time.monotonic()
+        error_type = None
         try:
             async with self.client.get(f'http://127.0.0.1:{self.engine_port}{path}') as response:
-                return response.status, await response.json()
-        except (OSError, TimeoutError, ClientError, ValueError):
-            return 503, {'state': 'engine_unavailable'}
+                status, body = response.status, await response.json()
+                if not isinstance(body, dict):
+                    raise ValueError('Invalid health response')
+                reason = 'engine_probe_http_status' if status != 200 else None
+        except (OSError, TimeoutError, ClientError, ValueError) as error:
+            status, body = 503, {'state': 'engine_unavailable'}
+            error_type = type(error).__name__
+            if isinstance(error, TimeoutError):
+                reason = 'engine_probe_timeout'
+            elif isinstance(error, (ValueError, ContentTypeError, ClientPayloadError)):
+                reason = 'engine_probe_invalid_response'
+            else:
+                reason = 'engine_probe_connection_error'
+        # Keep readiness fail-closed, without changing its timeout or restarting
+        # anything here. Never log upstream bodies, URLs or exception text.
+        probe = 'ready' if path == '/ready' else 'startup'
+        logger = logging.getLogger(__name__)
+        if reason is not None:
+            body = {**body, 'reason_code': reason}
+            emit, summary = self._health_warnings.observe(probe)
+            if emit:
+                logger.warning('Engine health proxy unavailable probe=%s status=%s elapsed_ms=%.3f summary=%s',
+                               probe, status, (time.monotonic() - started) * 1000, summary,
+                               extra={'event': 'engine_health_proxy_unavailable', 'scope': 'api',
+                                      'reason_code': reason, 'error_type': error_type})
+        else:
+            summary = self._health_warnings.recover(probe)
+            if summary is not None:
+                logger.info('Engine health proxy recovered probe=%s elapsed_ms=%.3f summary=%s',
+                            probe, (time.monotonic() - started) * 1000, summary,
+                            extra={'event': 'engine_health_proxy_recovered', 'scope': 'api',
+                                   'reason_code': 'engine_probe_healthy'})
+        return status, body
 
     async def health(self, request):
+        headers = {'X-Hbot-Health-Source': 'api'}
         if self.stop.is_set():
-            return web.json_response({'state': 'api_stopping'}, status=503)
+            return web.json_response({'state': 'api_stopping'}, status=503, headers=headers)
         if request.path == '/live':
             # The parent supervises the engine independently. DB/engine loss
             # must not terminate an API loop that still serves qualified errors.
-            return web.json_response({'state': self.phase})
+            return web.json_response({'state': self.phase}, headers=headers)
         if not self.bootstrapped:
-            return web.json_response({'state': self.phase}, status=503)
+            return web.json_response({'state': self.phase}, status=503, headers=headers)
         status, body = await self.engine_health(request.path)
-        return web.json_response(body, status=status)
+        return web.json_response(body, status=status, headers=headers)
 
     def service_status(self):
         return dict(observed_at=time.time(), state_source='process', persisted_state_available=False,

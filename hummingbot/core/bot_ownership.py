@@ -16,6 +16,7 @@ from sqlalchemy import select, text, update
 from sqlalchemy.exc import DBAPIError
 
 from hummingbot.core.engine_diagnostics import active_shutdown_stages, trace_runtime
+from hummingbot.core.operational_warnings import OperationalWarnings
 from hummingbot.core.order_submission_guard import (
     SUPPORTED_CONNECTORS,
     IntentAdmissionBusy,
@@ -99,6 +100,7 @@ class BotOwnership:
         self.config_file_path = None
         self.connectors = {}
         self._intent_admission_retry_at = 0.
+        self._intent_admission_warnings = OperationalWarnings(maximum=1)
         self.active_intents = set()
         self.sent_intents = set()
         # Proof follows the actual rejected order object, including references
@@ -357,14 +359,38 @@ class BotOwnership:
 
         # Shutdown must also drain tasks waiting before any durable intent exists.
         self._track_submission_task()
-        async with self.submission_admission:
-            # An uncontended Lock acquire does not yield. Hold it through one
-            # loop turn so a burst across connectors cannot run all DB gates in
-            # a single ready batch. No transaction or network call is held here.
-            await asyncio.sleep(0)
-            if active_guard() is not self:
-                raise SubmissionBlocked("Trading owner changed before order admission.")
-            self.before_order(connector, order)
+        while True:
+            # Wait on the existing native identity before any durable intent or
+            # send exists. Release the shared slot: final-send fences and health/
+            # shutdown callbacks must remain able to run throughout contention.
+            delay = self._intent_admission_retry_at - time.monotonic()
+            if delay > 0:
+                await asyncio.sleep(delay)
+            async with self.submission_admission:
+                # Even uncontended admissions yield before fresh authority and
+                # price/risk checks. Another waiter may have renewed cooldown.
+                await asyncio.sleep(0)
+                if active_guard() is not self:
+                    raise SubmissionBlocked("Trading owner changed before order admission.")
+                if time.monotonic() < self._intent_admission_retry_at:
+                    continue
+                try:
+                    self.before_order(connector, order)
+                except IntentAdmissionBusy:
+                    # Only the confirmed prewrite rollback takes this path.
+                    # Unknown writes/COMMIT/transport outcomes still propagate.
+                    emit, summary = self._intent_admission_warnings.observe('ownership_row')
+                    if emit:
+                        logging.getLogger(__name__).warning(
+                            'Intent admission waiting for ownership row; no order sent summary=%s', summary,
+                            extra={'event': 'intent_admission_waiting', 'reason_code': 'intent_admission_busy'})
+                    continue
+                summary = self._intent_admission_warnings.recover('ownership_row')
+                if summary is not None:
+                    logging.getLogger(__name__).info(
+                        'Intent admission resumed after ownership contention summary=%s', summary,
+                        extra={'event': 'intent_admission_recovered', 'reason_code': 'intent_admission_ready'})
+                return
 
     def before_order(self, connector, order):
         from hummingbot.core.cleanup_authority import current_cleanup_scope, validate_close

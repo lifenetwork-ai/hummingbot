@@ -91,9 +91,15 @@ A new order intent checks its ownership row with `FOR SHARE NOWAIT` before
 staging writes. A PostgreSQL `55P03` from that initial fence is temporary only
 when the identity was absent and the same transaction's DBAPI rollback is
 confirmed, with no connection invalidation and a previously healthy recorder.
-It releases only that unsent local admission, reports `intent_admission_busy`,
-and backs off new admissions for 500 ms before fresh gates run again. It does
-not retry an old POST, clear an existing HALT or change any risk limit. Errors
+It releases only that unsent local admission and waits on the same native order
+identity. New admissions share a 500 ms cooldown outside the admission slot;
+ready final-send checks, health callbacks and cancellation can still progress.
+Every resumed attempt rechecks authority, native order state, session, price and
+risk before writing an intent. Expected contention does not emit an order-failure
+event, consume executor retries or allocate replacement identities. One bounded
+`intent_admission_busy` warning summarizes a continuing wait, with recovery INFO
+after successful admission. It does not retry an old POST, clear an existing HALT
+or change any risk limit. Errors
 after that fence, unconfirmed rollback/COMMIT outcomes and ownership loss retain
 the persistence latch and normal recovery requirement. An already-unhealthy
 recorder cannot be reopened by this exception. No new environment setting is used.

@@ -118,3 +118,123 @@ This is local implementation evidence. It neither identifies the transaction
 that held the historical lock nor changes the current Cloud Run HALT. Deployment,
 verified recovery and connected running/coverage qualification remain separate.
 Detailed RED/GREEN/fault receipts: `build/intent-contention-20261118`.
+
+## Connected deployment and API recovery: revision 173
+
+On 18 November, Cloud Build `db3531d8-f451-42a6-acc4-92703d092d19`
+deploys `416a294edaba2171c0a8e4cd6ce3160424bce632` as
+`hummingbot-demo-00173-ps8`, Ready with 100% traffic. The resolved OCI
+configuration independently matches that commit; image digest
+`sha256:e9c584d82c8e16003dc0939c5c3b4883b7c5ed3517e0404a8be984b69c912653`.
+Both the API process and the fresh owner observation identify revision 173.
+
+The authorized normal API flow stops control 100, checks the native evidence,
+recovers to stopped/no HALT at control/ack 101, then starts continuous
+`follow_market` at control/ack 102. Check verifies 360 fills in the anchored
+scope and three canceled, zero-filled orders. Explicit review and confirmation
+cover only those three terminal metadata repairs; no position repair is proposed
+or applied. Native evidence is revalidated during Reset. The latest 100 recorded
+fills are identical immediately before and after Reset. No manual SQL is used.
+The configured Basic admin API identity and all recovery operations are audited.
+
+Reset operation `6349f390-5f11-46e5-88d4-401f625e1fa4` completes at
+11:04:14 local. Start command `3a7ff6ba-528c-4c9f-bc69-8ce72a014aaf`
+succeeds with session `6263a104-fe0e-4068-9ee4-eda09bb6204d`, started at
+11:06:44 local, `until_stopped` with no expiry. The pinned catalogue hash stays
+`5134423679f1310f328c909910a364a1f06d769d57301877c62546179e2fc74d`:
+100 USDT quote budget per market, drawdown 2,500/5,000 USDT, and all inventory
+caps, percentage skew and close-first/breakeven policies are preserved.
+
+Real contention recurs at 11:08:59 local on Spot and 11:10:48 on Perpetual.
+The connector reports that no order was sent and admission waits for the
+ownership row. The engine continues on control 102 without a HALT or child
+restart in the bounded log reads. The Spot cooldown produces repeated retry
+warnings; the Perpetual executor also emits an `Order failed ... Retrying` ERROR
+for that local admission rejection. These messages remain visible as a logging/
+retry-volume follow-up; they are not evidence of an exchange submission or a
+new HALT. Two recorded Spot SELL fills at 11:08:10 confirm resumed trading.
+
+Residual health evidence is retained: startup includes one approximately 301 ms
+probe timeout and slow-stage diagnostics; a later `/ready` request returns 503
+with no parsed JSON body. A subsequent fresh status remains running/no HALT,
+and startup/live/ready all return 200. The source of that isolated HTTP 503 is
+not established by the captured response and must not be attributed to the
+engine or Cloud Run without further evidence.
+
+The deployed `/status` now reports the pinned 200 USDT quote budget, market
+labels and fresh account equity. Perpetual cap exposure remains explicitly
+unknown when its engine cap assessment is absent; account LONG 0.0498 BTC is
+separately observed. Capital allocation and unavailable baseline/transfer metrics
+remain unknown. This does not qualify every Overview field or a 30-minute
+two-sided coverage target. Private receipts and samples are retained under
+`build/intent-contention-postdeploy-20261118`.
+
+The completed follow-up window, 11:12:19–11:15:36 local, contains 19 samples
+over 196.37 seconds. Every sample is fresh, running/no HALT on the same revision,
+session and control/ack 102; startup/live/ready each return 200 for all 19 samples.
+This follows the earlier isolated readiness 503 rather than excluding it from
+the overall evidence. Spot working BUY counts range from one to two and SELL
+from zero to two as inventory sizing and quote replacement change. The final
+sample has two BUY and two SELL. Fourteen recorded Spot fills since Start include
+eight BUY and six SELL. Perpetual retains two closing SELL quotes and observed
+LONG 0.0498 BTC; no Perpetual fill is recorded in this window. Both credential
+slots remain Connected. No Stop is sent; the bot is left running continuously.
+
+An additional loop-stall diagnostic at 11:13:24 records a 254.17 ms heartbeat
+gap and recovery approximately 116 ms after detection. Repeated admission
+backoff/legacy executor retry logs also remain. The sampled availability result
+therefore verifies that these observed contention events did not cause another
+HALT; it does not establish permanent absence of technical HALTs, eliminate the
+latency/retry-volume follow-ups, or close load/soak and production acceptance.
+
+## Local follow-up: wait instead of consuming executor retries
+
+Revision 173's connected log evidence shows why a second correction is needed:
+one proven-unsent conflict starts a 500 ms cooldown, but each new quote attempt
+during that cooldown still emits a failed-order event. Position executors consume
+their retry budgets and prepare replacement IDs; managed closing order executors
+also report an ERROR because their legacy classifier does not recognize the new
+exception. The earlier implementation prevents the persistence HALT but does not
+prevent this retry and log burst.
+
+Four unit cases and four native/real-PostgreSQL cases fail before this correction.
+The owner now waits within the original native create task, on the same client
+identity, before any durable intent or POST. The shared 500 ms cooldown is outside
+the admission slot. Every resumed attempt passes the normal current owner,
+session, native-order, quote and risk checks; final-send checks retain their own
+authority/priority. Task cancellation remains tracked and releases the slot.
+Only `IntentAdmissionBusy`, already backed by the existing exact prewrite
+rollback proof, takes this loop. Unknown COMMIT, post-fence failure, failed
+rollback and lost ownership retain their existing handling.
+
+Real PostgreSQL keeps a row locked across multiple fence attempts. Resumption
+sends the same ID once; Stop, a removed tracker and changed quote each prevent
+transport. Eight concurrent native waiters share the cooldown rather than
+individually polling the row, allow loop callbacks to progress, emit zero
+order-failure events, then produce exactly eight acknowledged sends with eight
+distinct original IDs. Continuing contention warnings are summarized at most
+once per 30-second interval, with INFO recovery after successful admission.
+This is bounded lifecycle/stress evidence, not a load or soak result.
+
+Four local HTTP tests initially fail for absent readiness diagnostics. The API
+now marks health responses with `X-Hbot-Health-Source: api`; proxy failures return
+distinct timeout, connection, invalid-response and HTTP-status reasons. Bounded
+warning/recovery events record elapsed milliseconds without body/URL/exception
+text. Real HTTP timeout/not-ready/invalid-response tests recover on a fresh
+probe, leave API liveness available and perform no trading mutation. The 300 ms
+proxy timeout and fail-closed readiness status are unchanged. These tests do not
+identify the cause of the earlier historical 503 without captured source data.
+
+Validation passes: 151 unit/executor tests plus two subtests, 54 health/process
+tests, 28 PostgreSQL lifecycle/fairness tests, 38 PostgreSQL fault/send-progress
+tests (including both network-at-COMMIT outcomes), and five final native
+contention/burst cases. Suites overlap; counts are not additive. Hooks and
+`git diff --check` pass. RED/GREEN receipts are retained under
+`build/admission-cooldown-20261118`.
+
+At 11:31 local the existing Cloud Run revision 173 is still fresh, running/no
+HALT, control/ack 102 on the same continuous session. The new cooldown/health
+implementation is local and is not part of that deployed image. No new cloud
+mutation, environment flag, risk change or migration is performed for this
+follow-up. Deployment, a single-image 30-minute window and release soak remain
+open for the new source.

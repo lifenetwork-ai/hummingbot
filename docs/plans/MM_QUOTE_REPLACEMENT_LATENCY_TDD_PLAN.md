@@ -4,6 +4,33 @@ Scope: optimize the verified revision110 path without changing caps, fee-inclusi
 breakeven, terminal proof, native financial commits or quote qualification.
 Existing Demo runs and failed quote windows retain their original scope.
 
+## Intent contention cooldown and readiness evidence — local 2026-11-18
+
+- [x] Reproduce four unit and four real PostgreSQL failures before changing
+  admission: proven unsent contention escapes to executor failure/retry rather
+  than waiting. Preserve the narrower confirmed-prewrite-rollback classifier.
+- [x] Wait on the same native identity across the shared 500 ms cooldown,
+  outside the admission slot. Recheck owner/session/native state/price/risk on
+  resumption; retain final-send priority and task cancellation/draining.
+- [x] Prove eight native waiters share the cooldown, leave callbacks running,
+  produce no order-failure events and send eight distinct IDs exactly once.
+  Stop, tracker retirement and a changed quote reject before durable admission.
+- [x] Bound continuing contention warnings and report admission recovery. Keep
+  ambiguous COMMIT, post-fence write/rollback failure and ownership loss fatal.
+- [x] RED/GREEN real local HTTP tests distinguish engine-proxy timeout,
+  connection loss, invalid response and engine-not-ready. Add API source header
+  and bounded failure/recovery diagnostics; retain readiness 503 and its 300 ms
+  deadline. The historical empty-JSON 503 remains unattributed.
+- [x] Run focused executor/health regressions, real PostgreSQL lifecycle tests
+  and network-at-COMMIT fault tests. Counts and receipts are recorded in the
+  [connected incident report](../../reports/demo/cloudrun-inventory-skew-percent-20261118.md).
+- [ ] Deploy the new cooldown/health-diagnostic implementation, verify immutable
+  image identity and capture source headers/body/heartbeat for any readiness
+  failure. Revision 173 measures the earlier rejection/backoff implementation.
+- [ ] Measure 30 minutes on one deployed image and run the release soak; keep
+  two-sided quote qualification, breakeven fill handoff and latency follow-ups
+  separate from absence of HALT. Do not change risk limits to manufacture a pass.
+
 The regular Random window has16 Spot and57 perpetual missing-quote samples;
 the conservative two-sided fractions are95.32%/92.65%. Twenty native replacement
 pairs have median1.1915s and maximum5.508s between last fill and next venue

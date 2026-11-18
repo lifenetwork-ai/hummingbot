@@ -1,5 +1,6 @@
 """Queued order admission retains lifecycle authority without starving callbacks."""
 import asyncio
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -196,3 +197,71 @@ async def test_direct_final_gate_does_not_retain_its_long_lived_caller_after_aut
     await owner.authorize_rest(SimpleNamespace(url='https://offline.invalid/api/v5/trade/order'))
     assert asyncio.current_task() not in owner.submission_tasks
     assert not owner.submission_admission.locked()
+
+
+@pytest.mark.asyncio
+async def test_repeated_proven_unsent_contention_waits_without_failure_or_holding_send_slot(owner, caplog):
+    calls, posted, probes = [], [], []
+    busy = asyncio.Event()
+
+    def admit(connector, identity):
+        calls.append(identity)
+        if len(calls) <= 3:
+            owner._intent_admission_retry_at = time.monotonic() + .1
+            busy.set()
+            raise gates.IntentAdmissionBusy('proven unsent rollback')
+
+    owner.before_order = admit
+    owner._authorize_rest = AsyncMock(return_value=None)
+
+    async def submit():
+        await gates.before_order(None, 'same-native-identity')
+        posted.append('same-native-identity')
+
+    task = asyncio.create_task(submit())
+    try:
+        await asyncio.wait_for(busy.wait(), 1)
+        assert not task.done(), 'Contention must wait, not become an executor failure/retry'
+        assert task in owner.submission_tasks and not owner.submission_admission.locked()
+        # Already prepared final sends and health callbacks must not wait for
+        # the new-intent cooldown. This gate still rechecks its own authority.
+        await asyncio.wait_for(owner.authorize_rest(SimpleNamespace(url='https://offline.invalid/api/v5/trade/order')), 1)
+        asyncio.get_running_loop().call_soon(lambda: probes.append(True))
+        await asyncio.sleep(.01)
+        assert probes and calls == ['same-native-identity'] and not posted
+        await asyncio.wait_for(task, 1)
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    assert calls == ['same-native-identity'] * 4 and posted == ['same-native-identity']
+    assert not owner.submission_tasks and not owner.submission_admission.locked()
+    warnings = [r for r in caplog.records if getattr(r, 'reason_code', None) == 'intent_admission_busy']
+    assert len(warnings) == 1, 'Repeated contention must retain a bounded diagnostic'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('interrupt', ['cancel', 'replace', 'fatal'])
+async def test_cooldown_cancellation_and_authority_changes_never_replay_an_admitted_send(owner, monkeypatch, interrupt):
+    owner._intent_admission_retry_at = time.monotonic() + .03
+    owner.before_order = Mock(side_effect=OSError('unknown write outcome') if interrupt == 'fatal' else None)
+    task = asyncio.create_task(gates.before_order(None, 'unsent'))
+    await asyncio.sleep(.005)
+    assert task in owner.submission_tasks and not task.done()
+    owner.before_order.assert_not_called()
+    assert not owner.submission_admission.locked()
+    if interrupt == 'cancel':
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        owner.before_order.assert_not_called()
+    elif interrupt == 'replace':
+        monkeypatch.setattr(gates, '_guard', object())
+        with pytest.raises(gates.SubmissionBlocked, match='owner changed'):
+            await task
+        owner.before_order.assert_not_called()
+    else:
+        with pytest.raises(OSError, match='unknown write outcome'):
+            await task
+        owner.before_order.assert_called_once()
+    await asyncio.sleep(0)
+    assert not owner.submission_tasks and not owner.submission_admission.locked()

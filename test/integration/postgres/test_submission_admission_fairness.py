@@ -260,28 +260,112 @@ def test_fresh_burst_callback_and_completion_work(native, legacy):
     report('fresh_burst_predecessor' if legacy else 'fresh_burst_candidate', timing)
 
 
-def test_native_intent_contention_releases_cash_and_recovers_without_a_post_replay(native):
-    async def create(identity):
-        with session_order_scope(native.session.id, native.session.generation):
-            await native.market._create_order(TradeType.BUY, identity, 'LIFE-USDT',
-                                              Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10'))
-        await asyncio.sleep(.02)
+@pytest.mark.parametrize('after_wait', ['send', 'stop', 'retire', 'reprice'])
+def test_native_intent_contention_waits_on_same_identity_and_rechecks_authority(native, after_wait):
+    from hummingbot.core.order_submission_guard import QuoteRefreshRequired
 
-    with native.engine.begin() as blocker:
+    async def run():
+        blocker = native.engine.connect()
+        tx = blocker.begin()
         blocker.exec_driver_sql('SELECT bot_id FROM bot_state FOR UPDATE').all()
-        native.loop.run_until_complete(create('busy-native'))
-    assert native.transport.call.await_count == 0
-    assert native.manager.persistence_healthy
-    assert not native.owner.active_intents and not native.owner.sent_intents
-    assert native.owner.spot_outflow.status()['reserved_quote'] == 0
-    assert 'busy-native' not in native.market.in_flight_orders
-    with native.manager.get_new_session() as session:
-        assert session.query(Order).count() == session.query(SubmissionAttempt).count() == 0
-    assert not native.store.read()['recovery_state'].get('halt')
-    native.owner._intent_admission_retry_at = 0
-    native.loop.run_until_complete(create('fresh-after-busy'))
-    assert native.transport.call.await_count == 1
-    with native.manager.get_new_session() as session:
-        assert session.query(Order).count() == session.query(SubmissionAttempt).count() == 1
-        assert session.query(SubmissionAttempt).one().state == 'acknowledged'
+        task = None
+        try:
+            with session_order_scope(native.session.id, native.session.generation):
+                task = asyncio.create_task(native.market._create_order(
+                    TradeType.BUY, 'busy-native', 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10')))
+            await asyncio.sleep(.65)  # The same real row stays busy across two admission fences.
+            assert not task.done(), 'A proven unsent conflict must wait instead of triggering executor retries'
+            assert task in native.owner.submission_tasks and not native.owner.submission_admission.locked()
+            native.transport.call.assert_not_awaited()
+            assert native.manager.persistence_healthy
+            assert not native.owner.active_intents and not native.owner.sent_intents
+            assert native.owner.spot_outflow.status()['reserved_quote'] == 0
+            assert 'busy-native' in native.market.in_flight_orders
+            with native.manager.get_new_session() as db:
+                assert db.query(Order).count() == db.query(SubmissionAttempt).count() == 0
+            if after_wait == 'stop':
+                native.owner.begin_shutdown()
+            elif after_wait == 'retire':
+                native.market.stop_tracking_order('busy-native')
+            elif after_wait == 'reprice':
+                native.owner.mm_quote_check = MagicMock(side_effect=QuoteRefreshRequired('price changed while waiting'))
+            tx.commit()
+            await asyncio.wait_for(task, 2)
+            await asyncio.sleep(.02)
+        finally:
+            if tx.is_active:
+                tx.rollback()
+            blocker.close()
+            if task is not None:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+        assert not native.owner.submission_tasks and not native.owner.submission_admission.locked()
+
+    native.loop.run_until_complete(run())
+    sends = int(after_wait == 'send')
+    assert native.transport.call.await_count == sends
+    with native.manager.get_new_session() as db:
+        assert db.query(Order).count() == db.query(SubmissionAttempt).count() == sends
+        if sends:
+            assert db.query(Order).one().id == 'busy-native'
+            assert db.query(SubmissionAttempt).one().state == 'acknowledged'
+    assert native.manager.persistence_healthy and not native.store.read()['recovery_state'].get('halt')
+
+
+def test_eight_native_waiters_share_cooldown_without_failures_or_duplicate_sends(native):
+    from hummingbot.core.event.event_logger import EventLogger
+    from hummingbot.core.event.events import MarketEvent
+
+    failures, attempts, progress = EventLogger(), [], []
+    native.market.add_listener(MarketEvent.OrderFailure, failures)
+    blocked = [True]
+
+    def fence(connection, cursor, statement, *args):
+        if blocked[0] and 'FOR SHARE' in statement and 'NOWAIT' in statement:
+            attempts.append(time.monotonic())
+
+    async def run():
+        tasks = []
+        with native.engine.begin() as blocker:
+            blocker.exec_driver_sql('SELECT bot_id FROM bot_state FOR UPDATE').all()
+            with session_order_scope(native.session.id, native.session.generation):
+                tasks = [
+                    asyncio.create_task(native.market._create_order(
+                        TradeType.BUY, f'waiting-{i}', 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10')))
+                    for i in range(8)
+                ]
+            try:
+                # Repeated loop callbacks progress while the same real row stays
+                # locked. All eight native tasks share one prewrite cooldown.
+                for _ in range(12):
+                    await asyncio.sleep(.1)
+                    progress.append(True)
+                assert all(not t.done() for t in tasks)
+                assert not native.owner.submission_admission.locked()
+                assert native.transport.call.await_count == 0 and not failures.event_log
+                assert 2 <= len(attempts) <= 4, 'Waiters must not each poll the DB during shared cooldown'
+            except BaseException:
+                for task in tasks:
+                    task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                raise
+        blocked[0] = False
+        try:
+            await asyncio.wait_for(asyncio.gather(*tasks), 5)
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    event.listen(native.engine, 'before_cursor_execute', fence)
+    try:
+        native.loop.run_until_complete(run())
+    finally:
+        event.remove(native.engine, 'before_cursor_execute', fence)
+        native.market.remove_listener(MarketEvent.OrderFailure, failures)
+    assert len(progress) == 12 and not failures.event_log and native.transport.call.await_count == 8
+    with native.manager.get_new_session() as db:
+        assert {x.id for x in db.query(Order)} == {f'waiting-{i}' for i in range(8)}
+        assert db.query(SubmissionAttempt).count() == 8
+        assert {x.state for x in db.query(SubmissionAttempt)} == {'acknowledged'}
     assert native.manager.persistence_healthy and not native.store.read()['recovery_state'].get('halt')
