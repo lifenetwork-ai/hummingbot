@@ -10,7 +10,14 @@ from itertools import islice
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.mm_quote_activity import quote_activity, unavailable_activity
-from hummingbot.core.overview_coverage import GROUPS, add_interval, eligibility, eligibility_fields, project_buckets
+from hummingbot.core.overview_coverage import (
+    GROUPS,
+    CoverageBucket,
+    add_interval,
+    eligibility,
+    eligibility_fields,
+    project_buckets,
+)
 
 COVERAGE_WINDOW_SECONDS = 1800
 COVERAGE_HISTORY_LIMIT = 1800
@@ -18,18 +25,14 @@ _BUCKET_NUMBER_TYPES = frozenset((int, float))
 
 
 def copy_liquidity_checkpoint(frame):
-    """Detach retained history without generic deepcopy dispatch for every number.
-
-    Bucket rows contain only numbers. Copy each row and its containing maps,
-    preserving independent snapshots even when the current second is extended.
-    Unrecognized/legacy values retain deepcopy's defensive behavior.
-    """
+    """Detach the maps, sharing validated immutable rows across snapshots."""
     if not isinstance(frame, dict) or not isinstance(frame.get('_coverage_buckets'), dict):
         return deepcopy(frame)
     result = deepcopy({key: value for key, value in frame.items() if key != '_coverage_buckets'})
     result['_coverage_buckets'] = {
-        market: {second: row.copy() if type(row) is list and set(map(type, row)) <= _BUCKET_NUMBER_TYPES
-                 else deepcopy(row) for second, row in buckets.items()}
+        market: {second: row if type(row) is CoverageBucket else (
+            row.copy() if type(row) is list and set(map(type, row)) <= _BUCKET_NUMBER_TYPES else deepcopy(row))
+            for second, row in buckets.items()}
         if type(buckets) is dict else deepcopy(buckets)
         for market, buckets in frame['_coverage_buckets'].items()
     }
@@ -262,6 +265,8 @@ class LiquidityObserver:
             if market not in self._validated_bucket_markets:
                 if project_buckets(buckets, start=cutoff, end=now) is None:
                     buckets = {}
+                else:
+                    buckets = {second: CoverageBucket(row) for second, row in buckets.items()}
                 self._validated_bucket_markets.add(market)
             buckets = {key: value for key, value in buckets.items() if int(key) + 1 > cutoff}
             persistent = bool(

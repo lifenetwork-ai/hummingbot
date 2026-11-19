@@ -100,7 +100,7 @@ def test_full_window_checkpoint_is_detached_from_later_samples_and_restart():
     assert frame == original
 
     # Mutating an already delivered checkpoint cannot rewrite resident history.
-    frame['_coverage_buckets']['spot']['2800'][2] = 999
+    frame['_coverage_buckets']['spot']['2800'] = [0, 0, 999]
     frame['markets']['spot']['two_sided_seconds'] = 0
     assert observer.frame['_coverage_buckets']['spot']['2800'][2] == .75
     assert observer.frame['markets']['spot']['two_sided_seconds'] > 1800
@@ -118,6 +118,28 @@ def test_checkpoint_copy_detaches_unrecognized_legacy_rows():
     copied = copy_liquidity_checkpoint({'_coverage_buckets': {'spot': {'1000': incompatible}}})
     incompatible[1]['old_evidence'].append(2)
     assert copied['_coverage_buckets']['spot']['1000'] == [1000, {'old_evidence': [1]}]
+
+
+def test_rolling_checkpoint_shares_unchanged_immutable_rows_across_publication():
+    import json
+
+    observer = LiquidityObserver()
+    observer_sample(observer, at=1000, mono=0)
+    first = observer_sample(observer, at=1001.25, mono=1.25)
+    publication = copy_liquidity_checkpoint(first)
+    second = observer_sample(observer, at=1001.75, mono=1.75)
+    first_rows = publication['_coverage_buckets']['spot']
+    second_rows = second['_coverage_buckets']['spot']
+    assert isinstance(first_rows['1000'], tuple)
+    assert first_rows['1000'] is second_rows['1000']
+    assert first_rows['1001'] is not second_rows['1001']
+    assert first_rows['1001'][2] == .25
+    assert second_rows['1001'][2] == .75
+    assert rolling_coverage(second, 'spot', now=1002) == rolling_coverage(
+        json.loads(json.dumps(second)), 'spot', now=1002)
+
+    first['_coverage_buckets']['spot'].clear()
+    assert set(first_rows) == {'1000', '1001'}
 
 
 def test_legacy_checkpoint_never_reconstructs_history_from_cumulative_totals():

@@ -21,6 +21,12 @@ NORMAL_WAITS = {'active_executor', 'cooldown', 'proposal_pending_confirmation', 
                 'inventory_skew_sell_below_minimum'}
 
 
+class CoverageBucket(tuple):
+    """Immutable numeric row built from a sample or a validated checkpoint."""
+
+    __slots__ = ()
+
+
 def eligibility(observation, *, now, running):
     """Fresh resident proposal/order evidence, never readiness alone."""
     if not running or not observation.get('valid') or observation.get('slo_scope_valid') is not True:
@@ -74,7 +80,8 @@ def add_interval(buckets, *, start, end, state, two_sided):
         stop = min(end, second + 1)
         duration = stop - start
         key = str(second)
-        row = buckets.setdefault(key, [start, stop, 0., 0., 0., 0.] + [0.] * len(GROUPS))
+        previous = buckets.get(key)
+        row = list(previous) if previous is not None else [start, stop, 0., 0., 0., 0.] + [0.] * len(GROUPS)
         row[1] = max(row[1], stop)
         row[2] += duration
         if two_sided:
@@ -85,6 +92,7 @@ def add_interval(buckets, *, start, end, state, two_sided):
                 row[5] += duration
         elif state in GROUPS:
             row[6 + GROUPS.index(state)] += duration
+        buckets[key] = CoverageBucket(row)
         start = stop
 
 
@@ -95,7 +103,7 @@ def project_buckets(buckets, *, start, end):
     totals = [0.] * (4 + len(GROUPS))
     minutes = {}
     for key, row in buckets.items():
-        if (not isinstance(key, str) or not key.lstrip('-').isdigit() or not isinstance(row, list)
+        if (not isinstance(key, str) or not key.lstrip('-').isdigit() or not isinstance(row, (list, CoverageBucket))
                 or len(row) != 6 + len(GROUPS)
                 or any(type(value) not in (int, float) or not math.isfinite(value) for value in row)):
             return None
