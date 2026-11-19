@@ -4613,7 +4613,7 @@ export interface components {
             check_id: string;
             /**
              * Confirm Order Changes
-             * @description Must be true after explicitly reviewing proposed_order_changes or proposed_uncertain_order.
+             * @description True after reviewing proposed_order_changes, proposed_uncertain_order or pending fill application.
              * @default false
              */
             confirm_order_changes: boolean;

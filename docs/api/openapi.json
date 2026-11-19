@@ -10064,7 +10064,7 @@
           },
           "confirm_order_changes": {
             "default": false,
-            "description": "Must be true after explicitly reviewing proposed_order_changes or proposed_uncertain_order.",
+            "description": "True after reviewing proposed_order_changes, proposed_uncertain_order or pending fill application.",
             "title": "Confirm Order Changes",
             "type": "boolean"
           },

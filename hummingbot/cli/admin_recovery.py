@@ -33,7 +33,7 @@ class RecoveryResetRequest(RecoveryCheckRequest):
     check_id: str = Field(min_length=1, max_length=128, strict=True)
     confirmation_token: str = Field(pattern=r'^[a-f0-9]{32}$', strict=True)
     confirm_order_changes: bool = Field(default=False, strict=True,
-                                        description='Must be true after explicitly reviewing proposed_order_changes or proposed_uncertain_order.')
+                                        description='True after reviewing proposed_order_changes, proposed_uncertain_order or pending fill application.')
 
 
 class RecoveryBlocker(APIModel):

@@ -54,7 +54,7 @@ def position_scope(snapshot):
 
 
 def checked_trades(reader, name, selected, rows):
-    """Validate exact native identities/economics/fees against applied local fills."""
+    """Validate exact native identities, economics and fees against durable local fills."""
     result = []
     local = {(r['fill']['market'], str(r['order']['exchange_order_id']), r['fill']['exchange_trade_id']): r for r in rows}
     if len(local) != len(rows) or local.keys() != {key for key, _ in selected}:

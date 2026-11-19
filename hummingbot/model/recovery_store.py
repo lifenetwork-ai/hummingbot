@@ -8,7 +8,7 @@ from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, exists, func, select, text, tuple_, update
+from sqlalchemy import delete, exists, func, or_, select, text, tuple_, update
 from sqlalchemy.exc import IntegrityError
 
 from hummingbot.core.admin_identity import Principal
@@ -21,6 +21,7 @@ from hummingbot.core.recovery import (
     fingerprint,
     recovery_blockers,
 )
+from hummingbot.core.recovery_pending_fills import fill_ids
 from hummingbot.model.admin_access import AdminAccessStore
 from hummingbot.model.admin_command import AdminCommand
 from hummingbot.model.bot_state import BotState
@@ -84,16 +85,19 @@ class RecoveryStore:
         identity = payload.get('uncertain_order_id')
         return self.snapshot(connection, uncertain_order_id=identity) if identity is not None else self.snapshot(connection)
 
-    def checkpoint_fill_rows(self, keys, watermark):
+    def checkpoint_fill_rows(self, keys, watermark, *, pending_ids=()):
         from hummingbot.model.checkpoint_recovery import fill_identity
+        from hummingbot.model.recovery_pending_fills import MAX_PENDING_FILLS
         from hummingbot.model.runtime_journal import RuntimeJournal
-        if not keys or len(keys) > 100 or type(watermark) is not int or watermark < 0:
+        if (not keys or len(keys) > 100 or type(watermark) is not int or watermark < 0
+                or len(pending_ids) > MAX_PENDING_FILLS or any(type(i) is not int or i <= watermark for i in pending_ids)):
             raise ValueError('Invalid bounded fill proof')
         columns = ([column.label('fill_' + column.name) for column in TradeFill.__table__.columns]
                    + [column.label('order_' + column.name) for column in Order.__table__.columns]
                    + [RuntimeJournal.payload.label('journal'), RuntimeJournal.id.label('journal_id')])
         statement = select(*columns).select_from(TradeFill).join(Order, Order.id == TradeFill.order_id).join(
-            RuntimeJournal, fill_identity()).where(RuntimeJournal.applied.is_(True), RuntimeJournal.id > watermark,
+            RuntimeJournal, fill_identity()).where(or_(RuntimeJournal.applied.is_(True), RuntimeJournal.id.in_(pending_ids)),
+                                                   RuntimeJournal.id > watermark,
                                                    tuple_(TradeFill.market, Order.exchange_order_id, TradeFill.exchange_trade_id).in_(keys))
         with self.engine.connect() as connection:
             rows = connection.execute(statement).mappings().all()
@@ -108,8 +112,12 @@ class RecoveryStore:
             # Readers remain available; no financial write can race final proof.
             from hummingbot.model.checkpoint_recovery import LEDGER_MODELS
             from hummingbot.model.runtime_journal import RuntimeCheckpoint
+            models = (*LEDGER_MODELS, Position, RuntimeCheckpoint, ExchangeCredential)
+            if snapshot.get('pending_fill_transfers'):
+                from hummingbot.model.executors import Executors
+                models += (Executors,)
             tables = ', '.join(connection.dialect.identifier_preparer.format_table(model.__table__)
-                               for model in (*LEDGER_MODELS, Position, RuntimeCheckpoint, ExchangeCredential))
+                               for model in models)
             connection.execute(text('LOCK TABLE ' + tables + ' IN SHARE MODE'))
 
     def get(self, operation_id, connection=None):
@@ -159,7 +167,9 @@ class RecoveryStore:
             _conflict('recovery_state_changed')
         if payload.get('uncertain_order_id') and report['_private']['actor'] != asdict(actor):
             _conflict('recovery_actor_changed')
-        if (report.get('proposed_order_changes') or report.get('proposed_uncertain_order')) and payload.get('confirm_order_changes') is not True:
+        review = (report.get('proposed_order_changes') or report.get('proposed_uncertain_order')
+                  or (report.get('verification') or {}).get('pending_fill_ids'))
+        if review and payload.get('confirm_order_changes') is not True:
             _conflict('recovery_order_review_required')
         current_snapshot = self.operation_snapshot(payload, connection) if current_snapshot is None else current_snapshot
         if fingerprint({**current_snapshot, 'state': state}) != report['_private']['fingerprint']:
@@ -339,7 +349,10 @@ class RecoveryStore:
         from hummingbot.core.segmented_recovery import validate_progress
         private = (self.get(row['id'], connection)['result'] or {}).get('_private') or {}
         proof = private.get('proof')
-        if proof is None and not verification.get('segmented') and not snapshot.get('terminal_orders'):
+        pending = fill_ids(snapshot)
+        if pending != verification.get('pending_fill_ids', []):
+            _conflict('recovery_pending_fills_unproven')
+        if proof is None and not verification.get('segmented') and not snapshot.get('terminal_orders') and not pending:
             return  # Existing bounded complete-history / one-shot verifier.
         if proof:
             validate_progress(proof, {**snapshot, 'state': self._state(connection)})
@@ -357,6 +370,14 @@ class RecoveryStore:
             RecoveryProofFill.command_id == row['id']).group_by(RecoveryProofFill.scan)).all())
         if set(counts) - {0, 1} or any(counts.get(scan, 0) != expected for scan in (0, 1)):
             _conflict('recovery_check_unavailable')
+        if pending:
+            keys = {(item['exchange_order_id'], fill['trade_id']) for item in snapshot['pending_fill_transfers']
+                    for fill in item['fills']}
+            proved = connection.execute(select(RecoveryProofFill.scan, RecoveryProofFill.venue_order_id, RecoveryProofFill.trade_id)
+                                        .where(RecoveryProofFill.command_id == row['id'], RecoveryProofFill.connector == 'okx',
+                                               tuple_(RecoveryProofFill.venue_order_id, RecoveryProofFill.trade_id).in_(keys))).all()
+            if set(proved) != {(scan, order_id, trade_id) for scan in (0, 1) for order_id, trade_id in keys}:
+                _conflict('recovery_pending_fills_unproven')
 
     def finish_check(self, owner, row, snapshot, plan, verification, *, blockers):
         owner.check_owner()
@@ -368,7 +389,8 @@ class RecoveryStore:
             prepared = self.operation_snapshot(payload, connection) if snapshot.get('mode') == 'verified_checkpoint' else None
             state, actor = self._operation(connection, owner, row, checking=True)
             if not blockers and (not verification.get('verified')
-                                 or snapshot.get('mode') == 'verified_checkpoint' and (plan or verification.get('scope') != 'verified_checkpoint')):
+                                 or snapshot.get('mode') == 'verified_checkpoint' and
+                                 (plan != snapshot.get('pending_fill_plan', []) or verification.get('scope') != 'verified_checkpoint')):
                 _conflict('recovery_check_unavailable')
             current = self.operation_snapshot(payload, connection) if prepared is None else prepared
             if fingerprint({**current, 'state': state}) != fingerprint(snapshot):
@@ -399,7 +421,8 @@ class RecoveryStore:
             check = self._checked_preview(connection, payload, state, current_snapshot=prepared, actor=actor)
             current = self.operation_snapshot(payload, connection) if prepared is None else prepared
             if (not verification.get('verified') or fingerprint({**current, 'state': state}) != fingerprint(snapshot)
-                    or plan != check['result']['proposed_changes']):
+                    or plan != check['result']['proposed_changes']
+                    or fill_ids(snapshot) != (check['result'].get('verification') or {}).get('pending_fill_ids', [])):
                 _conflict('recovery_state_changed')
             self._complete_segmented_proof(connection, row, snapshot, verification)
             if snapshot.get('uncertain_order'):
@@ -431,6 +454,13 @@ class RecoveryStore:
                 self.access.audit(connection, actor=actor, action='recovery_position_repaired', outcome='succeeded',
                                   operation_id=row['id'], request_id=row['result']['_private']['request_id'],
                                   details=dict(position_id=change['id'], amount=change['after']['amount'], pair=change['pair']))
+            for item in snapshot.get('pending_fill_transfers', []):
+                self.access.audit(connection, actor=actor, action='recovery_pending_fill_applied', outcome='succeeded',
+                                  operation_id=row['id'], request_id=row['result']['_private']['request_id'],
+                                  target_id=item['id'], connector='okx', exchange='okx',
+                                  environment=snapshot['checkpoint']['payload']['environment']['mode'],
+                                  reason_code='verified_native_fill',
+                                  details=dict(pair=item['pair'], order_id=item['id'], stage='pending_fills_applied'))
             # This is an operator-confirmed, complete venue/financial proof. It
             # may establish the first incremental baseline; ordinary Start may
             # never certify a pre-existing ledger in its place.
@@ -438,10 +468,12 @@ class RecoveryStore:
             if state['config_type'] == 'mm-session' and state['config_file_path']:
                 with Session(bind=connection) as session:
                     if snapshot.get('mode') == 'verified_checkpoint':
-                        if plan or verification.get('scope') != 'verified_checkpoint':
+                        if plan != snapshot.get('pending_fill_plan', []) or verification.get('scope') != 'verified_checkpoint':
                             _conflict('recovery_state_changed')
+                        from hummingbot.model.recovery_pending_fills import apply as apply_pending_fills
                         from hummingbot.model.runtime_journal import RuntimeCheckpoint
                         checkpoint = session.get(RuntimeCheckpoint, state['config_file_path'])
+                        apply_pending_fills(session, checkpoint, snapshot, row['id'])
                         checkpoint.payload = {**checkpoint.payload, 'recovery_anchor': dict(
                             operation_id=row['id'], journal_watermark=checkpoint.watermark,
                             prefix_unjournaled_fills=snapshot['checkpoint']['prefix_unjournaled_fills'],

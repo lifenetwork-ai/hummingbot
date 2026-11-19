@@ -124,8 +124,11 @@ def snapshot(connection, state, positions, bindings, *, uncertain_order_id=None)
             if terminal_orders is None or connection.scalar(select(exists().where(Order.creation_pending.is_(True)))):
                 return None
             excluded = [row['id'] for row in terminal_orders]
-        if (unresolved_attempts(connection, excluding=excluded)
-                or connection.scalar(select(exists().where(RuntimeJournal.applied.is_(False))))):
+        if unresolved_attempts(connection, excluding=excluded):
+            return None
+        from hummingbot.model.recovery_pending_fills import candidates as pending_candidates
+        pending = pending_candidates(connection, state, positions, bindings, checkpoint, anchor)
+        if pending is None or uncertain is not None and pending[0]:
             return None
         unjournaled = connection.scalar(select(func.count()).select_from(TradeFill).where(
             ~exists(select(RuntimeJournal.id).where(fill_identity()))))
@@ -143,4 +146,6 @@ def snapshot(connection, state, positions, bindings, *, uncertain_order_id=None)
                   checkpoint=value, ledger_hash=ledger_hash(connection), terminal_orders=terminal_orders)
     if uncertain is not None:
         result['uncertain_order'] = uncertain
+    if pending[0]:
+        result['pending_fill_transfers'], result['pending_fill_plan'] = pending
     return result

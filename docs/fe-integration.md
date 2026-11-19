@@ -1680,14 +1680,21 @@ checkpoint still reports `recovery_checkpoint_invalid` and blocks recovery.
    connector/pair, side/position, exact amount/price, native cancellation time
    and before/after status, attempt state and tracker membership. An empty
    position list does not mean that no order metadata change is proposed.
+   When `verification.pending_fill_ids` is present, it lists the journal IDs
+   of committed Spot fills to apply exactly once. Show the Spot position
+   before/after preview alongside `verification.pending_fill_orders`, which
+   links each journal and trade ID to a client and venue order ID. Recovery
+   verifies the terminal order and fills on OKX and preserves the original
+   trade and fee history.
 4. POST `/recovery/reset` with a new Idempotency-Key and the returned fields:
 
    ```json
    {"expected_version":16,"check_id":"<check operation id>","confirmation_token":"<returned 32-character token>"}
    ```
 
-   When `proposed_order_changes` is nonempty, include `"confirm_order_changes":true`
-   only after explicit admin review of that list. Omission/false returns409
+   When `proposed_order_changes` or `verification.pending_fill_ids` is nonempty,
+   include `"confirm_order_changes":true` only after explicit admin review.
+   Omission or false returns HTTP 409
    `recovery_order_review_required`; strings/numbers are validation errors.
    Older clients cannot silently authorize metadata repairs using only the
    existing token. Do not retry with true automatically.
