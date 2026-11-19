@@ -17,9 +17,11 @@ from unittest.mock import AsyncMock
 import pytest
 from aiohttp import web
 from sqlalchemy import event, text
+from sqlalchemy.exc import OperationalError
 
 from hummingbot.cli.service import ServiceHost
 from hummingbot.cli.service_processes import probe_health
+from hummingbot.connector import markets_recorder
 from hummingbot.connector.client_order_tracker import ClientOrderTracker
 from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
@@ -35,14 +37,15 @@ from hummingbot.model.trade_fill import TradeFill
 owned = owned_fixture
 
 
-@pytest.mark.parametrize(('new_state', 'tag'), [
-    (OrderState.OPEN, MarketEvent.BuyOrderCreated),
-    (OrderState.FILLED, MarketEvent.BuyOrderCompleted),
-    (OrderState.FAILED, MarketEvent.OrderFailure),
-    (OrderState.CANCELED, MarketEvent.OrderCancelled),
-    (OrderState.OPEN, MarketEvent.OrderFilled),
+@pytest.mark.parametrize(('new_state', 'tag', 'cancel_waiter'), [
+    (OrderState.OPEN, MarketEvent.BuyOrderCreated, False),
+    (OrderState.FILLED, MarketEvent.BuyOrderCompleted, False),
+    (OrderState.FAILED, MarketEvent.OrderFailure, False),
+    (OrderState.CANCELED, MarketEvent.OrderCancelled, False),
+    (OrderState.OPEN, MarketEvent.OrderFilled, False),
+    (OrderState.OPEN, MarketEvent.OrderFilled, True),
 ])
-def test_managed_order_update_keeps_probe_live_during_ownership_row_wait(owned, new_state, tag):
+def test_managed_order_update_keeps_probe_live_during_ownership_row_wait(owned, new_state, tag, cancel_waiter):
     tracker = ClientOrderTracker(owned.market)
     order = intent(owned)
     if tag is not MarketEvent.BuyOrderCreated:
@@ -78,7 +81,9 @@ def test_managed_order_update_keeps_probe_live_during_ownership_row_wait(owned, 
             connection.execute(text('SELECT bot_id FROM bot_state FOR UPDATE')).all()
             row_locked.set()
             assert fence_started.wait(2)
-            threading.Event().wait(.75)
+            # Exceed the configured PostgreSQL lock_timeout with the actual
+            # recorder holding the event until a durable receipt is available.
+            threading.Event().wait(1.25)
 
     def detect_fence(connection, cursor, statement, parameters, context, executemany):
         if 'FOR SHARE' in statement:
@@ -122,12 +127,20 @@ def test_managed_order_update_keeps_probe_live_during_ownership_row_wait(owned, 
             applying = loop.create_task(apply())
             healthy, detail = await probing
             assert healthy and detail['elapsed_ms'] < 300, detail
-            report(f'managed_order_fence_probe_{tag.name}', {'elapsed_ms': detail['elapsed_ms'], 'status': detail['status']})
+            report(f'managed_order_fence_probe_{tag.name}_{cancel_waiter}',
+                   {'elapsed_ms': detail['elapsed_ms'], 'status': detail['status']})
             assert not applying.done()
             assert order.current_state is initial_state
             owned.market.trigger_event.assert_not_called()
-            await applying
+            if cancel_waiter:
+                applying.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await applying
+            else:
+                await applying
             await apply()
+            assert owned.manager.persistence_healthy
+            assert owned.owner.allow_new_orders and not owned.owner.lost
         finally:
             await blocker
             await runner.cleanup()
@@ -146,6 +159,81 @@ def test_managed_order_update_keeps_probe_live_during_ownership_row_wait(owned, 
         if tag is MarketEvent.OrderFilled:
             assert state['executed_amount_base'] == str(fill().amount)
             assert session.query(TradeFill).count() == 1
+
+
+@pytest.fixture
+def tracked_fill(owned):
+    order = intent(owned)
+    order.update_exchange_order_id('exchange-1')
+    order.current_state = OrderState.OPEN
+    owned.recorder._did_create_order(MarketEvent.BuyOrderCreated.value, owned.market, create())
+    owned.market.current_timestamp = 1700000001
+    tracker = ClientOrderTracker(owned.market)
+    tracker.start_tracking_order(order)
+    row = fill()
+    trade = TradeUpdate(row.exchange_trade_id, order.client_order_id, 'exchange-1', row.trading_pair,
+                        row.timestamp, row.price, row.amount, row.price * row.amount, row.trade_fee)
+    return tracker, order, trade
+
+
+def test_managed_fill_row_wait_expires_without_acknowledging(owned, tracked_fill, monkeypatch):
+    tracker, order, trade = tracked_fill
+    monkeypatch.setattr(markets_recorder, '_ORDER_FENCE_RETRY_SECONDS', .25)
+    attempts = []
+
+    def mark_attempt(connection, cursor, statement, *args):
+        if 'FOR SHARE NOWAIT' in statement:
+            attempts.append(owned.manager.persistence_healthy)
+
+    event.listen(owned.engine, 'before_cursor_execute', mark_attempt)
+    try:
+        with owned.engine.begin() as blocker:
+            blocker.execute(text('SELECT bot_id FROM bot_state FOR UPDATE')).all()
+            with pytest.raises(OperationalError) as failure:
+                owned.loop.run_until_complete(tracker.apply_trade_update(trade))
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', mark_attempt)
+    assert failure.value.orig.pgcode == '55P03'
+    assert len(attempts) >= 2 and all(attempts)
+    assert not order.executed_amount_base and not owned.manager.persistence_healthy
+    owned.market.trigger_event.assert_not_called()
+    with owned.manager.get_new_session() as session:
+        assert session.query(TradeFill).count() == 0
+
+
+def test_managed_fill_commit_lock_error_is_never_retried(owned, tracked_fill):
+    tracker, order, trade = tracked_fill
+    with owned.engine.begin() as conn:
+        conn.execute(text("""
+            CREATE FUNCTION fail_fill_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                RAISE EXCEPTION 'injected late lock failure' USING ERRCODE = '55P03';
+            END
+            $$
+        """))
+        conn.execute(text("""
+            CREATE CONSTRAINT TRIGGER fail_fill_commit
+            AFTER INSERT ON trade_fills DEFERRABLE INITIALLY DEFERRED
+            FOR EACH ROW EXECUTE FUNCTION fail_fill_commit()
+        """))
+    inserted = []
+
+    def mark_insert(connection, cursor, statement, *args):
+        if statement.startswith('INSERT INTO trade_fills'):
+            inserted.append(True)
+
+    event.listen(owned.engine, 'before_cursor_execute', mark_insert)
+    try:
+        with pytest.raises(OperationalError) as failure:
+            owned.loop.run_until_complete(tracker.apply_trade_update(trade))
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', mark_insert)
+    assert failure.value.orig.pgcode == '55P03'
+    assert inserted == [True] and not owned.manager.persistence_healthy
+    assert not order.executed_amount_base
+    owned.market.trigger_event.assert_not_called()
+    with owned.manager.get_new_session() as session:
+        assert session.query(TradeFill).count() == 0
 
 
 @pytest.mark.parametrize('after_flush', [False, True])

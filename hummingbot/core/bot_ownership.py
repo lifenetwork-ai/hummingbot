@@ -696,7 +696,7 @@ class BotOwnership:
 
     def fence_session(self, session, *, nowait=False):
         self._read_owner(identity_only=True)
-        self._lock_owner_row(session, nowait=nowait)
+        self.lock_owner_row(session, nowait=nowait)
 
     def fence_recorder_session(self, session):
         # The recorder holds this row until it commits. Check the original
@@ -705,7 +705,7 @@ class BotOwnership:
         if self.lost:
             raise OwnershipLost('Trading ownership was lost while recording the order.',
                                 reason_code='ownership_already_lost')
-        self._lock_owner_row(session)
+        self.lock_owner_row(session)
         advisory_lock = session.connection().execute(text("""
             SELECT EXISTS (
                 SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted
@@ -717,7 +717,7 @@ class BotOwnership:
             raise OwnershipLost('The recorder cannot verify the trading owner lock.',
                                 reason_code='ownership_identity_mismatch')
 
-    def _lock_owner_row(self, session, *, nowait=False):
+    def lock_owner_row(self, session, *, nowait=False):
         transaction = session.get_transaction()
         if transaction is not None and session.info.get("ownership_fenced_transaction") is transaction:
             return

@@ -14,6 +14,7 @@ from typing import Dict, Iterator, List, Optional, Tuple, Union
 import pandas as pd
 from sqlalchemy import or_, select, tuple_, union_all
 from sqlalchemy.engine import Row
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Query, Session, defer
 
 from hummingbot import data_path
@@ -55,6 +56,8 @@ from hummingbot.strategy_v2.controllers.controller_base import ControllerConfigB
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
 _QUOTE_FEE_NOT_CALCULATED = object()
+_ORDER_FENCE_RETRY_SECONDS = 4.0
+_ORDER_FENCE_RETRY_INTERVAL = 0.1
 
 
 class MarketsRecorder:
@@ -176,25 +179,61 @@ class MarketsRecorder:
 
     async def _run_native_write(self, stage, *args):
         from hummingbot.core.bot_ownership import OwnershipLost
-        from hummingbot.core.order_submission_guard import active_guard
+        from hummingbot.core.order_submission_guard import SubmissionBlocked, active_guard
+        from hummingbot.model.intent_admission import capture_prewrite_lock_failure, confirmed_prewrite_failure
 
         owner = active_guard()
         if owner.engine is not self._sql_manager.engine:
             raise RuntimeError('Order recorder is outside the active ownership scope.')
 
         def write():
-            with self._sql_manager.get_new_session() as session, session.begin():
-                session.info["worker_order_owner"] = owner
-                result = stage(session, *args)
-                session.flush()
-                if session.info.get("ownership_fenced_transaction") is session.get_transaction():
-                    self._sql_manager.assert_persistence_healthy()
-                    owner.fence_recorder_session(session)
-                return result
+            with self._sql_manager.get_new_session() as session:
+                try:
+                    with session.begin():
+                        self._sql_manager.assert_persistence_healthy()
+                        # Only a failure acquiring the row before staging can be retried.
+                        with capture_prewrite_lock_failure(session):
+                            owner.lock_owner_row(session, nowait=True)
+                        session.info["worker_order_owner"] = owner
+                        # Flush hooks check the physical owner before DML.
+                        result = stage(session, *args)
+                        session.flush()
+                        self._sql_manager.assert_persistence_healthy()
+                        owner.fence_recorder_session(session)
+                    return result, None
+                except OperationalError as error:
+                    if confirmed_prewrite_failure(session, error) and self._sql_manager.persistence_healthy:
+                        return None, error
+                    raise
 
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        deadline = started + _ORDER_FENCE_RETRY_SECONDS
+        cancelled = None
         try:
-            owner.require_owner_connection()
-            return await self._drain_order_write(write)
+            while True:
+                if active_guard() is not owner:
+                    raise SubmissionBlocked('Trading owner changed while waiting for the recorder lock.')
+                owner.require_owner_connection()
+                (result, lock_error), write_cancelled = await self._drain_order_write(write)
+                cancelled = write_cancelled or cancelled
+                if lock_error is None:
+                    elapsed = loop.time() - started
+                    if elapsed >= 1.0:
+                        self.logger().info('Order recorder transaction completed after %.3fs', elapsed,
+                                           extra={'event': 'order_recorder_write_completed'})
+                    return result, cancelled
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    raise lock_error
+                try:
+                    await asyncio.sleep(min(remaining, _ORDER_FENCE_RETRY_INTERVAL))
+                except asyncio.CancelledError as error:
+                    # Drain the received venue fact under the same finite
+                    # budget before shutdown can release its ownership.
+                    cancelled = error
+                if loop.time() >= deadline:
+                    raise lock_error
         except OwnershipLost as error:
             self._sql_manager.persistence_healthy = False
             raise owner._lose_ownership(str(error), error.reason_code) from None

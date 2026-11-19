@@ -1,15 +1,14 @@
-"""A narrow exception for a rejected ownership lock before any intent writes.
+"""Recognize a rejected ownership lock before any order writes.
 
-Never relax rollback handling for fills, terminal effects or ambiguous COMMITs.
-The proof belongs to one fresh ORM transaction and is consumed after its actual
-DBAPI rollback; it cannot reset an already-unhealthy recorder.
+The proof belongs to one ORM transaction and is consumed after its actual
+DBAPI rollback. Once the fence is acquired, write and COMMIT failures remain fatal.
 """
 from contextlib import contextmanager
 from dataclasses import dataclass
 
 from sqlalchemy.exc import OperationalError
 
-_KEY = 'unsent_intent_fence_rollback'
+_KEY = 'order_prewrite_fence_rollback'
 
 
 @dataclass
@@ -21,7 +20,20 @@ class _PrewriteRollback:
     confirmed: bool = False
 
 
-def confirmed_unsent_rollback(session, previous_transaction):
+@contextmanager
+def capture_prewrite_lock_failure(session):
+    connection = session.connection()
+    driver = connection.connection.driver_connection
+    try:
+        yield
+    except OperationalError as error:
+        if (getattr(error.orig, 'pgcode', None) == '55P03'
+                and not error.connection_invalidated and not connection.invalidated):
+            session.info[_KEY] = _PrewriteRollback(session.get_transaction(), connection, driver, error)
+        raise
+
+
+def confirm_prewrite_rollback(session, previous_transaction):
     proof = session.info.get(_KEY)
     if not isinstance(proof, _PrewriteRollback) or previous_transaction is not proof.transaction:
         return False
@@ -35,6 +47,11 @@ def confirmed_unsent_rollback(session, previous_transaction):
     return proof.confirmed
 
 
+def confirmed_prewrite_failure(session, error):
+    proof = session.info.pop(_KEY, None)
+    return proof is not None and error is proof.error and proof.confirmed
+
+
 @contextmanager
 def order_intent_transaction(manager, order_id):
     """Fence eagerly/NOWAIT before staging even the first Order INSERT."""
@@ -42,7 +59,6 @@ def order_intent_transaction(manager, order_id):
     from hummingbot.model.order import Order
 
     with manager.get_new_session() as session:
-        proof = None
         try:
             with session.begin():
                 # Preserve the original duplicate-identity rejection before the
@@ -55,25 +71,14 @@ def order_intent_transaction(manager, order_id):
                         manager.assert_persistence_healthy()
                         if guard.engine is not manager.engine:
                             raise RuntimeError('Intent recorder does not belong to the trading owner.')
-                        connection = session.connection()
-                        driver = connection.connection.driver_connection
-                        try:
+                        with capture_prewrite_lock_failure(session):
                             guard.fence_session(session, nowait=True)
-                        except OperationalError as error:
-                            if (getattr(error.orig, 'pgcode', None) == '55P03'
-                                    and not error.connection_invalidated and not connection.invalidated):
-                                proof = _PrewriteRollback(session.get_transaction(), connection, driver, error)
-                                session.info[_KEY] = proof
-                            raise
                 yield session
         except BaseException as error:
-            if (isinstance(error, OperationalError) and proof is not None and error is proof.error
-                    and proof.confirmed and manager.persistence_healthy):
+            if confirmed_prewrite_failure(session, error) and manager.persistence_healthy:
                 raise IntentAdmissionBusy('Intent admission waits for the ownership row; no order was sent.') from None
             # A rollback failure can prevent after_soft_rollback from firing.
             # Keep every other PostgreSQL failure fatal even in that case.
             if manager.engine.dialect.name == 'postgresql':
                 manager.persistence_healthy = False
             raise
-        finally:
-            session.info.pop(_KEY, None)
