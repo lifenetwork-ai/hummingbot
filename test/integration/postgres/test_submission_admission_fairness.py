@@ -61,13 +61,14 @@ def native(owned):
 
 def test_native_eight_quote_burst_allows_health_callback_between_admissions(native):
     admitted, probe_counts = [], []
-    original = native.recorder.record_order_intent
+    original = native.recorder.persist_order_intent
 
-    def record(*args):
-        original(*args)
+    async def record(*args):
+        result = await original(*args)
         admitted.append(args[1].client_order_id)
         if len(admitted) == 1:
             asyncio.get_running_loop().call_soon(lambda: probe_counts.append(len(admitted)))
+        return result
 
     async def burst():
         with session_order_scope(native.session.id, native.session.generation):
@@ -79,7 +80,7 @@ def test_native_eight_quote_burst_allows_health_callback_between_admissions(nati
         await asyncio.sleep(0)
         assert not native.owner.submission_tasks
 
-    with patch.object(native.recorder, 'record_order_intent', side_effect=record):
+    with patch.object(native.recorder, 'persist_order_intent', side_effect=record):
         native.loop.run_until_complete(burst())
     assert len(admitted) == native.transport.call.await_count == 8
     assert probe_counts == [1], f'Health callback waited behind {probe_counts} synchronous admissions'
@@ -91,14 +92,15 @@ def test_native_eight_quote_burst_allows_health_callback_between_admissions(nati
 
 
 def test_stop_between_native_admissions_prevents_the_rest_of_the_burst(native):
-    original = native.recorder.record_order_intent
+    original = native.recorder.persist_order_intent
     admitted = []
 
-    def record(*args):
-        original(*args)
+    async def record(*args):
+        result = await original(*args)
         admitted.append(args[1].client_order_id)
         if len(admitted) == 1:
             asyncio.get_running_loop().call_soon(native.owner.begin_shutdown)
+        return result
 
     async def burst():
         with session_order_scope(native.session.id, native.session.generation):
@@ -110,7 +112,7 @@ def test_stop_between_native_admissions_prevents_the_rest_of_the_burst(native):
         await asyncio.sleep(0)
         assert not native.owner.submission_tasks
 
-    with patch.object(native.recorder, 'record_order_intent', side_effect=record):
+    with patch.object(native.recorder, 'persist_order_intent', side_effect=record):
         native.loop.run_until_complete(burst())
     # Stop now runs before the first order's final send fence too. Its prepared
     # intent must be rejected durably instead of crossing the transport gate.
@@ -126,7 +128,8 @@ def test_native_burst_paired_callback_wait_with_real_postgres(native):
     from test.integration.postgres.test_performance import queries, report
 
     from hummingbot.core import order_submission_guard as gates
-    original_record, current = native.recorder.record_order_intent, gates.before_order
+    original_record, persist_intent = native.recorder.record_order_intent, native.recorder.persist_order_intent
+    current = gates.before_order
 
     async def predecessor(connector, order):
         gates.active_guard().before_order(connector, order)
@@ -139,9 +142,8 @@ def test_native_burst_paired_callback_wait_with_real_postgres(native):
         admitted, receipt = [], {}
         started = time.perf_counter()
 
-        def record(*args):
-            original_record(*args)
-            admitted.append(args[1].client_order_id)
+        def observe_admission(order):
+            admitted.append(order.client_order_id)
             if len(admitted) == 1:
                 queued_at = time.perf_counter()
 
@@ -151,7 +153,17 @@ def test_native_burst_paired_callback_wait_with_real_postgres(native):
 
                 asyncio.get_running_loop().call_soon(probe)
 
+        def record(market, order):
+            original_record(market, order)
+            observe_admission(order)
+
+        async def persist(market, order):
+            result = await persist_intent(market, order)
+            observe_admission(order)
+            return result
+
         with patch.object(native.recorder, 'record_order_intent', side_effect=record), \
+                patch.object(native.recorder, 'persist_order_intent', side_effect=persist), \
                 patch.object(gates, 'before_order', predecessor if legacy else current), \
                 queries(native.engine) as statements:
             with session_order_scope(native.session.id, native.session.generation):
@@ -215,14 +227,14 @@ def test_fresh_burst_callback_and_completion_work(native, legacy):
 
     from hummingbot.core import order_submission_guard as gates
     current, original_record = gates.before_order, native.recorder.record_order_intent
+    persist_intent = native.recorder.persist_order_intent
     admitted, timing = [], {}
 
     async def predecessor(connector, order):
         gates.active_guard().before_order(connector, order)
 
-    def record(*args):
-        original_record(*args)
-        admitted.append(args[1].client_order_id)
+    def observe_admission(order):
+        admitted.append(order.client_order_id)
         if len(admitted) == 1:
             queued_at = time.perf_counter()
 
@@ -231,6 +243,15 @@ def test_fresh_burst_callback_and_completion_work(native, legacy):
                               callback_wait_ms=(time.perf_counter() - queued_at) * 1000)
 
             asyncio.get_running_loop().call_soon(observe)
+
+    def record(market, order):
+        original_record(market, order)
+        observe_admission(order)
+
+    async def persist(market, order):
+        result = await persist_intent(market, order)
+        observe_admission(order)
+        return result
 
     def delay(*args):
         time.sleep(.002)
@@ -246,6 +267,7 @@ def test_fresh_burst_callback_and_completion_work(native, legacy):
     event.listen(native.engine, 'after_cursor_execute', delay)
     try:
         with patch.object(native.recorder, 'record_order_intent', side_effect=record), \
+                patch.object(native.recorder, 'persist_order_intent', side_effect=persist), \
                 patch.object(gates, 'before_order', predecessor if legacy else current), queries(native.engine) as statements:
             started = time.perf_counter()
             native.loop.run_until_complete(run())

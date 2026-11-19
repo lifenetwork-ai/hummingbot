@@ -444,7 +444,7 @@ class ServiceHost:
                     return False
             anchors = {controller.config.id: controller.reference_state() for controller in controllers}
         if anchors is not None or (bootstrap is not None and bootstrap.needs_start()):
-            self.mm_session = self.store.update_mm_session(
+            self.mm_session = await self._update_mm_session(
                 owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=self.applied_version,
                 session_id=self.mm_session.id, generation=self.mm_session.generation,
                 change=lambda session, now: session.ready(now=now, anchors=anchors) if anchors is not None else None,
@@ -456,6 +456,15 @@ class ServiceHost:
         for controller in controllers:
             controller.admit_session(self.mm_session.id, self.mm_session.generation)
         return True
+
+    async def _update_mm_session(self, **fields):
+        from contextlib import nullcontext
+
+        from hummingbot.connector.markets_recorder import MarketsRecorder
+        recorder = MarketsRecorder._shared_instance
+        matches = recorder is not None and recorder.sql_manager.engine is self.engine
+        async with recorder.order_writes if matches else nullcontext():
+            return self.store.update_mm_session(**fields)
 
     def configure_logging(self):
         from hummingbot.logger.service_logging import configure_service_logging
@@ -758,7 +767,7 @@ class ServiceHost:
                     and (not (row["recovery_state"] or {}).get("halt") or session_expired)
                     and (session_expired or not self.mm_startup_pending())):
                 try:
-                    self.mm_session = self.store.update_mm_session(
+                    self.mm_session = await self._update_mm_session(
                         owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=row["control_version"],
                         session_id=self.mm_session.id, generation=self.mm_session.generation,
                         change=lambda session, now: session.advance(now=now, rng=SystemRandom()))
@@ -842,7 +851,7 @@ class ServiceHost:
                 else:
                     self.phase = "stopped"
                     if self.mm_session is not None and self.mm_session.status == "stopping":
-                        self.mm_session = self.store.update_mm_session(
+                        self.mm_session = await self._update_mm_session(
                             owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=version,
                             session_id=self.mm_session.id, generation=self.mm_session.generation,
                             change=lambda session, now: setattr(session, "status", "stopped"))

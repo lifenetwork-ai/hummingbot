@@ -415,8 +415,12 @@ class AutomaticOrderRecovery:
             raise SubmissionBlocked('recovery_account_binding_changed')
         if order.exchange_order_id or order.executed_amount_base or order.order_fills:
             raise SubmissionBlocked('recovery_order_identity_mismatch')
-        core.markets_recorder.reject_unsent_order(connector, order.client_order_id,
-                                                  require_existing=True, expiry_receipt=receipt)
+        async with self.owner.order_write_scope():
+            self.owner.check_owner()
+            if order.exchange_order_id or order.executed_amount_base or order.order_fills:
+                raise SubmissionBlocked('recovery_order_identity_mismatch')
+            core.markets_recorder.reject_unsent_order(connector, order.client_order_id,
+                                                      require_existing=True, expiry_receipt=receipt)
         await connector._order_tracker.process_order_update(OrderUpdate(
             order.trading_pair, time.time(), OrderState.FAILED, order.client_order_id))
         self.owner.sent_intents.discard(order.client_order_id)
@@ -447,11 +451,14 @@ class AutomaticOrderRecovery:
                 or attempt['context']['credential_fingerprint'] != credential_fingerprint(connector)
                 or sorted(attempt['context']['bindings'], key=digest) != sorted(self._bindings(), key=digest)):
             raise SubmissionBlocked('recovery_account_binding_changed')
-        proof_covers_local(order, status, trades)
-        persist_proved_trades(core.markets_recorder, connector, order, trades)
+        async with self.owner.order_write_scope():
+            self._terminal_fence(core.markets_recorder)
+            proof_covers_local(order, status, trades)
+            persist_proved_trades(core.markets_recorder, connector, order, trades)
         await connector._order_tracker.process_order_update(status)
         proof_covers_local(order, status, trades)
-        self._record_verified(core, attempt, status, trades)
+        async with self.owner.order_write_scope():
+            self._record_verified(core, attempt, status, trades)
         return status, trades
 
     def _terminal_fence(self, recorder):
@@ -522,8 +529,10 @@ class AutomaticOrderRecovery:
                 self.owner.check_owner()
                 proof, trades = await asyncio.wait_for(read_order_proof(connector, order), timeout=10)
                 self.owner.check_owner()
-                proof_covers_local(order, proof, trades)
-                persist_proved_trades(recorder, connector, order, trades)
+                async with self.owner.order_write_scope():
+                    self._terminal_fence(recorder)
+                    proof_covers_local(order, proof, trades)
+                    persist_proved_trades(recorder, connector, order, trades)
                 _, snapshot = await self._read_durable_fills(order.client_order_id, trades)
                 self._terminal_fence(recorder)
                 proof_covers_local(order, proof, snapshot)
@@ -735,6 +744,10 @@ class AutomaticOrderRecovery:
         self.status.update(phase='settled_stopped', reason_code='uncertain_effects_retained')
         return set(records)
 
+    async def _write_recovery_state(self, change, **options):
+        async with self.owner.order_write_scope():
+            return self.owner._mutate_recovery(change, **options)
+
     async def step(self, core, *, force=False):
         if not self.active or not force and time.monotonic() < self.next_poll:
             return
@@ -748,7 +761,8 @@ class AutomaticOrderRecovery:
                                                and not self.owner.shutdown_requested and row['desired_state'] == 'running'
                                                and row['control_version'] == self.owner.version)
         if len(pending) > MAX_ATTEMPTS:
-            self.owner.require_recovery('automatic_recovery_scope_limit')
+            async with self.owner.order_write_scope():
+                self.owner.require_recovery('automatic_recovery_scope_limit')
             self.status.update(phase='manual_required', operator_required=True, reason_code='automatic_recovery_scope_limit')
             return
         try:
@@ -793,7 +807,7 @@ class AutomaticOrderRecovery:
                 now = time.monotonic()
                 self.next_poll = min(self.attempt_retry.get(attempt['order_id'], (now + 1, 0))[0] for attempt in remaining)
                 self.status['next_retry_at'] = time.time() + max(0, self.next_poll - now)
-                self.owner._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.status)))
+                await self._write_recovery_state(lambda state: state.update(automatic_recovery=dict(self.status)))
                 return
             if not remaining:
                 self.quarantined.clear()
@@ -806,7 +820,7 @@ class AutomaticOrderRecovery:
                     or row['desired_state'] != 'running' or row['control_version'] != self.owner.version
                     or row['config_file_path'] != self.owner.config_file_path):
                 self.status.update(phase='settled_stopped', reason_code='current_control_blocks_resume')
-                self.owner._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.status)))
+                await self._write_recovery_state(lambda state: state.update(automatic_recovery=dict(self.status)))
                 return
             if self.resume_scope is not None:
                 self.owner._check_mm_authority(row, self.resume_scope, submission=False)
@@ -822,7 +836,7 @@ class AutomaticOrderRecovery:
                 state.update(automatic_recovery=dict(self.status))
                 self._audit('automatic_recovery_resumed', identity, 'succeeded', 'current_authority_verified')
 
-            if self.owner._mutate_recovery(resume, expected_version=self.owner.version):
+            if await self._write_recovery_state(resume, expected_version=self.owner.version):
                 self.owner.allow_new_orders = True
             self.failures = 0
         except asyncio.CancelledError:
@@ -831,9 +845,10 @@ class AutomaticOrderRecovery:
             self.owner.check_owner()  # Never hide loss of the physical fence.
             core.trade_fill_db.assert_persistence_healthy()
             if isinstance(error, SubmissionBlocked) and str(error) in MANUAL_PROOFS:
-                self.owner.require_recovery('Automatic recovery evidence conflicts with its durable account/financial scope.')
+                async with self.owner.order_write_scope():
+                    self.owner.require_recovery('Automatic recovery evidence conflicts with its durable account/financial scope.')
                 self.status.update(phase='manual_required', reason_code=str(error), operator_required=True)
-                self.owner._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.status)))
+                await self._write_recovery_state(lambda state: state.update(automatic_recovery=dict(self.status)))
                 return
             self.failures = min(self.failures + 1, 10)
             delay = min(15, 2 ** min(self.failures - 1, 4)) * random.uniform(.8, 1.2)
@@ -846,7 +861,7 @@ class AutomaticOrderRecovery:
                 phase, reason = 'settled_stopped', 'session_authority_changed'
             self.status.update(phase=phase, reason_code=reason, next_retry_at=time.time() + delay,
                                operator_required=time.time() - self.status.get('started_at', time.time()) >= 300)
-            self.owner._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.status)))
+            await self._write_recovery_state(lambda state: state.update(automatic_recovery=dict(self.status)))
 
     def poll(self, core):
         if self.task is not None and self.task.done():

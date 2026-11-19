@@ -1111,3 +1111,49 @@ revision126. Connected revision127 evidence is in
 The separate pre-window query retains6 private-WS handshake HTTP502 ERRORs;
 the exact observation window has none. Remaining synchronous owner/write/COMMIT
 waits are not removed by read isolation; no zero-timeout guarantee is made.
+
+## Terminal recorder COMMIT and probe correlation
+
+- [x] Reproduce the recorder stall with real PostgreSQL and a deferred 400 ms
+  write at COMMIT. The original `/live` probe times out in 3 of 3 trials at its
+  300 ms deadline. The next probe succeeds and each cancellation is durable.
+- [x] Test overlapping writes. A worker holding the market checkpoint row
+  for 400 ms makes a synchronous fill for another order in the same market
+  wait 408 ms. The probe times out at 302 ms. The fill alone takes 14 ms.
+- [x] Cover both ambiguous terminal COMMIT outcomes with the PostgreSQL proxy.
+  Neither outcome allows another send after the error. A fresh tracker and
+  duplicate terminal updates converge to one cancellation. Order, attempt and
+  tracker checkpoint agree.
+- [x] Log probe start and finish timestamps and the child PID for correlation
+  with the engine diagnostic clock. Keep the 300 ms request timeout and the
+  existing watchdog policy. Cloud Logging currently excludes INFO recovery
+  messages from this service's default sink.
+- [x] Make Stop yield while a recorder transaction holds the ownership row.
+  Close local admission immediately, then retry only a prewrite lock rejection
+  until the shutdown deadline. Recheck the owner and control version on each
+  attempt. PostgreSQL tests cover a concurrent fill and probe, expiry, a newer
+  control version and a deferred lock error at COMMIT.
+- [x] Exercise both locks together in a local prototype. Stop with a synchronous
+  fill sharing the held market checkpoint still times out at 312 ms. Waiting
+  asynchronously before processing that fill keeps the probe at 11 ms and
+  retains the fills. The prototype uses an explicit wait in the test harness.
+- [x] Serialize managed native OKX cancellation, fill and intent persistence
+  through the recorder. Finish ORM staging and the ownership checks on the
+  engine loop, then let a worker commit the staged transaction. Late transport
+  receipts use the same lock. Publish the native event after the commit and
+  drain the worker before returning from cancellation or releasing ownership.
+- [x] Exercise the native recorder with a real 450 ms deferred cancellation
+  COMMIT, concurrent fill and late receipt, plus parallel admission, Stop or
+  cancellation of the waiting task. All three `/live` responses return HTTP 200
+  in 1.1–8.7 ms, and each order/fill outcome is durable once. Cut both the
+  COMMIT request and the COMMIT reply for the async cancellation, fill and
+  intent paths, and verify recovery using a fresh tracker or owner.
+- [x] Pass offline missing-terminal-WebSocket and shutdown-proof scenarios on
+  the final local image, including Random rotation and revision handoff.
+- [ ] Measure a full Random rotation window on the qualified Cloud Run Demo
+  image.
+
+Local measurements and the contention reproducer are retained under
+`build/cloudrun-balance-changes-9aa676ba9/probe-commit-investigation/`.
+Managed recorder verification output is retained under
+`build/managed-recorder-commit-candidate/`.

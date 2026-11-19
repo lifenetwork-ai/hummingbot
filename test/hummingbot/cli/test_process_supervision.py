@@ -283,11 +283,12 @@ def test_watchdog_reports_bounded_failure_episode_and_recovery_without_restartin
     watchdog = HealthWatchdog(owner)
     watchdog.observe('engine', True)
     clock.now = 1
-    watchdog.observe('engine', False, reason='http_status', status=503, elapsed_ms=12)
+    watchdog.observe('engine', False, reason='http_status', status=503, elapsed_ms=12,
+                     started_at_ns=101, finished_at_ns=102)
     clock.now = 2
-    watchdog.observe('engine', False, reason='timeout', elapsed_ms=301)
+    watchdog.observe('engine', False, reason='timeout', elapsed_ms=301, started_at_ns=201, finished_at_ns=202)
     clock.now = 3
-    watchdog.observe('engine', True)
+    watchdog.observe('engine', True, started_at_ns=301, finished_at_ns=302)
     assert not owner.children['engine'].terminated
     failures = [e for e in events if e['event'] == 'child_probe_failed']
     recovered = [e for e in events if e['event'] == 'child_probe_recovered']
@@ -295,6 +296,10 @@ def test_watchdog_reports_bounded_failure_episode_and_recovery_without_restartin
     assert failures[0]['reason_code'] == 'http_status' and failures[0]['probe_status'] == 503
     assert recovered[0]['failed_probes'] == 2 and recovered[0]['failure_seconds'] == 2
     assert recovered[0]['first_reason'] == 'http_status' and recovered[0]['reason_code'] == 'timeout'
+
+    assert (failures[0]['probe_started_at_ns'], failures[0]['probe_finished_at_ns']) == (101, 102)
+    assert (recovered[0]['probe_started_at_ns'], recovered[0]['probe_finished_at_ns']) == (201, 202)
+    assert (recovered[0]['recovery_probe_started_at_ns'], recovered[0]['recovery_probe_finished_at_ns']) == (301, 302)
 
 
 def test_watchdog_retains_probe_reason_and_sampling_gap_on_same_restart_deadline():

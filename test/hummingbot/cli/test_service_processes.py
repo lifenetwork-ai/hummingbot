@@ -25,9 +25,12 @@ def test_health_probe_distinguishes_status_and_transport_failure_without_body_or
     monkeypatch.setattr(service_processes, 'urlopen', call)
     times = iter([10., 10.125])
     monkeypatch.setattr(service_processes.time, 'monotonic', lambda: next(times))
+    wall_times = iter([1_700_000_000_000_000_000, 1_700_000_000_125_000_000])
+    monkeypatch.setattr(service_processes.time, 'time_ns', lambda: next(wall_times))
     healthy, details = service_processes.probe_health(8081, '/live')
     assert healthy is (case == 'healthy')
-    assert details == dict(reason=reason, status=status, elapsed_ms=125)
+    assert details == dict(reason=reason, status=status, elapsed_ms=125,
+                           started_at_ns=1_700_000_000_000_000_000, finished_at_ns=1_700_000_000_125_000_000)
     call.assert_called_once_with('http://127.0.0.1:8081/live', timeout=.3)
     response.read.assert_not_called()
 
@@ -41,9 +44,11 @@ def test_probe_log_survives_json_formatter_without_response_body(caplog):
     with caplog.at_level(logging.WARNING):
         log_child(dict(severity='WARNING', event='child_probe_failed', role='engine', reason_code='http_status',
                        first_reason='http_status', failed_probes=2, failure_seconds=1.5, max_probe_gap_seconds=1.5,
-                       probe_elapsed_ms=12.5, max_probe_elapsed_ms=300.5, probe_status=503))
+                       probe_elapsed_ms=12.5, max_probe_elapsed_ms=300.5, probe_status=503,
+                       probe_started_at_ns=123, probe_finished_at_ns=456, child_pid=14))
     row = json.loads(ServiceFormatter('json', {}).format(caplog.records[-1]))
     assert row['reason_code'] == 'http_status' and row['scope'] == 'engine'
+    assert (row['probe_started_at_ns'], row['probe_finished_at_ns'], row['child_pid']) == (123, 456, 14)
     for text in ('failed_probes=2', 'failure_seconds=1.5', 'max_probe_gap_seconds=1.5', 'probe_status=503',
                  'probe_elapsed_ms=12.5', 'max_probe_elapsed_ms=300.5'):
         assert text in row['message']

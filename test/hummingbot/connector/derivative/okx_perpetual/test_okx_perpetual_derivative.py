@@ -116,7 +116,7 @@ class OkxPerpetualDerivativeTests(
         self.assertEqual(1700000000.123, update.update_timestamp)
         self.exchange._order_tracker.start_tracking_order(order)
         with patch.object(self.exchange._order_tracker, "process_trade_update") as process:
-            self.exchange._process_order_event_message(event)
+            self.run_async_with_timeout(self.exchange._process_order_event_message(event))
         self.assertEqual(1700000000.123, process.call_args.args[0].fill_timestamp)
 
     @property

@@ -108,10 +108,13 @@ class HealthWatchdog:
         return dict(reason_code=previous['reason'], first_reason=previous['first_reason'],
                     probe_status=previous['status'], probe_elapsed_ms=previous['elapsed_ms'],
                     max_probe_elapsed_ms=previous['max_elapsed_ms'], failed_probes=previous['failed_probes'],
+                    child_pid=getattr(previous['child'], 'pid', None),
+                    probe_started_at_ns=previous['started_at_ns'], probe_finished_at_ns=previous['finished_at_ns'],
                     failure_seconds=round(now - previous['failed_since'], 3),
                     max_probe_gap_seconds=round(previous['max_gap'], 3))
 
-    def observe(self, role, healthy, *, reason='unknown', status=None, elapsed_ms=0):
+    def observe(self, role, healthy, *, reason='unknown', status=None, elapsed_ms=0,
+                started_at_ns=None, finished_at_ns=None):
         child = self.supervisor.children[role]
         if child is None:
             self.observations.pop(role, None)
@@ -130,6 +133,8 @@ class HealthWatchdog:
         if healthy:
             if previous['healthy_once'] and previous['failed_since'] is not None:
                 self.supervisor.emit(dict(severity='INFO', event='child_probe_recovered', role=role,
+                                          recovery_probe_started_at_ns=started_at_ns,
+                                          recovery_probe_finished_at_ns=finished_at_ns,
                                           **self.diagnostics(previous, now)))
             previous.update(healthy_once=True, failed_since=None)
             return
@@ -137,6 +142,7 @@ class HealthWatchdog:
         if first_failure:
             previous.update(failed_since=now, first_reason=reason, failed_probes=0, max_gap=gap, max_elapsed_ms=0)
         previous.update(reason=reason, status=status, elapsed_ms=elapsed_ms,
+                        started_at_ns=started_at_ns, finished_at_ns=finished_at_ns,
                         failed_probes=previous['failed_probes'] + 1, max_elapsed_ms=max(previous['max_elapsed_ms'], elapsed_ms))
         # One transition log, not one log for every poll. Startup misses are expected.
         if first_failure and previous['healthy_once']:

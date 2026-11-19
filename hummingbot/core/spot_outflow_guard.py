@@ -412,23 +412,24 @@ class SpotOutflowGuard:
         if (str(final.get("code")) != "0" or len(final.get("data", [])) != 1
                 or any(final["data"][0].get(key) != first.get(key) for key in keys)):
             raise ValueError("Order changed during terminal proof")
-        if apply_terminal:
-            self._check_terminal_identity(connector, order)
         self.terminal_stages[client_id] = 'recording'
         recorder = MarketsRecorder._shared_instance
-        recorder._did_create_order(MarketEvent.BuyOrderCreated.value, connector, BuyOrderCreatedEvent(
-            timestamp=int(first["uTime"]) / 1000, type=order.order_type, trading_pair=order.trading_pair,
-            amount=order.amount, price=order.price, order_id=client_id, creation_timestamp=order.creation_timestamp,
-            exchange_order_id=order.exchange_order_id))
-        for raw in fills.values():
-            fill = connector._trade_update_from_fill(order, raw)
-            connector._order_tracker.process_trade_update(fill)
-            recorder._did_fill_order(MarketEvent.OrderFilled.value, connector, OrderFilledEvent(
-                timestamp=fill.fill_timestamp, order_id=client_id, trading_pair=order.trading_pair,
-                trade_type=order.trade_type, order_type=order.order_type, price=fill.fill_price,
-                amount=fill.fill_base_amount, trade_fee=fill.fee, exchange_trade_id=fill.trade_id,
-                leverage=order.leverage, position=order.position.value))
-        recorder.sql_manager.assert_persistence_healthy()
+        async with recorder.order_writes:
+            if apply_terminal:
+                self._check_terminal_identity(connector, order)
+            recorder._did_create_order(MarketEvent.BuyOrderCreated.value, connector, BuyOrderCreatedEvent(
+                timestamp=int(first["uTime"]) / 1000, type=order.order_type, trading_pair=order.trading_pair,
+                amount=order.amount, price=order.price, order_id=client_id, creation_timestamp=order.creation_timestamp,
+                exchange_order_id=order.exchange_order_id))
+            for raw in fills.values():
+                fill = connector._trade_update_from_fill(order, raw)
+                connector._order_tracker.process_trade_update(fill)
+                recorder._did_fill_order(MarketEvent.OrderFilled.value, connector, OrderFilledEvent(
+                    timestamp=fill.fill_timestamp, order_id=client_id, trading_pair=order.trading_pair,
+                    trade_type=order.trade_type, order_type=order.order_type, price=fill.fill_price,
+                    amount=fill.fill_base_amount, trade_fee=fill.fee, exchange_trade_id=fill.trade_id,
+                    leverage=order.leverage, position=order.position.value))
+            recorder.sql_manager.assert_persistence_healthy()
         if apply_terminal:
             # Keep native fill-before-terminal ordering. The converter is the
             # connector's normal polling converter; it performs no second GET.

@@ -452,7 +452,7 @@ class OkxExchange(ExchangePyBase):
                                 fill_price=Decimal(data["fillPx"]),
                                 fill_timestamp=int(data["uTime"]) * 1e-3,
                             )
-                            self._order_tracker.process_trade_update(trade_update)
+                            await self._order_tracker.apply_trade_update(trade_update)
 
                         if updatable_order is not None:
                             order_update = OrderUpdate(

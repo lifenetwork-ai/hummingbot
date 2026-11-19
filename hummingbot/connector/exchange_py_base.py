@@ -466,12 +466,12 @@ class ExchangePyBase(ExchangeBase, ABC):
             await self._place_order_and_process_update(order=order, **kwargs,)
 
         except asyncio.CancelledError:
-            from hummingbot.core.order_submission_guard import order_failed
-            order_failed(self, order)
+            from hummingbot.core.order_submission_guard import resolve_order_failure
+            await resolve_order_failure(self, order)
             raise
         except Exception as ex:
-            from hummingbot.core.order_submission_guard import order_failed
-            if order_failed(self, order, ex):
+            from hummingbot.core.order_submission_guard import resolve_order_failure
+            if await resolve_order_failure(self, order, ex):
                 self.logger().error(
                     "Order submission outcome unknown on %s: order_id=%s; reconciliation required, no automatic resubmission.",
                     self.name_cap, order_id, exc_info=True,
@@ -590,7 +590,7 @@ class ExchangePyBase(ExchangeBase, ABC):
             raise
         except asyncio.TimeoutError:
             from hummingbot.core.order_submission_guard import cancel_failed
-            if cancel_failed(self, order):
+            if await cancel_failed(self, order):
                 self.logger().warning('Cancel outcome awaits reconciliation: order_id=%s', order.client_order_id)
                 return None
             # some exchanges do not allow cancels with the client/user order id
@@ -601,7 +601,7 @@ class ExchangePyBase(ExchangeBase, ABC):
             await self._order_tracker.process_order_not_found(order.client_order_id)
         except Exception as ex:
             from hummingbot.core.order_submission_guard import cancel_failed
-            if cancel_failed(self, order):
+            if await cancel_failed(self, order):
                 self.logger().warning('Cancel outcome awaits reconciliation: order_id=%s', order.client_order_id)
                 return None
             if self._is_order_not_found_during_cancelation_error(cancelation_exception=ex):
@@ -1056,7 +1056,7 @@ class ExchangePyBase(ExchangeBase, ABC):
             try:
                 trade_updates = await self._all_trade_updates_for_order(order=order)
                 for trade_update in trade_updates:
-                    self._order_tracker.process_trade_update(trade_update)
+                    await self._order_tracker.apply_trade_update(trade_update)
             except asyncio.CancelledError:
                 raise
             except Exception as request_error:

@@ -119,7 +119,7 @@ class RESTAssistant:
             await after_rest(context, resp)
             return resp
         except BaseException:
-            failed_rest(context)
+            await failed_rest(context)
             raise
         finally:
             completed_rest(context)

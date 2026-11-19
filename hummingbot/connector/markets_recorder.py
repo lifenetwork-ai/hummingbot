@@ -4,6 +4,8 @@ import logging
 import os.path
 import threading
 import time
+from contextlib import asynccontextmanager
+from contextvars import copy_context
 from decimal import Decimal
 from itertools import islice
 from shutil import move
@@ -88,6 +90,8 @@ class MarketsRecorder:
         self._config_file_path: str = config_file_path
         self._strategy_name: str = strategy_name
         self.cleanup_operation_id = None
+        self.order_writes = asyncio.Lock()
+        self._published_order_event = None
         self._market_data_collection_config: MarketDataCollectionConfigMap = market_data_collection
         self._market_data_collection_task: Optional[asyncio.Task] = None
         for market in self._markets:
@@ -116,6 +120,61 @@ class MarketsRecorder:
             (MarketEvent.RangePositionLiquidityRemoved, self._update_range_position_forwarder),
         ]
         MarketsRecorder._shared_instance = self
+
+    @classmethod
+    def service_recorder_for(cls, market):
+        from hummingbot.client.config.runtime_config import postgres_requested
+
+        recorder = cls._shared_instance
+        if (recorder is not None and market.name in ('okx', 'okx_perpetual')
+                and market in recorder._markets and recorder.durable_position_checkpoints and postgres_requested()):
+            return recorder
+        return None
+
+    @asynccontextmanager
+    async def native_order_write(self, market):
+        from hummingbot.core.order_submission_guard import SubmissionBlocked, active_guard
+
+        owner = active_guard()
+        task = asyncio.current_task()
+        already_tracked = task in owner.terminal_tasks
+        owner.terminal_tasks.add(task)
+        try:
+            async with self.order_writes:
+                if (active_guard() is not owner or owner.engine is not self._sql_manager.engine
+                        or self._shared_instance is not self or market not in self._markets):
+                    raise SubmissionBlocked('The queued recorder event no longer belongs to the active owner.')
+                yield
+        finally:
+            if not already_tracked:
+                owner.terminal_tasks.discard(task)
+
+    async def _commit_order_write(self, session):
+        from hummingbot.core.order_submission_guard import active_guard
+
+        owner = active_guard()
+        if owner.engine is not self._sql_manager.engine:
+            raise RuntimeError('Order recorder is outside the active ownership scope.')
+        # Finish ORM staging and its physical ownership checks on the engine.
+        # The worker solely owns this pooled session until COMMIT returns.
+        session.flush()
+        cancelled = None
+        job = asyncio.get_running_loop().run_in_executor(None, copy_context().run, session.commit)
+        while not job.done():
+            try:
+                await asyncio.shield(job)
+            except asyncio.CancelledError as error:
+                cancelled = error
+        job.result()
+        return cancelled
+
+    def publish_recorded_order_event(self, market, tag, payload):
+        previous = self._published_order_event
+        self._published_order_event = payload
+        try:
+            market.trigger_event(tag, payload)
+        finally:
+            self._published_order_event = previous
 
     def _start_market_data_recording(self):
         self._market_data_collection_task = self._ev_loop.create_task(self._record_market_data())
@@ -629,8 +688,8 @@ class MarketsRecorder:
                 return query.limit(number_of_rows).all()
 
     def save_market_states(self, config_file_path: str, market: ConnectorBase, session: Session,
-                           *, new_order_id: Optional[str] = None):
-        saved_state = dict(market.tracking_states)
+                           *, new_order_id: Optional[str] = None, tracking_states=None):
+        saved_state = dict(market.tracking_states if tracking_states is None else tracking_states)
         # A newly persisted identity requires a new snapshot. Avoid decoding
         # the old JSON unless unresolved identities need merging below. Ordinary
         # checkpoints retain full reads and unchanged-JSON dirty checking.
@@ -678,39 +737,48 @@ class MarketsRecorder:
     @trace_runtime('order.intent', order_parameter='order')
     def record_order_intent(self, market: ConnectorBase, order) -> None:
         """Persist existing order identity/tracking state before an external submission."""
+        with self._sql_manager.order_intent_transaction(order.client_order_id) as session:
+            self._stage_order_intent(session, market, order)
+
+    @trace_runtime('order.intent', order_parameter='order')
+    async def persist_order_intent(self, market, order):
+        with self._sql_manager.order_intent_transaction(order.client_order_id) as session:
+            self._stage_order_intent(session, market, order)
+            return await self._commit_order_write(session)
+
+    def _stage_order_intent(self, session, market, order):
         from hummingbot.core.cleanup_authority import current_cleanup_scope
         cleanup = current_cleanup_scope()
         base, quote = order.trading_pair.split("-")
-        with self._sql_manager.order_intent_transaction(order.client_order_id) as session:
-            timestamp = int(order.creation_timestamp * 1000)
-            price = order.price if order.price is not None and order.price.is_finite() else Decimal("0")
-            record = Order(id=order.client_order_id, config_file_path=self._config_file_path,
-                           strategy=self._strategy_name, market=market.display_name, symbol=order.trading_pair,
-                           base_asset=base, quote_asset=quote, creation_timestamp=timestamp,
-                           order_type=order.order_type.name, amount=order.amount, price=price,
-                           leverage=order.leverage or 1, position=order.position.value,
-                           last_status="Pending" + order.trade_type.name.title(),
-                           last_update_timestamp=timestamp, creation_pending=True,
-                           cleanup_operation_id=cleanup.operation_id if cleanup is not None else None,
-                           cleanup_scope=cleanup.json() if cleanup is not None else None)
-            session.add(record)
-            if self.durable_position_checkpoints:
-                from hummingbot.core.order_submission_guard import active_guard
-                from hummingbot.model.runtime_journal import prepare_attempt
+        timestamp = int(order.creation_timestamp * 1000)
+        price = order.price if order.price is not None and order.price.is_finite() else Decimal("0")
+        record = Order(id=order.client_order_id, config_file_path=self._config_file_path,
+                       strategy=self._strategy_name, market=market.display_name, symbol=order.trading_pair,
+                       base_asset=base, quote_asset=quote, creation_timestamp=timestamp,
+                       order_type=order.order_type.name, amount=order.amount, price=price,
+                       leverage=order.leverage or 1, position=order.position.value,
+                       last_status="Pending" + order.trade_type.name.title(),
+                       last_update_timestamp=timestamp, creation_pending=True,
+                       cleanup_operation_id=cleanup.operation_id if cleanup is not None else None,
+                       cleanup_scope=cleanup.json() if cleanup is not None else None)
+        session.add(record)
+        if self.durable_position_checkpoints:
+            from hummingbot.core.order_submission_guard import active_guard
+            from hummingbot.model.runtime_journal import prepare_attempt
 
-                # Binding metadata does not depend on the pending Order INSERT.
-                # Persist the complete identity/status together at the existing
-                # checkpoint read, preserving its write fence and final commit.
-                with session.no_autoflush:
-                    prepare_attempt(session, order, active_guard(), market)
-            if cleanup is not None:
-                from hummingbot.model.cleanup_positions import record_cleanup_intent
-                record_cleanup_intent(session, cleanup, record)
-            # Keep the original side even when a terminal update precedes any
-            # Created callback. This records intent, not exchange admission.
+            # Binding metadata does not depend on the pending Order INSERT.
+            # Persist the complete identity/status together at the existing
+            # checkpoint read, preserving its write fence and final commit.
             with session.no_autoflush:
-                self._add_order_status(session, record, timestamp, record.last_status)
-            self.save_market_states(self._config_file_path, market, session, new_order_id=order.client_order_id)
+                prepare_attempt(session, order, active_guard(), market)
+        if cleanup is not None:
+            from hummingbot.model.cleanup_positions import record_cleanup_intent
+            record_cleanup_intent(session, cleanup, record)
+        # Keep the original side even when a terminal update precedes any
+        # Created callback. This records intent, not exchange admission.
+        with session.no_autoflush:
+            self._add_order_status(session, record, timestamp, record.last_status)
+        self.save_market_states(self._config_file_path, market, session, new_order_id=order.client_order_id)
 
     def _event_configuration(self, session, market, order):
         if order is None or order.config_file_path == self._config_file_path:
@@ -907,28 +975,47 @@ class MarketsRecorder:
             self._ev_loop.call_soon_threadsafe(self._did_fill_order, event_tag, market, evt)
             return
 
+        if evt is self._published_order_event:
+            return
+        with self._sql_manager.get_new_session() as session, session.begin():
+            committed = self._stage_fill(session, event_tag, market, evt)
+        self.finish_recorded_fill(market, evt, committed)
+
+    async def persist_fill(self, market, evt, tracking_states):
+        try:
+            with self._sql_manager.get_new_session() as session:
+                committed = self._stage_fill(session, MarketEvent.OrderFilled.value, market, evt, tracking_states=tracking_states)
+                cancelled = await self._commit_order_write(session)
+                return committed, cancelled
+        except BaseException:
+            self._sql_manager.persistence_healthy = False
+            raise
+
+    def _stage_fill(self, session, event_tag, market, evt, *, tracking_states=None):
         base_asset, quote_asset = evt.trading_pair.split("-")
         timestamp: int = int(evt.timestamp * 1e3) if evt.timestamp is not None else self.db_timestamp
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
         order_id: str = evt.order_id
 
-        with self._sql_manager.get_new_session() as session:
-            with session.begin():
-                # Try to find the order record, and update it if necessary.
-                order_record: Optional[Order] = session.query(Order).filter(Order.id == order_id).one_or_none()
-                config_file_path, _ = self._event_configuration(session, market, order_record)
-                existing_fill = session.get(TradeFill, (market.display_name, order_id, evt.exchange_trade_id))
-                if existing_fill is not None:
-                    if (existing_fill.symbol != evt.trading_pair or existing_fill.price != evt.price
-                            or existing_fill.amount != evt.amount or existing_fill.trade_type != evt.trade_type.name
-                            or not self._same_trade_fee(existing_fill.trade_fee, evt.trade_fee.to_json())):
-                        raise ValueError("Duplicate fill identity has conflicting economic values.")
-                    self.save_market_states(config_file_path, market, session=session)
-                else:
-                    existing_fill = self._store_fill(session, market, evt, order_record, timestamp, event_type.name, base_asset, quote_asset)
-                committed = {key: getattr(existing_fill, key) for key in (
-                    "market", "symbol", "timestamp", "order_id", "exchange_trade_id", "trade_type", "price", "amount", "trade_fee")}
-                committed['late_held_fill'] = getattr(existing_fill, 'runtime_late_application', False)
+        # Try to find the order record, and update it if necessary.
+        order_record: Optional[Order] = session.query(Order).filter(Order.id == order_id).one_or_none()
+        config_file_path, _ = self._event_configuration(session, market, order_record)
+        existing_fill = session.get(TradeFill, (market.display_name, order_id, evt.exchange_trade_id))
+        if existing_fill is not None:
+            if (existing_fill.symbol != evt.trading_pair or existing_fill.price != evt.price
+                    or existing_fill.amount != evt.amount or existing_fill.trade_type != evt.trade_type.name
+                    or not self._same_trade_fee(existing_fill.trade_fee, evt.trade_fee.to_json())):
+                raise ValueError("Duplicate fill identity has conflicting economic values.")
+            self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
+        else:
+            existing_fill = self._store_fill(session, market, evt, order_record, timestamp, event_type.name,
+                                             base_asset, quote_asset, tracking_states=tracking_states)
+        committed = {key: getattr(existing_fill, key) for key in (
+            "market", "symbol", "timestamp", "order_id", "exchange_trade_id", "trade_type", "price", "amount", "trade_fee")}
+        committed['late_held_fill'] = getattr(existing_fill, 'runtime_late_application', False)
+        return committed
+
+    def finish_recorded_fill(self, market, evt, committed):
         # A failed commit must never acknowledge persistence to connector reconciliation.
         from hummingbot.core.order_submission_guard import fill_committed
         fill_committed(committed)
@@ -938,7 +1025,7 @@ class MarketsRecorder:
             })
 
     def _store_fill(self, session: Session, market: ConnectorBase, evt: OrderFilledEvent,
-                    order_record: Optional[Order], timestamp: int, status: str, base_asset: str, quote_asset: str):
+                    order_record: Optional[Order], timestamp: int, status: str, base_asset: str, quote_asset: str, *, tracking_states=None):
         config_file_path, strategy_name = self._event_configuration(session, market, order_record)
         if order_record is None:
             # Preserve FKs even when exchange fill updates precede the create ack.
@@ -999,7 +1086,7 @@ class MarketsRecorder:
         if order_record.cleanup_operation_id is not None:
             from hummingbot.model.cleanup_positions import apply_cleanup_fill
             apply_cleanup_fill(session, order_record, trade_fill_record)
-        self.save_market_states(config_file_path, market, session=session)
+        self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
         return trade_fill_record
 
     def _did_complete_funding_payment(self,
@@ -1075,42 +1162,55 @@ class MarketsRecorder:
             self._ev_loop.call_soon_threadsafe(self._update_order_status, event_tag, market, evt)
             return
 
+        if evt is self._published_order_event:
+            return
+        with self._sql_manager.get_new_session() as session, session.begin():
+            self._stage_order_status(session, event_tag, market, evt)
+
+    async def persist_order_status(self, event_tag, market, evt, tracking_states):
+        try:
+            with self._sql_manager.get_new_session() as session:
+                self._stage_order_status(session, event_tag, market, evt, tracking_states=tracking_states)
+                return await self._commit_order_write(session)
+        except BaseException:
+            self._sql_manager.persistence_healthy = False
+            raise
+
+    def _stage_order_status(self, session, event_tag, market, evt, *, tracking_states=None):
         timestamp: int = self.db_timestamp
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
         order_id: str = evt.order_id
 
-        with self._sql_manager.get_new_session() as session:
-            with session.begin():
-                order_record: Optional[Order] = session.query(Order).filter(Order.id == order_id).one_or_none()
+        order_record: Optional[Order] = session.query(Order).filter(Order.id == order_id).one_or_none()
 
-                if order_record is not None:
-                    config_file_path, _ = self._event_configuration(session, market, order_record)
-                    # A private cancel can arrive before the create ACK. Its
-                    # exchange ID proves admission; a not-found cancel without
-                    # that identity must remain unresolved.
-                    exchange_id = getattr(evt, "exchange_order_id", None)
-                    if event_type == MarketEvent.OrderCancelled and isinstance(exchange_id, str) and exchange_id:
-                        if (order_record.market != market.display_name or order_record.config_file_path != config_file_path
-                                or (order_record.exchange_order_id and order_record.exchange_order_id != exchange_id)):
-                            raise ValueError("Cancel acknowledgment conflicts with the recorded order identity.")
-                        # A fill-only placeholder does not yet contain the
-                        # original order quantity. Keep it provisional until
-                        # Created arrives; managed intents already have it.
-                        original_parameters_known = not order_record.creation_pending or session.query(OrderStatus.id).filter(
-                            OrderStatus.order_id == order_id, OrderStatus.status.in_(("PendingBuy", "PendingSell"))).first() is not None
-                        if original_parameters_known:
-                            order_record.exchange_order_id = exchange_id
-                            order_record.creation_pending = False
-                    self._record_latest_status(order_record, event_type.name, timestamp)
-                    # Neither lookup needs the pending Order/attempt changes.
-                    # Flush their terminal state and history together at the
-                    # checkpoint read, retaining its fence and the commit fence.
-                    with session.no_autoflush:
-                        self._attempt_observation(session, order_id, 'terminal')
-                        self._add_order_status(session, order_record, timestamp, event_type.name)
-                    self.save_market_states(config_file_path, market, session=session)
-                elif self._sql_manager.engine.dialect.name == "postgresql" and event_type != MarketEvent.OrderFailure:
-                    raise RuntimeError("Order status arrived without a persisted order identity; reconciliation is required.")
+        if order_record is not None:
+            config_file_path, _ = self._event_configuration(session, market, order_record)
+            # A private cancel can arrive before the create ACK. Its
+            # exchange ID proves admission; a not-found cancel without
+            # that identity must remain unresolved.
+            exchange_id = getattr(evt, "exchange_order_id", None)
+            if event_type == MarketEvent.OrderCancelled and isinstance(exchange_id, str) and exchange_id:
+                if (order_record.market != market.display_name or order_record.config_file_path != config_file_path
+                        or (order_record.exchange_order_id and order_record.exchange_order_id != exchange_id)):
+                    raise ValueError("Cancel acknowledgment conflicts with the recorded order identity.")
+                # A fill-only placeholder does not yet contain the
+                # original order quantity. Keep it provisional until
+                # Created arrives; managed intents already have it.
+                original_parameters_known = not order_record.creation_pending or session.query(OrderStatus.id).filter(
+                    OrderStatus.order_id == order_id, OrderStatus.status.in_(("PendingBuy", "PendingSell"))).first() is not None
+                if original_parameters_known:
+                    order_record.exchange_order_id = exchange_id
+                    order_record.creation_pending = False
+            self._record_latest_status(order_record, event_type.name, timestamp)
+            # Neither lookup needs the pending Order/attempt changes.
+            # Flush their terminal state and history together at the
+            # checkpoint read, retaining its fence and the commit fence.
+            with session.no_autoflush:
+                self._attempt_observation(session, order_id, 'terminal')
+                self._add_order_status(session, order_record, timestamp, event_type.name)
+            self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
+        elif self._sql_manager.engine.dialect.name == "postgresql" and event_type != MarketEvent.OrderFailure:
+            raise RuntimeError("Order status arrived without a persisted order identity; reconciliation is required.")
 
     def _did_cancel_order(self,
                           event_tag: int,

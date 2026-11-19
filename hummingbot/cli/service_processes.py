@@ -60,6 +60,7 @@ def probe_path(watchdog, role):
 
 def probe_health(port, path):
     started = time.monotonic()
+    started_at_ns = time.time_ns()
     status, reason = None, 'connection_error'
     try:
         with urlopen(f'http://127.0.0.1:{port}{path}', timeout=.3) as response:
@@ -73,7 +74,8 @@ def probe_health(port, path):
         if isinstance(error, TimeoutError) or isinstance(getattr(error, 'reason', None), TimeoutError):
             reason = 'timeout'
     # Never read/log the response body, URL, headers or exception text.
-    return status == 200, dict(reason=reason, status=status, elapsed_ms=round((time.monotonic() - started) * 1000, 3))
+    return status == 200, dict(reason=reason, status=status, elapsed_ms=round((time.monotonic() - started) * 1000, 3),
+                               started_at_ns=started_at_ns, finished_at_ns=time.time_ns())
 
 
 def failure_exit_code(error):
@@ -99,14 +101,17 @@ def failure_reason(error):
 
 
 def log_child(event):
+    correlation = {key: event[key] for key in (
+        'child_pid', 'probe_started_at_ns', 'probe_finished_at_ns',
+        'recovery_probe_started_at_ns', 'recovery_probe_finished_at_ns') if key in event}
     diagnostics = ' '.join(f'{key}={event[key]}' for key in (
         'first_reason', 'failed_probes', 'failure_seconds', 'max_probe_gap_seconds',
-        'probe_status', 'probe_elapsed_ms', 'max_probe_elapsed_ms') if key in event)
+        'probe_status', 'probe_elapsed_ms', 'max_probe_elapsed_ms', *correlation) if key in event)
     LOGGER.log(getattr(logging, event['severity']),
                'Service child event=%s role=%s exit_code=%s retry_after_s=%s %s',
                event['event'], event['role'], event.get('exit_code'), event.get('retry_after_seconds'), diagnostics,
                extra=dict(event=event['event'], scope=event['role'], error_type=event.get('error_type'),
-                          reason_code=event.get('reason_code')))
+                          reason_code=event.get('reason_code'), **correlation))
 
 
 def run_supervisor():
