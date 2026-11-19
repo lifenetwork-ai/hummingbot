@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import Any, Dict, List, Optional, Union
 
 from hummingbot.core.api_throttler.async_throttler_base import AsyncThrottlerBase
+from hummingbot.core.engine_diagnostics import observe_spot_sell_dispatch, observe_spot_sell_response
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest, RESTResponse
 from hummingbot.core.web_assistant.connections.rest_connection import RESTConnection
@@ -111,7 +112,9 @@ class RESTAssistant:
         try:
             if context is not None:
                 timeout = min(timeout, 5) if timeout is not None else 5
+            dispatch = observe_spot_sell_dispatch(request)
             resp = await wait_for(self._connection.call(request), timeout)
+            observe_spot_sell_response(dispatch)
             resp = await self._post_process_response(resp)
             await after_rest(context, resp)
             return resp

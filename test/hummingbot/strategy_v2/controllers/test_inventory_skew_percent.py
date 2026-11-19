@@ -98,12 +98,12 @@ def test_btc_demo_snapshot_proposes_both_sides_with_realistic_lots_inside_budget
     assert all(a.executor_config.side == TradeType.SELL for a in item.create_actions_proposal())
 
 
-def btc_edge_controller(pct, *, fee_floor=True):
+def btc_edge_controller(pct, *, fee_floor=True, **updates):
     from test.hummingbot.strategy_v2.controllers.test_quote_guard import book
     item, prices = make_controller(configuration(
         trading_pair='BTC-USDT', min_price='1', max_price='1000000', initial_anchor='63816.75',
         total_amount_quote='100', max_base_inventory='2', buy_spreads=[.001, .002], sell_spreads=[.001, .002],
-        inventory_skew=dict(enabled=True, inventory_range_pct='.02'), spread_policy=dict(fee_floor=fee_floor)))
+        inventory_skew=dict(enabled=True, inventory_range_pct='.02'), spread_policy=dict(fee_floor=fee_floor), **updates))
     prices['BTC-USDT'] = Decimal('63816.75')
     connector = item.market_data_provider.get_connector_with_fallback.return_value
     base = Decimal(pct) * 100000 / prices['BTC-USDT']
@@ -114,10 +114,11 @@ def btc_edge_controller(pct, *, fee_floor=True):
     connector.get_available_balance.side_effect = connector.get_balance.side_effect
     connector.get_fee.return_value = AddedToCostTradeFee(percent=Decimal('.0008'))
     lot = Decimal('.00000001')
-    connector.quantize_order_price.side_effect = lambda pair, price: (price // Decimal('.1')) * Decimal('.1')
+    connector.quantize_order_price.side_effect = lambda trading_pair, price: (price // Decimal('.1')) * Decimal('.1')
     connector.get_order_price_quantum.return_value = Decimal('.1')
-    connector.quantize_order_amount.side_effect = lambda pair, amount: (amount // lot) * lot
-    connector.trading_rules['BTC-USDT'] = TradingRule('BTC-USDT', min_order_size=Decimal('.00002'), min_base_amount_increment=lot)
+    connector.quantize_order_amount.side_effect = lambda trading_pair, amount: (amount // lot) * lot
+    connector.trading_rules['BTC-USDT'] = TradingRule('BTC-USDT', min_order_size=Decimal('.00002'),
+                                                      min_price_increment=Decimal('.1'), min_base_amount_increment=lot)
     connector._order_tracker = SimpleNamespace(cached_orders={}, lost_orders={})
     target = book(bids=[(63816.5, 10)], asks=[(63817, 10)], timestamp=1000)
     connector.order_books['BTC-USDT'] = target

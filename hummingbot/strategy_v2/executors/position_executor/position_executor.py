@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Union
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PriceType, TradeType
 from hummingbot.core.data_type.order_candidate import OrderCandidate, PerpetualOrderCandidate
+from hummingbot.core.engine_diagnostics import observe_spot_sell_fill
 from hummingbot.core.event.events import (
     BuyOrderCompletedEvent,
     BuyOrderCreatedEvent,
@@ -778,6 +779,7 @@ class PositionExecutor(ExecutorBase):
 
         if (self._is_managed_maker_entry and self._open_order
                 and self._open_order.order_id == event.order_id):
+            observe_spot_sell_fill(self, event.order_id)
             notify = getattr(self._strategy, 'notify_executor_entry_filled', None)
             if callable(notify):
                 notify(self)

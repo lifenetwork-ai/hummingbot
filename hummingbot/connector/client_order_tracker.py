@@ -11,7 +11,7 @@ from cachetools import TTLCache
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.trade_fee import TradeFeeBase
-from hummingbot.core.engine_diagnostics import trace_runtime
+from hummingbot.core.engine_diagnostics import observe_spot_sell_open, trace_runtime
 from hummingbot.core.event.events import (
     BuyOrderCompletedEvent,
     BuyOrderCreatedEvent,
@@ -447,6 +447,8 @@ class ClientOrderTracker:
         if (previous_state == OrderState.PENDING_CREATE and
                 previous_state != new_state and
                 new_state not in [OrderState.CANCELED, OrderState.FAILED, OrderState.PENDING_CANCEL]):
+            if tracked_order.trade_type is TradeType.SELL and new_state in (OrderState.OPEN, OrderState.PARTIALLY_FILLED):
+                observe_spot_sell_open(self._connector, tracked_order)
             self.logger().info(tracked_order.build_order_created_message())
             self._trigger_created_event(tracked_order)
 

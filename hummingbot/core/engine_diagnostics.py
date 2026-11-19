@@ -39,6 +39,8 @@ SLOW_MS = {
     'shutdown.proof_before': 1000, 'shutdown.proof_after': 1000,
 }
 SUBMISSION_OPERATIONS = frozenset({'order.submit', 'order.admission', 'order.intent', 'order.place', 'order.created'})
+_QUOTE_LIMIT = 64
+_QUOTE_LINK_TTL_NS = 120_000_000_000
 _ACTIVE = None
 _PARENT = ContextVar('engine_diagnostic_parent', default=None)
 
@@ -78,6 +80,76 @@ def _identity(value):
     if isinstance(value, str) and len(value) <= 256:
         return hashlib.sha256(value.encode()).hexdigest()[:16]
     return None
+
+
+def _spot_sell_lane(config):
+    read = config.get if isinstance(config, dict) else lambda key: getattr(config, key, None)
+    if (read('type') != 'position_executor' or read('connector_name') != 'okx'
+            or read('use_configured_entry_price') is not True):
+        return None
+    generation = read('mm_generation')
+    identifiers = tuple(read(key) for key in ('mm_session_id', 'controller_id', 'trading_pair', 'level_id'))
+    if (type(generation) is not int or generation < 0
+            or any(not isinstance(value, str) or not 0 < len(value) <= 128 for value in identifiers)
+            or not identifiers[-1].startswith('sell_')):
+        return None
+    return hashlib.sha256(json.dumps((*identifiers, generation), separators=(',', ':')).encode()).hexdigest()[:16]
+
+
+def observe_spot_sell_fill(executor, order_id):
+    tracer = _ACTIVE
+    if tracer is not None:
+        try:
+            lane = _spot_sell_lane(executor.config)
+            order = _identity(order_id)
+            if lane and order and executor._completed_entry_fill_timestamp() is not None:
+                tracer.record_quote_marker('quote.sell_fill', order, lane=lane)
+        except Exception:
+            pass
+
+
+def observe_spot_sell_dispatch(request):
+    tracer = _ACTIVE
+    if tracer is None:
+        return None
+    try:
+        if (request.throttler_limit_id != '/api/v5/trade/order' or request.method.value != 'POST'
+                or not request.is_auth_required or not isinstance(request.data, str) or len(request.data) > 2048):
+            return None
+        from hummingbot.core.order_submission_guard import current_executor_scope
+        lane = _spot_sell_lane(current_executor_scope())
+        if lane:
+            data = json.loads(request.data)
+            order = _identity(data.get('clOrdId'))
+            if order and data.get('side') == 'sell' and data.get('ordType') == 'post_only':
+                marker = tracer.record_quote_marker('quote.sell_send', order, lane=lane)
+                if marker is not None:
+                    return tracer, order, lane, marker['replaces']
+    except Exception:
+        pass
+    return None
+
+
+def observe_spot_sell_response(dispatch):
+    if dispatch is not None:
+        try:
+            tracer, order, lane, replaces = dispatch
+            tracer.record_quote_marker('quote.sell_response', order, lane=lane, replaces=replaces)
+        except Exception:
+            pass
+
+
+def observe_spot_sell_open(connector, order):
+    tracer = _ACTIVE
+    if tracer is not None:
+        try:
+            if (connector.name == 'okx' and order.exchange_order_id
+                    and 0 <= order.executed_amount_base < order.amount):
+                identity = _identity(order.client_order_id)
+                if identity:
+                    tracer.record_quote_marker('quote.sell_open', identity)
+        except Exception:
+            pass
 
 
 def trace_runtime(operation, *, order_parameter=None):
@@ -152,6 +224,7 @@ class EngineDiagnostics:
         self.recent, self.active, self.operations = deque(maxlen=capacity), {}, {}
         self._shutdown_recent = deque(maxlen=32)
         self._submission_recent = deque(maxlen=64)
+        self._quote_fills, self._quote_sends = {}, {}
         self._submission_completed = self._submission_published = 0
         self._last_submission_emitted_ns = -2_000_000_000
         self.sequence = self.dropped_spans = self.sink_errors = 0
@@ -217,9 +290,7 @@ class EngineDiagnostics:
                 if row['operation'].startswith('shutdown.'):
                     self._shutdown_recent.append(dict(row, end_ns=now, duration_ms=duration))
                 if row['operation'] in SUBMISSION_OPERATIONS and row['order'] is not None:
-                    self._submission_completed += 1
-                    self._submission_recent.append(dict(row, end_ns=now, duration_ms=duration, error=bool(error),
-                                                        completion_sequence=self._submission_completed))
+                    self._retain_submission(dict(row, end_ns=now, duration_ms=duration, error=bool(error)))
                 stats = self.operations[row['operation']]
                 stats['completed'] += 1
                 stats['errors'] += bool(error)
@@ -230,6 +301,43 @@ class EngineDiagnostics:
                     self._slow_dirty = True
         except Exception:
             pass
+
+    def _retain_submission(self, row):
+        self._submission_completed += 1
+        row['completion_sequence'] = self._submission_completed
+        self._submission_recent.append(row)
+
+    def record_quote_marker(self, operation, order, *, lane=None, replaces=None):
+        """Retain opaque quote milestones on the existing watchdog stream."""
+        now = self.clock()
+        with self.lock:
+            if self._closed:
+                return None
+            if operation == 'quote.sell_fill':
+                previous = self._quote_fills.get(lane)
+                if previous and previous[0] == order:
+                    return None
+                if lane not in self._quote_fills and len(self._quote_fills) >= _QUOTE_LIMIT:
+                    del self._quote_fills[next(iter(self._quote_fills))]
+                self._quote_fills[lane] = (order, now)
+            elif operation == 'quote.sell_send':
+                fill = self._quote_fills.get(lane)
+                if fill and 0 <= now - fill[1] <= _QUOTE_LINK_TTL_NS and fill[0] != order:
+                    replaces = fill[0]
+                if order not in self._quote_sends and len(self._quote_sends) >= _QUOTE_LIMIT:
+                    del self._quote_sends[next(iter(self._quote_sends))]
+                self._quote_sends[order] = (lane, replaces, now)
+            elif operation == 'quote.sell_open':
+                dispatched = self._quote_sends.pop(order, None)
+                if dispatched is None or not 0 <= now - dispatched[2] <= _QUOTE_LINK_TTL_NS:
+                    return None
+                lane, replaces, _ = dispatched
+                fill = self._quote_fills.get(lane)
+                if fill and fill[0] == replaces:
+                    del self._quote_fills[lane]
+            row = dict(operation=operation, at_ns=now, order=order, lane=lane, replaces=replaces)
+            self._retain_submission(row)
+            return row
 
     @contextmanager
     def span(self, operation, **fields):
