@@ -22,6 +22,9 @@ export function MandateBar({
   const statusTone = m.operationalStatus === 'HALTED' ? 'danger'
     : ['STALE', 'STARTING', 'STOPPING'].includes(m.operationalStatus) ? 'warning'
       : m.operationalStatus === 'RUNNING' ? 'success' : 'neutral'
+  const guardLabel = guards.perpetualBuyPaused && guards.violationCount === 1
+    ? 'Perp BUY paused · long inventory above limit'
+    : guards.status === 'ok' ? 'Stable' : guards.status === 'attention' ? 'Watch' : 'Intervention needed'
   return (
     <Surface className="p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -67,7 +70,7 @@ export function MandateBar({
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-app-border/50 pt-3">
         <span className={cn('text-[11px] font-semibold', guards.status === 'ok' ? 'text-app-success' : guards.status === 'attention' ? 'text-app-warning' : 'text-app-danger')}>
-          Guards: {guards.status === 'ok' ? 'Stable' : guards.status === 'attention' ? 'Watch' : 'Intervention needed'} ({guards.violationCount}/{guards.totalCount})
+          Guards: {guardLabel} ({guards.violationCount}/{guards.totalCount})
         </span>
       </div>
     </Surface>

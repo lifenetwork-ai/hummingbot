@@ -1,4 +1,4 @@
-from hummingbot.core.mm_liquidity import LiquidityObserver, rolling_coverage
+from hummingbot.core.mm_liquidity import LiquidityObserver, copy_liquidity_checkpoint, rolling_coverage
 
 
 def observer_sample(observer, *, at, mono, owner=1, generation=0, valid=True, quotes=True, quote_id='quote'):
@@ -111,6 +111,13 @@ def test_full_window_checkpoint_is_detached_from_later_samples_and_restart():
     after = rolling_coverage(restored, 'spot', now=2801)
     assert after['observed_seconds'] > 1798
     assert after['unknown_seconds'] >= .5  # Never credit the restart gap.
+
+
+def test_checkpoint_copy_detaches_unrecognized_legacy_rows():
+    incompatible = [1000, {'old_evidence': [1]}]
+    copied = copy_liquidity_checkpoint({'_coverage_buckets': {'spot': {'1000': incompatible}}})
+    incompatible[1]['old_evidence'].append(2)
+    assert copied['_coverage_buckets']['spot']['1000'] == [1000, {'old_evidence': [1]}]
 
 
 def test_legacy_checkpoint_never_reconstructs_history_from_cumulative_totals():

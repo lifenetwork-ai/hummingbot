@@ -3,7 +3,7 @@ import { ChevronDown, Info } from 'lucide-react'
 import { Badge } from '../../shared/components/Badge'
 import { Surface } from '../../shared/components/Surface'
 import { cn } from '../../shared/utils/cn'
-import { formatDuration, formatPrice, formatUsdt } from '../../shared/utils/formatters'
+import { formatAmount, formatDuration, formatPrice, formatUsdt } from '../../shared/utils/formatters'
 import { formatUsdtForDisplay } from './formatNumbers'
 import { parseAmount } from './parseAmount'
 import type { LiquidityMarketView } from './supplement'
@@ -85,6 +85,8 @@ function MarketVerdict({ market, mode }: { market: LiquidityMarketView; mode: De
   const [whyOpen, setWhyOpen] = useState(hasIssueDiagnosis)
   const [showSlaHelp, setShowSlaHelp] = useState(false)
   const spreadMet = market.spreadTargetBps !== null && (market.spreadActualBps ?? Infinity) <= market.spreadTargetBps
+  const ownSpread = market.spreadActualBps === null ? '—' : `${formatAmount(market.spreadActualBps, 2)} bps`
+  const plannedSpread = market.spreadTargetBps === null ? '—' : `${formatAmount(market.spreadTargetBps, 2)} bps`
   const overallMet = isMet(market)
   const evidenceKnown = market.spreadTargetBps !== null && market.spreadActualBps !== null && market.coverageTargetFraction !== null && market.coverageFraction !== null && market.fullWindow === true && market.rollingCoverageAvailable && market.measurementReady && market.eligibleSeconds > 0
 
@@ -134,15 +136,15 @@ function MarketVerdict({ market, mode }: { market: LiquidityMarketView; mode: De
             </span>
             <span
               className={cn('font-mono text-xs font-bold cursor-help', market.spreadActualBps === null ? 'text-app-muted' : spreadMet ? 'text-app-success' : 'text-app-danger')}
-              title={`Current spread: ${market.spreadActualBps ?? '—'} bps (1 bps = 0.01%)`}
+              title={`Current spread: ${ownSpread} (1 bps = 0.01%)`}
             >
-              {market.spreadActualBps !== null ? `${market.spreadActualBps}` : '—'}
+              {ownSpread}
             </span>
             <span
               className="text-[10px] text-app-muted cursor-help"
               title="Session policy spread target (1 bps = 0.01%)"
             >
-              / {market.spreadTargetBps !== null ? `${market.spreadTargetBps} bps` : '—'}
+              / {plannedSpread}
             </span>
           </span>
           <span
@@ -156,7 +158,7 @@ function MarketVerdict({ market, mode }: { market: LiquidityMarketView; mode: De
         <div
           className="relative mt-1.5 flex h-9 w-full items-stretch rounded-card bg-app-surface-muted/30"
           role="img"
-          aria-label={`Ladder ${market.pair ?? market.market}: bid ${market.bestBid ?? '—'}, ask ${market.bestAsk ?? '—'}, spread ${market.spreadActualBps !== null ? `${market.spreadActualBps} bps` : '—'} (target ${market.spreadTargetBps !== null ? `${market.spreadTargetBps} bps` : '—'})`}
+          aria-label={`Ladder ${market.pair ?? market.market}: bid ${market.bestBid ?? '—'}, ask ${market.bestAsk ?? '—'}, spread ${ownSpread} (target ${plannedSpread})`}
         >
           <div className="flex w-1/2 justify-end">
             <div

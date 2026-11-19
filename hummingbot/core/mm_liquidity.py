@@ -14,6 +14,7 @@ from hummingbot.core.overview_coverage import GROUPS, add_interval, eligibility,
 
 COVERAGE_WINDOW_SECONDS = 1800
 COVERAGE_HISTORY_LIMIT = 1800
+_BUCKET_NUMBER_TYPES = frozenset((int, float))
 
 
 def copy_liquidity_checkpoint(frame):
@@ -27,7 +28,7 @@ def copy_liquidity_checkpoint(frame):
         return deepcopy(frame)
     result = deepcopy({key: value for key, value in frame.items() if key != '_coverage_buckets'})
     result['_coverage_buckets'] = {
-        market: {second: row.copy() if type(row) is list and all(type(v) in (int, float) for v in row)
+        market: {second: row.copy() if type(row) is list and set(map(type, row)) <= _BUCKET_NUMBER_TYPES
                  else deepcopy(row) for second, row in buckets.items()}
         if type(buckets) is dict else deepcopy(buckets)
         for market, buckets in frame['_coverage_buckets'].items()

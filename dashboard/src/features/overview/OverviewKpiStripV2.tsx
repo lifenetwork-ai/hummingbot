@@ -147,13 +147,15 @@ export function OverviewKpiStripV2({
               <MetricRow
                 key={m.market}
                 label={m.market === 'spot' ? 'Spot' : 'Perp'}
-                target={m.spreadTargetBps !== null ? `${m.spreadTargetBps} bps` : '—'}
+                target={m.spreadTargetBps !== null ? `${formatAmount(m.spreadTargetBps, 2)} bps` : '—'}
                 onClick={() => scrollToAndFlash(`market-card-${m.market}`)}
               >
                 <BigValue tone={met === undefined ? 'default' : met ? 'positive' : 'negative'}>
-                  {m.spreadActualBps ?? '—'}
+                  {formatAmount(m.spreadActualBps, 2)}
                 </BigValue>
-                <span className="text-[10px] font-normal text-app-muted cursor-help" title="Basis points (1 bps = 0.01% = 0.0001)">bps</span>
+                {m.spreadActualBps !== null && (
+                  <span className="text-[10px] font-normal text-app-muted cursor-help" title="Basis points (1 bps = 0.01% = 0.0001)">bps</span>
+                )}
               </MetricRow>
             )
           })}
@@ -165,21 +167,28 @@ export function OverviewKpiStripV2({
 
       <KpiTile
         label="Eligible coverage (two-sided)"
-        tooltip="Percentage of elapsed observation time the bot maintained active two-sided quotes within spread and depth targets."
+        tooltip="Two-sided quote time during eligible periods in the last 30 minutes. Unverified time lowers coverage."
       >
         <div className="space-y-2.5">
           {liquidity.map((m) => {
+            const missingReason = m.coverageFraction === null && m.measurementReason === 'no_eligible_time'
+              ? m.market === 'perpetual' && capital.guardsSummary.perpetualBuyPaused
+                ? 'BUY paused by long inventory limit'
+                : 'No eligible time in this window'
+              : null
             return (
-              <MetricRow
-                key={m.market}
-                label={m.market === 'spot' ? 'Spot' : 'Perp'}
-                target={m.coverageTargetFraction === null ? '—' : `${Math.round(m.coverageTargetFraction * 100)}%`}
-                onClick={() => scrollToAndFlash(`market-card-${m.market}`)}
-              >
-                <BigValue>
-                  {m.coverageFraction !== null ? `${(m.coverageFraction * 100).toFixed(1)}%` : '—'}
-                </BigValue>
-              </MetricRow>
+              <div key={m.market}>
+                <MetricRow
+                  label={m.market === 'spot' ? 'Spot' : 'Perp'}
+                  target={m.coverageTargetFraction === null ? '—' : `${Math.round(m.coverageTargetFraction * 100)}%`}
+                  onClick={() => scrollToAndFlash(`market-card-${m.market}`)}
+                >
+                  <BigValue>
+                    {m.coverageFraction !== null ? `${(m.coverageFraction * 100).toFixed(1)}%` : '—'}
+                  </BigValue>
+                </MetricRow>
+                {missingReason && <TargetLine>{missingReason}</TargetLine>}
+              </div>
             )
           })}
           {liquidity.filter(m => m.rollingCoverageAvailable && m.fullWindow === false).map(m => (
