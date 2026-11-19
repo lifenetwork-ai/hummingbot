@@ -6,6 +6,7 @@ GROUPS = ('balance', 'inventory', 'bootstrap', 'guard', 'policy')
 RESTRICTIONS = {
     'insufficient_quote_balance': 'balance', 'insufficient_base_balance': 'balance',
     'reduction_fee_balance_unavailable': 'balance', 'inventory_limit': 'inventory',
+    'inventory_skew_sell_suppressed': 'inventory',
     'spot_outflow_blocked': 'policy', 'volatility_paused': 'guard',
     'reference_deviation': 'guard', 'reference_out_of_bounds': 'guard',
     'quote_out_of_bounds': 'guard', 'sideways_breakout': 'guard',
@@ -16,7 +17,8 @@ RESTRICTIONS = {
     'bootstrap_band': 'bootstrap', 'bootstrap_range': 'bootstrap',
     'bootstrap_quote_crossing': 'bootstrap',
 }
-NORMAL_WAITS = {'active_executor', 'cooldown', 'proposal_pending_confirmation', 'allocation_limit', 'reduction_reserved'}
+NORMAL_WAITS = {'active_executor', 'cooldown', 'proposal_pending_confirmation', 'allocation_limit', 'reduction_reserved',
+                'inventory_skew_sell_below_minimum'}
 
 
 def eligibility(observation, *, now, running):
