@@ -24,6 +24,7 @@ from hummingbot.cli.service_processes import probe_health
 from hummingbot.connector import markets_recorder
 from hummingbot.connector.client_order_tracker import ClientOrderTracker
 from hummingbot.core.bot_ownership import OwnershipLost
+from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.event.events import MarketEvent
@@ -236,6 +237,23 @@ def test_managed_fill_commit_lock_error_is_never_retried(owned, tracked_fill):
         assert session.query(TradeFill).count() == 0
 
 
+def test_unrecorded_failure_does_not_wait_for_ownership_row(owned):
+    original = create()
+    order = InFlightOrder('rejected-before-admission', original.trading_pair, original.type, TradeType.BUY,
+                          original.amount, original.creation_timestamp, original.price)
+    owned.market.current_timestamp = 1700000001
+    tracker = ClientOrderTracker(owned.market)
+    tracker.start_tracking_order(order)
+    update = OrderUpdate(order.trading_pair, 1700000001, OrderState.FAILED, order.client_order_id)
+    with owned.engine.begin() as blocker:
+        blocker.execute(text('SELECT bot_id FROM bot_state FOR UPDATE')).all()
+        owned.loop.run_until_complete(asyncio.wait_for(tracker._process_order_update(update), timeout=.3))
+    assert order.is_failure and owned.manager.persistence_healthy
+    assert owned.market.trigger_event.call_args.args[0] is MarketEvent.OrderFailure
+    with owned.manager.get_new_session() as session:
+        assert session.get(Order, order.client_order_id) is None
+
+
 @pytest.mark.parametrize('after_flush', [False, True])
 def test_managed_ack_rolls_back_when_physical_owner_lock_is_lost(owned, after_flush):
     order = intent(owned)
@@ -420,7 +438,10 @@ def test_managed_cancel_waits_for_postgres_commit_without_blocking_live(owned, c
                     await cancel
             else:
                 await cancel
-            await fill_task
+            try:
+                await fill_task
+            except asyncio.CancelledError:
+                assert stop_requested  # Stop can cancel the waiter after the fill commits.
             await receipt_task
             await tracker.process_order_update(update)
             await tracker.apply_trade_update(trade)

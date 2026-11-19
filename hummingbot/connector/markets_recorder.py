@@ -180,7 +180,7 @@ class MarketsRecorder:
     async def _run_native_write(self, stage, *args):
         from hummingbot.core.bot_ownership import OwnershipLost
         from hummingbot.core.order_submission_guard import SubmissionBlocked, active_guard
-        from hummingbot.model.intent_admission import capture_prewrite_lock_failure, confirmed_prewrite_failure
+        from hummingbot.model.intent_admission import confirmed_prewrite_failure
 
         owner = active_guard()
         if owner.engine is not self._sql_manager.engine:
@@ -191,15 +191,12 @@ class MarketsRecorder:
                 try:
                     with session.begin():
                         self._sql_manager.assert_persistence_healthy()
-                        # Only a failure acquiring the row before staging can be retried.
-                        with capture_prewrite_lock_failure(session):
-                            owner.lock_owner_row(session, nowait=True)
                         session.info["worker_order_owner"] = owner
-                        # Flush hooks check the physical owner before DML.
                         result = stage(session, *args)
                         session.flush()
-                        self._sql_manager.assert_persistence_healthy()
-                        owner.fence_recorder_session(session)
+                        if session.info.get("ownership_fenced_transaction") is session.get_transaction():
+                            self._sql_manager.assert_persistence_healthy()
+                            owner.fence_recorder_session(session)
                     return result, None
                 except OperationalError as error:
                     if confirmed_prewrite_failure(session, error) and self._sql_manager.persistence_healthy:
