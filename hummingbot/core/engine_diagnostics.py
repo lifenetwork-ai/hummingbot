@@ -124,7 +124,7 @@ def observe_spot_sell_dispatch(request):
             if order and data.get('side') == 'sell' and data.get('ordType') == 'post_only':
                 marker = tracer.record_quote_marker('quote.sell_send', order, lane=lane)
                 if marker is not None:
-                    return tracer, order, lane, marker['replaces']
+                    return tracer, marker
     except Exception:
         pass
     return None
@@ -133,8 +133,8 @@ def observe_spot_sell_dispatch(request):
 def observe_spot_sell_response(dispatch):
     if dispatch is not None:
         try:
-            tracer, order, lane, replaces = dispatch
-            tracer.record_quote_marker('quote.sell_response', order, lane=lane, replaces=replaces)
+            tracer, sent = dispatch
+            tracer.record_quote_marker('quote.sell_response', sent['order'], sent=sent)
         except Exception:
             pass
 
@@ -307,12 +307,13 @@ class EngineDiagnostics:
         row['completion_sequence'] = self._submission_completed
         self._submission_recent.append(row)
 
-    def record_quote_marker(self, operation, order, *, lane=None, replaces=None):
+    def record_quote_marker(self, operation, order, *, lane=None, sent=None):
         """Retain opaque quote milestones on the existing watchdog stream."""
         now = self.clock()
         with self.lock:
             if self._closed:
                 return None
+            evidence = dict(lane=lane, replaces=None)
             if operation == 'quote.sell_fill':
                 previous = self._quote_fills.get(lane)
                 if previous and previous[0] == order:
@@ -322,20 +323,28 @@ class EngineDiagnostics:
                 self._quote_fills[lane] = (order, now)
             elif operation == 'quote.sell_send':
                 fill = self._quote_fills.get(lane)
+                evidence.update(fill_at_ns=None, sent_at_ns=now, http_response_at_ns=None)
                 if fill and 0 <= now - fill[1] <= _QUOTE_LINK_TTL_NS and fill[0] != order:
-                    replaces = fill[0]
+                    evidence.update(replaces=fill[0], fill_at_ns=fill[1])
                 if order not in self._quote_sends and len(self._quote_sends) >= _QUOTE_LIMIT:
                     del self._quote_sends[next(iter(self._quote_sends))]
-                self._quote_sends[order] = (lane, replaces, now)
+                self._quote_sends[order] = evidence
             elif operation == 'quote.sell_open':
-                dispatched = self._quote_sends.pop(order, None)
-                if dispatched is None or not 0 <= now - dispatched[2] <= _QUOTE_LINK_TTL_NS:
+                evidence = self._quote_sends.pop(order, None)
+                if evidence is None or not 0 <= now - evidence['sent_at_ns'] <= _QUOTE_LINK_TTL_NS:
                     return None
-                lane, replaces, _ = dispatched
-                fill = self._quote_fills.get(lane)
-                if fill and fill[0] == replaces:
-                    del self._quote_fills[lane]
-            row = dict(operation=operation, at_ns=now, order=order, lane=lane, replaces=replaces)
+                fill = self._quote_fills.get(evidence['lane'])
+                if fill and fill[0] == evidence['replaces']:
+                    del self._quote_fills[evidence['lane']]
+            elif operation == 'quote.sell_response':
+                evidence = {key: sent[key] for key in ('lane', 'replaces', 'fill_at_ns', 'sent_at_ns')}
+                evidence['http_response_at_ns'] = now
+                pending = self._quote_sends.get(order)
+                if pending is not None and pending['sent_at_ns'] == sent['sent_at_ns']:
+                    pending['http_response_at_ns'] = now
+            else:
+                return None
+            row = dict(operation=operation, at_ns=now, order=order, **evidence)
             self._retain_submission(row)
             return row
 

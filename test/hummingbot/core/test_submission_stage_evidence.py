@@ -56,7 +56,7 @@ def test_spot_sell_milestones_keep_scope_and_record_ws_evidence_before_http(monk
     now[0] += 10_000_000
     with gates.session_order_scope('private-session', 2, executor=dict(config, mm_generation=2)):
         unrelated = diagnostic.observe_spot_sell_dispatch(request)
-    assert unrelated[-1] is None
+    assert unrelated[1]['replaces'] is None
     order.client_order_id = 'private-same-level'
     request.data = json.dumps(dict(clOrdId=order.client_order_id, side='sell', ordType='post_only'))
     with gates.session_order_scope('private-session', 1, executor=config):
@@ -81,6 +81,11 @@ def test_spot_sell_milestones_keep_scope_and_record_ws_evidence_before_http(monk
     assert send['order'] == opened['order'] == response['order']
     assert opened['at_ns'] - send['at_ns'] == 12_000_000
     assert response['at_ns'] > opened['at_ns']
+    assert opened['fill_at_ns'] == fill['at_ns']
+    assert opened['sent_at_ns'] == send['at_ns']
+    assert opened['http_response_at_ns'] is None
+    assert response['fill_at_ns'] == fill['at_ns']
+    assert response['sent_at_ns'] == send['at_ns']
     assert 'private-' not in json.dumps(batch)
 
 

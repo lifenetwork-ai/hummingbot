@@ -196,6 +196,9 @@ async def test_native_replacement_waits_for_account_and_commit_then_ack_without_
                 assert fill['order'] != send['order'] == response['order'] == opened['order']
                 assert send['replaces'] == opened['replaces'] == fill['order']
                 assert fill['at_ns'] <= send['at_ns'] <= response['at_ns'] <= opened['at_ns']
+                assert opened['fill_at_ns'] == fill['at_ns']
+                assert opened['sent_at_ns'] == send['at_ns']
+                assert opened['http_response_at_ns'] == response['at_ns']
                 assert requests[0]['clOrdId'] not in json.dumps(markers)
                 ending_quotes = own_quotes(native, pair, max_orders=16)
                 observer = LiquidityObserver()
