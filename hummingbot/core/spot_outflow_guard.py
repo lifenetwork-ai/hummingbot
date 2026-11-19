@@ -11,7 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
-from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketEvent, OrderFilledEvent
+from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketEvent
 from hummingbot.core.order_submission_guard import SpotOutflowBlocked, SpotOutflowPending, SubmissionBlocked
 from hummingbot.core.spot_outflow import (
     ADVANCE_BATCH,
@@ -414,21 +414,23 @@ class SpotOutflowGuard:
             raise ValueError("Order changed during terminal proof")
         self.terminal_stages[client_id] = 'recording'
         recorder = MarketsRecorder._shared_instance
-        async with recorder.order_writes:
+        async with recorder.native_order_write(connector):
             if apply_terminal:
                 self._check_terminal_identity(connector, order)
-            recorder._did_create_order(MarketEvent.BuyOrderCreated.value, connector, BuyOrderCreatedEvent(
+            created = BuyOrderCreatedEvent(
                 timestamp=int(first["uTime"]) / 1000, type=order.order_type, trading_pair=order.trading_pair,
                 amount=order.amount, price=order.price, order_id=client_id, creation_timestamp=order.creation_timestamp,
-                exchange_order_id=order.exchange_order_id))
+                exchange_order_id=order.exchange_order_id,
+            )
+            cancelled = await recorder.persist_order_update(
+                connector, [(MarketEvent.BuyOrderCreated, created)], dict(connector.tracking_states),
+            )
+            recorder.finish_recorded_order_creation(connector, created)
+            if cancelled is not None:
+                raise cancelled
             for raw in fills.values():
                 fill = connector._trade_update_from_fill(order, raw)
-                connector._order_tracker.process_trade_update(fill)
-                recorder._did_fill_order(MarketEvent.OrderFilled.value, connector, OrderFilledEvent(
-                    timestamp=fill.fill_timestamp, order_id=client_id, trading_pair=order.trading_pair,
-                    trade_type=order.trade_type, order_type=order.order_type, price=fill.fill_price,
-                    amount=fill.fill_base_amount, trade_fee=fill.fee, exchange_trade_id=fill.trade_id,
-                    leverage=order.leverage, position=order.position.value))
+                await connector._order_tracker.persist_proved_trade(recorder, order, fill)
             recorder.sql_manager.assert_persistence_healthy()
         if apply_terminal:
             # Keep native fill-before-terminal ordering. The converter is the

@@ -229,35 +229,53 @@ class ClientOrderTracker:
             self.process_trade_update(update)
             return
         async with recorder.native_order_write(self._connector):
-            order = self.all_fillable_orders.get(update.client_order_id)
-            if order is None:
-                return
-            # Stage a copy without changing execution totals or notifying live
-            # waiters until the matching fill and tracker checkpoint commit.
-            staged = copy(order)
-            staged.order_fills = dict(order.order_fills)
-            staged.completely_filled_event = asyncio.Event()
-            if not staged.update_with_trade_update(update):
-                return
-            if staged.executed_amount_base <= order.executed_amount_base:
-                order.update_with_trade_update(update)
-                return
-            evt = self._filled_event(order, update.fill_base_amount, update.fill_price, update.fee,
-                                     update.trade_id, update.exchange_order_id, update.fill_timestamp)
-            tracking = dict(self._connector.tracking_states)
-            if order.client_order_id in tracking:
-                tracking[order.client_order_id] = staged.to_json()
-            committed, cancelled = await recorder.persist_fill(self._connector, evt, tracking)
+            await self._apply_recorded_trade_update(recorder, update)
+
+    async def _apply_recorded_trade_update(self, recorder, update):
+        order = self.all_fillable_orders.get(update.client_order_id)
+        if order is None:
+            return False
+        # Stage a copy without changing execution totals or notifying live
+        # waiters until the matching fill and tracker checkpoint commit.
+        staged = copy(order)
+        staged.order_fills = dict(order.order_fills)
+        staged.completely_filled_event = asyncio.Event()
+        if not staged.update_with_trade_update(update):
+            return False
+        if staged.executed_amount_base <= order.executed_amount_base:
             order.update_with_trade_update(update)
-            self.logger().info(
-                f"The {order.trade_type.name.upper()} order {order.client_order_id} "
-                f"amounting to {order.executed_amount_base}/{order.amount} {order.base_asset} "
-                f"has been filled at {update.fill_price} {order.quote_asset}."
-            )
-            recorder.finish_recorded_fill(self._connector, evt, committed)
-            recorder.publish_recorded_order_event(self._connector, MarketEvent.OrderFilled, evt)
-            if cancelled is not None:
-                raise cancelled
+            return False
+        evt = self._filled_event(order, update.fill_base_amount, update.fill_price, update.fee,
+                                 update.trade_id, update.exchange_order_id, update.fill_timestamp)
+        tracking = dict(self._connector.tracking_states)
+        if order.client_order_id in tracking:
+            tracking[order.client_order_id] = staged.to_json()
+        committed, cancelled = await recorder.persist_fill(self._connector, evt, tracking)
+        order.update_with_trade_update(update)
+        self.logger().info(
+            f"The {order.trade_type.name.upper()} order {order.client_order_id} "
+            f"amounting to {order.executed_amount_base}/{order.amount} {order.base_asset} "
+            f"has been filled at {update.fill_price} {order.quote_asset}."
+        )
+        recorder.finish_recorded_fill(self._connector, evt, committed)
+        recorder.publish_recorded_order_event(self._connector, MarketEvent.OrderFilled, evt)
+        if cancelled is not None:
+            raise cancelled
+        return True
+
+    async def persist_proved_trade(self, recorder, order, update):
+        """Record complete venue evidence while the caller holds the recorder lock."""
+        if await self._apply_recorded_trade_update(recorder, update):
+            return
+        # A retired order may lack a live tracker entry, or its existing local
+        # fill may still need a durable receipt. The recorder verifies deduplication.
+        evt = self._filled_event(order, update.fill_base_amount, update.fill_price, update.fee,
+                                 update.trade_id, update.exchange_order_id, update.fill_timestamp)
+        evt = evt._replace(timestamp=update.fill_timestamp)
+        committed, cancelled = await recorder.persist_fill(self._connector, evt, dict(self._connector.tracking_states))
+        recorder.finish_recorded_fill(self._connector, evt, committed)
+        if cancelled is not None:
+            raise cancelled
 
     async def process_order_not_found(self, client_order_id: str):
         """
@@ -373,11 +391,7 @@ class ClientOrderTracker:
                         # Let normal polling obtain a proof with the new fills.
                         tracked_order._terminal_proof_pending = True
                         return
-                    if (order_update.new_state == OrderState.CANCELED and tracked_order.current_state != OrderState.CANCELED
-                            and (tracked_order.exchange_order_id or order_update.exchange_order_id)):
-                        await self._persist_cancellation(recorder, tracked_order, order_update)
-                    else:
-                        self._apply_order_update(tracked_order, order_update)
+                    await self._persist_order_update(recorder, tracked_order, order_update)
         else:
             lost_order = self.fetch_lost_order(
                 client_order_id=order_update.client_order_id, exchange_order_id=order_update.exchange_order_id
@@ -407,29 +421,44 @@ class ClientOrderTracker:
             self._trigger_order_creation(order, previous_state, update.new_state)
             self._trigger_order_completion(order, update)
 
-    @trace_runtime('order.terminal', order_parameter='order')
-    async def _persist_cancellation(self, recorder, order, update):
-        if update.client_order_id != order.client_order_id and update.exchange_order_id != order.exchange_order_id:
+    async def _persist_order_update(self, recorder, order, update):
+        staged = copy(order)
+        # The copy must not wake the live waiters before PostgreSQL commits.
+        staged.exchange_order_id_update_event = asyncio.Event()
+        staged.processed_by_exchange_event = asyncio.Event()
+        if not staged.update_with_order_update(update):
             return
-        exchange_id = order.exchange_order_id if order.exchange_order_id is not None else update.exchange_order_id
-        payload = OrderCancelledEvent(self.current_timestamp, order.client_order_id, exchange_id)
-        tracking = dict(self._connector.tracking_states)
-        if order.client_order_id in tracking:
-            tracking[order.client_order_id] = dict(tracking[order.client_order_id], exchange_order_id=exchange_id,
-                                                   last_state=str(OrderState.CANCELED.value),
-                                                   last_update_timestamp=update.update_timestamp)
-        cancelled = await recorder.persist_order_status(MarketEvent.OrderCancelled.value, self._connector, payload, tracking)
+
+        created = self._should_emit_creation(order.current_state, update.new_state)
+        events = [self._creation_event(staged)] if created else []
+        terminal = self._terminal_event(staged, update) if not staged.is_open else None
+        if terminal is not None:
+            events.append(terminal)
+        cancelled = None
+        if events:
+            tracking = dict(self._connector.tracking_states)
+            if order.client_order_id in tracking:
+                tracking[order.client_order_id] = staged.to_json()
+            cancelled = await recorder.persist_order_update(self._connector, events, tracking)
+
         order.update_with_order_update(update)
-        recorder.publish_recorded_order_event(self._connector, MarketEvent.OrderCancelled, payload)
-        self.logger().info(f"Successfully canceled order {order.client_order_id}.")
-        self.stop_tracking_order(order.client_order_id)
+        if created:
+            recorder.finish_recorded_order_creation(self._connector, events[0][1])
+            self._note_creation(order, update.new_state)
+        for tag, payload in events:
+            recorder.publish_recorded_order_event(self._connector, tag, payload)
+        if not staged.is_open:
+            self._note_completion(order, update, terminal[0] if terminal else None)
         if cancelled is not None:
             raise cancelled
 
     def _trigger_created_event(self, order: InFlightOrder):
+        self._connector.trigger_event(*self._creation_event(order))
+
+    def _creation_event(self, order):
         event_tag = MarketEvent.BuyOrderCreated if order.trade_type is TradeType.BUY else MarketEvent.SellOrderCreated
         event_class: Callable = BuyOrderCreatedEvent if order.trade_type is TradeType.BUY else SellOrderCreatedEvent
-        self._connector.trigger_event(
+        return (
             event_tag,
             event_class(
                 self.current_timestamp,
@@ -447,13 +476,13 @@ class ClientOrderTracker:
 
     @trace_runtime('order.terminal', order_parameter='order')
     def _trigger_cancelled_event(self, order: InFlightOrder):
-        self._connector.trigger_event(
-            MarketEvent.OrderCancelled,
-            OrderCancelledEvent(
-                timestamp=self.current_timestamp,
-                order_id=order.client_order_id,
-                exchange_order_id=order.exchange_order_id,
-            ),
+        self._connector.trigger_event(*self._cancellation_event(order))
+
+    def _cancellation_event(self, order):
+        return MarketEvent.OrderCancelled, OrderCancelledEvent(
+            timestamp=self.current_timestamp,
+            order_id=order.client_order_id,
+            exchange_order_id=order.exchange_order_id,
         )
 
     def _trigger_filled_event(
@@ -487,11 +516,14 @@ class ClientOrderTracker:
 
     @trace_runtime('order.terminal', order_parameter='order')
     def _trigger_completed_event(self, order: InFlightOrder):
+        self._connector.trigger_event(*self._completion_event(order))
+
+    def _completion_event(self, order):
         event_tag = (
             MarketEvent.BuyOrderCompleted if order.trade_type is TradeType.BUY else MarketEvent.SellOrderCompleted
         )
         event_class = BuyOrderCompletedEvent if order.trade_type is TradeType.BUY else SellOrderCompletedEvent
-        self._connector.trigger_event(
+        return (
             event_tag,
             event_class(
                 self.current_timestamp,
@@ -507,8 +539,11 @@ class ClientOrderTracker:
 
     @trace_runtime('order.terminal', order_parameter='order')
     def _trigger_failure_event(self, order: InFlightOrder, order_update: OrderUpdate):
+        self._connector.trigger_event(*self._failure_event(order, order_update))
+
+    def _failure_event(self, order, order_update):
         misc_updates = order_update.misc_updates or {}
-        self._connector.trigger_event(
+        return (
             MarketEvent.OrderFailure,
             MarketOrderFailureEvent(
                 timestamp=self.current_timestamp,
@@ -519,13 +554,20 @@ class ClientOrderTracker:
             ),
         )
 
+    @staticmethod
+    def _should_emit_creation(previous_state, new_state):
+        return previous_state is OrderState.PENDING_CREATE and new_state not in (
+            OrderState.PENDING_CREATE, OrderState.CANCELED, OrderState.FAILED, OrderState.PENDING_CANCEL,
+        )
+
+    def _note_creation(self, order, new_state):
+        if order.trade_type is TradeType.SELL and new_state in (OrderState.OPEN, OrderState.PARTIALLY_FILLED):
+            observe_spot_sell_open(self._connector, order)
+        self.logger().info(order.build_order_created_message())
+
     def _trigger_order_creation(self, tracked_order: InFlightOrder, previous_state: OrderState, new_state: OrderState):
-        if (previous_state == OrderState.PENDING_CREATE and
-                previous_state != new_state and
-                new_state not in [OrderState.CANCELED, OrderState.FAILED, OrderState.PENDING_CANCEL]):
-            if tracked_order.trade_type is TradeType.SELL and new_state in (OrderState.OPEN, OrderState.PARTIALLY_FILLED):
-                observe_spot_sell_open(self._connector, tracked_order)
-            self.logger().info(tracked_order.build_order_created_message())
+        if self._should_emit_creation(previous_state, new_state):
+            self._note_creation(tracked_order, new_state)
             self._trigger_created_event(tracked_order)
 
     def _trigger_order_fills(self,
@@ -552,23 +594,38 @@ class ClientOrderTracker:
                 fill_timestamp=fill_timestamp,
             )
 
+    def _terminal_event(self, order, update):
+        if order.is_cancelled:
+            return self._cancellation_event(order)
+        if order.is_filled:
+            return self._completion_event(order)
+        if order.is_failure:
+            return self._failure_event(order, update)
+
     def _trigger_order_completion(self, tracked_order: InFlightOrder, order_update: Optional[OrderUpdate] = None):
         if tracked_order.is_open:
             return
 
+        tag = None
         if tracked_order.is_cancelled:
+            tag = MarketEvent.OrderCancelled
             self._trigger_cancelled_event(tracked_order)
-            self.logger().info(f"Successfully canceled order {tracked_order.client_order_id}.")
-
         elif tracked_order.is_filled:
+            tag = MarketEvent.BuyOrderCompleted if tracked_order.trade_type is TradeType.BUY else MarketEvent.SellOrderCompleted
             self._trigger_completed_event(tracked_order)
-            self.logger().info(f"{tracked_order.trade_type.name.upper()} order {tracked_order.client_order_id} completely filled.")
-
         elif tracked_order.is_failure:
+            tag = MarketEvent.OrderFailure
             self._trigger_failure_event(tracked_order, order_update)
-            self.logger().info(f"Order {tracked_order.client_order_id} has failed. Order Update: {order_update}")
+        self._note_completion(tracked_order, order_update, tag)
 
-        self.stop_tracking_order(tracked_order.client_order_id)
+    def _note_completion(self, order, update, tag):
+        if tag is MarketEvent.OrderCancelled:
+            self.logger().info(f"Successfully canceled order {order.client_order_id}.")
+        elif tag in (MarketEvent.BuyOrderCompleted, MarketEvent.SellOrderCompleted):
+            self.logger().info(f"{order.trade_type.name.upper()} order {order.client_order_id} completely filled.")
+        elif tag is MarketEvent.OrderFailure:
+            self.logger().info(f"Order {order.client_order_id} has failed. Order Update: {update}")
+        self.stop_tracking_order(order.client_order_id)
 
     @staticmethod
     def _restore_order_from_json(serialized_order: Dict):

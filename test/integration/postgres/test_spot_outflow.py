@@ -1,17 +1,19 @@
 import asyncio
 import json
 import random
+import threading
 import time
 from decimal import Decimal
 from test.hummingbot.client.config.test_mm_profiles import CATALOGUE
 from test.integration.postgres.test_ownership import owned as _owned
 from types import MethodType, SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import event, text
 
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
+from hummingbot.connector.client_order_tracker import ClientOrderTracker
 from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
@@ -42,6 +44,9 @@ def setup(context, **changes):
     context.owner.config_file_path = context.recorder._config_file_path = "life_mm_profiles.yaml"
     context.owner.mm_ready_check = lambda: True
     context.market.account_uid, context.market.trading_environment = "account-A", "demo"
+    if isinstance(context.market, MagicMock):
+        context.market._order_tracker = ClientOrderTracker(context.market)
+        context.market.current_timestamp = float('nan')
     context.market.get_fee.return_value = AddedToCostTradeFee(percent=Decimal(".001"))
     context.owner.spot_outflow = SpotOutflowGuard(context.owner, catalogue.outflow_policy())
     asyncio.run(context.owner.spot_outflow.initialize())
@@ -236,7 +241,20 @@ def test_terminal_proof_backfills_actual_fills_then_releases_only_unfilled_remai
         tradeId="1", billId="2", ordId="1", fillSz="2", fillPx="10", fee="-.2", feeCcy="USDT", ts=str(int(stamp) - 1000))]))
     owned.market._trade_update_from_fill = MethodType(OkxExchange._trade_update_from_fill, owned.market)
     owned.market.trade_fee_schema.return_value = TradeFeeSchema()
-    asyncio.run(owned.owner.spot_outflow.reconcile_terminal(all_orders=True))
+    write_threads = {}
+
+    def record_write(connection, cursor, statement, *args):
+        for prefix in ('UPDATE orders', 'INSERT INTO trade_fills'):
+            if statement.startswith(prefix):
+                write_threads.setdefault(prefix, set()).add(threading.get_ident())
+
+    event.listen(owned.engine, 'before_cursor_execute', record_write)
+    try:
+        asyncio.run(owned.owner.spot_outflow.reconcile_terminal(all_orders=True))
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', record_write)
+    assert write_threads.keys() == {'UPDATE orders', 'INSERT INTO trade_fills'}
+    assert all(threading.get_ident() not in threads for threads in write_threads.values())
     status = owned.owner.spot_outflow.status()
     assert status["reserved_quote"] == 0 and status["recorded_net_outflow_quote"] == Decimal("20.2")
     assert not owned.owner.spot_outflow.terminal_pending

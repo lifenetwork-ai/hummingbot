@@ -54,6 +54,8 @@ from hummingbot.model.trade_fill import TradeFill
 from hummingbot.strategy_v2.controllers.controller_base import ControllerConfigBase
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
+_QUOTE_FEE_NOT_CALCULATED = object()
+
 
 class MarketsRecorder:
     _logger = None
@@ -126,8 +128,8 @@ class MarketsRecorder:
         from hummingbot.client.config.runtime_config import postgres_requested
 
         recorder = cls._shared_instance
-        if (recorder is not None and market.name in ('okx', 'okx_perpetual')
-                and market in recorder._markets and recorder.durable_position_checkpoints and postgres_requested()):
+        if (recorder is not None and market in recorder._markets and market.name in ('okx', 'okx_perpetual')
+                and recorder.durable_position_checkpoints and postgres_requested()):
             return recorder
         return None
 
@@ -158,15 +160,47 @@ class MarketsRecorder:
         # Finish ORM staging and its physical ownership checks on the engine.
         # The worker solely owns this pooled session until COMMIT returns.
         session.flush()
+        _, cancelled = await self._drain_order_write(session.commit)
+        return cancelled
+
+    @staticmethod
+    async def _drain_order_write(write):
         cancelled = None
-        job = asyncio.get_running_loop().run_in_executor(None, copy_context().run, session.commit)
+        job = asyncio.get_running_loop().run_in_executor(None, copy_context().run, write)
         while not job.done():
             try:
                 await asyncio.shield(job)
             except asyncio.CancelledError as error:
                 cancelled = error
-        job.result()
-        return cancelled
+        return job.result(), cancelled
+
+    async def _run_native_write(self, stage, *args):
+        from hummingbot.core.bot_ownership import OwnershipLost
+        from hummingbot.core.order_submission_guard import active_guard
+
+        owner = active_guard()
+        if owner.engine is not self._sql_manager.engine:
+            raise RuntimeError('Order recorder is outside the active ownership scope.')
+
+        def write():
+            with self._sql_manager.get_new_session() as session, session.begin():
+                session.info["worker_order_owner"] = owner
+                result = stage(session, *args)
+                session.flush()
+                if session.info.get("ownership_fenced_transaction") is session.get_transaction():
+                    self._sql_manager.assert_persistence_healthy()
+                    owner.fence_recorder_session(session)
+                return result
+
+        try:
+            owner.require_owner_connection()
+            return await self._drain_order_write(write)
+        except OwnershipLost as error:
+            self._sql_manager.persistence_healthy = False
+            raise owner._lose_ownership(str(error), error.reason_code) from None
+        except BaseException:
+            self._sql_manager.persistence_healthy = False
+            raise
 
     def publish_recorded_order_event(self, market, tag, payload):
         previous = self._published_order_event
@@ -859,7 +893,6 @@ class MarketsRecorder:
         market_states: Optional[MarketState] = query.one_or_none()
         return market_states
 
-    @trace_runtime('order.created', order_parameter='evt')
     def _did_create_order(self,
                           event_tag: int,
                           market: ConnectorBase,
@@ -868,61 +901,69 @@ class MarketsRecorder:
             self._ev_loop.call_soon_threadsafe(self._did_create_order, event_tag, market, evt)
             return
 
+        if evt is self._published_order_event:
+            return
+        with self._sql_manager.get_new_session() as session, session.begin():
+            self._stage_order_creation(session, event_tag, market, evt)
+        self.finish_recorded_order_creation(market, evt)
+
+    @trace_runtime('order.created', order_parameter='evt')
+    def _stage_order_creation(self, session, event_tag, market, evt, *, tracking_states=None):
         base_asset, quote_asset = evt.trading_pair.split("-")
         timestamp = int(evt.creation_timestamp * 1e3)
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
 
-        with self._sql_manager.get_new_session() as session:
-            with session.begin():
-                order_record = session.get(Order, evt.order_id)
-                config_file_path, strategy_name = self._event_configuration(session, market, order_record)
-                if order_record is not None and (
-                    order_record.market != market.display_name or order_record.symbol != evt.trading_pair
-                    or order_record.config_file_path != config_file_path
-                ):
-                    raise ValueError("Order identity conflicts with an existing recorded order.")
-                values = dict(
-                    id=evt.order_id,
-                    config_file_path=config_file_path,
-                    strategy=strategy_name,
-                    market=market.display_name,
-                    symbol=evt.trading_pair,
-                    base_asset=base_asset,
-                    quote_asset=quote_asset,
-                    creation_timestamp=timestamp,
-                    order_type=evt.type.name,
-                    amount=Decimal(evt.amount),
-                    leverage=evt.leverage if evt.leverage else 1,
-                    price=Decimal(evt.price) if evt.price == evt.price else Decimal(0),
-                    position=evt.position if evt.position else PositionAction.NIL.value,
-                    last_status=event_type.name,
-                    last_update_timestamp=timestamp,
-                    exchange_order_id=evt.exchange_order_id,
-                    creation_pending=False,
-                )
-                if order_record is None:
-                    order_record = Order(**values)
-                    session.add(order_record)
-                else:
-                    # A create ack completes a provisional record without erasing fills
-                    # or regressing a newer/terminal status. Duplicate create is a no-op.
-                    was_pending = order_record.creation_pending
-                    for key, value in values.items():
-                        if key in ("last_status", "last_update_timestamp"):
-                            continue
-                        if was_pending or key in ("exchange_order_id", "creation_pending"):
-                            setattr(order_record, key, value)
-                    if was_pending and order_record.last_status in ("PendingBuy", "PendingSell"):
-                        order_record.last_status = event_type.name
-                    if order_record.last_status in (MarketEvent.BuyOrderCreated.name, MarketEvent.SellOrderCreated.name):
-                        order_record.last_update_timestamp = max(order_record.last_update_timestamp, timestamp)
-                # These lookups need only the previously persisted attempt and
-                # history. Flush the ACK changes together before the fresh
-                # tracking snapshot; never carry this scope across that read.
-                with session.no_autoflush:
-                    self._attempt_observation(session, evt.order_id, 'acknowledged')
-                    self._add_order_status(session, order_record, timestamp, event_type.name)
-                self.save_market_states(config_file_path, market, session=session)
+        order_record = session.get(Order, evt.order_id)
+        config_file_path, strategy_name = self._event_configuration(session, market, order_record)
+        if order_record is not None and (
+            order_record.market != market.display_name or order_record.symbol != evt.trading_pair
+            or order_record.config_file_path != config_file_path
+        ):
+            raise ValueError("Order identity conflicts with an existing recorded order.")
+        values = dict(
+            id=evt.order_id,
+            config_file_path=config_file_path,
+            strategy=strategy_name,
+            market=market.display_name,
+            symbol=evt.trading_pair,
+            base_asset=base_asset,
+            quote_asset=quote_asset,
+            creation_timestamp=timestamp,
+            order_type=evt.type.name,
+            amount=Decimal(evt.amount),
+            leverage=evt.leverage if evt.leverage else 1,
+            price=Decimal(evt.price) if evt.price == evt.price else Decimal(0),
+            position=evt.position if evt.position else PositionAction.NIL.value,
+            last_status=event_type.name,
+            last_update_timestamp=timestamp,
+            exchange_order_id=evt.exchange_order_id,
+            creation_pending=False,
+        )
+        if order_record is None:
+            order_record = Order(**values)
+            session.add(order_record)
+        else:
+            # A create ack completes a provisional record without erasing fills
+            # or regressing a newer/terminal status. Duplicate create is a no-op.
+            was_pending = order_record.creation_pending
+            for key, value in values.items():
+                if key in ("last_status", "last_update_timestamp"):
+                    continue
+                if was_pending or key in ("exchange_order_id", "creation_pending"):
+                    setattr(order_record, key, value)
+            if was_pending and order_record.last_status in ("PendingBuy", "PendingSell"):
+                order_record.last_status = event_type.name
+            if order_record.last_status in (MarketEvent.BuyOrderCreated.name, MarketEvent.SellOrderCreated.name):
+                order_record.last_update_timestamp = max(order_record.last_update_timestamp, timestamp)
+        # These lookups need only the previously persisted attempt and
+        # history. Flush the ACK changes together before the fresh
+        # tracking snapshot; never carry this scope across that read.
+        with session.no_autoflush:
+            self._attempt_observation(session, evt.order_id, 'acknowledged')
+            self._add_order_status(session, order_record, timestamp, event_type.name)
+        self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
+
+    def finish_recorded_order_creation(self, market, evt):
         if evt.exchange_order_id and self._uses_reconstruction_history(market):
             market.add_exchange_order_ids_from_market_recorder({evt.exchange_order_id: evt.order_id})
 
@@ -982,16 +1023,11 @@ class MarketsRecorder:
         self.finish_recorded_fill(market, evt, committed)
 
     async def persist_fill(self, market, evt, tracking_states):
-        try:
-            with self._sql_manager.get_new_session() as session:
-                committed = self._stage_fill(session, MarketEvent.OrderFilled.value, market, evt, tracking_states=tracking_states)
-                cancelled = await self._commit_order_write(session)
-                return committed, cancelled
-        except BaseException:
-            self._sql_manager.persistence_healthy = False
-            raise
+        return await self._run_native_write(
+            self._stage_fill, MarketEvent.OrderFilled.value, market, evt, self._fill_quote_fee(evt), tracking_states,
+        )
 
-    def _stage_fill(self, session, event_tag, market, evt, *, tracking_states=None):
+    def _stage_fill(self, session, event_tag, market, evt, fee_in_quote=_QUOTE_FEE_NOT_CALCULATED, tracking_states=None):
         base_asset, quote_asset = evt.trading_pair.split("-")
         timestamp: int = int(evt.timestamp * 1e3) if evt.timestamp is not None else self.db_timestamp
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
@@ -1008,8 +1044,10 @@ class MarketsRecorder:
                 raise ValueError("Duplicate fill identity has conflicting economic values.")
             self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
         else:
+            if fee_in_quote is _QUOTE_FEE_NOT_CALCULATED:
+                fee_in_quote = self._fill_quote_fee(evt)
             existing_fill = self._store_fill(session, market, evt, order_record, timestamp, event_type.name,
-                                             base_asset, quote_asset, tracking_states=tracking_states)
+                                             base_asset, quote_asset, fee_in_quote, tracking_states=tracking_states)
         committed = {key: getattr(existing_fill, key) for key in (
             "market", "symbol", "timestamp", "order_id", "exchange_trade_id", "trade_type", "price", "amount", "trade_fee")}
         committed['late_held_fill'] = getattr(existing_fill, 'runtime_late_application', False)
@@ -1024,8 +1062,23 @@ class MarketsRecorder:
                 TradeFillOrderDetails(market.display_name, evt.exchange_trade_id, evt.trading_pair)
             })
 
+    def _fill_quote_fee(self, evt):
+        try:
+            fee = evt.trade_fee.fee_amount_in_token(
+                trading_pair=evt.trading_pair, price=evt.price, order_amount=evt.amount,
+                token=evt.trading_pair.split("-")[1],
+            )
+            fee = Decimal(str(fee))
+            if not fee.is_finite():
+                raise ValueError("Non-finite fee conversion")
+            return fee
+        except Exception as error:
+            self.logger().warning("Quote-fee conversion unavailable; original fees are preserved type=%s", type(error).__name__)
+            return None
+
     def _store_fill(self, session: Session, market: ConnectorBase, evt: OrderFilledEvent,
-                    order_record: Optional[Order], timestamp: int, status: str, base_asset: str, quote_asset: str, *, tracking_states=None):
+                    order_record: Optional[Order], timestamp: int, status: str, base_asset: str, quote_asset: str,
+                    fee_in_quote, *, tracking_states=None):
         config_file_path, strategy_name = self._event_configuration(session, market, order_record)
         if order_record is None:
             # Preserve FKs even when exchange fill updates precede the create ack.
@@ -1047,19 +1100,6 @@ class MarketsRecorder:
         # ownership fence, rather than first flushing Order alone for this read.
         with session.no_autoflush:
             self._add_order_status(session, order_record, timestamp, status)
-        try:
-            fee_in_quote = evt.trade_fee.fee_amount_in_token(
-                trading_pair=evt.trading_pair,
-                price=evt.price,
-                order_amount=evt.amount,
-                token=quote_asset,
-            )
-            fee_in_quote = Decimal(str(fee_in_quote))
-            if not fee_in_quote.is_finite():
-                raise ValueError("Non-finite fee conversion")
-        except Exception as error:
-            self.logger().warning("Quote-fee conversion unavailable; original fees are preserved type=%s", type(error).__name__)
-            fee_in_quote = None
         trade_fill_record: TradeFill = TradeFill(
             config_file_path=config_file_path,
             strategy=strategy_name,
@@ -1167,15 +1207,18 @@ class MarketsRecorder:
         with self._sql_manager.get_new_session() as session, session.begin():
             self._stage_order_status(session, event_tag, market, evt)
 
-    async def persist_order_status(self, event_tag, market, evt, tracking_states):
-        try:
-            with self._sql_manager.get_new_session() as session:
-                self._stage_order_status(session, event_tag, market, evt, tracking_states=tracking_states)
-                return await self._commit_order_write(session)
-        except BaseException:
-            self._sql_manager.persistence_healthy = False
-            raise
+    async def persist_order_update(self, market, events, tracking_states):
+        def stage(session):
+            for tag, payload in events:
+                if tag in (MarketEvent.BuyOrderCreated, MarketEvent.SellOrderCreated):
+                    self._stage_order_creation(session, tag.value, market, payload, tracking_states=tracking_states)
+                else:
+                    self._stage_order_status(session, tag.value, market, payload, tracking_states=tracking_states)
 
+        _, cancelled = await self._run_native_write(stage)
+        return cancelled
+
+    @trace_runtime('order.terminal', order_parameter='evt')
     def _stage_order_status(self, session, event_tag, market, evt, *, tracking_states=None):
         timestamp: int = self.db_timestamp
         event_type: MarketEvent = self.market_event_tag_map[event_tag]

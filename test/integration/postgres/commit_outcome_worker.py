@@ -42,7 +42,7 @@ def main():
     recorder = MarketsRecorder(manager, [market], 'test.yml', 'pure_market_making',
                                MarketDataCollectionConfigMap(market_data_collection_enabled=False))
     owner = None
-    if mode in ('intent', 'async-intent', 'hold', 'terminal', 'async-fill'):
+    if mode in ('intent', 'async-intent', 'hold', 'terminal', 'async-fill', 'async-ack'):
         os.environ['DATABASE_URL'] = url
         store = BotStateStore(engine, 'hummingbot')
         store.ensure()
@@ -53,16 +53,18 @@ def main():
         owner.allow_new_orders, owner.reconciling = True, False
         owner.connectors = {'okx': market}
         install_guard(owner)
-    if mode in ('terminal', 'async-fill'):
+    if mode in ('terminal', 'async-fill', 'async-ack'):
         terminal_order = intent(SimpleNamespace(market=market, owner=owner))
-        terminal_order.update_exchange_order_id('exchange-1')
-        terminal_order.current_state = OrderState.OPEN
-        market.tracking_states[terminal_order.client_order_id] = terminal_order.to_json()
-        recorder._did_create_order(MarketEvent.BuyOrderCreated.value, market, create())
+        if mode != 'async-ack':
+            terminal_order.update_exchange_order_id('exchange-1')
+            terminal_order.current_state = OrderState.OPEN
+            market.tracking_states[terminal_order.client_order_id] = terminal_order.to_json()
+            recorder._did_create_order(MarketEvent.BuyOrderCreated.value, market, create())
         tracker = ClientOrderTracker(market)
         tracker.start_tracking_order(terminal_order)
         market.current_timestamp = 1700000001
-        update = OrderUpdate('BTC-USDT', 1700000001, OrderState.CANCELED, 'order-1', 'exchange-1')
+        state = OrderState.OPEN if mode == 'async-ack' else OrderState.CANCELED
+        update = OrderUpdate('BTC-USDT', 1700000001, state, 'order-1', 'exchange-1')
     if mode == 'async-intent':
         new_order = InFlightOrder('order-1', 'BTC-USDT', OrderType.LIMIT, TradeType.BUY,
                                   Decimal('.1'), 1700000000, Decimal('100'))
@@ -93,7 +95,7 @@ def main():
             from test.integration.postgres.test_automatic_recovery import executor_info
             from test.integration.postgres.test_position_checkpoint_batch import snapshot
             return recorder.checkpoint_held_positions([snapshot('committed-hold', 'BUY', '.1')], [executor_info('held')])
-        if mode == 'terminal':
+        if mode in ('terminal', 'async-ack'):
             return loop.run_until_complete(tracker._process_order_update(update))
         if mode == 'async-fill':
             trade = TradeUpdate(evt.exchange_trade_id, evt.order_id, 'exchange-1', evt.trading_pair, evt.timestamp,
@@ -120,7 +122,7 @@ def main():
             input()  # Restore the network before proving the local failure latch.
             transport_calls = 0
             try:
-                if mode in ('intent', 'async-intent', 'terminal', 'async-fill'):
+                if mode in ('intent', 'async-intent', 'terminal', 'async-fill', 'async-ack'):
                     rest, transport = assistant()
                     try:
                         loop.run_until_complete(send(rest))

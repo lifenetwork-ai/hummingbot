@@ -179,21 +179,10 @@ def durable_fills(connection, identity, trades, *, missing_ok=False):
     return True
 
 
-def persist_proved_trades(recorder, connector, order, trades):
-    from hummingbot.core.event.events import MarketEvent, OrderFilledEvent
-    from hummingbot.model.trade_fill import TradeFill
+async def persist_proved_trades(recorder, connector, order, trades):
     recorder.sql_manager.assert_persistence_healthy()
     for trade in trades:
-        connector._order_tracker.process_trade_update(trade)
-    with recorder.sql_manager.get_new_session() as session:
-        recorded = set(session.execute(select(TradeFill.exchange_trade_id).where(TradeFill.order_id == order.client_order_id)).scalars())
-    for trade in trades:
-        if trade.trade_id not in recorded:
-            recorder._did_fill_order(MarketEvent.OrderFilled.value, connector, OrderFilledEvent(
-                timestamp=trade.fill_timestamp, order_id=order.client_order_id, trading_pair=order.trading_pair,
-                trade_type=order.trade_type, order_type=order.order_type, price=trade.fill_price,
-                amount=trade.fill_base_amount, trade_fee=trade.fee, exchange_trade_id=trade.trade_id,
-                leverage=order.leverage, position=order.position.value, exchange_order_id=trade.exchange_order_id))
+        await connector._order_tracker.persist_proved_trade(recorder, order, trade)
     recorder.sql_manager.assert_persistence_healthy()
 
 
@@ -454,7 +443,7 @@ class AutomaticOrderRecovery:
         async with self.owner.order_write_scope():
             self._terminal_fence(core.markets_recorder)
             proof_covers_local(order, status, trades)
-            persist_proved_trades(core.markets_recorder, connector, order, trades)
+            await persist_proved_trades(core.markets_recorder, connector, order, trades)
         await connector._order_tracker.process_order_update(status)
         proof_covers_local(order, status, trades)
         async with self.owner.order_write_scope():
@@ -532,7 +521,7 @@ class AutomaticOrderRecovery:
                 async with self.owner.order_write_scope():
                     self._terminal_fence(recorder)
                     proof_covers_local(order, proof, trades)
-                    persist_proved_trades(recorder, connector, order, trades)
+                    await persist_proved_trades(recorder, connector, order, trades)
                 _, snapshot = await self._read_durable_fills(order.client_order_id, trades)
                 self._terminal_fence(recorder)
                 proof_covers_local(order, proof, snapshot)

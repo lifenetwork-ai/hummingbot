@@ -215,14 +215,18 @@ class BotOwnership:
         self.config_file_path = config_file_path
         self._mutate_recovery(lambda state: state.update(runtime_active=True))
 
-    @trace_runtime('owner.read')
-    def _read_owner(self, *, identity_only=False):
-        """Fresh proof on the physical owner session; writes need no state JSON."""
+    def require_owner_connection(self):
         connection = self.connection
         if self.lost or connection is None or connection.closed or connection.invalidated:
             code = ('ownership_already_lost' if self.lost else 'ownership_session_unavailable' if connection is None else
                     'ownership_connection_closed' if connection.closed else 'ownership_connection_invalidated')
             raise self._lose_ownership("The bot ownership session is unavailable.", code)
+        return connection
+
+    @trace_runtime('owner.read')
+    def _read_owner(self, *, identity_only=False):
+        """Fresh proof on the physical owner session; writes need no state JSON."""
+        connection = self.require_owner_connection()
         try:
             # Only this internal write-fence path omits the state payload. The
             # observer and submission gates always retain their complete fresh
@@ -692,6 +696,28 @@ class BotOwnership:
 
     def fence_session(self, session, *, nowait=False):
         self._read_owner(identity_only=True)
+        self._lock_owner_row(session, nowait=nowait)
+
+    def fence_recorder_session(self, session):
+        # The recorder holds this row until it commits. Check the original
+        # owner's advisory lock from the same PostgreSQL transaction, without
+        # accessing the dedicated owner connection from the worker thread.
+        if self.lost:
+            raise OwnershipLost('Trading ownership was lost while recording the order.',
+                                reason_code='ownership_already_lost')
+        self._lock_owner_row(session)
+        advisory_lock = session.connection().execute(text("""
+            SELECT EXISTS (
+                SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted
+                AND pid=:pid AND classid=:namespace AND objid=:key AND objsubid=2
+                AND database=(SELECT oid FROM pg_database WHERE datname=current_database())
+            )
+        """), {'pid': self.backend_pid, 'namespace': OWNER_NAMESPACE, 'key': OWNER_KEY}).scalar_one()
+        if not advisory_lock:
+            raise OwnershipLost('The recorder cannot verify the trading owner lock.',
+                                reason_code='ownership_identity_mismatch')
+
+    def _lock_owner_row(self, session, *, nowait=False):
         transaction = session.get_transaction()
         if transaction is not None and session.info.get("ownership_fenced_transaction") is transaction:
             return
@@ -699,7 +725,8 @@ class BotOwnership:
             BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
             BotState.owner_generation == self.generation).with_for_update(read=True, nowait=nowait)).first()
         if not row:
-            raise OwnershipLost("A stale process cannot write trading/recovery state.")
+            raise OwnershipLost("A stale process cannot write trading/recovery state.",
+                                reason_code='ownership_identity_mismatch')
         session.info["ownership_fenced_transaction"] = session.get_transaction()
 
     async def authorize_rest(self, request):
@@ -1171,8 +1198,10 @@ class BotOwnership:
                         order.update_exchange_order_id(status.exchange_order_id)
                     fills = await asyncio.wait_for(connector._all_trade_updates_for_order(order), timeout=5)
                     recorder = MarketsRecorder.service_recorder_for(connector)
-                    async with recorder.order_writes if recorder is not None else nullcontext():
-                        for fill in fills:
+                    for fill in fills:
+                        if recorder is not None:
+                            await connector._order_tracker.apply_trade_update(fill)
+                        else:
                             connector._order_tracker.process_trade_update(fill)
                     # Apply fills before terminal state for each individual order.
                     await connector._order_tracker.process_order_update(status)

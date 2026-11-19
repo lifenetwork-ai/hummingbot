@@ -58,7 +58,7 @@ def canceled_buy(owned, monkeypatch, *, delayed=False):
         setattr(owned.market, name, MethodType(getattr(OkxExchange, name), owned.market))
     owned.market.trade_fee_schema.return_value = TradeFeeSchema()
     monkeypatch.setattr(RateOracle.get_instance(), '_prices', {'LIFE-USDT': Decimal('10')})
-    owned.market._order_tracker.process_trade_update.side_effect = order.update_with_trade_update
+    owned.market._order_tracker.start_tracking_order(order)
 
     async def terminal(update):
         order.update_with_order_update(update)

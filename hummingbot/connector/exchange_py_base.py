@@ -509,7 +509,12 @@ class ExchangePyBase(ExchangeBase, ABC):
             update_timestamp=update_timestamp,
             new_state=OrderState.OPEN,
         )
-        self._order_tracker.process_order_update(order_update)
+        from hummingbot.connector.markets_recorder import MarketsRecorder
+        if MarketsRecorder.service_recorder_for(self) is not None:
+            # Keep the managed submission in the shutdown drain until its venue ACK is durable.
+            await self._order_tracker._process_order_update(order_update)
+        else:
+            self._order_tracker.process_order_update(order_update)
 
         limiter = getattr(self, '_quote_refresh_warnings', None)
         if limiter is not None:

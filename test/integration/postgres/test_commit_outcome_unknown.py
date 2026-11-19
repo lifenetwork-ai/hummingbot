@@ -115,6 +115,40 @@ def test_terminal_commit_loss_has_one_durable_outcome_after_restart(recording, c
 
 
 @pytest.mark.parametrize('committed', [False, True], ids=['commit-not-delivered', 'commit-reply-lost'])
+def test_async_creation_ack_commit_loss_replays_once_after_restart(recording, committed):
+    recorder, manager, market = recording
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(cut_commit(manager.engine, 'async-ack', committed))
+
+    with manager.get_new_session() as session:
+        assert session.get(Order, 'order-1').creation_pending is not committed
+        assert session.get(SubmissionAttempt, 'order-1').state == ('acknowledged' if committed else 'prepared')
+        state = session.query(MarketState).one().saved_state['order-1']['last_state']
+        assert state == str((OrderState.OPEN if committed else OrderState.PENDING_CREATE).value)
+        assert session.query(OrderStatus).filter_by(status='BuyOrderCreated').count() == int(committed)
+
+    tracker = ClientOrderTracker(market)
+    market.restore_tracking_states.side_effect = tracker.restore_tracking_states
+    market.current_timestamp = 1700000002
+
+    def dispatch(tag, payload):
+        market.tracking_states = {identity: order.to_json() for identity, order in tracker.active_orders.items()}
+        recorder._did_create_order(tag.value, market, payload)
+
+    market.trigger_event.side_effect = dispatch
+    recorder.restore_market_states('test.yml', market)
+    update = OrderUpdate('BTC-USDT', 1700000002, OrderState.OPEN, 'order-1', 'exchange-1')
+    for _ in range(2):
+        loop.run_until_complete(tracker.process_order_update(update))
+    assert tracker.active_orders['order-1'].current_state is OrderState.OPEN
+    assert market.trigger_event.call_count == int(not committed)
+    with manager.get_new_session() as session:
+        assert session.get(Order, 'order-1').exchange_order_id == 'exchange-1'
+        assert session.get(SubmissionAttempt, 'order-1').state == 'acknowledged'
+        assert session.query(OrderStatus).filter_by(status='BuyOrderCreated').count() == 1
+
+
+@pytest.mark.parametrize('committed', [False, True], ids=['commit-not-delivered', 'commit-reply-lost'])
 def test_async_fill_commit_loss_replays_once_after_restart(recording, committed):
     recorder, manager, market = recording
     loop = asyncio.get_event_loop()
