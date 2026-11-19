@@ -167,6 +167,10 @@ class AdminStore:
         from hummingbot.model.admin_reporting import daily
         return daily(self.engine, **filters)
 
+    def balance_changes(self, **filters):
+        from hummingbot.model.account_balance_changes import balance_changes
+        return balance_changes(self.engine, self.bot_id, **filters)
+
     def request_check(self, key, payload, *, principal=None, audit_request_id=None):
         from hummingbot.model.admin_reconciliation import request_check
         return request_check(self, key, payload, principal=principal, audit_request_id=audit_request_id)

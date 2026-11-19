@@ -502,6 +502,239 @@
         "title": "AutomaticRecoveryStatus",
         "type": "object"
       },
+      "BalanceChangeOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "closing_cash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Cash"
+          },
+          "closing_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Observed At"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "delta_cash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Cash"
+          },
+          "opening_cash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Cash"
+          },
+          "opening_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Observed At"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "opening_missing",
+                  "closing_missing",
+                  "closing_stale"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          }
+        },
+        "required": [
+          "currency",
+          "opening_cash",
+          "opening_observed_at",
+          "closing_cash",
+          "closing_observed_at",
+          "delta_cash",
+          "reason_code"
+        ],
+        "title": "BalanceChange",
+        "type": "object"
+      },
+      "BalanceChangesResponseOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "end_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Day"
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "enum": [
+                  "live",
+                  "demo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment"
+          },
+          "flow_history": {
+            "const": "unverified",
+            "title": "Flow History",
+            "type": "string"
+          },
+          "period": {
+            "enum": [
+              "days",
+              "session"
+            ],
+            "title": "Period",
+            "type": "string"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "account_identity_unavailable",
+                  "session_unavailable",
+                  "opening_missing",
+                  "closing_missing"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "reporting_timezone": {
+            "title": "Reporting Timezone",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BalanceChangeOutput"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "session_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Started At"
+          },
+          "start_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Day"
+          }
+        },
+        "required": [
+          "period",
+          "start_day",
+          "end_day",
+          "reporting_timezone",
+          "session_id",
+          "session_started_at",
+          "account_id",
+          "environment",
+          "server_time",
+          "flow_history",
+          "reason_code",
+          "rows"
+        ],
+        "title": "BalanceChangesResponse",
+        "type": "object"
+      },
       "BalanceObservationOutput": {
         "additionalProperties": false,
         "properties": {
@@ -14398,6 +14631,289 @@
           }
         ],
         "summary": "Read account cash and equity once, with observation freshness",
+        "tags": [
+          "Reporting"
+        ]
+      }
+    },
+    "/api/v1/admin/balances/changes": {
+      "get": {
+        "operationId": "getBalanceChanges",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "days",
+              "enum": [
+                "days",
+                "session"
+              ],
+              "title": "Period",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Inclusive local reporting date.",
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Exclusive local reporting date.",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceChangesResponseOutput"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "googleIdentity": []
+          },
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Compare observed account cash by asset and period",
         "tags": [
           "Reporting"
         ]

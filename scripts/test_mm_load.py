@@ -199,6 +199,8 @@ def main():
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
     parser.add_argument("--profile", choices=("probe", "sequence", "mixed", "bursts", "soak", "faults", "all"), default="probe")
     parser.add_argument("--probe-seconds", type=int, default=60)
+    parser.add_argument("--balance-changes-probe", action="store_true",
+                        help="Compare two probe windows before and during additional balance comparison reads")
     parser.add_argument("--history-rows", type=int, default=100000)
     parser.add_argument('--cpus', type=int, choices=(1, 2), default=2, help='Total application container CPUs')
     parser.add_argument('--memory-mib', type=int, choices=(1024, 1536, 2048), default=2048,
@@ -229,6 +231,8 @@ def main():
     parser.add_argument('--external-book-levels', type=int, choices=(1, 2), default=1,
                         help='Explicit LIFE fixture depth; two independent levels retain liquidity when recent own L1 is conservatively filtered')
     args = parser.parse_args()
+    if args.balance_changes_probe and args.profile != "probe":
+        parser.error("--balance-changes-probe requires --profile probe")
     if args.mm_activity and (args.profile != 'probe' or not args.incident_diagnostics):
         parser.error('MM activity requires --profile probe and --incident-diagnostics; it is diagnostic, not release acceptance')
     if args.trace and args.incident_diagnostics:
@@ -265,6 +269,7 @@ def main():
                     external_book_levels=args.external_book_levels,
                     external_book_base_quantity='100000' if args.external_book_levels == 2 else None,
                     operations_reads_per_second=3 if args.operations else 0,
+                    balance_changes_probe=args.balance_changes_probe,
                     tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap, inventory_skew=args.inventory_skew,
                     gc_diagnostics=args.gc_diagnostics,
                     market_diagnostics=args.market_diagnostics,
@@ -503,6 +508,8 @@ def main():
                                       env=client_env, command=["python", "-c", "import time; time.sleep(20000)"])
                 if args.profile == "probe":
                     windows = [("probe", args.probe_seconds)]
+                    if args.balance_changes_probe:
+                        windows.append(("balance-changes-open", args.probe_seconds))
                 else:
                     windows = ([("warmup", 300), ("mixed", 900)] if args.profile in ("sequence", "mixed", "all") else [])
                     if args.profile in ("bursts", "sequence", "all"):
@@ -522,6 +529,8 @@ def main():
                         options += ('--mm-activity',)
                     if args.perpetual_reduction:
                         options += ('--perpetual-reduction',)
+                    if name == "balance-changes-open":
+                        options += ("--balance-changes",)
                     data = run_window(harness, bot, client, name, duration, report, burst=name == "bursts", options=options)
                     data["command_seconds"] = data["control_results"].get("command_seconds", controls)
                     data["ledger"] = verify_ledger(harness, port)

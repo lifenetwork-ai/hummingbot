@@ -36,3 +36,28 @@ def reporting_view(row):
             item['stale'] = True
     return dict(server_time=now, owner_available=available, accounts=accounts, positions=positions,
                 performance=performance, account_equities=equities)
+
+
+def verified_account_identity(reporting):
+    bindings = reporting.get('active_account_bindings')
+    if not isinstance(bindings, dict) or not bindings:
+        return None
+    identities = set()
+    sites = set()
+    for connector, binding in bindings.items():
+        if connector not in ('okx', 'okx_perpetual') or not isinstance(binding, dict):
+            continue
+        uid, environment = binding.get('account_id'), binding.get('environment')
+        if not isinstance(uid, str) or not uid or environment not in ('live', 'demo'):
+            return None
+        identities.add((uid, environment))
+        site = binding.get('site')
+        if site not in (None, 'www', 'app', 'my'):
+            return None
+        sites.add(site)
+    # Both connectors share one account in managed MM. Never sum across a
+    # credential rotation or silently mix a live and demo account.
+    if len(identities) != 1 or len(sites) > 1:
+        return None
+    uid, environment = identities.pop()
+    return uid, environment, next(iter(sites), None)

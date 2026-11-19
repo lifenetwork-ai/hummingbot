@@ -35,6 +35,7 @@ export function HomePage() {
   const model = useOverviewController(context)
   const { status, balances, liquidity, positions } = model
   const statusData = status.data
+  const balanceAccount = statusData?.overview?.account_scope
 
   const handleBannerAction = (action: string) => {
     if (action === 'check_recovery') {
@@ -91,7 +92,13 @@ export function HomePage() {
 
         {/* KPI strip — số to tường minh + target cạnh actual; verdict nằm ở vùng thanh khoản */}
         <OverviewKpiStripV2 liquidity={liquidityMarkets} capital={capital} accounts={model.accounts} onViewBalances={() => setBalancesOpen(true)} />
-        <AccountBalancesPanel open={balancesOpen} onClose={closeBalances} source={balances} onRefresh={context.refreshBalances} />
+        <AccountBalancesPanel open={balancesOpen} onClose={closeBalances} source={balances} onRefresh={context.refreshBalances}
+          changesScope={{
+            accountId: balanceAccount?.identity_verified ? balanceAccount.account_ids[0] : undefined,
+            environment: balanceAccount?.environment ?? undefined,
+            sessionId: statusData?.session?.id,
+            revision: statusData?.process_identity?.revision ?? undefined,
+          }} />
 
         {/* Vùng 3 — thanh khoản và mức đạt mục tiêu: verdict theo market + vì sao chưa đạt */}
         <section aria-label="Liquidity and live orders on the exchange">

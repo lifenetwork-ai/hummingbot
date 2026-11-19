@@ -995,13 +995,15 @@ class ServiceHost:
         try:
             zone_name = status.get("reporting_timezone", "Asia/Ho_Chi_Minh")
             zone = ZoneInfo(zone_name)
-            signature = frozenset((account["account_id"], account["environment"], balance["currency"], zone_name,
-                                   datetime.fromtimestamp(float(balance["observed_at"]), timezone.utc)
-                                   .astimezone(zone).date())
-                                  for account in (status.get("reporting") or {}).get("accounts", [])
-                                  if account.get("identity_verified")
-                                  for balance in account.get("balances", [])
-                                  if balance.get("present_in_latest_snapshot", True))
+            session = status.get("mm_session") or {}
+            balance_days = frozenset((account["account_id"], account["environment"], balance["currency"], zone_name,
+                                      datetime.fromtimestamp(float(balance["observed_at"]), timezone.utc)
+                                      .astimezone(zone).date())
+                                     for account in (status.get("reporting") or {}).get("accounts", [])
+                                     if account.get("identity_verified")
+                                     for balance in account.get("balances", [])
+                                     if balance.get("present_in_latest_snapshot", True))
+            signature = (session.get("id"), session.get("started_at"), balance_days)
         except (ValueError, TypeError, KeyError, OverflowError, OSError):
             # Leave malformed samples to the isolated writer; do not bypass its
             # retry deadline or turn optional projection into an owner failure.

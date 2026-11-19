@@ -80,6 +80,29 @@ async def test_profiles_and_unknown_owner_status_are_structured():
 
 
 @pytest.mark.asyncio
+async def test_balance_changes_http_preserves_cash_and_rejects_invalid_scope():
+    from hummingbot.cli.admin_api import ADMIN_PERMISSIONS
+
+    path = ADMIN_PREFIX + "/balances/changes"
+    assert ADMIN_PERMISSIONS["GET", path] == "read"
+    async with client() as (http, storage):
+        now = datetime.now(timezone.utc)
+        storage.balance_changes.return_value = dict(
+            period="session", start_day=None, end_day=None, reporting_timezone="UTC",
+            session_id="session-1", session_started_at=now, account_id="account", environment="demo",
+            server_time=now, flow_history="unverified", reason_code=None,
+            rows=[dict(currency="BTC", opening_cash="0.1", opening_observed_at=now, closing_cash="0.09999999",
+                       closing_observed_at=now, delta_cash="-0.00000001", reason_code=None)],
+        )
+        assert (await http.get(path, params={"period": "session", "from": "2026-11-19"})).status == 422
+        assert (await http.get(path, params={"account_id": "other"})).status == 422
+        storage.balance_changes.assert_not_called()
+        response = await http.get(path, params={"period": "session"})
+        assert response.status == 200
+        assert (await response.json())["rows"][0]["delta_cash"] == "-0.00000001"
+
+
+@pytest.mark.asyncio
 async def test_status_explains_legacy_halt_without_raw_errors_or_fabricated_event_time():
     state = dict(bot_id='hummingbot', desired_state='running', control_version=1,
                  acknowledged_version=1, heartbeat_age_s=0, owner_uuid='owner', database_now=1200,

@@ -28,6 +28,8 @@ from hummingbot.cli.admin_database import AdminDatabaseExecutor, DatabaseBusy, D
 from hummingbot.cli.admin_errors import error_response, request_id, validation_fields
 from hummingbot.cli.admin_models import (
     COMMAND_REQUEST,
+    BalanceChangesQuery,
+    BalanceChangesResponse,
     BalancesResponse,
     CommandRequest,
     CommandResponse,
@@ -87,6 +89,7 @@ ADMIN_ENDPOINTS = (("GET", "/profiles", "profiles"), ("GET", "/status", "status"
 ADMIN_ENDPOINTS += (("GET", "/orders", "orders"), ("GET", "/orders/{order_id}", "order"), ("GET", "/fills", "fills"))
 ADMIN_ENDPOINTS += (("GET", "/reference-pairs", "reference_pairs"),)
 ADMIN_ENDPOINTS += (("GET", "/balances", "balances"), ("GET", "/positions", "positions"), ("GET", "/performance", "performance"))
+ADMIN_ENDPOINTS += (("GET", "/balances/changes", "balance_changes"),)
 ADMIN_ENDPOINTS += (("GET", "/statistics/daily", "daily"),
                     ("GET", "/sessions/{session_id}/events", "session_events"),
                     ("GET", "/statistics/liquidity", "liquidity"))
@@ -109,7 +112,7 @@ ADMIN_ENDPOINTS += (("GET", "/credentials", "credentials_catalogue"),
                     ("POST", "/credentials/operations/{operation_id}/retry", "credentials_retry"))
 
 READ_HANDLERS = frozenset({"profiles", "status", "command", "openapi", "docs", "asset", "orders", "order", "fills",
-                           "reference_pairs", "balances", "positions", "performance", "daily", "session_events", "liquidity",
+                           "reference_pairs", "balances", "balance_changes", "positions", "performance", "daily", "session_events", "liquidity",
                            "reconciliation", "session_configuration", "commands_history", "sessions", "reconciliation_by_id",
                            "access_login", "access_me", "access_audit", "credentials_catalogue", "credentials_status", "credentials_operation"})
 WRITE_HANDLERS = frozenset({"commands", "reconciliation_check", "credentials_set", "credentials_disconnect", "credentials_cleanup_key", "credentials_retry"})
@@ -568,6 +571,14 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
         row = await self.run_database(self.storage().observations)
         model = BalancesResponse(**{key: row[key] for key in ("accounts", "server_time", "owner_available")})
         return web.json_response(model.model_dump(mode="json"))
+
+    @api_operation(operation_id="getBalanceChanges", summary="Compare observed account cash by asset and period",
+                   tag="Reporting", response_model=BalanceChangesResponse, query_model=BalanceChangesQuery)
+    async def balance_changes(self, request):
+        query = self.query(request, BalanceChangesQuery)
+        row = await self.run_database(self.storage().balance_changes, heavy=True,
+                                      reporting_timezone=self.settings.reporting_timezone, **query.model_dump())
+        return web.json_response(BalanceChangesResponse.model_validate(row).model_dump(mode="json"))
 
     @api_operation(operation_id="getPositions", summary="Read last observed actual perpetual exposure, including after stop", tag="Reporting",
                    response_model=PositionsResponse, query_model=MarketQuery)

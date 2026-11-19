@@ -1,8 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import { AccountBalancesPanel } from './AccountBalancesPanel'
 import type { ReadResponse } from '../../core/api/admin'
+import { server } from '../../test/mocks/server'
+import { pageApiUrl, pageWrapper, setupPageApi } from '../../test/operationalTest'
 
 const data: ReadResponse<'getBalances'> = {
   scope: 'account', owner_available: true, server_time: '2026-11-16T08:15:15Z',
@@ -74,5 +77,75 @@ describe('AccountBalancesPanel', () => {
     expect(close).toHaveBeenCalledOnce()
     rerender(<><button>View balances</button><AccountBalancesPanel open={false} onClose={close} source={ready} onRefresh={vi.fn()} /></>)
     expect(screen.getByRole('button', { name: 'View balances' })).toHaveFocus()
+  })
+})
+
+describe('Balance changes', () => {
+  setupPageApi()
+
+  it('loads only on the tab and displays native units, explicit zero and missing cash', async () => {
+    const now = '2026-11-16T08:15:14Z'
+    const body: ReadResponse<'getBalanceChanges'> = {
+      period: 'days', start_day: '2026-11-16', end_day: '2026-11-17', reporting_timezone: 'UTC',
+      session_id: null, session_started_at: null, account_id: 'demo-account', environment: 'demo',
+      server_time: now, flow_history: 'unverified', reason_code: null,
+      rows: [
+        { currency: 'BTC', opening_cash: '0.1', closing_cash: '0.07999999', delta_cash: '-0.02000001', opening_observed_at: now, closing_observed_at: now, reason_code: null },
+        { currency: 'USDT', opening_cash: '10000', closing_cash: '11300', delta_cash: '1300', opening_observed_at: now, closing_observed_at: now, reason_code: null },
+        { currency: 'ETH', opening_cash: null, closing_cash: '0', delta_cash: null, opening_observed_at: null, closing_observed_at: now, reason_code: 'opening_missing' },
+      ],
+    }
+    const requests: string[] = []
+    server.use(http.get(`${pageApiUrl}/balances/changes`, ({ request }) => {
+      const search = new URL(request.url).searchParams
+      requests.push(search.toString())
+      return search.get('period') === 'session'
+        ? HttpResponse.json({ ...body, period: 'session', rows: [], reason_code: 'opening_missing' })
+        : HttpResponse.json(body)
+    }))
+    render(<AccountBalancesPanel open onClose={vi.fn()} source={ready} onRefresh={vi.fn()} />, { wrapper: pageWrapper() })
+    expect(requests).toEqual([])
+    expect(screen.queryByText('Net Pos. PnL (Equity - Cash)')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('tab', { name: 'Balance changes' }))
+    expect(await screen.findByText('-0.02000001 BTC')).toBeVisible()
+    expect(screen.getByText('+1,300 USDT')).toBeVisible()
+    expect(screen.getByText('0 ETH')).toBeVisible()
+    expect(screen.getByText('Opening balance unavailable')).toBeVisible()
+    expect(requests).toEqual(['period=days'])
+    fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-11-14' } })
+    fireEvent.change(screen.getByLabelText('To date (exclusive)'), { target: { value: '2026-11-16' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Apply dates' }))
+    expect(await screen.findByText('-0.02000001 BTC')).toBeVisible()
+    expect(requests[1]).toBe('period=days&from=2026-11-14&to=2026-11-16')
+    await userEvent.click(screen.getByRole('button', { name: 'Current session' }))
+    expect(await screen.findByText(/Session opening balance unavailable/)).toBeVisible()
+    expect(requests[2]).toBe('period=session')
+  })
+
+  it('keeps snapshot views usable when the server predates balance changes', async () => {
+    server.use(http.get(`${pageApiUrl}/balances/changes`, () => new HttpResponse(null, { status: 404 })))
+    render(<AccountBalancesPanel open onClose={vi.fn()} source={ready} onRefresh={vi.fn()} />, { wrapper: pageWrapper() })
+    await userEvent.click(screen.getByRole('tab', { name: 'Balance changes' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Balance changes are unavailable on this server')
+    await userEvent.click(screen.getByRole('tab', { name: 'Visual bars' }))
+    expect(screen.getByRole('img', { name: 'Cash allocation for BTC' })).toBeVisible()
+  })
+
+  it('hides a previous account comparison when the account changes', async () => {
+    const now = '2026-11-16T08:15:14Z'
+    server.use(http.get(`${pageApiUrl}/balances/changes`, () => HttpResponse.json({
+      period: 'days', start_day: '2026-11-16', end_day: '2026-11-17', reporting_timezone: 'UTC',
+      session_id: null, session_started_at: null, account_id: 'demo-account', environment: 'demo',
+      server_time: now, flow_history: 'unverified', reason_code: null,
+      rows: [{ currency: 'BTC', opening_cash: '1', closing_cash: '2', delta_cash: '1',
+        opening_observed_at: now, closing_observed_at: now, reason_code: null }],
+    })))
+    const props = { open: true, onClose: vi.fn(), source: ready, onRefresh: vi.fn() }
+    const { rerender } = render(<AccountBalancesPanel {...props} changesScope={{ accountId: 'demo-account' }} />, { wrapper: pageWrapper() })
+    await userEvent.click(screen.getByRole('tab', { name: 'Balance changes' }))
+    expect(await screen.findByText('+1 BTC')).toBeVisible()
+    rerender(<AccountBalancesPanel {...props} changesScope={{ accountId: 'new-account' }} />)
+    expect(screen.queryByText('+1 BTC')).not.toBeInTheDocument()
+    expect(await screen.findByText(/Waiting for a comparison for the current account/)).toBeVisible()
   })
 })

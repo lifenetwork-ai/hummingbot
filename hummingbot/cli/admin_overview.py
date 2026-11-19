@@ -28,7 +28,7 @@ from hummingbot.cli.admin_overview_models import (
     OverviewSpreadTarget,
     OverviewSupplement,
 )
-from hummingbot.core.reporting import reporting_view
+from hummingbot.core.reporting import reporting_view, verified_account_identity
 
 
 def unavailable(reason):
@@ -77,32 +77,15 @@ def _observation(model, raw, *, now, reason=None):
 
 
 def _account_scope(reporting):
-    bindings = reporting.get('active_account_bindings')
-    if not isinstance(bindings, dict) or not bindings:
+    identity = verified_account_identity(reporting)
+    if identity is None:
         return OverviewAccountScope(account_ids=[], environment=None, identity_verified=False), []
-    identities = set()
-    sites = set()
-    for connector, binding in bindings.items():
-        if connector not in ('okx', 'okx_perpetual') or not isinstance(binding, dict):
-            continue
-        uid, environment = binding.get('account_id'), binding.get('environment')
-        if not isinstance(uid, str) or not uid or environment not in ('live', 'demo'):
-            return OverviewAccountScope(account_ids=[], environment=None, identity_verified=False), []
-        identities.add((uid, environment))
-        site = binding.get('site')
-        if site not in (None, 'www', 'app', 'my'):
-            return OverviewAccountScope(account_ids=[], environment=None, identity_verified=False), []
-        sites.add(site)
-    # Both connectors share one account in managed MM. Never sum across a
-    # credential rotation or silently mix a live and demo account.
-    if len(identities) != 1 or len(sites) > 1:
-        return OverviewAccountScope(account_ids=[], environment=None, identity_verified=False), []
-    uid, environment = identities.pop()
+    uid, environment, site = identity
     accounts = [item for item in reporting.get('accounts', [])
                 if item.get('account_id') == uid and item.get('environment') == environment]
     verified = len(accounts) == 1 and accounts[0].get('identity_verified') is True
     return OverviewAccountScope(account_ids=[uid], environment=environment, identity_verified=verified,
-                                site=next(iter(sites), None)), accounts
+                                site=site), accounts
 
 
 def _portfolio(accounts, prices, *, now, reason):

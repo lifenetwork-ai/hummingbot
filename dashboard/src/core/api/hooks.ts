@@ -9,10 +9,12 @@ import { acceptedReceiptReference, rememberAcceptedReceipt, type ReceiptReferenc
 import { trustedBotId } from './trustedBotId'
 import { projectReceiptOutcome, type ReceiptOutcome } from './receipt-inspection'
 
-export function useAdminQuery<K extends ReadOperation>(operation: K, input: ReadInput<K> | undefined, options: { enabled?: boolean; poll?: boolean } = {}) {
+export function useAdminQuery<K extends ReadOperation>(operation: K, input: ReadInput<K> | undefined, options: { enabled?: boolean; poll?: boolean; cacheScope?: readonly unknown[] } = {}) {
   const api = useAdminApi()
   const client = useQueryClient()
-  const query = useQuery({ ...adminQueryOptions(api, operation, input),
+  const baseOptions = adminQueryOptions(api, operation, input)
+  const query = useQuery({ ...baseOptions,
+    queryKey: [...baseOptions.queryKey, ...(options.cacheScope ?? [])],
     enabled: options.enabled, ...(options.poll === false ? { refetchInterval: false as const } : {}) })
   const observed = useRef<unknown>()
   useEffect(() => {

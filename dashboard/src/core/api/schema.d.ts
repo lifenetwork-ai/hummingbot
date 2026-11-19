@@ -120,6 +120,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/balances/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compare observed account cash by asset and period */
+        get: operations["getBalanceChanges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/commands": {
         parameters: {
             query?: never;
@@ -861,6 +878,59 @@ export interface components {
              * @default null
              */
             started_at: number | null;
+        };
+        /** BalanceChange */
+        BalanceChangeOutput: {
+            /** Closing Cash */
+            closing_cash: string | null;
+            /** Closing Observed At */
+            closing_observed_at: string | null;
+            /** Currency */
+            currency: string;
+            /** Delta Cash */
+            delta_cash: string | null;
+            /** Opening Cash */
+            opening_cash: string | null;
+            /** Opening Observed At */
+            opening_observed_at: string | null;
+            /** Reason Code */
+            reason_code: ("opening_missing" | "closing_missing" | "closing_stale") | null;
+        };
+        /** BalanceChangesResponse */
+        BalanceChangesResponseOutput: {
+            /** Account Id */
+            account_id: string | null;
+            /** End Day */
+            end_day: string | null;
+            /** Environment */
+            environment: ("live" | "demo") | null;
+            /**
+             * Flow History
+             * @constant
+             */
+            flow_history: "unverified";
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "days" | "session";
+            /** Reason Code */
+            reason_code: ("account_identity_unavailable" | "session_unavailable" | "opening_missing" | "closing_missing") | null;
+            /** Reporting Timezone */
+            reporting_timezone: string;
+            /** Rows */
+            rows: components["schemas"]["BalanceChangeOutput"][];
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+            /** Session Id */
+            session_id: string | null;
+            /** Session Started At */
+            session_started_at: string | null;
+            /** Start Day */
+            start_day: string | null;
         };
         /** BalanceObservation */
         BalanceObservationOutput: {
@@ -6555,6 +6625,157 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BalancesResponseOutput"];
+                };
+            };
+            /** @description Invalid JSON */
+            400: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Basic authentication required */
+            401: {
+                headers: {
+                    "WWW-Authenticate"?: string;
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Origin not permitted */
+            403: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Control or retry identity conflict */
+            409: {
+                headers: {
+                    /** @description Seconds until a new check may be requested, when present */
+                    "Retry-After"?: number;
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "control_version_changed",
+                     *       "error": "control_or_idempotency_conflict",
+                     *       "fields": [],
+                     *       "request_id": "example-request",
+                     *       "retry": "refresh_state"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported content type */
+            415: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "yaml_configuration_read_only",
+                     *       "error": "validation_failed",
+                     *       "fields": [
+                     *         {
+                     *           "code": "yaml_configuration_read_only",
+                     *           "path": "references"
+                     *         }
+                     *       ],
+                     *       "request_id": "example-request",
+                     *       "retry": "fix_request"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unexpected server error */
+            500: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service/data unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getBalanceChanges: {
+        parameters: {
+            query?: {
+                period?: "days" | "session";
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BalanceChangesResponseOutput"];
                 };
             };
             /** @description Invalid JSON */

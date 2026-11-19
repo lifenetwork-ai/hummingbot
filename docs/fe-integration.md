@@ -1248,6 +1248,25 @@ are null. Unknown account identities are explicit and are not persisted as daily
 account snapshots. A currency omitted from a newer snapshot cannot look fresh.
 Configured budgets remain available separately in `/profiles`.
 
+`GET /balances/changes` requires read permission. It compares native
+`cash_balance` values for the verified account binding. Use `period=days`
+with the inclusive `from` and exclusive `to` reporting dates, or omit both
+dates for today. The opening observation comes from the day before `from`.
+The closing observation comes from the day before `to`, using the current
+projection when that day is today. Each row includes the actual timestamps.
+`period=session` uses the first fresh, verified snapshot stored for that
+session and account. Its observation time can fall just before
+`session_started_at` if the connector fetched balances during preparation,
+or later if the first reliable balance arrives after trading starts.
+Sessions that started before migration 024 may lack an opening snapshot.
+
+A row can report `currency: "BTC"`, `opening_cash: "0.1"`,
+`closing_cash: "0.08"` and `delta_cash: "-0.02"`. Amounts are decimal strings
+with no price conversion. Null amounts remain unknown. A missing or stale
+boundary leaves `delta_cash` null and includes a `reason_code`. The initial API
+reports `flow_history: "unverified"`. The observed cash change includes any
+deposits, withdrawals or account resets within the interval.
+
 `/positions` reports actual perpetual quantities, sides, leverage and available
 margin/liquidation fields from the connector's existing REST/WS loop. Spot
 positions are `not_applicable`. `/performance` reuses the existing V2 controller

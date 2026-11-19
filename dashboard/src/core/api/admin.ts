@@ -12,6 +12,7 @@ export const adminOperations = {
   getAdminIdentity: ['GET', '/access/me'],
   getAdminAudit: ['GET', '/audit'],
   getBalances: ['GET', '/balances'],
+  getBalanceChanges: ['GET', '/balances/changes'],
   listCommands: ['GET', '/commands'],
   submitCommand: ['POST', '/commands'],
   getCommand: ['GET', '/commands/{command_id}'],
