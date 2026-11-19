@@ -889,7 +889,11 @@ class StrategyV2Base(StrategyPyBase):
         """
         Update the unified controller reports and publish the updates to the active controllers.
         """
-        from hummingbot.core.operational_warnings import DrawdownValuationUnavailable, OperationalWarnings
+        from hummingbot.core.operational_warnings import (
+            DrawdownValuationUnavailable,
+            OperationalWarnings,
+            PositionCheckpointBusy,
+        )
         if self._managed_report_handle is not None:
             self._managed_report_handle.cancel()
             self._managed_report_handle = None
@@ -912,6 +916,12 @@ class StrategyV2Base(StrategyPyBase):
             if warnings is not None:
                 for key in list(warnings.states):
                     self.logger().info('Controller report valuation recovered scope=%s summary=%s', key, warnings.recover(key))
+        except PositionCheckpointBusy:
+            code = 'position_checkpoint_waiting'
+            if getattr(self, 'controller_reports_error', None) != code:
+                self.logger().warning('Controller reports waiting for the position checkpoint ownership row',
+                                      extra={'event': code, 'reason_code': code, 'scope': 'runtime'})
+            self.controller_reports_error = code
         except DrawdownValuationUnavailable as error:
             self.controller_reports_error = type(error).__name__
             warnings = getattr(self, '_valuation_warnings', None)

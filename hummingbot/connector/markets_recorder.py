@@ -528,14 +528,16 @@ class MarketsRecorder:
                 return {}
 
     @trace_runtime('position.checkpoint')
-    def checkpoint_held_positions(self, positions, infos, *, reduction_bases=None):
+    def checkpoint_held_positions(self, positions, infos, *, reduction_bases=None, defer_ownership_contention=False):
         """Native transfer order, financial rows and application receipt commit together.
 
         The caller only publishes the new in-memory hold after this transaction.
         A lost commit acknowledgement is resolved from the receipt after restart;
         it never means that a terminal executor can be applied a second time.
         """
-        self._sql_manager.assert_persistence_healthy()
+        from hummingbot.core.operational_warnings import PositionCheckpointBusy
+        from hummingbot.core.order_submission_guard import active_guard
+        from hummingbot.model.intent_admission import prewrite_transaction
         from hummingbot.model.runtime_journal import (
             RuntimeCheckpoint,
             RuntimeJournal,
@@ -543,7 +545,17 @@ class MarketsRecorder:
             applied_executors,
             financial_hash,
         )
-        with self._sql_manager.get_new_session() as session, session.begin():
+        manager = self._sql_manager
+        manager.assert_persistence_healthy()
+        owner = active_guard() if defer_ownership_contention else None
+        with manager.get_new_session() as session, (
+            prewrite_transaction(manager, session, PositionCheckpointBusy, 'Position checkpoint waits for the ownership row.')
+            if owner is not None else session.begin()
+        ):
+            if owner is not None:
+                if owner.engine is not manager.engine:
+                    raise RuntimeError('Position checkpoint does not belong to the trading owner.')
+                session.info['checkpoint_prewrite_owner'] = owner
             if applied_executors(session, [info.id for info in infos]):
                 raise ValueError('Position application changed; reload its durable checkpoint')
             checkpoint = session.get(RuntimeCheckpoint, self._config_file_path)

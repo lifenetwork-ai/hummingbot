@@ -34,6 +34,10 @@ class OperationalWarnings:
         return dict(total=state['total'], suppressed=state['suppressed'], seconds=self.clock() - state['start'])
 
 
+class PositionCheckpointBusy(RuntimeError):
+    """The ownership row was busy and the checkpoint rolled back before any writes."""
+
+
 class DrawdownValuationUnavailable(ValueError):
     def __init__(self, connector, pair, reason, age=None):
         self.connector, self.pair, self.reason, self.age = connector, pair, reason, age

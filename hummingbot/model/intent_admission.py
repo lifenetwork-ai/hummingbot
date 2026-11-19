@@ -1,4 +1,4 @@
-"""Recognize a rejected ownership lock before any order writes.
+"""Recognize a rejected ownership lock before any transaction writes.
 
 The proof belongs to one ORM transaction and is consumed after its actual
 DBAPI rollback. Once the fence is acquired, write and COMMIT failures remain fatal.
@@ -53,32 +53,37 @@ def confirmed_prewrite_failure(session, error):
 
 
 @contextmanager
+def prewrite_transaction(manager, session, busy_error, busy_message):
+    try:
+        with session.begin():
+            yield
+    except BaseException as error:
+        if confirmed_prewrite_failure(session, error) and manager.persistence_healthy:
+            raise busy_error(busy_message) from None
+        # A rollback failure can prevent after_soft_rollback from firing.
+        # Keep every other PostgreSQL failure fatal even in that case.
+        if manager.engine.dialect.name == 'postgresql':
+            manager.persistence_healthy = False
+        raise
+
+
+@contextmanager
 def order_intent_transaction(manager, order_id):
     """Fence eagerly/NOWAIT before staging even the first Order INSERT."""
     from hummingbot.core.order_submission_guard import IntentAdmissionBusy, active_guard
     from hummingbot.model.order import Order
 
-    with manager.get_new_session() as session:
-        try:
-            with session.begin():
-                # Preserve the original duplicate-identity rejection before the
-                # fence. Contention must not excuse an existing durable order.
-                if session.get(Order, order_id) is not None:
-                    raise RuntimeError('Client order identity already exists; reconcile instead of resubmitting.')
-                if manager.engine.dialect.name == 'postgresql':
-                    guard = active_guard()
-                    if guard is not None:
-                        manager.assert_persistence_healthy()
-                        if guard.engine is not manager.engine:
-                            raise RuntimeError('Intent recorder does not belong to the trading owner.')
-                        with capture_prewrite_lock_failure(session):
-                            guard.fence_session(session, nowait=True)
-                yield session
-        except BaseException as error:
-            if confirmed_prewrite_failure(session, error) and manager.persistence_healthy:
-                raise IntentAdmissionBusy('Intent admission waits for the ownership row; no order was sent.') from None
-            # A rollback failure can prevent after_soft_rollback from firing.
-            # Keep every other PostgreSQL failure fatal even in that case.
-            if manager.engine.dialect.name == 'postgresql':
-                manager.persistence_healthy = False
-            raise
+    with manager.get_new_session() as session, prewrite_transaction(
+            manager, session, IntentAdmissionBusy, 'Intent admission waits for the ownership row; no order was sent.'):
+        # Contention must not excuse an existing durable order.
+        if session.get(Order, order_id) is not None:
+            raise RuntimeError('Client order identity already exists; reconcile instead of resubmitting.')
+        if manager.engine.dialect.name == 'postgresql':
+            guard = active_guard()
+            if guard is not None:
+                manager.assert_persistence_healthy()
+                if guard.engine is not manager.engine:
+                    raise RuntimeError('Intent recorder does not belong to the trading owner.')
+                with capture_prewrite_lock_failure(session):
+                    guard.fence_session(session, nowait=True)
+        yield session
