@@ -665,7 +665,7 @@ class AutomaticOrderRecovery:
                                 cum_fees_quote=sum((Decimal(o['cumulative_fee_paid_quote']) for o in orders), Decimal(0)),
                                 filled_amount_quote=sum((Decimal(o['executed_amount_quote']) for o in orders), Decimal(0)),
                                 custom_info={'held_position_orders': orders, 'recovered': True})
-            core.strategy.executor_orchestrator._update_positions_from_done_executors({config.controller_id: [info]})
+            await core.strategy.executor_orchestrator.update_positions_from_done_executors({config.controller_id: [info]})
             core.strategy.executor_orchestrator._update_cached_performance(config.controller_id, info)
 
     def attach_quarantined_entries(self, core):

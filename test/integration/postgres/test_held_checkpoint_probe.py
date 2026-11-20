@@ -17,7 +17,7 @@ from hummingbot.cli.service import ServiceHost
 from hummingbot.cli.service_processes import probe_health
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
 from hummingbot.core.event.events import MarketEvent
-from hummingbot.core.operational_warnings import PositionCheckpointBusy
+from hummingbot.core.operational_warnings import PositionCheckpointBusy, PositionCheckpointPending
 from hummingbot.model.runtime_journal import RuntimeJournal
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors import executor_orchestrator
@@ -38,6 +38,74 @@ def pending_checkpoint(owned):
     )
     runtime.active_executors['maker'] = [SimpleNamespace(config=info.config, executor_info=info)]
     return runtime
+
+
+@pytest.mark.parametrize('stage', ['read', 'commit'])
+def test_slow_held_checkpoint_preserves_live_and_only_publishes_durable_hold(owned, stage):
+    runtime = pending_checkpoint(owned)
+    entered, release = threading.Event(), threading.Event()
+
+    def hold():
+        entered.set()
+        release.wait(1.5)
+
+    def query(connection, cursor, statement, parameters, context, executemany):
+        if stage == 'read' and 'FROM runtime_checkpoints' in statement and not entered.is_set():
+            hold()
+        if stage == 'commit' and statement.startswith('INSERT INTO positions'):
+            connection.info['test_hold_commit'] = True
+
+    def commit(connection):
+        if connection.info.pop('test_hold_commit', False):
+            hold()
+
+    async def exercise():
+        host = SimpleNamespace(stop=asyncio.Event(), phase='running', observer_progress_at=None)
+        app = web.Application()
+        app.router.add_get('/live', ServiceHost.health.__get__(host))
+        server = web.AppRunner(app)
+        await server.setup()
+        await web.TCPSite(server, '127.0.0.1', 0).start()
+        port = server.addresses[0][1]
+
+        def probe():
+            assert entered.wait(2)
+            return probe_health(port, '/live')
+
+        checking = asyncio.create_task(asyncio.to_thread(probe))
+        await asyncio.sleep(0)
+        try:
+            try:
+                runtime.get_all_reports()
+            except PositionCheckpointPending:
+                pass
+            healthy, detail = await checking
+            assert healthy, detail
+            task = runtime._position_checkpoint_task
+            assert task in owned.owner.terminal_tasks
+            with pytest.raises(PositionCheckpointPending):
+                runtime.get_all_reports()
+            assert runtime._position_checkpoint_task is task
+            assert not runtime.positions_held['maker'] and not runtime.executors_ids_position_held
+            assert owned.recorder.get_all_positions() == []
+        finally:
+            release.set()
+            await server.cleanup()
+        await runtime._position_checkpoint_task
+        runtime.get_all_reports()
+        assert owned.recorder.get_all_positions()[0].amount == Decimal('.1')
+        assert len(runtime.positions_held['maker']) == 1
+        assert runtime.executors_ids_position_held == {'hold-probe'}
+
+    event.listen(owned.engine, 'before_cursor_execute', query)
+    event.listen(owned.engine, 'commit', commit)
+    try:
+        owned.loop.run_until_complete(exercise())
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', query)
+        event.remove(owned.engine, 'commit', commit)
+    with owned.manager.get_new_session() as session:
+        assert session.query(RuntimeJournal).filter_by(event_key='hold:hold-probe').count() == 1
 
 
 @pytest.mark.parametrize('locked_seconds', [.45, 1.25])
@@ -90,15 +158,23 @@ def test_live_during_held_position_checkpoint(owned, locked_seconds):
             before = await probing
             if before[0]:
                 assert not controller.executors_update_event.is_set()
-                assert strategy.controller_reports_error == 'position_checkpoint_waiting'
+                assert strategy.controller_reports_error == 'position_checkpoint_pending'
                 assert strategy.controller_reports == {'previous': True}
                 assert runtime.positions_held['maker'] == []
                 assert not runtime.executors_ids_position_held
                 assert owned.manager.persistence_healthy
                 assert owned.recorder.get_all_positions() == []
             await blocker
+            if runtime._position_checkpoint_task is not None:
+                with pytest.raises(PositionCheckpointBusy):
+                    await runtime._position_checkpoint_task
+                StrategyV2Base.update_executors_info(strategy)  # Consume the verified NOWAIT rollback.
+                assert strategy.controller_reports_error == 'position_checkpoint_waiting'
             if not controller.executors_update_event.is_set():
                 StrategyV2Base.update_executors_info(strategy)
+                if runtime._position_checkpoint_task is not None:
+                    await runtime._position_checkpoint_task
+                    StrategyV2Base.update_executors_info(strategy)
             after = await asyncio.to_thread(probe_health, port, '/live')
         finally:
             await blocker
@@ -137,7 +213,8 @@ def test_held_checkpoint_contention_expires_without_publishing_or_writing(owned,
     assert owned.recorder.get_all_positions() == []
 
 
-def test_held_checkpoint_commit_lock_error_cannot_be_retried_as_prewrite(owned):
+@pytest.mark.parametrize('worker', [False, True])
+def test_held_checkpoint_commit_lock_error_cannot_be_retried_as_prewrite(owned, worker):
     runtime = pending_checkpoint(owned)
     with owned.engine.begin() as connection:
         connection.execute(text("""
@@ -149,8 +226,17 @@ def test_held_checkpoint_commit_lock_error_cannot_be_retried_as_prewrite(owned):
                 AFTER INSERT ON runtime_journal DEFERRABLE INITIALLY DEFERRED
                 FOR EACH ROW WHEN (NEW.kind = 'hold') EXECUTE FUNCTION reject_held_commit();
         """))
+
+    async def report():
+        with pytest.raises(PositionCheckpointPending):
+            runtime.get_all_reports()
+        await runtime._position_checkpoint_task
+
     with pytest.raises(OperationalError) as failure:
-        runtime.get_all_reports()
+        if worker:
+            owned.loop.run_until_complete(report())
+        else:
+            runtime.get_all_reports()
     assert failure.value.orig.pgcode == '55P03'
     assert not owned.manager.persistence_healthy
     assert not runtime.positions_held['maker'] and not runtime.executors_ids_position_held

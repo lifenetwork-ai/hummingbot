@@ -893,6 +893,7 @@ class StrategyV2Base(StrategyPyBase):
             DrawdownValuationUnavailable,
             OperationalWarnings,
             PositionCheckpointBusy,
+            PositionCheckpointPending,
         )
         if self._managed_report_handle is not None:
             self._managed_report_handle.cancel()
@@ -916,6 +917,8 @@ class StrategyV2Base(StrategyPyBase):
             if warnings is not None:
                 for key in list(warnings.states):
                     self.logger().info('Controller report valuation recovered scope=%s summary=%s', key, warnings.recover(key))
+        except PositionCheckpointPending:
+            self.controller_reports_error = 'position_checkpoint_pending'
         except PositionCheckpointBusy:
             code = 'position_checkpoint_waiting'
             if getattr(self, 'controller_reports_error', None) != code:
