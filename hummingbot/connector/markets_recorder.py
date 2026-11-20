@@ -154,18 +154,6 @@ class MarketsRecorder:
             if not already_tracked:
                 owner.terminal_tasks.discard(task)
 
-    async def _commit_order_write(self, session):
-        from hummingbot.core.order_submission_guard import active_guard
-
-        owner = active_guard()
-        if owner.engine is not self._sql_manager.engine:
-            raise RuntimeError('Order recorder is outside the active ownership scope.')
-        # Finish ORM staging and its physical ownership checks on the engine.
-        # The worker solely owns this pooled session until COMMIT returns.
-        session.flush()
-        _, cancelled = await self._drain_order_write(session.commit)
-        return cancelled
-
     @staticmethod
     async def _drain_order_write(write):
         cancelled = None
@@ -802,13 +790,15 @@ class MarketsRecorder:
     def save_market_states(self, config_file_path: str, market: ConnectorBase, session: Session,
                            *, new_order_id: Optional[str] = None, tracking_states=None):
         saved_state = dict(market.tracking_states if tracking_states is None else tracking_states)
+        self._save_market_state_snapshot(session, config_file_path, market.display_name, saved_state, new_order_id)
+
+    def _save_market_state_snapshot(self, session, config_file_path, market_name, saved_state, new_order_id=None):
         # A newly persisted identity requires a new snapshot. Avoid decoding
         # the old JSON unless unresolved identities need merging below. Ordinary
         # checkpoints retain full reads and unchanged-JSON dirty checking.
         fresh_tracking = (self._sql_manager.engine.dialect.name == "postgresql"
                           and new_order_id is not None and new_order_id in saved_state)
-        market_states: Optional[MarketState] = self.get_market_states(
-            config_file_path, market, session=session, include_saved_state=not fresh_tracking)
+        market_states = self._get_market_states(session, config_file_path, market_name, include_saved_state=not fresh_tracking)
         timestamp: int = self.db_timestamp
         pending_ids = None
         if saved_state and self._sql_manager.engine.dialect.name == "postgresql":
@@ -821,7 +811,7 @@ class MarketsRecorder:
                 # same scoped statement; do not cache this proof across writes.
                 selection = or_(selection, Order.creation_pending.is_(True))
             admitted = session.query(Order.id, Order.creation_pending).filter(
-                Order.config_file_path == config_file_path, Order.market == market.display_name, selection).all()
+                Order.config_file_path == config_file_path, Order.market == market_name, selection).all()
             saved_state = {order_id: saved_state[order_id] for order_id, _ in admitted if order_id in saved_state}
             pending_ids = [order_id for order_id, pending in admitted if pending]
         if market_states is not None:
@@ -831,7 +821,7 @@ class MarketsRecorder:
                 # Empty PostgreSQL snapshots and the legacy file backend retain
                 # their existing single pending-identity lookup.
                 pending_ids = [order_id for (order_id,) in session.query(Order.id).filter_by(
-                    config_file_path=config_file_path, market=market.display_name, creation_pending=True).all()]
+                    config_file_path=config_file_path, market=market_name, creation_pending=True).all()]
             for order_id in pending_ids:
                 if order_id not in saved_state and order_id in market_states.saved_state:
                     saved_state[order_id] = market_states.saved_state[order_id]
@@ -841,7 +831,7 @@ class MarketsRecorder:
             market_states.timestamp = timestamp
         else:
             market_states = MarketState(config_file_path=config_file_path,
-                                        market=market.display_name,
+                                        market=market_name,
                                         timestamp=timestamp,
                                         saved_state=saved_state)
             session.add(market_states)
@@ -849,17 +839,57 @@ class MarketsRecorder:
     @trace_runtime('order.intent', order_parameter='order')
     def record_order_intent(self, market: ConnectorBase, order) -> None:
         """Persist existing order identity/tracking state before an external submission."""
+        from hummingbot.model.runtime_journal import mark_prepared_order
+
         with self._sql_manager.order_intent_transaction(order.client_order_id) as session:
-            self._stage_order_intent(session, market, order)
+            record, cleanup, attempt = self._capture_order_intent(market, order)
+            self._stage_order_intent(session, record, cleanup, attempt, dict(market.tracking_states))
+            if attempt is not None:
+                mark_prepared_order(order, attempt)
 
     @trace_runtime('order.intent', order_parameter='order')
     async def persist_order_intent(self, market, order):
-        with self._sql_manager.order_intent_transaction(order.client_order_id) as session:
-            self._stage_order_intent(session, market, order)
-            return await self._commit_order_write(session)
+        from hummingbot.core.bot_ownership import OwnershipLost
+        from hummingbot.core.order_submission_guard import IntentAdmissionBusy, active_guard
+        from hummingbot.model.runtime_journal import mark_prepared_order
 
-    def _stage_order_intent(self, session, market, order):
+        owner = active_guard()
+        owner.require_owner_connection()
+        try:
+            record, cleanup, attempt = self._capture_order_intent(market, order)
+            tracking_states = dict(market.tracking_states)
+        except Exception:
+            self._sql_manager.persistence_healthy = False
+            raise
+
+        def write():
+            try:
+                # The mutable connector/tracker stay on the engine. The worker
+                # opens and closes its own session for the entire transaction.
+                with self._sql_manager.order_intent_transaction(record.id, worker_owner=owner) as session:
+                    self._stage_order_intent(session, record, cleanup, attempt, tracking_states)
+                    session.flush()
+                    self._sql_manager.assert_persistence_healthy()
+                    owner.fence_recorder_session(session)
+            except IntentAdmissionBusy as error:
+                return error
+            return None
+
+        try:
+            busy, cancelled = await self._drain_order_write(write)
+        except OwnershipLost as error:
+            raise owner._lose_ownership(str(error), error.reason_code) from None
+        if busy is not None:
+            raise IntentAdmissionBusy(str(busy), cancellation=cancelled) from None
+        if attempt is not None:
+            mark_prepared_order(order, attempt)
+        return cancelled
+
+    def _capture_order_intent(self, market, order):
         from hummingbot.core.cleanup_authority import current_cleanup_scope
+        from hummingbot.core.order_submission_guard import active_guard
+        from hummingbot.model.runtime_journal import capture_attempt_context
+
         cleanup = current_cleanup_scope()
         base, quote = order.trading_pair.split("-")
         timestamp = int(order.creation_timestamp * 1000)
@@ -873,24 +903,27 @@ class MarketsRecorder:
                        last_update_timestamp=timestamp, creation_pending=True,
                        cleanup_operation_id=cleanup.operation_id if cleanup is not None else None,
                        cleanup_scope=cleanup.json() if cleanup is not None else None)
-        session.add(record)
-        if self.durable_position_checkpoints:
-            from hummingbot.core.order_submission_guard import active_guard
-            from hummingbot.model.runtime_journal import prepare_attempt
+        attempt = capture_attempt_context(order, active_guard(), market) if self.durable_position_checkpoints else None
+        return record, cleanup, attempt
 
+    def _stage_order_intent(self, session, record, cleanup, attempt, tracking_states):
+        from hummingbot.model.runtime_journal import prepare_attempt
+
+        session.add(record)
+        if attempt is not None:
             # Binding metadata does not depend on the pending Order INSERT.
             # Persist the complete identity/status together at the existing
             # checkpoint read, preserving its write fence and final commit.
             with session.no_autoflush:
-                prepare_attempt(session, order, active_guard(), market)
+                prepare_attempt(session, record.id, attempt)
         if cleanup is not None:
             from hummingbot.model.cleanup_positions import record_cleanup_intent
             record_cleanup_intent(session, cleanup, record)
         # Keep the original side even when a terminal update precedes any
         # Created callback. This records intent, not exchange admission.
         with session.no_autoflush:
-            self._add_order_status(session, record, timestamp, record.last_status)
-        self.save_market_states(self._config_file_path, market, session, new_order_id=order.client_order_id)
+            self._add_order_status(session, record, record.creation_timestamp, record.last_status)
+        self._save_market_state_snapshot(session, record.config_file_path, record.market, tracking_states, record.id)
 
     def _event_configuration(self, session, market, order):
         if order is None or order.config_file_path == self._config_file_path:
@@ -963,10 +996,14 @@ class MarketsRecorder:
                           config_file_path: str,
                           market: ConnectorBase,
                           session: Session, *, include_saved_state: bool = True) -> Optional[MarketState]:
+        return self._get_market_states(session, config_file_path, market.display_name, include_saved_state=include_saved_state)
+
+    @staticmethod
+    def _get_market_states(session, config_file_path, market_name, *, include_saved_state=True):
         query: Query = (session
                         .query(MarketState)
                         .filter(MarketState.config_file_path == config_file_path,
-                                MarketState.market == market.display_name))
+                                MarketState.market == market_name))
         if not include_saved_state:
             query = query.options(defer(MarketState.saved_state))
         market_states: Optional[MarketState] = query.one_or_none()

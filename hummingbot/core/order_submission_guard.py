@@ -59,6 +59,10 @@ class MarketReadinessBlocked(SubmissionBlocked):
 class IntentAdmissionBusy(MarketReadinessBlocked):
     """Initial ownership fence contended, with a confirmed unsent rollback."""
 
+    def __init__(self, message, *, cancellation=None):
+        super().__init__(message)
+        self.cancellation = cancellation
+
 
 class SpotOutflowBlocked(MarketReadinessBlocked):
     """The current cash BUY cannot fit within its unchanged outflow cap."""

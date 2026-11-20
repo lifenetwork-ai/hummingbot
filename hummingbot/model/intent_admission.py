@@ -82,7 +82,7 @@ def deferred_recorder_transaction(manager, session, busy_error, busy_message):
 
 
 @contextmanager
-def order_intent_transaction(manager, order_id):
+def order_intent_transaction(manager, order_id, *, worker_owner=None):
     """Fence eagerly/NOWAIT before staging even the first Order INSERT."""
     from hummingbot.core.order_submission_guard import IntentAdmissionBusy, active_guard
     from hummingbot.model.order import Order
@@ -93,11 +93,15 @@ def order_intent_transaction(manager, order_id):
         if session.get(Order, order_id) is not None:
             raise RuntimeError('Client order identity already exists; reconcile instead of resubmitting.')
         if manager.engine.dialect.name == 'postgresql':
-            guard = active_guard()
+            guard = worker_owner if worker_owner is not None else active_guard()
             if guard is not None:
                 manager.assert_persistence_healthy()
                 if guard.engine is not manager.engine:
                     raise RuntimeError('Intent recorder does not belong to the trading owner.')
                 with capture_prewrite_lock_failure(session):
-                    guard.fence_session(session, nowait=True)
+                    if worker_owner is None:
+                        guard.fence_session(session, nowait=True)
+                    else:
+                        session.info['worker_order_owner'] = worker_owner
+                        worker_owner.fence_recorder_session(session, nowait=True)
         yield session
