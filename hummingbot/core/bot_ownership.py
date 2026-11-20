@@ -174,6 +174,13 @@ class BotOwnership:
                         recovery.pop('halt', None)
                         recovery.pop('halt_kind', None)
                         recovery.pop('halt_diagnostic', None)
+                    if (row['desired_state'] == 'stopped' and not recovery.get('reason')
+                            and not recovery.get('credential_operation')):
+                        # The successor holds the physical fence with no core
+                        # attached. The verified ledger retains every pending
+                        # venue effect for a stopped recovery review.
+                        recovery.pop('shutdown_incomplete', None)
+                        recovery['runtime_active'] = False
                     prior = recovery.get('automatic_recovery') or {}
                     started_at = time.time()
                     if pending and prior.get('phase') in (

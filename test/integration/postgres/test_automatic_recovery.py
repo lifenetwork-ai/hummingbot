@@ -161,6 +161,50 @@ def managed_native(owned, expiry_code=None, *, perpetual=False, side=TradeType.B
     owned.loop.run_until_complete(exchange._web_assistants_factory.close())
 
 
+@pytest.mark.parametrize('guard', [None, 'credential_operation', 'manual_halt'])
+def test_verified_stopped_handover_releases_only_prior_runtime_fence(owned, monkeypatch, guard):
+    from test.integration.postgres.test_recovery_uncertain import seed_uncertain
+
+    from hummingbot.core.bot_ownership import BotOwnership
+    from hummingbot.core.recovery import recovery_blockers
+    from hummingbot.model.order import Order
+    from hummingbot.model.recovery_store import RecoveryStore
+    from hummingbot.model.runtime_journal import SubmissionAttempt
+
+    monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
+    monkeypatch.setenv('OKX_SITE', 'www')
+    store = RecoveryStore(owned.store)
+    identity = seed_uncertain(store, sell_last=True)
+    fence = dict(runtime_active=True, shutdown_incomplete=True, halt=True, halt_kind='shutdown_pending')
+    if guard == 'credential_operation':
+        fence['credential_operation'] = {'action': 'credentials_set'}
+    elif guard == 'manual_halt':
+        fence.update(halt_kind='manual', reason='operator_review_required')
+    owned.owner._mutate_recovery(lambda state: state.update(fence))
+    with owned.engine.begin() as db:
+        db.execute(text("UPDATE bot_state SET desired_state='stopped', acknowledged_version=control_version"))
+    before = owned.store.read()
+    owned.owner.release()
+    successor = BotOwnership(owned.engine, owned.store.bot_id)
+    try:
+        assert successor.try_acquire()
+        stopped = owned.store.read()
+        assert stopped['owner_generation'] == before['owner_generation'] + 1
+        assert stopped['control_version'] == stopped['acknowledged_version'] == before['control_version']
+        if guard:
+            assert stopped['recovery_state']['shutdown_incomplete'] and stopped['recovery_state']['runtime_active']
+            assert recovery_blockers(stopped, uncertain_order=True)
+        else:
+            assert not recovery_blockers(stopped, uncertain_order=True)
+            assert store.operation_snapshot({'uncertain_order_id': identity})['uncertain_order']['side'] == 'SELL'
+        assert not successor.allow_new_orders
+        with owned.manager.get_new_session() as db:
+            assert db.get(Order, identity).creation_pending
+            assert db.get(SubmissionAttempt, identity).state == 'uncertain'
+    finally:
+        successor.release()
+
+
 @pytest.mark.parametrize('state', ['OPEN', 'PARTIALLY_FILLED', 'FILLED', 'CANCELED'])
 def test_verified_unknown_send_recovers_automatically_without_a_second_post(managed_native, state):
     from hummingbot.core.automatic_recovery import AutomaticOrderRecovery
