@@ -12,10 +12,97 @@ from sqlalchemy import event, text
 from hummingbot.cli.service import ServiceHost
 from hummingbot.cli.service_processes import probe_health
 from hummingbot.core.engine_diagnostics import EngineDiagnostics
+from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executor_actions import StoreExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
 
 owned = owned_fixture
+
+
+@pytest.mark.parametrize('stage', ['select', 'commit'])
+def test_slow_executor_archive_keeps_probe_live_and_publishes_only_after_commit(owned, stage):
+    runtime = orchestrator()
+    infos = [executor_info(f'slow-archive-{number}') for number in range(2)]
+    for info in infos:
+        info.close_type = CloseType.EARLY_STOP
+    executors = [SimpleNamespace(config=info.config, executor_info=info, is_active=False,
+                                 is_closed=True, status=RunnableStatus.TERMINATED) for info in infos]
+    runtime.active_executors['maker'] = list(executors)
+    actions = [StoreExecutorAction(controller_id='maker', executor_id=info.id) for info in infos]
+    delayed, release = threading.Event(), threading.Event()
+    archive_reads = []
+
+    def hold():
+        delayed.set()
+        # A timeout releases the driver even on the synchronous baseline.
+        release.wait(.7)
+
+    def on_query(connection, cursor, statement, parameters, context, executemany):
+        if 'FROM executors' in statement and 'executors.id IN' in statement:
+            archive_reads.append(statement)
+            if stage == 'select':
+                hold()
+        if stage == 'commit' and statement.startswith('INSERT INTO executors'):
+            connection.info['test_slow_archive_commit'] = True
+
+    def on_commit(connection):
+        if connection.info.pop('test_slow_archive_commit', False):
+            hold()
+
+    async def exercise(update):
+        host = SimpleNamespace(stop=asyncio.Event(), phase='running', observer_progress_at=None)
+
+        async def live(request):
+            return await ServiceHost.health(host, request)
+
+        app = web.Application()
+        app.router.add_get('/live', live)
+        server = web.AppRunner(app)
+        await server.setup()
+        await web.TCPSite(server, '127.0.0.1', 0).start()
+        port = server.addresses[0][1]
+
+        def probe():
+            assert delayed.wait(2)
+            return probe_health(port, '/live')
+
+        try:
+            checking = asyncio.get_running_loop().run_in_executor(None, probe)
+            runtime.execute_actions(actions)
+            healthy, detail = await checking
+            assert healthy and detail['elapsed_ms'] < 300, detail
+            print(f'Executor archive probe during slow {stage}: {detail}')
+            assert runtime.active_executors['maker'] == executors
+            update.assert_not_called()
+            runtime.execute_actions(actions)
+            assert runtime._executor_archive_task in owned.owner.terminal_tasks
+            stopping = asyncio.create_task(runtime.stop()) if stage == 'commit' else None
+            if stopping is not None:
+                await asyncio.sleep(0)
+                assert not stopping.done()
+            release.set()
+            async with asyncio.timeout(2):
+                if stopping is not None:
+                    await stopping
+                while runtime.active_executors.get('maker'):
+                    await asyncio.sleep(.01)
+            assert update.call_count == 2
+            assert not owned.owner.terminal_tasks
+        finally:
+            release.set()
+            await server.cleanup()
+
+    event.listen(owned.engine, 'before_cursor_execute', on_query)
+    event.listen(owned.engine, 'commit', on_commit)
+    try:
+        with patch.object(runtime, '_update_cached_performance', wraps=runtime._update_cached_performance) as update:
+            owned.loop.run_until_complete(exercise(update))
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', on_query)
+        event.remove(owned.engine, 'commit', on_commit)
+    assert len(archive_reads) == 1
+    with owned.engine.connect() as connection:
+        assert connection.scalar(text("SELECT count(*) FROM executors")) == 2
 
 
 @pytest.mark.parametrize('locked_seconds', [.45, 1.25])
@@ -68,9 +155,11 @@ def test_executor_archive_defers_contended_fence_without_publishing(owned, locke
             checking = loop.run_in_executor(None, probe)
             with diagnostics.span('strategy.tick'):
                 runtime.execute_action(action)
+            attempt = runtime._executor_archive_task
             first = await checking
             assert first[0], first[1]
             print(f"Archive probe under a {locked_seconds}s ownership lock: {first[1]}")
+            await attempt
             assert runtime.active_executors['maker'] == [executor]
             assert owned.manager.persistence_healthy
             with owned.engine.connect() as connection:
@@ -80,6 +169,7 @@ def test_executor_archive_defers_contended_fence_without_publishing(owned, locke
             await asyncio.sleep(.15)
             with diagnostics.span('strategy.tick'):
                 runtime.execute_action(action)
+            await runtime._executor_archive_task
             assert (await asyncio.to_thread(probe_health, port, '/live'))[0]
             assert diagnostics.snapshot()['operations']['executor.archive']['completed'] == 2
         finally:
@@ -117,8 +207,13 @@ def test_executor_archive_commit_failure_retains_executor_and_latches_persistenc
                 FOR EACH ROW EXECUTE FUNCTION reject_archive_commit();
         """))
     action = StoreExecutorAction(controller_id='maker', executor_id=info.id)
-    with patch.object(runtime, '_update_cached_performance') as update:
+
+    async def exercise():
         runtime.execute_action(action)
+        await runtime._executor_archive_task
+
+    with patch.object(runtime, '_update_cached_performance') as update:
+        owned.loop.run_until_complete(exercise())
         update.assert_not_called()
     assert runtime.active_executors['maker'] == [executor]
     assert not owned.manager.persistence_healthy

@@ -177,8 +177,9 @@ class MarketsRecorder:
                 cancelled = error
         return job.result(), cancelled
 
-    async def _run_native_write(self, stage, *args):
+    async def _run_native_write(self, stage, *args, defer_archive_contention=False):
         from hummingbot.core.bot_ownership import OwnershipLost
+        from hummingbot.core.operational_warnings import ExecutorArchiveBusy
         from hummingbot.core.order_submission_guard import SubmissionBlocked, active_guard
         from hummingbot.model.intent_admission import confirmed_prewrite_failure
 
@@ -220,6 +221,8 @@ class MarketsRecorder:
                         self.logger().info('Order recorder transaction completed after %.3fs', elapsed,
                                            extra={'event': 'order_recorder_write_completed'})
                     return result, cancelled
+                if defer_archive_contention:
+                    raise ExecutorArchiveBusy('Executor archive waits for the ownership row.')
                 remaining = deadline - loop.time()
                 if remaining <= 0:
                     raise lock_error
@@ -231,6 +234,10 @@ class MarketsRecorder:
                     cancelled = error
                 if loop.time() >= deadline:
                     raise lock_error
+        except ExecutorArchiveBusy:
+            if not defer_archive_contention:
+                self._sql_manager.persistence_healthy = False
+            raise
         except OwnershipLost as error:
             self._sql_manager.persistence_healthy = False
             raise owner._lose_ownership(str(error), error.reason_code) from None
@@ -358,7 +365,7 @@ class MarketsRecorder:
         from hummingbot.core.operational_warnings import ExecutorArchiveBusy
         from hummingbot.model.intent_admission import deferred_recorder_transaction
 
-        values = [(executor.config.id, json.loads(executor.executor_info.model_dump_json())) for executor in executors]
+        values = [(executor.config.id, executor.executor_info.model_dump_json()) for executor in executors]
         if not values:
             return
         manager = self._sql_manager
@@ -366,17 +373,39 @@ class MarketsRecorder:
             deferred_recorder_transaction(manager, session, ExecutorArchiveBusy, 'Executor archive waits for the ownership row.')
             if defer_ownership_contention else session.begin()
         ):
-            existing = {row.id: row for row in session.query(Executors).filter(
-                Executors.id.in_([identity for identity, _ in values])).all()}
-            for identity, data in values:
-                row = existing.get(identity)
-                if row is None:
-                    row = Executors(**data)
-                    session.add(row)
-                    existing[identity] = row
-                else:
-                    for attr, value in data.items():
-                        setattr(row, attr, value)
+            self._write_executor_snapshots(session, values)
+
+    @trace_runtime('executor.archive')
+    async def archive_executors(self, snapshots, *, defer_contention):
+        """Use the recorder worker and retain ownership until its transaction settles."""
+        from hummingbot.core.order_submission_guard import active_guard
+
+        owner = active_guard()
+        task = asyncio.current_task()
+        already_tracked = task in owner.terminal_tasks
+        owner.terminal_tasks.add(task)
+        try:
+            _, cancelled = await self._run_native_write(
+                self._write_executor_snapshots, snapshots, defer_archive_contention=defer_contention)
+            return cancelled
+        finally:
+            if not already_tracked:
+                owner.terminal_tasks.discard(task)
+
+    @staticmethod
+    def _write_executor_snapshots(session, snapshots):
+        existing = {row.id: row for row in session.query(Executors).filter(
+            Executors.id.in_([identity for identity, _ in snapshots])).all()}
+        for identity, snapshot in snapshots:
+            data = json.loads(snapshot)
+            row = existing.get(identity)
+            if row is None:
+                row = Executors(**data)
+                session.add(row)
+                existing[identity] = row
+            else:
+                for attr, value in data.items():
+                    setattr(row, attr, value)
 
     def store_position(self, position: Position):
         with self._sql_manager.get_new_session() as session:

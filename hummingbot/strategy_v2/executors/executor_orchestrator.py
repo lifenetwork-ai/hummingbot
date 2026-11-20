@@ -306,6 +306,9 @@ class ExecutorOrchestrator:
         self._checkpoint_candidates = []
         self._position_checkpoint_busy_since = None
         self._executor_archive_retry_at = 0.0
+        self._executor_archive_task = None
+        self._executor_archive_batch = None
+        self._executor_archive_stopping = False
         self._initialize_cached_performance(startup_performance)
 
     def reduction_runtime(self, controller_id):
@@ -655,6 +658,7 @@ class ExecutorOrchestrator:
         is force-stopped synchronously, converting whatever it executed into a
         position hold so no exposure goes untracked.
         """
+        self._executor_archive_stopping = True
         if keep_position and before_position_checkpoint is not None:
             candidates = {executor.config.id: executor for executor in self._checkpoint_candidates}
             candidates.update({executor.config.id: executor for rows in self.active_executors.values()
@@ -772,12 +776,22 @@ class ExecutorOrchestrator:
 
         # Convert executors that ended holding exposure into persisted position records
         # while connector prices and strategy market registrations are still available.
+        if self._executor_archive_task is not None:
+            await asyncio.shield(self._executor_archive_task)
         self._update_positions_from_done_executors()
         # Store all positions and executors
         self.store_all_positions()
-        self.store_all_executors()
+        from hummingbot.client.config.runtime_config import postgres_requested
+        if postgres_requested():
+            pending = [(controller_id, executor) for controller_id, rows in self.active_executors.items()
+                       for executor in rows]
+            if pending:
+                await self._persist_executor_archives(MarketsRecorder.get_instance(), pending, defer_contention=False)
+        else:
+            self.store_all_executors()
         # Clear executors and trigger garbage collection
         self.active_executors.clear()
+        self.executors_ids_position_held.clear()
 
     def store_all_positions(self):
         """
@@ -1130,33 +1144,94 @@ class ExecutorOrchestrator:
         if executor.is_active:
             self.logger().error(f"Executor ID {executor_id} is still active.")
             return
+        recorder = MarketsRecorder.get_instance()
+        if recorder.durable_position_checkpoints is True:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop is not None:
+                self._queue_executor_archive(loop, recorder, controller_id, executor)
+                return
         try:
-            MarketsRecorder.get_instance().store_or_update_executor(executor)
+            recorder.store_or_update_executor(executor)
             self._update_cached_performance(controller_id, executor.executor_info)
             self._executor_archive_retry_at = 0.0
         except ExecutorArchiveBusy:
-            if not retry_at:
-                self.logger().warning(
-                    'Executor archive waiting for the ownership row',
-                    extra={'event': 'executor_archive_waiting', 'reason_code': 'executor_archive_busy'})
-            self._executor_archive_retry_at = time.monotonic() + .1
+            self._defer_executor_archive()
             return
         except Exception as e:
             self.logger().error(f"Error storing executor id {executor_id}: {str(e)}.")
             self.logger().error(f"Executor info: {executor.executor_info} | Config: {executor.config}")
             return  # Keep both exposure and deduplication state for the retry.
 
-        self.active_executors[controller_id].remove(executor)
-        self.executors_ids_position_held = set(self.executors_ids_position_held) - {executor_id}
+        self._retire_archived_executors(controller_id, (executor,))
+
+    def _defer_executor_archive(self):
+        if not self._executor_archive_retry_at:
+            self.logger().warning(
+                'Executor archive waiting for the ownership row',
+                extra={'event': 'executor_archive_waiting', 'reason_code': 'executor_archive_busy'})
+        self._executor_archive_retry_at = time.monotonic() + .1
+
+    def _queue_executor_archive(self, loop, recorder, controller_id, executor):
+        if self._executor_archive_stopping:
+            return
+        if self._executor_archive_task is None:
+            self._executor_archive_batch = {}
+            self._executor_archive_task = loop.create_task(
+                self._flush_executor_archives(recorder), name='executor-archive')
+        # The clock re-proposes resident executors. Keep a single bounded batch
+        # and let the next tick pick up any work arriving during its write.
+        batch = self._executor_archive_batch
+        if batch is not None and len(batch) < 32:
+            batch.setdefault(executor.config.id, (controller_id, executor))
+
+    async def _flush_executor_archives(self, recorder):
+        pending = list(self._executor_archive_batch.values())
+        self._executor_archive_batch = None
+        try:
+            await self._persist_executor_archives(recorder, pending, defer_contention=True)
+        except ExecutorArchiveBusy:
+            self._defer_executor_archive()
+        except Exception:
+            self.logger().exception('Error storing executor archive batch.')
+        else:
+            self._executor_archive_retry_at = 0.0
+        finally:
+            self._executor_archive_task = None
+
+    async def _persist_executor_archives(self, recorder, pending, *, defer_contention):
+        records = [(controller_id, executor, executor.executor_info.model_copy(deep=True))
+                   for controller_id, executor in pending]
+        for _, _, info in records:
+            self._executor_performance_values(info)
+        snapshots = tuple((executor.config.id, info.model_dump_json()) for _, executor, info in records)
+        cancelled = await recorder.archive_executors(snapshots, defer_contention=defer_contention)
+        archived = {}
+        for controller_id, executor, info in records:
+            self._update_cached_performance(controller_id, info)
+            archived.setdefault(controller_id, []).append(executor)
+        for controller_id, executors in archived.items():
+            self._retire_archived_executors(controller_id, executors)
+        if cancelled is not None:
+            raise cancelled
+
+    def _retire_archived_executors(self, controller_id, executors):
+        retired = {executor.config.id for executor in executors}
+        resident = self.active_executors[controller_id]
+        resident[:] = [executor for executor in resident if executor.config.id not in retired]
+        self.executors_ids_position_held.difference_update(retired)
+        positions = self.positions_held.get(controller_id)
+        if not positions:
+            return
         # Position totals already include retired fills. Their identities only
         # need to outlive resident executors that might be visited again.
         retained_orders = {order.get("client_order_id")
-                           for remaining in self.active_executors[controller_id]
+                           for remaining in resident
                            for order in remaining.executor_info.custom_info.get("held_position_orders", [])}
-        for position in self.positions_held.get(controller_id, []):
+        for position in positions:
             position.order_ids.intersection_update(retained_orders)
-        del executor
-        # Trigger garbage collection after executor cleanup
 
     def get_executors_report(self) -> Dict[str, List[ExecutorInfo]]:
         """
