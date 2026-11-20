@@ -13,6 +13,8 @@ from hummingbot.client.config.client_config_map import ClientConfigMap
 from hummingbot.client.config.config_helpers import ClientConfigAdapter
 from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
 from hummingbot.connector.okx_account_observations import record_balance_details
+from hummingbot.core import engine_diagnostics
+from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base, StrategyV2ConfigBase
 
@@ -92,6 +94,42 @@ async def test_account_after_completion_republishes_only_after_both_cash_assets_
     assert not state.strategy.executor_orchestrator.positions_held['maker']
     assert not state.executor._held_position_orders
     state.recorder.checkpoint_held_positions.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_spot_sell_trace_distinguishes_late_cash_from_report_publication(entry_account, monkeypatch):
+    state = entry_account
+    state.executor.config = state.executor.config.model_copy(update={'level_id': 'sell_0', 'side': TradeType.SELL})
+    state.order.trade_type = TradeType.SELL
+    state.controller.config.id = 'maker'
+    state.controller._stops_requested = set()
+    state.controller.logger = MagicMock()
+    now = [1_000_000_000]
+    tracer = engine_diagnostics.EngineDiagnostics(clock=lambda: now[0])
+    monkeypatch.setattr(engine_diagnostics, '_ACTIVE', tracer)
+
+    fill(state.order, 'full-fill', '1')
+    state.order.current_state = OrderState.FILLED
+    engine_diagnostics.observe_spot_sell_fill(state.executor, state.order.client_order_id)
+    state.strategy.notify_executor_entry_filled(state.executor)
+    await asyncio.wait_for(state.controller.executors_update_event.wait(), .3)
+    state.controller.executors_update_event.clear()
+    assert LifeMMController._completed_entry_actions(state.controller) == []
+
+    state.observe('LIFE')
+    await asyncio.sleep(.07)
+    assert not state.controller.executors_update_event.is_set()
+    now[0] += 39_000_000_000
+    state.observe('USDT')
+    await asyncio.wait_for(state.controller.executors_update_event.wait(), .3)
+    assert len(LifeMMController._completed_entry_actions(state.controller)) == 1
+    now[0] += 50_000_000
+    lane = engine_diagnostics._spot_sell_lane(state.executor.config)
+    tracer.record_quote_marker('quote.sell_send', 'replacement', lane=lane)
+    replacement = tracer.record_quote_marker('quote.sell_open', 'replacement')
+    assert replacement['fill_at_ns'] == replacement['fill_report_at_ns'] == replacement['account_wait_at_ns']
+    assert replacement['account_ready_at_ns'] - replacement['fill_at_ns'] == 39_000_000_000
+    assert replacement['handoff_requested_at_ns'] == replacement['account_ready_at_ns']
 
 
 @pytest.mark.asyncio

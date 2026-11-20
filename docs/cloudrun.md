@@ -302,6 +302,15 @@ scheduling, database work and rollback or commit. Join the spans by the
 hashed order and parent span ID, then use the probe timestamps and the Spot
 SELL replacement markers to compare latency with quote activity.
 
+A linked `quote.sell_open` can also carry the first controller report showing
+the fill, the account-evidence wait and readiness timestamps, the handoff
+request, checkpoint start and commit, the report releasing the level, and the
+first replacement proposal that passes the controller checks. These optional timestamps use
+the same monotonic clock as the submission trace. Proposal evidence refers to
+the same strategy level and generation. The emitted order and level identities
+are hashed. Compare the linked timestamps with the controller's quote reason
+and side coverage when evaluating an interruption.
+
 Project sink exclusions can discard these INFO events and correlated successful
 `Admin status read` records after the service emits them. Check Log Router when
 headers carry timing but successful server logs are missing. Exempt only the

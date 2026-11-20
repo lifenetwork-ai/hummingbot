@@ -47,6 +47,10 @@ _SUBMISSION_TIMING_OPERATIONS = {
 }
 _QUOTE_LIMIT = 64
 _QUOTE_LINK_TTL_NS = 120_000_000_000
+_QUOTE_HANDOFF_TIMINGS = frozenset({
+    'fill_report_at_ns', 'account_wait_at_ns', 'account_ready_at_ns', 'handoff_requested_at_ns',
+    'checkpoint_started_at_ns', 'checkpoint_committed_at_ns', 'release_report_at_ns', 'first_proposal_at_ns',
+})
 _HEARTBEAT_INTERVAL_S = .05
 _HEARTBEAT_INTERVAL_NS = 50_000_000
 _CPU_STAT_FIELDS = frozenset({'usage_usec', 'nr_periods', 'nr_throttled', 'throttled_usec'})
@@ -160,6 +164,39 @@ def observe_spot_sell_fill(executor, order_id):
                 tracer.record_quote_marker('quote.sell_fill', order, lane=lane)
         except Exception:
             pass
+
+
+def observe_spot_sell_handoff(config, field, order_id=None):
+    tracer = _ACTIVE
+    if tracer is not None:
+        try:
+            lane = _spot_sell_lane(config)
+            if lane:
+                tracer.record_quote_handoff(lane, field, _identity(order_id))
+        except Exception:
+            pass
+
+
+def observe_spot_sell_entry_stage(executor, field):
+    if _ACTIVE is not None:
+        try:
+            info = executor.custom_info
+            ids = info.get('order_ids')
+            if info.get('entry_order_filled') is True and isinstance(ids, list) and ids:
+                observe_spot_sell_handoff(executor.config, field, ids[0])
+        except Exception:
+            pass
+
+
+def observe_spot_sell_report(executors, held_ids):
+    if _ACTIVE is None:
+        return
+    try:
+        for info in executors:
+            field = 'release_report_at_ns' if info.id in held_ids else 'fill_report_at_ns'
+            observe_spot_sell_entry_stage(info, field)
+    except Exception:
+        pass
 
 
 def observe_spot_sell_dispatch(request):
@@ -369,6 +406,17 @@ class EngineDiagnostics:
         row['completion_sequence'] = self._submission_completed
         self._submission_recent.append(row)
 
+    def record_quote_handoff(self, lane, field, order):
+        """Retain first observations for one already sampled, filled level."""
+        if field not in _QUOTE_HANDOFF_TIMINGS:
+            return
+        now = self.clock()
+        with self.lock:
+            fill = self._quote_fills.get(lane)
+            if (not self._closed and fill is not None and 0 <= now - fill[1] <= _QUOTE_LINK_TTL_NS
+                    and (order == fill[0] or field == 'first_proposal_at_ns' and order is None)):
+                fill[2].setdefault(field, now)
+
     def record_quote_marker(self, operation, order, *, lane=None, sent=None):
         """Retain opaque quote milestones on the existing watchdog stream."""
         now = self.clock()
@@ -382,15 +430,17 @@ class EngineDiagnostics:
                     return None
                 if lane not in self._quote_fills and len(self._quote_fills) >= _QUOTE_LIMIT:
                     del self._quote_fills[next(iter(self._quote_fills))]
-                self._quote_fills[lane] = (order, now)
+                self._quote_fills[lane] = (order, now, {})
             elif operation == 'quote.sell_send':
                 fill = self._quote_fills.get(lane)
+                timings = {}
                 evidence.update(fill_at_ns=None, sent_at_ns=now, http_response_at_ns=None)
                 if fill and 0 <= now - fill[1] <= _QUOTE_LINK_TTL_NS and fill[0] != order:
                     evidence.update(replaces=fill[0], fill_at_ns=fill[1])
+                    timings = fill[2]
                 if order not in self._quote_sends and len(self._quote_sends) >= _QUOTE_LIMIT:
                     del self._quote_sends[next(iter(self._quote_sends))]
-                self._quote_sends[order] = evidence
+                self._quote_sends[order] = {**evidence, **timings}
             elif operation == 'quote.sell_open':
                 evidence = self._quote_sends.pop(order, None)
                 if evidence is None or not 0 <= now - evidence['sent_at_ns'] <= _QUOTE_LINK_TTL_NS:

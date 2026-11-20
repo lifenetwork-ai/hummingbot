@@ -14,7 +14,7 @@ from sqlalchemy.engine import Row
 from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.core.data_type.common import PositionAction, PositionMode, PriceType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
-from hummingbot.core.engine_diagnostics import trace_runtime
+from hummingbot.core.engine_diagnostics import observe_spot_sell_entry_stage, trace_runtime
 from hummingbot.core.operational_warnings import ExecutorArchiveBusy, PositionCheckpointBusy, PositionCheckpointPending
 from hummingbot.logger import HummingbotLogger
 from hummingbot.model.executors import Executors
@@ -1042,6 +1042,8 @@ class ExecutorOrchestrator:
                 committed, positions, fresh, bases = self._plan_held_checkpoint(reports, candidates, applied)
                 cancelled = None
                 if fresh:
+                    for info in fresh:
+                        observe_spot_sell_entry_stage(info, 'checkpoint_started_at_ns')
                     try:
                         cancelled = await recorder.persist_held_positions(
                             positions, [info.model_copy(deep=True) for info in fresh], bases,
@@ -1051,6 +1053,8 @@ class ExecutorOrchestrator:
                         raise
                 self.positions_held, self.executors_ids_position_held = committed
                 self._position_checkpoint_busy_since = None
+                for info in fresh:
+                    observe_spot_sell_entry_stage(info, 'checkpoint_committed_at_ns')
                 if cancelled is not None:
                     raise cancelled
         finally:

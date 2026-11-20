@@ -15,6 +15,8 @@ from sqlalchemy.exc import OperationalError
 
 from hummingbot.cli.service import ServiceHost
 from hummingbot.cli.service_processes import probe_health
+from hummingbot.core import engine_diagnostics
+from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
 from hummingbot.core.event.events import MarketEvent
 from hummingbot.core.operational_warnings import PositionCheckpointBusy, PositionCheckpointPending
@@ -25,15 +27,15 @@ from hummingbot.strategy_v2.executors import executor_orchestrator
 owned = owned_fixture
 
 
-def pending_checkpoint(owned):
+def pending_checkpoint(owned, side=TradeType.BUY):
     runtime = orchestrator()
     runtime.strategy.config.mm_drawdown_scope = None
-    info = executor_info('hold-probe')
+    info = executor_info('hold-probe', side=side.name)
     info.config.mm_session_id = 'hold-probe-session'
     info.config.mm_generation = 0
     owned.recorder._did_fill_order(
         MarketEvent.OrderFilled.value, owned.market,
-        fill(order_id='hold-probe-order', amount=Decimal('.1'), price=Decimal('100'),
+        fill(order_id='hold-probe-order', trade_type=side, amount=Decimal('.1'), price=Decimal('100'),
              trade_fee=AddedToCostTradeFee(flat_fees=[TokenAmount('USDT', Decimal('.01'))])),
     )
     runtime.active_executors['maker'] = [SimpleNamespace(config=info.config, executor_info=info)]
@@ -41,8 +43,17 @@ def pending_checkpoint(owned):
 
 
 @pytest.mark.parametrize('stage', ['read', 'commit'])
-def test_slow_held_checkpoint_preserves_live_and_only_publishes_durable_hold(owned, stage):
-    runtime = pending_checkpoint(owned)
+def test_slow_held_checkpoint_preserves_live_and_only_publishes_durable_hold(owned, stage, monkeypatch):
+    runtime = pending_checkpoint(owned, TradeType.SELL)
+    info = runtime.active_executors['maker'][0].executor_info
+    info.config.level_id = 'sell_0'
+    info.config.use_configured_entry_price = True
+    info.custom_info.update(entry_order_filled=True, order_ids=['hold-probe-order'])
+    now = [1_000_000_000]
+    tracer = engine_diagnostics.EngineDiagnostics(clock=lambda: now[0])
+    monkeypatch.setattr(engine_diagnostics, '_ACTIVE', tracer)
+    lane = engine_diagnostics._spot_sell_lane(info.config)
+    tracer.record_quote_marker('quote.sell_fill', engine_diagnostics._identity('hold-probe-order'), lane=lane)
     entered, release = threading.Event(), threading.Event()
 
     def hold():
@@ -60,6 +71,14 @@ def test_slow_held_checkpoint_preserves_live_and_only_publishes_durable_hold(own
             hold()
 
     async def exercise():
+        controller = SimpleNamespace(config=info.config, executors_update_event=asyncio.Event())
+        strategy = runtime.strategy
+        strategy.controllers['maker'] = controller
+        strategy._managed_report_handle = None
+        strategy._managed_report_pending = {}
+        strategy.executor_orchestrator = runtime
+        strategy.logger = MagicMock()
+        strategy.update_executors_info = lambda: StrategyV2Base.update_executors_info(strategy)
         host = SimpleNamespace(stop=asyncio.Event(), phase='running', observer_progress_at=None)
         app = web.Application()
         app.router.add_get('/live', ServiceHost.health.__get__(host))
@@ -75,10 +94,7 @@ def test_slow_held_checkpoint_preserves_live_and_only_publishes_durable_hold(own
         checking = asyncio.create_task(asyncio.to_thread(probe))
         await asyncio.sleep(0)
         try:
-            try:
-                runtime.get_all_reports()
-            except PositionCheckpointPending:
-                pass
+            strategy.update_executors_info()
             healthy, detail = await checking
             assert healthy, detail
             task = runtime._position_checkpoint_task
@@ -88,14 +104,19 @@ def test_slow_held_checkpoint_preserves_live_and_only_publishes_durable_hold(own
             assert runtime._position_checkpoint_task is task
             assert not runtime.positions_held['maker'] and not runtime.executors_ids_position_held
             assert owned.recorder.get_all_positions() == []
+            assert not controller.executors_update_event.is_set()
+            now[0] += 600_000_000
         finally:
             release.set()
             await server.cleanup()
-        await runtime._position_checkpoint_task
-        runtime.get_all_reports()
+        await asyncio.wait_for(controller.executors_update_event.wait(), 1)
         assert owned.recorder.get_all_positions()[0].amount == Decimal('.1')
         assert len(runtime.positions_held['maker']) == 1
         assert runtime.executors_ids_position_held == {'hold-probe'}
+        tracer.record_quote_marker('quote.sell_send', 'replacement', lane=lane)
+        reopened = tracer.record_quote_marker('quote.sell_open', 'replacement')
+        assert reopened['checkpoint_committed_at_ns'] - reopened['checkpoint_started_at_ns'] == 600_000_000
+        assert reopened['release_report_at_ns'] == reopened['checkpoint_committed_at_ns']
 
     event.listen(owned.engine, 'before_cursor_execute', query)
     event.listen(owned.engine, 'commit', commit)

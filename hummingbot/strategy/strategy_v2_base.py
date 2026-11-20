@@ -21,7 +21,7 @@ from hummingbot.connector.utils import split_hb_trading_pair
 from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import MarketDict, PositionMode
 from hummingbot.core.data_type.limit_order import LimitOrder
-from hummingbot.core.engine_diagnostics import trace_runtime
+from hummingbot.core.engine_diagnostics import observe_spot_sell_handoff, observe_spot_sell_report, trace_runtime
 from hummingbot.core.event.events import OrderType, PositionAction
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.data_feed.market_data_provider import MarketDataProvider
@@ -839,6 +839,9 @@ class StrategyV2Base(StrategyPyBase):
                     except (ValueError, ArithmeticError, AttributeError, TypeError):
                         covered = False
                     if covered:
+                        native = getattr(executor, '_open_order', None)
+                        if native is not None:
+                            observe_spot_sell_handoff(executor.config, 'account_ready_at_ns', native.order_id)
                         covered_entries[executor] = stamp
                         if not queued and reported.get(executor) != stamp:
                             self.notify_executor_entry_filled(executor)
@@ -912,6 +915,9 @@ class StrategyV2Base(StrategyPyBase):
                 controller.executors_info = controller_report.get("executors", [])
                 controller.positions_held = controller_report.get("positions", [])
                 controller.performance_report = controller_report.get("performance", [])
+                if getattr(getattr(controller, 'config', None), 'connector_name', None) == 'okx':
+                    observe_spot_sell_report(controller.executors_info,
+                                             getattr(self.executor_orchestrator, 'executors_ids_position_held', ()))
                 controller.executors_update_event.set()
             warnings = getattr(self, '_valuation_warnings', None)
             if warnings is not None:

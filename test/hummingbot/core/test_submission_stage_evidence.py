@@ -81,10 +81,13 @@ def test_spot_sell_milestones_keep_scope_and_record_ws_evidence_before_http(monk
 
     diagnostic.observe_spot_sell_fill(executor, 'private-filled')
     diagnostic.observe_spot_sell_open(SimpleNamespace(name='okx'), order)  # Unobserved transport.
+    diagnostic.observe_spot_sell_handoff(config, 'account_wait_at_ns', 'different-order')
     now[0] += 10_000_000
+    diagnostic.observe_spot_sell_handoff(dict(config, mm_generation=2), 'first_proposal_at_ns')
     with gates.session_order_scope('private-session', 2, executor=dict(config, mm_generation=2)):
         unrelated = diagnostic.observe_spot_sell_dispatch(request)
     assert unrelated[1]['replaces'] is None
+    diagnostic.observe_spot_sell_handoff(config, 'first_proposal_at_ns')
     order.client_order_id = 'private-same-level'
     request.data = json.dumps(dict(clOrdId=order.client_order_id, side='sell', ordType='post_only'))
     with gates.session_order_scope('private-session', 1, executor=config):
@@ -112,6 +115,8 @@ def test_spot_sell_milestones_keep_scope_and_record_ws_evidence_before_http(monk
     assert opened['fill_at_ns'] == fill['at_ns']
     assert opened['sent_at_ns'] == send['at_ns']
     assert opened['http_response_at_ns'] is None
+    assert opened['first_proposal_at_ns'] == opened['sent_at_ns']
+    assert 'account_wait_at_ns' not in opened
     assert response['fill_at_ns'] == fill['at_ns']
     assert response['sent_at_ns'] == send['at_ns']
     assert 'private-' not in json.dumps(batch)
