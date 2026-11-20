@@ -42,6 +42,7 @@ function RecoveryActivityProbe() {
   const receiptStatus = queryClient.getQueryData<{ status?: string }>(adminKeys.query('getRecoveryOperation', { path: { operation_id: 'check-1' } }))?.status ?? ''
   return <>
     <button onClick={() => { void queryClient.invalidateQueries({ queryKey: adminKeys.operation('getRecovery') }) }}>Invalidate Overview</button>
+    <button onClick={() => { void queryClient.invalidateQueries({ queryKey: adminKeys.query('getRecoveryOperation', { path: { operation_id: 'reset-1' } }) }) }}>Refresh Reset Receipt</button>
     <output data-testid="recovery-receipt-status">{receiptStatus}</output>
   </>
 }
@@ -56,7 +57,14 @@ function RecoveryProbe() {
     <button onClick={() => { void value.check().catch(() => undefined) }}>Start Check</button>
     <button onClick={() => { void value.retryCheck().catch(() => undefined) }}>Retry Check</button>
     <button onClick={() => { void value.confirmReset().catch(() => undefined) }}>Start Reset</button>
+    <button onClick={() => value.uncertainOrders.setIds(['Spot001'])}>Select uncertain order</button>
+    <button onClick={() => value.uncertainOrders.setIds(['Sell001'])}>Select uncertain SELL</button>
+    <button onClick={() => value.uncertainOrders.setIds(['Spot001', 'Spot002'])}>Select uncertain batch</button>
+    <button onClick={() => value.uncertainOrders.setIds(['bad-id'])}>Select invalid uncertain order</button>
+    <button onClick={() => value.uncertainOrders.setIds([])}>Clear uncertain order scope</button>
+    <button onClick={() => { void value.confirmReset({ confirmOrderChanges: true }).catch(() => undefined) }}>Confirm scoped Reset</button>
     <button onClick={() => { void value.retryReset().catch(() => undefined) }}>Retry Reset</button>
+    <button onClick={() => { void value.refresh() }}>Refresh Recovery</button>
     <output data-testid="recovery-probe">{JSON.stringify({ canRetryCheck: value.canRetryCheck,
       canRetryReset: value.canRetryReset, checkAvailable: value.checkAvailable, lock: value.lockSessionAndConnections,
       operationId: value.operation?.id,
@@ -65,6 +73,10 @@ function RecoveryProbe() {
       queryCacheHasToken,
       tokenQueryKeys,
       mutationCacheHasToken,
+      uncertainOrders: { ids: value.uncertainOrders.ids, validationError: value.uncertainOrders.validationError,
+        completionVerified: value.uncertainOrders.completionVerified },
+      recovered: value.viewModel.recovered,
+      completed: value.completed,
       feedback: value.feedback,
       active: value.viewModel.summary !== undefined })}</output>
   </div>
@@ -150,6 +162,174 @@ describe('useRecovery', () => {
     await act(async () => { await result.current.retryCheck() })
     expect(attempts).toHaveLength(2)
     expect(attempts[1]).toEqual(attempts[0])
+    expect(result.current.uncertainOrders.validationError).toBeNull()
+  })
+
+  it('pins a scoped BUY/SELL batch through Check and explicitly confirmed Reset', async () => {
+    const buy = { id: 'Spot001', side: 'BUY', pair: 'BTC-USDT', amount: '1', price: '100', connector: 'okx', before: 'PendingBuy', after: 'OrderFailure', deadline_ms: 10, evidence: 'expired_submission_and_reconciled_exchange' }
+    const sell = { ...buy, id: 'Spot002', side: 'SELL', before: 'PendingSell' }
+    const scopedCheck = { ...checkOperation, proposed_uncertain_orders: [buy, sell] }
+    const scopedReset = { ...resetOperation, repaired_uncertain_orders: [buy, sell] }
+    const reads: string[] = []
+    const writes: Array<{ url: string; body: unknown; key: string | null }> = []
+    server.use(
+      http.get(`${baseUrl}/status`, () => HttpResponse.json(status)),
+      http.get(`${baseUrl}/recovery`, ({ request }) => {
+        const url = new URL(request.url)
+        reads.push(url.search)
+        return HttpResponse.json({ halted: !url.searchParams.has('uncertain_order_ids'), control_version: 7, check_available: true, reset_available: true, blockers: [], operation: null })
+      }),
+      http.get(`${baseUrl}/recovery/operations/:id`, ({ params }) => HttpResponse.json(params.id === 'reset-1' ? scopedReset : scopedCheck)),
+      http.post(`${baseUrl}/recovery/check`, async ({ request }) => {
+        writes.push({ url: new URL(request.url).pathname, body: await request.json(), key: request.headers.get('Idempotency-Key') })
+        return HttpResponse.json({ ...scopedCheck, status: 'accepted', stage: 'queued' }, { status: 202 })
+      }),
+      http.post(`${baseUrl}/recovery/reset`, async ({ request }) => {
+        writes.push({ url: new URL(request.url).pathname, body: await request.json(), key: request.headers.get('Idempotency-Key') })
+        if (writes.filter(({ url }) => url.endsWith('/reset')).length === 1) return HttpResponse.json({ detail: 'unknown reset result' }, { status: 503 })
+        return HttpResponse.json({ ...scopedReset, status: 'accepted', stage: 'queued' }, { status: 202 })
+      }),
+    )
+    const { result } = renderHook(useRecoveryOperationContext, { wrapper })
+    await waitFor(() => expect(result.current.checkAvailable).toBe(true))
+    await act(async () => { result.current.uncertainOrders.setIds(['Spot001', 'Spot002']) })
+    await waitFor(() => expect(reads).toContain('?uncertain_order_ids=Spot001%2CSpot002'))
+    await act(async () => { await result.current.check() })
+    await waitFor(() => expect(result.current.uncertainOrders.reviewAvailable).toBe(true))
+    expect(result.current.uncertainOrders.proposed.map(({ side }) => side)).toEqual(['BUY', 'SELL'])
+    await act(async () => { await expect(result.current.confirmReset()).rejects.toThrow('uncertain_order_confirmation_required') })
+    await act(async () => { await expect(result.current.confirmReset({ confirmOrderChanges: true })).rejects.toThrow() })
+    await act(async () => { result.current.uncertainOrders.setIds([]) })
+    expect(result.current.uncertainOrders.ids).toEqual(['Spot001', 'Spot002'])
+    expect(result.current.uncertainOrders.validationError).toMatch(/Wait for the current recovery request/)
+    await act(async () => { await result.current.retryReset() })
+    await waitFor(() => expect(result.current.uncertainOrders.completionVerified).toBe(true))
+    expect(writes[0]).toMatchObject({ body: { expected_version: 7, uncertain_order_ids: ['Spot001', 'Spot002'] } })
+    expect(writes[1]).toMatchObject({ body: { expected_version: 7, check_id: 'check-1', confirm_order_changes: true,
+      uncertain_order_ids: ['Spot001', 'Spot002'] } })
+    expect(writes[2]).toEqual(writes[1])
+    await act(async () => { result.current.uncertainOrders.setIds([]) })
+    expect(result.current.uncertainOrders.ids).toEqual([])
+    await act(async () => { result.current.uncertainOrders.setIds(['Spot002']) })
+    expect(result.current.uncertainOrders.ids).toEqual(['Spot002'])
+    expect(result.current.uncertainOrders.completionVerified).toBe(false)
+  })
+
+  it('reviews one uncertain SELL and retries Reset without claiming completion before exact repair proof', async () => {
+    const sell = { id: 'Sell001', side: 'SELL', pair: 'BTC-USDT', amount: '0.5', price: '100', connector: 'okx', before: 'PendingSell', after: 'OrderFailure', deadline_ms: 10, evidence: 'expired_submission_and_reconciled_exchange' }
+    const scopedCheck = { ...checkOperation, proposed_uncertain_order: sell }
+    const scopedReset = { ...resetOperation, repaired_uncertain_order: null, repaired_uncertain_orders: [] }
+    const writes: Array<{ url: string; body: unknown; key: string | null }> = []
+    let resetAttempts = 0
+    let repaired = false
+    server.use(
+      http.get(`${baseUrl}/status`, () => HttpResponse.json(status)),
+      http.get(`${baseUrl}/recovery`, ({ request }) => HttpResponse.json({
+        halted: !new URL(request.url).searchParams.has('uncertain_order_id'), control_version: 7,
+        check_available: true, reset_available: true, blockers: [], operation: null,
+      })),
+      http.get(`${baseUrl}/recovery/operations/:id`, ({ params }) => HttpResponse.json(params.id === 'reset-1'
+        ? { ...scopedReset, repaired_uncertain_order: repaired ? sell : null }
+        : scopedCheck)),
+      http.post(`${baseUrl}/recovery/check`, async ({ request }) => {
+        writes.push({ url: new URL(request.url).pathname, body: await request.json(), key: request.headers.get('Idempotency-Key') })
+        return HttpResponse.json({ ...scopedCheck, status: 'accepted', stage: 'queued' }, { status: 202 })
+      }),
+      http.post(`${baseUrl}/recovery/reset`, async ({ request }) => {
+        writes.push({ url: new URL(request.url).pathname, body: await request.json(), key: request.headers.get('Idempotency-Key') })
+        resetAttempts++
+        return resetAttempts === 1 ? HttpResponse.json({ detail: 'unknown reset result' }, { status: 503 })
+          : HttpResponse.json({ ...scopedReset, status: 'accepted', stage: 'queued' }, { status: 202 })
+      }),
+    )
+    render(<RecoveryViewHarness show />, { wrapper })
+    await waitFor(() => expect(screen.getByTestId('recovery-probe').textContent).toContain('"checkAvailable":true'))
+    fireEvent.click(screen.getByRole('button', { name: 'Select uncertain SELL' }))
+    await waitFor(() => expect(screen.getByTestId('recovery-probe').textContent).toContain('Sell001'))
+    fireEvent.click(screen.getByRole('button', { name: 'Start Check' }))
+    await waitFor(() => expect(screen.getByTestId('recovery-probe').textContent).toContain('"queryToken":null'))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm scoped Reset' }))
+    await waitFor(() => expect(screen.getByTestId('recovery-probe').textContent).toContain('"canRetryReset":true'))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Reset' }))
+    await waitFor(() => expect(screen.getByTestId('recovery-probe').textContent).toContain('"operationId":"reset-1"'))
+    const incomplete = JSON.parse(screen.getByTestId('recovery-probe').textContent ?? '{}')
+    expect(incomplete.uncertainOrders.completionVerified).toBe(false)
+    expect(incomplete.recovered).toBe(false)
+    expect(writes[0]).toMatchObject({ body: { expected_version: 7, uncertain_order_id: 'Sell001' } })
+    expect(writes[1]).toMatchObject({ body: { expected_version: 7, check_id: 'check-1', uncertain_order_id: 'Sell001', confirm_order_changes: true } })
+    expect(writes[2]).toEqual(writes[1])
+    repaired = true
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh Recovery' }))
+    await waitFor(() => {
+      const snapshot = JSON.parse(screen.getByTestId('recovery-probe').textContent ?? '{}')
+      expect(snapshot.uncertainOrders.completionVerified).toBe(true)
+      expect(snapshot.recovered).toBe(true)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Select uncertain order' }))
+    expect(screen.getByTestId('recovery-probe').textContent).toContain('Sell001')
+    fireEvent.click(screen.getByRole('button', { name: 'Clear uncertain order scope' }))
+    await waitFor(() => expect(screen.getByTestId('recovery-probe').textContent).toContain('"ids":[]'))
+    fireEvent.click(screen.getByRole('button', { name: 'Select uncertain order' }))
+    await waitFor(() => expect(screen.getByTestId('recovery-probe').textContent).toContain('"ids":["Spot001"]'))
+  })
+
+  it('keeps scoped Check scope and idempotency key after timeout and blocks even clearing while outcome is unknown', async () => {
+    const attempts: Array<{ body: unknown; key: string | null }> = []
+    server.use(
+      http.get(`${baseUrl}/status`, () => HttpResponse.json(status)),
+      http.get(`${baseUrl}/recovery`, ({ request }) => HttpResponse.json({ halted: !new URL(request.url).search,
+        control_version: 7, check_available: true, reset_available: false, blockers: [], operation: null })),
+      http.post(`${baseUrl}/recovery/check`, async ({ request }) => {
+        attempts.push({ body: await request.json(), key: request.headers.get('Idempotency-Key') })
+        return attempts.length === 1 ? HttpResponse.json({ detail: 'unknown result' }, { status: 503 })
+          : HttpResponse.json({ ...checkOperation, status: 'accepted', stage: 'queued' }, { status: 202 })
+      }),
+      http.get(`${baseUrl}/recovery/operations/:id`, () => HttpResponse.json(checkOperation)),
+    )
+    const { result } = renderHook(useRecoveryOperationContext, { wrapper })
+    await waitFor(() => expect(result.current.checkAvailable).toBe(true))
+    await act(async () => { result.current.uncertainOrders.setIds(['Spot001']) })
+    await waitFor(() => expect(result.current.checkAvailable).toBe(true))
+    await act(async () => { await expect(result.current.check()).rejects.toThrow() })
+    expect(result.current.canRetryCheck).toBe(true)
+    await act(async () => { result.current.uncertainOrders.setIds([]) })
+    expect(result.current.uncertainOrders.ids).toEqual(['Spot001'])
+    expect(result.current.uncertainOrders.validationError).toMatch(/Wait for the current recovery request/)
+    await act(async () => { await result.current.retryCheck() })
+    expect(attempts).toHaveLength(2)
+    expect(attempts[1]).toEqual(attempts[0])
+    expect(attempts[0].body).toEqual({ expected_version: 7, uncertain_order_id: 'Spot001' })
+  })
+
+  it('blocks Check after invalid ID input instead of submitting the previous scope', async () => {
+    let writes = 0
+    server.use(
+      http.get(`${baseUrl}/status`, () => HttpResponse.json(status)),
+      http.get(`${baseUrl}/recovery`, () => HttpResponse.json({ halted: true, control_version: 7,
+        check_available: true, reset_available: false, blockers: [], operation: null })),
+      http.post(`${baseUrl}/recovery/check`, () => { writes++; return HttpResponse.json(checkOperation, { status: 202 }) }),
+    )
+    const { result } = renderHook(useRecoveryOperationContext, { wrapper })
+    await waitFor(() => expect(result.current.checkAvailable).toBe(true))
+    await act(async () => { result.current.uncertainOrders.setIds(['Spot001']) })
+    await act(async () => { result.current.uncertainOrders.setIds(['bad-id']) })
+    expect(result.current.uncertainOrders.ids).toEqual(['Spot001'])
+    expect(result.current.checkAvailable).toBe(false)
+    await act(async () => { await expect(result.current.check()).rejects.toThrow('uncertain_order_ids_invalid') })
+    expect(writes).toBe(0)
+  })
+
+  it('rejects a persisted uncertain-order preview when its IDs are not selected', async () => {
+    server.use(
+      http.get(`${baseUrl}/status`, () => HttpResponse.json(status)),
+      http.get(`${baseUrl}/recovery`, () => HttpResponse.json({ halted: true, control_version: 7,
+        check_available: true, reset_available: true, blockers: [], operation: { ...checkOperation,
+          proposed_uncertain_order: { id: 'Spot001', side: 'BUY', pair: 'BTC-USDT', amount: '1', price: '1', connector: 'okx', before: 'PendingBuy', after: 'OrderFailure', deadline_ms: 1, evidence: 'expired_submission_and_reconciled_exchange' } } })),
+    )
+    const { result } = renderHook(useRecoveryOperationContext, { wrapper })
+    await waitFor(() => expect(result.current.operation?.id).toBe('check-1'))
+    expect(result.current.reviewDecision).toMatchObject({ allowed: false, reason: 'uncertain_order_scope_required' })
+    await act(async () => { await expect(result.current.confirmReset()).rejects.toThrow('recovery_check_not_reviewable') })
   })
 
   it('serializes concurrent Check preflights and retains the first request key after timeout', async () => {

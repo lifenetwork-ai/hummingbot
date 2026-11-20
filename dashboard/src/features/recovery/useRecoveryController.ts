@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/auth/auth-context'
 import { ApiError } from '../../core/api/client'
 import { useApiSessionScope } from '../../core/api/ApiSessionContext'
-import { useAdminMutation, useAdminQuery } from '../../core/api/hooks'
+import { useAdminMutation } from '../../core/api/hooks'
 import { adminKeys, adminQueryOptions, receiptFinished } from '../../core/api/queries'
 import { useAdminApi } from '../../core/api/ApiContext'
 import { invalidateAfterMutation, invalidateAfterReceipt } from '../../core/api/invalidation'
@@ -18,6 +18,7 @@ import { recoveryComplete, recoveryEntry, recoveryOperationPending, reviewRecove
 import { deriveRecoveryPresentation, deriveRecoveryVerification } from './presentation'
 import { useObservationTime } from '../../shared/utils/useObservationTime'
 import { deriveRecoveryViewModel } from './view-model'
+import { exactUncertainOrderRepairs, normalizeUncertainOrderRepairs, uncertainOrderQuery, uncertainOrderRequest, validateUncertainOrderIds } from './uncertain-orders'
 
 function newKey() { return crypto.randomUUID() }
 function hideConfirmationToken<T extends { confirmation_token: string | null }>(operation: T): T {
@@ -29,14 +30,14 @@ function outcomeMayBeUnknown(error: unknown): boolean {
 }
 
 function useSafeRecoveryReceipt(api: ReturnType<typeof useAdminApi>, id: string | undefined, enabled: boolean,
-  captureToken?: (token: string) => void) {
+  captureToken?: (token: string, operationId: string) => void) {
   const input = id ? { path: { operation_id: id } } : undefined
   const options = adminQueryOptions(api, 'getRecoveryOperation', input)
   return useQuery({
     ...options,
     queryFn: input === undefined ? skipToken : async ({ signal }) => {
       const response = await api.read('getRecoveryOperation', input, signal)
-      if (response.confirmation_token) captureToken?.(response.confirmation_token)
+      if (response.confirmation_token) captureToken?.(response.confirmation_token, response.id)
       return hideConfirmationToken(response)
     },
     enabled,
@@ -47,14 +48,26 @@ function useSafeRecoveryReceipt(api: ReturnType<typeof useAdminApi>, id: string 
 export function useRecoveryController(active: boolean, activate: () => () => void) {
   const { identity } = useAuth()
   const operational = useOperationalContext()
+  const api = useAdminApi()
   const permission = Boolean(identity?.permissions.manage_recovery)
-  const overview = useAdminQuery('getRecovery', {}, { enabled: permission && active })
+  const [uncertainOrderIds, setUncertainOrderIdsState] = useState<string[]>([])
+  const [uncertainOrderValidationError, setUncertainOrderValidationError] = useState<string | null>(null)
+  const uncertainOrderIdsRef = useRef<string[]>([])
+  const overviewInput = useMemo(() => uncertainOrderQuery(uncertainOrderIds), [uncertainOrderIds])
+  const overviewOptions = adminQueryOptions(api, 'getRecovery', overviewInput)
+  const overview = useQuery({
+    ...overviewOptions,
+    queryFn: async ({ signal }) => {
+      const response = await api.read('getRecovery', overviewInput, signal)
+      return { ...response, operation: response.operation ? hideConfirmationToken(response.operation) : null }
+    },
+    enabled: permission && active,
+  })
   const status = operational.status
   const now = useObservationTime(active)
   const refreshStatus = operational.refreshStatus
   const resetMutation = useAdminMutation('resetRecovery')
   const client = useQueryClient()
-  const api = useAdminApi()
   const apiSession = useApiSessionScope()
   const scope = `${apiSession?.apiBaseUrl ?? ''}\0${apiSession?.principalId ?? ''}\0${operational.botId ?? ''}`
   const operationScope = `${scope}\0${permission ? 'manage_recovery' : 'permission_revoked'}`
@@ -68,7 +81,8 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
   const trackedReceipts = useTrackedReceipts()
   const latestTrackedRecovery = trackedReceipts.find((receipt) => receipt.kind === 'recovery')
   const latestTrackedRecoveryId = latestTrackedRecovery?.id
-  const confirmationToken = useRef<string>()
+  const confirmationToken = useRef<{ id: string; token: string }>()
+  const dismissedTrackedRecoveryId = useRef<string>()
   const checkBusy = useRef(false)
   const checkMutation = useMutation({
     mutationKey: ['admin', 'checkRecovery'],
@@ -78,7 +92,7 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
       const response = await api.mutate('checkRecovery', input)
       const stillAuthorized = permissionRef.current && scopeRef.current === submittedScope &&
         scopeGeneration.current === submittedGeneration
-      if (stillAuthorized && response.confirmation_token) confirmationToken.current = response.confirmation_token
+      if (stillAuthorized && response.confirmation_token) confirmationToken.current = { id: response.id, token: response.confirmation_token }
       const botId = trustedBotId(client)
       const receiptScope = apiSession?.apiBaseUrl && apiSession.principalId && botId
         ? { apiBaseUrl: apiSession.apiBaseUrl, principalId: apiSession.principalId, botId } : undefined
@@ -97,6 +111,8 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
   }
   const [checkId, setCheckId] = useState<string>()
   const [resetId, setResetId] = useState<string>()
+  const checkIdRef = useRef(checkId)
+  checkIdRef.current = checkId
   const [checkedVersion, setCheckedVersion] = useState<number>()
   const actionBusy = useRef(false)
   const [preflightAction, setPreflightAction] = useState<'check' | 'reset' | null>(null)
@@ -126,8 +142,15 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
     setCheckId(undefined)
     setResetId(undefined)
     setCheckedVersion(undefined)
+    confirmationToken.current = undefined
+    dismissedTrackedRecoveryId.current = undefined
+    uncertainOrderIdsRef.current = []
+    setUncertainOrderIdsState([])
+    setUncertainOrderValidationError(null)
   }, [operationScope])
-  const checkReceipt = useSafeRecoveryReceipt(api, checkId, permission, (token) => { confirmationToken.current = token })
+  const checkReceipt = useSafeRecoveryReceipt(api, checkId, permission, (token, operationId) => {
+    if (checkIdRef.current === operationId) confirmationToken.current = { id: operationId, token }
+  })
   const resetReceipt = useSafeRecoveryReceipt(api, resetId, permission)
   const observedCheckReceipt = useRef<unknown>()
   const observedResetReceipt = useRef<unknown>()
@@ -145,7 +168,7 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
     }
   }, [checkReceipt.data, client, resetReceipt.data])
   useEffect(() => {
-    if (permission && !checkId && !resetId && latestTrackedRecoveryId) setCheckId(latestTrackedRecoveryId)
+    if (permission && !checkId && !resetId && latestTrackedRecoveryId && latestTrackedRecoveryId !== dismissedTrackedRecoveryId.current) setCheckId(latestTrackedRecoveryId)
   }, [checkId, permission, resetId, latestTrackedRecoveryId])
   // The confirmation token is needed only inside this controller. Clear it from the
   // in-memory query cache after reading each receipt; persisted receipt references
@@ -158,7 +181,7 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
   }, [resetId, resetReceipt.data, client])
   useEffect(() => {
     const expiresAt = Date.parse(checkReceipt.data?.expires_at ?? '')
-    if (!confirmationToken.current || !Number.isFinite(expiresAt)) return
+    if (!confirmationToken.current || confirmationToken.current.id !== checkId || !Number.isFinite(expiresAt)) return
     const timeout = window.setTimeout(() => {
       if (Date.now() < expiresAt) return
       confirmationToken.current = undefined
@@ -169,12 +192,6 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
     }, Math.max(0, expiresAt - Date.now()))
     return () => window.clearTimeout(timeout)
   }, [checkId, checkReceipt.data?.expires_at])
-  useEffect(() => {
-    if (overview.data?.operation?.confirmation_token) {
-      client.setQueryData(adminKeys.query('getRecovery', {}), { ...overview.data,
-        operation: { ...overview.data.operation, confirmation_token: null } })
-    }
-  }, [overview.data, client])
   const operation = resetReceipt.data ?? checkReceipt.data ?? overview.data?.operation ?? undefined
   const publicOperation = operation ? { ...operation, confirmation_token: null } : undefined
   const publicOverview = overview.data ? { ...overview.data,
@@ -184,16 +201,64 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
   const publicReset = resetReceipt.data ? { ...resetReceipt.data, confirmation_token: null } : undefined
   const pending = checkMutation.isPending || resetMutation.isPending || Boolean(pendingCheck.current || pendingReset.current || actionBusy.current) || recoveryOperationPending(operation)
   const pendingOperationLock = Boolean(pendingCheck.current || pendingReset.current || checkMutation.isPending || resetMutation.isPending || actionBusy.current)
+  const recoveryPending = pendingOperationLock || recoveryOperationPending(operation)
 
-  const checkDecision = recoveryEntry({ permission, overview: overview.data, status: status.data,
-    statusFresh: status.phase === 'ready', operationPending: pending })
+  const scopedProposed = normalizeUncertainOrderRepairs(operation)
+  const scopedRepaired = normalizeUncertainOrderRepairs(operation && {
+    proposed_uncertain_order: operation.repaired_uncertain_order,
+    proposed_uncertain_orders: operation.repaired_uncertain_orders,
+  })
+  const uncertainOrderCompletionVerified = uncertainOrderIds.length > 0 &&
+    operation?.action === 'recovery_reset' && operation.status === 'succeeded' && operation.stage === 'recovered' &&
+    exactUncertainOrderRepairs(uncertainOrderIds, scopedRepaired)
+  const uncertainOrderSelectionLocked = recoveryPending || Boolean(checkId || resetId)
+
+  const setUncertainOrderIds = (ids: string[]) => {
+    const validation = validateUncertainOrderIds(ids)
+    if (validation) {
+      setUncertainOrderValidationError(validation)
+      return
+    }
+    if (recoveryPending || actionBusy.current || pendingCheck.current || pendingReset.current) {
+      setUncertainOrderValidationError('Wait for the current recovery request to finish before changing order IDs.')
+      return
+    }
+    if (uncertainOrderSelectionLocked && ids.length > 0) {
+      setUncertainOrderValidationError('Clear the current recovery review before selecting different order IDs.')
+      return
+    }
+    setUncertainOrderValidationError(null)
+    uncertainOrderIdsRef.current = [...ids]
+    setUncertainOrderIdsState([...ids])
+    if (ids.length === 0 || ids.join('\0') !== uncertainOrderIds.join('\0')) {
+      if (ids.length === 0) dismissedTrackedRecoveryId.current = latestTrackedRecoveryId
+      confirmationToken.current = undefined
+      setCheckId(undefined)
+      setResetId(undefined)
+      setCheckedVersion(undefined)
+    }
+  }
+
+  const baseCheckDecision = recoveryEntry({ permission, overview: overview.data, status: status.data,
+    statusFresh: status.phase === 'ready', operationPending: pending, uncertainOrderScope: uncertainOrderIds.length > 0 })
   const reviewOperation = checkReceipt.data ? { ...checkReceipt.data,
-    confirmation_token: confirmationToken.current ?? checkReceipt.data.confirmation_token } : undefined
-  const reviewDecision = reviewRecovery({ permission, overview: overview.data, status: status.data,
-    statusFresh: status.phase === 'ready', operation: reviewOperation })
+    confirmation_token: (confirmationToken.current?.id === checkReceipt.data.id ? confirmationToken.current.token : undefined) ?? checkReceipt.data.confirmation_token } : undefined
+  const baseReviewDecision = reviewRecovery({ permission, overview: overview.data, status: status.data,
+    statusFresh: status.phase === 'ready', operation: reviewOperation, uncertainOrderScope: uncertainOrderIds.length > 0 })
+  const checkDecision = uncertainOrderValidationError
+    ? { allowed: false, reason: 'uncertain_order_ids_invalid' }
+    : baseCheckDecision
+  const reviewDecision = !uncertainOrderIds.length && scopedProposed.length
+    ? { allowed: false, reason: 'uncertain_order_scope_required' }
+    : uncertainOrderIds.length && !exactUncertainOrderRepairs(uncertainOrderIds, scopedProposed)
+      ? { allowed: false, reason: 'uncertain_order_preview_mismatch' }
+      : baseReviewDecision
+  const uncertainOrderReviewAvailable = uncertainOrderIds.length > 0 && !uncertainOrderValidationError &&
+    baseReviewDecision.allowed && exactUncertainOrderRepairs(uncertainOrderIds, scopedProposed)
 
   const check = async () => {
     assertPermission()
+    if (uncertainOrderValidationError) throw new Error('uncertain_order_ids_invalid')
     if (actionBusy.current) throw new Error('A recovery action is already in progress')
     actionBusy.current = true
     setPreflightAction('check')
@@ -205,13 +270,18 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
       const fresh = await refreshStatus()
       assertPermission()
       assertScope(startedIn, generation)
-      const currentOverview = await overview.refetch()
+      const ids = [...uncertainOrderIdsRef.current]
+      const currentOverview = await api.read('getRecovery', uncertainOrderQuery(ids))
       assertPermission()
       assertScope(startedIn, generation)
-      const decision = recoveryEntry({ permission: permissionRef.current, overview: currentOverview.data, status: fresh.data,
-        statusFresh: fresh.isSuccess, operationPending: pending })
+      client.setQueryData(adminKeys.query('getRecovery', uncertainOrderQuery(ids)), {
+        ...currentOverview,
+        operation: currentOverview.operation ? hideConfirmationToken(currentOverview.operation) : null,
+      })
+      const decision = recoveryEntry({ permission: permissionRef.current, overview: currentOverview, status: fresh.data,
+        statusFresh: fresh.isSuccess, operationPending: pending, uncertainOrderScope: ids.length > 0 })
       if (!decision.allowed || !fresh.data) throw new Error(decision.reason ?? 'recovery_check_unavailable')
-      const input = { body: { expected_version: fresh.data.control_version }, idempotencyKey: newKey() }
+      const input = { body: { expected_version: fresh.data.control_version, ...uncertainOrderRequest(ids) }, idempotencyKey: newKey() }
       pendingCheck.current = input
       let receipt
       try { receipt = await submitCheck(input) }
@@ -225,6 +295,7 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
       setResetId(undefined)
       setCheckId(receipt.id)
       setCheckedVersion(fresh.data.control_version)
+      setUncertainOrderValidationError(null)
       return hideConfirmationToken(receipt)
     } finally {
       actionBusy.current = false
@@ -254,6 +325,7 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
       assertPermission()
       setCheckId(receipt.id)
       setCheckedVersion(input.body.expected_version)
+      setUncertainOrderValidationError(null)
       return hideConfirmationToken(receipt)
     } finally {
       actionBusy.current = false
@@ -261,7 +333,7 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
     }
   }
 
-  const confirmReset = async () => {
+  const confirmReset = async (options?: { confirmOrderChanges?: boolean }) => {
     assertPermission()
     if (actionBusy.current) throw new Error('A recovery action is already in progress')
     actionBusy.current = true
@@ -270,16 +342,19 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
       const startedIn = scopeRef.current
       const generation = scopeGeneration.current
       if (pendingCheck.current || pendingReset.current) throw new Error('A recovery request has an unknown outcome; retry the same request first')
+      if (!checkId) throw new Error('recovery_check_not_reviewable')
       const [freshStatus, freshOverview, freshCheck] = await Promise.all([
         refreshStatus(), overview.refetch(), checkReceipt.refetch(),
       ])
       assertPermission()
       assertScope(startedIn, generation)
       const reviewedCheck = freshCheck.data
-      const token = reviewedCheck?.confirmation_token ?? confirmationToken.current
+      const token = reviewedCheck?.confirmation_token ?? (confirmationToken.current && reviewedCheck &&
+        confirmationToken.current.id === reviewedCheck.id ? confirmationToken.current.token : undefined)
+      const ids = uncertainOrderIdsRef.current
       const decision = reviewRecovery({ permission: permissionRef.current, overview: freshOverview.data, status: freshStatus.data,
         statusFresh: freshStatus.isSuccess, operation: reviewedCheck ? { ...reviewedCheck,
-          confirmation_token: token ?? null } : undefined })
+          confirmation_token: token ?? null } : undefined, uncertainOrderScope: ids.length > 0 })
       if (!decision.allowed || !freshStatus.data || !token || !reviewedCheck) {
         confirmationToken.current = undefined
         setCheckId(undefined)
@@ -295,11 +370,20 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
         setCheckId(undefined)
         throw new Error('control_version_changed')
       }
+      const proposed = normalizeUncertainOrderRepairs(reviewedCheck)
+      if (ids.length && !exactUncertainOrderRepairs(ids, proposed)) {
+        confirmationToken.current = undefined
+        setCheckId(undefined)
+        throw new Error('uncertain_order_preview_mismatch')
+      }
+      if (!ids.length && proposed.length) throw new Error('uncertain_order_scope_required')
+      if (ids.length && options?.confirmOrderChanges !== true) throw new Error('uncertain_order_confirmation_required')
       const input = { body: {
         expected_version: checkedVersion,
         check_id: reviewedCheck.id,
         confirmation_token: token,
-        confirm_order_changes: false,
+        confirm_order_changes: ids.length > 0,
+        ...uncertainOrderRequest(ids),
       }, idempotencyKey: newKey() }
       pendingReset.current = input
       let receipt
@@ -318,6 +402,7 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
       confirmationToken.current = undefined
       setCheckId(undefined)
       setResetId(receipt.id)
+      setUncertainOrderValidationError(null)
       return hideConfirmationToken(receipt)
     } finally {
       actionBusy.current = false
@@ -350,6 +435,7 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
       if (pendingReset.current?.idempotencyKey === input.idempotencyKey) pendingReset.current = undefined
       assertPermission()
       setResetId(receipt.id)
+      setUncertainOrderValidationError(null)
       return hideConfirmationToken(receipt)
     } finally {
       actionBusy.current = false
@@ -361,6 +447,15 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
   const resetFeedback = deriveFormFeedback(resetMutation.error, 'recovery')
   const viewModel = deriveRecoveryViewModel({
     permission,
+    uncertainOrders: {
+      ids: uncertainOrderIds,
+      validationError: uncertainOrderValidationError,
+      proposed: scopedProposed,
+      repaired: scopedRepaired,
+      completionVerified: uncertainOrderCompletionVerified,
+      reviewAvailable: uncertainOrderReviewAvailable,
+      selectionLocked: uncertainOrderSelectionLocked,
+    },
     summary: publicOverview,
     status: status.data,
     operation: publicOperation,
@@ -387,6 +482,16 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
     status, operation: publicOperation, checkReceipt: { data: publicCheck, error: checkReceipt.error, isLoading: checkReceipt.isLoading, isFetching: checkReceipt.isFetching },
     resetReceipt: { data: publicReset, error: resetReceipt.error, isLoading: resetReceipt.isLoading, isFetching: resetReceipt.isFetching },
     check, retryCheck, confirmReset, retryReset, checkDecision, reviewDecision,
+    uncertainOrders: {
+      ids: uncertainOrderIds,
+      setIds: setUncertainOrderIds,
+      validationError: uncertainOrderValidationError,
+      proposed: scopedProposed,
+      repaired: scopedRepaired,
+      completionVerified: uncertainOrderCompletionVerified,
+      reviewAvailable: uncertainOrderReviewAvailable,
+      selectionLocked: uncertainOrderSelectionLocked,
+    },
     canRetryCheck: Boolean(pendingCheck.current), canRetryReset: Boolean(pendingReset.current),
     access: { allowed: permission, detail: permission ? 'manage_recovery permission granted.' : 'Contact an administrator with manage_recovery permission to inspect and recover.' },
     comparison: buildRecoveryComparison(operation?.proposed_changes),
@@ -395,11 +500,16 @@ export function useRecoveryController(active: boolean, activate: () => () => voi
     reviewAvailable: reviewDecision.allowed,
     operationPending: pending,
     lockSessionAndConnections: pending || pendingOperationLock,
-    completed: recoveryComplete(resetReceipt.data ?? checkReceipt.data),
+    completed: uncertainOrderIds.length ? uncertainOrderCompletionVerified : recoveryComplete(resetReceipt.data ?? checkReceipt.data),
     trackedReceipts: trackedReceipts.filter((receipt) => receipt.kind === 'recovery'),
     refreshingStatus: status.refreshing,
     refresh: async () => {
-      const [recovery, runtime] = await Promise.all([overview.refetch(), refreshStatus()])
+      const [recovery, runtime] = await Promise.all([
+        overview.refetch(),
+        refreshStatus(),
+        checkId ? checkReceipt.refetch() : Promise.resolve(undefined),
+        resetId ? resetReceipt.refetch() : Promise.resolve(undefined),
+      ])
       return [{ ...recovery, data: recovery.data ? { ...recovery.data,
         operation: recovery.data.operation ? hideConfirmationToken(recovery.data.operation) : null } : undefined }, runtime] as const
     },

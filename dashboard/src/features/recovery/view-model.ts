@@ -5,7 +5,18 @@ import { buildRecoveryComparison } from './comparison'
 import { deriveRecoveryPresentation, deriveRecoveryVerification } from './presentation'
 import { recoveryComplete } from './recovery'
 
+export type UncertainOrdersViewModel = {
+  ids: readonly string[]
+  validationError: string | null
+  proposed: components['schemas']['RecoveryUncertainOrderRepairOutput'][]
+  repaired: components['schemas']['RecoveryUncertainOrderRepairOutput'][]
+  completionVerified: boolean
+  reviewAvailable: boolean
+  selectionLocked: boolean
+}
+
 export type RecoveryViewModel = {
+  uncertainOrders?: UncertainOrdersViewModel
   hasAccess: boolean
   summary?: RecoveryOverview | null
   status?: ReadResponse<'getRuntimeStatus'> | null
@@ -33,6 +44,7 @@ export type RecoveryViewModel = {
 }
 
 export function deriveRecoveryViewModel(input: {
+  uncertainOrders?: UncertainOrdersViewModel
   permission: boolean
   summary?: RecoveryOverview | null
   status?: ReadResponse<'getRuntimeStatus'> | null
@@ -56,6 +68,7 @@ export function deriveRecoveryViewModel(input: {
   const expiresAt = Date.parse(operation?.expires_at ?? '')
   const previewValid = Number.isFinite(expiresAt) && expiresAt > input.now
   return {
+    uncertainOrders: input.uncertainOrders,
     hasAccess: input.permission,
     summary,
     status,
@@ -73,7 +86,7 @@ export function deriveRecoveryViewModel(input: {
     resetError: input.resetError,
     halted: summary?.halted === true,
     stage,
-    recovered: recoveryComplete(operation),
+    recovered: recoveryComplete(operation) && (!input.uncertainOrders?.ids.length || input.uncertainOrders.completionVerified),
     blockers: operation?.blockers ?? summary?.blockers ?? [],
     proposedChanges,
     automaticEngaged: automatic !== null && (presentation.active || presentation.isolated ||

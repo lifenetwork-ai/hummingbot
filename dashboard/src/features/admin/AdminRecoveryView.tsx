@@ -1,18 +1,24 @@
-import { AlertOctagon, CheckCircle2, Clock, Info, Loader2, RefreshCw, ShieldAlert, Wrench } from 'lucide-react'
+import { AlertOctagon, CheckCircle2, Clock, Info, Loader2, RefreshCw, ShieldAlert, Tag, Wrench } from 'lucide-react'
 import { useState } from 'react'
 import type { RecoveryViewModel } from '../recovery/view-model'
 import { Badge } from '../../shared/components/Badge'
 import { Button } from '../../shared/components/Button'
 import { Surface } from '../../shared/components/Surface'
+import { ProposedUncertainOrdersTable } from './ProposedUncertainOrdersTable'
 import { RecoveryResetDialog } from './RecoveryResetDialog'
+import { RecoveryScopeSelector } from './RecoveryScopeSelector'
+import { RepairedUncertainOrdersTable } from './RepairedUncertainOrdersTable'
 
 export interface AdminRecoveryViewProps {
   model: RecoveryViewModel
   onCheckRecovery: () => Promise<unknown>
   onRetryCheck: () => Promise<unknown>
-  onResetRecovery: () => Promise<unknown>
+  onResetRecovery: (options?: { confirmOrderChanges?: boolean }) => Promise<unknown>
   onRetryReset: () => Promise<unknown>
   onRefresh: () => Promise<unknown>
+  onScopeChange?: (ids: string[]) => void
+  onClearScope?: () => void
+  operationPending?: boolean
 }
 
 export function AdminRecoveryView({
@@ -21,6 +27,9 @@ export function AdminRecoveryView({
   onResetRecovery,
   onRetryReset,
   onRefresh,
+  onScopeChange,
+  onClearScope,
+  operationPending = false,
   model,
 }: AdminRecoveryViewProps) {
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
@@ -54,6 +63,38 @@ export function AdminRecoveryView({
     previewSecondsRemaining: model.previewSecondsRemaining,
   }
 
+  const uncertainOrders = model.uncertainOrders
+  const scopedProposed = uncertainOrders?.proposed ?? []
+  const scopedRepaired = uncertainOrders?.repaired ?? []
+  const scopedIds = uncertainOrders?.ids ?? []
+  const hasScopedIds = scopedIds.length > 0
+  const [scopeMode, setScopeMode] = useState<'generic' | 'scoped'>(() => (hasScopedIds ? 'scoped' : 'generic'))
+  const isScoped = hasScopedIds || scopeMode === 'scoped' || Boolean(uncertainOrders?.reviewAvailable) || scopedProposed.length > 0 || scopedRepaired.length > 0
+
+  const isPending = Boolean(
+    operationPending ||
+    isChecking ||
+    isResetting ||
+    canRetryCheck ||
+    canRetryReset ||
+    activeOperation?.status === 'applying' ||
+    stage === 'checking' ||
+    stage === 'applying',
+  )
+
+  const isScopedMissingIds = scopeMode === 'scoped' && scopedIds.length === 0
+  const isCheckDisabled = Boolean(
+    presentation.waitingForShutdown ||
+    !checkDecision.allowed ||
+    isChecking ||
+    isResetting ||
+    isScopedMissingIds ||
+    (isScoped && Boolean(uncertainOrders?.validationError)),
+  )
+  const checkLockReason = isScopedMissingIds
+    ? 'Nhập và Apply ID lệnh trước khi Check'
+    : uncertainOrders?.validationError ?? checkDecision.reason ?? (checkDecision.allowed ? undefined : 'Check unavailable')
+
   // 1. Permission Denied Entry (T-22)
   if (!hasAccess || checkDecision.reason === 'permission_required') {
     return (
@@ -77,19 +118,18 @@ export function AdminRecoveryView({
   const isCheckUnknown = canRetryCheck
   const isResetUnknown = canRetryReset
 
-  const handleConfirmReset = async () => {
+  const handleConfirmReset = async (options?: { confirmOrderChanges?: boolean }) => {
     try {
-      await onResetRecovery()
+      await onResetRecovery(options)
       setResetDialogOpen(false)
     } catch {
       // Keep confirmation open; error is supplied by the controller owner.
     }
   }
 
-  // No recovery needed state — only when a fresh observation confirms the HALT flag is
-  // clear AND automatic recovery is idle. Automatic work or an unknown/stale observation
-  // must never be reported as "no recovery needed".
-  if (recoverySummary && !halted && !activeOperation && presentation.showNoRecoveryNeeded) {
+  // No recovery needed state — only when generic recovery has a fresh idle observation,
+  // NOT halted, no pending retries, and no scoped uncertain order recovery is active or selected.
+  if (!isScoped && !canRetryCheck && !canRetryReset && recoverySummary && !halted && !activeOperation && presentation.showNoRecoveryNeeded) {
     return (
       <Surface className="p-6 text-center">
         <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-app-success/10 text-app-success">
@@ -99,11 +139,21 @@ export function AdminRecoveryView({
           No Incident Recovery Required
         </h3>
         <p className="mx-auto mt-2 max-w-md text-xs text-app-muted">
-          Backend is not in a HALT state requiring recovery. Recovery operations only restore ledger state; they do not automatically start trading.
+          Backend is not in a HALT state requiring generic recovery. Recovery operations only restore ledger state; they do not automatically start trading.
         </p>
-        <Button variant="secondary" className="mt-4 h-8 px-3 text-xs" onClick={() => { void onRefresh() }}>
-          Refresh status
-        </Button>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <Button variant="secondary" className="h-8 px-3 text-xs" onClick={() => { void onRefresh() }}>
+            Refresh status
+          </Button>
+          <Button
+            variant="secondary"
+            className="h-8 px-3 text-xs gap-1.5"
+            onClick={() => setScopeMode('scoped')}
+          >
+            <Tag size={13} />
+            <span>Review uncertain orders</span>
+          </Button>
+        </div>
       </Surface>
     )
   }
@@ -115,7 +165,13 @@ export function AdminRecoveryView({
           <div className="flex items-center gap-2">
             <ShieldAlert size={20} className="text-app-danger" />
             <h3 className="font-heavy text-lg font-bold text-app-text">
-              {presentation.waitingForShutdown ? status?.operator?.label || 'Verifying shutdown' : halted ? 'HALT Incident Recovery' : 'Incident Recovery'}
+              {presentation.waitingForShutdown
+                ? status?.operator?.label || 'Verifying shutdown'
+                : halted
+                  ? 'HALT Incident Recovery'
+                  : isScoped
+                    ? 'Scoped Uncertain Order Recovery'
+                    : 'Incident Recovery'}
             </h3>
           </div>
           <p className="mt-1 text-xs text-app-muted">
@@ -123,8 +179,8 @@ export function AdminRecoveryView({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Badge tone={recovered ? 'success' : halted ? 'danger' : 'neutral'} className="text-xs">
-            {recovered ? 'Recovered' : presentation.waitingForShutdown ? 'Waiting' : halted ? 'HALT' : 'Observation'}
+          <Badge tone={recovered ? 'success' : halted ? 'danger' : isScoped ? 'brand' : 'neutral'} className="text-xs">
+            {recovered ? 'Recovered' : presentation.waitingForShutdown ? 'Waiting' : halted ? 'HALT' : isScoped ? 'Scoped' : 'Observation'}
           </Badge>
           {activeOperation && (
             <Badge tone="brand" className="text-xs">
@@ -133,6 +189,20 @@ export function AdminRecoveryView({
           )}
         </div>
       </div>
+
+      {/* Scope Selector: Generic vs Scoped Uncertain Orders */}
+      <RecoveryScopeSelector
+        currentIds={scopedIds}
+        validationError={uncertainOrders?.validationError}
+        selectionLocked={uncertainOrders?.selectionLocked}
+        isPending={isPending}
+        suggestedOrderId={presentation.orderId}
+        suggestionFresh={presentation.observation === 'fresh'}
+        onScopeChange={onScopeChange}
+        onClearScope={onClearScope}
+        scopeMode={scopeMode}
+        onScopeModeChange={setScopeMode}
+      />
 
       {/* Automatic recovery observation — shown whenever automatic work, scoped trading
           or a retained reservation is engaged, even while halted=false. */}
@@ -192,6 +262,29 @@ export function AdminRecoveryView({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Scoped Reset unverified banner — shown only after a recovery_reset action finishes without exact repair proof */}
+      {isScoped && !recovered && activeOperation?.action === 'recovery_reset' && (stage === 'recovered' || activeOperation.status === 'succeeded') && (
+        <div className="mt-5 rounded-card border border-app-warning/30 bg-app-warning/10 p-4 text-xs text-app-text">
+          <div className="flex items-start gap-3">
+            <AlertOctagon size={20} className="mt-0.5 shrink-0 text-app-warning" />
+            <div>
+              <h4 className="font-bold text-sm text-app-warning">Recovery Unverified</h4>
+              <p className="mt-1 leading-relaxed">
+                Receipt reports recovery, but repair proof is incomplete for the selected order IDs. Trading remains stopped. Refresh status to re-verify.
+              </p>
+              <Button variant="secondary" className="mt-3 h-7 px-2.5 text-xs" onClick={() => { void onRefresh() }}>
+                Refresh status
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Repaired Uncertain Orders Table */}
+      {scopedRepaired.length > 0 && (
+        <RepairedUncertainOrdersTable orders={scopedRepaired} />
       )}
 
       {/* Check succeeded but can_recover=false notice */}
@@ -349,7 +442,13 @@ export function AdminRecoveryView({
         </div>
       )}
 
-      {stage === 'review_required' && comparisonItems.length === 0 && (
+      {/* Proposed Uncertain Orders Table */}
+      {stage === 'review_required' && scopedProposed.length > 0 && (
+        <ProposedUncertainOrdersTable orders={scopedProposed} />
+      )}
+
+      {/* Notice when both position comparison and scoped proposed orders are empty */}
+      {stage === 'review_required' && comparisonItems.length === 0 && scopedProposed.length === 0 && (
         verification.checkpointPreserved ? (
           <div className="mt-4 rounded-card border border-app-success/30 bg-app-success/5 p-3 text-xs text-app-text">
             <h4 className="font-bold text-sm">No ledger changes proposed — this is expected on the checkpoint route</h4>
@@ -389,8 +488,9 @@ export function AdminRecoveryView({
           <Button
             variant="secondary"
             onClick={() => { void onCheckRecovery() }}
-            disabled={presentation.waitingForShutdown || !checkDecision.allowed || isChecking || isResetting}
-            title={checkDecision.reason ?? (checkDecision.allowed ? undefined : 'Check unavailable')}
+            disabled={isCheckDisabled}
+            title={checkLockReason}
+            aria-describedby={isScopedMissingIds ? 'check-recovery-guidance' : undefined}
             className="h-8 px-3 text-xs gap-1.5 font-bold"
           >
             {isChecking ? (
@@ -405,6 +505,11 @@ export function AdminRecoveryView({
               </>
             )}
           </Button>
+          {isScopedMissingIds && (
+            <span id="check-recovery-guidance" role="note" className="text-xs text-app-warning font-medium">
+              Nhập và Apply ID lệnh trước khi Check
+            </span>
+          )}
         </div>
 
         <div className="flex gap-2">
@@ -417,6 +522,7 @@ export function AdminRecoveryView({
             <Button
               variant="danger"
               disabled={presentation.waitingForShutdown || !reviewDecision.allowed || isChecking || isResetting || !previewValid}
+              title={!previewValid ? 'Preview expired — run new Check' : reviewDecision.reason ?? (reviewDecision.allowed ? undefined : 'Reset unavailable')}
               onClick={() => setResetDialogOpen(true)}
               className="h-8 px-3 text-xs font-bold"
             >
@@ -436,9 +542,12 @@ export function AdminRecoveryView({
       <RecoveryResetDialog
         open={resetDialogOpen}
         isResetting={isResetting}
+        error={resetError}
         checkpointPreserved={verification.checkpointPreserved && proposedChanges.length === 0}
+        scopedOrders={scopedProposed}
+        previewValid={previewValid}
         onOpenChange={(open) => setResetDialogOpen(open)}
-        onConfirmReset={() => { void handleConfirmReset() }}
+        onConfirmReset={handleConfirmReset}
       />
     </Surface>
   )

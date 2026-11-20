@@ -15,6 +15,17 @@ function model(expiresAt: string | null, now: number) {
 }
 
 describe('Recovery view model preview expiry', () => {
+  it('requires exact scoped repair evidence before reporting recovery complete', () => {
+    const operation = { ...check(null), action: 'recovery_reset' as const, stage: 'recovered' }
+    const input = { permission: true, operation, checkDecision: allowed, reviewDecision: allowed,
+      canRetryCheck: false, canRetryReset: false, isChecking: false, isResetting: false, fresh: true, now: 0 }
+    const uncertainOrders = { ids: ['SELL1'], proposed: [], repaired: [], validationError: null,
+      completionVerified: false, reviewAvailable: false, selectionLocked: false }
+    expect(deriveRecoveryViewModel({ ...input, uncertainOrders }).recovered).toBe(false)
+    expect(deriveRecoveryViewModel({ ...input, uncertainOrders: { ...uncertainOrders, completionVerified: true } }).recovered).toBe(true)
+    expect(deriveRecoveryViewModel(input).recovered).toBe(true)
+  })
+
   it('derives a positive remaining time for a valid preview', () => {
     expect(model(new Date(5_000).toISOString(), 1_001)).toMatchObject({ previewValid: true, previewSecondsRemaining: 4 })
   })

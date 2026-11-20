@@ -12,10 +12,13 @@ export function recoveryEntry(input: {
   status: ReadResponse<'getRuntimeStatus'> | undefined
   statusFresh: boolean
   operationPending: boolean
+  uncertainOrderScope?: boolean
 }): RecoveryDecision {
   if (!input.permission) return { allowed: false, reason: 'permission_required' }
   if (!input.overview) return { allowed: false, reason: 'recovery_unavailable' }
-  if (!input.overview.halted) return { allowed: false, reason: 'recovery_not_halted' }
+  if (input.uncertainOrderScope ? input.overview.halted : !input.overview.halted) {
+    return { allowed: false, reason: input.uncertainOrderScope ? 'uncertain_order_scope_unavailable' : 'recovery_not_halted' }
+  }
   if (input.operationPending) return { allowed: false, reason: 'recovery_in_progress' }
   if (!input.statusFresh || !input.status) return { allowed: false, reason: 'status_unavailable' }
   if (input.status.recovery?.next_action === 'wait') return { allowed: false, reason: 'shutdown_verification_pending' }
@@ -35,10 +38,13 @@ export function reviewRecovery(input: {
   statusFresh: boolean
   operation: RecoveryOperation | undefined
   now?: number
+  uncertainOrderScope?: boolean
 }): RecoveryDecision {
   const { operation } = input
   if (!input.permission) return { allowed: false, reason: 'permission_required' }
-  if (!input.overview?.halted) return { allowed: false, reason: 'recovery_not_halted' }
+  if (!input.overview || (input.uncertainOrderScope ? input.overview.halted : !input.overview.halted)) {
+    return { allowed: false, reason: input.uncertainOrderScope ? 'uncertain_order_scope_unavailable' : 'recovery_not_halted' }
+  }
   if (!input.statusFresh || !input.status || !input.overview.reset_available) return { allowed: false, reason: 'reset_unavailable' }
   if (input.status.recovery?.next_action === 'wait') return { allowed: false, reason: 'shutdown_verification_pending' }
   const session = input.status.observed_session

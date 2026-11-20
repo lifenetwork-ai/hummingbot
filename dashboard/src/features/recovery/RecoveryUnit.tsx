@@ -22,12 +22,12 @@ export function RecoveryUnit() {
     }
   }
 
-  const runReset = async (retry = false) => {
+  const runReset = async (retry = false, options?: { confirmOrderChanges?: boolean }) => {
     setResetError(undefined)
     const id = retry ? 'admin-recovery-reset-retry' : 'admin-recovery-reset'
     notify.loading(retry ? 'Retrying recovery state reset...' : 'Resetting recovery state...', { id })
     try {
-      await (retry ? recovery.retryReset() : recovery.confirmReset())
+      await (retry ? recovery.retryReset() : recovery.confirmReset(options))
       notify.info(retry ? 'Retry Reset receipt received — continuing to monitor' : 'Reset receipt received — recovered not yet verified', { id })
     } catch (error) {
       setResetError(error instanceof Error ? error.message : 'Recovery reset failed.')
@@ -39,9 +39,12 @@ export function RecoveryUnit() {
   const model = { ...recovery.viewModel, checkError, resetError }
   return <>
     <AdminRecoveryView model={model}
+      operationPending={recovery.operationPending}
+      onScopeChange={recovery.uncertainOrders.setIds}
+      onClearScope={() => recovery.uncertainOrders.setIds([])}
       onCheckRecovery={() => runCheck()}
       onRetryCheck={() => runCheck(true)}
-      onResetRecovery={() => runReset()}
+      onResetRecovery={(options) => runReset(false, options)}
       onRetryReset={() => runReset(true)}
       onRefresh={recovery.refresh} />
     <FeedbackDetailsView title="Recovery check feedback" feedback={recovery.feedback.check.feedback}
